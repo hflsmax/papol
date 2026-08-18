@@ -1,0 +1,225 @@
+import React, { useState, useEffect } from 'react';
+import {
+  adminListTables,
+  adminGetTable,
+  adminUpdateRow,
+  adminDeleteRow,
+  adminRunSql,
+} from '../api';
+
+export default function AdminPage() {
+  const [tables, setTables] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [data, setData] = useState(null);
+  const [edits, setEdits] = useState({});
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [sql, setSql] = useState('');
+  const [sqlResult, setSqlResult] = useState(null);
+  const [sqlError, setSqlError] = useState(null);
+
+  useEffect(() => {
+    adminListTables()
+      .then((d) => {
+        setTables(d.tables);
+        if (d.tables.length > 0) setSelected(d.tables[0]);
+      })
+      .catch((e) => setError(e.message));
+  }, []);
+
+  const loadTable = (name) => {
+    setError(null);
+    setNotice(null);
+    setEdits({});
+    setData(null);
+    adminGetTable(name)
+      .then(setData)
+      .catch((e) => setError(e.message));
+  };
+
+  useEffect(() => {
+    if (selected) loadTable(selected);
+  }, [selected]);
+
+  if (error && !data) return <div className="error">{error}</div>;
+
+  const pkName = data?.primary_key?.[0];
+
+  const cellValue = (row, col) => {
+    const pk = row[pkName];
+    const edited = edits[pk]?.[col];
+    if (edited !== undefined) return edited;
+    const v = row[col];
+    return v === null || v === undefined ? '' : String(v);
+  };
+
+  const setCell = (pk, col, value) => {
+    setEdits((prev) => ({ ...prev, [pk]: { ...prev[pk], [col]: value } }));
+  };
+
+  const saveRow = async (row) => {
+    const pk = row[pkName];
+    const changed = edits[pk];
+    if (!changed) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await adminUpdateRow(selected, pk, changed);
+      setNotice(`Row ${pk} updated.`);
+      loadTable(selected);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const deleteRow = async (row) => {
+    const pk = row[pkName];
+    if (!confirm(`Delete row ${pk} from ${selected}?`)) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await adminDeleteRow(selected, pk);
+      setNotice(`Row ${pk} deleted.`);
+      loadTable(selected);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const runSql = async () => {
+    setSqlError(null);
+    setSqlResult(null);
+    try {
+      const result = await adminRunSql(sql);
+      setSqlResult(result);
+      if (selected) loadTable(selected);
+    } catch (e) {
+      setSqlError(e.message);
+    }
+  };
+
+  return (
+    <div className="admin-page">
+      <div className="panel">
+        <h2 className="panel-title">Admin</h2>
+        <p className="guest-note">Direct database access — no validation.</p>
+
+        <div className="admin-tabs">
+          {tables.map((t) => (
+            <button
+              key={t}
+              className={t === selected ? 'admin-tab active' : 'admin-tab'}
+              onClick={() => setSelected(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {error && <div className="error">{error}</div>}
+        {notice && <div className="success">{notice}</div>}
+
+        {!data ? (
+          <div className="loading">Loading {selected}…</div>
+        ) : (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  {data.columns.map((c) => (
+                    <th key={c}>
+                      {c}
+                      {c === pkName ? ' 🔑' : ''}
+                    </th>
+                  ))}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((row) => (
+                  <tr key={row[pkName]}>
+                    {data.columns.map((col) => (
+                      <td key={col}>
+                        {col === pkName ? (
+                          <span className="admin-pk">{String(row[col])}</span>
+                        ) : (
+                          <input
+                            value={cellValue(row, col)}
+                            onChange={(e) => setCell(row[pkName], col, e.target.value)}
+                          />
+                        )}
+                      </td>
+                    ))}
+                    <td className="admin-row-actions">
+                      <button
+                        disabled={!edits[row[pkName]]}
+                        onClick={() => saveRow(row)}
+                      >
+                        Save
+                      </button>
+                      <button
+                        className="danger-link"
+                        onClick={() => deleteRow(row)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {data.rows.length === 0 && <p className="no-papers">Empty table.</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <h6 className="mini-title">SQL console</h6>
+        <textarea
+          className="admin-sql"
+          rows="3"
+          value={sql}
+          onChange={(e) => setSql(e.target.value)}
+          placeholder="e.g. UPDATE papers SET year = 2025 WHERE id = 3;  (also use for INSERTs)"
+        />
+        <button className="primary" disabled={!sql.trim()} onClick={runSql}>
+          Run
+        </button>
+
+        {sqlError && <div className="error" style={{ marginTop: 12 }}>{sqlError}</div>}
+        {sqlResult && (
+          <div className="admin-sql-result">
+            {sqlResult.rows ? (
+              sqlResult.rows.length === 0 ? (
+                <p className="no-papers">No rows returned.</p>
+              ) : (
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        {sqlResult.columns.map((c) => (
+                          <th key={c}>{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sqlResult.rows.map((row, i) => (
+                        <tr key={i}>
+                          {sqlResult.columns.map((c) => (
+                            <td key={c}>{row[c] === null ? 'NULL' : String(row[c])}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              <p className="success">Done — {sqlResult.rowcount} row(s) affected.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,522 @@
+// Demo mode: a make-believe Papol that lives entirely in the browser.
+// api.js routes every request here when the demo flag is set, so the real
+// backend is never touched. State is seeded fresh on each page load.
+
+const DEMO_FLAG = 'papol_demo';
+
+export function demoActive() {
+  return localStorage.getItem(DEMO_FLAG) === '1';
+}
+
+export function enterDemo() {
+  localStorage.setItem(DEMO_FLAG, '1');
+  db = null; // fresh world on entry
+}
+
+export function exitDemo() {
+  localStorage.removeItem(DEMO_FLAG);
+  db = null;
+}
+
+const ME = 1;
+
+function demoError(detail, status = 400) {
+  const err = new Error(detail);
+  err.status = status;
+  return err;
+}
+
+// ---------- Seed world ----------
+
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+
+function seed() {
+  const users = [
+    { id: ME, display_name: 'SpongeBob SquarePants', affiliation: 'MIT CSAIL', avatar_path: 'assets/demo/spongebob.png', email: 'spongebob@demo.papol', is_admin: false },
+    { id: 2, display_name: 'Sandy Cheeks', affiliation: 'Carnegie Mellon University', avatar_path: 'assets/demo/sandy.png' },
+    { id: 3, display_name: 'Patrick Star', affiliation: 'Stanford University', avatar_path: 'assets/demo/patrick.png' },
+    { id: 4, display_name: 'Squidward Tentacles', affiliation: 'UC Berkeley', avatar_path: 'assets/demo/squidward.png' },
+    { id: 5, display_name: 'Mr. Krabs', affiliation: 'Bikini Bottom University', avatar_path: 'assets/demo/krabs.png' },
+    { id: 6, display_name: 'Plankton', affiliation: 'Bikini State University', avatar_path: 'assets/demo/plankton.png' },
+  ];
+
+  const papers = [
+    { id: 1, doi: '10.1145/357172.357176', title: 'The Byzantine Generals Problem',
+      authors: '["Leslie Lamport", "Robert Shostak", "Marshall Pease"]',
+      journal: 'ACM Transactions on Programming Languages and Systems', year: 1982,
+      file_path: 'demo.pdf', created_at: daysAgo(30) },
+    { id: 2, doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need',
+      authors: '["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones", "Aidan N. Gomez", "Łukasz Kaiser", "Illia Polosukhin"]',
+      journal: 'Advances in Neural Information Processing Systems', year: 2017,
+      file_path: 'demo.pdf', created_at: daysAgo(21) },
+    { id: 3, doi: '10.1145/3065386', title: 'ImageNet Classification with Deep Convolutional Neural Networks',
+      authors: '["Alex Krizhevsky", "Ilya Sutskever", "Geoffrey E. Hinton"]',
+      journal: 'Communications of the ACM', year: 2017,
+      file_path: 'demo.pdf', created_at: daysAgo(18) },
+    { id: 4, doi: '10.1145/362384.362685', title: 'A Relational Model of Data for Large Shared Data Banks',
+      authors: '["E. F. Codd"]',
+      journal: 'Communications of the ACM', year: 1970,
+      file_path: 'demo.pdf', created_at: daysAgo(14) },
+    { id: 5, doi: '10.1002/j.1538-7305.1948.tb01338.x', title: 'A Mathematical Theory of Communication',
+      authors: '["Claude E. Shannon"]',
+      journal: 'Bell System Technical Journal', year: 1948,
+      file_path: 'demo.pdf', created_at: daysAgo(12) },
+    { id: 6, doi: '10.1109/TIT.1976.1055638', title: 'New Directions in Cryptography',
+      authors: '["Whitfield Diffie", "Martin E. Hellman"]',
+      journal: 'IEEE Transactions on Information Theory', year: 1976,
+      file_path: 'demo.pdf', created_at: daysAgo(9) },
+    { id: 7, doi: '10.1016/S0169-7552(98)00110-X', title: 'The Anatomy of a Large-Scale Hypertextual Web Search Engine',
+      authors: '["Sergey Brin", "Lawrence Page"]',
+      journal: 'Computer Networks and ISDN Systems', year: 1998,
+      file_path: 'demo.pdf', created_at: daysAgo(6) },
+  ];
+
+  let cid = 1;
+  const copy = (paper_id, user_id, extra = {}) => ({
+    id: cid++, paper_id, user_id, summary: null, marketed: true,
+    rating_expertise: null, rating_reading: null, rating_liking: null,
+    created_at: daysAgo(5), ...extra,
+  });
+
+  const copies = [
+    copy(1, ME, { summary: 'Consensus despite traitors; the 3f+1 bound. Reread §4.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
+    copy(1, 2, { rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
+    copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
+    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely — Q·K/√d then softmax over V. The positional encodings are the part I still need to internalize.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
+    copy(2, 2, { rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
+    copy(3, 3, { rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
+    copy(3, 6, { rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
+    copy(4, 4, { rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
+    copy(4, 2, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
+    copy(5, 2, { rating_expertise: 3, rating_reading: 4, rating_liking: 5 }),
+    copy(5, 6, { rating_expertise: 5, rating_reading: 5, rating_liking: 5 }),
+    copy(6, 5, { rating_expertise: 2, rating_reading: 4, rating_liking: 5 }),
+    copy(6, 6, { rating_expertise: 5, rating_reading: 5, rating_liking: 3 }),
+    copy(7, 4, { rating_expertise: 3, rating_reading: 4, rating_liking: 4 }),
+    copy(7, 5, { rating_expertise: 1, rating_reading: 2, rating_liking: 5 }),
+  ];
+
+  const comments = [
+    { id: 1, paper_id: 1, user_id: ME, content: 'The oral-messages algorithm clicked once I drew the m=1 case.', created_at: daysAgo(27) },
+    { id: 2, paper_id: 1, user_id: ME, content: 'Compare with Paxos — same author, friendlier generals.', created_at: daysAgo(25) },
+  ];
+
+  const key = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
+
+  const rooms = [
+    { id: 1, paper_key: key(papers[0]), paper_title: papers[0].title, created_by: 3,
+      leader_id: 2, status: 'finished', scheduled_time: 'Two weeks ago, 4 pm', platform: 'Zoom',
+      style: 'walkthrough', style_desc: null, created_at: daysAgo(16) },
+    { id: 2, paper_key: key(papers[0]), paper_title: papers[0].title, created_by: 3,
+      leader_id: 2, status: 'planning', scheduled_time: null, platform: null,
+      style: null, style_desc: null, created_at: daysAgo(2) },
+    { id: 3, paper_key: key(papers[6]), paper_title: papers[6].title, created_by: 4,
+      leader_id: 4, status: 'scheduled', scheduled_time: 'Friday, 4:00 pm CET', platform: 'Zoom',
+      style: 'questions', style_desc: null, created_at: daysAgo(4) },
+    { id: 4, paper_key: key(papers[1]), paper_title: papers[1].title, created_by: 2,
+      leader_id: null, status: 'open', scheduled_time: null, platform: null,
+      style: null, style_desc: null, created_at: daysAgo(1) },
+  ];
+
+  let pid = 1;
+  const part = (room_id, user_id) => ({ id: pid++, room_id, user_id, created_at: daysAgo(1) });
+  const participants = [
+    part(1, 2), part(1, 3), part(1, ME),
+    part(2, 3), part(2, 2), part(2, ME),
+    part(3, 4), part(3, 5),
+    part(4, 2),
+  ];
+
+  const messages = [
+    { id: 1, room_id: 2, user_id: 3, content: 'I mostly followed the story but lost the proof — can we walk it slowly?', created_at: daysAgo(2) },
+    { id: 2, room_id: 2, user_id: 2, content: 'Sure! I will prepare the m=1 and m=2 cases on a whiteboard.', created_at: daysAgo(1) },
+  ];
+
+  const availabilities = [
+    { id: 1, room_id: 2, user_id: 2, availability: 'Weekday evenings; any time Friday', created_at: daysAgo(1) },
+    { id: 2, room_id: 2, user_id: 3, availability: 'After 3 pm most days', created_at: daysAgo(1) },
+  ];
+
+  const notifications = [
+    { id: 1, user_id: ME, room_id: 4, content: 'Sandy Cheeks called for a seminar on “Attention Is All You Need”. A reader of the paper can answer to host.', read: false, created_at: daysAgo(1) },
+    { id: 2, user_id: ME, room_id: 2, content: 'Sandy Cheeks will host the seminar on “The Byzantine Generals Problem”. Share your availability in the cohort.', read: true, created_at: daysAgo(2) },
+  ];
+
+  return {
+    users, papers, copies, comments, rooms, participants, messages,
+    availabilities, notifications,
+    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100 },
+  };
+}
+
+let db = null;
+const ensure = () => { if (!db) db = seed(); return db; };
+
+// ---------- Helpers mirroring the backend ----------
+
+const publicUser = (u) => ({
+  id: u.id, display_name: u.display_name,
+  affiliation: u.affiliation || null, avatar_path: u.avatar_path || null,
+});
+
+const userById = (id) => ensure().users.find((u) => u.id === id);
+const paperKey = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
+const paperCopies = (p) => ensure().copies.filter((c) => c.paper_id === p.id);
+const displayedCopies = (p) => paperCopies(p).filter((c) => c.marketed);
+const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_id === uid) || null;
+const roomParts = (r) => ensure().participants.filter((x) => x.room_id === r.id);
+
+const readerEntry = (c) => ({
+  paper_id: c.paper_id, user: publicUser(userById(c.user_id)),
+  rating_expertise: c.rating_expertise, rating_reading: c.rating_reading,
+  rating_liking: c.rating_liking,
+});
+
+const roomSummary = (r) => ({
+  id: r.id, status: r.status, scheduled_time: r.scheduled_time,
+  platform: r.platform, style: r.style, style_desc: r.style_desc,
+  created_at: r.created_at,
+  creator: publicUser(userById(r.created_by)),
+  leader: r.leader_id ? publicUser(userById(r.leader_id)) : null,
+  participant_count: roomParts(r).length,
+  participants: roomParts(r).map((x) => publicUser(userById(x.user_id))),
+});
+
+const paperRooms = (p) =>
+  ensure().rooms.filter((r) => r.paper_key === paperKey(p))
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+function paperDetail(p) {
+  const mine = copyOf(p, ME);
+  return {
+    id: p.id, doi: p.doi, title: p.title, authors: p.authors,
+    journal: p.journal, year: p.year, file_path: p.file_path,
+    created_at: p.created_at,
+    summary: mine ? mine.summary : null,
+    marketed: mine ? mine.marketed : null,
+    rating_expertise: mine ? mine.rating_expertise : null,
+    rating_reading: mine ? mine.rating_reading : null,
+    rating_liking: mine ? mine.rating_liking : null,
+    comments: mine
+      ? ensure().comments.filter((c) => c.paper_id === p.id && c.user_id === ME)
+          .map((c) => ({ ...c, user: publicUser(userById(c.user_id)) }))
+      : [],
+    also_read_by: displayedCopies(p).map(readerEntry),
+    rooms: paperRooms(p).map(roomSummary),
+    viewer_is_reader: !!(mine && mine.marketed),
+    viewer_has_entry: !!mine,
+  };
+}
+
+function roomStatusMap() {
+  const m = {};
+  for (const r of [...ensure().rooms].sort((a, b) => (a.created_at < b.created_at ? -1 : 1))) {
+    m[r.paper_key] = r.status;
+  }
+  return m;
+}
+
+function paperListEntry(p, c, hidePrivate, statusMap) {
+  return {
+    id: p.id, doi: p.doi, title: p.title, authors: p.authors,
+    journal: p.journal, year: p.year, file_path: p.file_path,
+    created_at: c ? c.created_at : p.created_at,
+    summary: c && !hidePrivate ? c.summary : null,
+    marketed: c ? c.marketed : null,
+    rating_expertise: c ? c.rating_expertise : null,
+    rating_reading: c ? c.rating_reading : null,
+    rating_liking: c ? c.rating_liking : null,
+    room_status: statusMap[paperKey(p)] || null,
+    readers: displayedCopies(p).map(readerEntry),
+  };
+}
+
+function roomDetail(r) {
+  const d = ensure();
+  const paper = d.papers.find((p) => paperKey(p) === r.paper_key) || null;
+  const mine = paper ? copyOf(paper, ME) : null;
+  const isReader = !!(mine && mine.marketed);
+  return {
+    ...roomSummary(r),
+    paper_title: r.paper_title,
+    paper_id: paper ? paper.id : null,
+    messages: d.messages.filter((m) => m.room_id === r.id)
+      .map((m) => ({ id: m.id, content: m.content, created_at: m.created_at, user: publicUser(userById(m.user_id)) })),
+    availabilities: d.availabilities.filter((a) => a.room_id === r.id)
+      .map((a) => ({ id: a.id, availability: a.availability, created_at: a.created_at, user: publicUser(userById(a.user_id)) })),
+    viewer_can_lead: r.status === 'open' && isReader,
+    viewer_is_participant: roomParts(r).some((x) => x.user_id === ME),
+    viewer_is_reader: isReader,
+    viewer_hidden_entry_id: mine && !mine.marketed && paper ? paper.id : null,
+  };
+}
+
+const now = () => new Date().toISOString();
+
+function ensureParticipant(r) {
+  const d = ensure();
+  if (!roomParts(r).some((x) => x.user_id === ME)) {
+    d.participants.push({ id: d.nextId.part++, room_id: r.id, user_id: ME, created_at: now() });
+  }
+}
+
+function requireReaderOf(room) {
+  const d = ensure();
+  const paper = d.papers.find((p) => paperKey(p) === room.paper_key);
+  const mine = paper ? copyOf(paper, ME) : null;
+  if (!mine || !mine.marketed) {
+    throw demoError('Only readers who display this paper in their nook can take part in the cohort', 403);
+  }
+}
+
+function findPaper(ref) {
+  const d = ensure();
+  const p = /^\d+$/.test(ref)
+    ? d.papers.find((x) => x.id === parseInt(ref))
+    : d.papers.find((x) => (x.doi || '').toLowerCase() === ref.toLowerCase());
+  if (!p) throw demoError('Paper not found', 404);
+  return p;
+}
+
+function inActiveCohort(k) {
+  const d = ensure();
+  return d.rooms.some(
+    (r) => r.paper_key === k && r.status !== 'finished' &&
+      roomParts(r).some((x) => x.user_id === ME)
+  );
+}
+
+// ---------- The router ----------
+
+export async function demoRequest(path, options = {}) {
+  const d = ensure();
+  const method = (options.method || 'GET').toUpperCase();
+  const body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+  let m;
+
+  // ----- auth -----
+  if (path === '/auth/logout') return { message: 'Logged out' };
+  if (path === '/auth/me') return { ...publicUser(userById(ME)), email: 'spongebob@demo.papol', is_admin: false };
+  if (path === '/auth/profile' && method === 'PUT') {
+    const me = userById(ME);
+    if (body.display_name !== undefined) me.display_name = body.display_name || me.display_name;
+    if (body.affiliation !== undefined) me.affiliation = body.affiliation || null;
+    return { ...publicUser(me), email: 'spongebob@demo.papol', is_admin: false };
+  }
+  if (path === '/auth/avatar' || path === '/auth/password') {
+    throw demoError('Not available in the demo — create a real account to set this up.');
+  }
+
+  // ----- users -----
+  if (path === '/users') {
+    return d.users.map((u) => ({
+      ...publicUser(u),
+      paper_count: d.copies.filter((c) => c.user_id === u.id && c.marketed).length,
+    }));
+  }
+  if ((m = path.match(/^\/users\/(\d+)\/space$/))) {
+    const u = userById(parseInt(m[1]));
+    if (!u) throw demoError('User not found', 404);
+    const own = u.id === ME;
+    const statusMap = roomStatusMap();
+    const list = d.copies
+      .filter((c) => c.user_id === u.id && (own || c.marketed))
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .map((c) => paperListEntry(d.papers.find((p) => p.id === c.paper_id), c, !own, statusMap));
+    return { user: publicUser(u), papers: list };
+  }
+
+  // ----- papers -----
+  if (path === '/papers' && method === 'GET') {
+    const statusMap = roomStatusMap();
+    return d.papers
+      .filter((p) => displayedCopies(p).length > 0)
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .map((p) => paperListEntry(p, null, true, statusMap));
+  }
+  if (path === '/papers/extract') {
+    const file = body && body.get ? body.get('file') : null;
+    const name = file && file.name ? file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ') : 'Untitled demo paper';
+    return { doi: null, title: name, authors: null, journal: null, year: null, file_path: 'demo.pdf' };
+  }
+  if (path === '/papers' && method === 'POST') {
+    let paper = d.papers.find((p) =>
+      body.doi ? (p.doi || '').toLowerCase() === body.doi.trim().toLowerCase()
+               : !p.doi && p.title.trim().toLowerCase() === body.title.trim().toLowerCase());
+    if (paper && copyOf(paper, ME)) throw demoError('This paper is already in your nook');
+    if (!paper) {
+      paper = { id: d.nextId.paper++, doi: body.doi || null, title: body.title,
+        authors: body.authors || null, journal: body.journal || null,
+        year: body.year || null, file_path: 'demo.pdf', created_at: now() };
+      d.papers.push(paper);
+    }
+    d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
+      summary: body.summary || null, marketed: body.marketed !== false,
+      rating_expertise: body.rating_expertise ?? null,
+      rating_reading: body.rating_reading ?? null,
+      rating_liking: body.rating_liking ?? null, created_at: now() });
+    if (body.initial_comment && body.initial_comment.trim()) {
+      d.comments.push({ id: d.nextId.comment++, paper_id: paper.id, user_id: ME,
+        content: body.initial_comment.trim(), created_at: now() });
+    }
+    return paperDetail(paper);
+  }
+  if ((m = path.match(/^\/papers\/(\d+)\/add-to-nook$/))) {
+    const paper = findPaper(m[1]);
+    if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
+    d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
+      summary: null, marketed: true, rating_expertise: null,
+      rating_reading: null, rating_liking: null, created_at: now() });
+    return paperDetail(paper);
+  }
+  if ((m = path.match(/^\/papers\/(\d+)\/file$/))) {
+    throw demoError('Not available in the demo — create a real account to upload PDFs.');
+  }
+  if ((m = path.match(/^\/papers\/(\d+)\/comments$/))) {
+    const paper = findPaper(m[1]);
+    if (!copyOf(paper, ME)) throw demoError('Add this paper to your nook first', 403);
+    const c = { id: d.nextId.comment++, paper_id: paper.id, user_id: ME,
+      content: body.content, created_at: now() };
+    d.comments.push(c);
+    return { ...c, user: publicUser(userById(ME)) };
+  }
+  if ((m = path.match(/^\/comments\/(\d+)$/)) && method === 'DELETE') {
+    const i = d.comments.findIndex((c) => c.id === parseInt(m[1]) && c.user_id === ME);
+    if (i < 0) throw demoError('Comment not found', 404);
+    d.comments.splice(i, 1);
+    return { message: 'Comment deleted' };
+  }
+  if ((m = path.match(/^\/papers\/(\d+)\/room$/))) {
+    const paper = findPaper(m[1]);
+    const mine = copyOf(paper, ME);
+    if (!mine || !mine.marketed) {
+      throw demoError('Only readers who display this paper in their nook can call a seminar', 403);
+    }
+    const k = paperKey(paper);
+    if (d.rooms.some((r) => r.paper_key === k && (r.status === 'open' || r.status === 'planning'))) {
+      throw demoError('A seminar is already being organized for this paper');
+    }
+    const room = { id: d.nextId.room++, paper_key: k, paper_title: paper.title,
+      created_by: ME, leader_id: null, status: 'open', scheduled_time: null,
+      platform: null, style: null, style_desc: null, created_at: now() };
+    d.rooms.push(room);
+    ensureParticipant(room);
+    return roomSummary(room);
+  }
+  if ((m = path.match(/^\/papers\/(\d+)$/)) && method === 'PUT') {
+    const paper = findPaper(m[1]);
+    const personal = ['summary', 'marketed', 'rating_expertise', 'rating_reading', 'rating_liking'];
+    const metadata = ['title', 'authors', 'journal', 'year', 'doi'];
+    if (personal.some((k) => k in body)) {
+      const mine = copyOf(paper, ME);
+      if (!mine) throw demoError('Add this paper to your nook first', 403);
+      if (body.marketed === false && inActiveCohort(paperKey(paper))) {
+        throw demoError('You are in a seminar cohort for this paper. Leave the cohort before hiding the paper.');
+      }
+      for (const k of personal) if (k in body) mine[k] = body[k];
+    }
+    for (const k of metadata) if (k in body) paper[k] = body[k];
+    return paperDetail(paper);
+  }
+  if ((m = path.match(/^\/papers\/(\d+)$/)) && method === 'DELETE') {
+    const paper = findPaper(m[1]);
+    const mine = copyOf(paper, ME);
+    if (!mine) throw demoError('Add this paper to your nook first', 403);
+    d.copies = d.copies.filter((c) => c !== mine);
+    d.comments = d.comments.filter((c) => !(c.paper_id === paper.id && c.user_id === ME));
+    if (paperCopies(paper).length === 0) {
+      d.papers = d.papers.filter((p) => p !== paper);
+    }
+    return { message: 'Paper removed from your nook' };
+  }
+  if ((m = path.match(/^\/papers\/(.+)$/)) && method === 'GET') {
+    return paperDetail(findPaper(m[1]));
+  }
+
+  // ----- rooms -----
+  if ((m = path.match(/^\/rooms\/(\d+)(\/(\w+))?$/))) {
+    const room = d.rooms.find((r) => r.id === parseInt(m[1]));
+    if (!room) throw demoError('Cohort not found', 404);
+    const action = m[3] || null;
+
+    if (!action && method === 'GET') return roomDetail(room);
+    if (action === 'lead') {
+      if (room.status !== 'open') throw demoError('This seminar already has a host');
+      requireReaderOf(room);
+      room.leader_id = ME;
+      room.status = 'planning';
+      ensureParticipant(room);
+      return roomDetail(room);
+    }
+    if (action === 'join') {
+      requireReaderOf(room);
+      ensureParticipant(room);
+      return roomDetail(room);
+    }
+    if (action === 'leave') {
+      if (!roomParts(room).some((x) => x.user_id === ME)) throw demoError('You are not in this cohort');
+      if (room.leader_id === ME && room.status !== 'finished') {
+        const successor = body && body.successor_id;
+        if (!successor) throw demoError('Appoint a cohort member to host before leaving');
+        if (successor === ME || !roomParts(room).some((x) => x.user_id === successor)) {
+          throw demoError('The new host must be another cohort member');
+        }
+        room.leader_id = successor;
+      }
+      d.participants = d.participants.filter((x) => !(x.room_id === room.id && x.user_id === ME));
+      d.availabilities = d.availabilities.filter((x) => !(x.room_id === room.id && x.user_id === ME));
+      return roomDetail(room);
+    }
+    if (action === 'messages') {
+      requireReaderOf(room);
+      ensureParticipant(room);
+      d.messages.push({ id: d.nextId.msg++, room_id: room.id, user_id: ME,
+        content: body.content.trim(), created_at: now() });
+      return roomDetail(room);
+    }
+    if (action === 'availability') {
+      if (room.status === 'scheduled') throw demoError('This seminar has already been scheduled');
+      requireReaderOf(room);
+      ensureParticipant(room);
+      const mine = d.availabilities.find((a) => a.room_id === room.id && a.user_id === ME);
+      if (mine) mine.availability = body.availability;
+      else d.availabilities.push({ id: d.nextId.avail++, room_id: room.id, user_id: ME,
+        availability: body.availability, created_at: now() });
+      return roomDetail(room);
+    }
+    if (action === 'announce') {
+      if (room.leader_id !== ME) throw demoError('Only the host can announce', 403);
+      if (room.status !== 'planning' && room.status !== 'scheduled') {
+        throw demoError('This seminar is not being planned');
+      }
+      room.scheduled_time = body.scheduled_time;
+      room.platform = body.platform;
+      room.style = (body.style || '').trim();
+      room.style_desc = (body.style_desc || '').trim() || null;
+      room.status = 'scheduled';
+      return roomDetail(room);
+    }
+    if (action === 'finish') {
+      if (room.leader_id !== ME) throw demoError('Only the host can mark the seminar finished', 403);
+      if (room.status !== 'scheduled') throw demoError('Only a scheduled seminar can be finished');
+      room.status = 'finished';
+      return roomDetail(room);
+    }
+  }
+
+  // ----- notifications -----
+  if (path === '/notifications' && method === 'GET') {
+    const mine = d.notifications.filter((n) => n.user_id === ME)
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return {
+      unread_count: mine.filter((n) => !n.read).length,
+      notifications: mine.map(({ user_id, ...n }) => n),
+    };
+  }
+  if (path === '/notifications/read') {
+    d.notifications.forEach((n) => { if (n.user_id === ME) n.read = true; });
+    return { message: 'All notifications marked read' };
+  }
+
+  throw demoError('Not available in the demo', 404);
+}

@@ -1,0 +1,249 @@
+import { demoActive, demoRequest } from './demo';
+
+// Relative, so it resolves against the app's own base URL — works at / and
+// under a proxied subpath like mc-pony.com/papol/.
+const API_BASE = 'api';
+
+const TOKEN_KEY = 'papol_token';
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
+function authHeaders(extra = {}) {
+  const token = getToken();
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+}
+
+async function handleResponse(response) {
+  if (!response.ok) {
+    let message = `Error ${response.status}`;
+    try {
+      const error = await response.json();
+      message = error.detail || message;
+    } catch {
+      message = await response.text() || message;
+    }
+    const err = new Error(
+      typeof message === 'string' ? message : JSON.stringify(message)
+    );
+    err.status = response.status;
+    throw err;
+  }
+  return response.json();
+}
+
+async function request(path, options = {}) {
+  // Signing in or registering always talks to the real backend — that is
+  // how a demo visitor becomes a real member.
+  if (demoActive() && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')) {
+    return demoRequest(path, options);
+  }
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: authHeaders(options.headers || {}),
+  });
+  return handleResponse(response);
+}
+
+function jsonRequest(path, method, body) {
+  return request(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+// ---------- Auth ----------
+
+export function register(email, displayName, affiliation, password) {
+  return jsonRequest('/auth/register', 'POST', {
+    email,
+    display_name: displayName,
+    affiliation: affiliation || null,
+    password,
+  });
+}
+
+export function login(email, password) {
+  return jsonRequest('/auth/login', 'POST', { email, password });
+}
+
+export function logout() {
+  return request('/auth/logout', { method: 'POST' });
+}
+
+export function getMe() {
+  return request('/auth/me');
+}
+
+export function updateProfile(data) {
+  return jsonRequest('/auth/profile', 'PUT', data);
+}
+
+export function uploadAvatar(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/auth/avatar', { method: 'POST', body: formData });
+}
+
+export function deleteAvatar() {
+  return request('/auth/avatar', { method: 'DELETE' });
+}
+
+export function changePassword(currentPassword, newPassword) {
+  return jsonRequest('/auth/password', 'PUT', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+}
+
+// ---------- Users / spaces ----------
+
+export function listUsers() {
+  return request('/users');
+}
+
+export function getUserSpace(userId) {
+  return request(`/users/${userId}/space`);
+}
+
+// ---------- Papers ----------
+
+// Papers are addressed by DOI when they have one, else by numeric id.
+export function paperHref(paper) {
+  return `#/paper/${paper.doi || paper.id}`;
+}
+
+export function listPapers() {
+  return request('/papers');
+}
+
+export function extractPaperMetadata(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/papers/extract', { method: 'POST', body: formData });
+}
+
+export function createPaper(paperData) {
+  return jsonRequest('/papers', 'POST', paperData);
+}
+
+export function getPaper(id) {
+  return request(`/papers/${id}`);
+}
+
+export function addToNook(paperId) {
+  return request(`/papers/${paperId}/add-to-nook`, { method: 'POST' });
+}
+
+export function replacePaperPdf(id, file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request(`/papers/${id}/file`, { method: 'POST', body: formData });
+}
+
+export function updatePaper(id, data) {
+  return jsonRequest(`/papers/${id}`, 'PUT', data);
+}
+
+export function deletePaper(id) {
+  return request(`/papers/${id}`, { method: 'DELETE' });
+}
+
+// ---------- Comments ----------
+
+export function addComment(paperId, content) {
+  return jsonRequest(`/papers/${paperId}/comments`, 'POST', { content });
+}
+
+export function deleteComment(commentId) {
+  return request(`/comments/${commentId}`, { method: 'DELETE' });
+}
+
+// ---------- Seminar rooms ----------
+
+export function callSeminar(paperId) {
+  return request(`/papers/${paperId}/room`, { method: 'POST' });
+}
+
+export function getRoom(roomId) {
+  return request(`/rooms/${roomId}`);
+}
+
+export function leadRoom(roomId) {
+  return request(`/rooms/${roomId}/lead`, { method: 'POST' });
+}
+
+export function joinRoom(roomId) {
+  return request(`/rooms/${roomId}/join`, { method: 'POST' });
+}
+
+export function leaveRoom(roomId, successorId = null) {
+  return jsonRequest(`/rooms/${roomId}/leave`, 'POST', {
+    successor_id: successorId,
+  });
+}
+
+export function postRoomMessage(roomId, content) {
+  return jsonRequest(`/rooms/${roomId}/messages`, 'POST', { content });
+}
+
+export function setRoomAvailability(roomId, availability) {
+  return jsonRequest(`/rooms/${roomId}/availability`, 'POST', { availability });
+}
+
+export function finishRoom(roomId) {
+  return request(`/rooms/${roomId}/finish`, { method: 'POST' });
+}
+
+export function announceRoom(roomId, scheduledTime, platform, style, styleDesc = null) {
+  return jsonRequest(`/rooms/${roomId}/announce`, 'PUT', {
+    scheduled_time: scheduledTime,
+    platform,
+    style,
+    style_desc: styleDesc,
+  });
+}
+
+// ---------- Notifications ----------
+
+export function getNotifications() {
+  return request('/notifications');
+}
+
+export function markNotificationsRead() {
+  return request('/notifications/read', { method: 'POST' });
+}
+
+// ---------- Admin ----------
+
+export function adminListTables() {
+  return request('/admin/tables');
+}
+
+export function adminGetTable(name) {
+  return request(`/admin/tables/${name}`);
+}
+
+export function adminUpdateRow(name, pk, data) {
+  return jsonRequest(`/admin/tables/${name}/rows/${encodeURIComponent(pk)}`, 'PUT', data);
+}
+
+export function adminDeleteRow(name, pk) {
+  return request(`/admin/tables/${name}/rows/${encodeURIComponent(pk)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function adminRunSql(query) {
+  return jsonRequest('/admin/sql', 'POST', { query });
+}

@@ -1,0 +1,13 @@
+# Runtime data — lives next to the code but is not source
+backend/papol.db
+backend/papol.db.bak-*
+papol.db
+uploads/
+
+# Build artifacts
+frontend/dist/
+frontend/node_modules/
+__pycache__/
+*.pyc
+
+nohup.out
