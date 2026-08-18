@@ -69,6 +69,14 @@ function seed() {
       authors: '["Sergey Brin", "Lawrence Page"]',
       journal: 'Computer Networks and ISDN Systems', year: 1998,
       file_path: 'demo.pdf', created_at: daysAgo(6) },
+    { id: 8, doi: '10.1145/367177.367199', title: 'Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I',
+      authors: '["John McCarthy"]',
+      journal: 'Communications of the ACM', year: 1960,
+      file_path: 'demo.pdf', created_at: daysAgo(5) },
+    { id: 9, doi: '10.1016/0304-3975(75)90017-1', title: 'Call-by-name, call-by-value and the λ-calculus',
+      authors: '["Gordon D. Plotkin"]',
+      journal: 'Theoretical Computer Science', year: 1975,
+      file_path: 'demo.pdf', created_at: daysAgo(3) },
   ];
 
   let cid = 1;
@@ -94,6 +102,10 @@ function seed() {
     copy(6, 6, { rating_expertise: 5, rating_reading: 5, rating_liking: 3 }),
     copy(7, 4, { rating_expertise: 3, rating_reading: 4, rating_liking: 4 }),
     copy(7, 5, { rating_expertise: 1, rating_reading: 2, rating_liking: 5 }),
+    copy(8, 4, { rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
+    copy(8, 6, { rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
+    copy(9, 2, { rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
+    copy(9, 5, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
   ];
 
   const comments = [
