@@ -1,10 +1,10 @@
 # Papol - A Nook for Every Reader
 
-A webapp for documenting PDF papers with automatic DOI/metadata extraction, now with
-a social layer: every reader gets a **nook** for the papers they read, anyone can
-**call for a seminar** on a paper — notifying all its readers — and whoever answers
-to lead plans it in a **room** (availability, platform, discussion). See
-[USER_STORIES.md](USER_STORIES.md) for the full feature set.
+A webapp for documenting PDF papers with automatic DOI/metadata extraction, built to
+make **spontaneous seminars** happen: every reader gets a **nook** for the papers they
+read, anyone can **call for a spontaneous seminar** on a paper — notifying all its
+readers — and whoever answers to lead plans it in a **room** (availability, platform,
+discussion). See [USER_STORIES.md](USER_STORIES.md) for the full feature set.
 
 ## NixOS Deployment
 

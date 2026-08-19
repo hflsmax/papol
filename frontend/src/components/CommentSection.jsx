@@ -3,6 +3,7 @@ import { addComment, updateComment, deleteComment } from '../api';
 
 export default function CommentSection({ paperId, comments, currentUser, onCommentChange }) {
   const [newComment, setNewComment] = useState('');
+  const [composing, setComposing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -30,6 +31,7 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
     try {
       await addComment(paperId, newComment.trim());
       setNewComment('');
+      setComposing(false);
       onCommentChange();
     } catch (err) {
       setError(err.message);
@@ -64,21 +66,45 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
       <h4>
         Notes ({comments.length})
         <span className="visibility-badge private">private</span>
+        {!composing && (
+          <button
+            className="link-btn summary-edit"
+            onClick={() => setComposing(true)}
+          >
+            Add a note
+          </button>
+        )}
       </h4>
 
       {error && <div className="error">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="comment-form">
-        <textarea
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Add a private note..."
-          rows="3"
-        />
-        <button type="submit" disabled={isSubmitting || !newComment.trim()}>
-          {isSubmitting ? 'Adding...' : 'Add Note'}
-        </button>
-      </form>
+      {composing && (
+        <form onSubmit={handleSubmit} className="inline-edit comment-compose">
+          <textarea
+            className="inline-edit-box"
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="Add a private note..."
+            rows={4}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setComposing(false);
+            }}
+          />
+          <div className="inline-edit-actions">
+            <button
+              type="submit"
+              className="primary"
+              disabled={isSubmitting || !newComment.trim()}
+            >
+              {isSubmitting ? 'Adding...' : 'Add'}
+            </button>
+            <button type="button" onClick={() => setComposing(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="comments-list">
         {comments.length > 0 &&

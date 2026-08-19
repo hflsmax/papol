@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { login, register } from '../api';
 
-export default function AuthPage({ onAuth, onGuest, onDemo, onBack, initialMode = 'login' }) {
+export default function AuthPage({ onAuth, initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -29,11 +29,6 @@ export default function AuthPage({ onAuth, onGuest, onDemo, onBack, initialMode 
 
   return (
     <div className="auth-page">
-      {onBack && (
-        <button className="back-btn" onClick={onBack}>
-          &larr; Back
-        </button>
-      )}
       <div className="auth-card">
         <h2>{mode === 'login' ? 'Sign in' : 'Join Papol'}</h2>
         <p className="auth-subtitle">
@@ -118,19 +113,6 @@ export default function AuthPage({ onAuth, onGuest, onDemo, onBack, initialMode 
             </>
           )}
         </p>
-
-        {onDemo && (
-          <div className="demo-invite">
-            <p>
-              Just curious?{' '}
-              <button className="link-btn" onClick={onDemo}>
-                Explore the demo
-              </button>
-              . Play with every feature; everything happens in your browser
-              and nothing is saved.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

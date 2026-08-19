@@ -42,6 +42,7 @@ from auth import (
 from emailer import send_email
 from pdf_parser import extract_doi_from_pdf, get_title_from_filename
 from crossref import fetch_metadata_from_doi
+import dbmetrics
 
 # Create database tables and apply column migrations
 migrate()
@@ -60,7 +61,14 @@ for _stale in normalize_papers():
     if _stale_path.exists():
         _stale_path.unlink()
 
-app = FastAPI(title="Papol - A Nook for Every Reader")
+# Instrument after the startup migrations so the metrics reflect request
+# traffic, not one-time schema work.
+dbmetrics.init(engine)
+
+app = FastAPI(
+    title="Papol - A Nook for Every Reader",
+    description="A paper-reading community built to make spontaneous seminars happen.",
+)
 
 
 @app.exception_handler(Exception)
@@ -117,9 +125,9 @@ DEFAULT_WELCOME = (
     "one-sentence thought. Visit the Village to see what other "
     "readers keep in their nooks, and add papers from the Library "
     "to your own. When a paper deserves a conversation, call a "
-    "seminar, and every reader of it will be invited. Each seminar "
-    "is run by a host: a reader who volunteers to plan it and lead "
-    "the discussion. Answer a call to host one yourself!"
+    "spontaneous seminar, and every reader of it will be invited. "
+    "Each seminar is run by a host: a reader who volunteers to plan "
+    "it and lead the discussion. Answer a call to host one yourself!"
 )
 
 
@@ -1405,6 +1413,18 @@ async def admin_send_digest(
             "or set SMTP_* environment variables",
         )
     return send_daily_digest(db)
+
+
+@app.get("/api/admin/db-metrics")
+async def admin_db_metrics(admin: User = Depends(require_admin)):
+    """Aggregated timings of database operations since startup (or reset)."""
+    return dbmetrics.snapshot()
+
+
+@app.post("/api/admin/db-metrics/reset")
+async def admin_reset_db_metrics(admin: User = Depends(require_admin)):
+    dbmetrics.reset()
+    return dbmetrics.snapshot()
 
 
 @app.get("/api/admin/tables")

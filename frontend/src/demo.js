@@ -1,4 +1,4 @@
-// Demo mode: a make-believe Papol that lives entirely in the browser.
+// Demo mode: a fictional Papol that lives entirely in the browser.
 // api.js routes every request here when the demo flag is set, so the real
 // backend is never touched. State is seeded fresh on each page load.
 
@@ -87,24 +87,24 @@ function seed() {
   });
 
   const copies = [
-    copy(1, ME, { summary: 'Consensus despite traitors; the 3f+1 bound. Reread §4.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
+    copy(1, ME, { summary: 'Consensus despite traitors; the 3f+1 bound. Reread §4.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
     copy(1, 2, { thought: 'The clearest impossibility argument I know.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
-    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely — Q·K/√d then softmax over V. The positional encodings are the part I still need to internalize.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
+    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely — Q·K/√d then softmax over V. The positional encodings are the part I still need to internalize.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
     copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
-    copy(3, 3, { rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
-    copy(3, 6, { rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
-    copy(4, 4, { rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
+    copy(3, 3, { thought: 'GPUs go brrr and suddenly vision works.', rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
+    copy(3, 6, { thought: 'Scale beats cleverness; I find that deeply unfair.', rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
+    copy(4, 4, { thought: 'Tables. It was always going to be tables.', rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
     copy(4, 2, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
-    copy(5, 2, { rating_expertise: 3, rating_reading: 4, rating_liking: 5 }),
-    copy(5, 6, { rating_expertise: 5, rating_reading: 5, rating_liking: 5 }),
-    copy(6, 5, { rating_expertise: 2, rating_reading: 4, rating_liking: 5 }),
-    copy(6, 6, { rating_expertise: 5, rating_reading: 5, rating_liking: 3 }),
-    copy(7, 4, { rating_expertise: 3, rating_reading: 4, rating_liking: 4 }),
-    copy(7, 5, { rating_expertise: 1, rating_reading: 2, rating_liking: 5 }),
+    copy(5, 2, { thought: 'Entropy tells you the price of certainty.', rating_expertise: 3, rating_reading: 4, rating_liking: 5 }),
+    copy(5, 6, { thought: 'All of information theory in one paper, and we are still mining it.', rating_expertise: 5, rating_reading: 5, rating_liking: 5 }),
+    copy(6, 5, { thought: 'Secrets ye can trade in public — marvelous.', rating_expertise: 2, rating_reading: 4, rating_liking: 5 }),
+    copy(6, 6, { thought: 'Came for the key exchange, stayed for the paranoia.', rating_expertise: 5, rating_reading: 5, rating_liking: 3 }),
+    copy(7, 4, { thought: 'Eigenvectors run the internet and nobody noticed.', rating_expertise: 3, rating_reading: 4, rating_liking: 4 }),
+    copy(7, 5, { thought: 'Turns out links are money.', rating_expertise: 1, rating_reading: 2, rating_liking: 5 }),
     copy(8, 4, { thought: 'Still the most elegant seven pages in our field.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
-    copy(8, 6, { rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
-    copy(9, 2, { rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
+    copy(8, 6, { thought: 'Seven primitives and you get a civilization.', rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
+    copy(9, 2, { thought: 'Call-by-name and call-by-value finally on one clean footing.', rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
     copy(9, 5, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
   ];
 

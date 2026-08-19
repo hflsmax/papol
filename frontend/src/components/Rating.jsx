@@ -64,8 +64,9 @@ export function RatingInput({ values, onChange }) {
                   className="rating-clear"
                   onClick={() => onChange(d.key, null)}
                   title="Don't show a rating for this"
+                  aria-label={`Clear the ${d.label} rating`}
                 >
-                  clear
+                  ×
                 </button>
               ) : (
                 <span className="rating-none">not rated</span>

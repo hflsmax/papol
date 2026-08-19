@@ -57,8 +57,9 @@ function RoomCard({ room, paper, currentUser }) {
               className="collapse-btn"
               onClick={() => setExpanded(false)}
               title="Collapse this seminar"
+              aria-label="Collapse this seminar"
             >
-              Collapse ▴
+              ▴
             </button>
           )}
         </span>

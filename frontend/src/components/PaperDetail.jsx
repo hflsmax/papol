@@ -401,13 +401,24 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             </div>
           )}
 
-          {hasEntry &&
-            (editingThought ? (
-              <div className="summary">
-                <h4>
-                  Thought
-                  <span className="visibility-badge public">public</span>
-                </h4>
+          {hasEntry && (
+            <div className="inline-thought">
+              <h4 className="inline-ratings-title">
+                My thought
+                <span className="visibility-badge public">public</span>
+                {!editingThought && paper.thought && (
+                  <button
+                    className="link-btn summary-edit"
+                    onClick={() => {
+                      setThoughtDraft(paper.thought || '');
+                      setEditingThought(true);
+                    }}
+                  >
+                    edit
+                  </button>
+                )}
+              </h4>
+              {editingThought ? (
                 <div className="inline-edit">
                   <textarea
                     className="inline-edit-box"
@@ -430,26 +441,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                     </button>
                   </div>
                 </div>
-              </div>
-            ) : paper.thought ? (
-              <div className="summary">
-                <h4>
-                  Thought
-                  <span className="visibility-badge public">public</span>
-                  <button
-                    className="link-btn summary-edit"
-                    onClick={() => {
-                      setThoughtDraft(paper.thought || '');
-                      setEditingThought(true);
-                    }}
-                  >
-                    edit
-                  </button>
-                </h4>
-                <p>{paper.thought}</p>
-              </div>
-            ) : (
-              <p className="add-summary">
+              ) : paper.thought ? (
+                <p className="inline-thought-text">{paper.thought}</p>
+              ) : (
                 <button
                   className="link-btn"
                   onClick={() => {
@@ -458,71 +452,10 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                   }}
                 >
                   Add a one-sentence thought
-                </button>{' '}
-                <span className="visibility-badge public">public</span>
-              </p>
-            ))}
-
-          {hasEntry &&
-            (editingSummary ? (
-              <div className="summary">
-                <h4>
-                  Summary
-                  <span className="visibility-badge private">private</span>
-                </h4>
-                <div className="inline-edit">
-                  <textarea
-                    className="inline-edit-box"
-                    value={summaryDraft}
-                    rows={4}
-                    autoFocus
-                    placeholder="A summary of the paper, visible only to you"
-                    onChange={(e) => setSummaryDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setEditingSummary(false);
-                    }}
-                  />
-                  <div className="inline-edit-actions">
-                    <button className="primary" onClick={saveSummary}>
-                      Save
-                    </button>
-                    <button onClick={() => setEditingSummary(false)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : paper.summary ? (
-              <div className="summary">
-                <h4>
-                  Summary
-                  <span className="visibility-badge private">private</span>
-                  <button
-                    className="link-btn summary-edit"
-                    onClick={() => {
-                      setSummaryDraft(paper.summary || '');
-                      setEditingSummary(true);
-                    }}
-                  >
-                    edit
-                  </button>
-                </h4>
-                <p>{paper.summary}</p>
-              </div>
-            ) : (
-              <p className="add-summary">
-                <button
-                  className="link-btn"
-                  onClick={() => {
-                    setSummaryDraft('');
-                    setEditingSummary(true);
-                  }}
-                >
-                  Add a summary
-                </button>{' '}
-                <span className="visibility-badge private">private</span>
-              </p>
-            ))}
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="paper-actions">
             <a
@@ -547,14 +480,64 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           </div>
         </div>
       )}
-      </div>
 
-      <div className="discussion-card">
-        <RoomSection paper={paper} currentUser={currentUser} onChanged={loadPaper} />
-      </div>
-
+      {/* Everything below the separator is private to the reader:
+          summary and notes. Above it, everything is public. */}
       {hasEntry && (
-        <div className="panel">
+        <div className="paper-notes">
+          <div className="summary-block">
+            <h4>
+              Summary
+              <span className="visibility-badge private">private</span>
+              {!editingSummary && paper.summary && (
+                <button
+                  className="link-btn summary-edit"
+                  onClick={() => {
+                    setSummaryDraft(paper.summary || '');
+                    setEditingSummary(true);
+                  }}
+                >
+                  edit
+                </button>
+              )}
+            </h4>
+            {editingSummary ? (
+              <div className="inline-edit">
+                <textarea
+                  className="inline-edit-box"
+                  value={summaryDraft}
+                  rows={4}
+                  autoFocus
+                  placeholder="A summary of the paper, visible only to you"
+                  onChange={(e) => setSummaryDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setEditingSummary(false);
+                  }}
+                />
+                <div className="inline-edit-actions">
+                  <button className="primary" onClick={saveSummary}>
+                    Save
+                  </button>
+                  <button onClick={() => setEditingSummary(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : paper.summary ? (
+              <div className="summary-text">{paper.summary}</div>
+            ) : (
+              <button
+                className="link-btn"
+                onClick={() => {
+                  setSummaryDraft('');
+                  setEditingSummary(true);
+                }}
+              >
+                Add a summary
+              </button>
+            )}
+          </div>
+
           <CommentSection
             paperId={paper.id}
             comments={paper.comments}
@@ -563,6 +546,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           />
         </div>
       )}
+      </div>
+
+      <div className="discussion-card">
+        <RoomSection paper={paper} currentUser={currentUser} onChanged={loadPaper} />
+      </div>
     </div>
   );
 }

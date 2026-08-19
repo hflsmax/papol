@@ -125,6 +125,13 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.88rem;
 }
 
+.demo-banner-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+
 .demo-banner-btn {
   border: 1px solid #7a5b1e;
   border-radius: 999px;
@@ -144,19 +151,6 @@ h1, h2, h3, h4, h5, h6 {
   color: #7a5b1e;
   font-size: 0.85rem;
   text-decoration: underline;
-}
-
-.demo-invite {
-  margin-top: 14px;
-  padding: 10px 14px;
-  border: 1px dashed var(--line);
-  border-radius: 3px;
-  font-size: 0.92rem;
-  color: var(--ink-soft);
-}
-
-.demo-invite p {
-  margin: 0;
 }
 
 .topnav .spacer {
@@ -373,7 +367,6 @@ button.full-width {
 
 .form-group input,
 .form-group textarea,
-.comment-form textarea,
 .note-form textarea,
 .availability-form textarea {
   width: 100%;
@@ -388,7 +381,6 @@ button.full-width {
 
 .form-group input:focus,
 .form-group textarea:focus,
-.comment-form textarea:focus,
 .note-form textarea:focus,
 .availability-form textarea:focus {
   outline: none;
@@ -1039,8 +1031,9 @@ button.full-width {
   border: none;
   background: none;
   box-shadow: none;
-  padding: 0;
-  font-size: 0.8rem;
+  padding: 0 2px;
+  font-size: 1.05rem;
+  line-height: 1;
   color: var(--ink-faint);
 }
 
@@ -1048,8 +1041,6 @@ button.full-width {
   border: none;
   background: none;
   color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .rating-inputs {
@@ -1137,7 +1128,37 @@ button.full-width {
 }
 
 .inline-ratings {
-  margin: 14px 0;
+  margin: 10px 0;
+}
+
+/* On the paper page the three rating controls sit side by side on one
+   row to keep the first panel short. Each cell stacks its label over
+   the buttons so nothing wraps mid-row. */
+.inline-ratings .rating-inputs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 18px;
+}
+
+.inline-ratings .rating-input-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.inline-ratings .rating-btn {
+  width: 25px;
+  height: 25px;
+  font-size: 0.75rem;
+}
+
+.inline-ratings .rating-tail {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .inline-ratings .rating-inputs {
+    grid-template-columns: 1fr;
+  }
 }
 
 .inline-ratings-title {
@@ -1419,8 +1440,8 @@ button.full-width {
 }
 
 .summary {
-  margin: 14px 0;
-  padding: 14px 16px;
+  margin: 10px 0;
+  padding: 8px 12px;
   background: var(--accent-soft);
   border-radius: 3px;
 }
@@ -1442,7 +1463,7 @@ button.full-width {
 .paper-actions {
   display: flex;
   gap: 10px;
-  margin: 18px 0 4px;
+  margin: 12px 0 0;
 }
 
 .paper-actions .btn {
@@ -1700,10 +1721,37 @@ h4 .state-pill {
   margin: -8px 0 14px;
 }
 
+.demo-intro h3 {
+  margin-bottom: 12px;
+}
+
+.demo-intro p {
+  margin-bottom: 12px;
+}
+
+.incubation-note {
+  margin-top: 18px;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.demo-cta-block {
+  margin-top: 24px;
+}
+
 .demo-cta {
-  margin-top: 16px;
-  padding: 11px 30px;
-  font-size: 1.02rem;
+  padding: 15px 46px;
+  font-size: 1.18rem;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(43, 74, 111, 0.3);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.demo-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(43, 74, 111, 0.35);
 }
 
 .comment-actions {
@@ -1822,20 +1870,20 @@ h4 .state-pill {
 
 .collapse-btn {
   margin-left: 10px;
-  padding: 2px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.78rem;
+  padding: 0 8px;
+  border: none;
+  background: none;
+  font-size: 1.3rem;
+  line-height: 1;
+  vertical-align: middle;
   color: var(--ink-soft);
   box-shadow: none;
 }
 
 .collapse-btn:hover:not(:disabled) {
-  border-color: var(--accent);
   color: var(--accent);
-  background: var(--card);
+  background: none;
+  border: none;
 }
 
 /* The announce/edit form is UI, not prose — use the interface font */
@@ -2683,6 +2731,45 @@ a.btn:hover {
   padding: 0 6px;
 }
 
+.paper-notes {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.inline-thought {
+  margin: 10px 0;
+}
+
+.inline-thought-text {
+  margin: 0;
+}
+
+/* Summary sits beside Notes as an equal: same heading level, and its
+   text is carded like a note. */
+.summary-block {
+  margin-bottom: 14px;
+}
+
+.summary-text {
+  padding: 6px 12px;
+  background: var(--accent-soft);
+  border-radius: 3px;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+}
+
+.paper-notes h4 {
+  margin: 0 0 8px;
+}
+
+.admin-statement {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .admin-row-actions {
   white-space: nowrap;
 }
@@ -2725,38 +2812,33 @@ a.btn:hover {
   margin-bottom: 14px;
 }
 
-.comment-form {
-  margin-bottom: 20px;
-}
-
-.comment-form textarea {
-  resize: vertical;
-  margin-bottom: 8px;
+.comment-compose {
+  margin-bottom: 10px;
 }
 
 .comments-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 }
 
 .comment {
-  padding: 12px 14px;
+  padding: 6px 12px;
   background: var(--accent-soft);
   border-radius: 3px;
 }
 
 .comment-content {
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   white-space: pre-wrap;
-  font-size: 0.96rem;
+  font-size: 0.92rem;
 }
 
 .comment-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
 .comment-date {
@@ -2836,12 +2918,6 @@ a.btn:hover {
      squeezed into the sliver beside it */
   .auth-page {
     flex-wrap: wrap;
-  }
-
-  .auth-page .back-btn {
-    flex-basis: 100%;
-    text-align: left;
-    margin-bottom: 4px;
   }
 
   /* Search input keeps a usable width; the sort control drops below it */
@@ -2930,15 +3006,27 @@ function navigate(hash) {
   window.location.hash = hash;
 }
 
-const GUEST_KEY = 'papol_guest';
-
 export default function App() {
   const [user, setUser] = useState(null);
-  const [guest, setGuest] = useState(() => localStorage.getItem(GUEST_KEY) === '1');
   const [authChecked, setAuthChecked] = useState(false);
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
-  const [authStart, setAuthStart] = useState('login');
+  // The welcome modal greets every visit until the visitor signs in for
+  // real — dismissing it only lasts for the current page load.
+  const [demoIntroSeen, setDemoIntroSeen] = useState(false);
+
+  const dismissDemoIntro = () => setDemoIntroSeen(true);
+
+  const demoIntroVisible = Boolean(user) && demoActive() && !demoIntroSeen;
+
+  useEffect(() => {
+    if (!demoIntroVisible) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setDemoIntroSeen(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [demoIntroVisible]);
 
   useEffect(() => {
     const onHashChange = () => setRoute(parseRoute());
@@ -2947,6 +3035,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    localStorage.removeItem('papol_guest'); // legacy guest mode, now removed
     if (demoActive()) {
       getMe()
         .then(setUser)
@@ -2954,12 +3043,25 @@ export default function App() {
       return;
     }
     if (!getToken()) {
-      setAuthChecked(true);
+      // A visitor without an account is not met by a login wall: they
+      // land straight in the demo, greeted by the welcome message.
+      // #/signin and #/join still reach the auth page from inside the
+      // demo shell.
+      (async () => {
+        enterDemo();
+        setUser(await getMe());
+        setAuthChecked(true);
+      })();
       return;
     }
     getMe()
       .then(setUser)
-      .catch(() => setToken(null))
+      .catch(async () => {
+        // Stale or revoked token: fall back to the demo landing.
+        setToken(null);
+        enterDemo();
+        setUser(await getMe());
+      })
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -2977,14 +3079,6 @@ export default function App() {
     exitDemo();
     setToken(token);
     setUser(user);
-    setGuest(false);
-    localStorage.removeItem(GUEST_KEY);
-    navigate('#/');
-  };
-
-  const handleGuest = () => {
-    setGuest(true);
-    localStorage.setItem(GUEST_KEY, '1');
     navigate('#/');
   };
 
@@ -3001,8 +3095,6 @@ export default function App() {
 
   const handleDemo = async () => {
     enterDemo();
-    setGuest(false);
-    localStorage.removeItem(GUEST_KEY);
     setUser(await getMe());
     navigate('#/');
   };
@@ -3014,24 +3106,25 @@ export default function App() {
     if (route.page !== 'demo-entry') return;
     (async () => {
       enterDemo();
-      setGuest(false);
-      localStorage.removeItem(GUEST_KEY);
       setUser(await getMe());
       setAuthChecked(true);
       window.location.replace('#/');
     })();
   }, [route]);
 
-  const handleSignIn = () => {
-    setGuest(false);
-    localStorage.removeItem(GUEST_KEY);
-  };
-
   const handleLogout = async () => {
     if (demoActive()) {
       // Leaving the demo is a navigation, not a state teardown — the demo
       // stays alive underneath so Back returns into it. Signing in for
       // real (handleAuth) is what actually ends the demo.
+      if (
+        !confirm(
+          'This leaves the demo and takes you to the sign-in page of the ' +
+            'real Papol. Continue?'
+        )
+      ) {
+        return;
+      }
       navigate('#/signin');
       return;
     }
@@ -3041,7 +3134,12 @@ export default function App() {
       // best effort
     }
     setToken(null);
-    setUser(null);
+    // Signed out means not logged in, and not logged in means the demo
+    // landing — same as a fresh visit, welcome message included.
+    enterDemo();
+    setDemoIntroSeen(false);
+    setUser(await getMe());
+    navigate('#/');
   };
 
   if (!authChecked) {
@@ -3049,25 +3147,6 @@ export default function App() {
       <>
         <style>{styles}</style>
         <div className="loading">Loading…</div>
-      </>
-    );
-  }
-
-  if (!user && !guest) {
-    return (
-      <>
-        <style>{styles}</style>
-        <div className="app">
-          <header className="topnav">
-            <a className="brand" href="#/">Papol</a>
-          </header>
-          <AuthPage
-            onAuth={handleAuth}
-            onGuest={handleGuest}
-            onDemo={handleDemo}
-            initialMode={authStart}
-          />
-        </div>
       </>
     );
   }
@@ -3083,10 +3162,52 @@ export default function App() {
   return (
     <>
       <style>{styles}</style>
+      {demoIntroVisible && (
+        <div className="modal-overlay" onClick={dismissDemoIntro}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="panel demo-intro">
+              <h3>Welcome to Papol</h3>
+              <p>
+                Papol is a place to keep the papers you read and call
+                spontaneous seminars on them with other readers.
+              </p>
+              <p>
+                You are looking at the demo: you play as SpongeBob among
+                fictional readers. Everything happens in your browser and
+                nothing is saved.
+              </p>
+              <p>
+                The real Papol needs an account. Registration takes a
+                minute, and your nook is yours to keep.
+              </p>
+              <div className="form-actions">
+                <button
+                  className="primary"
+                  onClick={() => {
+                    dismissDemoIntro();
+                    navigate('#/join');
+                  }}
+                >
+                  Create a real account
+                </button>
+                <button
+                  onClick={() => {
+                    dismissDemoIntro();
+                    navigate('#/signin');
+                  }}
+                >
+                  Sign in
+                </button>
+                <button onClick={dismissDemoIntro}>Explore the demo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {user && demoActive() && (
         <div className="demo-banner">
           <span>
-            Demo mode — everything here is make-believe and happens in your
+            Demo mode — everything here is fictional and happens in your
             browser. Nothing is saved.
           </span>
           {getToken() ? (
@@ -3094,7 +3215,7 @@ export default function App() {
               Back to my account
             </button>
           ) : (
-            <>
+            <span className="demo-banner-actions">
               <button
                 className="demo-banner-btn"
                 onClick={() => navigate('#/join')}
@@ -3107,7 +3228,7 @@ export default function App() {
               >
                 Sign in
               </button>
-            </>
+            </span>
           )}
         </div>
       )}
@@ -3177,14 +3298,7 @@ export default function App() {
                 </a>
               )}
             </>
-          ) : (
-            <>
-              <span className="whoami">browsing as guest</span>
-              <button className="link-btn" onClick={handleSignIn}>
-                Sign in
-              </button>
-            </>
-          )}
+          ) : null}
         </header>
 
         {/* Keyed by world: leaving or entering the demo remounts every
@@ -3200,7 +3314,6 @@ export default function App() {
             ) : (
               <HomePage
                 currentUser={user}
-                onJoin={handleSignIn}
                 onDemo={demoActive() ? undefined : handleDemo}
               />
             ))}
@@ -3262,15 +3375,14 @@ export default function App() {
           {route.page === 'about' && (
             <HomePage
               currentUser={user}
-              onJoin={handleSignIn}
               onDemo={demoActive() ? undefined : handleDemo}
             />
           )}
           {route.page === 'join' && (
-            <AuthPage onAuth={handleAuth} initialMode="register" onBack={goBack} />
+            <AuthPage onAuth={handleAuth} initialMode="register" />
           )}
           {route.page === 'signin' && (
-            <AuthPage onAuth={handleAuth} initialMode="login" onBack={goBack} />
+            <AuthPage onAuth={handleAuth} initialMode="login" />
           )}
           {route.page === 'demo-entry' && (
             <div className="loading">Entering the demo…</div>

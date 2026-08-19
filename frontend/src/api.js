@@ -267,3 +267,11 @@ export function adminDeleteRow(name, pk) {
 export function adminRunSql(query) {
   return jsonRequest('/admin/sql', 'POST', { query });
 }
+
+export function adminDbMetrics() {
+  return request('/admin/db-metrics');
+}
+
+export function adminResetDbMetrics() {
+  return request('/admin/db-metrics/reset', { method: 'POST' });
+}

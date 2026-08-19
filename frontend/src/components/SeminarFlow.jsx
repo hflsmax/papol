@@ -5,7 +5,7 @@ const STATES = [
   {
     status: 'open',
     cls: 'live',
-    desc: 'Any reader calls for a seminar on a paper. Every reader of it is notified, and a cohort forms, waiting for a host.',
+    desc: 'Any reader calls for a spontaneous seminar on a paper. Every reader of it is notified, and a cohort forms, waiting for a host.',
   },
   {
     status: 'planning',
@@ -22,7 +22,7 @@ const STATES = [
 export default function SeminarFlow() {
   return (
     <div className="panel">
-      <h6 className="mini-title">How a seminar comes together</h6>
+      <h6 className="mini-title">How a spontaneous seminar comes together</h6>
       <ol className="flow-list">
         {STATES.map((state, i) => (
           <li key={state.status}>

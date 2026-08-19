@@ -1,11 +1,13 @@
 # Papol Social — User Stories
 
+Papol exists to make **spontaneous seminars** happen: a seminar is never scheduled top-down, it springs up whenever a reader calls one on a paper and others answer.
+
 Vocabulary ("The Nook" theme):
 - **Nook** — a reader's public reading corner: the papers they uploaded, with their ratings.
 - **Readers** — the members of Papol; the directory lists every reader.
 - **Host** — the owner of a paper entry (the reader in whose nook the entry lives).
 - **On display** — an entry the host shows to other readers; hidden entries are visible only to their host.
-- **Call** — requesting a seminar on a paper; it notifies every reader of that paper.
+- **Call** — requesting a spontaneous seminar on a paper; it notifies every reader of that paper.
 - **Cohort** — the group where a called seminar is planned: leader, availability, platform, discussion. A seminar moves through three named states, used consistently across the app: **called** (waiting for a leader) → **planning** (leader took charge) → **scheduled** (time and platform announced).
 - **Leader** — the reader who answers a call and takes charge of the seminar.
 
@@ -15,8 +17,8 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 
 - **US-1.1** As a visitor, I can register with my email, a display name, an affiliation (optional), and a password, so I get my own nook. My email is used only to sign in; other readers see my display name and affiliation, never my email.
 - **US-1.2** As a reader, I can log in with my email and password, and log out; my session persists across page reloads.
-- **US-1.3** As a visitor who is not logged in, I land on the login/register page.
-- **US-1.4** As a visitor, I can **continue as a guest**: I can browse the readers directory, visit nooks, and view papers, ratings, and seminar announcements — read-only. Everything that writes requires signing in, and the app invites me to do so in those places.
+- **US-1.3** As a visitor who is not logged in, I am not met by a login wall: I land in the demo, greeted by a welcome message, and the sign-in and register pages are one click away.
+- **US-1.4** As a visitor without an account, the demo is my only way to explore: there is no guest mode, and the real community's data is visible only to signed-in readers. Signing out returns me to the demo landing.
 - **US-1.5** As a reader, I can edit my profile (display name and affiliation) and change my password from a profile page reached by clicking my name in the navigation. My email is my login identifier and cannot be changed.
 - **US-1.6** As a reader, I can upload a profile image (PNG/JPEG/WebP, up to 2 MB), replace or remove it; it appears wherever I do. Without one, my initial shows in its place.
 

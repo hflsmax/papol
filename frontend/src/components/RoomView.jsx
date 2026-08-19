@@ -95,7 +95,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
           <p>Called by {room.creator.display_name}.</p>
           <p className="stage-hint">
             The host is the seminar's benevolent dictator: they volunteer to
-            plan it — time, place, and style — and to lead the discussion.
+            plan its time, place, and style, and to lead the discussion.
           </p>
           {room.viewer_is_reader ? (
             <span className="hint-anchor">
