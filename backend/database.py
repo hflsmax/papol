@@ -35,6 +35,12 @@ _MIGRATIONS = {
         "style": "TEXT",
         "style_desc": "TEXT",
     },
+    "copies": {
+        "thought": "TEXT",
+    },
+    "notifications": {
+        "emailed": "INTEGER NOT NULL DEFAULT 0",
+    },
 }
 
 

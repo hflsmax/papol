@@ -52,6 +52,7 @@ export default function PaperUpload({ onPaperCreated }) {
         year: data.year || '',
         doi: data.doi || '',
         summary: '',
+        thought: '',
         initial_comment: '',
         marketed: true,
         rating_expertise: null,
@@ -92,6 +93,7 @@ export default function PaperUpload({ onPaperCreated }) {
         year: formData.year ? parseInt(formData.year) : null,
         doi: formData.doi || null,
         summary: formData.summary || null,
+        thought: formData.thought || null,
         file_path: extractedData.file_path,
         initial_comment: formData.initial_comment || null,
         marketed: formData.marketed,
@@ -187,6 +189,18 @@ export default function PaperUpload({ onPaperCreated }) {
               onChange={handleInputChange}
               rows="3"
               placeholder="Brief summary of the paper's main contribution..."
+            />
+          </div>
+
+          <div className="form-group">
+            <label>One-sentence thought (public, optional)</label>
+            <input
+              type="text"
+              name="thought"
+              value={formData.thought}
+              onChange={handleInputChange}
+              maxLength={200}
+              placeholder="Your one-line take on this paper"
             />
           </div>
 

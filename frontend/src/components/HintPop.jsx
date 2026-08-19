@@ -6,9 +6,12 @@ export default function HintPop({ text, onClose }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 4500);
     const dismiss = () => onClose();
-    document.addEventListener('click', dismiss);
+    // Attach on the next task: the click that opened this popup may still
+    // be bubbling toward document and must not immediately dismiss it.
+    const attach = setTimeout(() => document.addEventListener('click', dismiss), 0);
     return () => {
       clearTimeout(timer);
+      clearTimeout(attach);
       document.removeEventListener('click', dismiss);
     };
   }, [onClose]);

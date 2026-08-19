@@ -44,54 +44,54 @@ function seed() {
     { id: 1, doi: '10.1145/357172.357176', title: 'The Byzantine Generals Problem',
       authors: '["Leslie Lamport", "Robert Shostak", "Marshall Pease"]',
       journal: 'ACM Transactions on Programming Languages and Systems', year: 1982,
-      file_path: 'demo.pdf', created_at: daysAgo(30) },
+      file_path: 'https://lamport.azurewebsites.net/pubs/byz.pdf', created_at: daysAgo(30) },
     { id: 2, doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need',
       authors: '["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones", "Aidan N. Gomez", "Łukasz Kaiser", "Illia Polosukhin"]',
       journal: 'Advances in Neural Information Processing Systems', year: 2017,
-      file_path: 'demo.pdf', created_at: daysAgo(21) },
+      file_path: 'https://arxiv.org/pdf/1706.03762', created_at: daysAgo(21) },
     { id: 3, doi: '10.1145/3065386', title: 'ImageNet Classification with Deep Convolutional Neural Networks',
       authors: '["Alex Krizhevsky", "Ilya Sutskever", "Geoffrey E. Hinton"]',
       journal: 'Communications of the ACM', year: 2017,
-      file_path: 'demo.pdf', created_at: daysAgo(18) },
+      file_path: 'https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf', created_at: daysAgo(18) },
     { id: 4, doi: '10.1145/362384.362685', title: 'A Relational Model of Data for Large Shared Data Banks',
       authors: '["E. F. Codd"]',
       journal: 'Communications of the ACM', year: 1970,
-      file_path: 'demo.pdf', created_at: daysAgo(14) },
+      file_path: 'https://www.seas.upenn.edu/~zives/03f/cis550/codd.pdf', created_at: daysAgo(14) },
     { id: 5, doi: '10.1002/j.1538-7305.1948.tb01338.x', title: 'A Mathematical Theory of Communication',
       authors: '["Claude E. Shannon"]',
       journal: 'Bell System Technical Journal', year: 1948,
-      file_path: 'demo.pdf', created_at: daysAgo(12) },
+      file_path: 'https://people.math.harvard.edu/~ctm/home/text/others/shannon/entropy/entropy.pdf', created_at: daysAgo(12) },
     { id: 6, doi: '10.1109/TIT.1976.1055638', title: 'New Directions in Cryptography',
       authors: '["Whitfield Diffie", "Martin E. Hellman"]',
       journal: 'IEEE Transactions on Information Theory', year: 1976,
-      file_path: 'demo.pdf', created_at: daysAgo(9) },
+      file_path: 'https://ee.stanford.edu/~hellman/publications/24.pdf', created_at: daysAgo(9) },
     { id: 7, doi: '10.1016/S0169-7552(98)00110-X', title: 'The Anatomy of a Large-Scale Hypertextual Web Search Engine',
       authors: '["Sergey Brin", "Lawrence Page"]',
       journal: 'Computer Networks and ISDN Systems', year: 1998,
-      file_path: 'demo.pdf', created_at: daysAgo(6) },
+      file_path: 'https://snap.stanford.edu/class/cs224w-readings/Brin98Anatomy.pdf', created_at: daysAgo(6) },
     { id: 8, doi: '10.1145/367177.367199', title: 'Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I',
       authors: '["John McCarthy"]',
       journal: 'Communications of the ACM', year: 1960,
-      file_path: 'demo.pdf', created_at: daysAgo(5) },
+      file_path: 'https://www-formal.stanford.edu/jmc/recursive.pdf', created_at: daysAgo(5) },
     { id: 9, doi: '10.1016/0304-3975(75)90017-1', title: 'Call-by-name, call-by-value and the λ-calculus',
       authors: '["Gordon D. Plotkin"]',
       journal: 'Theoretical Computer Science', year: 1975,
-      file_path: 'demo.pdf', created_at: daysAgo(3) },
+      file_path: 'https://homepages.inf.ed.ac.uk/gdp/publications/cbn_cbv_lambda.pdf', created_at: daysAgo(3) },
   ];
 
   let cid = 1;
   const copy = (paper_id, user_id, extra = {}) => ({
-    id: cid++, paper_id, user_id, summary: null, marketed: true,
+    id: cid++, paper_id, user_id, summary: null, thought: null, marketed: true,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     created_at: daysAgo(5), ...extra,
   });
 
   const copies = [
     copy(1, ME, { summary: 'Consensus despite traitors; the 3f+1 bound. Reread §4.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
-    copy(1, 2, { rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
+    copy(1, 2, { thought: 'The clearest impossibility argument I know.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
     copy(2, ME, { summary: 'Self-attention replaces recurrence entirely — Q·K/√d then softmax over V. The positional encodings are the part I still need to internalize.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
-    copy(2, 2, { rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
+    copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(3, 3, { rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
     copy(3, 6, { rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
     copy(4, 4, { rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
@@ -102,7 +102,7 @@ function seed() {
     copy(6, 6, { rating_expertise: 5, rating_reading: 5, rating_liking: 3 }),
     copy(7, 4, { rating_expertise: 3, rating_reading: 4, rating_liking: 4 }),
     copy(7, 5, { rating_expertise: 1, rating_reading: 2, rating_liking: 5 }),
-    copy(8, 4, { rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
+    copy(8, 4, { thought: 'Still the most elegant seven pages in our field.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
     copy(8, 6, { rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
     copy(9, 2, { rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
     copy(9, 5, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
@@ -180,6 +180,7 @@ const roomParts = (r) => ensure().participants.filter((x) => x.room_id === r.id)
 
 const readerEntry = (c) => ({
   paper_id: c.paper_id, user: publicUser(userById(c.user_id)),
+  thought: c.thought,
   rating_expertise: c.rating_expertise, rating_reading: c.rating_reading,
   rating_liking: c.rating_liking,
 });
@@ -205,6 +206,7 @@ function paperDetail(p) {
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: p.created_at,
     summary: mine ? mine.summary : null,
+    thought: mine ? mine.thought : null,
     marketed: mine ? mine.marketed : null,
     rating_expertise: mine ? mine.rating_expertise : null,
     rating_reading: mine ? mine.rating_reading : null,
@@ -234,6 +236,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: c ? c.created_at : p.created_at,
     summary: c && !hidePrivate ? c.summary : null,
+    thought: c ? c.thought : null,
     marketed: c ? c.marketed : null,
     rating_expertise: c ? c.rating_expertise : null,
     rating_reading: c ? c.rating_reading : null,
@@ -256,7 +259,9 @@ function roomDetail(r) {
       .map((m) => ({ id: m.id, content: m.content, created_at: m.created_at, user: publicUser(userById(m.user_id)) })),
     availabilities: d.availabilities.filter((a) => a.room_id === r.id)
       .map((a) => ({ id: a.id, availability: a.availability, created_at: a.created_at, user: publicUser(userById(a.user_id)) })),
-    viewer_can_lead: r.status === 'open' && isReader,
+    viewer_can_lead:
+      r.status === 'open' && isReader &&
+      roomParts(r).some((x) => x.user_id === ME),
     viewer_is_participant: roomParts(r).some((x) => x.user_id === ME),
     viewer_is_reader: isReader,
     viewer_hidden_entry_id: mine && !mine.marketed && paper ? paper.id : null,
@@ -277,7 +282,7 @@ function requireReaderOf(room) {
   const paper = d.papers.find((p) => paperKey(p) === room.paper_key);
   const mine = paper ? copyOf(paper, ME) : null;
   if (!mine || !mine.marketed) {
-    throw demoError('Only readers who display this paper in their nook can take part in the cohort', 403);
+    throw demoError('Add this paper to your nook, and keep it on display, to take part in the cohort', 403);
   }
 }
 
@@ -335,7 +340,15 @@ export async function demoRequest(path, options = {}) {
       .filter((c) => c.user_id === u.id && (own || c.marketed))
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((c) => paperListEntry(d.papers.find((p) => p.id === c.paper_id), c, !own, statusMap));
-    return { user: publicUser(u), papers: list };
+    const stats = own
+      ? {
+          papers: d.copies.filter((c) => c.user_id === u.id).length,
+          displayed: d.copies.filter((c) => c.user_id === u.id && c.marketed).length,
+          notes: d.comments.filter((c) => c.user_id === u.id).length,
+          seminars: d.participants.filter((x) => x.user_id === u.id).length,
+        }
+      : null;
+    return { user: publicUser(u), papers: list, stats };
   }
 
   // ----- papers -----
@@ -347,37 +360,16 @@ export async function demoRequest(path, options = {}) {
       .map((p) => paperListEntry(p, null, true, statusMap));
   }
   if (path === '/papers/extract') {
-    const file = body && body.get ? body.get('file') : null;
-    const name = file && file.name ? file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ') : 'Untitled demo paper';
-    return { doi: null, title: name, authors: null, journal: null, year: null, file_path: 'demo.pdf' };
+    throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
   if (path === '/papers' && method === 'POST') {
-    let paper = d.papers.find((p) =>
-      body.doi ? (p.doi || '').toLowerCase() === body.doi.trim().toLowerCase()
-               : !p.doi && p.title.trim().toLowerCase() === body.title.trim().toLowerCase());
-    if (paper && copyOf(paper, ME)) throw demoError('This paper is already in your nook');
-    if (!paper) {
-      paper = { id: d.nextId.paper++, doi: body.doi || null, title: body.title,
-        authors: body.authors || null, journal: body.journal || null,
-        year: body.year || null, file_path: 'demo.pdf', created_at: now() };
-      d.papers.push(paper);
-    }
-    d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
-      summary: body.summary || null, marketed: body.marketed !== false,
-      rating_expertise: body.rating_expertise ?? null,
-      rating_reading: body.rating_reading ?? null,
-      rating_liking: body.rating_liking ?? null, created_at: now() });
-    if (body.initial_comment && body.initial_comment.trim()) {
-      d.comments.push({ id: d.nextId.comment++, paper_id: paper.id, user_id: ME,
-        content: body.initial_comment.trim(), created_at: now() });
-    }
-    return paperDetail(paper);
+    throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
   if ((m = path.match(/^\/papers\/(\d+)\/add-to-nook$/))) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
-      summary: null, marketed: true, rating_expertise: null,
+      summary: null, thought: null, marketed: true, rating_expertise: null,
       rating_reading: null, rating_liking: null, created_at: now() });
     return paperDetail(paper);
   }
@@ -391,6 +383,12 @@ export async function demoRequest(path, options = {}) {
       content: body.content, created_at: now() };
     d.comments.push(c);
     return { ...c, user: publicUser(userById(ME)) };
+  }
+  if ((m = path.match(/^\/comments\/(\d+)$/)) && method === 'PUT') {
+    const c = d.comments.find((x) => x.id === parseInt(m[1]) && x.user_id === ME);
+    if (!c) throw demoError('Comment not found', 404);
+    c.content = body.content;
+    return { ...c, user: publicUser(userById(c.user_id)) };
   }
   if ((m = path.match(/^\/comments\/(\d+)$/)) && method === 'DELETE') {
     const i = d.comments.findIndex((c) => c.id === parseInt(m[1]) && c.user_id === ME);
@@ -417,7 +415,7 @@ export async function demoRequest(path, options = {}) {
   }
   if ((m = path.match(/^\/papers\/(\d+)$/)) && method === 'PUT') {
     const paper = findPaper(m[1]);
-    const personal = ['summary', 'marketed', 'rating_expertise', 'rating_reading', 'rating_liking'];
+    const personal = ['summary', 'thought', 'marketed', 'rating_expertise', 'rating_reading', 'rating_liking'];
     const metadata = ['title', 'authors', 'journal', 'year', 'doi'];
     if (personal.some((k) => k in body)) {
       const mine = copyOf(paper, ME);
@@ -455,9 +453,19 @@ export async function demoRequest(path, options = {}) {
     if (action === 'lead') {
       if (room.status !== 'open') throw demoError('This seminar already has a host');
       requireReaderOf(room);
+      if (!roomParts(room).some((x) => x.user_id === ME)) {
+        throw demoError('Join the cohort before answering to host');
+      }
       room.leader_id = ME;
       room.status = 'planning';
       ensureParticipant(room);
+      return roomDetail(room);
+    }
+    if (action === 'unhost') {
+      if (room.leader_id !== ME) throw demoError('Only the host can step back', 403);
+      if (room.status !== 'planning') throw demoError('Only a seminar in planning can lose its host');
+      room.leader_id = null;
+      room.status = 'open';
       return roomDetail(room);
     }
     if (action === 'join') {
@@ -481,7 +489,9 @@ export async function demoRequest(path, options = {}) {
     }
     if (action === 'messages') {
       requireReaderOf(room);
-      ensureParticipant(room);
+      if (!roomParts(room).some((x) => x.user_id === ME)) {
+        throw demoError('Join the cohort before posting a message');
+      }
       d.messages.push({ id: d.nextId.msg++, room_id: room.id, user_id: ME,
         content: body.content.trim(), created_at: now() });
       return roomDetail(room);
@@ -489,7 +499,9 @@ export async function demoRequest(path, options = {}) {
     if (action === 'availability') {
       if (room.status === 'scheduled') throw demoError('This seminar has already been scheduled');
       requireReaderOf(room);
-      ensureParticipant(room);
+      if (!roomParts(room).some((x) => x.user_id === ME)) {
+        throw demoError('Join the cohort before sharing availability');
+      }
       const mine = d.availabilities.find((a) => a.room_id === room.id && a.user_id === ME);
       if (mine) mine.availability = body.availability;
       else d.availabilities.push({ id: d.nextId.avail++, room_id: room.id, user_id: ME,
@@ -524,6 +536,12 @@ export async function demoRequest(path, options = {}) {
       unread_count: mine.filter((n) => !n.read).length,
       notifications: mine.map(({ user_id, ...n }) => n),
     };
+  }
+  if ((m = path.match(/^\/notifications\/(\d+)\/read$/))) {
+    const n = d.notifications.find((x) => x.id === parseInt(m[1]) && x.user_id === ME);
+    if (!n) throw demoError('Notification not found', 404);
+    n.read = true;
+    return { message: 'Notification marked read' };
   }
   if (path === '/notifications/read') {
     d.notifications.forEach((n) => { if (n.user_id === ME) n.read = true; });

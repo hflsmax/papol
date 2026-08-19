@@ -1,7 +1,7 @@
 import React from 'react';
 import SeminarFlow from './SeminarFlow';
 
-export default function HomePage({ currentUser, onJoin }) {
+export default function HomePage({ currentUser, onJoin, onDemo }) {
   return (
     <div>
       <div className="panel home-hero">
@@ -14,9 +14,15 @@ export default function HomePage({ currentUser, onJoin }) {
           seminar on any paper. Other readers of that paper are notified and
           can join.
         </p>
+        {onDemo && (
+          <button className="primary demo-cta" onClick={onDemo}>
+            Explore the demo
+          </button>
+        )}
       </div>
 
       <SeminarFlow />
+
     </div>
   );
 }

@@ -123,6 +123,14 @@ export function paperHref(paper) {
   return `#/paper/${paper.doi || paper.id}`;
 }
 
+// Uploaded PDFs live in uploads/. Demo papers link to each paper's
+// canonical open-access copy; demo-created papers use a bundled placeholder.
+export function pdfHref(paper) {
+  if (paper.file_path.startsWith('http')) return paper.file_path;
+  if (paper.file_path.startsWith('assets/')) return paper.file_path;
+  return `uploads/${paper.file_path}`;
+}
+
 export function listPapers() {
   return request('/papers');
 }
@@ -165,6 +173,10 @@ export function addComment(paperId, content) {
   return jsonRequest(`/papers/${paperId}/comments`, 'POST', { content });
 }
 
+export function updateComment(commentId, content) {
+  return jsonRequest(`/comments/${commentId}`, 'PUT', { content });
+}
+
 export function deleteComment(commentId) {
   return request(`/comments/${commentId}`, { method: 'DELETE' });
 }
@@ -185,6 +197,10 @@ export function leadRoom(roomId) {
 
 export function joinRoom(roomId) {
   return request(`/rooms/${roomId}/join`, { method: 'POST' });
+}
+
+export function unhostRoom(roomId) {
+  return request(`/rooms/${roomId}/unhost`, { method: 'POST' });
 }
 
 export function leaveRoom(roomId, successorId = null) {
@@ -218,6 +234,10 @@ export function announceRoom(roomId, scheduledTime, platform, style, styleDesc =
 
 export function getNotifications() {
   return request('/notifications');
+}
+
+export function markNotificationRead(id) {
+  return request(`/notifications/${id}/read`, { method: 'POST' });
 }
 
 export function markNotificationsRead() {

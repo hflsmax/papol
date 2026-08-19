@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getPaper, updatePaper, deletePaper, replacePaperPdf, addToNook } from '../api';
+import { getPaper, updatePaper, deletePaper, replacePaperPdf, addToNook, pdfHref } from '../api';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
@@ -15,6 +15,10 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [pdfNotice, setPdfNotice] = useState(null);
   const [isReplacingPdf, setIsReplacingPdf] = useState(false);
   const [toggleWarning, setToggleWarning] = useState(null);
+  const [editingThought, setEditingThought] = useState(false);
+  const [thoughtDraft, setThoughtDraft] = useState('');
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState('');
   const pdfInputRef = useRef(null);
 
   const handlePdfReplace = async (e) => {
@@ -71,10 +75,6 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     setEditMode('metadata');
   };
 
-  const startSummaryEdit = () => {
-    setEditData({ summary: paper.summary || '' });
-    setEditMode('summary');
-  };
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
@@ -148,11 +148,22 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     }
   };
 
-  const handleSummarySave = async () => {
+  const saveSummary = async () => {
     setError(null);
     try {
-      await updatePaper(paper.id, { summary: editData.summary || null });
-      setEditMode(null);
+      await updatePaper(paper.id, { summary: summaryDraft.trim() || null });
+      setEditingSummary(false);
+      loadPaper();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const saveThought = async () => {
+    setError(null);
+    try {
+      await updatePaper(paper.id, { thought: thoughtDraft.trim() || null });
+      setEditingThought(false);
       loadPaper();
     } catch (err) {
       setError(err.message);
@@ -254,7 +265,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
               <div className="pdf-row">
                 <a
                   className="btn"
-                  href={`uploads/${paper.file_path}`}
+                  href={pdfHref(paper)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -282,24 +293,6 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             <button onClick={() => setEditMode(null)}>Cancel</button>
             <button className="primary" onClick={handleMetadataSave}>
               Save Metadata
-            </button>
-          </div>
-        </div>
-      ) : editMode === 'summary' ? (
-        <div className="paper-form">
-          <div className="form-group">
-            <label>Summary (visible only to you)</label>
-            <textarea
-              name="summary"
-              value={editData.summary}
-              onChange={handleEditChange}
-              rows="4"
-            />
-          </div>
-          <div className="form-actions">
-            <button onClick={() => setEditMode(null)}>Cancel</button>
-            <button className="primary" onClick={handleSummarySave}>
-              Save Summary
             </button>
           </div>
         </div>
@@ -387,6 +380,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                           {entry.user.affiliation}
                         </span>
                       )}
+                      {entry.thought && (
+                        <span className="chip-pop-thought">“{entry.thought}”</span>
+                      )}
                       <RatingSummary paper={entry} />
                     </span>
                   </a>
@@ -406,12 +402,108 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           )}
 
           {hasEntry &&
-            (paper.summary ? (
+            (editingThought ? (
+              <div className="summary">
+                <h4>
+                  Thought
+                  <span className="visibility-badge public">public</span>
+                </h4>
+                <div className="inline-edit">
+                  <textarea
+                    className="inline-edit-box"
+                    value={thoughtDraft}
+                    maxLength={200}
+                    rows={2}
+                    autoFocus
+                    placeholder="Your one-line take on this paper"
+                    onChange={(e) => setThoughtDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setEditingThought(false);
+                    }}
+                  />
+                  <div className="inline-edit-actions">
+                    <button className="primary" onClick={saveThought}>
+                      Save
+                    </button>
+                    <button onClick={() => setEditingThought(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : paper.thought ? (
+              <div className="summary">
+                <h4>
+                  Thought
+                  <span className="visibility-badge public">public</span>
+                  <button
+                    className="link-btn summary-edit"
+                    onClick={() => {
+                      setThoughtDraft(paper.thought || '');
+                      setEditingThought(true);
+                    }}
+                  >
+                    edit
+                  </button>
+                </h4>
+                <p>{paper.thought}</p>
+              </div>
+            ) : (
+              <p className="add-summary">
+                <button
+                  className="link-btn"
+                  onClick={() => {
+                    setThoughtDraft('');
+                    setEditingThought(true);
+                  }}
+                >
+                  Add a one-sentence thought
+                </button>{' '}
+                <span className="visibility-badge public">public</span>
+              </p>
+            ))}
+
+          {hasEntry &&
+            (editingSummary ? (
               <div className="summary">
                 <h4>
                   Summary
                   <span className="visibility-badge private">private</span>
-                  <button className="link-btn summary-edit" onClick={startSummaryEdit}>
+                </h4>
+                <div className="inline-edit">
+                  <textarea
+                    className="inline-edit-box"
+                    value={summaryDraft}
+                    rows={4}
+                    autoFocus
+                    placeholder="A summary of the paper, visible only to you"
+                    onChange={(e) => setSummaryDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setEditingSummary(false);
+                    }}
+                  />
+                  <div className="inline-edit-actions">
+                    <button className="primary" onClick={saveSummary}>
+                      Save
+                    </button>
+                    <button onClick={() => setEditingSummary(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : paper.summary ? (
+              <div className="summary">
+                <h4>
+                  Summary
+                  <span className="visibility-badge private">private</span>
+                  <button
+                    className="link-btn summary-edit"
+                    onClick={() => {
+                      setSummaryDraft(paper.summary || '');
+                      setEditingSummary(true);
+                    }}
+                  >
                     edit
                   </button>
                 </h4>
@@ -419,7 +511,13 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
               </div>
             ) : (
               <p className="add-summary">
-                <button className="link-btn" onClick={startSummaryEdit}>
+                <button
+                  className="link-btn"
+                  onClick={() => {
+                    setSummaryDraft('');
+                    setEditingSummary(true);
+                  }}
+                >
                   Add a summary
                 </button>{' '}
                 <span className="visibility-badge private">private</span>
@@ -428,7 +526,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
           <div className="paper-actions">
             <a
-              href={`uploads/${paper.file_path}`}
+              href={pdfHref(paper)}
               target="_blank"
               rel="noopener noreferrer"
               className="btn"

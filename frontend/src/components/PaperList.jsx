@@ -28,20 +28,22 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
     );
   });
 
-  // Papers with a seminar rank to the top (active calls before scheduled);
-  // in your own nook, displayed papers come before hidden ones.
+  // Your own nook reads as a journal: newest first, grouped by month.
+  // Other nooks rank active seminars to the top.
   const rank = (p) =>
     p.room_status === 'open' || p.room_status === 'planning'
       ? 0
       : p.room_status === 'scheduled'
         ? 1
         : 2;
-  filteredPapers.sort(
-    (a, b) =>
-      rank(a) - rank(b) ||
-      (isOwn ? (b.marketed === true) - (a.marketed === true) : 0) ||
-      new Date(b.created_at) - new Date(a.created_at)
+  filteredPapers.sort((a, b) =>
+    isOwn
+      ? new Date(b.created_at) - new Date(a.created_at)
+      : rank(a) - rank(b) || new Date(b.created_at) - new Date(a.created_at)
   );
+
+  const monthOf = (d) =>
+    new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   const parseAuthors = (authorsJson) => {
     if (!authorsJson) return '';
@@ -59,7 +61,9 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
       <div className="search-bar">
         <input
           type="text"
-          placeholder="Search papers…"
+          placeholder={
+            isOwn ? 'Search papers in your nook…' : 'Search papers in this nook…'
+          }
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -75,9 +79,15 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
         </p>
       ) : (
         <ul>
-          {filteredPapers.map((paper) => (
+          {filteredPapers.map((paper, i) => (
+            <React.Fragment key={paper.id}>
+            {isOwn &&
+              (i === 0 ||
+                monthOf(paper.created_at) !==
+                  monthOf(filteredPapers[i - 1].created_at)) && (
+                <li className="month-header">{monthOf(paper.created_at)}</li>
+              )}
             <li
-              key={paper.id}
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
             >
               <div className="paper-item">
@@ -106,6 +116,9 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                             <span className="chip-pop-aff">
                               {entry.user.affiliation}
                             </span>
+                          )}
+                          {entry.thought && (
+                            <span className="chip-pop-thought">“{entry.thought}”</span>
                           )}
                           <RatingSummary paper={entry} />
                         </span>
@@ -158,6 +171,7 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                 </div>
               )}
             </li>
+            </React.Fragment>
           ))}
         </ul>
       )}

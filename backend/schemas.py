@@ -176,6 +176,7 @@ class PaperBase(BaseModel):
 class PaperCreate(PaperBase):
     file_path: str
     summary: Optional[str] = None
+    thought: Optional[str] = Field(default=None, max_length=200)
     marketed: bool = True
     rating_expertise: Optional[int] = Field(default=None, ge=1, le=5)
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
@@ -192,6 +193,7 @@ class PaperUpdate(BaseModel):
     year: Optional[int] = None
     # Personal fields (the viewer's own copy)
     summary: Optional[str] = None
+    thought: Optional[str] = Field(default=None, max_length=200)
     marketed: Optional[bool] = None
     rating_expertise: Optional[int] = Field(default=None, ge=1, le=5)
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
@@ -202,6 +204,7 @@ class ReaderEntry(BaseModel):
     """A reader's displayed copy of a paper."""
     paper_id: int
     user: UserPublic
+    thought: Optional[str] = None  # the reader's public one-sentence take
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None
     rating_liking: Optional[int] = None
@@ -213,6 +216,7 @@ class PaperList(PaperBase):
     created_at: datetime
     # Personal fields of the nook being viewed (None in the global list)
     summary: Optional[str] = None
+    thought: Optional[str] = None
     marketed: Optional[bool] = None
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None
@@ -230,6 +234,7 @@ class Paper(PaperBase):
     file_path: str
     created_at: datetime
     summary: Optional[str] = None
+    thought: Optional[str] = None
     marketed: Optional[bool] = None
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None
@@ -244,9 +249,18 @@ class Paper(PaperBase):
         from_attributes = True
 
 
+class NookStats(BaseModel):
+    """The owner's reading-journey numbers, shown on their own nook."""
+    papers: int = 0
+    displayed: int = 0
+    notes: int = 0
+    seminars: int = 0
+
+
 class UserSpace(BaseModel):
     user: UserPublic
     papers: List[PaperList]
+    stats: Optional[NookStats] = None  # own nook only
 
 
 class ExtractedMetadata(BaseModel):

@@ -1,3 +1,7 @@
+import asyncio
+import os
+from datetime import timedelta
+
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +23,8 @@ logger = logging.getLogger(__name__)
 from database import engine, get_db, Base, migrate, normalize_papers, SessionLocal
 from models import (
     User, AuthToken, Paper, Copy, Comment,
-    Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog
+    Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
+    Setting,
 )
 from schemas import (
     UserRegister, UserLogin, UserPublic, UserPrivate, UserDirectoryEntry, AuthResponse,
@@ -27,13 +32,14 @@ from schemas import (
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate, NotificationList, NotificationOut, AdminSQL,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
-    CommentCreate, Comment as CommentSchema, ExtractedMetadata,
+    CommentCreate, Comment as CommentSchema, ExtractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
     get_current_user_optional, bearer_scheme
 )
+from emailer import send_email
 from pdf_parser import extract_doi_from_pdf, get_title_from_filename
 from crossref import fetch_metadata_from_doi
 
@@ -102,6 +108,21 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
 
+# The {name} placeholder is filled with the new reader's display name.
+# Override via the settings table key "welcome_message".
+DEFAULT_WELCOME = (
+    "Welcome to Papol, {name}! Your nook is where you "
+    "document your reading: upload the papers you read, rate them, "
+    "keep private notes and a summary, and share a public "
+    "one-sentence thought. Visit the Village to see what other "
+    "readers keep in their nooks, and add papers from the Library "
+    "to your own. When a paper deserves a conversation, call a "
+    "seminar, and every reader of it will be invited. Each seminar "
+    "is run by a host: a reader who volunteers to plan it and lead "
+    "the discussion. Answer a call to host one yourself!"
+)
+
+
 # ---------------- Auth ----------------
 
 @app.post("/api/auth/register", response_model=AuthResponse)
@@ -120,6 +141,15 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Greet every new reader with a first inbox message
+    template = _setting(db, "welcome_message") or DEFAULT_WELCOME
+    db.add(Notification(
+        user_id=user.id,
+        content=template.replace("{name}", user.display_name),
+    ))
+    db.commit()
+
     token = create_token(db, user)
     return AuthResponse(token=token, user=UserPrivate.model_validate(user))
 
@@ -258,6 +288,7 @@ def _reader_entry(user_copy: Copy) -> ReaderEntry:
     return ReaderEntry(
         paper_id=user_copy.paper_id,
         user=UserPublic.model_validate(user_copy.user),
+        thought=user_copy.thought,
         rating_expertise=user_copy.rating_expertise,
         rating_reading=user_copy.rating_reading,
         rating_liking=user_copy.rating_liking,
@@ -285,6 +316,7 @@ def _paper_list_entry(
     )
     if user_copy:
         entry.summary = None if hide_private else user_copy.summary
+        entry.thought = user_copy.thought
         entry.marketed = user_copy.marketed
         entry.rating_expertise = user_copy.rating_expertise
         entry.rating_reading = user_copy.rating_reading
@@ -310,11 +342,22 @@ async def get_user_space(
         query = query.filter(Copy.marketed.is_(True))
     copies = query.order_by(Copy.created_at.desc()).all()
     room_map = _room_status_map(db)
+    stats = None
+    if not hide_private:
+        stats = NookStats(
+            papers=len(copies),
+            displayed=sum(1 for c in copies if c.marketed),
+            notes=db.query(Comment).filter(Comment.user_id == user_id).count(),
+            seminars=db.query(RoomParticipant)
+            .filter(RoomParticipant.user_id == user_id)
+            .count(),
+        )
     return UserSpace(
         user=UserPublic.model_validate(user),
         papers=[
             _paper_list_entry(r.paper, r, hide_private, room_map) for r in copies
         ],
+        stats=stats,
     )
 
 
@@ -460,6 +503,7 @@ def _paper_detail(db: Session, paper: Paper, viewer: User | None) -> PaperSchema
     )
     if user_copy:
         detail.summary = user_copy.summary
+        detail.thought = user_copy.thought
         detail.marketed = user_copy.marketed
         detail.rating_expertise = user_copy.rating_expertise
         detail.rating_reading = user_copy.rating_reading
@@ -572,6 +616,7 @@ async def create_paper(
         paper_id=db_paper.id,
         user_id=current_user.id,
         summary=paper.summary,
+        thought=paper.thought,
         marketed=paper.marketed,
         rating_expertise=paper.rating_expertise,
         rating_reading=paper.rating_reading,
@@ -603,7 +648,7 @@ async def get_paper(
 
 
 _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
-_PERSONAL_FIELDS = {"summary", "rating_expertise", "rating_reading", "rating_liking", "marketed"}
+_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "marketed"}
 
 
 @app.put("/api/papers/{paper_id}", response_model=PaperSchema)
@@ -739,6 +784,25 @@ async def add_comment(
     return db_comment
 
 
+@app.put("/api/comments/{comment_id}", response_model=CommentSchema)
+async def edit_comment(
+    comment_id: int,
+    comment: CommentCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Edit a note (author only)."""
+    db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if not db_comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if db_comment.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own notes")
+    db_comment.content = comment.content
+    db.commit()
+    db.refresh(db_comment)
+    return db_comment
+
+
 @app.delete("/api/comments/{comment_id}")
 async def delete_comment(
     comment_id: int,
@@ -780,7 +844,8 @@ def _require_reader(db: Session, room: Room, user: User):
     if user.id not in _reader_ids(db, room.paper_key, public_only=True):
         raise HTTPException(
             status_code=403,
-            detail="Only readers who display this paper in their nook can take part in the cohort",
+            detail="Add this paper to your nook, and keep it on display, "
+            "to take part in the cohort",
         )
 
 
@@ -805,7 +870,9 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
             for m in sorted(room.messages, key=lambda m: (m.created_at, m.id))
         ],
         availabilities=[RoomAvailabilityOut.model_validate(a) for a in room.availabilities],
-        viewer_can_lead=room.status == "open" and viewer.id in public_readers,
+        viewer_can_lead=room.status == "open"
+        and viewer.id in public_readers
+        and any(p.user_id == viewer.id for p in room.participants),
         viewer_is_participant=any(p.user_id == viewer.id for p in room.participants),
         viewer_is_reader=viewer.id in public_readers,
         viewer_hidden_entry_id=hidden_entry.id if hidden_entry else None,
@@ -879,6 +946,10 @@ async def lead_room(
             status_code=403,
             detail="Only a reader with a displayed entry of this paper can host",
         )
+    if not any(p.user_id == current_user.id for p in room.participants):
+        raise HTTPException(
+            status_code=400, detail="Join the cohort before answering to host"
+        )
     room.leader_id = current_user.id
     room.status = "planning"
     _ensure_participant(db, room, current_user)
@@ -890,6 +961,34 @@ async def lead_room(
         db, others, room,
         f"{current_user.display_name} will host the seminar on “{room.paper_title}”. "
         "Share your availability in the cohort.",
+    )
+    db.commit()
+    db.refresh(room)
+    return _room_detail(db, room, current_user)
+
+
+@app.post("/api/rooms/{room_id}/unhost", response_model=RoomDetail)
+async def unhost_room(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Step back from hosting a seminar still in planning. The room reopens
+    and waits for another reader to answer."""
+    room = _get_room_or_404(room_id, db)
+    if room.leader_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the host can step back")
+    if room.status != "planning":
+        raise HTTPException(
+            status_code=400, detail="Only a seminar in planning can lose its host"
+        )
+    room.leader_id = None
+    room.status = "open"
+    others = {p.user_id for p in room.participants} - {current_user.id}
+    _notify(
+        db, others, room,
+        f"{current_user.display_name} stepped back from hosting the seminar on "
+        f"“{room.paper_title}”. A reader of the paper can answer to host.",
     )
     db.commit()
     db.refresh(room)
@@ -973,7 +1072,10 @@ async def post_room_message(
 ):
     room = _get_room_or_404(room_id, db)
     _require_reader(db, room, current_user)
-    _ensure_participant(db, room, current_user)
+    if not any(p.user_id == current_user.id for p in room.participants):
+        raise HTTPException(
+            status_code=400, detail="Join the cohort before posting a message"
+        )
     db.add(RoomMessage(room_id=room.id, user_id=current_user.id, content=data.content.strip()))
     db.commit()
     db.refresh(room)
@@ -991,7 +1093,10 @@ async def set_room_availability(
     if room.status == "scheduled":
         raise HTTPException(status_code=400, detail="This seminar has already been scheduled")
     _require_reader(db, room, current_user)
-    _ensure_participant(db, room, current_user)
+    if not any(p.user_id == current_user.id for p in room.participants):
+        raise HTTPException(
+            status_code=400, detail="Join the cohort before sharing availability"
+        )
     entry = (
         db.query(RoomAvailability)
         .filter(RoomAvailability.room_id == room.id, RoomAvailability.user_id == current_user.id)
@@ -1086,6 +1191,144 @@ async def list_notifications(
     )
 
 
+def _site_url(db: Session) -> str:
+    return (
+        os.environ.get("PAPOL_URL")
+        or _setting(db, "site_url")
+        or "https://mc-pony.com/papol/"
+    )
+
+
+def _setting(db: Session, key: str):
+    row = db.query(Setting).filter(Setting.key == key).first()
+    return row.value if row and row.value else None
+
+
+def _smtp_cfg(db: Session):
+    """SMTP configuration: environment variables win, then the settings
+    table (keys smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from).
+    Returns None when no host is configured anywhere."""
+    def get(env, key, default=None):
+        return os.environ.get(env) or _setting(db, key) or default
+
+    host = get("SMTP_HOST", "smtp_host")
+    if not host:
+        return None
+    user = get("SMTP_USER", "smtp_user")
+    return {
+        "host": host,
+        "port": int(get("SMTP_PORT", "smtp_port", "587")),
+        "user": user,
+        "password": get("SMTP_PASS", "smtp_pass"),
+        "from_addr": get("SMTP_FROM", "smtp_from", user or "papol@localhost"),
+        "starttls": get("SMTP_STARTTLS", "smtp_starttls", "1") != "0",
+    }
+
+
+def send_daily_digest(db: Session) -> dict:
+    """Email each user their unread notifications from the past day.
+    A notification is emailed at most once."""
+    since = datetime.utcnow() - timedelta(days=1)
+    rows = (
+        db.query(Notification)
+        .filter(
+            Notification.read.is_(False),
+            Notification.emailed.is_(False),
+            Notification.created_at >= since,
+        )
+        .order_by(Notification.created_at)
+        .all()
+    )
+    by_user = {}
+    for n in rows:
+        by_user.setdefault(n.user_id, []).append(n)
+
+    cfg = _smtp_cfg(db)
+    if cfg is None:
+        return {"emails_sent": 0, "users_with_news": len(by_user), "skipped": "SMTP not configured"}
+
+    sent = 0
+    for uid, notifs in by_user.items():
+        user = db.query(User).filter(User.id == uid).first()
+        if not user:
+            continue
+        lines = "\n".join(f"  - {n.content}" for n in notifs)
+        count = len(notifs)
+        body = (
+            f"Hello {user.display_name},\n\n"
+            f"You have {count} new message{'s' if count != 1 else ''} in Papol today:\n\n"
+            f"{lines}\n\n"
+            f"Read and reply in your inbox: {_site_url(db)}#/inbox\n\n"
+            "— Papol"
+        )
+        try:
+            send_email(
+                cfg,
+                user.email,
+                f"Papol: {count} new message{'s' if count != 1 else ''} today",
+                body,
+            )
+        except Exception:
+            logger.exception("Digest email to %s failed", user.email)
+            continue
+        for n in notifs:
+            n.emailed = True
+        sent += 1
+    db.commit()
+    return {"emails_sent": sent, "users_with_news": len(by_user)}
+
+
+def _seconds_until(hour: int) -> float:
+    now = datetime.now()
+    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return (target - now).total_seconds()
+
+
+@app.on_event("startup")
+async def _start_digest_loop():
+    async def loop():
+        while True:
+            # Send hour is the digest_hour setting (0-23, server time)
+            db = SessionLocal()
+            try:
+                hour = int(_setting(db, "digest_hour") or 21)
+            except (TypeError, ValueError):
+                hour = 21
+            finally:
+                db.close()
+            await asyncio.sleep(_seconds_until(hour))
+            db = SessionLocal()
+            try:
+                logger.info("Daily digest: %s", send_daily_digest(db))
+            except Exception:
+                logger.exception("Daily digest failed")
+            finally:
+                db.close()
+
+    asyncio.create_task(loop())
+
+
+@app.post("/api/notifications/{notif_id}/read")
+async def mark_notification_read(
+    notif_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark a single notification read — reading happens by clicking."""
+    n = (
+        db.query(Notification)
+        .filter(Notification.id == notif_id, Notification.user_id == current_user.id)
+        .first()
+    )
+    if not n:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    n.read = True
+    db.commit()
+    return {"message": "Notification marked read"}
+
+
 @app.post("/api/notifications/read")
 async def mark_notifications_read(
     current_user: User = Depends(get_current_user),
@@ -1146,6 +1389,22 @@ def _coerce_pk(table, pk_value: str):
     except NotImplementedError:
         pass
     return pk_col, pk_value
+
+
+@app.post("/api/admin/send-digest")
+async def admin_send_digest(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Run the daily email digest immediately (admin only)."""
+    if _smtp_cfg(db) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="SMTP is not configured — fill the settings table "
+            "(smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from) "
+            "or set SMTP_* environment variables",
+        )
+    return send_daily_digest(db)
 
 
 @app.get("/api/admin/tables")

@@ -14,7 +14,7 @@ async def fetch_metadata_from_doi(doi: str) -> Optional[dict]:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 url,
-                headers={"User-Agent": "Papol/1.0 (Paper Documentation App)"}
+                headers={"User-Agent": "Papol/1.0 (Paper Reading App)"}
             )
 
             if response.status_code != 200:

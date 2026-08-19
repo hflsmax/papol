@@ -56,7 +56,8 @@ class Copy(Base):
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    summary = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)  # private
+    thought = Column(Text, nullable=True)  # public one-sentence take
     marketed = Column(Boolean, nullable=False, default=True, server_default="1")
     rating_expertise = Column(Integer, nullable=True)
     rating_reading = Column(Integer, nullable=True)
@@ -146,6 +147,15 @@ class RoomAvailability(Base):
     user = relationship("User")
 
 
+class Setting(Base):
+    """App configuration kept in the database (e.g. SMTP credentials),
+    editable through the admin tables page."""
+    __tablename__ = "settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(Text, nullable=True)
+
+
 class ErrorLog(Base):
     """An unhandled server error, kept for the admin to inspect."""
     __tablename__ = "error_logs"
@@ -166,6 +176,7 @@ class Notification(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=True)
     content = Column(Text, nullable=False)
     read = Column(Boolean, nullable=False, default=False)
+    emailed = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")

@@ -3,6 +3,7 @@ import {
   leadRoom,
   joinRoom,
   leaveRoom,
+  unhostRoom,
   postRoomMessage,
   setRoomAvailability,
   announceRoom,
@@ -58,6 +59,8 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
   const [isBusy, setIsBusy] = useState(false);
   const [msgHint, setMsgHint] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leadWarning, setLeadWarning] = useState(null);
+  const [joinWarning, setJoinWarning] = useState(null);
   const [successorId, setSuccessorId] = useState('');
 
   const run = (fn) => async () => {
@@ -90,14 +93,37 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
         <div className="stage-card open">
           <h5>Seminar called — waiting for a host</h5>
           <p>Called by {room.creator.display_name}.</p>
-          {room.viewer_can_lead ? (
-            <button
-              className="primary stage-action"
-              disabled={isBusy}
-              onClick={run(() => leadRoom(room.id))}
-            >
-              Answer to host
-            </button>
+          <p className="stage-hint">
+            The host is the seminar's benevolent dictator: they volunteer to
+            plan it — time, place, and style — and to lead the discussion.
+          </p>
+          {room.viewer_is_reader ? (
+            <span className="hint-anchor">
+              <button
+                className="primary stage-action"
+                disabled={isBusy}
+                onClick={async () => {
+                  setActionError(null);
+                  setLeadWarning(null);
+                  setIsBusy(true);
+                  try {
+                    onRoomChange(await leadRoom(room.id));
+                  } catch (e) {
+                    setLeadWarning(e.message);
+                  } finally {
+                    setIsBusy(false);
+                  }
+                }}
+              >
+                Answer to host
+              </button>
+              {leadWarning && (
+                <HintPop
+                  text={leadWarning}
+                  onClose={() => setLeadWarning(null)}
+                />
+              )}
+            </span>
           ) : (
             <p className="stage-hint">
               Only readers with a displayed entry can host.
@@ -227,8 +253,16 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
           >
             {editingAnnounce ? 'Save changes' : 'Announce seminar'}
           </button>
-          {editingAnnounce && (
+          {editingAnnounce ? (
             <button onClick={() => setEditingAnnounce(false)}>Cancel</button>
+          ) : (
+            <button
+              disabled={isBusy}
+              title="Return the seminar to waiting for a host"
+              onClick={run(() => unhostRoom(room.id))}
+            >
+              Step back from hosting
+            </button>
           )}
         </div>
       )}
@@ -338,14 +372,33 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               )}
             </a>
           ))}
-          {!room.viewer_is_participant && room.viewer_is_reader && (
-            <button
-              className="join-chip"
-              disabled={isBusy}
-              onClick={run(() => joinRoom(room.id))}
-            >
-              + Join the cohort
-            </button>
+          {!room.viewer_is_participant && (
+            <span className="hint-anchor">
+              <button
+                className="join-chip"
+                disabled={isBusy}
+                onClick={async () => {
+                  setActionError(null);
+                  setJoinWarning(null);
+                  setIsBusy(true);
+                  try {
+                    onRoomChange(await joinRoom(room.id));
+                  } catch (e) {
+                    setJoinWarning(e.message);
+                  } finally {
+                    setIsBusy(false);
+                  }
+                }}
+              >
+                + Join the cohort
+              </button>
+              {joinWarning && (
+                <HintPop
+                  text={joinWarning}
+                  onClose={() => setJoinWarning(null)}
+                />
+              )}
+            </span>
           )}
         </div>
         {leaveOpen && isLeader && room.status !== 'finished' && (
@@ -390,12 +443,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
           <h6 className="mini-title">Availability</h6>
 
           <ul className="availability-all">
-            {(room.viewer_is_participant || !room.viewer_is_reader
-              ? participants
-              : [...participants, currentUser]
-            ).map((u) => {
+            {participants.map((u) => {
               const entry = room.availabilities.find((a) => a.user.id === u.id);
-              const isMe = u.id === currentUser.id && room.viewer_is_reader;
+              const isMe = u.id === currentUser.id && room.viewer_is_participant;
               return (
                 <li key={u.id}>
                   <Avatar user={u} className="entry-avatar" />
@@ -466,7 +516,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
             ))
           )}
         </div>
-        {room.viewer_is_reader ? (
+        {room.viewer_is_participant ? (
           <div className="compose-row">
             <textarea
               className="room-textarea"
@@ -508,7 +558,11 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               </button>
               {msgHint && (
                 <HintPop
-                  text="Add this paper to your nook (on display) to take part."
+                  text={
+                    room.viewer_is_reader
+                      ? 'Join the cohort to post a message.'
+                      : 'Add this paper to your nook (on display) to take part.'
+                  }
                   onClose={() => setMsgHint(false)}
                 />
               )}

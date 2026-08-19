@@ -199,7 +199,11 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
             </button>
             {callHint && (
               <HintPop
-                text="Add this paper to your nook (on display) to call a seminar."
+                text={
+                  paper.viewer_has_entry
+                    ? 'Your copy of this paper is hidden. Put it on display before calling a seminar.'
+                    : 'Add this paper to your nook before calling a seminar.'
+                }
                 onClose={() => setCallHint(false)}
               />
             )}

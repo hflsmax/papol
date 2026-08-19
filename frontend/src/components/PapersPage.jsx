@@ -3,6 +3,7 @@ import { listPapers, paperHref } from '../api';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
+import PaperUpload from './PaperUpload';
 
 function parseAuthors(authorsJson) {
   if (!authorsJson) return '';
@@ -61,20 +62,22 @@ const SORTS = {
   },
 };
 
-export default function PapersPage({ onSelectPaper }) {
+export default function PapersPage({ currentUser, onSelectPaper }) {
   const [papers, setPapers] = useState(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('activity');
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const load = () => {
     listPapers()
       .then(setPapers)
       .catch((err) => setError(err.message));
-  }, []);
+  };
+
+  useEffect(load, []);
 
   if (error) return <div className="error">{error}</div>;
-  if (papers === null) return <div className="loading">Loading papers…</div>;
+  if (papers === null) return <div className="loading">Loading the library…</div>;
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
@@ -89,15 +92,13 @@ export default function PapersPage({ onSelectPaper }) {
 
   return (
     <div>
-      <div className="space-header">
-        <h2>All papers</h2>
-      </div>
+      {currentUser && <PaperUpload onPaperCreated={load} />}
 
       <div className="panel paper-list">
         <div className="search-bar">
           <input
             type="text"
-            placeholder="Search papers or readers…"
+            placeholder="Search papers and readers in the library…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -155,6 +156,9 @@ export default function PapersPage({ onSelectPaper }) {
                           <span className="chip-pop-aff">
                             {entry.user.affiliation}
                           </span>
+                        )}
+                        {entry.thought && (
+                          <span className="chip-pop-thought">“{entry.thought}”</span>
                         )}
                         <RatingSummary paper={entry} />
                       </span>

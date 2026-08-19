@@ -11,6 +11,7 @@ import RoomPage from './components/RoomPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
+import Avatar from './components/Avatar';
 
 const styles = `
 * {
@@ -178,6 +179,22 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--ink);
 }
 
+.nav-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  /* inline so the profile link keeps its text baseline (aligning with the
+     rest of the row) while the avatar hangs centered beside the name */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  font-size: 0.78rem;
+  margin-right: 7px;
+}
+
 /* ---------- Generic ---------- */
 
 .panel {
@@ -195,6 +212,9 @@ h1, h2, h3, h4, h5, h6 {
 
 .main-content {
   display: grid;
+  /* minmax(0, …) so a wide child (long nowrap text, etc.) can't blow the
+     track past the viewport on narrow screens */
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 
@@ -1153,7 +1173,8 @@ button.full-width {
 .paper-info h2 {
   font-size: 1.4rem;
   margin-bottom: 6px;
-  padding-right: 56px;
+  /* clear the absolutely-positioned display toggle (~90px wide) */
+  padding-right: 96px;
 }
 
 .detail-toggle {
@@ -1359,7 +1380,9 @@ button.full-width {
   border-radius: 3px;
   box-shadow: 0 3px 10px rgba(25, 35, 50, 0.15);
   padding: 10px 14px;
-  white-space: nowrap;
+  width: max-content;
+  max-width: 280px;
+  white-space: normal;
 }
 
 .nook-chip.has-pop:hover .chip-pop {
@@ -1413,6 +1436,7 @@ button.full-width {
 .summary p {
   color: var(--ink);
   font-size: 0.95rem;
+  white-space: pre-wrap;
 }
 
 .paper-actions {
@@ -1639,6 +1663,77 @@ h4 .state-pill {
   margin: 8px 0;
 }
 
+.inline-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-edit-box {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.95rem;
+  background: #fcfdfe;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.inline-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chip-pop-thought {
+  display: block;
+  font-style: italic;
+  font-size: 0.85rem;
+  margin-top: 3px;
+  color: var(--ink-soft);
+}
+
+.village-subtitle {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin: -8px 0 14px;
+}
+
+.demo-cta {
+  margin-top: 16px;
+  padding: 11px 30px;
+  font-size: 1.02rem;
+}
+
+.comment-actions {
+  display: inline-flex;
+  gap: 12px;
+}
+
+.nook-stats {
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+.nook-stats .stat {
+  white-space: nowrap;
+}
+
+.paper-list .month-header {
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 16px 0 4px;
+  border-bottom: none;
+  list-style: none;
+}
+
 .nooks-row {
   display: flex;
   align-items: center;
@@ -1717,6 +1812,7 @@ h4 .state-pill {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0; /* let the flex item shrink so the ellipsis can kick in */
 }
 
 .collapsed-caret {
@@ -2489,6 +2585,18 @@ a.btn:hover {
   font-size: 0.95rem;
 }
 
+/* Collapsed: a single teaser line; clicking expands (and de-news) it */
+.notif-content.collapsed {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-room-link {
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+
 .notif-date {
   font-size: 0.8rem;
   color: var(--ink-faint);
@@ -2687,8 +2795,89 @@ a.btn:hover {
     padding: 16px 12px 48px;
   }
 
+  /* Masthead + tab bar: brand and account items on a centered top row,
+     section links as a full-bleed, equal-cell tab bar beneath it whose
+     active underline sits on the header's bottom rule */
+  .topnav {
+    align-items: center;
+    row-gap: 0;
+    padding-bottom: 0;
+  }
+
+  .topnav .whoami-name {
+    display: none; /* the avatar alone is the profile link on phones */
+  }
+
+  .nav-avatar {
+    margin-right: 0; /* no name after it on phones */
+  }
+
+  .topnav nav {
+    order: 10;
+    flex-basis: 100%;
+    margin: 10px -12px 0;
+    border-top: 1px solid var(--line);
+    gap: 0;
+  }
+
+  .topnav nav a {
+    flex: 1;
+    text-align: center;
+    padding: 9px 0;
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    font-size: 0.85rem;
+  }
+
   .panel {
     padding: 16px;
+  }
+
+  /* Back button gets its own row above the auth card instead of being
+     squeezed into the sliver beside it */
+  .auth-page {
+    flex-wrap: wrap;
+  }
+
+  .auth-page .back-btn {
+    flex-basis: 100%;
+    text-align: left;
+    margin-bottom: 4px;
+  }
+
+  /* Search input keeps a usable width; the sort control drops below it */
+  .search-bar {
+    flex-wrap: wrap;
+  }
+
+  .search-bar input {
+    flex-basis: 100%;
+  }
+
+  .paper-actions {
+    flex-wrap: wrap;
+  }
+
+  /* Rows wrap uniformly: the trailing element (paper status pill, reader
+     affiliation) always sits on its own line instead of wrapping only
+     when the title or name happens to be long */
+  h4 .state-pill {
+    display: block;
+    width: fit-content;
+    margin: 4px 0 2px;
+  }
+
+  .user-list li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .user-list .user-meta {
+    margin-left: 34px; /* aligned under the name, clear of the avatar */
+  }
+
+  .paper-title-row .title-chips {
+    flex-basis: 100%; /* reader chips get their own line in every row too */
   }
 
   .form-row {
@@ -2724,10 +2913,11 @@ function parseRoute() {
   if (match) return { page: 'room', id: parseInt(match[1]) };
   if (hash === '#/profile') return { page: 'profile' };
   if (hash === '#/join') return { page: 'join' };
+  if (hash === '#/about') return { page: 'about' };
   if (hash === '#/signin') return { page: 'signin' };
   if (hash === '#/demo') return { page: 'demo-entry' };
-  if (hash === '#/papers') return { page: 'papers' };
-  if (hash === '#/readers') return { page: 'directory' };
+  if (hash === '#/library' || hash === '#/papers') return { page: 'papers' };
+  if (hash === '#/village' || hash === '#/readers') return { page: 'directory' };
   if (hash === '#/inbox') return { page: 'inbox' };
   if (hash === '#/admin') return { page: 'admin' };
   return { page: 'home' };
@@ -2795,6 +2985,17 @@ export default function App() {
   const handleGuest = () => {
     setGuest(true);
     localStorage.setItem(GUEST_KEY, '1');
+    navigate('#/');
+  };
+
+  const handleBackToAccount = async () => {
+    exitDemo();
+    try {
+      setUser(await getMe());
+    } catch {
+      setToken(null);
+      setUser(null);
+    }
     navigate('#/');
   };
 
@@ -2885,49 +3086,61 @@ export default function App() {
       {user && demoActive() && (
         <div className="demo-banner">
           <span>
-            Demo mode — everything here is make-believe and lives only in
-            your browser. Nothing is saved.
+            Demo mode — everything here is make-believe and happens in your
+            browser. Nothing is saved.
           </span>
-          <button
-            className="demo-banner-btn"
-            onClick={() => navigate('#/join')}
-          >
-            Create a real account
-          </button>
-          <button
-            className="link-btn demo-banner-link"
-            onClick={() => navigate('#/signin')}
-          >
-            Sign in
-          </button>
+          {getToken() ? (
+            <button className="demo-banner-btn" onClick={handleBackToAccount}>
+              Back to my account
+            </button>
+          ) : (
+            <>
+              <button
+                className="demo-banner-btn"
+                onClick={() => navigate('#/join')}
+              >
+                Create a real account
+              </button>
+              <button
+                className="link-btn demo-banner-link"
+                onClick={() => navigate('#/signin')}
+              >
+                Sign in
+              </button>
+            </>
+          )}
         </div>
       )}
       <div className="app">
         <header className="topnav">
           <a className="brand" href="#/">Papol</a>
           <nav>
-            <a href="#/" className={route.page === 'home' ? 'active' : ''}>
-              Home
-            </a>
-            <a href="#/readers" className={route.page === 'directory' ? 'active' : ''}>
-              Readers
-            </a>
-            <a href="#/papers" className={route.page === 'papers' ? 'active' : ''}>
-              Papers
-            </a>
-            {user && (
+            {user ? (
               <a
-                href={`#/u/${user.id}`}
-                className={route.page === 'space' && route.id === user.id ? 'active' : ''}
+                href="#/"
+                className={
+                  route.page === 'home' ||
+                  (route.page === 'space' && route.id === user.id)
+                    ? 'active'
+                    : ''
+                }
               >
                 My nook
               </a>
-            )}
-            {user && user.is_admin && (
-              <a href="#/admin" className={route.page === 'admin' ? 'active' : ''}>
-                Admin
+            ) : (
+              <a href="#/" className={route.page === 'home' ? 'active' : ''}>
+                Home
               </a>
             )}
+            <a href="#/village" className={route.page === 'directory' ? 'active' : ''}>
+              Village
+            </a>
+            <a href="#/library" className={route.page === 'papers' ? 'active' : ''}>
+              Library
+            </a>
+            <a href="#/about" className={route.page === 'about' ? 'active' : ''}>
+              About
+            </a>
           </nav>
           <span className="spacer" />
           {user ? (
@@ -2948,8 +3161,21 @@ export default function App() {
                 href="#/profile"
                 title="Edit profile"
               >
-                {user.display_name.split(' ')[0]}
+                <Avatar user={user} className="nav-avatar" />
+                <span className="whoami-name">
+                  {user.display_name.split(' ')[0]}
+                </span>
               </a>
+              {user.is_admin && (
+                <a
+                  href="#/admin"
+                  className={
+                    route.page === 'admin' ? 'inbox-link active' : 'inbox-link'
+                  }
+                >
+                  Admin
+                </a>
+              )}
             </>
           ) : (
             <>
@@ -2961,10 +3187,23 @@ export default function App() {
           )}
         </header>
 
-        <main className="main-content">
-          {route.page === 'home' && (
-            <HomePage currentUser={user} onJoin={handleSignIn} />
-          )}
+        {/* Keyed by world: leaving or entering the demo remounts every
+            page so nothing keeps showing data from the other world. */}
+        <main className="main-content" key={demoActive() ? 'demo' : 'real'}>
+          {route.page === 'home' &&
+            (user ? (
+              <Space
+                userId={user.id}
+                currentUser={user}
+                onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+              />
+            ) : (
+              <HomePage
+                currentUser={user}
+                onJoin={handleSignIn}
+                onDemo={demoActive() ? undefined : handleDemo}
+              />
+            ))}
           {route.page === 'directory' && (
             <UserDirectory
               currentUser={user}
@@ -2976,6 +3215,7 @@ export default function App() {
               userId={route.id}
               currentUser={user}
               onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+              onBack={goBack}
             />
           )}
           {route.page === 'paper' && (
@@ -2987,7 +3227,10 @@ export default function App() {
             />
           )}
           {route.page === 'papers' && (
-            <PapersPage onSelectPaper={(id) => navigate(`#/paper/${id}`)} />
+            <PapersPage
+              currentUser={user}
+              onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+            />
           )}
           {route.page === 'room' &&
             (user ? (
@@ -3001,7 +3244,7 @@ export default function App() {
             (user ? (
               <InboxPage
                 onOpenRoom={(id) => navigate(`#/room/${id}`)}
-                onRead={() => setUnreadCount(0)}
+                onUnread={setUnreadCount}
               />
             ) : (
               <div className="panel">
@@ -3016,11 +3259,18 @@ export default function App() {
                 <p className="guest-note">Admin access only.</p>
               </div>
             ))}
+          {route.page === 'about' && (
+            <HomePage
+              currentUser={user}
+              onJoin={handleSignIn}
+              onDemo={demoActive() ? undefined : handleDemo}
+            />
+          )}
           {route.page === 'join' && (
-            <AuthPage onAuth={handleAuth} initialMode="register" />
+            <AuthPage onAuth={handleAuth} initialMode="register" onBack={goBack} />
           )}
           {route.page === 'signin' && (
-            <AuthPage onAuth={handleAuth} initialMode="login" />
+            <AuthPage onAuth={handleAuth} initialMode="login" onBack={goBack} />
           )}
           {route.page === 'demo-entry' && (
             <div className="loading">Entering the demo…</div>
