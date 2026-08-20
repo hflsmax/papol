@@ -103,7 +103,11 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                     {paper.readers.map((entry) => (
                       <a
                         key={entry.user.id}
-                        className="avatar-chip has-pop mini"
+                        className={
+                          entry.is_author
+                            ? 'avatar-chip has-pop mini author'
+                            : 'avatar-chip has-pop mini'
+                        }
                         href={`#/u/${entry.user.id}`}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -111,6 +115,9 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                         <span className="chip-pop">
                           <span className="chip-pop-name">
                             {entry.user.display_name}
+                            {entry.is_author && (
+                              <span className="author-tag">author</span>
+                            )}
                           </span>
                           {entry.user.affiliation && (
                             <span className="chip-pop-aff">
@@ -148,7 +155,7 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                     }
                     title={
                       paper.marketed !== false
-                        ? 'On display — other readers can see this paper. Click to hide it.'
+                        ? 'On display — other readers can see that you have this paper.'
                         : 'Hidden — only you can see this paper. Click to put it on display.'
                     }
                     aria-label={

@@ -43,8 +43,10 @@ async function handleResponse(response) {
 
 async function request(path, options = {}) {
   // Signing in or registering always talks to the real backend — that is
-  // how a demo visitor becomes a real member.
-  if (demoActive() && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')) {
+  // how a demo visitor becomes a real member. So does feedback: a bug a
+  // visitor hits in the demo is a real bug.
+  const alwaysReal = ['/auth/login', '/auth/register', '/feedback'];
+  if (demoActive() && !alwaysReal.some((p) => path.startsWith(p))) {
     return demoRequest(path, options);
   }
   const response = await fetch(`${API_BASE}${path}`, {
@@ -153,10 +155,22 @@ export function addToNook(paperId) {
   return request(`/papers/${paperId}/add-to-nook`, { method: 'POST' });
 }
 
-export function replacePaperPdf(id, file) {
+export function addPaperEdition(id, file) {
   const formData = new FormData();
   formData.append('file', file);
-  return request(`/papers/${id}/file`, { method: 'POST', body: formData });
+  return request(`/papers/${id}/editions`, { method: 'POST', body: formData });
+}
+
+export function adoptEdition(id, editionId) {
+  return jsonRequest(`/papers/${id}/adopt-edition`, 'POST', {
+    edition_id: editionId ?? null,
+  });
+}
+
+export function ignoreEdition(id, editionId) {
+  return jsonRequest(`/papers/${id}/ignore-edition`, 'POST', {
+    edition_id: editionId ?? null,
+  });
 }
 
 export function updatePaper(id, data) {
@@ -244,6 +258,16 @@ export function markNotificationsRead() {
   return request('/notifications/read', { method: 'POST' });
 }
 
+// ---------- Feedback ----------
+
+export function submitFeedback({ content, page, contact }) {
+  return jsonRequest('/feedback', 'POST', {
+    content,
+    page: page || null,
+    contact: contact || null,
+  });
+}
+
 // ---------- Admin ----------
 
 export function adminListTables() {
@@ -274,4 +298,12 @@ export function adminDbMetrics() {
 
 export function adminResetDbMetrics() {
   return request('/admin/db-metrics/reset', { method: 'POST' });
+}
+
+export function adminListFeedback() {
+  return request('/admin/feedback');
+}
+
+export function adminSetFeedbackResolved(id, resolved) {
+  return jsonRequest(`/admin/feedback/${id}`, 'PUT', { resolved });
 }

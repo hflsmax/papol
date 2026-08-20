@@ -51,10 +51,9 @@ export default function PaperUpload({ onPaperCreated }) {
         journal: data.journal || '',
         year: data.year || '',
         doi: data.doi || '',
-        summary: '',
         thought: '',
-        initial_comment: '',
         marketed: true,
+        is_author: false,
         rating_expertise: null,
         rating_reading: null,
         rating_liking: null,
@@ -92,11 +91,10 @@ export default function PaperUpload({ onPaperCreated }) {
         journal: formData.journal || null,
         year: formData.year ? parseInt(formData.year) : null,
         doi: formData.doi || null,
-        summary: formData.summary || null,
         thought: formData.thought || null,
         file_path: extractedData.file_path,
-        initial_comment: formData.initial_comment || null,
         marketed: formData.marketed,
+        is_author: !!formData.is_author,
         rating_expertise: formData.rating_expertise,
         rating_reading: formData.rating_reading,
         rating_liking: formData.rating_liking,
@@ -136,7 +134,22 @@ export default function PaperUpload({ onPaperCreated }) {
           </div>
 
           <div className="form-group">
-            <label>Authors (comma-separated)</label>
+            <div className="field-label-row">
+              <label>Authors (comma-separated)</label>
+              <label
+                className="checkbox-row inline"
+                title="Marks your chip on this paper as an author"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!formData.is_author}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, is_author: e.target.checked }))
+                  }
+                />
+                <span>I am an author</span>
+              </label>
+            </div>
             <input
               type="text"
               name="authors"
@@ -182,17 +195,6 @@ export default function PaperUpload({ onPaperCreated }) {
           </div>
 
           <div className="form-group">
-            <label>Summary (visible only to you)</label>
-            <textarea
-              name="summary"
-              value={formData.summary}
-              onChange={handleInputChange}
-              rows="3"
-              placeholder="Brief summary of the paper's main contribution..."
-            />
-          </div>
-
-          <div className="form-group">
             <label>One-sentence thought (public, optional)</label>
             <input
               type="text"
@@ -205,12 +207,12 @@ export default function PaperUpload({ onPaperCreated }) {
           </div>
 
           <div className="form-group">
-            <label>Your ratings</label>
+            <label>My ratings</label>
             <RatingInput values={formData} onChange={handleRatingChange} />
           </div>
 
           <div className="form-group">
-            <label className="checkbox-label">
+            <label className="checkbox-row">
               <input
                 type="checkbox"
                 checked={formData.marketed}
@@ -218,19 +220,8 @@ export default function PaperUpload({ onPaperCreated }) {
                   setFormData((prev) => ({ ...prev, marketed: e.target.checked }))
                 }
               />
-              Put this paper on display for other readers
+              Display in my nook
             </label>
-          </div>
-
-          <div className="form-group">
-            <label>Private note (visible only to you)</label>
-            <textarea
-              name="initial_comment"
-              value={formData.initial_comment}
-              onChange={handleInputChange}
-              rows="3"
-              placeholder="Your thoughts, notes, or review..."
-            />
           </div>
 
           <div className="form-actions">

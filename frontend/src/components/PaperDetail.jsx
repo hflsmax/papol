@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getPaper, updatePaper, deletePaper, replacePaperPdf, addToNook, pdfHref } from '../api';
+import {
+  getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition,
+  addToNook, pdfHref,
+} from '../api';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
 import Avatar from './Avatar';
 import { RatingInput, RatingSummary } from './Rating';
+import { demoActive } from '../demo';
+import Markdown, { MarkdownHint } from './Markdown';
+import AutoTextarea from './AutoTextarea';
 
 export default function PaperDetail({ paperId, currentUser, onBack, onSelectPaper }) {
   const [paper, setPaper] = useState(null);
@@ -12,8 +18,8 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
-  const [pdfNotice, setPdfNotice] = useState(null);
-  const [isReplacingPdf, setIsReplacingPdf] = useState(false);
+  const [isAddingEdition, setIsAddingEdition] = useState(false);
+  const [pendingPdf, setPendingPdf] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
   const [editingThought, setEditingThought] = useState(false);
   const [thoughtDraft, setThoughtDraft] = useState('');
@@ -21,21 +27,35 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [summaryDraft, setSummaryDraft] = useState('');
   const pdfInputRef = useRef(null);
 
-  const handlePdfReplace = async (e) => {
+  const handlePdfPick = (e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
     setError(null);
-    setPdfNotice(null);
-    setIsReplacingPdf(true);
+    setPendingPdf(file);
+  };
+
+  // Adopting is the reader's own call: their located notes were placed on
+  // the PDF they have, and on a different file they may not line up.
+  const handleAdoptEdition = async () => {
+    setError(null);
     try {
-      await replacePaperPdf(paper.id, file);
-      setPdfNotice('PDF replaced.');
+      await adoptEdition(paper.id, paper.latest_edition.id);
       loadPaper();
     } catch (err) {
       setError(err.message);
-    } finally {
-      setIsReplacingPdf(false);
-      e.target.value = '';
+    }
+  };
+
+  // Waving the offer away is not a decision about the PDF: the reader keeps
+  // what they have, and a later edition asks again.
+  const handleIgnoreEdition = async () => {
+    setError(null);
+    try {
+      await ignoreEdition(paper.id, paper.latest_edition.id);
+      loadPaper();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -54,6 +74,17 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       setIsLoading(false);
     }
   };
+
+  // A newer edition exists and this reader's copy is not on it. Only ever
+  // an offer: nothing moves a reader's copy but the reader.
+  const newEdition =
+    paper &&
+    paper.viewer_has_entry &&
+    paper.latest_edition &&
+    paper.latest_edition.id !== paper.edition_id &&
+    paper.latest_edition.id !== paper.ignored_edition_id
+      ? paper.latest_edition
+      : null;
 
   const parseAuthors = (authorsJson) => {
     if (!authorsJson) return [];
@@ -141,10 +172,20 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
         doi: editData.doi || null,
       });
 
+      // The picked PDF rides along with the save, so nothing about the
+      // paper changes until the reader commits the form.
+      if (pendingPdf) {
+        setIsAddingEdition(true);
+        await addPaperEdition(paper.id, pendingPdf);
+        setPendingPdf(null);
+      }
+
       setEditMode(null);
       loadPaper();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsAddingEdition(false);
     }
   };
 
@@ -261,7 +302,6 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           {hasEntry && (
             <div className="form-group">
               <label>PDF</label>
-              {pdfNotice && <div className="success">{pdfNotice}</div>}
               <div className="pdf-row">
                 <a
                   className="btn"
@@ -269,28 +309,40 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  View current PDF
+                  View PDF
                 </a>
                 <button
                   type="button"
+                  className="danger"
                   onClick={() => pdfInputRef.current?.click()}
-                  disabled={isReplacingPdf}
+                  disabled={isAddingEdition}
+                  title="Picks the PDF your copy will read, applied when you save. Other readers keep theirs until they choose to update."
                 >
-                  {isReplacingPdf ? 'Uploading…' : 'Replace PDF…'}
+                  {isAddingEdition ? 'Uploading…' : 'Replace PDF'}
                 </button>
+                {pendingPdf && (
+                  <span className="pdf-pending">{pendingPdf.name}</span>
+                )}
                 <input
                   type="file"
                   accept=".pdf"
                   ref={pdfInputRef}
                   style={{ display: 'none' }}
-                  onChange={handlePdfReplace}
+                  onChange={handlePdfPick}
                 />
               </div>
             </div>
           )}
 
           <div className="form-actions">
-            <button onClick={() => setEditMode(null)}>Cancel</button>
+            <button
+              onClick={() => {
+                setPendingPdf(null);
+                setEditMode(null);
+              }}
+            >
+              Cancel
+            </button>
             <button className="primary" onClick={handleMetadataSave}>
               Save Metadata
             </button>
@@ -298,45 +350,110 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
         </div>
       ) : (
         <div className="paper-info">
-          {hasEntry && (
-            <div className="detail-toggle">
-              <span className="hint-anchor">
-              <button
-                className={
-                  paper.marketed !== false ? 'market-toggle on' : 'market-toggle off'
-                }
-                onClick={handleMarketToggle}
-                title={
-                  paper.marketed !== false
-                    ? 'On display — other readers can see this paper. Click to hide it.'
-                    : 'Hidden — only you can see this paper. Click to put it on display.'
-                }
-                aria-label={
-                  paper.marketed !== false
-                    ? 'On display; click to hide'
-                    : 'Hidden; click to put on display'
-                }
-              >
-                <span className="switch" aria-hidden="true">
-                  <span className="switch-knob" />
-                  <span className="switch-text">
-                    {paper.marketed !== false ? 'Display' : 'Hidden'}
-                  </span>
-                </span>
-              </button>
-              {toggleWarning && (
-                <HintPop
-                  text={toggleWarning}
-                  onClose={() => setToggleWarning(null)}
-                />
-              )}
-              </span>
+          {newEdition && (
+            <div className="edition-notice">
+              <span className="edition-notice-icon" aria-hidden="true">i</span>
+              <div>
+                <p className="edition-notice-head">
+                  A newer PDF is uploaded by another user.
+                </p>
+                <p className="edition-notice-warn">
+                  Your notes sit on your current PDF and may not line up on the new one.
+                </p>
+                <div className="edition-notice-actions">
+                  <button className="link-btn" onClick={handleAdoptEdition}>
+                    Update my nook
+                  </button>
+                  <button className="link-btn" onClick={handleIgnoreEdition}>
+                    Ignore
+                  </button>
+                </div>
+              </div>
             </div>
           )}
-          <h2>{paper.title}</h2>
+          <div className="detail-title-row">
+            <h2>{paper.title}</h2>
+            {hasEntry && (
+              <div className="detail-toggle">
+                <span className="hint-anchor">
+                <button
+                  className={
+                    paper.marketed !== false ? 'market-toggle on' : 'market-toggle off'
+                  }
+                  onClick={handleMarketToggle}
+                  title={
+                    paper.marketed !== false
+                      ? 'On display — other readers can see that you have this paper.'
+                      : 'Hidden — only you can see this paper. Click to put it on display.'
+                  }
+                  aria-label={
+                    paper.marketed !== false
+                      ? 'On display; click to hide'
+                      : 'Hidden; click to put on display'
+                  }
+                >
+                  <span className="switch" aria-hidden="true">
+                    <span className="switch-knob" />
+                    <span className="switch-text">
+                      {paper.marketed !== false ? 'Display' : 'Hidden'}
+                    </span>
+                  </span>
+                </button>
+                {toggleWarning && (
+                  <HintPop
+                    text={toggleWarning}
+                    onClose={() => setToggleWarning(null)}
+                  />
+                )}
+                </span>
+                <button
+                  className="icon-btn danger-icon"
+                  onClick={handleDelete}
+                  title="Remove this paper from my nook — my ratings and notes go with it"
+                  aria-label="Remove from my nook"
+                >
+                  <svg
+                    width="19"
+                    height="19"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M2.6 4h10.8" />
+                    <path d="M6.2 4V2.7h3.6V4" />
+                    <path d="M4.1 4l.5 9.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L11.9 4" />
+                    <path d="M6.7 6.6v5.2M9.3 6.6v5.2" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
 
           {authors.length > 0 && (
-            <p className="authors">{authors.join(', ')}</p>
+            <div className="detail-authors-row">
+              <p className="authors">{authors.join(', ')}</p>
+              {/* Sits level with the names it refers to, however many lines
+                  they run to — as the display controls do with the title. */}
+              {hasEntry && (
+                <label
+                  className="checkbox-row inline"
+                  title="Marks your chip on this paper as an author"
+                >
+                  <input
+                    type="checkbox"
+                    checked={paper.is_author === true}
+                    onChange={(e) =>
+                      handleInlineRating('is_author', e.target.checked)
+                    }
+                  />
+                  <span>I am an author</span>
+                </label>
+              )}
+            </div>
           )}
 
           <div className="metadata">
@@ -354,6 +471,20 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             )}
           </div>
 
+          <div className="paper-actions">
+            {hasEntry && !demoActive() && (
+              <a className="btn primary" href={`viewer/?paper=${paper.id}`}>
+                Read
+              </a>
+            )}
+            {hasEntry && (
+              <button onClick={startMetadataEdit}>Edit Metadata</button>
+            )}
+            {currentUser && !paper.viewer_has_entry && (
+              <button onClick={handleAddToNook}>Add to my nook</button>
+            )}
+          </div>
+
           {(paper.also_read_by || []).length > 0 && (
             <div className="nooks-row">
               <span className="nooks-label">
@@ -364,7 +495,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                 {paper.also_read_by.map((entry) => (
                   <a
                     key={entry.user.id}
-                    className="avatar-chip has-pop mini"
+                    className={
+                      entry.is_author
+                        ? 'avatar-chip has-pop mini author'
+                        : 'avatar-chip has-pop mini'
+                    }
                     href={`#/u/${entry.user.id}`}
                   >
                     <Avatar user={entry.user} className="mini-avatar" />
@@ -374,6 +509,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                         {currentUser && entry.user.id === currentUser.id
                           ? ' (you)'
                           : ''}
+                        {entry.is_author && (
+                          <span className="author-tag">author</span>
+                        )}
                       </span>
                       {entry.user.affiliation && (
                         <span className="chip-pop-aff">
@@ -391,10 +529,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             </div>
           )}
 
+
           {hasEntry && (
             <div className="inline-ratings">
               <h4 className="inline-ratings-title">
-                Your ratings
+                My ratings
                 <span className="visibility-badge public">public</span>
               </h4>
               <RatingInput values={paper} onChange={handleInlineRating} />
@@ -420,7 +559,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
               </h4>
               {editingThought ? (
                 <div className="inline-edit">
-                  <textarea
+                  <AutoTextarea
                     className="inline-edit-box"
                     value={thoughtDraft}
                     maxLength={200}
@@ -457,33 +596,12 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             </div>
           )}
 
-          <div className="paper-actions">
-            <a
-              href={pdfHref(paper)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn"
-            >
-              View PDF
-            </a>
-            {currentUser && (
-              <button onClick={startMetadataEdit}>Edit Metadata</button>
-            )}
-            {currentUser && !paper.viewer_has_entry && (
-              <button onClick={handleAddToNook}>Add to my nook</button>
-            )}
-            {hasEntry && (
-              <button className="danger-link remove-paper" onClick={handleDelete}>
-                Remove from my nook
-              </button>
-            )}
-          </div>
         </div>
       )}
 
       {/* Everything below the separator is private to the reader:
           summary and notes. Above it, everything is public. */}
-      {hasEntry && (
+      {hasEntry && editMode !== 'metadata' && (
         <div className="paper-notes">
           <div className="summary-block">
             <h4>
@@ -503,7 +621,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             </h4>
             {editingSummary ? (
               <div className="inline-edit">
-                <textarea
+                <AutoTextarea
                   className="inline-edit-box"
                   value={summaryDraft}
                   rows={4}
@@ -514,6 +632,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                     if (e.key === 'Escape') setEditingSummary(false);
                   }}
                 />
+                <MarkdownHint />
                 <div className="inline-edit-actions">
                   <button className="primary" onClick={saveSummary}>
                     Save
@@ -524,7 +643,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                 </div>
               </div>
             ) : paper.summary ? (
-              <div className="summary-text">{paper.summary}</div>
+              <div className="summary-text">
+                <Markdown text={paper.summary} />
+              </div>
             ) : (
               <button
                 className="link-btn"
@@ -544,13 +665,16 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             currentUser={currentUser}
             onCommentChange={loadPaper}
           />
+
         </div>
       )}
       </div>
 
-      <div className="discussion-card">
-        <RoomSection paper={paper} currentUser={currentUser} onChanged={loadPaper} />
-      </div>
+      {editMode !== 'metadata' && (
+        <div className="discussion-card">
+          <RoomSection paper={paper} currentUser={currentUser} onChanged={loadPaper} />
+        </div>
+      )}
     </div>
   );
 }

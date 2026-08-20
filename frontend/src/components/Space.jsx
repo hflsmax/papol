@@ -43,6 +43,12 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
             {space.user.affiliation && (
               <p className="space-subtitle">{space.user.affiliation}</p>
             )}
+            {/* Only present when the reader chose to show it. */}
+            {space.user.email && (
+              <p className="space-email">
+                <a href={`mailto:${space.user.email}`}>{space.user.email}</a>
+              </p>
+            )}
             {space.stats && (
               <p className="nook-stats">
                 {[

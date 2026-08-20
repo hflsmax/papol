@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.schema import CreateColumn
 import os
 from pathlib import Path
 
@@ -20,41 +21,31 @@ def get_db():
         db.close()
 
 
-# Columns added after earlier schema versions; create_all only creates
-# missing tables, so pre-existing databases need these ALTERs.
-_MIGRATIONS = {
-    "comments": {
-        "user_id": "INTEGER",
-    },
-    "users": {
-        "affiliation": "TEXT",
-        "avatar_path": "TEXT",
-        "is_admin": "INTEGER NOT NULL DEFAULT 0",
-    },
-    "rooms": {
-        "style": "TEXT",
-        "style_desc": "TEXT",
-    },
-    "copies": {
-        "thought": "TEXT",
-    },
-    "notifications": {
-        "emailed": "INTEGER NOT NULL DEFAULT 0",
-    },
-}
+def _add_column_ddl(column) -> str:
+    """The column's definition as CREATE TABLE would spell it — type, NOT
+    NULL, DEFAULT — which is exactly what ADD COLUMN takes."""
+    return CreateColumn(column).compile(dialect=engine.dialect).string
 
 
 def migrate():
+    """Add columns the models declare but an existing table lacks.
+    create_all only creates missing tables, so a database written under an
+    earlier schema needs these ALTERs. Driven off the model metadata, so
+    there is no second list to keep in step: declare the column on the
+    model (with a server_default if it is NOT NULL, which SQLite requires
+    to add one) and an existing database picks it up on the next start."""
     with engine.begin() as conn:
-        for table, columns in _MIGRATIONS.items():
+        for table in Base.metadata.tables.values():
             existing = {
-                row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))
+                row[1] for row in conn.execute(text(f"PRAGMA table_info({table.name})"))
             }
             if not existing:
                 continue  # table doesn't exist yet; create_all will handle it
-            for name, sqltype in columns.items():
-                if name not in existing:
-                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sqltype}"))
+            for column in table.columns:
+                if column.name not in existing:
+                    conn.execute(text(
+                        f"ALTER TABLE {table.name} ADD COLUMN {_add_column_ddl(column)}"
+                    ))
 
 
 def _table_exists(conn, name: str) -> bool:

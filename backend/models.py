@@ -12,6 +12,8 @@ class User(Base):
     display_name = Column(String, nullable=False)
     affiliation = Column(String, nullable=True)
     avatar_path = Column(String, nullable=True)
+    # Readers may show their email on their nook; on by default.
+    email_public = Column(Boolean, nullable=False, default=True, server_default="1")
     is_admin = Column(Boolean, nullable=False, default=False, server_default="0")
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -30,9 +32,9 @@ class AuthToken(Base):
 
 
 class Paper(Base):
-    """The canonical paper, keyed by DOI (or title when no DOI).
-    One row per paper, holding the one shared PDF; per-reader state lives
-    in Copy."""
+    """The canonical paper, keyed by DOI (or title when no DOI). One row
+    per paper; its PDFs are its editions, and per-reader state lives in
+    Copy."""
     __tablename__ = "papers"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -41,11 +43,33 @@ class Paper(Base):
     authors = Column(Text, nullable=True)  # JSON array stored as text
     journal = Column(Text, nullable=True)
     year = Column(Integer, nullable=True)
-    file_path = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     copies = relationship("Copy", back_populates="paper", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="paper", cascade="all, delete-orphan")
+    editions = relationship(
+        "PaperEdition", back_populates="paper", order_by="PaperEdition.id"
+    )
+
+
+class PaperEdition(Base):
+    """One PDF file of a paper. A re-upload adds an edition instead of
+    replacing the file, so no reader's copy changes under them; each
+    reader's copy names the edition they read (Copy.edition_id).
+    Editions and their files are never deleted automatically."""
+    __tablename__ = "paper_editions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False, index=True)
+    file_path = Column(Text, nullable=False)
+    # Content hash: an upload identical to an existing edition reuses it
+    # rather than adding a duplicate.
+    sha256 = Column(String, nullable=True, index=True)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    paper = relationship("Paper", back_populates="editions")
+    uploader = relationship("User")
 
 
 class Copy(Base):
@@ -56,9 +80,18 @@ class Copy(Base):
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # The edition this reader reads. Only the reader moves it, by adopting
+    # a newer one; nothing else may change the file under their notes.
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
+    # The newest edition this reader has already seen — waved away, or
+    # simply present when they last chose a PDF. The offer of a newer PDF
+    # stays hidden until one newer still arrives.
+    ignored_edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
     marketed = Column(Boolean, nullable=False, default=True, server_default="1")
+    # The reader is an author of this paper ("this is my paper").
+    is_author = Column(Boolean, nullable=False, default=False, server_default="0")
     rating_expertise = Column(Integer, nullable=True)
     rating_reading = Column(Integer, nullable=True)
     rating_liking = Column(Integer, nullable=True)
@@ -66,20 +99,33 @@ class Copy(Base):
 
     paper = relationship("Paper", back_populates="copies")
     user = relationship("User", back_populates="copies")
+    edition = relationship("PaperEdition", foreign_keys=[edition_id])
 
 
 class Comment(Base):
-    """A reader's private note on a paper."""
+    """A reader's private note on a paper. A note may be *located*: fixed to
+    a place in the PDF, in which case it carries a page, a typed anchor and
+    the edition it was placed on. A note without those is the same kind of
+    thing, just not pinned anywhere."""
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     content = Column(Text, nullable=False)
+    # Location, all null for a note that is not pinned to the page.
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
+    page = Column(Integer, nullable=True)
+    # `point` today; `rect`, `polygon` and `quote` later, each with its own
+    # shape in `anchor` (JSON). A point is {"x": 0.42, "y": 0.71}: fractions
+    # of the page in PDF user space, so zoom and DPI never enter it.
+    anchor_type = Column(String, nullable=True)
+    anchor = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     paper = relationship("Paper", back_populates="comments")
     user = relationship("User")
+    edition = relationship("PaperEdition")
 
 
 class Room(Base):
@@ -180,3 +226,22 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")
+
+
+class Feedback(Base):
+    """A bug report or feature request. Kept for the admins to work
+    through; the reporter may be signed out, hence the nullable user."""
+    __tablename__ = "feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    content = Column(Text, nullable=False)
+    # Where the reporter was in the app, and how to reach them when they
+    # have no account.
+    page = Column(Text, nullable=True)
+    contact = Column(String, nullable=True)
+    resolved = Column(Boolean, nullable=False, default=False, server_default="0")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+

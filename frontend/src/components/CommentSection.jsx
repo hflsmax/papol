@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { addComment, updateComment, deleteComment } from '../api';
+import Markdown, { MarkdownHint } from './Markdown';
+import AutoTextarea from './AutoTextarea';
 
 export default function CommentSection({ paperId, comments, currentUser, onCommentChange }) {
   const [newComment, setNewComment] = useState('');
@@ -80,7 +82,7 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
 
       {composing && (
         <form onSubmit={handleSubmit} className="inline-edit comment-compose">
-          <textarea
+          <AutoTextarea
             className="inline-edit-box"
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
@@ -91,6 +93,7 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
               if (e.key === 'Escape') setComposing(false);
             }}
           />
+          <MarkdownHint />
           <div className="inline-edit-actions">
             <button
               type="submit"
@@ -112,7 +115,7 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
             <div key={comment.id} className="comment">
               {editingId === comment.id ? (
                 <div className="inline-edit">
-                  <textarea
+                  <AutoTextarea
                     className="inline-edit-box"
                     value={draft}
                     rows={3}
@@ -122,6 +125,7 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
                       if (e.key === 'Escape') setEditingId(null);
                     }}
                   />
+                  <MarkdownHint />
                   <div className="inline-edit-actions">
                     <button className="primary" onClick={saveEdit}>
                       Save
@@ -131,8 +135,21 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
                 </div>
               ) : (
                 <>
-                  <div className="comment-content">{comment.content}</div>
+                  <div className="comment-content">
+                    <Markdown text={comment.content} />
+                  </div>
                   <div className="comment-footer">
+                    {/* A note taken in the viewer knows where it sits; the
+                        link opens the paper there. */}
+                    {comment.page != null && (
+                      <a
+                        className="note-page"
+                        href={`viewer/?paper=${comment.paper_id}&note=${comment.id}`}
+                        title="Open this note in the PDF"
+                      >
+                        page {comment.page}
+                      </a>
+                    )}
                     <span className="comment-date">{formatDate(comment.created_at)}</span>
                     {currentUser && comment.user && comment.user.id === currentUser.id && (
                       <span className="comment-actions">

@@ -51,11 +51,11 @@ def get_current_user(
     return auth.user
 
 
-def get_current_user_optional(
+def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """Like get_current_user, but returns None for guests instead of raising."""
+    """The signed-in reader, or None — for endpoints open to visitors."""
     if credentials is None:
         return None
     auth = db.query(AuthToken).filter(AuthToken.token == credentials.credentials).first()

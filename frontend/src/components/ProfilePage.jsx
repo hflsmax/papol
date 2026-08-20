@@ -5,6 +5,7 @@ import Avatar from './Avatar';
 export default function ProfilePage({ user, onUserUpdated, onLogout }) {
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
+  const [emailPublic, setEmailPublic] = useState(user.email_public !== false);
   const [profileError, setProfileError] = useState(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -57,6 +58,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
       const updated = await updateProfile({
         display_name: displayName.trim(),
         affiliation: affiliation.trim(),
+        email_public: emailPublic,
       });
       onUserUpdated(updated);
       setProfileSaved(true);
@@ -163,6 +165,17 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
               onChange={(e) => setAffiliation(e.target.value)}
               placeholder="University, lab, or company (optional)"
             />
+          </div>
+
+          <div className="form-group">
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={emailPublic}
+                onChange={(e) => setEmailPublic(e.target.checked)}
+              />
+              <span>Show my email on my nook</span>
+            </label>
           </div>
 
           <div className="form-actions">

@@ -12,6 +12,7 @@ import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
 import Avatar from './components/Avatar';
+import FeedbackDialog from './components/FeedbackDialog';
 
 const styles = `
 * {
@@ -20,19 +21,83 @@ const styles = `
   padding: 0;
 }
 
+/* ---------- Design tokens (see frontend/DESIGN.md) ---------- */
+
 :root {
+  /* Ink — text, from strongest to faintest */
   --ink: #1d2129;
   --ink-soft: #4d5561;
   --ink-faint: #7e8794;
+
+  /* Surfaces */
   --paper: #f5f6f8;
+  --paper-sunken: #f1f3f6;
   --card: #ffffff;
   --line: #dde2e8;
+  --line-strong: #b4becb;
+  --ink-inverse: #ffffff;
+
+  /* Neutral control fills (switch tracks and the like) */
+  --fill: #ccd4dd;
+  --fill-strong: #b8c2cf;
+
+  /* Brand accent (navy) */
   --accent: #2b4a6f;
+  --accent-strong: #1e3752;
   --accent-soft: #eaeff5;
+  --accent-line: #c3cedd;
+
+  /* Semantic hues: gold = planning/demo, green = live/public/success,
+     red = danger/error, grey = finished/neutral state */
+  --gold: #b3923d;
+  --gold-ink: #7a5b1e;
+  --gold-soft: #faf3e3;
+  --gold-line: #e8d9b5;
+  --green: #7ba26c;
+  --green-ink: #3d5c34;
+  --green-soft: #edf3ea;
+  --green-line: #c9d9c1;
+  --red: #8c2f22;
+  --red-soft: #f9ecea;
+  --red-line: #e5c4bd;
+  --grey: #8a94a2;
+
+  /* Identity colours — assigned per reader, not semantic. Used behind the
+     initial shown when a reader has no picture; each is dark enough to
+     carry white text. */
+  --identity-0: #2b4a6f;
+  --identity-1: #35606b;
+  --identity-2: #4a6b52;
+  --identity-3: #7a4030;
+  --identity-4: #6b3f5e;
+  --identity-5: #4b4f7a;
+
+  /* Type families: serif for prose, UI sans for controls/badges/forms,
+     mono for identifiers and data */
+  --font-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --font-ui: -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type scale */
+  --fs-2xs: 0.7rem;
+  --fs-xs: 0.78rem;
+  --fs-sm: 0.85rem;
+  --fs-md: 0.92rem;
+  --fs-base: 0.95rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.2rem;
+  --fs-2xl: 1.4rem;
+  --fs-3xl: 1.5rem;
+  --fs-hero: 2.1rem;
+
+  /* Corners */
+  --radius: 3px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
 }
 
 body {
-  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-family: var(--font-serif);
   background: var(--paper);
   color: var(--ink);
   line-height: 1.65;
@@ -41,6 +106,24 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   line-height: 1.3;
+}
+
+/* Links take their colour from the app, never from the browser's
+   blue/purple/red link states — a chip flashing red on click is the
+   browser's :active default leaking through. Anything that should look
+   like a link says so with its own colour. */
+a,
+a:visited,
+a:active {
+  color: inherit;
+}
+
+/* No grey flash box when tapping a control on a touch screen. */
+a,
+button,
+label,
+input[type='checkbox'] {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
@@ -62,7 +145,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .brand {
-  font-size: 1.5rem;
+  font-size: var(--fs-3xl);
   font-weight: 600;
   color: var(--ink);
   text-decoration: none;
@@ -78,7 +161,7 @@ h1, h2, h3, h4, h5, h6 {
 .topnav nav a {
   color: var(--ink-soft);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
   padding-bottom: 2px;
   border-bottom: 2px solid transparent;
 }
@@ -96,7 +179,7 @@ h1, h2, h3, h4, h5, h6 {
 .topnav .inbox-link {
   color: var(--ink-soft);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
   padding-bottom: 2px;
   border-bottom: 2px solid transparent;
 }
@@ -111,6 +194,102 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom-color: var(--accent);
 }
 
+/* Always within reach, never in the way: the report door rides along in
+   the bottom-right corner of every page. */
+.feedback-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 90;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(25, 35, 50, 0.16);
+}
+
+.feedback-fab:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(25, 35, 50, 0.22);
+}
+
+/* The offer of a newer PDF: informational, never alarming, and never
+   acted on without the reader. */
+.edition-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent-line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+}
+
+.edition-notice-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--ink-inverse);
+  font-size: var(--fs-sm);
+  font-style: italic;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+}
+
+.edition-notice-head {
+  margin: 0;
+  color: var(--ink);
+}
+
+.edition-notice-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.edition-notice-warn {
+  margin: 4px 0 6px;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.feedback-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feedback-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.feedback-item.resolved {
+  opacity: 0.55;
+}
+
+.feedback-head {
+  margin: 0 0 4px;
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+
+.feedback-content {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+
 .demo-banner {
   display: flex;
   align-items: center;
@@ -118,11 +297,11 @@ h1, h2, h3, h4, h5, h6 {
   gap: 14px;
   flex-wrap: wrap;
   padding: 8px 16px;
-  background: #faf3e3;
-  color: #7a5b1e;
-  border-bottom: 1px solid #e8d9b5;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.88rem;
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  border-bottom: 1px solid var(--gold-line);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
 }
 
 .demo-banner-actions {
@@ -133,23 +312,23 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .demo-banner-btn {
-  border: 1px solid #7a5b1e;
-  border-radius: 999px;
+  border: 1px solid var(--gold-ink);
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: #7a5b1e;
+  color: var(--gold-ink);
   padding: 3px 14px;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   box-shadow: none;
 }
 
 .demo-banner-btn:hover {
-  background: #7a5b1e;
-  color: #fff;
+  background: var(--gold-ink);
+  color: var(--ink-inverse);
 }
 
 .demo-banner-link {
-  color: #7a5b1e;
-  font-size: 0.85rem;
+  color: var(--gold-ink);
+  font-size: var(--fs-sm);
   text-decoration: underline;
 }
 
@@ -159,7 +338,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .topnav .whoami {
   color: var(--ink-faint);
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   font-style: italic;
 }
 
@@ -178,14 +357,14 @@ h1, h2, h3, h4, h5, h6 {
   height: 26px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
   /* inline so the profile link keeps its text baseline (aligning with the
      rest of the row) while the avatar hangs centered beside the name */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   vertical-align: middle;
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   margin-right: 7px;
 }
 
@@ -194,18 +373,21 @@ h1, h2, h3, h4, h5, h6 {
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 20px;
 }
 
 .panel-title {
-  font-size: 1.2rem;
+  font-size: var(--fs-xl);
   margin-bottom: 14px;
 }
 
 .main-content {
   display: grid;
+  /* Room for the floating feedback button, so it never sits on the last
+     line of a page scrolled to its end. */
+  padding-bottom: 64px;
   /* minmax(0, …) so a wide child (long nowrap text, etc.) can't blow the
      track past the viewport on narrow screens */
   grid-template-columns: minmax(0, 1fr);
@@ -214,12 +396,12 @@ h1, h2, h3, h4, h5, h6 {
 
 button {
   padding: 8px 18px;
-  border: 1px solid #b4becb;
-  border-radius: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
   background: var(--card);
   color: var(--ink);
   cursor: pointer;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   font-family: inherit;
   box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
   transition: all 0.15s;
@@ -234,12 +416,27 @@ button:hover:not(:disabled) {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 button.primary:hover:not(:disabled) {
-  background: #1e3752;
-  color: #fff;
+  background: var(--accent-strong);
+  color: var(--ink-inverse);
+}
+
+/* Danger action: red is the danger family, and this is a control the
+   reader operates, so it takes the tint/line/ink roles rather than the
+   saturated fill a primary button uses. */
+button.danger {
+  background: var(--red-soft);
+  border-color: var(--red-line);
+  color: var(--red);
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--red-soft);
+  border-color: var(--red);
+  color: var(--red);
 }
 
 button:disabled {
@@ -271,23 +468,23 @@ button.full-width {
 }
 
 .error {
-  background: #f9ecea;
-  color: #8c2f22;
-  border: 1px solid #e5c4bd;
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid var(--red-line);
   padding: 10px 14px;
-  border-radius: 3px;
+  border-radius: var(--radius);
   margin-bottom: 16px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 .warning {
-  background: #faf3e3;
-  color: #7a5b1e;
-  border: 1px solid #e8d9b5;
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  border: 1px solid var(--gold-line);
   padding: 10px 14px;
-  border-radius: 3px;
+  border-radius: var(--radius);
   margin-bottom: 16px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 .hint-anchor {
@@ -311,13 +508,13 @@ button.full-width {
   z-index: 40;
   width: max-content;
   max-width: 260px;
-  background: #faf3e3;
-  color: #7a5b1e;
-  border: 1px solid #e8d9b5;
-  border-radius: 3px;
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
   box-shadow: 0 3px 10px rgba(25, 35, 50, 0.15);
   padding: 8px 12px;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   line-height: 1.5;
 }
 
@@ -328,18 +525,18 @@ button.full-width {
 }
 
 .success {
-  background: #edf3ea;
-  color: #3d5c34;
-  border: 1px solid #c9d9c1;
+  background: var(--green-soft);
+  color: var(--green-ink);
+  border: 1px solid var(--green-line);
   padding: 10px 14px;
-  border-radius: 3px;
+  border-radius: var(--radius);
   margin-bottom: 16px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 .profile-email {
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   margin-bottom: 18px;
 }
 
@@ -359,30 +556,44 @@ button.full-width {
 .form-group label {
   display: block;
   margin-bottom: 4px;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   font-variant: small-caps;
   letter-spacing: 0.04em;
 }
 
+/* Every control inherits its context's type rather than falling back to
+   a browser default — a bare <textarea> would otherwise render in
+   monospace. Inheriting means a field picks up prose serif in a panel,
+   mono inside an admin data table, and UI sans in the announce form. */
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: var(--fs-base);
+  color: var(--ink);
+}
+
 .form-group input,
 .form-group textarea,
 .note-form textarea,
-.availability-form textarea {
+.availability-form textarea,
+.room-textarea {
   width: 100%;
   padding: 9px 11px;
   border: 1px solid var(--line);
-  border-radius: 3px;
-  font-size: 0.98rem;
+  border-radius: var(--radius);
+  font-size: var(--fs-base);
   font-family: inherit;
-  background: #fcfdfe;
+  background: var(--card);
   color: var(--ink);
 }
 
 .form-group input:focus,
 .form-group textarea:focus,
 .note-form textarea:focus,
-.availability-form textarea:focus {
+.availability-form textarea:focus,
+.room-textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
@@ -411,25 +622,37 @@ button.full-width {
   flex-wrap: wrap;
 }
 
-.checkbox-label {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  font-variant: normal !important;
-  letter-spacing: normal !important;
-  font-size: 0.95rem !important;
-  color: var(--ink) !important;
-  cursor: pointer;
+/* The PDF picked but not yet saved. */
+.pdf-pending {
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.checkbox-label input[type="checkbox"] {
-  width: auto;
-  accent-color: var(--accent);
-  cursor: pointer;
+/* The pair reads as one choice, so both boxes are the same size: one
+   width for both, and an explicit line-height so the anchor and the button
+   do not render at two different heights. Secondary controls in a form,
+   so they take the small-button step of the scale rather than body size. */
+.pdf-row .btn,
+.pdf-row button {
+  flex: 0 0 auto;
+  width: 7.5rem;
+  padding: 6px 12px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* A field's label and a trailing option on one line. */
+.field-label-row {
+  display: flex;
+  align-items: center;
 }
 
 .market-status {
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   color: var(--ink-soft);
   margin: 8px 0;
 }
@@ -444,12 +667,12 @@ button.full-width {
   border: none;
   background: none;
   box-shadow: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   line-height: 0;
 }
 
 .switch-text {
-  font-size: 0.6rem;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -458,11 +681,11 @@ button.full-width {
 }
 
 .market-toggle.on .switch-text {
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 .market-toggle.off .switch-text {
-  color: #5a6675;
+  color: var(--ink-soft);
 }
 
 .market-toggle:hover:not(:disabled) {
@@ -477,7 +700,7 @@ button.full-width {
   gap: 5px;
   height: 22px;
   padding: 0 6px 0 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: background 0.15s;
 }
 
@@ -495,11 +718,11 @@ button.full-width {
 }
 
 .market-toggle.off .switch {
-  background: #ccd4dd;
+  background: var(--fill);
 }
 
 .market-toggle.off:hover .switch {
-  background: #b8c2cf;
+  background: var(--fill-strong);
 }
 
 .switch-knob {
@@ -507,7 +730,7 @@ button.full-width {
   height: 16px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ink-inverse);
   box-shadow: 0 1px 2px rgba(25, 35, 50, 0.3);
 }
 
@@ -533,7 +756,7 @@ button.full-width {
 }
 
 .paper-list li.unmarketed {
-  background: #f1f3f6;
+  background: var(--paper-sunken);
   border-left: 3px dashed var(--line);
   padding-left: 9px;
 }
@@ -555,7 +778,7 @@ button.full-width {
 .auth-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 32px 28px;
   width: 100%;
   max-width: 400px;
@@ -567,14 +790,14 @@ button.full-width {
 
 .auth-subtitle {
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   font-style: italic;
   margin-bottom: 20px;
 }
 
 .auth-switch {
   margin-top: 18px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   color: var(--ink-soft);
   text-align: center;
 }
@@ -612,18 +835,18 @@ button.full-width {
 }
 
 .user-name {
-  font-size: 1.05rem;
+  font-size: var(--fs-lg);
 }
 
 .you-tag {
   color: var(--ink-faint);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   font-style: italic;
 }
 
 .user-meta {
   color: var(--ink-faint);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
 }
 
 /* ---------- Space ---------- */
@@ -633,20 +856,57 @@ button.full-width {
 }
 
 .space-header h2 {
-  font-size: 1.4rem;
+  font-size: var(--fs-2xl);
 }
 
 .space-subtitle {
   color: var(--ink-faint);
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   font-style: italic;
 }
+
+.space-email {
+  font-size: var(--fs-sm);
+}
+
+.space-email a {
+  color: var(--ink-faint);
+}
+
+.space-email a:hover {
+  color: var(--accent);
+}
+
+/* Checkbox and its label sit on one baseline, with the explanation
+   indented under the label text. The first selector matches the
+   .form-group label rule's specificity so the small-caps field-label
+   styling is undone here. (No backticks in this sheet — it lives in a
+   JS template literal.) */
+.form-group label.checkbox-row,
+.checkbox-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  font-variant: normal;
+  letter-spacing: normal;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.checkbox-row input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
 
 /* ---------- Upload ---------- */
 
 .dropzone {
   border: 1px dashed var(--ink-faint);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 32px 20px;
   text-align: center;
   cursor: pointer;
@@ -665,7 +925,7 @@ button.full-width {
 }
 
 .dropzone .hint {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--ink-faint);
   margin-top: 6px;
   font-style: italic;
@@ -688,8 +948,8 @@ button.full-width {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   white-space: nowrap;
 }
@@ -697,7 +957,7 @@ button.full-width {
 .sort-control select {
   padding: 7px 8px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   background: var(--card);
   font: inherit;
   color: inherit;
@@ -707,10 +967,10 @@ button.full-width {
   width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 3px;
-  font-size: 0.98rem;
+  border-radius: var(--radius);
+  font-size: var(--fs-base);
   font-family: inherit;
-  background: #fcfdfe;
+  background: var(--card);
 }
 
 .search-bar input:focus {
@@ -765,19 +1025,19 @@ button.full-width {
 }
 
 .paper-meta {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   font-style: italic;
 }
 
 .interest-tag {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--accent);
   margin-top: 4px;
 }
 
 .paper-host {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--ink-faint);
   margin-top: 2px;
 }
@@ -811,7 +1071,7 @@ button.full-width {
 }
 
 .group-count {
-  font-size: 0.82rem;
+  font-size: var(--fs-xs);
   color: var(--accent);
   margin-top: 2px;
 }
@@ -827,7 +1087,7 @@ button.full-width {
   gap: 10px;
   flex-wrap: wrap;
   padding: 7px 8px;
-  border-radius: 3px;
+  border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -847,16 +1107,16 @@ button.full-width {
   height: 24px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   flex-shrink: 0;
 }
 
 .entry-name {
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   min-width: 90px;
 }
 
@@ -889,11 +1149,11 @@ button.full-width {
   height: 48px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: var(--fs-xl);
   flex-shrink: 0;
 }
 
@@ -909,11 +1169,11 @@ button.full-width {
   height: 64px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: var(--fs-3xl);
   flex-shrink: 0;
 }
 
@@ -924,7 +1184,7 @@ button.full-width {
 }
 
 .avatar-hint {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
   font-style: italic;
   margin-top: 4px;
@@ -939,35 +1199,31 @@ button.full-width {
   background: none;
   box-shadow: none;
   padding: 0;
-  color: #8c2f22;
+  color: var(--red);
   text-decoration: underline;
   text-decoration-style: dotted;
   text-underline-offset: 3px;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   margin-right: auto;
 }
 
 .danger-link:hover {
   border: none;
   background: none;
-  color: #8c2f22;
+  color: var(--red);
   text-decoration-style: solid;
 }
 
-.danger-link.remove-paper {
-  margin-left: auto;
-  margin-right: 0;
-  align-self: center;
-}
+
 
 .summary-edit {
   margin-left: 10px;
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
 }
 
 .add-summary {
   margin: 10px 0;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 .no-papers {
@@ -998,7 +1254,7 @@ button.full-width {
 }
 
 .rating-label {
-  font-size: 0.82rem;
+  font-size: var(--fs-xs);
   color: var(--ink-soft);
   font-variant: small-caps;
   letter-spacing: 0.04em;
@@ -1006,7 +1262,7 @@ button.full-width {
 
 .rating-dots {
   letter-spacing: 2px;
-  font-size: 0.72rem;
+  font-size: var(--fs-2xs);
   color: var(--accent);
 }
 
@@ -1017,7 +1273,7 @@ button.full-width {
 .rating-none {
   color: var(--ink-faint);
   font-style: italic;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .rating-tail {
@@ -1032,7 +1288,7 @@ button.full-width {
   background: none;
   box-shadow: none;
   padding: 0 2px;
-  font-size: 1.05rem;
+  font-size: var(--fs-lg);
   line-height: 1;
   color: var(--ink-faint);
 }
@@ -1057,7 +1313,7 @@ button.full-width {
 }
 
 .rating-input-row label {
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   color: var(--ink-soft);
   margin: 0;
 }
@@ -1072,13 +1328,13 @@ button.full-width {
   height: 34px;
   padding: 0;
   border-radius: 50%;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .rating-btn.selected {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 .rating-btn.none {
@@ -1090,11 +1346,11 @@ button.full-width {
   background: var(--ink-soft);
   border-color: var(--ink-soft);
   border-style: solid;
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 .rating-hint {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
   font-style: italic;
   margin-top: 2px;
@@ -1102,12 +1358,12 @@ button.full-width {
 
 .visibility-badge {
   display: inline-block;
-  font-size: 0.68rem;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: var(--fs-2xs);
+  font-family: var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 1px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   border: 1px solid;
   margin-left: 8px;
   vertical-align: middle;
@@ -1116,14 +1372,14 @@ button.full-width {
 }
 
 .visibility-badge.public {
-  color: #3d5c34;
-  border-color: #c9d9c1;
-  background: #edf3ea;
+  color: var(--green-ink);
+  border-color: var(--green-line);
+  background: var(--green-soft);
 }
 
 .visibility-badge.private {
   color: var(--accent);
-  border-color: #c3cedd;
+  border-color: var(--accent-line);
   background: var(--accent-soft);
 }
 
@@ -1133,10 +1389,15 @@ button.full-width {
 
 /* On the paper page the three rating controls sit side by side on one
    row to keep the first panel short. Each cell stacks its label over
-   the buttons so nothing wraps mid-row. */
+   the buttons so nothing wraps mid-row. The green tint marks the
+   ratings as public — see .summary-text / .comment for the private
+   blue counterpart. */
 .inline-ratings .rating-inputs {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px 18px;
+  padding: 8px 12px;
+  background: var(--green-soft);
+  border-radius: var(--radius);
 }
 
 .inline-ratings .rating-input-row {
@@ -1148,7 +1409,7 @@ button.full-width {
 .inline-ratings .rating-btn {
   width: 25px;
   height: 25px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 
 .inline-ratings .rating-tail {
@@ -1162,7 +1423,7 @@ button.full-width {
 }
 
 .inline-ratings-title {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   font-variant: small-caps;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -1177,7 +1438,7 @@ button.full-width {
   background: none;
   color: var(--accent);
   padding: 0;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   box-shadow: none;
 }
 
@@ -1192,21 +1453,86 @@ button.full-width {
 }
 
 .paper-info h2 {
-  font-size: 1.4rem;
+  font-size: var(--fs-2xl);
+  margin-bottom: 0;
+}
+
+/* The paper page's title and its controls share a row and centre on each
+   other, so the controls sit level with the title whether it runs to one
+   line or four. Never wraps: the controls belong in the top-right corner.
+   (Distinct from .paper-title-row, the list-row title, which does wrap.) */
+/* Spacing belongs to the row, not to the title inside it: the row also
+   carries the display toggle and the delete button, and a margin on the
+   h2 alone spaces the heading while leaving its neighbours behind. */
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: nowrap;
   margin-bottom: 6px;
-  /* clear the absolutely-positioned display toggle (~90px wide) */
-  padding-right: 96px;
+}
+
+.detail-title-row h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detail-authors-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: nowrap;
+  margin-bottom: 8px;
+}
+
+.detail-authors-row .authors {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detail-authors-row .checkbox-row {
+  flex: none;
 }
 
 .detail-toggle {
-  position: absolute;
-  top: 0;
-  right: 0;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Icon button: chrome-free, the glyph inherits currentColor so a state or
+   danger modifier recolours it. Always carries a title and an aria-label —
+   an icon has no name of its own. */
+.icon-btn {
+  padding: 4px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  line-height: 0;
+  color: var(--ink-faint);
+  border-radius: var(--radius);
+}
+
+.icon-btn:hover:not(:disabled) {
+  border: none;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* A destructive icon states itself in red at rest, not only on hover. */
+.icon-btn.danger-icon {
+  color: var(--red);
+}
+
+.icon-btn.danger-icon:hover:not(:disabled) {
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .paper-info .authors {
   color: var(--ink-soft);
-  margin-bottom: 8px;
+  margin-bottom: 0;
   font-style: italic;
 }
 
@@ -1214,11 +1540,11 @@ button.full-width {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .metadata span, .metadata a {
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   color: var(--ink-soft);
 }
 
@@ -1237,7 +1563,7 @@ button.full-width {
   gap: 10px;
   padding: 5px 16px 5px 6px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--card);
   text-decoration: none;
   color: var(--ink);
@@ -1259,23 +1585,23 @@ button.full-width {
   height: 30px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   flex-shrink: 0;
 }
 
 .nook-chip-name {
   display: block;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   line-height: 1.25;
 }
 
 .nook-chip-aff {
   display: block;
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
   line-height: 1.25;
 }
@@ -1289,7 +1615,7 @@ button.full-width {
 }
 
 .also-read-label {
-  font-size: 0.82rem;
+  font-size: var(--fs-xs);
   font-variant: small-caps;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -1342,11 +1668,11 @@ button.full-width {
   height: 22px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.68rem;
+  font-size: var(--fs-2xs);
   flex-shrink: 0;
 }
 
@@ -1355,10 +1681,64 @@ button.full-width {
   display: inline-flex;
   border-radius: 50%;
   padding: 2px;
-  border: 1px solid #b4becb;
+  border: 1px solid var(--line-strong);
   background: var(--card);
+  color: var(--ink);
   box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+/* A reader who wrote the paper. Authors are squared off while every
+   other reader stays round, so the distinction survives without colour;
+   gold is the app's "this person holds a role here" hue, as on the
+   seminar leader's chip. */
+.avatar-chip.author {
+  border-radius: var(--radius);
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+}
+
+/* Square the avatar inside to match the chip; the hover popup is the
+   chip's other child and must keep its own shape. */
+.avatar-chip.author > :not(.chip-pop) {
+  border-radius: 1px;
+}
+
+.author-tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  color: var(--gold-ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+}
+
+/* Inline variant of the standard checkbox row, for a rarely-set option
+   that qualifies the line it trails rather than taking a row of its own. */
+.checkbox-row.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-style: normal;
+  color: var(--ink-faint);
+  vertical-align: middle;
+}
+
+.checkbox-row.inline input[type='checkbox'] {
+  margin-top: 0;
+}
+
+.checkbox-row.inline:hover {
+  color: var(--ink-soft);
 }
 
 .avatar-chip:hover {
@@ -1375,12 +1755,12 @@ button.full-width {
 .chip-pop-name {
   display: block;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 .chip-pop-aff {
   display: block;
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
   margin-bottom: 6px;
 }
@@ -1398,7 +1778,7 @@ button.full-width {
   z-index: 10;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   box-shadow: 0 3px 10px rgba(25, 35, 50, 0.15);
   padding: 10px 14px;
   width: max-content;
@@ -1420,7 +1800,7 @@ button.full-width {
 
 .chip-pop-title {
   display: block;
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   font-variant: small-caps;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -1443,12 +1823,12 @@ button.full-width {
   margin: 10px 0;
   padding: 8px 12px;
   background: var(--accent-soft);
-  border-radius: 3px;
+  border-radius: var(--radius);
 }
 
 .summary h4 {
   margin-bottom: 6px;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   font-variant: small-caps;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -1456,7 +1836,7 @@ button.full-width {
 
 .summary p {
   color: var(--ink);
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
   white-space: pre-wrap;
 }
 
@@ -1467,14 +1847,37 @@ button.full-width {
 }
 
 .paper-actions .btn {
-  padding: 8px 18px;
-  border: 1px solid #b4becb;
-  border-radius: 3px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
   background: var(--card);
   text-decoration: none;
   color: var(--ink);
-  font-size: 0.92rem;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
   box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+}
+
+/* Small buttons: these open the paper, they do not compete with the
+   reader's own work below them. */
+.paper-actions button {
+  padding: 6px 12px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+/* The anchor equivalent of button.primary: reading the paper is the action
+   this page exists for. */
+.paper-actions .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-inverse);
+}
+
+.paper-actions .btn.primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--ink-inverse);
 }
 
 .paper-actions .btn:hover {
@@ -1486,10 +1889,10 @@ button.full-width {
 /* ---------- Seminar / interest ---------- */
 
 .discussion-card {
-  background: #f3f6f9;
-  border: 1px solid #d9e0e8;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-left: 4px solid var(--accent);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 20px 24px;
   margin-bottom: 20px;
 }
@@ -1517,7 +1920,7 @@ button.full-width {
 }
 
 .seminar-head h4 {
-  font-size: 1.05rem;
+  font-size: var(--fs-lg);
 }
 
 .seminar-head-meta {
@@ -1529,34 +1932,34 @@ button.full-width {
 /* The one seminar-state chip, used identically everywhere */
 .state-pill {
   display: inline-block;
-  font-size: 0.72rem;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: var(--fs-2xs);
+  font-family: var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 500;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   vertical-align: middle;
 }
 
 .state-pill.called {
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 .state-pill.planning {
-  background: #b3923d;
-  color: #fff;
+  background: var(--gold);
+  color: var(--ink-inverse);
 }
 
 .state-pill.scheduled {
-  background: #7ba26c;
-  color: #fff;
+  background: var(--green);
+  color: var(--ink-inverse);
 }
 
 .state-pill.finished {
-  background: #8a94a2;
-  color: #fff;
+  background: var(--grey);
+  color: var(--ink-inverse);
 }
 
 .state-pill.none {
@@ -1580,25 +1983,25 @@ button.state-pill:hover:not(:disabled) {
 button.state-pill.called,
 button.state-pill.called:hover:not(:disabled) {
   background: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 button.state-pill.planning,
 button.state-pill.planning:hover:not(:disabled) {
-  background: #b3923d;
-  color: #fff;
+  background: var(--gold);
+  color: var(--ink-inverse);
 }
 
 button.state-pill.scheduled,
 button.state-pill.scheduled:hover:not(:disabled) {
-  background: #7ba26c;
-  color: #fff;
+  background: var(--green);
+  color: var(--ink-inverse);
 }
 
 button.state-pill.finished,
 button.state-pill.finished:hover:not(:disabled) {
-  background: #8a94a2;
-  color: #fff;
+  background: var(--grey);
+  color: var(--ink-inverse);
 }
 
 button.state-pill.none {
@@ -1645,7 +2048,7 @@ h4 .state-pill {
 }
 
 .interest-status, .interest-count-note {
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   color: var(--ink-soft);
   margin: 8px 0;
 }
@@ -1658,7 +2061,7 @@ h4 .state-pill {
 .interest-list li {
   padding: 8px 0;
   border-bottom: 1px dotted var(--line);
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
 }
 
 .interest-list li:last-child {
@@ -1671,13 +2074,13 @@ h4 .state-pill {
 
 .interest-date {
   color: var(--ink-faint);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .interest-note {
   color: var(--ink-soft);
   font-style: italic;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
 }
 
 .note-form {
@@ -1694,12 +2097,25 @@ h4 .state-pill {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   font: inherit;
-  font-size: 0.95rem;
-  background: #fcfdfe;
+  font-size: var(--fs-base);
+  /* Tighter than the 1.65 body prose it inherits: in a composer the line
+     breaks are the reader's own structure — Markdown lists, headings — and
+     reading-width leading spreads a short note over half the panel. */
+  line-height: 1.4;
+  background: var(--card);
   color: var(--ink);
   resize: vertical;
+}
+
+/* Sized by components/AutoTextarea.jsx as the reader types. Past a
+   screenful it stops growing and scrolls, so Save never leaves the view;
+   the corner handle goes, since the box already sizes itself. */
+.inline-edit-box.auto-grow {
+  max-height: 60vh;
+  overflow-y: auto;
+  resize: none;
 }
 
 .inline-edit-actions {
@@ -1710,14 +2126,14 @@ h4 .state-pill {
 .chip-pop-thought {
   display: block;
   font-style: italic;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   margin-top: 3px;
   color: var(--ink-soft);
 }
 
 .village-subtitle {
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   margin: -8px 0 14px;
 }
 
@@ -1731,7 +2147,7 @@ h4 .state-pill {
 
 .incubation-note {
   margin-top: 18px;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--ink-faint);
   font-style: italic;
 }
@@ -1742,9 +2158,9 @@ h4 .state-pill {
 
 .demo-cta {
   padding: 15px 46px;
-  font-size: 1.18rem;
+  font-size: var(--fs-xl);
   letter-spacing: 0.02em;
-  border-radius: 4px;
+  border-radius: var(--radius);
   box-shadow: 0 3px 10px rgba(43, 74, 111, 0.3);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
@@ -1760,8 +2176,8 @@ h4 .state-pill {
 }
 
 .nook-stats {
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   margin-top: 4px;
 }
@@ -1771,8 +2187,8 @@ h4 .state-pill {
 }
 
 .paper-list .month-header {
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.78rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1792,7 +2208,7 @@ h4 .state-pill {
 
 .nooks-label,
 .cohort-label {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
 }
 
@@ -1811,7 +2227,7 @@ h4 .state-pill {
 .seminar-card {
   border: 1px solid var(--line);
   border-left-width: 3px;
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 12px 16px;
   margin: 12px 0;
   background: var(--card);
@@ -1822,18 +2238,18 @@ h4 .state-pill {
 }
 
 .seminar-card.planning {
-  border-left-color: #b3923d;
+  border-left-color: var(--gold);
 }
 
 .seminar-card.scheduled {
-  border-color: #c9d9c1;
-  border-left-color: #7ba26c;
-  background: #f6faf4;
+  border-color: var(--green-line);
+  border-left-color: var(--green);
+  background: var(--green-soft);
 }
 
 .seminar-card.finished {
-  border-left-color: #8a94a2;
-  background: #f0f2f4;
+  border-left-color: var(--grey);
+  background: var(--paper);
   color: var(--ink-faint);
 }
 
@@ -1851,12 +2267,12 @@ h4 .state-pill {
 
 .seminar-card.collapsed:hover {
   border-color: var(--ink-faint);
-  background: #f0f2f4;
+  background: var(--paper);
 }
 
 .collapsed-meta {
   color: var(--ink-faint);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1873,7 +2289,7 @@ h4 .state-pill {
   padding: 0 8px;
   border: none;
   background: none;
-  font-size: 1.3rem;
+  font-size: var(--fs-2xl);
   line-height: 1;
   vertical-align: middle;
   color: var(--ink-soft);
@@ -1890,7 +2306,7 @@ h4 .state-pill {
 .announce-card,
 .announce-card input,
 .announce-card label {
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-ui);
 }
 
 .panel-head-row {
@@ -1918,9 +2334,9 @@ h4 .state-pill {
   flex: 1;
   padding: 5px 8px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
 }
 
 .style-options {
@@ -1935,10 +2351,10 @@ h4 .state-pill {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   cursor: pointer;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.88rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
 }
 
 .style-option.selected {
@@ -1949,7 +2365,7 @@ h4 .state-pill {
 .style-option .style-desc {
   display: block;
   color: var(--ink-soft);
-  font-size: 0.84rem;
+  font-size: var(--fs-sm);
 }
 
 .style-tag {
@@ -1957,17 +2373,17 @@ h4 .state-pill {
   margin-left: 10px;
   padding: 1px 9px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.78rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
   color: var(--ink-soft);
   background: var(--card);
   vertical-align: middle;
 }
 
 .stage-style {
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.88rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
   margin-top: 6px;
 }
 
@@ -1979,7 +2395,7 @@ h4 .state-pill {
 }
 
 .seminar-card-date {
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
 }
 
@@ -1987,12 +2403,12 @@ h4 .state-pill {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
   margin: 4px 0;
 }
 
 .seminar-when {
-  font-size: 1.02rem;
+  font-size: var(--fs-lg);
   margin: 4px 0;
 }
 
@@ -2001,7 +2417,7 @@ h4 .state-pill {
 }
 
 .seminar-card h6 {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   font-variant: small-caps;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -2010,7 +2426,7 @@ h4 .state-pill {
 
 .seminar-meta {
   color: var(--ink-faint);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   font-style: italic;
 }
 
@@ -2020,7 +2436,7 @@ h4 .state-pill {
 
 .availability-form label {
   display: block;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   margin-bottom: 4px;
 }
@@ -2034,7 +2450,7 @@ h4 .state-pill {
 }
 
 .availability-list li {
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   padding: 4px 0;
 }
 
@@ -2047,12 +2463,12 @@ h4 .state-pill {
 a.btn {
   display: inline-block;
   padding: 8px 18px;
-  border: 1px solid #b4becb;
-  border-radius: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
   background: var(--card);
   color: var(--ink);
   text-decoration: none;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
 }
 
@@ -2063,7 +2479,7 @@ a.btn:hover {
 }
 
 .mini-title {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   font-variant: small-caps;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -2078,7 +2494,7 @@ a.btn:hover {
 }
 
 .room-kicker {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   font-variant: small-caps;
   letter-spacing: 0.08em;
   color: var(--ink-faint);
@@ -2086,7 +2502,7 @@ a.btn:hover {
 
 
 .room-title {
-  font-size: 1.3rem;
+  font-size: var(--fs-2xl);
 }
 
 .room-title a {
@@ -2102,14 +2518,14 @@ a.btn:hover {
 
 .stage-card {
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 16px 18px;
   margin: 12px 0 16px;
   background: var(--card);
 }
 
 .stage-card h5 {
-  font-size: 1.02rem;
+  font-size: var(--fs-lg);
   margin-bottom: 4px;
 }
 
@@ -2119,23 +2535,23 @@ a.btn:hover {
 }
 
 .stage-card.planning {
-  background: #faf3e0;
-  border-left: 4px solid #d4b662;
+  background: var(--gold-soft);
+  border-left: 4px solid var(--gold);
 }
 
 .stage-card.scheduled {
-  background: #f6faf4;
-  border-left: 4px solid #7ba26c;
-  border-color: #c9d9c1;
+  background: var(--green-soft);
+  border-left: 4px solid var(--green);
+  border-color: var(--green-line);
 }
 
 .stage-card.finished {
-  background: #f0f2f4;
-  border-left: 4px solid #8a94a2;
+  background: var(--paper);
+  border-left: 4px solid var(--grey);
 }
 
 .stage-when {
-  font-size: 1.15rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
   margin-top: 4px;
 }
@@ -2145,7 +2561,7 @@ a.btn:hover {
 }
 
 .stage-hint {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--ink-faint);
   font-style: italic;
   margin-top: 6px;
@@ -2157,11 +2573,11 @@ a.btn:hover {
 
 .join-chip {
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 6px 18px;
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
   font-weight: 600;
-  color: #fff;
+  color: var(--ink-inverse);
   background: var(--accent);
   box-shadow: 0 1px 3px rgba(25, 35, 50, 0.25);
 }
@@ -2178,13 +2594,13 @@ a.btn:hover {
   padding: 0 2px;
   margin-left: 2px;
   line-height: 1;
-  font-size: 1rem;
+  font-size: var(--fs-base);
   color: var(--ink-faint);
   cursor: pointer;
 }
 
 .participant-chip .chip-x:hover:not(:disabled) {
-  color: #a04c38;
+  color: var(--red);
   background: none;
 }
 
@@ -2194,25 +2610,25 @@ a.btn:hover {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 10px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 .leave-handoff select {
   padding: 5px 8px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   background: var(--card);
   font: inherit;
   color: inherit;
 }
 
 .room-hidden-note {
-  background: #faf3e3;
-  color: #7a5b1e;
-  border: 1px solid #e8d9b5;
-  border-radius: 3px;
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
   padding: 10px 14px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   margin: 12px 0;
 }
 
@@ -2243,11 +2659,11 @@ a.btn:hover {
   gap: 8px;
   padding: 4px 12px 4px 5px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--card);
   color: var(--ink);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
 }
 
 .participant-chip:hover {
@@ -2256,24 +2672,35 @@ a.btn:hover {
 }
 
 .participant-chip.leader {
-  background: #faf3e0;
-  border-color: #d4b662;
+  background: var(--gold-soft);
+  border-color: var(--gold);
   color: var(--ink);
 }
 
 .participant-chip.leader:hover {
-  border-color: #b3923d;
+  border-color: var(--gold);
   color: var(--ink);
 }
 
+/* A reader without a picture shows their initial on a colour of their
+   own, so two initials are told apart at a glance. Two classes, so these
+   beat the plain size classes but still yield to role colouring such as
+   the leader's gold below. */
+.avatar-initial.avatar-tint-0 { background: var(--identity-0); }
+.avatar-initial.avatar-tint-1 { background: var(--identity-1); }
+.avatar-initial.avatar-tint-2 { background: var(--identity-2); }
+.avatar-initial.avatar-tint-3 { background: var(--identity-3); }
+.avatar-initial.avatar-tint-4 { background: var(--identity-4); }
+.avatar-initial.avatar-tint-5 { background: var(--identity-5); }
+
 .participant-chip.leader .entry-avatar {
-  background: #b3923d;
-  color: #fff;
+  background: var(--gold);
+  color: var(--ink-inverse);
 }
 
 .leader-star {
-  color: #b3923d;
-  font-size: 0.8rem;
+  color: var(--gold);
+  font-size: var(--fs-xs);
 }
 
 .room-enter {
@@ -2317,7 +2744,7 @@ a.btn:hover {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   padding: 6px 0;
 }
 
@@ -2352,10 +2779,10 @@ a.btn:hover {
   flex: 1;
   padding: 7px 11px;
   border: 1px solid var(--line);
-  border-radius: 3px;
-  font-size: 0.92rem;
+  border-radius: var(--radius);
+  font-size: var(--fs-md);
   font-family: inherit;
-  background: #fcfdfe;
+  background: var(--card);
   color: var(--ink);
 }
 
@@ -2373,9 +2800,9 @@ a.btn:hover {
   margin: 12px 0 16px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 14px 16px;
-  background: #fcfdfe;
+  background: var(--card);
 }
 
 .announce-fields {
@@ -2403,18 +2830,18 @@ a.btn:hover {
 }
 
 .room-message-meta {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .room-message-time {
   color: var(--ink-faint);
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   margin-left: 8px;
   font-weight: normal;
 }
 
 .room-message-content {
-  font-size: 0.96rem;
+  font-size: var(--fs-base);
   white-space: pre-wrap;
 }
 
@@ -2427,12 +2854,12 @@ a.btn:hover {
 
 .home-fleuron {
   color: var(--accent);
-  font-size: 1.5rem;
+  font-size: var(--fs-3xl);
   margin-bottom: 6px;
 }
 
 .home-title {
-  font-size: 2.1rem;
+  font-size: var(--fs-hero);
   letter-spacing: 0.04em;
   margin-bottom: 2px;
 }
@@ -2441,7 +2868,7 @@ a.btn:hover {
   font-variant: small-caps;
   letter-spacing: 0.18em;
   color: var(--ink-soft);
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
 }
 
 .home-rule {
@@ -2468,7 +2895,7 @@ a.btn:hover {
 .home-card {
   display: block;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius);
   background: var(--card);
   padding: 18px 18px 16px;
   text-decoration: none;
@@ -2483,7 +2910,7 @@ a.btn:hover {
 }
 
 .home-card h3 {
-  font-size: 1.05rem;
+  font-size: var(--fs-lg);
   margin-bottom: 4px;
 }
 
@@ -2492,7 +2919,7 @@ a.btn:hover {
 }
 
 .home-card p {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   line-height: 1.5;
 }
@@ -2528,9 +2955,9 @@ a.btn:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   background: var(--card);
-  border: 1px solid #b4becb;
+  border: 1px solid var(--line-strong);
   color: var(--ink-soft);
   flex-shrink: 0;
   position: relative;
@@ -2540,19 +2967,19 @@ a.btn:hover {
 .flow-dot.live {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 .flow-dot.gold {
-  background: #b3923d;
-  border-color: #b3923d;
-  color: #fff;
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--ink-inverse);
 }
 
 .flow-dot.done {
-  background: #7ba26c;
-  border-color: #7ba26c;
-  color: #fff;
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--ink-inverse);
 }
 
 .flow-body {
@@ -2563,11 +2990,11 @@ a.btn:hover {
 
 .flow-step-title {
   font-weight: 600;
-  font-size: 0.98rem;
+  font-size: var(--fs-base);
 }
 
 .flow-step-desc {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
   margin-top: 2px;
   line-height: 1.55;
@@ -2576,10 +3003,10 @@ a.btn:hover {
 .inbox-badge {
   display: inline-block;
   background: var(--accent);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ink-inverse);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-2xs);
+  font-family: var(--font-ui);
   padding: 1px 7px;
   margin-left: 6px;
   vertical-align: middle;
@@ -2605,7 +3032,7 @@ a.btn:hover {
 }
 
 .notif-item.unread {
-  background: #edf2f8;
+  background: var(--accent-soft);
   border-left: 3px solid var(--accent);
   padding-left: 9px;
 }
@@ -2618,11 +3045,11 @@ a.btn:hover {
   display: inline-block;
   margin-right: 8px;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
-  color: #fff;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.68rem;
+  color: var(--ink-inverse);
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2630,7 +3057,7 @@ a.btn:hover {
 }
 
 .notif-content {
-  font-size: 0.95rem;
+  font-size: var(--fs-base);
 }
 
 /* Collapsed: a single teaser line; clicking expands (and de-news) it */
@@ -2642,11 +3069,11 @@ a.btn:hover {
 
 .notif-room-link {
   margin-top: 4px;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
 }
 
 .notif-date {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
   margin-top: 2px;
 }
@@ -2662,15 +3089,15 @@ a.btn:hover {
 
 .admin-tab {
   padding: 4px 12px;
-  font-size: 0.82rem;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+  border-radius: var(--radius-pill);
 }
 
 .admin-tab.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--ink-inverse);
 }
 
 .admin-table-wrap {
@@ -2680,8 +3107,8 @@ a.btn:hover {
 
 .admin-table {
   border-collapse: collapse;
-  font-size: 0.82rem;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
   width: auto;
 }
 
@@ -2709,7 +3136,7 @@ a.btn:hover {
   max-width: 100%;
   padding: 4px 6px;
   border: 1px solid transparent;
-  border-radius: 2px;
+  border-radius: var(--radius);
   background: transparent;
   font: inherit;
   color: var(--ink);
@@ -2723,7 +3150,7 @@ a.btn:hover {
 .admin-table td input:focus {
   outline: none;
   border-color: var(--accent);
-  background: #fcfdfe;
+  background: var(--card);
 }
 
 .admin-pk {
@@ -2741,8 +3168,14 @@ a.btn:hover {
   margin: 10px 0;
 }
 
+/* Public, so it carries the same green tint as the ratings. */
 .inline-thought-text {
   margin: 0;
+  padding: 6px 12px;
+  background: var(--green-soft);
+  border-radius: var(--radius);
+  font-size: var(--fs-md);
+  white-space: pre-wrap;
 }
 
 /* Summary sits beside Notes as an equal: same heading level, and its
@@ -2754,8 +3187,8 @@ a.btn:hover {
 .summary-text {
   padding: 6px 12px;
   background: var(--accent-soft);
-  border-radius: 3px;
-  font-size: 0.92rem;
+  border-radius: var(--radius);
+  font-size: var(--fs-md);
   white-space: pre-wrap;
 }
 
@@ -2763,9 +3196,121 @@ a.btn:hover {
   margin: 0 0 8px;
 }
 
+/* ---------- Markdown prose (summaries and notes) ---------- */
+
+/* The reader's own prose, rendered by components/Markdown.jsx. It carries
+   its own line breaks, so it drops the pre-wrap the plain-text form leant
+   on, and its first and last blocks sit flush inside the tinted card. */
+.md {
+  white-space: normal;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin: 0 0 6px;
+}
+
+/* Headings inside a note are subordinate to the section heading above the
+   card, so they start a step below body-emphasis and shrink from there. */
+.md-heading {
+  font-size: var(--fs-lg);
+  margin: 10px 0 4px;
+}
+
+.md h5.md-heading {
+  font-size: var(--fs-md);
+}
+
+.md h6.md-heading {
+  font-size: var(--fs-md);
+  color: var(--ink-soft);
+}
+
+.md-list {
+  margin: 0 0 6px 18px;
+}
+
+.md-list .md-list {
+  margin-bottom: 0;
+}
+
+.md-list li {
+  margin-bottom: 2px;
+}
+
+/* Code sits on --card: on a tinted note that reads as an inset panel
+   without needing a colour of its own. */
+.md code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 4px;
+}
+
+.md-code {
+  margin: 0 0 6px;
+  padding: 6px 9px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+
+.md-code code {
+  padding: 0;
+  border: none;
+  background: none;
+  white-space: pre;
+}
+
+.md-quote {
+  margin: 0 0 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-soft);
+}
+
+.md-rule {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+/* The syntax reminder under an edit box: fine print, never competing with
+   the Save it sits beside. */
+.md-hint {
+  margin: -2px 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+
+.md-hint code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.metrics-subtitle {
+  margin-top: 16px;
+}
+
+.sql-error {
+  margin-top: 12px;
+}
+
 .admin-statement {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2776,23 +3321,23 @@ a.btn:hover {
 
 .admin-row-actions button {
   padding: 3px 10px;
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   margin-right: 6px;
 }
 
 .admin-row-actions .danger-link {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
 }
 
 .admin-sql {
   width: 100%;
   padding: 9px 11px;
   border: 1px solid var(--line);
-  border-radius: 3px;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 0.85rem;
-  background: #fcfdfe;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  background: var(--card);
   margin-bottom: 8px;
   resize: vertical;
 }
@@ -2825,20 +3370,34 @@ a.btn:hover {
 .comment {
   padding: 6px 12px;
   background: var(--accent-soft);
-  border-radius: 3px;
+  border-radius: var(--radius);
 }
 
 .comment-content {
   margin-bottom: 2px;
   white-space: pre-wrap;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
+
+/* Where a note sits in the PDF, and the way back to it. */
+.note-page {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xs);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.note-page:hover { background: var(--card); }
 
 .comment-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
 }
 
 .comment-date {
@@ -2847,7 +3406,7 @@ a.btn:hover {
 
 .delete-comment-btn {
   padding: 2px 8px;
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   border: none;
   background: none;
   color: var(--ink-faint);
@@ -2860,14 +3419,14 @@ a.btn:hover {
   border: none;
 }
 
-.no-comments, .guest-note {
+.no-comments, .panel-note {
   color: var(--ink-faint);
   font-style: italic;
 }
 
-.guest-note {
+.panel-note {
   margin-bottom: 16px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 
 /* ---------- Responsive ---------- */
@@ -2906,8 +3465,8 @@ a.btn:hover {
     flex: 1;
     text-align: center;
     padding: 9px 0;
-    font-family: -apple-system, 'Segoe UI', sans-serif;
-    font-size: 0.85rem;
+    font-family: var(--font-ui);
+    font-size: var(--fs-sm);
   }
 
   .panel {
@@ -3011,6 +3570,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // The welcome modal greets every visit until the visitor signs in for
   // real — dismissing it only lasts for the current page load.
   const [demoIntroSeen, setDemoIntroSeen] = useState(false);
@@ -3035,7 +3595,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.removeItem('papol_guest'); // legacy guest mode, now removed
     if (demoActive()) {
       getMe()
         .then(setUser)
@@ -3232,6 +3791,22 @@ export default function App() {
           )}
         </div>
       )}
+      <button
+        type="button"
+        className="feedback-fab"
+        onClick={() => setFeedbackOpen(true)}
+        title="Report a bug or ask for a feature"
+      >
+        Feedback
+      </button>
+      {feedbackOpen && (
+        <FeedbackDialog
+          // A demo visitor with no real token is a stranger to the backend,
+          // so the dialog asks them for an address to reply to.
+          currentUser={getToken() ? user : null}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
       <div className="app">
         <header className="topnav">
           <a className="brand" href="#/">Papol</a>
@@ -3345,31 +3920,21 @@ export default function App() {
               onSelectPaper={(id) => navigate(`#/paper/${id}`)}
             />
           )}
-          {route.page === 'room' &&
-            (user ? (
-              <RoomPage roomId={route.id} currentUser={user} onBack={goBack} />
-            ) : (
-              <div className="panel">
-                <p className="guest-note">Sign in to join seminar cohorts.</p>
-              </div>
-            ))}
-          {route.page === 'inbox' &&
-            (user ? (
-              <InboxPage
-                onOpenRoom={(id) => navigate(`#/room/${id}`)}
-                onUnread={setUnreadCount}
-              />
-            ) : (
-              <div className="panel">
-                <p className="guest-note">Sign in to see your inbox.</p>
-              </div>
-            ))}
+          {route.page === 'room' && (
+            <RoomPage roomId={route.id} currentUser={user} onBack={goBack} />
+          )}
+          {route.page === 'inbox' && (
+            <InboxPage
+              onOpenRoom={(id) => navigate(`#/room/${id}`)}
+              onUnread={setUnreadCount}
+            />
+          )}
           {route.page === 'admin' &&
             (user && user.is_admin ? (
               <AdminPage />
             ) : (
               <div className="panel">
-                <p className="guest-note">Admin access only.</p>
+                <p className="panel-note">Admin access only.</p>
               </div>
             ))}
           {route.page === 'about' && (
@@ -3394,11 +3959,7 @@ export default function App() {
                 onUserUpdated={setUser}
                 onLogout={handleLogout}
               />
-            ) : (
-              <div className="panel">
-                <p className="guest-note">Sign in to edit your profile.</p>
-              </div>
-            ))}
+            ) : null)}
         </main>
       </div>
     </>

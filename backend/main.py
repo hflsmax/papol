@@ -2,7 +2,9 @@ import asyncio
 import os
 from datetime import timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request
+from fastapi import (
+    FastAPI, Depends, HTTPException, UploadFile, File, Request, BackgroundTasks
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
@@ -10,7 +12,8 @@ from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-import shutil
+import hashlib
+import json
 import uuid
 import logging
 import traceback
@@ -24,20 +27,24 @@ from database import engine, get_db, Base, migrate, normalize_papers, SessionLoc
 from models import (
     User, AuthToken, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
-    Setting,
+    Setting, Feedback, PaperEdition,
 )
 from schemas import (
-    UserRegister, UserLogin, UserPublic, UserPrivate, UserDirectoryEntry, AuthResponse,
+    UserRegister, UserLogin, UserBase, UserPublic, UserPrivate, UserDirectoryEntry,
+    AuthResponse,
     ProfileUpdate, PasswordChange, ReaderEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate, NotificationList, NotificationOut, AdminSQL,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
     CommentCreate, Comment as CommentSchema, ExtractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
+    FeedbackCreate, FeedbackOut, FeedbackUpdate,
+    PaperEditionOut, EditionAdopt,
+    CommentUpdate, PointAnchor,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
-    get_current_user_optional, bearer_scheme
+    get_optional_user, bearer_scheme
 )
 from emailer import send_email
 from pdf_parser import extract_doi_from_pdf, get_title_from_filename
@@ -114,6 +121,13 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # Serve frontend assets
 app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
+
+# The PDF viewer is its own app with its own build; Papol serves it at
+# /viewer so it shares this origin — and therefore the reader's session —
+# without a second sign-in.
+VIEWER_DIR = Path(__file__).parent.parent / "viewer" / "dist"
+if VIEWER_DIR.exists():
+    app.mount("/viewer", StaticFiles(directory=str(VIEWER_DIR), html=True), name="viewer")
 
 
 # The {name} placeholder is filled with the new reader's display name.
@@ -193,7 +207,8 @@ async def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update display name and affiliation. Email is the login identifier and is fixed."""
+    """Update display name, affiliation, and whether the email shows on the
+    reader's nook. The email address itself is the login identifier and is fixed."""
     update = data.model_dump(exclude_unset=True)
     if "display_name" in update:
         name = (update["display_name"] or "").strip()
@@ -203,6 +218,8 @@ async def update_profile(
     if "affiliation" in update:
         affiliation = (update["affiliation"] or "").strip()
         current_user.affiliation = affiliation or None
+    if update.get("email_public") is not None:
+        current_user.email_public = bool(update["email_public"])
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -269,8 +286,11 @@ async def change_password(
 # ---------------- Users / spaces ----------------
 
 @app.get("/api/users", response_model=list[UserDirectoryEntry])
-async def list_users(db: Session = Depends(get_db)):
-    """Readers directory. Public — guests may browse."""
+async def list_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Readers directory. Signed-in readers only."""
     users = db.query(User).order_by(User.display_name).all()
     return [
         UserDirectoryEntry(
@@ -296,10 +316,78 @@ def _reader_entry(user_copy: Copy) -> ReaderEntry:
     return ReaderEntry(
         paper_id=user_copy.paper_id,
         user=UserPublic.model_validate(user_copy.user),
+        is_author=bool(user_copy.is_author),
         thought=user_copy.thought,
         rating_expertise=user_copy.rating_expertise,
         rating_reading=user_copy.rating_reading,
         rating_liking=user_copy.rating_liking,
+    )
+
+
+def _latest_edition(paper: Paper) -> PaperEdition | None:
+    return paper.editions[-1] if paper.editions else None
+
+
+def _edition_for(paper: Paper, user_copy: Copy | None) -> PaperEdition | None:
+    """The edition a viewer opens: the one their copy is pinned to, or the
+    latest when they have no copy (or a copy from before editions)."""
+    if user_copy is not None and user_copy.edition is not None:
+        return user_copy.edition
+    return _latest_edition(paper)
+
+
+def _edition_file(paper: Paper, user_copy: Copy | None) -> str:
+    edition = _edition_for(paper, user_copy)
+    return edition.file_path if edition else ""
+
+
+def _sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _store_pdf(data: bytes) -> tuple[str, str]:
+    """Write an uploaded PDF under its own content hash and return
+    (filename, digest). Content-addressed: the same bytes always land on the
+    same path, so an upload Papol already holds costs nothing and no two
+    names ever refer to different files."""
+    digest = hashlib.sha256(data).hexdigest()
+    filename = f"{digest}.pdf"
+    path = UPLOADS_DIR / filename
+    if not path.exists():
+        path.write_bytes(data)
+    return filename, digest
+
+
+def _edition_with(paper: Paper, digest: str) -> PaperEdition | None:
+    """An existing edition holding exactly these bytes, if there is one."""
+    return next((e for e in paper.editions if e.sha256 == digest), None)
+
+
+def _register_edition(
+    db: Session, paper: Paper, filename: str, digest: str, user: User
+) -> PaperEdition:
+    edition = PaperEdition(
+        paper_id=paper.id,
+        file_path=filename,
+        sha256=digest,
+        uploaded_by=user.id,
+    )
+    db.add(edition)
+    db.flush()
+    return edition
+
+
+def _add_edition(db: Session, paper: Paper, filename: str, user: User) -> PaperEdition:
+    """Register an already-written upload as an edition, or hand back the
+    edition that already holds those exact bytes. The redundant file is
+    left where it is: Papol never unlinks anything."""
+    digest = _sha256_of(UPLOADS_DIR / filename)
+    return _edition_with(paper, digest) or _register_edition(
+        db, paper, filename, digest, user
     )
 
 
@@ -319,13 +407,15 @@ def _paper_list_entry(
         authors=paper.authors,
         journal=paper.journal,
         year=paper.year,
-        file_path=paper.file_path,
+        file_path=_edition_file(paper, user_copy),
         created_at=user_copy.created_at if user_copy else paper.created_at,
     )
+    entry.edition_id = user_copy.edition_id if user_copy else None
     if user_copy:
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
         entry.marketed = user_copy.marketed
+        entry.is_author = bool(user_copy.is_author)
         entry.rating_expertise = user_copy.rating_expertise
         entry.rating_reading = user_copy.rating_reading
         entry.rating_liking = user_copy.rating_liking
@@ -337,10 +427,10 @@ def _paper_list_entry(
 @app.get("/api/users/{user_id}/space", response_model=UserSpace)
 async def get_user_space(
     user_id: int,
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """A reader's nook. Public — guests may browse; summaries are host-only."""
+    """A reader's nook. Signed-in readers only; summaries stay host-only."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -373,11 +463,11 @@ async def get_user_space(
 
 @app.get("/api/papers", response_model=list[PaperList])
 async def list_all_papers(
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Every paper displayed in at least one nook, newest first.
-    Public — guests may browse. One row per canonical paper."""
+    Signed-in readers only. One row per canonical paper."""
     papers = db.query(Paper).order_by(Paper.created_at.desc()).all()
     room_map = _room_status_map(db)
     return [
@@ -399,13 +489,8 @@ async def extract_paper_metadata(
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-    # Save file with unique name
-    file_id = str(uuid.uuid4())
-    filename = f"{file_id}.pdf"
+    filename, _ = _store_pdf(await file.read())
     file_path = UPLOADS_DIR / filename
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
 
     # Extract DOI from PDF
     doi, _ = extract_doi_from_pdf(str(file_path))
@@ -489,6 +574,28 @@ def _room_summary(room: Room) -> RoomSummary:
     )
 
 
+def _comment_out(c: Comment) -> CommentSchema:
+    """A note on the wire. The anchor is stored as JSON text and its kind in
+    its own column; together they become the typed anchor the reader's apps
+    understand."""
+    anchor = None
+    if c.anchor and c.anchor_type:
+        payload = json.loads(c.anchor)
+        payload["type"] = c.anchor_type
+        anchor = PointAnchor(**payload)
+    return CommentSchema(
+        id=c.id,
+        paper_id=c.paper_id,
+        content=c.content,
+        created_at=c.created_at,
+        user=UserPublic.model_validate(c.user) if c.user else None,
+        page=c.page,
+        anchor_type=c.anchor_type,
+        anchor=anchor,
+        edition_id=c.edition_id,
+    )
+
+
 def _copy_of(paper: Paper, viewer: User | None) -> Copy | None:
     if viewer is None:
         return None
@@ -506,18 +613,29 @@ def _paper_detail(db: Session, paper: Paper, viewer: User | None) -> PaperSchema
         authors=paper.authors,
         journal=paper.journal,
         year=paper.year,
-        file_path=paper.file_path,
+        file_path=_edition_file(paper, user_copy),
         created_at=paper.created_at,
     )
+    detail.editions = [PaperEditionOut.model_validate(e) for e in paper.editions]
+    latest = _latest_edition(paper)
+    detail.latest_edition = (
+        PaperEditionOut.model_validate(latest) if latest else None
+    )
+    detail.edition_id = (
+        user_copy.edition_id if user_copy and user_copy.edition_id
+        else (latest.id if latest else None)
+    )
+    detail.ignored_edition_id = user_copy.ignored_edition_id if user_copy else None
     if user_copy:
         detail.summary = user_copy.summary
         detail.thought = user_copy.thought
         detail.marketed = user_copy.marketed
+        detail.is_author = bool(user_copy.is_author)
         detail.rating_expertise = user_copy.rating_expertise
         detail.rating_reading = user_copy.rating_reading
         detail.rating_liking = user_copy.rating_liking
         detail.comments = [
-            CommentSchema.model_validate(c)
+            _comment_out(c)
             for c in sorted(paper.comments, key=lambda c: (c.created_at, c.id))
             if c.user_id == viewer.id
         ]
@@ -598,7 +716,6 @@ async def create_paper(
             authors=paper.authors,
             journal=paper.journal,
             year=paper.year,
-            file_path=paper.file_path,
         )
         db.add(db_paper)
         db.flush()
@@ -607,12 +724,6 @@ async def create_paper(
             raise HTTPException(
                 status_code=400, detail="This paper is already in your nook"
             )
-        # The canonical paper keeps its one PDF; drop the redundant upload
-        # unless the existing file has gone missing.
-        if (UPLOADS_DIR / db_paper.file_path).exists():
-            file_path.unlink()
-        else:
-            db_paper.file_path = paper.file_path
         # The uploader reviewed the metadata; shared metadata takes the edit.
         db_paper.doi = paper.doi
         db_paper.title = paper.title
@@ -620,12 +731,18 @@ async def create_paper(
         db_paper.journal = paper.journal
         db_paper.year = paper.year
 
+    # The file they uploaded is the file they read: an edition of their
+    # own, unless it is byte-identical to one the paper already has.
+    edition = _add_edition(db, db_paper, paper.file_path, current_user)
+
     db.add(Copy(
         paper_id=db_paper.id,
         user_id=current_user.id,
+        edition_id=edition.id,
         summary=paper.summary,
         thought=paper.thought,
         marketed=paper.marketed,
+        is_author=paper.is_author,
         rating_expertise=paper.rating_expertise,
         rating_reading=paper.rating_reading,
         rating_liking=paper.rating_liking,
@@ -645,18 +762,18 @@ async def create_paper(
 @app.get("/api/papers/{paper_ref:path}", response_model=PaperSchema)
 async def get_paper(
     paper_ref: str,
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get a paper by id or DOI, merged with the viewer's own copy and notes.
-    Guests may view."""
+    Signed-in readers only."""
     paper = _resolve_paper_or_404(paper_ref, db)
     _require_visible(paper, current_user)
     return _paper_detail(db, paper, current_user)
 
 
 _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
-_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "marketed"}
+_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "marketed", "is_author"}
 
 
 @app.put("/api/papers/{paper_id}", response_model=PaperSchema)
@@ -707,7 +824,9 @@ async def delete_paper(
     db: Session = Depends(get_db),
 ):
     """Remove the paper from the viewer's nook: their copy and notes.
-    The canonical paper and its PDF go too once no reader is left."""
+    The paper, its editions and their files stay — one reader leaving
+    destroys nothing shared, and a paper with no readers is simply absent
+    from the Library until someone adds it again."""
     paper = _get_paper_or_404(paper_id, db)
     user_copy = _require_copy(paper, current_user)
 
@@ -715,12 +834,6 @@ async def delete_paper(
     for c in paper.comments:
         if c.user_id == current_user.id:
             db.delete(c)
-
-    if not any(r.user_id != current_user.id for r in paper.copies):
-        file_path = UPLOADS_DIR / paper.file_path
-        if file_path.exists():
-            file_path.unlink()
-        db.delete(paper)
 
     db.commit()
     return {"message": "Paper removed from your nook"}
@@ -739,33 +852,99 @@ async def add_to_nook(
     if _copy_of(paper, current_user) is not None:
         raise HTTPException(status_code=400, detail="This paper is already in your nook")
 
-    db.add(Copy(paper_id=paper.id, user_id=current_user.id, marketed=True))
+    latest = _latest_edition(paper)
+    db.add(Copy(
+        paper_id=paper.id,
+        user_id=current_user.id,
+        marketed=True,
+        edition_id=latest.id if latest else None,
+    ))
     db.commit()
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
 
 
-@app.post("/api/papers/{paper_id}/file", response_model=PaperSchema)
-async def replace_paper_pdf(
+@app.post("/api/papers/{paper_id}/editions", response_model=PaperSchema)
+async def add_paper_edition(
     paper_id: int,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Replace the paper's shared PDF (any reader with it in their nook)."""
+    """Add a PDF as a new edition of the paper (any reader with it in
+    their nook). Nobody else's copy moves: the uploader's own copy reads
+    the new edition, and every other reader is offered it on the paper
+    page, to adopt when they choose."""
     paper = _get_paper_or_404(paper_id, db)
-    _require_copy(paper, current_user)
+    user_copy = _require_copy(paper, current_user)
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-    filename = f"{uuid.uuid4()}.pdf"
-    with open(UPLOADS_DIR / filename, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Storing is content-addressed and idempotent, so an upload the paper
+    # already holds costs no new file and no cleanup.
+    data = await file.read()
+    digest = hashlib.sha256(data).hexdigest()
+    edition = _edition_with(paper, digest)
+    if edition is None:
+        filename, _ = _store_pdf(data)
+        edition = _register_edition(db, paper, filename, digest, current_user)
 
-    old = UPLOADS_DIR / paper.file_path
-    if old.exists():
-        old.unlink()
-    paper.file_path = filename
+    user_copy.edition_id = edition.id
+    # Choosing a PDF means having seen the ones that exist: an upload that
+    # dedupes onto an older edition must not leave the reader being offered
+    # a newer one they made themselves and moved off.
+    user_copy.ignored_edition_id = _latest_edition(paper).id
+    db.commit()
+    db.refresh(paper)
+    return _paper_detail(db, paper, current_user)
+
+
+def _named_edition_or_404(paper: Paper, edition_id: int | None) -> PaperEdition:
+    if edition_id is None:
+        edition = _latest_edition(paper)
+    else:
+        edition = next((e for e in paper.editions if e.id == edition_id), None)
+    if edition is None:
+        raise HTTPException(status_code=404, detail="Edition not found")
+    return edition
+
+
+@app.post("/api/papers/{paper_id}/ignore-edition", response_model=PaperSchema)
+async def ignore_paper_edition(
+    paper_id: int,
+    data: EditionAdopt,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Wave away the offer of a newer edition — the latest unless one is
+    named. The reader keeps the PDF they have and stops being asked about
+    this one; a later edition asks again."""
+    paper = _get_paper_or_404(paper_id, db)
+    user_copy = _require_copy(paper, current_user)
+    user_copy.ignored_edition_id = _named_edition_or_404(paper, data.edition_id).id
+    db.commit()
+    db.refresh(paper)
+    return _paper_detail(db, paper, current_user)
+
+
+@app.post("/api/papers/{paper_id}/adopt-edition", response_model=PaperSchema)
+async def adopt_paper_edition(
+    paper_id: int,
+    data: EditionAdopt,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Move the viewer's own copy to another edition — the latest unless
+    one is named. Only the reader may do this: located notes were placed
+    on the file they had, and on a different PDF they may not line up."""
+    paper = _get_paper_or_404(paper_id, db)
+    user_copy = _require_copy(paper, current_user)
+
+    edition = _named_edition_or_404(paper, data.edition_id)
+    user_copy.edition_id = edition.id
+    # Adopting settles every edition that exists now, including ones older
+    # than the latest if that is what they picked.
+    user_copy.ignored_edition_id = _latest_edition(paper).id
     db.commit()
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
@@ -780,22 +959,38 @@ async def add_comment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Add a private note to a paper in your nook. Notes are visible only to you."""
+    """Add a private note to a paper in your nook. Notes are visible only to
+    you. A note may be *located* — given a page and an anchor, as the PDF
+    viewer does — in which case it also records the edition it was placed
+    on, so a note taken on a different PDF can be told apart."""
     paper = _get_paper_or_404(paper_id, db)
-    _require_copy(paper, current_user)
+    user_copy = _require_copy(paper, current_user)
+    anchor_type = anchor_json = edition_id = None
+    if comment.anchor is not None:
+        payload = comment.anchor.model_dump()
+        anchor_type = payload.pop("type")
+        anchor_json = json.dumps(payload)
+        edition = _edition_for(paper, user_copy)
+        edition_id = edition.id if edition else None
     db_comment = Comment(
-        paper_id=paper_id, user_id=current_user.id, content=comment.content
+        paper_id=paper_id,
+        user_id=current_user.id,
+        content=comment.content.strip(),
+        page=comment.page,
+        anchor_type=anchor_type,
+        anchor=anchor_json,
+        edition_id=edition_id,
     )
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
-    return db_comment
+    return _comment_out(db_comment)
 
 
 @app.put("/api/comments/{comment_id}", response_model=CommentSchema)
 async def edit_comment(
     comment_id: int,
-    comment: CommentCreate,
+    comment: CommentUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -805,10 +1000,10 @@ async def edit_comment(
         raise HTTPException(status_code=404, detail="Comment not found")
     if db_comment.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only edit your own notes")
-    db_comment.content = comment.content
+    db_comment.content = comment.content.strip()
     db.commit()
     db.refresh(db_comment)
-    return db_comment
+    return _comment_out(db_comment)
 
 
 @app.delete("/api/comments/{comment_id}")
@@ -1351,6 +1546,112 @@ async def mark_notifications_read(
 
 # ---------------- Admin ----------------
 
+# ---------------- Feedback ----------------
+
+def _feedback_reporter(fb: Feedback) -> str:
+    if fb.user:
+        return f"{fb.user.display_name} <{fb.user.email}>"
+    if fb.contact:
+        return f"a visitor <{fb.contact}>"
+    return "an anonymous visitor"
+
+
+def _feedback_out(fb: Feedback) -> FeedbackOut:
+    return FeedbackOut(
+        id=fb.id,
+        content=fb.content,
+        page=fb.page,
+        contact=fb.contact,
+        resolved=fb.resolved,
+        created_at=fb.created_at,
+        user=UserBase.model_validate(fb.user) if fb.user else None,
+        user_email=fb.user.email if fb.user else None,
+    )
+
+
+def _feedback_message(fb: Feedback, reporter: str) -> str:
+    where = f" (from {fb.page})" if fb.page else ""
+    return f"Feedback from {reporter}{where}:\n\n{fb.content}"
+
+
+def _email_admins_feedback(feedback_id: int, notification_ids: dict):
+    """Mail the admins a new report right away. Best effort: a report that
+    cannot be emailed is still in the database and in every admin's inbox,
+    and an admin whose mail fails keeps the notification unemailed so the
+    daily digest carries it. Runs after the response, on its own session."""
+    db = SessionLocal()
+    try:
+        fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
+        cfg = _smtp_cfg(db)
+        if fb is None or cfg is None:
+            return
+        reporter = _feedback_reporter(fb)
+        lines = [f"Feedback from {reporter}"]
+        if fb.page:
+            lines.append(f"Page: {fb.page}")
+        lines += [
+            "",
+            fb.content,
+            "",
+            f"Reports are listed on the admin page: {_site_url(db)}#/admin",
+            "",
+            "— Papol",
+        ]
+        body = "\n".join(lines)
+        headline = fb.content.strip().splitlines()[0][:60]
+        subject = f"Papol feedback: {headline}"
+        for admin in db.query(User).filter(User.is_admin.is_(True)).all():
+            try:
+                send_email(cfg, admin.email, subject, body)
+            except Exception:
+                logger.exception("Feedback email to %s failed", admin.email)
+                continue
+            notif_id = notification_ids.get(admin.id)
+            if notif_id:
+                notif = db.query(Notification).filter(Notification.id == notif_id).first()
+                if notif:
+                    notif.emailed = True
+        db.commit()
+    except Exception:
+        logger.exception("Feedback notification email failed")
+    finally:
+        db.close()
+
+
+@app.post("/api/feedback", response_model=FeedbackOut)
+async def submit_feedback(
+    data: FeedbackCreate,
+    background: BackgroundTasks,
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """Report a bug or request a feature. Open to visitors too, so that a
+    reader who cannot sign in can still say so. The report is stored and
+    every admin gets it as an inbox message and an email."""
+    fb = Feedback(
+        user_id=current_user.id if current_user else None,
+        content=data.content.strip(),
+        page=(data.page or None),
+        contact=(data.contact or "").strip() or None,
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+
+    admins = db.query(User).filter(User.is_admin.is_(True)).all()
+    message = _feedback_message(fb, _feedback_reporter(fb))
+    notifications = [Notification(user_id=a.id, content=message) for a in admins]
+    db.add_all(notifications)
+    db.commit()
+
+    background.add_task(
+        _email_admins_feedback,
+        fb.id,
+        {a.id: n.id for a, n in zip(admins, notifications)},
+    )
+    return _feedback_out(fb)
+
+
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin only")
@@ -1425,6 +1726,37 @@ async def admin_db_metrics(admin: User = Depends(require_admin)):
 async def admin_reset_db_metrics(admin: User = Depends(require_admin)):
     dbmetrics.reset()
     return dbmetrics.snapshot()
+
+
+@app.get("/api/admin/feedback", response_model=list[FeedbackOut])
+async def admin_list_feedback(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Every bug report and feature request, newest first."""
+    rows = (
+        db.query(Feedback)
+        .order_by(Feedback.resolved, Feedback.created_at.desc(), Feedback.id.desc())
+        .all()
+    )
+    return [_feedback_out(fb) for fb in rows]
+
+
+@app.put("/api/admin/feedback/{feedback_id}", response_model=FeedbackOut)
+async def admin_update_feedback(
+    feedback_id: int,
+    data: FeedbackUpdate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Mark a report done, or reopen it."""
+    fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
+    if not fb:
+        raise HTTPException(status_code=404, detail="Report not found")
+    fb.resolved = data.resolved
+    db.commit()
+    db.refresh(fb)
+    return _feedback_out(fb)
 
 
 @app.get("/api/admin/tables")

@@ -33,11 +33,12 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 function seed() {
   const users = [
     { id: ME, display_name: 'SpongeBob SquarePants', affiliation: 'MIT CSAIL', avatar_path: 'assets/demo/spongebob.png', email: 'spongebob@demo.papol', is_admin: false },
-    { id: 2, display_name: 'Sandy Cheeks', affiliation: 'Carnegie Mellon University', avatar_path: 'assets/demo/sandy.png' },
-    { id: 3, display_name: 'Patrick Star', affiliation: 'Stanford University', avatar_path: 'assets/demo/patrick.png' },
-    { id: 4, display_name: 'Squidward Tentacles', affiliation: 'UC Berkeley', avatar_path: 'assets/demo/squidward.png' },
-    { id: 5, display_name: 'Mr. Krabs', affiliation: 'Bikini Bottom University', avatar_path: 'assets/demo/krabs.png' },
-    { id: 6, display_name: 'Plankton', affiliation: 'Bikini State University', avatar_path: 'assets/demo/plankton.png' },
+    { id: 2, display_name: 'Sandy Cheeks', affiliation: 'Carnegie Mellon University', avatar_path: 'assets/demo/sandy.png', email: 'sandy@demo.papol' },
+    { id: 3, display_name: 'Patrick Star', affiliation: 'Stanford University', avatar_path: 'assets/demo/patrick.png', email: 'patrick@demo.papol' },
+    { id: 4, display_name: 'Squidward Tentacles', affiliation: 'UC Berkeley', avatar_path: 'assets/demo/squidward.png', email: 'squidward@demo.papol' },
+    { id: 5, display_name: 'Mr. Krabs', affiliation: 'Bikini Bottom University', avatar_path: 'assets/demo/krabs.png', email: 'krabs@demo.papol' },
+    // Plankton keeps his address to himself — the opted-out case.
+    { id: 6, display_name: 'Plankton', affiliation: 'Bikini State University', avatar_path: 'assets/demo/plankton.png', email: 'plankton@demo.papol', email_public: false },
   ];
 
   const papers = [
@@ -77,20 +78,27 @@ function seed() {
       authors: '["Gordon D. Plotkin"]',
       journal: 'Theoretical Computer Science', year: 1975,
       file_path: 'https://homepages.inf.ed.ac.uk/gdp/publications/cbn_cbv_lambda.pdf', created_at: daysAgo(3) },
+    // Wholly fictional, and written by two of the demo readers — this is
+    // where the "this is my paper" tick box shows itself.
+    { id: 10, doi: '10.5555/krabby.2026.001',
+      title: 'Byzantine Fry Cooks: Consensus on the Krabby Patty Formula Under Adversarial Plankton',
+      authors: '["SpongeBob SquarePants", "Sandy Cheeks"]',
+      journal: 'Proceedings of the Bikini Bottom Symposium on Fry Cook Systems', year: 2026,
+      file_path: 'https://demo.papol/byzantine-fry-cooks.pdf', created_at: daysAgo(1) },
   ];
 
   let cid = 1;
   const copy = (paper_id, user_id, extra = {}) => ({
-    id: cid++, paper_id, user_id, summary: null, thought: null, marketed: true,
+    id: cid++, paper_id, user_id, summary: null, thought: null, marketed: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     created_at: daysAgo(5), ...extra,
   });
 
   const copies = [
-    copy(1, ME, { summary: 'Consensus despite traitors; the 3f+1 bound. Reread §4.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
+    copy(1, ME, { summary: '## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
     copy(1, 2, { thought: 'The clearest impossibility argument I know.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
-    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely — Q·K/√d then softmax over V. The positional encodings are the part I still need to internalize.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
+    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
     copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(3, 3, { thought: 'GPUs go brrr and suddenly vision works.', rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
     copy(3, 6, { thought: 'Scale beats cleverness; I find that deeply unfair.', rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
@@ -106,11 +114,15 @@ function seed() {
     copy(8, 6, { thought: 'Seven primitives and you get a civilization.', rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
     copy(9, 2, { thought: 'Call-by-name and call-by-value finally on one clean footing.', rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
     copy(9, 5, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
+    copy(10, ME, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, created_at: daysAgo(1) }),
+    copy(10, 2, { is_author: true, thought: 'The karate chop lemma was the hard part.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
+    copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
   ];
 
   const comments = [
-    { id: 1, paper_id: 1, user_id: ME, content: 'The oral-messages algorithm clicked once I drew the m=1 case.', created_at: daysAgo(27) },
-    { id: 2, paper_id: 1, user_id: ME, content: 'Compare with Paxos — same author, friendlier generals.', created_at: daysAgo(25) },
+    { id: 1, paper_id: 1, user_id: ME, content: '### m = 1, drawn out\n\nFour generals, one traitor. The loyal lieutenants report what they heard:\n\n- `L1` — **attack**\n- `L2` — **attack**\n- the traitor — *retreat*\n\nMajority wins, and that is the whole trick. With three generals there is no majority to win.', created_at: daysAgo(27) },
+    { id: 2, paper_id: 1, user_id: ME, content: 'Compare with [Paxos](https://lamport.azurewebsites.net/pubs/paxos-simple.pdf) — same author, friendlier generals.\n\n- proposer ↔ commanding general\n- acceptor ↔ lieutenant\n- ballot ↔ round\n\nIt is ~~easier~~ shorter, at least.', created_at: daysAgo(25) },
+    { id: 3, paper_id: 10, user_id: ME, content: 'Sizing the kitchen before the dinner rush:\n\n```\ncooks = 3f + 1\nspies = f\n```\n\nTwo spies means seven cooks. We have five, so §7 quietly assumes one spy.', created_at: daysAgo(1) },
   ];
 
   const key = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
@@ -166,9 +178,20 @@ const ensure = () => { if (!db) db = seed(); return db; };
 
 // ---------- Helpers mirroring the backend ----------
 
+// Mirrors the backend's UserPublic: the email rides along only when the
+// reader chose to show it.
 const publicUser = (u) => ({
   id: u.id, display_name: u.display_name,
   affiliation: u.affiliation || null, avatar_path: u.avatar_path || null,
+  email: u.email_public === false ? null : u.email || null,
+});
+
+// Mirrors UserPrivate: the signed-in reader always sees their own email.
+const privateUser = (u) => ({
+  ...publicUser(u),
+  email: u.email,
+  email_public: u.email_public !== false,
+  is_admin: false,
 });
 
 const userById = (id) => ensure().users.find((u) => u.id === id);
@@ -180,6 +203,7 @@ const roomParts = (r) => ensure().participants.filter((x) => x.room_id === r.id)
 
 const readerEntry = (c) => ({
   paper_id: c.paper_id, user: publicUser(userById(c.user_id)),
+  is_author: !!c.is_author,
   thought: c.thought,
   rating_expertise: c.rating_expertise, rating_reading: c.rating_reading,
   rating_liking: c.rating_liking,
@@ -199,15 +223,31 @@ const paperRooms = (p) =>
   ensure().rooms.filter((r) => r.paper_key === paperKey(p))
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
+// The demo's papers each have exactly one edition, synthesized from the
+// file they carry: enough for the viewer's edition fields to be real,
+// while the demo can never gain a second one (uploads are disabled).
+const editionsOf = (p) => [
+  { id: p.id * 100 + 1, file_path: p.file_path, created_at: p.created_at, uploader: null },
+];
+
 function paperDetail(p) {
   const mine = copyOf(p, ME);
+  const editions = editionsOf(p);
+  const latest = editions[editions.length - 1];
+  const myEdition =
+    editions.find((e) => mine && e.id === mine.edition_id) || latest;
   return {
     id: p.id, doi: p.doi, title: p.title, authors: p.authors,
-    journal: p.journal, year: p.year, file_path: p.file_path,
+    journal: p.journal, year: p.year, file_path: myEdition.file_path,
     created_at: p.created_at,
+    editions,
+    latest_edition: latest,
+    edition_id: myEdition.id,
+    ignored_edition_id: mine ? mine.ignored_edition_id ?? null : null,
     summary: mine ? mine.summary : null,
     thought: mine ? mine.thought : null,
     marketed: mine ? mine.marketed : null,
+    is_author: mine ? !!mine.is_author : null,
     rating_expertise: mine ? mine.rating_expertise : null,
     rating_reading: mine ? mine.rating_reading : null,
     rating_liking: mine ? mine.rating_liking : null,
@@ -235,9 +275,11 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     id: p.id, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: c ? c.created_at : p.created_at,
+    edition_id: c ? c.edition_id ?? editionsOf(p)[0].id : null,
     summary: c && !hidePrivate ? c.summary : null,
     thought: c ? c.thought : null,
     marketed: c ? c.marketed : null,
+    is_author: c ? !!c.is_author : null,
     rating_expertise: c ? c.rating_expertise : null,
     rating_reading: c ? c.rating_reading : null,
     rating_liking: c ? c.rating_liking : null,
@@ -313,12 +355,13 @@ export async function demoRequest(path, options = {}) {
 
   // ----- auth -----
   if (path === '/auth/logout') return { message: 'Logged out' };
-  if (path === '/auth/me') return { ...publicUser(userById(ME)), email: 'spongebob@demo.papol', is_admin: false };
+  if (path === '/auth/me') return privateUser(userById(ME));
   if (path === '/auth/profile' && method === 'PUT') {
     const me = userById(ME);
     if (body.display_name !== undefined) me.display_name = body.display_name || me.display_name;
     if (body.affiliation !== undefined) me.affiliation = body.affiliation || null;
-    return { ...publicUser(me), email: 'spongebob@demo.papol', is_admin: false };
+    if (body.email_public !== undefined) me.email_public = !!body.email_public;
+    return privateUser(me);
   }
   if (path === '/auth/avatar' || path === '/auth/password') {
     throw demoError('Not available in the demo — create a real account to set this up.');
@@ -369,12 +412,28 @@ export async function demoRequest(path, options = {}) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
-      summary: null, thought: null, marketed: true, rating_expertise: null,
+      summary: null, thought: null, marketed: true, is_author: false, rating_expertise: null,
       rating_reading: null, rating_liking: null, created_at: now() });
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/file$/))) {
+  if ((m = path.match(/^\/papers\/(\d+)\/editions$/))) {
     throw demoError('Not available in the demo — create a real account to upload PDFs.');
+  }
+  if ((m = path.match(/^\/papers\/(\d+)\/ignore-edition$/))) {
+    const paper = findPaper(m[1]);
+    const mine = copyOf(paper, ME);
+    if (!mine) throw demoError('Add this paper to your nook first', 403);
+    const editions = editionsOf(paper);
+    mine.ignored_edition_id = body.edition_id || editions[editions.length - 1].id;
+    return paperDetail(paper);
+  }
+  if ((m = path.match(/^\/papers\/(\d+)\/adopt-edition$/))) {
+    const paper = findPaper(m[1]);
+    const mine = copyOf(paper, ME);
+    if (!mine) throw demoError('Add this paper to your nook first', 403);
+    const editions = editionsOf(paper);
+    mine.edition_id = body.edition_id || editions[editions.length - 1].id;
+    return paperDetail(paper);
   }
   if ((m = path.match(/^\/papers\/(\d+)\/comments$/))) {
     const paper = findPaper(m[1]);
@@ -415,7 +474,7 @@ export async function demoRequest(path, options = {}) {
   }
   if ((m = path.match(/^\/papers\/(\d+)$/)) && method === 'PUT') {
     const paper = findPaper(m[1]);
-    const personal = ['summary', 'thought', 'marketed', 'rating_expertise', 'rating_reading', 'rating_liking'];
+    const personal = ['summary', 'thought', 'marketed', 'is_author', 'rating_expertise', 'rating_reading', 'rating_liking'];
     const metadata = ['title', 'authors', 'journal', 'year', 'doi'];
     if (personal.some((k) => k in body)) {
       const mine = copyOf(paper, ME);

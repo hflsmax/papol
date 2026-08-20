@@ -7,6 +7,8 @@ import {
   adminRunSql,
   adminDbMetrics,
   adminResetDbMetrics,
+  adminListFeedback,
+  adminSetFeedbackResolved,
 } from '../api';
 
 function DbMetricsPanel() {
@@ -25,7 +27,7 @@ function DbMetricsPanel() {
 
   return (
     <>
-      <p className="guest-note">
+      <p className="panel-note">
         {metrics.total_queries} quer{metrics.total_queries === 1 ? 'y' : 'ies'}
         {' '}({metrics.total_ms} ms total) since{' '}
         {new Date(metrics.since + 'Z').toLocaleString()}.{' '}
@@ -68,9 +70,7 @@ function DbMetricsPanel() {
       )}
       {metrics.slowest.length > 0 && (
         <>
-          <h6 className="mini-title" style={{ marginTop: 16 }}>
-            Slowest queries
-          </h6>
+          <h6 className="mini-title metrics-subtitle">Slowest queries</h6>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -90,6 +90,78 @@ function DbMetricsPanel() {
             </table>
           </div>
         </>
+      )}
+    </>
+  );
+}
+
+function FeedbackPanel() {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState(null);
+  const [showResolved, setShowResolved] = useState(false);
+
+  useEffect(() => {
+    adminListFeedback()
+      .then(setItems)
+      .catch((e) => setError(e.message));
+  }, []);
+
+  const toggle = async (fb) => {
+    try {
+      const updated = await adminSetFeedbackResolved(fb.id, !fb.resolved);
+      setItems((list) => list.map((x) => (x.id === fb.id ? updated : x)));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  if (error) return <div className="error">{error}</div>;
+  if (!items) return <div className="loading">Loading reports…</div>;
+
+  const open = items.filter((f) => !f.resolved);
+  const done = items.filter((f) => f.resolved);
+  const shown = showResolved ? items : open;
+
+  const who = (fb) => {
+    if (fb.user) return `${fb.user.display_name} <${fb.user_email}>`;
+    if (fb.contact) return `a visitor <${fb.contact}>`;
+    return 'an anonymous visitor';
+  };
+
+  return (
+    <>
+      <p className="panel-note">
+        {open.length} open, {done.length} done.{' '}
+        {done.length > 0 && (
+          <button
+            className="link-btn"
+            onClick={() => setShowResolved((v) => !v)}
+          >
+            {showResolved ? 'Hide the done ones' : 'Show the done ones'}
+          </button>
+        )}
+      </p>
+      {shown.length === 0 ? (
+        <p className="no-papers">No reports.</p>
+      ) : (
+        <ul className="feedback-list">
+          {shown.map((fb) => (
+            <li
+              key={fb.id}
+              className={fb.resolved ? 'feedback-item resolved' : 'feedback-item'}
+            >
+              <p className="feedback-head">
+                {who(fb)}
+                {fb.page ? ` · ${fb.page}` : ''} ·{' '}
+                {new Date(fb.created_at + 'Z').toLocaleString()}
+              </p>
+              <p className="feedback-content">{fb.content}</p>
+              <button className="link-btn" onClick={() => toggle(fb)}>
+                {fb.resolved ? 'Reopen' : 'Mark done'}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </>
   );
@@ -189,8 +261,13 @@ export default function AdminPage() {
   return (
     <div className="admin-page">
       <div className="panel">
+        <h2 className="panel-title">Bug reports and feature requests</h2>
+        <FeedbackPanel />
+      </div>
+
+      <div className="panel">
         <h2 className="panel-title">Admin</h2>
-        <p className="guest-note">Direct database access — no validation.</p>
+        <p className="panel-note">Direct database access — no validation.</p>
 
         <div className="admin-tabs">
           {tables.map((t) => (
@@ -274,7 +351,7 @@ export default function AdminPage() {
           Run
         </button>
 
-        {sqlError && <div className="error" style={{ marginTop: 12 }}>{sqlError}</div>}
+        {sqlError && <div className="error sql-error">{sqlError}</div>}
         {sqlResult && (
           <div className="admin-sql-result">
             {sqlResult.rows ? (

@@ -144,13 +144,20 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
                   {(paper.readers || []).map((entry) => (
                     <a
                       key={entry.user.id}
-                      className="avatar-chip has-pop"
+                      className={
+                        entry.is_author
+                          ? 'avatar-chip has-pop author'
+                          : 'avatar-chip has-pop'
+                      }
                       href={`#/u/${entry.user.id}`}
                     >
                       <Avatar user={entry.user} className="nook-chip-avatar" />
                       <span className="chip-pop">
                         <span className="chip-pop-name">
                           {entry.user.display_name}
+                          {entry.is_author && (
+                            <span className="author-tag">author</span>
+                          )}
                         </span>
                         {entry.user.affiliation && (
                           <span className="chip-pop-aff">

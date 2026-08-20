@@ -7,6 +7,8 @@ uploads/
 # Build artifacts
 frontend/dist/
 frontend/node_modules/
+viewer/dist/
+viewer/node_modules/
 __pycache__/
 *.pyc
 

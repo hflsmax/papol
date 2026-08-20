@@ -1,0 +1,64 @@
+// The viewer is its own app but not its own world: it runs on Papol's
+// origin and carries the same session token, so there is no second sign-in
+// and no second idea of who a reader is.
+const API_BASE = '../api';
+const TOKEN_KEY = 'papol_token';
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+async function request(path, options = {}) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    let message = `Error ${response.status}`;
+    try {
+      message = (await response.json()).detail || message;
+    } catch {
+      /* keep the status */
+    }
+    const err = new Error(typeof message === 'string' ? message : JSON.stringify(message));
+    err.status = response.status;
+    throw err;
+  }
+  return response.json();
+}
+
+function jsonRequest(path, method, body) {
+  return request(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function getPaper(id) {
+  return request(`/papers/${id}`);
+}
+
+export function pdfHref(paper) {
+  if (!paper?.file_path) return null;
+  if (paper.file_path.startsWith('http')) return paper.file_path;
+  return `../uploads/${paper.file_path}`;
+}
+
+// A located note is a note: the same endpoints Papol's own notes use, with
+// a page and an anchor attached.
+export function createNote(paperId, { page, anchor, content }) {
+  return jsonRequest(`/papers/${paperId}/comments`, 'POST', { page, anchor, content });
+}
+
+export function updateNote(id, content) {
+  return jsonRequest(`/comments/${id}`, 'PUT', { content });
+}
+
+export function deleteNote(id) {
+  return request(`/comments/${id}`, { method: 'DELETE' });
+}
