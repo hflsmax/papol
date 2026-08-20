@@ -46,6 +46,8 @@ export function getPaper(id) {
 export function pdfHref(paper) {
   if (!paper?.file_path) return null;
   if (paper.file_path.startsWith('http')) return paper.file_path;
+  // Demo papers are shipped with the app; uploaded ones live in /uploads.
+  if (paper.file_path.startsWith('assets/')) return `../${paper.file_path}`;
   return `../uploads/${paper.file_path}`;
 }
 
@@ -57,6 +59,18 @@ export function createNote(paperId, { page, anchor, content }) {
 
 export function updateNote(id, content) {
   return jsonRequest(`/comments/${id}`, 'PUT', { content });
+}
+
+export function moveNote(id, { page, anchor }) {
+  return jsonRequest(`/comments/${id}`, 'PUT', { page, anchor });
+}
+
+export function renameNote(id, name) {
+  return jsonRequest(`/comments/${id}`, 'PUT', { name });
+}
+
+export function markPlace(id) {
+  return jsonRequest(`/comments/${id}`, 'PUT', { current_place: true });
 }
 
 export function deleteNote(id) {

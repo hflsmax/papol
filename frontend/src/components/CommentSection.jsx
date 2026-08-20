@@ -3,7 +3,8 @@ import { addComment, updateComment, deleteComment } from '../api';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
 
-export default function CommentSection({ paperId, comments, currentUser, onCommentChange }) {
+export default function CommentSection({
+  noteHref, paperId, comments, currentUser, onCommentChange }) {
   const [newComment, setNewComment] = useState('');
   const [composing, setComposing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,7 +145,7 @@ export default function CommentSection({ paperId, comments, currentUser, onComme
                     {comment.page != null && (
                       <a
                         className="note-page"
-                        href={`viewer/?paper=${comment.paper_id}&note=${comment.id}`}
+                        href={noteHref(comment)}
                         title="Open this note in the PDF"
                       >
                         page {comment.page}

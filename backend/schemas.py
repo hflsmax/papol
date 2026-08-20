@@ -91,21 +91,40 @@ Anchor = PointAnchor
 
 
 class CommentCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=4000)
+    # A bare anchor is allowed: the reader marks a place first and writes
+    # about it later. A note with no place must say something.
+    content: str = Field(default="", max_length=4000)
     # A located note carries both; a plain note carries neither.
     page: Optional[int] = Field(default=None, ge=1)
     anchor: Optional[Anchor] = None
+    # Marks this as the reader's place in the paper, displacing any other.
+    current_place: bool = False
+    name: Optional[str] = Field(default=None, max_length=120)
 
     @model_validator(mode="after")
     def _location_is_all_or_nothing(self):
         if (self.page is None) != (self.anchor is None):
             raise ValueError("a located note needs both a page and an anchor")
+        if self.anchor is None and not self.content.strip():
+            raise ValueError("a note with no place needs something written in it")
         return self
 
 
 class CommentUpdate(BaseModel):
-    """Rewording a note; its place in the PDF does not move."""
-    content: str = Field(min_length=1, max_length=4000)
+    """Rewording a note, or moving its anchor — each independently, so a
+    move never disturbs the words and vice versa. Only what is sent
+    changes; an anchor may be emptied back to a bare mark."""
+    content: Optional[str] = Field(default=None, max_length=4000)
+    page: Optional[int] = Field(default=None, ge=1)
+    anchor: Optional[Anchor] = None
+    current_place: Optional[bool] = None
+    name: Optional[str] = Field(default=None, max_length=120)
+
+    @model_validator(mode="after")
+    def _moving_needs_both(self):
+        if (self.page is None) != (self.anchor is None):
+            raise ValueError("moving a note needs both a page and an anchor")
+        return self
 
 
 class Comment(BaseModel):
@@ -119,6 +138,8 @@ class Comment(BaseModel):
     anchor_type: Optional[str] = None
     anchor: Optional[Anchor] = None
     edition_id: Optional[int] = None
+    current_place: bool = False
+    name: Optional[str] = None
 
     class Config:
         from_attributes = True

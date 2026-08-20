@@ -7,6 +7,9 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   server: {
+    // The demo world is shared between the two apps, a level above
+    // either root.
+    fs: { allow: ['..'] },
     proxy: { '/api': 'http://127.0.0.1:8000', '/uploads': 'http://127.0.0.1:8000' },
   },
 });

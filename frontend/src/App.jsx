@@ -1846,6 +1846,12 @@ select {
   margin: 12px 0 0;
 }
 
+.paper-actions .btn,
+.paper-actions button {
+  width: 7.5rem;
+  text-align: center;
+}
+
 .paper-actions .btn {
   padding: 6px 12px;
   border: 1px solid var(--line-strong);
@@ -3394,11 +3400,15 @@ a.btn:hover {
 .note-page:hover { background: var(--card); }
 
 .comment-footer {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   font-size: var(--fs-xs);
 }
+
+.comment-footer .note-page { justify-self: start; }
+.comment-footer .comment-date { grid-column: 2; justify-self: center; }
+.comment-footer .comment-actions { grid-column: 3; justify-self: end; }
 
 .comment-date {
   color: var(--ink-faint);

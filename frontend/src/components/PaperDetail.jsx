@@ -8,7 +8,6 @@ import RoomSection from './RoomSection';
 import HintPop from './HintPop';
 import Avatar from './Avatar';
 import { RatingInput, RatingSummary } from './Rating';
-import { demoActive } from '../demo';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
 
@@ -63,6 +62,29 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     loadPaper();
   }, [paperId]);
 
+  // Coming back from the viewer is a history step, so the browser restores
+  // this page from its cache with whatever notes it had when the reader
+  // left. Refetch when the page is shown again, unless a form is open and
+  // would lose what is in it.
+  useEffect(() => {
+    const refresh = () => {
+      if (editMode || editingSummary || editingThought) return;
+      loadPaper();
+    };
+    const onShow = (e) => {
+      if (e.persisted) refresh();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('pageshow', onShow);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('pageshow', onShow);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [paperId, editMode, editingSummary, editingThought]);
+
   const loadPaper = async () => {
     setError(null);
     try {
@@ -74,6 +96,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       setIsLoading(false);
     }
   };
+
+  const noteHref = (comment) =>
+    `viewer/?paper=${comment.paper_id}&note=${comment.id}`;
 
   // A newer edition exists and this reader's copy is not on it. Only ever
   // an offer: nothing moves a reader's copy but the reader.
@@ -243,8 +268,8 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       {editMode === 'metadata' ? (
         <div className="paper-form">
           <div className="warning">
-            Metadata is shared — your changes apply to this paper for every
-            reader, not just you.
+            Metadata is shared. Your changes apply to this paper for every
+            reader.
           </div>
 
           <div className="form-group">
@@ -472,13 +497,13 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           </div>
 
           <div className="paper-actions">
-            {hasEntry && !demoActive() && (
+            {hasEntry && (
               <a className="btn primary" href={`viewer/?paper=${paper.id}`}>
                 Read
               </a>
             )}
             {hasEntry && (
-              <button onClick={startMetadataEdit}>Edit Metadata</button>
+              <button onClick={startMetadataEdit}>Edit</button>
             )}
             {currentUser && !paper.viewer_has_entry && (
               <button onClick={handleAddToNook}>Add to my nook</button>
@@ -661,7 +686,8 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
           <CommentSection
             paperId={paper.id}
-            comments={paper.comments}
+            comments={(paper.comments || []).filter((c) => c.content)}
+            noteHref={noteHref}
             currentUser={currentUser}
             onCommentChange={loadPaper}
           />

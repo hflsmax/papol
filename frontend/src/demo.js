@@ -2,6 +2,8 @@
 // api.js routes every request here when the demo flag is set, so the real
 // backend is never touched. State is seeded fresh on each page load.
 
+import { demoPapers, demoNotes, noteAsComment } from '../../shared/demoWorld';
+
 const DEMO_FLAG = 'papol_demo';
 
 export function demoActive() {
@@ -41,51 +43,10 @@ function seed() {
     { id: 6, display_name: 'Plankton', affiliation: 'Bikini State University', avatar_path: 'assets/demo/plankton.png', email: 'plankton@demo.papol', email_public: false },
   ];
 
-  const papers = [
-    { id: 1, doi: '10.1145/357172.357176', title: 'The Byzantine Generals Problem',
-      authors: '["Leslie Lamport", "Robert Shostak", "Marshall Pease"]',
-      journal: 'ACM Transactions on Programming Languages and Systems', year: 1982,
-      file_path: 'https://lamport.azurewebsites.net/pubs/byz.pdf', created_at: daysAgo(30) },
-    { id: 2, doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need',
-      authors: '["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones", "Aidan N. Gomez", "Łukasz Kaiser", "Illia Polosukhin"]',
-      journal: 'Advances in Neural Information Processing Systems', year: 2017,
-      file_path: 'https://arxiv.org/pdf/1706.03762', created_at: daysAgo(21) },
-    { id: 3, doi: '10.1145/3065386', title: 'ImageNet Classification with Deep Convolutional Neural Networks',
-      authors: '["Alex Krizhevsky", "Ilya Sutskever", "Geoffrey E. Hinton"]',
-      journal: 'Communications of the ACM', year: 2017,
-      file_path: 'https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf', created_at: daysAgo(18) },
-    { id: 4, doi: '10.1145/362384.362685', title: 'A Relational Model of Data for Large Shared Data Banks',
-      authors: '["E. F. Codd"]',
-      journal: 'Communications of the ACM', year: 1970,
-      file_path: 'https://www.seas.upenn.edu/~zives/03f/cis550/codd.pdf', created_at: daysAgo(14) },
-    { id: 5, doi: '10.1002/j.1538-7305.1948.tb01338.x', title: 'A Mathematical Theory of Communication',
-      authors: '["Claude E. Shannon"]',
-      journal: 'Bell System Technical Journal', year: 1948,
-      file_path: 'https://people.math.harvard.edu/~ctm/home/text/others/shannon/entropy/entropy.pdf', created_at: daysAgo(12) },
-    { id: 6, doi: '10.1109/TIT.1976.1055638', title: 'New Directions in Cryptography',
-      authors: '["Whitfield Diffie", "Martin E. Hellman"]',
-      journal: 'IEEE Transactions on Information Theory', year: 1976,
-      file_path: 'https://ee.stanford.edu/~hellman/publications/24.pdf', created_at: daysAgo(9) },
-    { id: 7, doi: '10.1016/S0169-7552(98)00110-X', title: 'The Anatomy of a Large-Scale Hypertextual Web Search Engine',
-      authors: '["Sergey Brin", "Lawrence Page"]',
-      journal: 'Computer Networks and ISDN Systems', year: 1998,
-      file_path: 'https://snap.stanford.edu/class/cs224w-readings/Brin98Anatomy.pdf', created_at: daysAgo(6) },
-    { id: 8, doi: '10.1145/367177.367199', title: 'Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I',
-      authors: '["John McCarthy"]',
-      journal: 'Communications of the ACM', year: 1960,
-      file_path: 'https://www-formal.stanford.edu/jmc/recursive.pdf', created_at: daysAgo(5) },
-    { id: 9, doi: '10.1016/0304-3975(75)90017-1', title: 'Call-by-name, call-by-value and the λ-calculus',
-      authors: '["Gordon D. Plotkin"]',
-      journal: 'Theoretical Computer Science', year: 1975,
-      file_path: 'https://homepages.inf.ed.ac.uk/gdp/publications/cbn_cbv_lambda.pdf', created_at: daysAgo(3) },
-    // Wholly fictional, and written by two of the demo readers — this is
-    // where the "this is my paper" tick box shows itself.
-    { id: 10, doi: '10.5555/krabby.2026.001',
-      title: 'Byzantine Fry Cooks: Consensus on the Krabby Patty Formula Under Adversarial Plankton',
-      authors: '["SpongeBob SquarePants", "Sandy Cheeks"]',
-      journal: 'Proceedings of the Bikini Bottom Symposium on Fry Cook Systems', year: 2026,
-      file_path: 'https://demo.papol/byzantine-fry-cooks.pdf', created_at: daysAgo(1) },
-  ];
+  const papers = demoPapers.map(({ daysAgo: ago, ...p }) => ({
+    ...p,
+    created_at: daysAgo(ago),
+  }));
 
   let cid = 1;
   const copy = (paper_id, user_id, extra = {}) => ({
@@ -119,11 +80,9 @@ function seed() {
     copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
   ];
 
-  const comments = [
-    { id: 1, paper_id: 1, user_id: ME, content: '### m = 1, drawn out\n\nFour generals, one traitor. The loyal lieutenants report what they heard:\n\n- `L1` — **attack**\n- `L2` — **attack**\n- the traitor — *retreat*\n\nMajority wins, and that is the whole trick. With three generals there is no majority to win.', created_at: daysAgo(27) },
-    { id: 2, paper_id: 1, user_id: ME, content: 'Compare with [Paxos](https://lamport.azurewebsites.net/pubs/paxos-simple.pdf) — same author, friendlier generals.\n\n- proposer ↔ commanding general\n- acceptor ↔ lieutenant\n- ballot ↔ round\n\nIt is ~~easier~~ shorter, at least.', created_at: daysAgo(25) },
-    { id: 3, paper_id: 10, user_id: ME, content: 'Sizing the kitchen before the dinner rush:\n\n```\ncooks = 3f + 1\nspies = f\n```\n\nTwo spies means seven cooks. We have five, so §7 quietly assumes one spy.', created_at: daysAgo(1) },
-  ];
+  // SpongeBob's notes, as the API would return them. Bare anchors and his
+  // place marker are comments too, exactly as they are on the server.
+  const comments = demoNotes.map((n) => noteAsComment(n, ME, daysAgo));
 
   const key = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
 

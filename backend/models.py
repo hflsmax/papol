@@ -112,7 +112,8 @@ class Comment(Base):
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    content = Column(Text, nullable=False)
+    # Empty while an anchor is only a mark, before anything is written.
+    content = Column(Text, nullable=False, default="")
     # Location, all null for a note that is not pinned to the page.
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
     page = Column(Integer, nullable=True)
@@ -121,6 +122,13 @@ class Comment(Base):
     # of the page in PDF user space, so zoom and DPI never enter it.
     anchor_type = Column(String, nullable=True)
     anchor = Column(Text, nullable=True)
+    # What the reader calls this anchor; the page number stands in when
+    # they have not named it.
+    name = Column(String, nullable=True)
+    # The reader's place in this paper: at most one per reader per paper,
+    # kept as a note so it moves, carries words and is deleted like any
+    # other anchor.
+    current_place = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     paper = relationship("Paper", back_populates="comments")

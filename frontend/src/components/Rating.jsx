@@ -8,7 +8,7 @@ export const RATING_DIMENSIONS = [
 
 export function RatingDots({ value }) {
   if (!value) {
-    return <span className="rating-none" title="The reader chose not to rate this">not rated</span>;
+    return <span className="rating-none" title="The reader chose not to rate this">unrated</span>;
   }
   return (
     <span className="rating-dots" aria-label={`${value} out of 5`}>
