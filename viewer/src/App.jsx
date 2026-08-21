@@ -1272,12 +1272,19 @@ export default function App() {
                             number, or from a dot that only ranks it. */}
                         <span
                           className={`weight-strip${inkShape === 'round' ? ' round' : ''}`}
+                          // At the size the ink is on the page, not on the
+                          // screen: the zoom is not part of what is being
+                          // chosen here, and a row of controls that grew
+                          // and shrank as the reader zoomed the paper would
+                          // be answering a question nobody asked. The brush
+                          // itself still follows the zoom, because it has
+                          // to agree with the ink it is about to lay down.
                           style={{
                             width:
                               inkShape === 'round'
-                                ? stripSize(w, pageWidth, scale || 1).tall
-                                : stripSize(w, pageWidth, scale || 1).wide,
-                            height: stripSize(w, pageWidth, scale || 1).tall,
+                                ? stripSize(w, pageWidth).tall
+                                : stripSize(w, pageWidth).wide,
+                            height: stripSize(w, pageWidth).tall,
                             background: inkColor,
                             opacity: inkOpacity,
                           }}

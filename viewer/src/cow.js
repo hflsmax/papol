@@ -53,9 +53,16 @@ const COW_EAR_BACK = 30;
 // The feet are not centred in the box — the head takes up the front of it
 // — so neither is what they stand on.
 const SHADOW_AT = 10;
-// And the tail flicks properly, now and then, on top of its slow swing.
-const COW_FLICK_EVERY = [5000, 14000];
-const COW_FLICK_HELD = 420;
+// How far the tail swings, and how fast. It is the one part of a cow that
+// is never still, and on an animal standing in one place for half a minute
+// it is most of what says the thing is alive rather than printed — so it is
+// worth more than the drawing strictly justifies.
+const COW_SWISH = 14;
+const COW_SWISH_RATE = 0.0029;
+// And it flicks properly, now and then, on top of that.
+const COW_FLICK_EVERY = [2600, 7000];
+const COW_FLICK_HELD = 520;
+const COW_FLICK_FAR = 18;
 
 // Where the animal has got to. Mutates the record in place; see App's
 // dropCow for why there is no state here.
@@ -187,8 +194,10 @@ export function poseCow(c, parts, now, k, cx, cy) {
 
   // The tail keeps its own time, deliberately: everything on the animal
   // moving to one beat is exactly what makes a drawn animal look drawn.
-  const flick = now < c.tailTill ? Math.sin((c.tailTill - now) * 0.03) * 11 : 0;
-  const tail = Math.sin(now * 0.0022 + c.seed * 6.28) * 7 + flick;
+  const flick = now < c.tailTill
+    ? Math.sin((c.tailTill - now) * 0.03) * COW_FLICK_FAR * ((c.tailTill - now) / COW_FLICK_HELD)
+    : 0;
+  const tail = Math.sin(now * COW_SWISH_RATE + c.seed * 6.28) * COW_SWISH + flick;
   parts.tail.setAttribute(
     'transform',
     `rotate(${tail.toFixed(2)} ${COW_TAIL_PIVOT[0]} ${COW_TAIL_PIVOT[1]})`
