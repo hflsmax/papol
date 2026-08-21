@@ -1,5 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { updateProfile, changePassword, uploadAvatar, deleteAvatar } from '../api';
+import {
+  updateProfile,
+  changePassword,
+  uploadAvatar,
+  deleteAvatar,
+  downloadMyData,
+  deleteAccount,
+} from '../api';
 import Avatar from './Avatar';
 
 export default function ProfilePage({ user, onUserUpdated, onLogout }) {
@@ -19,6 +26,61 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
 
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const avatarFileRef = useRef(null);
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const [exportedBytes, setExportedBytes] = useState(null);
+
+  // Closing the account is behind a disclosure: it is not something to
+  // wander into while changing an affiliation.
+  const [closing, setClosing] = useState(false);
+  const [closePassword, setClosePassword] = useState('');
+  const [closeEmail, setCloseEmail] = useState('');
+  const [closeError, setCloseError] = useState(null);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleExport = async () => {
+    setExportError(null);
+    setExportedBytes(null);
+    setIsExporting(true);
+    try {
+      setExportedBytes(await downloadMyData());
+    } catch (err) {
+      setExportError(err.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleClose = async (e) => {
+    e.preventDefault();
+    setCloseError(null);
+    // The typed email and the password are checked on the server too; this
+    // only saves a round trip and says which one is wrong.
+    if (closeEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
+      setCloseError('That is not the email address of this account.');
+      return;
+    }
+    if (
+      !confirm(
+        'This deletes your account, your notes and your nook, and cannot ' +
+          'be undone. Papers you uploaded stay for the readers who have ' +
+          'them. Continue?'
+      )
+    ) {
+      return;
+    }
+    setIsClosing(true);
+    try {
+      await deleteAccount(closePassword, closeEmail.trim());
+      // The session is gone with the account; onLogout clears the token
+      // and takes them out to the landing page.
+      onLogout();
+    } catch (err) {
+      setCloseError(err.message);
+      setIsClosing(false);
+    }
+  };
 
   const handleAvatarFile = async (e) => {
     const file = e.target.files[0];
@@ -236,6 +298,112 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
         </form>
       </div>
 
+      {/* Notes you cannot leave with are not really yours. */}
+      <div className="panel">
+        <h2 className="panel-title">Your things</h2>
+
+        {exportError && <div className="error">{exportError}</div>}
+        {exportedBytes != null && (
+          <div className="success">
+            Downloaded — {formatSize(exportedBytes)}.
+          </div>
+        )}
+
+        <p className="panel-note">
+          A zip of everything Papol holds about you: your profile, the papers
+          in your nook with your ratings and summaries, every note you have
+          written — as data and as a document you can read — the seminars you
+          joined, and the PDF of each paper in your nook.
+        </p>
+
+        <div className="form-actions">
+          <button onClick={handleExport} disabled={isExporting}>
+            {isExporting ? 'Gathering it up…' : 'Download my data'}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel panel-danger">
+        <h2 className="panel-title">Close your account</h2>
+
+        {!closing ? (
+          <>
+            <p className="panel-note">
+              Deletes your account, your notes, your nook and your messages.
+              It cannot be undone.
+            </p>
+            <div className="form-actions">
+              <button className="danger-link" onClick={() => setClosing(true)}>
+                I want to close my account
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {closeError && <div className="error">{closeError}</div>}
+
+            <p className="panel-note">
+              This removes your profile, your notes, the papers in your nook
+              and what you said in seminars. Two things stay, because they are
+              no longer only yours: a PDF you uploaded remains for the readers
+              who have that paper, with your name off it, and a seminar you
+              started passes to someone still in it. Download your data first
+              if you want to keep it — there is no way back from here.
+            </p>
+
+            <form onSubmit={handleClose}>
+              <div className="form-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={closePassword}
+                  onChange={(e) => setClosePassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  Type <b>{user.email}</b> to confirm
+                </label>
+                <input
+                  type="email"
+                  value={closeEmail}
+                  onChange={(e) => setCloseEmail(e.target.value)}
+                  placeholder={user.email}
+                  autoComplete="off"
+                  required
+                />
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="danger" disabled={isClosing}>
+                  {isClosing ? 'Closing…' : 'Delete my account'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClosing(false);
+                    setClosePassword('');
+                    setCloseEmail('');
+                    setCloseError(null);
+                  }}
+                >
+                  Keep my account
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+
     </div>
   );
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

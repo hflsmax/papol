@@ -8,6 +8,8 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
+from starlette.background import BackgroundTask
+import tempfile
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
 from sqlalchemy import text
@@ -29,10 +31,11 @@ from models import (
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
 )
+import account
 from schemas import (
     UserRegister, UserLogin, UserBase, UserPublic, UserPrivate, UserDirectoryEntry,
     AuthResponse,
-    ProfileUpdate, PasswordChange, ReaderEntry,
+    ProfileUpdate, PasswordChange, AccountDeletion, ReaderEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate, NotificationList, NotificationOut, AdminSQL,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
@@ -289,6 +292,77 @@ async def change_password(
     current_user.password_hash = hash_password(data.new_password)
     db.commit()
     return {"message": "Password updated"}
+
+
+@app.get("/api/auth/export")
+async def export_my_data(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Everything Papol holds about this reader, in one zip.
+
+    A reader who cannot leave with their notes does not really own them.
+    The file is built on disk and streamed: a large nook is a lot of PDF,
+    and none of it needs to sit in memory to be handed over.
+    """
+    handle = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    handle.close()
+    path = Path(handle.name)
+    try:
+        account.write_zip(db, current_user, UPLOADS_DIR, path)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+    stamp = datetime.utcnow().strftime("%Y-%m-%d")
+    return FileResponse(
+        path,
+        media_type="application/zip",
+        filename=f"papol-export-{stamp}.zip",
+        # The reader's copy is theirs; the server's is scratch. Deleted once
+        # the response has gone out, whether or not it got there.
+        background=BackgroundTask(lambda: path.unlink(missing_ok=True)),
+    )
+
+
+@app.delete("/api/auth/account")
+async def delete_my_account(
+    data: AccountDeletion,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Close the account and remove the reader.
+
+    Their notes, their nook and their messages go. What other readers
+    depend on — a PDF they uploaded, a seminar they started that others
+    joined — stays, with their name taken off it; see account.py.
+    """
+    if not verify_password(data.password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Password is incorrect")
+    if data.confirm_email.strip().lower() != current_user.email.lower():
+        raise HTTPException(
+            status_code=400,
+            detail="Type your own email address exactly to confirm.",
+        )
+    # Papol would otherwise have no one who can reach the admin pages, and
+    # no way to appoint one.
+    if current_user.is_admin:
+        others = (
+            db.query(User)
+            .filter(User.is_admin.is_(True), User.id != current_user.id)
+            .count()
+        )
+        if others == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "You are the only admin. Make someone else an admin "
+                    "before closing this account."
+                ),
+            )
+
+    removed = account.delete_account(db, current_user, UPLOADS_DIR)
+    return {"message": "Your account has been deleted.", "removed": removed}
 
 
 # ---------------- Users / spaces ----------------

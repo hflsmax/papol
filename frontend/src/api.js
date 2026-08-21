@@ -91,6 +91,55 @@ export function updateProfile(data) {
   return jsonRequest('/auth/profile', 'PUT', data);
 }
 
+/**
+ * Download everything Papol holds about the reader, as a zip.
+ *
+ * Fetched rather than linked: the export needs the bearer token, and a
+ * plain <a href> cannot carry one. The blob is handed to the browser
+ * through a link that is clicked and thrown away — the only way to name a
+ * downloaded file from script.
+ */
+export async function downloadMyData() {
+  if (demoActive()) {
+    throw new Error(
+      'The demo has nothing of yours to export — create a real account first.'
+    );
+  }
+  const response = await fetch(`${API_BASE}/auth/export`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    let message = `Error ${response.status}`;
+    try {
+      message = (await response.json()).detail || message;
+    } catch {
+      /* a failed export may not answer in JSON */
+    }
+    throw new Error(message);
+  }
+  // The server names the file; fall back to the same shape if the header
+  // is missing (a proxy may strip it).
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const named = /filename="?([^"]+)"?/.exec(disposition);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = named ? named[1] : `papol-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return blob.size;
+}
+
+export function deleteAccount(password, confirmEmail) {
+  return jsonRequest('/auth/account', 'DELETE', {
+    password,
+    confirm_email: confirmEmail,
+  });
+}
+
 export function uploadAvatar(file) {
   const formData = new FormData();
   formData.append('file', file);

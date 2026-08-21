@@ -67,6 +67,14 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=6, max_length=200)
 
 
+class AccountDeletion(BaseModel):
+    """Deleting an account is irreversible, so it asks for two things: the
+    password, which proves it is the reader, and their own email typed out,
+    which proves they meant it."""
+    password: str
+    confirm_email: str
+
+
 class UserDirectoryEntry(UserPublic):
     paper_count: int = 0
 

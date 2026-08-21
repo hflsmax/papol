@@ -325,6 +325,13 @@ export async function demoRequest(path, options = {}) {
   if (path === '/auth/avatar' || path === '/auth/password') {
     throw demoError('Not available in the demo — create a real account to set this up.');
   }
+  // Nothing in the demo is really this reader's, so there is nothing to
+  // take away and nobody to delete.
+  if (path === '/auth/account') {
+    throw demoError(
+      'The demo account is not yours to close — it resets on its own.'
+    );
+  }
 
   // ----- users -----
   if (path === '/users') {

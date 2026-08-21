@@ -378,6 +378,17 @@ input[type='checkbox'] {
   margin-bottom: 20px;
 }
 
+/* The one panel a reader can do something irreversible in. It is marked
+   by its edge rather than a wash of colour: the page is otherwise white
+   panels, and a red one would read as an error the reader must fix. */
+.panel-danger {
+  border-color: var(--red-line);
+}
+
+.panel-danger .panel-title {
+  color: var(--red);
+}
+
 .panel-title {
   font-size: var(--fs-xl);
   margin-bottom: 14px;
