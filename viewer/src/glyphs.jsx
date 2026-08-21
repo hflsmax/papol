@@ -208,9 +208,9 @@ export const COW_NECK =
   // the cap at the back — so the three shapes read as one form with no
   // seam anywhere in it. Curved, and flaring where it meets the head:
   // straight edges made a rod between two blobs, which is a hobby horse.
-  '<path d="M15 9c6 0 11.5 3 15.2 7.8v6.4c-5.2.8-11.2.2-15.2-1.7z"/>';
-export const COW_SKULL = '<rect x="2" y="7" width="19" height="17" rx="7.5"/>';
-export const COW_MUZZLE = '<ellipse cx="5.8" cy="19.5" rx="5.4" ry="4.6"/>';
+  '<path d="M17 10.5c6 0 10.5 3 13.2 6.3v6.4c-4.7.8-9.7.3-13.2-.7z"/>';
+export const COW_SKULL = '<rect x="4" y="8.5" width="19" height="17" rx="7.5"/>';
+export const COW_MUZZLE = '<ellipse cx="7.8" cy="21" rx="5.4" ry="4.6"/>';
 
 // Two horns and one ear.
 //
@@ -223,19 +223,19 @@ export const COW_MUZZLE = '<ellipse cx="5.8" cy="19.5" rx="5.4" ry="4.6"/>';
 // side to be sure of it, and this was the only one anybody would call a
 // cow.
 export const COW_HORN =
-  '<path d="M9.6 8c-2.3-2-2.6-5.3-.6-7.2.7 1-.3 1.9-.5 3-.2 1.6.7 2.6 2.1 3.3z"/>' +
-  '<path d="M13.9 7.6c-1.9-1.7-2.3-4.4-.6-6.2.6.9-.2 1.6-.3 2.6-.2 1.2.6 2.3 1.7 2.7z"/>';
+  '<path d="M11.6 9.5c-2.3-2-2.6-5.3-.6-7.2.7 1-.3 1.9-.5 3-.2 1.6.7 2.6 2.1 3.3z"/>' +
+  '<path d="M15.9 9.1c-1.9-1.7-2.3-4.4-.6-6.2.6.9-.2 1.6-.3 2.6-.2 1.2.6 2.3 1.7 2.7z"/>';
 // The ear goes behind them, long and swept back, and stays forward of the
 // shoulder: the barrel is drawn over the head and swallows anything that
 // reaches behind it.
-export const COW_EAR = '<path d="M14.6 12.4c1.2-5 5.8-8 8.2-6.2s-.4 6.2-4.2 8.2z"/>';
-export const COW_EAR_PIVOT = [15.8, 13.2];
+export const COW_EAR = '<path d="M16.6 13.9c1.2-5 5.8-8 8.2-6.2s-.4 6.2-4.2 8.2z"/>';
+export const COW_EAR_PIVOT = [17.8, 14.7];
 // Big, and low, and well forward on the head. Small and high is a shrewd
 // animal, and this one is not meant to be.
-export const COW_EYE = '<circle cx="11.8" cy="15" r="2.4"/>';
+export const COW_EYE = '<circle cx="13.8" cy="16.5" r="2.4"/>';
 // One nostril, and small. Two, or a big one, and the muzzle has a pair of
 // eyes of its own.
-export const COW_NOSTRIL = '<ellipse cx="3.2" cy="20.6" rx="1.3" ry="1"/>';
+export const COW_NOSTRIL = '<ellipse cx="5.2" cy="22.1" rx="1.3" ry="1"/>';
 export const COW_HEAD = COW_EAR + COW_HORN + COW_NECK + COW_SKULL + COW_MUZZLE;
 
 // The head first, so the barrel is drawn over the back of it.
@@ -306,7 +306,7 @@ function CowTool() {
     // has room over the animal's back for a head that has been thrown up,
     // and a button that leaves that room empty looks like it is sitting
     // wrong in the bar.
-    <g fill="currentColor" transform="translate(0.85 5.35) scale(0.3636)">
+    <g fill="currentColor" transform="translate(0.1 4.8) scale(0.376)">
       <CowFigure />
     </g>
   );

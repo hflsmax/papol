@@ -41,7 +41,7 @@ const COW_DUTY = 0.65;
 // goes down to the page to graze — far enough to put the muzzle just off
 // the paper, which about thirty degrees on this drawing does.
 const COW_BOB = 0.9;
-const COW_STOOP = 28;
+const COW_STOOP = 29;
 // How long the head takes to get down there and back up.
 const COW_NOD = 320;
 // An ear goes back about this often, and stays back about this long. It

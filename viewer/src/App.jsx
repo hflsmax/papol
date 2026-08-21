@@ -67,9 +67,20 @@ const INK_OPACITIES = [
   { value: 0.5, name: 'Half' },
   { value: 0.25, name: 'Faint' },
 ];
-const INK_COLOR = INK_COLORS[0].hex;
-const INK_WIDTH = INK_WIDTHS[1];
-const INK_OPACITY = INK_OPACITIES[0].value;
+// What the brush is loaded with before anyone has said otherwise: red, as
+// faint as it goes, the flat nib, and the heaviest weight — a broad wash of
+// red over a paragraph that leaves every word of it readable, which is what
+// marking a paper up mostly is.
+const INK_COLOR = INK_COLORS[1].hex;
+const INK_WIDTH = INK_WIDTHS[INK_WIDTHS.length - 1];
+const INK_OPACITY = INK_OPACITIES[INK_OPACITIES.length - 1].value;
+const INK_SHAPE = 'flat';
+
+// Bumped when those defaults change. A reader who has chosen for
+// themselves keeps their choice, but one who never did was carrying the old
+// defaults around in localStorage rather than no answer at all, and would
+// have gone on carrying them for ever.
+const INK_DEFAULTS_VERSION = '2';
 
 // The nib. Flat is a chisel held upright — broad across the page, thin
 // along it, so a mark says which way the hand went. Round is the same
@@ -174,6 +185,16 @@ export default function App() {
   const nextCowId = useRef(0);
   // What the brush is loaded with. Remembered like the tool itself: someone
   // who marks a paper up in red goes on doing it in red.
+  // Once, before any of the four are read.
+  useState(() => {
+    if (localStorage.getItem('papol_viewer_ink_defaults') === INK_DEFAULTS_VERSION) return null;
+    localStorage.setItem('papol_viewer_ink_defaults', INK_DEFAULTS_VERSION);
+    for (const key of ['ink', 'ink_width', 'ink_opacity', 'ink_shape']) {
+      localStorage.removeItem(`papol_viewer_${key}`);
+    }
+    return null;
+  });
+
   const [inkColor, setInkColor] = useState(
     () => localStorage.getItem('papol_viewer_ink') || INK_COLOR
   );
@@ -188,7 +209,7 @@ export default function App() {
     return INK_OPACITIES.some((o) => o.value === kept) ? kept : INK_OPACITY;
   });
   const [inkShape, setInkShape] = useState(
-    () => localStorage.getItem('papol_viewer_ink_shape') || 'flat'
+    () => localStorage.getItem('papol_viewer_ink_shape') || INK_SHAPE
   );
   const [brushOpen, setBrushOpen] = useState(false);
   // The width of a page of this document, reported by the first page to
