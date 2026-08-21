@@ -114,8 +114,9 @@ in {
         type = lib.types.str;
         example = "9c2e5542-9cc6-407e-bd24-96890af50130";
         description = ''
-          Tunnel UUID. Use the same tunnel as hoom's — the ingress rules from
-          both modules merge into one cloudflared instance.
+          Tunnel UUID. If another service on this host already runs a
+          tunnel, give its id here: NixOS merges the ingress rules from
+          both modules into one cloudflared instance.
         '';
       };
 
@@ -208,10 +209,11 @@ in {
       };
     };
 
-    # Cloudflare Tunnel ingress for mc-pony.com/papol. Shares hoom's tunnel:
-    # NixOS merges this tunnels.<id> definition with hoom's, so one cloudflared
-    # instance carries both hostnames. Points straight at uvicorn (which serves
-    # the built frontend, /uploads and the API); nginx is not in this path.
+    # Cloudflare Tunnel ingress. This tunnels.<id> definition merges with
+    # any other module on the host declaring the same id, so one cloudflared
+    # instance can carry several hostnames. Points straight at uvicorn (which
+    # serves the built frontend, /uploads and the API); nginx is not in this
+    # path.
     services.cloudflared = lib.mkIf cfg.cloudflare.enable {
       enable = true;
       tunnels.${cfg.cloudflare.tunnelId} = {

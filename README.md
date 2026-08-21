@@ -75,13 +75,13 @@ copy is. OpenAlex began charging for *searches* in February 2026 — about ten a
 day without a key, about a thousand with a free one from
 [openalex.org](https://openalex.org/pricing). The key goes in a file, not in
 `configuration.nix`: anything written into a NixOS option is copied into the
-world-readable `/nix/store`. Papol reads `~/.config/papol/secrets.env` if it is
-there — the same place and shape as hoom's, and where `SMTP_*` belongs too:
+world-readable `/nix/store`. Papol reads `.env` beside the code if it is there
+— the same file direnv loads into a development shell, and where `SMTP_*`
+belongs too. It is gitignored, and must stay that way:
 
 ```bash
 umask 077
-mkdir -p ~/.config/papol
-echo 'PAPOL_OPENALEX_KEY=your-key-here' > ~/.config/papol/secrets.env
+echo 'PAPOL_OPENALEX_KEY=your-key-here' >> .env
 sudo systemctl restart papol
 ```
 
