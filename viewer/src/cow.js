@@ -28,29 +28,45 @@ function swat(p) {
   return 1 - t * t * (3 - 2 * t);
 }
 
-// Where the animal has got to. Mutates the record in place; see App's
-// dropCow for why there is no state here.
+// One of the things this animal does, chosen by weight, and preferably not
+// the one it is already doing — an animal that grazes, then grazes, then
+// grazes is not choosing, it is stuck.
+function pick(acts, current) {
+  const open = acts.length > 1 ? acts.filter((a) => a !== current) : acts;
+  let total = 0;
+  for (const a of open) total += a.weight;
+  let n = Math.random() * total;
+  for (const a of open) {
+    n -= a.weight;
+    if (n <= 0) return a;
+  }
+  return open[open.length - 1];
+}
+
+// Where the animal has got to, and what it is up to. Mutates the record in
+// place; see App's dropCow for why there is no state here.
 export function stepCow(c, dt, now) {
   const w = animalFor(c.kind).ways;
-  // What it is doing. This changes every few seconds, so it is two
-  // comparisons a frame and not worth keeping anywhere else.
+  // What it is doing. There used to be two answers to that — walking, or
+  // stopped — and stopped always meant the head went down, which made
+  // every animal on the page a cow with a different outline. A cat does
+  // not graze. A dog does not graze. So each species carries its own list
+  // of things it does, and this picks between them.
   if (!c.held && now >= c.until) {
-    if (!c.grazing) {
-      c.grazing = true;
-      c.until = now + spell(w.graze);
-    } else {
+    c.act = pick(w.acts, c.act);
+    c.until = now + spell(c.act.span);
+    if (c.act.walks) {
       const dir = Math.random() < 0.5 ? -1 : 1;
-      c.grazing = false;
       c.facing = dir;
       c.tvx = dir * w.speed * c.pace;
       // Barely any drift up or down: a page is not a field.
       c.tvy = (Math.random() - 0.5) * w.speed * w.drift;
-      c.until = now + spell(w.walk);
     }
   }
+  const act = c.act || w.acts[0];
 
   const grip = 1 - Math.exp(-dt / w.ease);
-  const still = c.grazing || c.held;
+  const still = !act.walks || c.held;
   c.vx += ((still ? 0 : c.tvx) - c.vx) * grip;
   c.vy += ((still ? 0 : c.tvy) - c.vy) * grip;
 
@@ -81,14 +97,30 @@ export function stepCow(c, dt, now) {
   c.stride = (c.stride + (rate * w.beat * dt) / 1000) % 1;
   c.gait += (Math.min(1, rate) - c.gait) * grip;
 
-  c.head += ((c.grazing && !c.held ? 1 : 0) - c.head) * (1 - Math.exp(-dt / w.nod));
+  // Everything the activity asks the body to do, eased into rather than
+  // switched to. `head` is degrees now rather than a fraction of one fixed
+  // stoop, so an animal can raise its head as easily as lower it.
+  const soft = 1 - Math.exp(-dt / w.nod);
+  const to = c.held ? 0 : 1;
+  c.head += ((to ? act.head : 0) - c.head) * soft;
+  c.tilt += ((to ? act.tilt : 0) - c.tilt) * soft;
+  c.sink += ((to ? act.sink : 0) - c.sink) * soft;
+  c.earTo += ((to ? act.ear : 0) - c.earTo) * soft;
+  c.swish += ((act.tail[0] - c.swish)) * soft;
+
+  // Phases are accumulated rather than read off the clock, so an activity
+  // may change how fast the tail swings or the head works without the
+  // shape jumping to a different part of its own sine.
+  c.tailPhase += act.tail[1] * dt;
+  c.wagPhase += act.wag[1] * dt;
 
   if (!c.earAt) c.earAt = now + spell(w.earEvery);
   else if (now >= c.earAt) {
     c.earAt = now + spell(w.earEvery);
     c.earTill = now + w.earHeld;
   }
-  c.ear += ((now < c.earTill ? 1 : 0) - c.ear) * (1 - Math.exp(-dt / 45));
+  // The flick, over whatever the activity is already holding the ear at.
+  c.ear += ((now < c.earTill ? 1 : c.earTo) - c.ear) * (1 - Math.exp(-dt / 45));
 
   // A cow that has only just been put down should not be bothered by a fly
   // in its first frame, nor have its ear go back in it. Both spells are
@@ -148,16 +180,28 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const bob = -w.bob * c.gait * (0.5 - 0.5 * Math.cos(4 * Math.PI * c.stride));
   const breath = 1 + 0.008 * (1 - c.gait) * Math.sin(now * 0.0016 + c.seed * 6.28);
   // Scaled about the ground, so it is the back that lifts and not the feet.
+  // Sitting and crouching, on top of that. Both only ever bring the body
+  // nearer its own feet — the legs are outside this group and stay planted
+  // — and since the body is drawn over the tops of the legs, a body that
+  // comes down covers more of them and never less. That is the whole
+  // reason the rear may drop and may not rise.
+  const sit = c.tilt
+    ? `rotate(${c.tilt.toFixed(2)} ${spec.legs[0].pivot[0]} ${spec.ground}) `
+    : '';
   const ride =
-    `translate(0 ${bob.toFixed(2)}) translate(0 ${spec.ground}) ` +
+    `translate(0 ${(bob + c.sink).toFixed(2)}) ${sit}translate(0 ${spec.ground}) ` +
     `scale(1 ${breath.toFixed(4)}) translate(0 ${-spec.ground})`;
   for (let i = 0; i < parts.bob.length; i += 1) parts.bob[i].setAttribute('transform', ride);
 
-  // Down to the grass, with a slow nuzzle once it is there.
-  const nuzzle = c.head > 0.85 ? Math.sin(now * 0.004 + c.seed * 6.28) * 1.4 : 0;
+  // Where the head is held, and what it is doing there. The working — a
+  // cow nuzzling, a dog snuffling, a pig rooting, a cat washing — is the
+  // same oscillation at four very different sizes and speeds, which is
+  // most of what tells the four activities apart.
+  const act = c.act || w.acts[0];
+  const work = Math.sin(c.wagPhase + c.seed * 6.28) * act.wag[0];
   parts.head.setAttribute(
     'transform',
-    `rotate(${(c.head * (nuzzle - w.stoop)).toFixed(2)} ${spec.headPivot[0]} ${spec.headPivot[1]})`
+    `rotate(${(-(c.head + work)).toFixed(2)} ${spec.headPivot[0]} ${spec.headPivot[1]})`
   );
   parts.ear.setAttribute(
     'transform',
@@ -169,7 +213,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const over = now < c.tailTill
     ? w.swatArc * swat(1 - (c.tailTill - now) / w.swatHeld)
     : 0;
-  const tail = Math.sin(now * w.swishRate + c.seed * 6.28) * w.swish + over;
+  const tail = Math.sin(c.tailPhase + c.seed * 6.28) * c.swish + over;
   parts.tail.setAttribute(
     'transform',
     `rotate(${tail.toFixed(2)} ${spec.tail.pivot[0]} ${spec.tail.pivot[1]})`

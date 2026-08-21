@@ -719,11 +719,24 @@ export default function App() {
     // second came back "no such stroke", and the error path put the stroke
     // back. It looked exactly like ink that could not be rubbed out. A ref
     // is the only thing here that is current within a frame.
+    // Only while this one is in the air. The eraser asks on every movement
+    // of the pointer, several times in a frame, and `ink` is whatever it
+    // was when the render began — so without this the same stroke is asked
+    // for twice, the first delete succeeds, the second comes back "no such
+    // stroke", and the error path puts the stroke back.
+    //
+    // It has to be let go of afterwards, and for a while it was not: ids
+    // stayed in here for the life of the page. SQLite hands out the id of
+    // the last row again when that row has been deleted, so the next stroke
+    // drawn after erasing one is very often given the same number — and
+    // arrived already on the list of things not to erase. It could not be
+    // rubbed out at all until the page was reloaded, which emptied the set.
+    // That is the bug this looked like from the outside, and an id is the
+    // server's business anyway: nothing here should assume one is never
+    // used twice.
     if (erasing.current.has(id)) return;
     // Whatever the eraser was over, it was over: the page is rendering it,
-    // which is a better witness than this render's copy of the list. If the
-    // copy has not caught up, take it out anyway rather than quietly do
-    // nothing — doing nothing is what "it will not rub out" looks like.
+    // which is a better witness than this render's copy of the list.
     const gone = ink.find((s) => s.id === id);
     erasing.current.add(id);
     setInk((all) => all.filter((s) => s.id !== id));
@@ -735,9 +748,10 @@ export default function App() {
       // A stroke the server does not have is a stroke that is gone, which
       // is what was wanted; anything else is a failure worth undoing.
       if (err.status === 404) return;
-      erasing.current.delete(id);
       if (gone) setInk((all) => [...all, gone]);
       setError(err.message || 'That stroke could not be erased.');
+    } finally {
+      erasing.current.delete(id);
     }
   };
 
@@ -772,10 +786,10 @@ export default function App() {
         x: at.x,
         y: at.y,
         facing,
-        // Not grazing yet and no spell left to run: the first frame it is
-        // alive for gives it one, so it lands, puts its head down, and
-        // thinks about walking somewhere in a few seconds' time.
-        grazing: false,
+        // No activity and no spell left to run: the first frame it is
+        // alive for picks it one, so it lands and immediately starts doing
+        // whatever its kind does.
+        act: null,
         until: 0,
         held: false,
         // What it is doing: where it is trying to go, and how fast it is
@@ -791,7 +805,17 @@ export default function App() {
         turn: facing === 1 ? -1 : 1,
         gait: 0,
         stride: Math.random(),
+        // What the activity is asking the body for, in degrees and units,
+        // eased toward rather than switched to.
         head: 0,
+        tilt: 0,
+        sink: 0,
+        earTo: 0,
+        swish: 0,
+        // Phases accumulate, so an activity may change how fast the tail
+        // swings or the head works without the shape jumping.
+        tailPhase: Math.random() * 6.28,
+        wagPhase: 0,
         ear: 0,
         earAt: 0,
         earTill: 0,

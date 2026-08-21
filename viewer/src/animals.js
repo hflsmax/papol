@@ -22,6 +22,30 @@
 //    a pale animal with a dark outline and dark markings, and the button
 //    wants one flat colour.
 
+// One thing an animal does, with everything it does not care about left
+// out. `head` is degrees — positive down to the floor, negative up to look
+// at something — and `wag` is the working it does while it is there: a
+// size and a rate. A cow nuzzling, a dog snuffling, a pig rooting and a
+// cat washing are all this one oscillation at four very different sizes,
+// and that is most of what tells them apart.
+//
+// `tilt` drops the rear (a dog sitting) and `sink` lowers the whole body
+// (a cat crouching). Both only ever bring the body nearer its own feet,
+// which is what makes them safe: the legs are drawn under the body, so a
+// body that comes down covers more of them and never less.
+const act = (id, o) => ({
+  id,
+  weight: 1,
+  span: [1400, 3600],
+  head: 0,
+  wag: [0, 0],
+  ear: 0,
+  tilt: 0,
+  sink: 0,
+  walks: false,
+  ...o,
+});
+
 // How an animal carries itself. These are the cow's, which were the ones
 // tuned by eye against a rendered page; every other species says only how
 // it differs.
@@ -37,9 +61,6 @@ const DEFAULT_WAYS = {
   // Page-fractions a millisecond. A cow crossing a page in half a minute
   // is a cow.
   speed: 0.00003,
-  // How long it walks for, and how long it stops for.
-  walk: [1400, 3600],
-  graze: [2200, 6000],
   // Getting up to speed and coming to a stop. An animal that reaches its
   // walking pace in one frame is a vehicle.
   ease: 350,
@@ -50,14 +71,14 @@ const DEFAULT_WAYS = {
   duty: 0.65,
   // How far the body rises in the middle of a stride.
   bob: 0.9,
-  // How far the head goes down, and how long it takes to get there.
-  stoop: 29,
+  // How long the body takes to settle into whatever it has decided to do.
   nod: 320,
   // How much it wanders up and down the page as well as across it. A page
   // is not a field.
   drift: 0.3,
-  // The idle tail. On an animal standing still for half a minute this is
-  // most of what says the thing is alive rather than printed.
+  // The tail an activity gets if it does not ask for its own. On an animal
+  // standing still for half a minute this is most of what says the thing
+  // is alive rather than printed.
   swish: 14,
   swishRate: 0.0029,
   earEvery: [3800, 9000],
@@ -70,6 +91,15 @@ const DEFAULT_WAYS = {
   swatEvery: [9000, 22000],
   swatHeld: 640,
   swatArc: -180,
+  // And the things it does. The cow's, since the cow is the default in
+  // everything else too: it eats, it chews what it ate, it looks up, and
+  // now and then it walks somewhere.
+  acts: [
+    act('graze', { weight: 4, span: [2600, 7000], head: 29, wag: [1.4, 0.004] }),
+    act('chew', { weight: 2, span: [1800, 4200], head: 9, wag: [0.9, 0.012], ear: 0.15 }),
+    act('gaze', { weight: 1, span: [1200, 2600], head: -8 }),
+    act('amble', { weight: 3, span: [1400, 3600], walks: true }),
+  ],
 };
 
 const legRect = (leg) =>
@@ -115,9 +145,12 @@ function assemble(spec) {
     spec.bodyMarks || '',
     spec.headMarks || '',
   ].join('');
+  const ways = { ...DEFAULT_WAYS, ...(spec.ways || {}) };
+  // An activity that says nothing about the tail gets the species' own.
+  ways.acts = ways.acts.map((a) => ({ ...a, tail: a.tail || [ways.swish, ways.swishRate] }));
   return {
     ...spec,
-    ways: { ...DEFAULT_WAYS, ...(spec.ways || {}) },
+    ways,
     legRects: legs,
     pale,
     dark,
@@ -222,16 +255,12 @@ const DOG = {
   // is the whole of a dog.
   ways: {
     speed: 0.00007,
-    walk: [900, 2400],
-    graze: [700, 2200],
     ease: 180,
     turn: 150,
     beat: 3.4,
     swing: 22,
     duty: 0.5,
     bob: 1.4,
-    // It does not graze. It puts its nose down, briefly, at something.
-    stoop: 26,
     nod: 180,
     drift: 0.9,
     swish: 26,
@@ -242,6 +271,17 @@ const DOG = {
     swatEvery: [2200, 6000],
     swatHeld: 380,
     swatArc: -55,
+    // It does not graze. It puts its nose down at something, briefly and
+    // hard; or it sits, which is the one posture here that needed the
+    // rear to be able to drop; or it stands with its head up and its ears
+    // forward at something it has heard; or it shakes itself.
+    acts: [
+      act('sniff', { weight: 3, span: [900, 2200], head: 30, wag: [3.4, 0.021] }),
+      act('sit', { weight: 2, span: [1800, 4500], head: -16, tilt: 15, tail: [30, 0.014] }),
+      act('alert', { weight: 2, span: [700, 1800], head: -20, tail: [10, 0.006] }),
+      act('shake', { weight: 1, span: [500, 1000], head: 2, wag: [7, 0.06], tail: [24, 0.02] }),
+      act('trot', { weight: 4, span: [900, 2400], walks: true, tail: [22, 0.012] }),
+    ],
   },
   shadow: { at: 9, rx: 14 },
   // Head face on: one ear up, one ear folded, which is the friendliest
@@ -296,20 +336,12 @@ const CAT = {
   // any other animal's here.
   ways: {
     speed: 0.000045,
-    walk: [1000, 2600],
-    graze: [3000, 9000],
     ease: 260,
     turn: 320,
     beat: 2.6,
     swing: 17,
     duty: 0.58,
     bob: 0.7,
-    // Up, not down. Every other animal here stops in order to put its
-    // head to the floor; a cat stops and lifts its head to look at
-    // something. The neck's cap is centred on the pivot, so it is as
-    // covered at a negative angle as at a positive one and this costs
-    // nothing.
-    stoop: -12,
     nod: 420,
     drift: 0.5,
     swish: 20,
@@ -319,6 +351,18 @@ const CAT = {
     swatEvery: [5000, 13000],
     swatHeld: 900,
     swatArc: -120,
+    // Sits, mostly, and washes. Nothing here puts its head to the floor to
+    // eat: sitting holds the head *up*, which the neck takes without
+    // complaint because its cap is centred on the pivot and is therefore
+    // as covered at a negative angle as at a positive one. Stalking is a
+    // walk done low, which is the same walk with the body dropped.
+    acts: [
+      act('sit', { weight: 4, span: [3000, 9000], head: -14, tail: [16, 0.0014] }),
+      act('wash', { weight: 2, span: [1400, 3200], head: 34, wag: [5.5, 0.022] }),
+      act('crouch', { weight: 1, span: [900, 1800], head: 6, sink: 1.6, tail: [8, 0.004] }),
+      act('stalk', { weight: 2, span: [1000, 2600], walks: true, head: 8, sink: 1.3, tail: [10, 0.003] }),
+      act('prowl', { weight: 1, span: [800, 2000], walks: true }),
+    ],
   },
   shadow: { at: 8, rx: 13 },
   // Ears and whiskers. A cat's head is a triangle with two more on top.
@@ -376,16 +420,12 @@ const PIG = {
   // swing — so what it does instead is twitch it, often.
   ways: {
     speed: 0.000034,
-    walk: [700, 1900],
-    graze: [2600, 7000],
     ease: 300,
     turn: 330,
     beat: 3.6,
     swing: 12,
     duty: 0.7,
     bob: 1.1,
-    // The snout is already at the floor. It has hardly anywhere to go.
-    stoop: 22,
     nod: 260,
     drift: 0.45,
     swish: 22,
@@ -395,6 +435,14 @@ const PIG = {
     swatEvery: [3000, 8000],
     swatHeld: 260,
     swatArc: -40,
+    // Rooting, which is not grazing: the head goes down a short way — the
+    // snout is nearly at the floor to begin with — and then works, hard
+    // and fast. It is the widest, quickest head movement of the five.
+    acts: [
+      act('root', { weight: 4, span: [2600, 7000], head: 24, wag: [4.2, 0.028] }),
+      act('stand', { weight: 2, span: [1400, 3000], head: 2, ear: 0.2 }),
+      act('trundle', { weight: 3, span: [700, 1900], walks: true }),
+    ],
   },
   shadow: { at: 9, rx: 14.5 },
   // Snout on, which is the only view where a pig is unmistakable: a disc
@@ -454,15 +502,12 @@ const SHEEP = {
   // with.
   ways: {
     speed: 0.000026,
-    walk: [800, 2200],
-    graze: [4000, 11000],
     ease: 400,
     turn: 380,
     beat: 2.8,
     swing: 13,
     duty: 0.66,
     bob: 0.6,
-    stoop: 30,
     nod: 300,
     drift: 0.35,
     swish: 10,
@@ -472,6 +517,15 @@ const SHEEP = {
     swatEvery: [6000, 15000],
     swatHeld: 300,
     swatArc: -35,
+    // Cropping grass, which is grazing done in small quick bites rather
+    // than the cow's slow pull — and then standing bolt upright with its
+    // ears back, having heard something, which is the other half of being
+    // a sheep.
+    acts: [
+      act('crop', { weight: 5, span: [4000, 11000], head: 30, wag: [1.2, 0.015] }),
+      act('stare', { weight: 2, span: [1000, 2400], head: -10, ear: 0.5 }),
+      act('drift', { weight: 2, span: [800, 2200], walks: true }),
+    ],
   },
   shadow: { at: 9, rx: 14 },
   // Fleece over a dark face, which is a sheep at any size at all.

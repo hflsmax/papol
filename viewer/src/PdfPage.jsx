@@ -832,7 +832,7 @@ export default function PdfPage({
   const endCowDrag = () => {
     const d = cowDragRef.current;
     cowDragRef.current = null;
-    if (d) onMoveCow(d.id, { held: false, grazing: true, until: performance.now() + 1200 });
+    if (d) onMoveCow(d.id, { held: false, act: null, until: performance.now() + 1200 });
   };
 
   // Reduced motion means reduced motion. A cow wandering across a page is
@@ -1075,7 +1075,14 @@ export default function PdfPage({
               const going = doomed.ink.includes(stroke.id);
               const points = shifted(stroke);
               return (
-                <g key={stroke.id} className={inkDrag?.id === stroke.id ? 'carrying' : undefined}>
+                <g
+                  key={stroke.id}
+                  // The id, on the mark. Ink that would not rub out has
+                  // been hard to catch precisely because there was no way
+                  // to ask the page which stroke it was looking at.
+                  data-ink={stroke.id}
+                  className={inkDrag?.id === stroke.id ? 'carrying' : undefined}
+                >
                   {/* Lit from behind in its own colour, so a stroke about
                       to go still looks like the stroke it is. */}
                   {going &&
