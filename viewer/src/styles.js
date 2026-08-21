@@ -138,7 +138,12 @@ button.link.danger { color: var(--red); }
 .viewer-bar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  /* Above the rail's handle (35). The bar makes a stacking context, so a
+     sheet hanging off a button in it can never rise past this number,
+     whatever the sheet's own z-index says — which is how the brush's
+     colours came to be painted under the handle. Still under the error bar
+     and the help sheet, which are the two things that should cover it. */
+  z-index: 38;
   flex: none;
   display: flex;
   align-items: center;
@@ -268,11 +273,26 @@ button.link.danger { color: var(--red); }
 /* The held tool, said with fill rather than only with a border: at this
    size a border alone is easy to miss, and which tool is in your hand is
    the thing the page's behaviour depends on. */
+/* Held. Lighter than the hover below it, so that hovering a tool already
+   in hand still visibly answers the pointer — the brush opens its colours
+   on a second click, and a button that does not respond looks spent. */
 .viewer-bar .tool.on {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+  opacity: 0.82;
 }
+
+.viewer-bar .tool.on:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #ffffff;
+  opacity: 1;
+}
+
+/* The gold one keeps being gold when it is held, so it darkens instead. */
+.viewer-bar .tool[aria-label='Here'].on,
+.viewer-bar .tool[aria-label='Here'].on:hover { color: #ffffff; }
 
 
 /* ---------- Pages ---------- */
@@ -677,7 +697,7 @@ button.link.danger { color: var(--red); }
    an anchor about to be rubbed out is still that anchor, and recolouring
    it says something about it that is not true. */
 .pin.going {
-  transform: translate(-50%, -12%) scale(1.12);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 /* ---------- Ink ---------- */
@@ -695,6 +715,10 @@ button.link.danger { color: var(--red); }
   pointer-events: none;
   z-index: 3;
 }
+
+/* A cow is taken hold of anywhere on it. */
+.cow-grab { pointer-events: bounding-box; cursor: grab; }
+.ink-layer .cow.going { opacity: 0.55; }
 
 /* The handle on a stroke. pointer-events: stroke means only the line
    itself listens, so the page around it still selects as text. */
@@ -742,9 +766,11 @@ button.link.danger { color: var(--red); }
 
 .pin {
   position: absolute;
-  /* The shape hangs from its ring, so the anchor's point is the top of the
-     drawing rather than its middle. */
-  transform: translate(-50%, -12%);
+  /* Centred on the spot it marks. It used to hang from its ring, which put
+     the drawing below the point and the point above the drawing — fine
+     while a pin was only ever read, and wrong the moment one is aimed,
+     dragged and rubbed out. */
+  transform: translate(-50%, -50%);
   pointer-events: auto;
   width: 30px;
   height: 30px;
@@ -762,7 +788,7 @@ button.link.danger { color: var(--red); }
 .pin:hover:not(:disabled) {
   border: none;
   background: none;
-  transform: translate(-50%, -12%) scale(1.12);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 /* Never a box. An anchor is a mark on a page, not a control on a form, and
@@ -774,7 +800,7 @@ button.link.danger { color: var(--red); }
 
 .pin:focus-visible {
   outline: none;
-  transform: translate(-50%, -12%) scale(1.12);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 .pin.active { opacity: 1; }

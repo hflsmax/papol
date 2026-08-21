@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import { GlyphFor, ANCHOR_D, ANCHOR_HANG } from './glyphs';
+import {
+  GlyphFor, CowFigure, CowPatches, COW_PARTS, COW_PATCH_PARTS,
+  ANCHOR_D, ANCHOR_HANG,
+} from './glyphs';
 import { pageOverlays } from './references';
 
 /**
@@ -27,8 +30,12 @@ const LASER_STEP = 1.0;
 // Points nearer than this to the last one add bytes and no shape. In page
 // units, so it means the same thing on a tall page as on a wide one.
 const MIN_STEP = 1.2;
-// How near the eraser has to pass. Generous: rubbing something out is a
-// gesture, not a click on a one-pixel line.
+// How near the eraser has to pass. Generous, because rubbing something out
+// is a gesture rather than a click on a one-pixel line — and the same for
+// everything, whatever it was drawn at. It used to widen with the stroke,
+// on the reasoning that a heavier line covers more page; what that meant in
+// the hand was that the eraser reached further for some ink than for other
+// ink, and reaching is the part the reader has to aim.
 const ERASE_REACH = 9;
 // An anchor is a pin the size of a fingertip rather than a line, so the
 // eraser has to be nearer its point before it counts as over it.
@@ -37,9 +44,12 @@ const ANCHOR_REACH = 13;
 // after it has been drawn.
 const MAX_POINTS = 4000;
 // One object, so clearing the highlight does not count as a change.
-const EMPTY_DOOMED = { ink: [], notes: [] };
+const EMPTY_DOOMED = { ink: [], notes: [], cows: [] };
 // How wide a stroke is to take hold of, whatever it was drawn at.
 const GRAB_WIDTH = 14;
+// A cow, as a fraction of the page width, and the shape it is drawn in.
+const COW_SIZE = 0.075;
+const COW_BOX = { w: 64, h: 44 };
 // Draw, then stop and hold: the stroke snaps to a straight line from where
 // it began, square to the page. Underlining a sentence and ruling a bar
 // down a margin are most of what a brush is used for on a paper, and both
@@ -80,6 +90,10 @@ export default function PdfPage({
   onDropAnchor,
   onMoveStroke,
   onDragNote,
+  cows,
+  onDropCow,
+  onMoveCow,
+  onEraseCow,
 }) {
   const canvasRef = useRef(null);
   const holderRef = useRef(null);
@@ -488,22 +502,23 @@ export default function PdfPage({
   // The same reckoning the eraser itself uses, so what lights up is exactly
   // what would go.
   const under = (at) => {
-    const found = { ink: [], notes: [] };
+    const found = { ink: [], notes: [], cows: [] };
     for (const stroke of ink) {
-      const reach = ERASE_REACH + (stroke.width * size.width) / 2;
-      if (nearStroke(stroke.points, at, reach)) found.ink.push(stroke.id);
+      if (nearStroke(stroke.points, at, ERASE_REACH)) found.ink.push(stroke.id);
     }
     for (const note of notes) {
       if (note.content || note.current_place || !note.anchor) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.id);
+    }
+    for (const cow of cows) {
+      if (inPageUnits(cow, at) < (COW_SIZE * size.width) / 2) found.cows.push(cow.id);
     }
     return found;
   };
 
   const eraseUnder = (at) => {
     for (const stroke of ink) {
-      const reach = ERASE_REACH + (stroke.width * size.width) / 2;
-      if (nearStroke(stroke.points, at, reach)) onEraseStroke(stroke.id);
+      if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.id);
     }
     // An anchor is a mark on the page, so the eraser takes it too. What it
     // does not take is a note with words in it, or the reader's place: the
@@ -514,12 +529,19 @@ export default function PdfPage({
       if (note.content || note.current_place || !note.anchor) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.id);
     }
+    for (const cow of cows) {
+      if (inPageUnits(cow, at) < (COW_SIZE * size.width) / 2) onEraseCow(cow.id);
+    }
   };
 
   const inkDown = (e) => {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const at = anchorAt(e.clientX, e.clientY);
+    if (tool === 'cow') {
+      onDropCow(pageNumber, at);
+      return;
+    }
     if (tool === 'anchor' || tool === 'here') {
       onDropAnchor({ page: pageNumber, anchor: { type: 'point', ...at } }, tool === 'here');
       return;
@@ -574,7 +596,9 @@ export default function PdfPage({
     if (tool === 'eraser') {
       const found = under(at);
       setDoomed((was) =>
-        was.ink.join() === found.ink.join() && was.notes.join() === found.notes.join()
+        was.ink.join() === found.ink.join() &&
+        was.notes.join() === found.notes.join() &&
+        was.cows.join() === found.cows.join()
           ? was
           : found
       );
@@ -691,21 +715,48 @@ export default function PdfPage({
       ? stroke.points.map((pt) => ({ x: pt.x + inkDrag.by.x, y: pt.y + inkDrag.by.y }))
       : stroke.points;
 
+  // A cow is carried the way a stroke is: with the arrow, from wherever it
+  // was taken hold of, and it goes on grazing where it is put down.
+  const cowDragRef = useRef(null);
+
+  const startCowDrag = (e, cow) => {
+    if (tool !== 'arrow' || e.button !== 0) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const at = anchorAt(e.clientX, e.clientY);
+    cowDragRef.current = { id: cow.id, grab: { x: at.x - cow.x, y: at.y - cow.y } };
+    onMoveCow(cow.id, { held: true });
+  };
+
+  const moveCowDrag = (e) => {
+    const d = cowDragRef.current;
+    if (!d) return;
+    const at = anchorAt(e.clientX, e.clientY);
+    const clamp = (v) => Math.min(0.95, Math.max(0.05, v));
+    onMoveCow(d.id, { x: clamp(at.x - d.grab.x), y: clamp(at.y - d.grab.y) });
+  };
+
+  const endCowDrag = () => {
+    const d = cowDragRef.current;
+    cowDragRef.current = null;
+    if (d) onMoveCow(d.id, { held: false, grazing: true, until: performance.now() + 1200 });
+  };
+
   // A brush, held at the angle a hand holds one, with its bristles in the
   // colour it is about to leave behind and its tip on the spot the ink will
-  // land. Drawn here rather than in the stylesheet so the colour is the
-  // colour actually loaded, and so the bristles can carry a little of how
-  // heavy the stroke will be — a hint, not a measurement, because the thing
-  // in the reader's hand should still look like a brush.
+  // land.
+  //
+  // The same brush at every weight. It used to swell with the width, which
+  // put the bristles further from the tip the heavier the ink got — so how
+  // far the pointer was from the mark it was making depended on the
+  // setting, and aiming a wide brush meant aiming a different tool. The
+  // weight is said by the popover, by the button, and by the stroke itself;
+  // it does not also need saying by the distance to the reader's hand.
   //
   // White under everything, because a cursor has to be visible over black
   // text and over a white page alike.
   const brushCursor = () => {
-    const across = inkWidth * size.width * scale;
-    const load = Math.min(1.6, Math.max(0.8, across / 4));
-    const bristles =
-      `M4.6 21.4c0-3.3 2.1-${(5.4 * load).toFixed(1)} 4.4-${(5.4 * load).toFixed(1)}` +
-      `s3.3 1.1 3.3 3.3-2.2 ${(4.4 * load).toFixed(1)}-5.5 ${(4.4 * load).toFixed(1)}H4.6z`;
+    const bristles = 'M4.6 21.4c0-3.3 2.1-5.4 4.4-5.4s3.3 1.1 3.3 3.3-2.2 4.4-5.5 4.4H4.6z';
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26">` +
       `<path d="M11.8 16.2 22.6 5.4" stroke="#ffffff" stroke-width="5.2" stroke-linecap="round"/>` +
@@ -734,6 +785,21 @@ export default function PdfPage({
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hot(ANCHOR_HANG.x)} ${hot(
       ANCHOR_HANG.y
     )}, copy`;
+  };
+
+  // A cow in hand, at the size the cow will be, with the hotspot under its
+  // feet — a cow is put down on the ground, not centred on a point.
+  const cowCursor = () => {
+    const w = Math.min(96, Math.max(28, COW_SIZE * size.width * scale));
+    const h = (w * COW_BOX.h) / COW_BOX.w;
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
+      `viewBox="0 0 ${COW_BOX.w} ${COW_BOX.h}">` +
+      `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
+      `${COW_PARTS}</g><g fill="#33383f">${COW_PATCH_PARTS}</g></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(
+      1
+    )} ${(h * 0.9).toFixed(1)}, copy`;
   };
 
   const strokeProps = {
@@ -844,6 +910,46 @@ export default function PdfPage({
                 {...strokeProps}
               />
             )}
+            {cows.map((cow) => {
+              const k = (COW_SIZE * size.width) / COW_BOX.w;
+              const cx = cow.x * size.width;
+              const cy = (1 - cow.y) * size.height;
+              const going = doomed.cows.includes(cow.id);
+              return (
+                <g
+                  key={cow.id}
+                  className={going ? 'cow going' : 'cow'}
+                  transform={
+                    `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) ` +
+                    // The drawing faces left, so a cow walking right is it
+                    // turned over.
+                    `scale(${(cow.facing === 1 ? -k : k).toFixed(4)} ${k.toFixed(4)}) ` +
+                    `translate(${-COW_BOX.w / 2} ${-COW_BOX.h / 2})`
+                  }
+                >
+                  <g fill="#faf7ef" stroke="#33383f" strokeWidth="1.5" strokeLinejoin="round">
+                    <CowFigure />
+                  </g>
+                  <g fill="#33383f">
+                    <CowPatches />
+                  </g>
+                  {tool === 'arrow' && (
+                    <rect
+                      className="cow-grab"
+                      x="0"
+                      y="0"
+                      width={COW_BOX.w}
+                      height={COW_BOX.h}
+                      fill="transparent"
+                      onPointerDown={(e) => startCowDrag(e, cow)}
+                      onPointerMove={moveCowDrag}
+                      onPointerUp={endCowDrag}
+                      onPointerCancel={endCowDrag}
+                    />
+                  )}
+                </g>
+              );
+            })}
             {laserRuns().map((run) => (
               <path
                 key={run.key}
@@ -889,7 +995,9 @@ export default function PdfPage({
                 ? { cursor: brushCursor() }
                 : tool === 'anchor' || tool === 'here'
                   ? { cursor: anchorCursor(tool === 'here') }
-                  : undefined
+                  : tool === 'cow'
+                    ? { cursor: cowCursor() }
+                    : undefined
             }
             onPointerDown={inkDown}
             onPointerMove={inkMove}

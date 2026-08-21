@@ -59,7 +59,18 @@ const TOOLS = [
   { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' },
   { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' },
+  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' },
 ];
+
+// How big a cow is, as a fraction of the page width, and how fast it walks
+// across it. Slow: a cow crossing a page in half a minute is a cow.
+const COW_SIZE = 0.075;
+const COW_SPEED = 0.00003;
+// A cow is either walking somewhere or has stopped to graze, and does each
+// for a while before thinking better of it.
+const COW_WALK = [1400, 3600];
+const COW_GRAZE = [2200, 6000];
+const spell = ([a, b]) => a + Math.random() * (b - a);
 
 // The two anchors are one-shot: they are a thing you are holding until you
 // put it down, and then you have what you were holding before back.
@@ -128,6 +139,10 @@ export default function App() {
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
   const [draggingNoteId, setDraggingNoteId] = useState(null);
+  // Cows. Nowhere near the server and gone on reload, like the laser's
+  // trail: they are not a mark on the paper, they are company.
+  const [cows, setCows] = useState([]);
+  const nextCowId = useRef(0);
   // What the brush is loaded with. Remembered like the tool itself: someone
   // who marks a paper up in red goes on doing it in red.
   const [inkColor, setInkColor] = useState(
@@ -570,6 +585,78 @@ export default function App() {
     }
   };
 
+  const cowsByPage = useMemo(() => {
+    const map = new Map();
+    for (const cow of cows) {
+      if (!map.has(cow.page)) map.set(cow.page, []);
+      map.get(cow.page).push(cow);
+    }
+    return map;
+  }, [cows]);
+
+  const dropCow = (page, at) => {
+    setCows((herd) => [
+      ...herd,
+      {
+        id: `cow-${(nextCowId.current += 1)}`,
+        page,
+        x: at.x,
+        y: at.y,
+        facing: Math.random() < 0.5 ? 1 : -1,
+        grazing: true,
+        until: performance.now() + spell(COW_GRAZE),
+        vx: 0,
+        vy: 0,
+      },
+    ]);
+  };
+
+  const moveCow = (id, at) =>
+    setCows((herd) => herd.map((c) => (c.id === id ? { ...c, ...at } : c)));
+
+  const eraseCow = (id) => setCows((herd) => herd.filter((c) => c.id !== id));
+
+  // Ten times a second, which is plenty for an animal that spends most of
+  // its time standing still, and cheap enough that nothing else notices.
+  useEffect(() => {
+    if (!cows.length) return undefined;
+    let last = performance.now();
+    const tick = setInterval(() => {
+      const now = performance.now();
+      const dt = now - last;
+      last = now;
+      setCows((herd) =>
+        herd.map((c) => {
+          if (c.held) return c; // being carried; it can graze later
+          if (now >= c.until) {
+            if (!c.grazing) return { ...c, grazing: true, until: now + spell(COW_GRAZE) };
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            return {
+              ...c,
+              grazing: false,
+              facing: dir,
+              vx: dir * COW_SPEED,
+              // Barely any drift up or down: a page is not a field.
+              vy: (Math.random() - 0.5) * COW_SPEED * 0.3,
+              until: now + spell(COW_WALK),
+            };
+          }
+          if (c.grazing) return c;
+          let { x, y, vx, vy, facing } = c;
+          x += vx * dt;
+          y += vy * dt;
+          // The edges of the page are the edges of the field.
+          if (x < 0.05) { x = 0.05; vx = -vx; facing = -facing; }
+          if (x > 0.95) { x = 0.95; vx = -vx; facing = -facing; }
+          if (y < 0.05) { y = 0.05; vy = -vy; }
+          if (y > 0.95) { y = 0.95; vy = -vy; }
+          return { ...c, x, y, vx, vy, facing };
+        })
+      );
+    }, 100);
+    return () => clearInterval(tick);
+  }, [cows.length]);
+
   // Zooming keeps the spot under the cursor under the cursor.
   //
   // The focal point is recorded as a fraction of a particular page, and the
@@ -702,6 +789,12 @@ export default function App() {
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
   const takeTool = (picked) => {
+    // Reaching for what is already in your hand opens what belongs to it,
+    // whether you reached with the pointer or with the key.
+    if (picked === 'brush' && tool === 'brush') {
+      setBrushOpen((open) => !open);
+      return;
+    }
     if (DROP_TOOLS.has(picked) && !DROP_TOOLS.has(tool)) toolBefore.current = tool;
     if (!DROP_TOOLS.has(picked)) toolBefore.current = null;
     setTool(picked);
@@ -949,14 +1042,11 @@ export default function App() {
                 aria-expanded={t.id === 'brush' ? brushOpen : undefined}
                 title={
                   t.id === 'brush'
-                    ? `${t.label} (X) — ${t.hint}. Click again for colour and width`
+                    ? `${t.label} (X) — ${t.hint}. X again for colour and width`
                     : `${t.label} (${t.badge}) — ${t.hint}`
                 }
-                onClick={() => {
-                  // Once to pick it up, again to open what belongs to it.
-                  if (t.id === 'brush' && tool === 'brush') setBrushOpen((o) => !o);
-                  else takeTool(t.id);
-                }}
+                // Once to pick it up, again to open what belongs to it.
+                onClick={() => takeTool(t.id)}
               >
                 <ToolGlyph id={t.id} />
                 {/* The key, on the thing it presses. A shortcut written only
@@ -1086,6 +1176,10 @@ export default function App() {
               onDropAnchor={dropAnchor}
               onMoveStroke={moveStroke}
               onDragNote={setDraggingNoteId}
+              cows={cowsByPage.get(n) || EMPTY_INK}
+              onDropCow={dropCow}
+              onMoveCow={moveCow}
+              onEraseCow={eraseCow}
             />
           ))}
         </div>
@@ -1115,6 +1209,11 @@ export default function App() {
                   </React.Fragment>
                 ))}
               </dl>
+              <p className="help-foot">
+                Reaching for a tool you are already holding opens what
+                belongs to it — clicking the brush again, or pressing X
+                again, brings up its colours and weights.
+              </p>
               <p className="help-foot">
                 Paint and anchors are stored with the paper.
               </p>
