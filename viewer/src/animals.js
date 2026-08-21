@@ -22,6 +22,56 @@
 //    a pale animal with a dark outline and dark markings, and the button
 //    wants one flat colour.
 
+// How an animal carries itself. These are the cow's, which were the ones
+// tuned by eye against a rendered page; every other species says only how
+// it differs.
+//
+// The two that matter most for character are `beat` and `duty`. `beat` is
+// strides a second at walking pace — but it is tied to the animal's actual
+// speed, not to the clock, so feet never run on ahead of the ground.
+// `duty` is the fraction of a stride a foot spends down: high is a plod,
+// where a foot is planted and the body travels over it, and low is a trot,
+// where the legs spend as long in the air as on the ground. A cow and a
+// dog differ more in that one number than in anything about their outlines.
+const DEFAULT_WAYS = {
+  // Page-fractions a millisecond. A cow crossing a page in half a minute
+  // is a cow.
+  speed: 0.00003,
+  // How long it walks for, and how long it stops for.
+  walk: [1400, 3600],
+  graze: [2200, 6000],
+  // Getting up to speed and coming to a stop. An animal that reaches its
+  // walking pace in one frame is a vehicle.
+  ease: 350,
+  // How long a whole turn takes, through zero — not a mirroring.
+  turn: 260,
+  beat: 2,
+  swing: 15,
+  duty: 0.65,
+  // How far the body rises in the middle of a stride.
+  bob: 0.9,
+  // How far the head goes down, and how long it takes to get there.
+  stoop: 29,
+  nod: 320,
+  // How much it wanders up and down the page as well as across it. A page
+  // is not a field.
+  drift: 0.3,
+  // The idle tail. On an animal standing still for half a minute this is
+  // most of what says the thing is alive rather than printed.
+  swish: 14,
+  swishRate: 0.0029,
+  earEvery: [3800, 9000],
+  earHeld: 130,
+  earBack: 30,
+  // And the big one: a fly on the flank, and the tail goes right over the
+  // back after it. The arc is signed because half a turn arrives at the
+  // same place either way, but one way goes over the back and the other
+  // sweeps the tail forward through the animal's own belly.
+  swatEvery: [9000, 22000],
+  swatHeld: 640,
+  swatArc: -180,
+};
+
 const legRect = (leg) =>
   `<rect x="${leg.x}" y="${leg.y}" width="${leg.w}" height="${leg.h}" rx="${leg.rx ?? 2.5}"/>`;
 
@@ -65,7 +115,14 @@ function assemble(spec) {
     spec.bodyMarks || '',
     spec.headMarks || '',
   ].join('');
-  return { ...spec, legRects: legs, pale, dark, flat: pale + dark };
+  return {
+    ...spec,
+    ways: { ...DEFAULT_WAYS, ...(spec.ways || {}) },
+    legRects: legs,
+    pale,
+    dark,
+    flat: pale + dark,
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -109,6 +166,7 @@ const COW = {
     '<ellipse cx="47" cy="23" rx="4.8" ry="3.5"/>',
   headMarks: '<circle cx="13.8" cy="16.5" r="2.4"/><ellipse cx="5.2" cy="22.1" rx="1.3" ry="1"/>',
   shadow: { at: 10, rx: 14.5 },
+  // The cow is the default in every particular: see DEFAULT_WAYS.
   // Head face on, horns up, ears out: the one view of a cow that survives
   // being eighteen pixels wide.
   glyph:
@@ -158,6 +216,33 @@ const DOG = {
   },
   bodyMarks: '<ellipse cx="46" cy="18" rx="5" ry="3.6"/>',
   headMarks: '<circle cx="14.6" cy="15" r="2.2"/><ellipse cx="2.6" cy="17.6" rx="1.7" ry="1.4"/>',
+  // Twice a cow's pace in short bursts, and never still for long. A trot
+  // rather than a plod — `duty` at a half means the legs are off the
+  // ground as much as on it — and a tail that does not stop, because that
+  // is the whole of a dog.
+  ways: {
+    speed: 0.00007,
+    walk: [900, 2400],
+    graze: [700, 2200],
+    ease: 180,
+    turn: 150,
+    beat: 3.4,
+    swing: 22,
+    duty: 0.5,
+    bob: 1.4,
+    // It does not graze. It puts its nose down, briefly, at something.
+    stoop: 26,
+    nod: 180,
+    drift: 0.9,
+    swish: 26,
+    swishRate: 0.011,
+    earEvery: [1400, 4000],
+    earBack: 34,
+    // A wag, not a swat: often, and nothing like as far.
+    swatEvery: [2200, 6000],
+    swatHeld: 380,
+    swatArc: -55,
+  },
   shadow: { at: 9, rx: 14 },
   // Head face on: one ear up, one ear folded, which is the friendliest
   // thing a dog silhouette can do at this size.
@@ -205,6 +290,36 @@ const CAT = {
     '<rect x="41" y="16.4" width="2.6" height="5.6" rx="1.3"/>' +
     '<rect x="46" y="16.6" width="2.6" height="5.2" rx="1.3"/>',
   headMarks: '<circle cx="13.6" cy="17.4" r="2.1"/><ellipse cx="9.4" cy="20.6" rx="1.3" ry="1"/>',
+  // Sits for a very long time and then goes somewhere, unhurried about
+  // all of it. The back stays level — a cat does not bob — and the tail is
+  // slow, high and lazy where the dog's is frantic. Its ears do more than
+  // any other animal's here.
+  ways: {
+    speed: 0.000045,
+    walk: [1000, 2600],
+    graze: [3000, 9000],
+    ease: 260,
+    turn: 320,
+    beat: 2.6,
+    swing: 17,
+    duty: 0.58,
+    bob: 0.7,
+    // Up, not down. Every other animal here stops in order to put its
+    // head to the floor; a cat stops and lifts its head to look at
+    // something. The neck's cap is centred on the pivot, so it is as
+    // covered at a negative angle as at a positive one and this costs
+    // nothing.
+    stoop: -12,
+    nod: 420,
+    drift: 0.5,
+    swish: 20,
+    swishRate: 0.0016,
+    earEvery: [2200, 6000],
+    earBack: 40,
+    swatEvery: [5000, 13000],
+    swatHeld: 900,
+    swatArc: -120,
+  },
   shadow: { at: 8, rx: 13 },
   // Ears and whiskers. A cat's head is a triangle with two more on top.
   glyph:
@@ -255,6 +370,32 @@ const PIG = {
     '<circle cx="12.4" cy="17" r="2.1"/>' +
     '<ellipse cx="3.4" cy="18.6" rx="0.9" ry="1.2"/>' +
     '<ellipse cx="3.4" cy="21.4" rx="0.9" ry="1.2"/>',
+  // Short legs mean quick little steps: the highest beat here and the
+  // smallest swing, which together are a trundle. It roots more than it
+  // walks, turns like a barge, and has a tail with almost nothing to
+  // swing — so what it does instead is twitch it, often.
+  ways: {
+    speed: 0.000034,
+    walk: [700, 1900],
+    graze: [2600, 7000],
+    ease: 300,
+    turn: 330,
+    beat: 3.6,
+    swing: 12,
+    duty: 0.7,
+    bob: 1.1,
+    // The snout is already at the floor. It has hardly anywhere to go.
+    stoop: 22,
+    nod: 260,
+    drift: 0.45,
+    swish: 22,
+    swishRate: 0.008,
+    earEvery: [2600, 7000],
+    earBack: 22,
+    swatEvery: [3000, 8000],
+    swatHeld: 260,
+    swatArc: -40,
+  },
   shadow: { at: 9, rx: 14.5 },
   // Snout on, which is the only view where a pig is unmistakable: a disc
   // with two nostrils and two folded ears above it.
@@ -307,6 +448,31 @@ const SHEEP = {
   // file that is not drawn in the dark colour, so it carries its own.
   headMarks: '',
   headLight: '<circle cx="12.6" cy="18.4" r="2"/>',
+  // The slowest of the five, and the one with its head down the longest:
+  // a few steps, then four seconds of grass. Ears that go back often,
+  // because a sheep is a nervous animal, and a tail too small to do much
+  // with.
+  ways: {
+    speed: 0.000026,
+    walk: [800, 2200],
+    graze: [4000, 11000],
+    ease: 400,
+    turn: 380,
+    beat: 2.8,
+    swing: 13,
+    duty: 0.66,
+    bob: 0.6,
+    stoop: 30,
+    nod: 300,
+    drift: 0.35,
+    swish: 10,
+    swishRate: 0.004,
+    earEvery: [1800, 5200],
+    earBack: 26,
+    swatEvery: [6000, 15000],
+    swatHeld: 300,
+    swatArc: -35,
+  },
   shadow: { at: 9, rx: 14 },
   // Fleece over a dark face, which is a sheep at any size at all.
   glyph:

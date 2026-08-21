@@ -144,6 +144,11 @@ export default function PdfPage({
   // Where the brush is hovering, so its own footprint can be drawn on the
   // page under it.
   const [brushAt, setBrushAt] = useState(null);
+  // Where the pointer is over this page, and whether it is over it at all —
+  // kept whatever tool is in hand, so that picking up the brush can show it
+  // straight away instead of waiting to be told where the hand is.
+  const overRef = useRef(false);
+  const lastAtRef = useRef(null);
   // A stroke being carried. Like the pin's drag, in a ref because
   // pointermove outruns React, with state beside it only to redraw the ink
   // under the hand.
@@ -452,7 +457,12 @@ export default function PdfPage({
   // stays there — nothing else lights it, so nothing else turns it off.
   useEffect(() => {
     if (tool !== 'eraser') setDoomed(EMPTY_DOOMED);
+    // Reaching for the brush while the pointer is already over the page put
+    // it in your hand and showed you nothing, because nothing had moved
+    // since — so the mark you were about to make only appeared once you
+    // jogged the mouse. It is drawn where the pointer already is.
     if (tool !== 'brush') setBrushAt(null);
+    else if (overRef.current) setBrushAt(lastAtRef.current);
   }, [tool]);
 
   // Square to the page, along whichever axis the stroke went furthest —
@@ -1022,8 +1032,14 @@ export default function PdfPage({
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
       }}
-      onPointerMove={(e) => onHover({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) })}
+      onPointerMove={(e) => {
+        const at = anchorAt(e.clientX, e.clientY);
+        overRef.current = true;
+        lastAtRef.current = at;
+        onHover({ page: pageNumber, anchor: at });
+      }}
       onPointerLeave={() => {
+        overRef.current = false;
         onHover(null);
         setDoomed(EMPTY_DOOMED);
         setBrushAt(null);
