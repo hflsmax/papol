@@ -34,19 +34,32 @@ usage() {
 
 # Root, without hanging. A deploy run by a cron job or an agent has nobody
 # to type a password at, and sudo waiting on a stdin that will never answer
-# looks exactly like a deploy that is still working. `sudo -n -l CMD` asks
-# whether this particular command is allowed without one, which is the only
-# question worth asking when the rules are narrow: see
-# services.papol.deploy.passwordless in module.nix.
+# looks exactly like a deploy that is still working.
+#
+# `sudo -l CMD` cannot be asked this: once the user has any NOPASSWD rule at
+# all it lists without a password and answers 0 for anything the wheel rule
+# permits, password or not. So try it with -n, which refuses rather than
+# prompts, and tell sudo saying no apart from the command saying no.
 as_root() {
-  if sudo -n -l "$@" >/dev/null 2>&1; then
-    sudo -n "$@"
-  elif [ -t 0 ]; then
+  local err status
+  err=$(mktemp)
+  if sudo -n "$@" 2>"$err"; then rm -f "$err"; return 0; fi
+  status=$?
+
+  if ! grep -q "password is required" "$err"; then
+    cat "$err" >&2          # the command itself failed; that is its news
+    rm -f "$err"
+    return "$status"
+  fi
+  rm -f "$err"
+
+  # sudo refused before running anything, so there is nothing to undo.
+  if [ -t 0 ]; then
     sudo "$@"
   else
     die "needs root, sudo wants a password, and there is no terminal to type it at:
         sudo $*
-    Run it from a terminal, or turn on services.papol.deploy.passwordless."
+    Run it from a terminal, or add it to services.papol.deploy.passwordless."
   fi
 }
 
