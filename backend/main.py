@@ -2290,3 +2290,21 @@ async def admin_run_sql(
 async def serve_frontend():
     """Serve the frontend index.html."""
     return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/{filename}")
+async def serve_frontend_root_file(filename: str):
+    """Files Vite copies to the top of the build — favicon.svg,
+    apple-touch-icon.png, and anything else dropped in frontend/public.
+
+    /assets is mounted, and index.html has a route of its own, but the files
+    beside them had nowhere to be served from and answered 404. Registered
+    last, so every /api route above still matches first, and confined to one
+    path segment: {filename} does not match a slash, and the resolved path is
+    checked to be a file directly in the build rather than something reached
+    from it.
+    """
+    candidate = (FRONTEND_DIR / filename).resolve()
+    if candidate.parent != FRONTEND_DIR.resolve() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(candidate)
