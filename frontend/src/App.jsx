@@ -1683,12 +1683,12 @@ select {
 }
 
 .paper-title-row h4 {
-  /* Grow, so the pill and the chips are carried to the end of the row
-     instead of trailing the title wherever it happens to stop — the row's
-     end is a fixed place, and a column of them lines up down the list.
-     Shrink too, so a long title gives way rather than pushing them off
-     the line. */
-  flex: 1 1 auto;
+  /* Shrink but never grow. The pill is about this paper's seminar and
+     reads as part of the title, so it stays against it; the free space
+     goes to the chips' auto margin below instead of to the heading. A
+     long title still gives way rather than pushing anything off the
+     line. */
+  flex: 0 1 auto;
   min-width: 0;
   line-height: 1.3;
 }
@@ -1717,6 +1717,11 @@ select {
      means here. */
   height: 1.3em;
   align-items: center;
+  /* The readers gather at the row's end, in a column down the list beside
+     the display toggles — who has a paper is a fact about the row, not
+     about the title, and it should not sit at a different place in every
+     row because the titles are different lengths. */
+  margin-left: auto;
 }
 
 .avatar-chip.mini {
