@@ -185,6 +185,11 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
 @app.post("/api/auth/login", response_model=AuthResponse)
 async def login(data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email.lower()).first()
+    # A closed account keeps its row so seminars and messages still resolve,
+    # but it is nobody's account any more. Its password hash could not match
+    # in any case; this says so plainly rather than relying on that.
+    if user is not None and user.is_deleted:
+        raise HTTPException(status_code=401, detail="This account has been closed")
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = create_token(db, user)
@@ -331,11 +336,12 @@ async def delete_my_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Close the account and remove the reader.
+    """Close the account and scrub the reader out of it.
 
-    Their notes, their nook and their messages go. What other readers
-    depend on — a PDF they uploaded, a seminar they started that others
-    joined — stays, with their name taken off it; see account.py.
+    The row stays as a tombstone, because a seminar they started and the
+    messages they left in it point at it, and those belong to the readers
+    who were there too. Their notes, their nook and their notifications —
+    private, and theirs alone — are deleted; see account.py.
     """
     if not verify_password(data.password, current_user.password_hash):
         raise HTTPException(status_code=401, detail="Password is incorrect")
@@ -361,8 +367,17 @@ async def delete_my_account(
                 ),
             )
 
-    removed = account.delete_account(db, current_user, UPLOADS_DIR)
-    return {"message": "Your account has been deleted.", "removed": removed}
+    removed = account.tombstone(
+        db,
+        current_user,
+        UPLOADS_DIR,
+        # Who may take over a seminar, and how the cohort hears about it,
+        # are this module's rules — the same ones leave_room applies when a
+        # host hands over on their way out.
+        eligible_hosts=lambda room: _reader_ids(db, room.paper_key, public_only=True),
+        notify=lambda room, user_ids, content: _notify(db, user_ids, room, content),
+    )
+    return {"message": "Your account has been closed.", "removed": removed}
 
 
 # ---------------- Users / spaces ----------------
@@ -373,7 +388,12 @@ async def list_users(
     db: Session = Depends(get_db),
 ):
     """Readers directory. Signed-in readers only."""
-    users = db.query(User).order_by(User.display_name).all()
+    users = (
+        db.query(User)
+        .filter(User.deleted_at.is_(None))
+        .order_by(User.display_name)
+        .all()
+    )
     return [
         UserDirectoryEntry(
             id=u.id,
@@ -516,6 +536,10 @@ async def get_user_space(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # A tombstone has no nook — the copies went with the account. Saying so
+    # is better than showing an empty shelf under "A former reader".
+    if user.is_deleted:
+        raise HTTPException(status_code=404, detail="This reader has left Papol")
     hide_private = current_user is None or current_user.id != user_id
     query = db.query(Copy).filter(Copy.user_id == user_id)
     if hide_private:

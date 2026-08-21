@@ -17,8 +17,18 @@ class User(Base):
     is_admin = Column(Boolean, nullable=False, default=False, server_default="0")
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # A closed account. The row stays as a tombstone: a seminar someone
+    # started and the messages they left in it point at this row, and those
+    # belong to the readers who were there as much as to the one who left.
+    # Everything that identified the reader is scrubbed when it is set —
+    # see account.tombstone() — so what remains is a shape, not a person.
+    deleted_at = Column(DateTime, nullable=True)
 
     copies = relationship("Copy", back_populates="user")
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
 
 class AuthToken(Base):

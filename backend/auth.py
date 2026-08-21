@@ -79,6 +79,11 @@ def get_current_user(
     auth = _live_session(db, credentials)
     if not auth:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
+    # Closing an account deletes its sessions, so this should be
+    # unreachable. It is here because "should be" is not a guarantee, and
+    # the cost of being wrong is a closed account still being usable.
+    if auth.user is None or auth.user.is_deleted:
+        raise HTTPException(status_code=401, detail="This account has been closed")
     return auth.user
 
 
@@ -88,4 +93,6 @@ def get_optional_user(
 ) -> User | None:
     """The signed-in reader, or None — for endpoints open to visitors."""
     auth = _live_session(db, credentials)
-    return auth.user if auth else None
+    if not auth or auth.user is None or auth.user.is_deleted:
+        return None
+    return auth.user

@@ -23,6 +23,10 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
   const [passwordError, setPasswordError] = useState(null);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  // Changing a password is a thing you come to the page to do, not a
+  // standing part of the page. It waits behind a button in the profile
+  // block until it is asked for.
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const avatarFileRef = useRef(null);
@@ -31,9 +35,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
   const [exportError, setExportError] = useState(null);
   const [exportedBytes, setExportedBytes] = useState(null);
 
-  // Closing the account is behind a disclosure: it is not something to
-  // wander into while changing an affiliation.
-  const [closing, setClosing] = useState(false);
   const [closePassword, setClosePassword] = useState('');
   const [closeEmail, setCloseEmail] = useState('');
   const [closeError, setCloseError] = useState(null);
@@ -244,58 +245,77 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
             <button type="submit" className="primary" disabled={isSavingProfile}>
               {isSavingProfile ? 'Saving…' : 'Save profile'}
             </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="panel">
-        <h2 className="panel-title">Change password</h2>
-
-        {passwordError && <div className="error">{passwordError}</div>}
-        {passwordSaved && <div className="success">Password updated.</div>}
-
-        <form onSubmit={handlePasswordSubmit}>
-          <div className="form-group">
-            <label>Current password</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>New password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Confirm new password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="primary" disabled={isSavingPassword}>
-              {isSavingPassword ? 'Saving…' : 'Change password'}
+            {/* type="button": inside the profile form, but it reveals the
+                password fields rather than submitting anything. */}
+            <button
+              type="button"
+              onClick={() => setChangingPassword((v) => !v)}
+              aria-expanded={changingPassword}
+            >
+              Change password
             </button>
           </div>
         </form>
+
+        {changingPassword && (
+          <form onSubmit={handlePasswordSubmit} className="password-change">
+            {passwordError && <div className="error">{passwordError}</div>}
+            {passwordSaved && <div className="success">Password updated.</div>}
+
+            <div className="form-group">
+              <label>Current password</label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>New password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                minLength={6}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Confirm new password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                minLength={6}
+                required
+              />
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" className="primary" disabled={isSavingPassword}>
+                {isSavingPassword ? 'Saving…' : 'Save new password'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setChangingPassword(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setPasswordError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Notes you cannot leave with are not really yours. */}
@@ -326,76 +346,56 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
       <div className="panel panel-danger">
         <h2 className="panel-title">Close your account</h2>
 
-        {!closing ? (
-          <>
-            <p className="panel-note">
-              Deletes your account, your notes, your nook and your messages.
-              It cannot be undone.
-            </p>
-            <div className="form-actions">
-              <button className="danger-link" onClick={() => setClosing(true)}>
-                I want to close my account
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {closeError && <div className="error">{closeError}</div>}
+        {closeError && <div className="error">{closeError}</div>}
 
-            <p className="panel-note">
-              This removes your profile, your notes, the papers in your nook
-              and what you said in seminars. Two things stay, because they are
-              no longer only yours: a PDF you uploaded remains for the readers
-              who have that paper, with your name off it, and a seminar you
-              started passes to someone still in it. Download your data first
-              if you want to keep it — there is no way back from here.
-            </p>
+        <p className="panel-note">
+          This removes your profile, your notes, the papers in your nook and
+          your notifications. It cannot be undone.
+        </p>
+        <p className="panel-note">
+          Two things stay, because they are no longer only yours. A PDF you
+          uploaded remains for the readers who have that paper. What you said
+          in a seminar stays where you said it, under “A former reader” — and
+          a seminar you were hosting passes to someone else in the cohort, or
+          opens again for another reader to host, so that it is not left
+          stranded without one.
+        </p>
+        <p className="panel-note">
+          Download your data first if you want to keep it.
+        </p>
 
-            <form onSubmit={handleClose}>
-              <div className="form-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  value={closePassword}
-                  onChange={(e) => setClosePassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
+        <form onSubmit={handleClose}>
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              value={closePassword}
+              onChange={(e) => setClosePassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
 
-              <div className="form-group">
-                <label>
-                  Type <b>{user.email}</b> to confirm
-                </label>
-                <input
-                  type="email"
-                  value={closeEmail}
-                  onChange={(e) => setCloseEmail(e.target.value)}
-                  placeholder={user.email}
-                  autoComplete="off"
-                  required
-                />
-              </div>
+          <div className="form-group">
+            <label>
+              Type <b>{user.email}</b> to confirm
+            </label>
+            <input
+              type="email"
+              value={closeEmail}
+              onChange={(e) => setCloseEmail(e.target.value)}
+              placeholder={user.email}
+              autoComplete="off"
+              required
+            />
+          </div>
 
-              <div className="form-actions">
-                <button type="submit" className="danger" disabled={isClosing}>
-                  {isClosing ? 'Closing…' : 'Delete my account'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClosing(false);
-                    setClosePassword('');
-                    setCloseEmail('');
-                    setCloseError(null);
-                  }}
-                >
-                  Keep my account
-                </button>
-              </div>
-            </form>
-          </>
-        )}
+          <div className="form-actions">
+            <button type="submit" className="danger" disabled={isClosing}>
+              {isClosing ? 'Closing…' : 'Delete my account'}
+            </button>
+          </div>
+        </form>
       </div>
 
     </div>

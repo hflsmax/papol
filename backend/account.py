@@ -10,8 +10,10 @@ uploads.
 
 Deleting is the harder half, because a reader's things are tangled with
 other readers': a seminar they started that others joined, a PDF they
-uploaded that others now read. What is theirs alone goes. What others
-depend on stays, with their name taken off it.
+uploaded that others now read. So the row survives as a tombstone with
+the person scrubbed out of it, and the rows that point at it go on
+working. What was private goes; what was said to others stays, under
+"A former reader".
 """
 
 import json
@@ -27,7 +29,6 @@ from models import (
     AuthToken,
     Comment,
     Copy,
-    Feedback,
     Notification,
     Paper,
     PaperEdition,
@@ -313,21 +314,111 @@ def write_zip(db: Session, user: User, uploads_dir: Path, out_path: Path) -> Pat
     return out_path
 
 
-# ----------------------------------------------------------------- delete
+# -------------------------------------------------------------- tombstone
+
+# What a closed account is called wherever it still shows: on a seminar
+# someone else is still in, beside a message they left there.
+FORMER_READER = "A former reader"
+
+# No password can produce this, because verify_password wants a "salt$digest"
+# and this has no "$". A tombstone cannot be signed into, ever.
+UNUSABLE_PASSWORD = "closed-account-no-password"
 
 
-def delete_account(db: Session, user: User, uploads_dir: Path) -> dict:
-    """Remove the reader, and everything of theirs that is theirs alone.
+def _hand_on_seminars(db: Session, user_id: int, eligible_hosts, notify):
+    """Give away the seminars this reader was hosting.
 
-    What other readers depend on is kept and disowned instead of deleted:
-    a PDF they uploaded is still the PDF everyone else reads, and a
-    seminar they started may have a cohort in it. Taking those away to
-    honour one reader's departure would be taking them from everybody.
+    A seminar without a host is not merely untidy, it is stuck: hosting can
+    only be claimed while a seminar is still `open`, so a planning or
+    scheduled one whose host vanished could never be picked up again by
+    anybody. Whoever is left in the cohort gets it.
+
+    The successor is chosen the way leave_room makes a departing host choose
+    one — a cohort member who displays this paper in their nook — and,
+    among those, whoever joined earliest. If nobody in the cohort can host,
+    the seminar goes back to `open` so that any reader of the paper may
+    answer it, which is the state it was in before anyone led it.
+
+    A finished seminar is left alone. It has already happened, and who ran
+    it is part of the record rather than a job that needs doing.
+    """
+    handed = reopened = 0
+    rooms = (
+        db.query(Room)
+        .filter(Room.leader_id == user_id, Room.status != "finished")
+        .all()
+    )
+    for room in rooms:
+        cohort = (
+            db.query(RoomParticipant)
+            .filter(
+                RoomParticipant.room_id == room.id,
+                RoomParticipant.user_id != user_id,
+            )
+            .order_by(RoomParticipant.created_at, RoomParticipant.id)
+            .all()
+        )
+        allowed = eligible_hosts(room) if eligible_hosts else None
+        successor = next(
+            (p.user_id for p in cohort if allowed is None or p.user_id in allowed),
+            None,
+        )
+        if successor is not None:
+            room.leader_id = successor
+            handed += 1
+            if notify:
+                notify(
+                    room,
+                    {successor},
+                    "The host of the seminar on \u201c%s\u201d has closed their "
+                    "account, so it is yours to host now." % room.paper_title,
+                )
+        else:
+            # Back to the state a seminar is in before anyone leads it, so
+            # it can be answered rather than sitting there unhostable.
+            room.leader_id = None
+            room.status = "open"
+            reopened += 1
+            if notify and cohort:
+                notify(
+                    room,
+                    {p.user_id for p in cohort},
+                    "The host of the seminar on \u201c%s\u201d has closed their "
+                    "account. It is open again for someone to host." % room.paper_title,
+                )
+    return handed, reopened
+
+
+def tombstone(
+    db: Session,
+    user: User,
+    uploads_dir: Path,
+    *,
+    eligible_hosts=None,
+    notify=None,
+) -> dict:
+    """Close the account, keeping the row and scrubbing the reader out of it.
+
+    Deleting the row outright is the tidier-looking option and the wrong
+    one. A seminar this reader started may have a cohort still in it, and
+    the messages in it belong to everyone who was there. Those rows point
+    here, so this row has to go on existing.
+
+    What it stops being is a person. The name, the email, the affiliation
+    and the picture go; the password is replaced with something no password
+    can match; the notes, the nook and the notifications — private, and
+    theirs alone — are deleted outright. What is left is a shape that a
+    foreign key can point at.
+
+    `eligible_hosts(room) -> set[int]` and `notify(room, user_ids, message)`
+    come from main.py, which is where the rules about who may host and how
+    a reader is told live. Both are optional so that this module can be
+    exercised without dragging the whole app in behind it.
     """
     removed = {}
     user_id = user.id
 
-    # Their own words and their own shelf go entirely.
+    # Private, and theirs alone.
     removed["notes"] = (
         db.query(Comment).filter(Comment.user_id == user_id).delete(synchronize_session=False)
     )
@@ -339,68 +430,56 @@ def delete_account(db: Session, user: User, uploads_dir: Path) -> dict:
         .filter(Notification.user_id == user_id)
         .delete(synchronize_session=False)
     )
-    removed["seminar_messages"] = (
-        db.query(RoomMessage)
-        .filter(RoomMessage.user_id == user_id)
-        .delete(synchronize_session=False)
+    # Signed out of everywhere, and no way back in.
+    removed["sessions"] = (
+        db.query(AuthToken).filter(AuthToken.user_id == user_id).delete(
+            synchronize_session=False
+        )
     )
+
+    # Out of the cohorts: someone who has closed their account is not going
+    # to turn up to the seminar, and their free times mean nothing now.
     db.query(RoomAvailability).filter(
         RoomAvailability.user_id == user_id
     ).delete(synchronize_session=False)
-    db.query(RoomParticipant).filter(
-        RoomParticipant.user_id == user_id
-    ).delete(synchronize_session=False)
-    db.query(AuthToken).filter(AuthToken.user_id == user_id).delete(
-        synchronize_session=False
+    removed["seminars_left"] = (
+        db.query(RoomParticipant)
+        .filter(RoomParticipant.user_id == user_id)
+        .delete(synchronize_session=False)
     )
-    db.flush()  # so the participant rows below no longer count this reader
+    db.flush()  # so the cohorts below no longer contain this reader
 
-    # A seminar they started. Room.created_by cannot be null, so the room
-    # is handed to whoever is still in it — the leader first, then whoever
-    # joined earliest. A room nobody is left in goes.
-    rooms_deleted = 0
-    for room in db.query(Room).filter(Room.created_by == user_id).all():
-        heir = None
-        if room.leader_id and room.leader_id != user_id:
-            heir = room.leader_id
-        else:
-            successor = (
-                db.query(RoomParticipant)
-                .filter(RoomParticipant.room_id == room.id)
-                .order_by(RoomParticipant.created_at, RoomParticipant.id)
-                .first()
-            )
-            heir = successor.user_id if successor else None
-        if heir is None:
-            db.delete(room)  # cascades to participants, messages, availabilities
-            rooms_deleted += 1
-        else:
-            room.created_by = heir
-    removed["seminars_ended"] = rooms_deleted
+    handed, reopened = _hand_on_seminars(db, user_id, eligible_hosts, notify)
+    removed["seminars_handed_on"] = handed
+    removed["seminars_reopened"] = reopened
 
-    # Led but not started: the seminar carries on without a leader.
-    db.query(Room).filter(Room.leader_id == user_id).update(
-        {Room.leader_id: None}, synchronize_session=False
+    # What they said to other readers stays where they said it, under
+    # "A former reader". Rooms they started stay too, and keep working,
+    # because created_by still resolves.
+    removed["messages_kept"] = (
+        db.query(RoomMessage).filter(RoomMessage.user_id == user_id).count()
     )
-
-    # A PDF others read stays; only the name on it goes.
-    removed["pdfs_disowned"] = (
-        db.query(PaperEdition)
-        .filter(PaperEdition.uploaded_by == user_id)
-        .update({PaperEdition.uploaded_by: None}, synchronize_session=False)
-    )
-
-    # A bug report is about Papol, not about them: it stays, unsigned.
-    db.query(Feedback).filter(Feedback.user_id == user_id).update(
-        {Feedback.user_id: None}, synchronize_session=False
+    removed["pdfs_kept"] = (
+        db.query(PaperEdition).filter(PaperEdition.uploaded_by == user_id).count()
     )
 
     avatar = user.avatar_path
-    db.delete(user)
+
+    # Now scrub the reader out of the row. The email has to stay unique and
+    # must not be a real address anyone could reach or re-register into;
+    # .invalid is reserved by RFC 2606 for exactly this.
+    user.email = f"deleted-{user_id}@papol.invalid"
+    user.display_name = FORMER_READER
+    user.affiliation = None
+    user.avatar_path = None
+    user.email_public = False
+    user.is_admin = False
+    user.password_hash = UNUSABLE_PASSWORD
+    user.deleted_at = datetime.utcnow()
     db.commit()
 
-    # Only once the row is certainly gone, so a failed commit never leaves
-    # an account pointing at a file that is not there.
+    # Only once the row is certainly scrubbed, so a failed commit never
+    # leaves an account pointing at a picture that is not there.
     if avatar:
         path = uploads_dir / avatar
         if path.exists():

@@ -378,6 +378,15 @@ input[type='checkbox'] {
   margin-bottom: 20px;
 }
 
+/* Revealed by the button beside "Save profile", so it needs a rule of its
+   own to read as a second thing in the block rather than more of the
+   first. */
+.password-change {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 /* The one panel a reader can do something irreversible in. It is marked
    by its edge rather than a wash of colour: the page is otherwise white
    panels, and a red one would read as an error the reader must fix. */
