@@ -861,7 +861,11 @@ export default function App() {
               <ToolGlyph id={t.id} />
               {/* The key, on the thing it presses. A shortcut written only
                   in a tooltip is one nobody finds. */}
-              <span className="tool-key" aria-hidden="true">
+              <span
+                className="tool-key"
+                data-wide={t.badge.length > 1 ? 'true' : undefined}
+                aria-hidden="true"
+              >
                 {t.badge}
               </span>
             </button>

@@ -562,6 +562,29 @@ export default function PdfPage({
     return points.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
   };
 
+  // The cursor is the mark it makes: a dot the width of the stroke, in the
+  // colour of the stroke. A picture of a brush says which tool is in hand,
+  // which the bar already says; what a reader aiming one actually wants to
+  // know is where the ink will land and how much of it there will be.
+  //
+  // Built here rather than in the stylesheet because the answer moves: the
+  // width is a fraction of the page, so how many pixels across it is
+  // depends on the zoom.
+  const brushCursor = () => {
+    const across = inkWidth * size.width * scale;
+    // Past about 128px a browser ignores a cursor image entirely, and a dot
+    // that small is no longer a dot; both ends fall back to a crosshair.
+    if (!across || across > 96) return 'crosshair';
+    const r = Math.max(3, across / 2);
+    const box = Math.ceil(r * 2 + 4);
+    const c = box / 2;
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}">` +
+      `<circle cx="${c}" cy="${c}" r="${r}" fill="${inkColor}" ` +
+      `stroke="#ffffff" stroke-width="1.4" stroke-opacity="0.9"/></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${c} ${c}, crosshair`;
+  };
+
   const strokeProps = {
     fill: 'none',
     strokeLinecap: 'round',
@@ -702,6 +725,7 @@ export default function PdfPage({
         {tool !== 'arrow' && (
           <div
             className={`ink-surface tool-${tool}`}
+            style={tool === 'brush' ? { cursor: brushCursor() } : undefined}
             onPointerDown={inkDown}
             onPointerMove={inkMove}
             onPointerUp={inkUp}

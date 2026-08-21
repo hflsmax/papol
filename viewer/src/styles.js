@@ -210,6 +210,10 @@ button.link.danger { color: var(--red); }
 }
 
 .viewer-bar .tool.on .tool-key { opacity: 0.85; }
+
+/* Two characters need the room a single one did not, and taking it from
+   the left keeps the badge off the glyph above it. */
+.viewer-bar .tool-key[data-wide] { left: 0; letter-spacing: -0.02em; }
 .viewer-bar .tool:hover { border-color: var(--line-strong); color: var(--ink); }
 
 .viewer-bar .tool[aria-label='Here'] { color: var(--gold); }
@@ -657,10 +661,9 @@ button.link.danger { color: var(--red); }
 }
 
 /* Cursors drawn rather than named, so the pointer is the tool: each has
-   its hotspot at the end that touches the page. */
-.ink-surface.tool-brush {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 20c0-3 2-5 4-5s3 1 3 3-2 4-5 4H4z' fill='%23b3923d' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpath d='M10.5 15.5 21 5' stroke='%23ffffff' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M10.5 15.5 21 5' stroke='%232b4a6f' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") 4 20, crosshair;
-}
+   its hotspot at the end that touches the page. The brush's is not here —
+   it is the width and colour of the ink it will lay down, which depends on
+   the zoom, so PdfPage draws it. */
 
 .ink-surface.tool-eraser {
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='4' y='11' width='15' height='9' rx='2' transform='rotate(-40 4 11)' fill='%23f5f6f8' stroke='%232b4a6f' stroke-width='1.6'/%3E%3C/svg%3E") 5 19, cell;
@@ -701,6 +704,18 @@ button.link.danger { color: var(--red); }
 .pin:hover:not(:disabled) {
   border: none;
   background: none;
+  transform: translate(-50%, -12%) scale(1.12);
+}
+
+/* Never a box. An anchor is a mark on a page, not a control on a form, and
+   a focus ring drawn around one reads as a selection the reader did not
+   make — which is exactly what it looked like after clicking one and then
+   picking up another tool. Keyboard focus still shows, as the same lift a
+   pointer gives it, so it is findable without being boxed. */
+.pin:focus { outline: none; }
+
+.pin:focus-visible {
+  outline: none;
   transform: translate(-50%, -12%) scale(1.12);
 }
 
