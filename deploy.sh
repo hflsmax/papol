@@ -103,6 +103,16 @@ init_prod() {
       note "copied $f"
     fi
   done
+
+  # Development's .env points mail at a dead port, and the environment wins
+  # over the settings table — so seeding that line into production is how
+  # you notice, weeks later, that nobody has had an email. Production keeps
+  # the rest of the file and gets its SMTP from the database, as before.
+  if [ -e "$PROD_DIR/.env" ] && grep -q '^SMTP_HOST=localhost$' "$PROD_DIR/.env"; then
+    sed -i '/^SMTP_HOST=localhost$/d; /^SMTP_PORT=1025$/d; /^SMTP_STARTTLS=0$/d' \
+      "$PROD_DIR/.env"
+    note "dropped development's mail sink from production's .env"
+  fi
   if [ -d "$DEV_DIR/uploads" ] && [ ! -d "$PROD_DIR/uploads" ]; then
     cp -a "$DEV_DIR/uploads" "$PROD_DIR/uploads"
     note "copied uploads/"
