@@ -1055,6 +1055,11 @@ select {
    the pill; pressing sinks it. */
 .paper-list li:hover .display-bar {
   background: var(--paper);
+  /* A line down the lane's edge, not only a change of ground. Ground is
+     the weaker half of this: a hidden row is already grey, so a tint can
+     land within a few values of what it is drawn against and say nothing.
+     A line has no such problem — it reads on white and on grey alike. */
+  box-shadow: inset -1px 0 0 var(--line);
 }
 
 /* Written through .paper-list li so these outweigh the row-hover rule
@@ -1082,7 +1087,8 @@ select {
    point; separating from the row is, and which direction does that depends
    on what the row is sitting on. */
 .paper-list li.unmarketed:hover .display-bar {
-  background: var(--paper);
+  background: var(--card);
+  box-shadow: inset -1px 0 0 var(--line);
 }
 
 .paper-list li.unmarketed .display-bar:hover:not(:disabled),
