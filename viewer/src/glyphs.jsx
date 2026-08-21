@@ -1,4 +1,5 @@
 import React from 'react';
+import { animalFor } from './animals';
 
 // Two marks, one meaning each: an anchor holds a place, a note says
 // something about it. Both are filled shapes in currentColor, so the same
@@ -116,152 +117,42 @@ const HereTool = AnchorTool;
 
 
 
-export function ToolGlyph({ id }) {
+export function ToolGlyph({ id, animal }) {
   const Glyph = TOOL_GLYPHS[id];
   if (!Glyph) return null;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <Glyph />
+      <Glyph animal={animal} />
     </svg>
   );
 }
 
-// A cow, side on, facing left. Drawn once and used three times: as the
-// button in the bar, as the cow on the cursor, and as the animal on the
-// page, so what you pick up is what you put down.
+// The animal a reader can put on a page, in the groups each part turns in.
+// The shapes come from animals.js; what is here is the skeleton they hang
+// on, which is the same for every species.
 //
-// Big head, short legs, one round barrel of a body: a calf's proportions
-// rather than a cow's, because the thing is 45 pixels across on the page
-// and 24 in the bar, and at that size charm survives where anatomy does
-// not. Every shape here is an ellipse, a rounded box, or one curve.
-//
-// The parts come out one at a time because the animal on the page is
-// jointed: the legs swing, the head goes down to the grass, the tail
-// keeps its own time. A joint needs a group of its own to turn in, and a
-// group needs to know where it turns. The head's hinge is the one that
-// had to be designed rather than found — see COW_HEAD_PIVOT.
-//
-// COW_PARTS puts them all back together standing still, which is what the
-// button and the cursor want, so those two are one drawing with the
-// page's cow rather than copies that have to be kept in step.
-//
-// Nothing here sets its own fill — the parent decides, because the button
-// wants one flat colour and the page wants a pale animal with a dark
-// outline, dark patches and a dark eye.
-
-// The box it is drawn in. The animal is centred in it, because the page
-// puts a cow down by its middle.
-export const COW_BOX = { w: 64, h: 44 };
-// Where its feet are. The shadow goes here, and so does the grass the head
-// is trying to reach.
-export const COW_GROUND = 36;
-
-// Short, thick and round-ended, with the far pair a touch shorter so they
-// start higher and still finish on the ground. Short because short legs
-// are a young animal, and a young animal is the cute one.
-//
-// A cow walks in four beats rather than two, one foot down after another:
-// near hind, near fore, far hind, far fore. That is what the quarters are.
-export const COW_LEGS = [
-  { x: 28, y: 25, w: 5, h: 11, pivot: [30.5, 26], phase: 0.25 },
-  { x: 34, y: 25.5, w: 5, h: 10.5, pivot: [36.5, 26.5], phase: 0.75 },
-  { x: 45, y: 25, w: 5, h: 11, pivot: [47.5, 26], phase: 0 },
-  { x: 50.5, y: 25.5, w: 5, h: 10.5, pivot: [53, 26.5], phase: 0.5 },
-];
-const legMarkup = (leg) =>
-  `<rect x="${leg.x}" y="${leg.y}" width="${leg.w}" height="${leg.h}" rx="2.5"/>`;
-
-// Up over the rump, down, and a tuft on the end.
-export const COW_TAIL =
-  '<path d="M54.4 12.4c4 .8 5.7 4.2 5.2 8.2l-.7 5.3-2.5-.3.7-5.3c.3-2.5-.8-4.1-3.1-4.4z"/>' +
-  '<ellipse cx="58.2" cy="27.6" rx="2.7" ry="3.3"/>';
-export const COW_TAIL_PIVOT = [54.6, 13.2];
-
-// A barrel, a neck, and a head — and the neck is the piece that took the
-// longest to get right, because of what happens to it when the head goes
-// down to the grass.
-//
-// The head is drawn under the barrel, so where the two meet is hidden. But
-// the head turns, and anything that turns sweeps: a shape tucked neatly
-// under the body at rest comes out from under it at twenty degrees, and
-// what the reader sees is an edge sliding about across the animal's chest.
-// Three attempts at a neck all failed this way.
-//
-// What fixes it is not a better shape but the right one. A circle centred
-// on the point something turns about does not move when it turns — every
-// point of it stays exactly where it was. So the neck ends in one: a round
-// cap on COW_HEAD_PIVOT, small enough to sit inside the barrel at every
-// angle, and therefore covered at every angle. The neck in front of it may
-// then be any shape at all, because the part that had to stay hidden is
-// the part that no longer moves.
-//
-// The visible neck rises out of the shoulder, and the head is carried
-// above the line of the back. Level with it, the head and the barrel were
-// one lumpy mass with a face on the end; up, the head is its own thing,
-// the animal is looking at you rather than merely pointing that way, and
-// there is somewhere for it to go — the whole distance down to the grass.
-export const COW_BODY = '<rect x="25" y="11" width="32" height="18" rx="9"/>';
-export const COW_HEAD_PIVOT = [30, 20];
-export const COW_NECK =
-  '<circle cx="30" cy="20" r="3.6"/>' +
-  // Both ends of this are inside something else — the head at the front,
-  // the cap at the back — so the three shapes read as one form with no
-  // seam anywhere in it. Curved, and flaring where it meets the head:
-  // straight edges made a rod between two blobs, which is a hobby horse.
-  '<path d="M17 10.5c6 0 10.5 3 13.2 6.3v6.4c-4.7.8-9.7.3-13.2-.7z"/>';
-export const COW_SKULL = '<rect x="4" y="8.5" width="19" height="17" rx="7.5"/>';
-export const COW_MUZZLE = '<ellipse cx="7.8" cy="21" rx="5.4" ry="4.6"/>';
-
-// Two horns and one ear.
-//
-// Horns were tried twice as nubs — two upright lobes on the brow, with the
-// ear a third behind them — and three lobes in a row across the top of a
-// head is a rabbit. The shape that works is the crescent: a thin curve
-// sweeping up and forward is a horn and cannot be read as anything else,
-// at any size, which is exactly what the nubs could not manage. Without
-// them the animal is a hippopotamus; four head designs were drawn side by
-// side to be sure of it, and this was the only one anybody would call a
-// cow.
-export const COW_HORN =
-  '<path d="M11.6 9.5c-2.3-2-2.6-5.3-.6-7.2.7 1-.3 1.9-.5 3-.2 1.6.7 2.6 2.1 3.3z"/>' +
-  '<path d="M15.9 9.1c-1.9-1.7-2.3-4.4-.6-6.2.6.9-.2 1.6-.3 2.6-.2 1.2.6 2.3 1.7 2.7z"/>';
-// The ear goes behind them, long and swept back, and stays forward of the
-// shoulder: the barrel is drawn over the head and swallows anything that
-// reaches behind it.
-export const COW_EAR = '<path d="M16.6 13.9c1.2-5 5.8-8 8.2-6.2s-.4 6.2-4.2 8.2z"/>';
-export const COW_EAR_PIVOT = [17.8, 14.7];
-// Big, and low, and well forward on the head. Small and high is a shrewd
-// animal, and this one is not meant to be.
-export const COW_EYE = '<circle cx="13.8" cy="16.5" r="2.4"/>';
-// One nostril, and small. Two, or a big one, and the muzzle has a pair of
-// eyes of its own.
-export const COW_NOSTRIL = '<ellipse cx="5.2" cy="22.1" rx="1.3" ry="1"/>';
-export const COW_HEAD = COW_EAR + COW_HORN + COW_NECK + COW_SKULL + COW_MUZZLE;
-
-// The head first, so the barrel is drawn over the back of it.
-export const COW_PARTS =
-  COW_LEGS.map(legMarkup).join('') + COW_TAIL + COW_HEAD + COW_BODY;
-
-// The dark markings. They mean nothing over a dark animal, so they are
-// their own set: over the pale one they are the patches and the eye.
-export const COW_PATCH_PARTS =
-  '<ellipse cx="35" cy="16" rx="5.4" ry="3.9"/>' +
-  '<ellipse cx="47" cy="23" rx="4.8" ry="3.5"/>';
-export const COW_MARKS = COW_PATCH_PARTS + COW_EYE + COW_NOSTRIL;
-
-export function CowPatches() {
-  return <g dangerouslySetInnerHTML={{ __html: COW_PATCH_PARTS }} />;
-}
-
-export function CowJointed() {
+// There is not one transform in this. Every one of them is written by
+// cow.js, frame by frame, straight onto these groups — which is only safe
+// so long as React is never rendering the same attribute, so it renders
+// none of them. The `data-cow` marks are how the frame loop finds them
+// once, when the animal is first put on the page.
+export function AnimalJointed({ spec }) {
+  const pale = {
+    fill: '#faf7ef',
+    stroke: '#33383f',
+    strokeWidth: 1.5,
+    strokeLinejoin: 'round',
+  };
+  const dark = { ...pale, fill: '#33383f' };
+  const skin = (part) => (part.dark ? dark : pale);
   return (
     <>
       <g data-cow="shadow" opacity="0.1">
-        <ellipse cx="0" cy="0" rx="14.5" ry="2.4" fill="#33383f" />
+        <ellipse cx="0" cy="0" rx={spec.shadow.rx} ry="2.4" fill="#33383f" />
       </g>
       <g data-cow="frame">
-        <g fill="#faf7ef" stroke="#33383f" strokeWidth="1.5" strokeLinejoin="round">
-          {COW_LEGS.map((leg) => (
+        <g {...(spec.legsDark ? dark : pale)}>
+          {spec.legs.map((leg) => (
             <rect
               key={leg.x}
               data-cow="leg"
@@ -269,26 +160,43 @@ export function CowJointed() {
               y={leg.y}
               width={leg.w}
               height={leg.h}
-              rx="2.4"
+              rx={leg.rx ?? 2.5}
             />
           ))}
-          <g data-cow="tail" dangerouslySetInnerHTML={{ __html: COW_TAIL }} />
-          <g data-cow="bob">
-            <g data-cow="head">
-              <g data-cow="ear" dangerouslySetInnerHTML={{ __html: COW_EAR }} />
-              <g dangerouslySetInnerHTML={{ __html: COW_HORN + COW_NECK + COW_SKULL + COW_MUZZLE }} />
-              {/* The eye is dark, and it is on the head, so it belongs in
-                  the group the head turns in and not with the patches. */}
-              <g fill="#33383f" stroke="none" dangerouslySetInnerHTML={{ __html: COW_EYE + COW_NOSTRIL }} />
-            </g>
-            <g dangerouslySetInnerHTML={{ __html: COW_BODY }} />
-          </g>
         </g>
-        {/* The patches are on the barrel, so they take the barrel's beat —
-            which is why they are a second group marked the same way rather
-            than part of the first. */}
-        <g data-cow="bob" fill="#33383f">
-          <CowPatches />
+        <g data-cow="tail" {...skin(spec.tail)}
+          dangerouslySetInnerHTML={{ __html: spec.tail.markup }} />
+        <g data-cow="bob">
+          <g data-cow="head">
+            {/* An ear that stands up is behind the head; an ear that hangs
+                lies on the side of the face. Drawn in the wrong order the
+                second kind simply is not there. */}
+            {!spec.ear.over && (
+              <g data-cow="ear" {...skin(spec.ear)}
+                dangerouslySetInnerHTML={{ __html: spec.ear.markup }} />
+            )}
+            <g {...skin(spec.head)} dangerouslySetInnerHTML={{ __html: spec.head.markup }} />
+            {spec.ear.over && (
+              <g data-cow="ear" {...skin(spec.ear)}
+                dangerouslySetInnerHTML={{ __html: spec.ear.markup }} />
+            )}
+            {/* The eye and the nose are on the head, so they belong in the
+                group the head turns in and not with the body's markings. */}
+            {spec.headMarks && (
+              <g fill="#33383f" stroke="none"
+                dangerouslySetInnerHTML={{ __html: spec.headMarks }} />
+            )}
+            {/* And pale, for a species whose face is the dark part. */}
+            {spec.headLight && (
+              <g fill="#faf7ef" stroke="none"
+                dangerouslySetInnerHTML={{ __html: spec.headLight }} />
+            )}
+          </g>
+          <g {...skin(spec.body)} dangerouslySetInnerHTML={{ __html: spec.body.markup }} />
+          {spec.bodyMarks && (
+            <g fill="#33383f" stroke="none"
+              dangerouslySetInnerHTML={{ __html: spec.bodyMarks }} />
+          )}
         </g>
       </g>
     </>
@@ -299,30 +207,18 @@ export function CowJointed() {
 //
 // Every other glyph in this file is one silhouette with no interior
 // detail, because at eighteen pixels that is all a glyph can be — a brush
-// is its bristles, an eraser is its slant. The cow was the exception: the
-// whole drawing above, shrunk, which at that size is a dark smudge with
-// four legs somewhere inside it. Four legs, a tail, two horns and an ear
-// is a lot of information to put through a hole that small, and none of it
-// arrives.
+// is its bristles, an eraser is its slant. The animals were the exception:
+// the whole side view, shrunk, which at that size is a dark smudge with
+// four legs somewhere inside it. Four legs, a tail and two ears is a lot
+// of information to put through a hole that small, and none of it arrives.
 //
-// So the button is the head, seen face on. Horns up, ears out: it is the
-// one view of a cow that survives being eighteen pixels wide, and it says
-// cow at a glance where the side view says small dark animal. A glyph
-// stands for the tool; it is not a picture of what the tool leaves behind,
-// and what this one leaves behind is still the drawing above.
-const COW_TOOL =
-  // The horns, and they have to be big — they are most of the reading.
-  '<path d="M7 6.6C4.9 4 5.4 1.4 7.7.6c-.9 1.6-.7 3.5.8 5.4z"/>' +
-  '<path d="M17 6.6C19.1 4 18.6 1.4 16.3.6c.9 1.6.7 3.5-.8 5.4z"/>' +
-  // The ears, straight out to the sides, which is where a cow keeps them.
-  '<ellipse cx="3.4" cy="10.8" rx="3.3" ry="2.1"/>' +
-  '<ellipse cx="20.6" cy="10.8" rx="3.3" ry="2.1"/>' +
-  // A face wide at the brow and narrowing to the muzzle. A face that is a
-  // rounded square is a bear's, at this size as at any other.
-  '<path d="M12 5.2c3.8 0 5.6 1.5 5.6 3.7v3.4c0 3.4-2.5 6-5.6 6s-5.6-2.6-5.6-6V8.9c0-2.2 1.8-3.7 5.6-3.7z"/>';
-
-function CowTool() {
-  return <g fill="currentColor" dangerouslySetInnerHTML={{ __html: COW_TOOL }} />;
+// So each one is its head, seen face on — the one view of an animal that
+// survives being eighteen pixels wide. A glyph stands for the tool; it is
+// not a picture of what the tool leaves behind.
+function AnimalTool({ animal }) {
+  return (
+    <g fill="currentColor" dangerouslySetInnerHTML={{ __html: animalFor(animal).glyph }} />
+  );
 }
 
 const TOOL_GLYPHS = {
@@ -332,5 +228,5 @@ const TOOL_GLYPHS = {
   laser: LaserTool,
   anchor: AnchorTool,
   here: HereTool,
-  cow: CowTool,
+  cow: AnimalTool,
 };

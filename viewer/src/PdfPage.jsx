@@ -1,9 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import {
-  GlyphFor, CowJointed, COW_PARTS, COW_MARKS, COW_BOX, COW_GROUND,
-  ANCHOR_D, ANCHOR_HANG,
-} from './glyphs';
+import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
+import { animalFor } from './animals';
 import { stepCow, poseCow } from './cow';
 import { pageOverlays } from './references';
 import { STRIP_RATIO } from './ink';
@@ -24,8 +22,11 @@ const LASER_PASSING = 260;
 // while you talk about it — and while the button is down it does not fade
 // at all: the shape is not finished, and half of it going pale before the
 // rest is drawn is no help to anyone looking at it. Letting go is what
-// starts the clock, and how long it then takes is the reader's own
-// setting: see the laser's sheet.
+// starts the clock, and then the whole shape goes together, slowly enough
+// to still be there while you say what it was for.
+const LASER_LINGER = 2000;
+// A laser's beam is one width: it is a pointer, not a brush.
+const LASER_WIDTH = 0.005;
 // Samples nearer than this to the last add nothing but points to draw.
 const LASER_STEP = 1.0;
 // Points nearer than this to the last one add bytes and no shape. In page
@@ -53,9 +54,6 @@ const MAX_POINTS = 4000;
 const EMPTY_DOOMED = { ink: [], notes: [], cows: [] };
 // How wide a stroke is to take hold of, whatever it was drawn at.
 const GRAB_WIDTH = 14;
-// A cow, as a fraction of the page width. The shape it is drawn in is
-// COW_BOX, next to the drawing itself.
-const COW_SIZE = 0.075;
 // Draw, then stop and hold: the stroke snaps to a straight line from where
 // it began, square to the page. Underlining a sentence and ruling a bar
 // down a margin are most of what a brush is used for on a paper, and both
@@ -92,8 +90,6 @@ export default function PdfPage({
   inkOpacity,
   inkShape,
   laserColor,
-  laserWidth,
-  laserLinger,
   onDrawStroke,
   onEraseStroke,
   onEraseNote,
@@ -101,6 +97,7 @@ export default function PdfPage({
   onDropAnchor,
   onMoveStroke,
   onDragNote,
+  animal,
   cows,
   onDropCow,
   onMoveCow,
@@ -396,7 +393,7 @@ export default function PdfPage({
   const releaseLaser = () => {
     const now = performance.now();
     laserRef.current = laserRef.current.map((p) =>
-      p.held ? { ...p, held: false, t: now, life: laserLinger } : p
+      p.held ? { ...p, held: false, t: now, life: LASER_LINGER } : p
     );
     // The shape is finished. What the pointer does next is a new one, and
     // is not to be drawn back to the end of this — which is what left the
@@ -526,7 +523,7 @@ export default function PdfPage({
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.id);
     }
     for (const cow of cows) {
-      if (inPageUnits(cow, at) < (COW_SIZE * size.width) / 2) found.cows.push(cow.id);
+      if (inPageUnits(cow, at) < (animalFor(cow.kind).size * size.width) / 2) found.cows.push(cow.id);
     }
     return found;
   };
@@ -545,7 +542,7 @@ export default function PdfPage({
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.id);
     }
     for (const cow of cows) {
-      if (inPageUnits(cow, at) < (COW_SIZE * size.width) / 2) onEraseCow(cow.id);
+      if (inPageUnits(cow, at) < (animalFor(cow.kind).size * size.width) / 2) onEraseCow(cow.id);
     }
   };
 
@@ -557,8 +554,9 @@ export default function PdfPage({
       // Under its feet, not under its middle. The cursor is a cow standing
       // on the pointer, so that is where the cow has to end up standing —
       // and a cow is kept by its middle, which is this much above them.
-      const feet = ((COW_GROUND - COW_BOX.h / 2) * COW_SIZE * size.width)
-        / (COW_BOX.w * size.height);
+      const held = animalFor(animal);
+      const feet = ((held.ground - held.box.h / 2) * held.size * size.width)
+        / (held.box.w * size.height);
       onDropCow(pageNumber, { x: at.x, y: Math.min(0.95, at.y + feet) });
       return;
     }
@@ -886,11 +884,13 @@ export default function PdfPage({
       if (!cows.some((c) => c.id === id)) cowRefsRef.current.delete(id);
     }
     if (!cows.length || !size.width) return undefined;
-    const k = (COW_SIZE * size.width) / COW_BOX.w;
     const paint = (now) => {
       for (const c of cows) {
         const parts = cowPartsRef.current.get(c.id);
-        if (parts) poseCow(c, parts, now, k, c.x * size.width, (1 - c.y) * size.height);
+        if (!parts) continue;
+        const spec = animalFor(c.kind);
+        const k = (spec.size * size.width) / spec.box.w;
+        poseCow(c, parts, now, k, c.x * size.width, (1 - c.y) * size.height);
       }
     };
     if (stillCows) {
@@ -946,15 +946,16 @@ export default function PdfPage({
   // A cow in hand, at the size the cow will be, with the hotspot under its
   // feet — a cow is put down on the ground, not centred on a point.
   const cowCursor = () => {
-    const w = Math.min(96, Math.max(28, COW_SIZE * size.width * scale));
-    const h = (w * COW_BOX.h) / COW_BOX.w;
+    const held = animalFor(animal);
+    const w = Math.min(96, Math.max(28, held.size * size.width * scale));
+    const h = (w * held.box.h) / held.box.w;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
-      `viewBox="0 0 ${COW_BOX.w} ${COW_BOX.h}">` +
+      `viewBox="0 0 ${held.box.w} ${held.box.h}">` +
       `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
-      `${COW_PARTS}</g><g fill="#33383f">${COW_MARKS}</g></svg>`;
+      `${held.pale}</g><g fill="#33383f">${held.dark}</g></svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
-      (h * COW_GROUND) / COW_BOX.h
+      (h * held.ground) / held.box.h
     ).toFixed(1)}, copy`;
   };
 
@@ -1139,7 +1140,7 @@ export default function PdfPage({
                 ref={cowRef(cow.id)}
                 className={doomed.cows.includes(cow.id) ? 'cow going' : 'cow'}
               >
-                <CowJointed />
+                <AnimalJointed spec={animalFor(cow.kind)} />
                 {/* Taken hold of anywhere on it. The box that listens sits
                     outside the turn, because halfway through one the animal
                     is edge-on and a box that turned with it would be a few
@@ -1147,10 +1148,10 @@ export default function PdfPage({
                 {tool === 'arrow' && (
                   <rect
                     className="cow-grab"
-                    x={-COW_BOX.w / 2}
-                    y={-COW_BOX.h / 2}
-                    width={COW_BOX.w}
-                    height={COW_BOX.h}
+                    x={-animalFor(cow.kind).box.w / 2}
+                    y={-animalFor(cow.kind).box.h / 2}
+                    width={animalFor(cow.kind).box.w}
+                    height={animalFor(cow.kind).box.h}
                     fill="transparent"
                     onPointerDown={(e) => startCowDrag(e, cow)}
                     onPointerMove={moveCowDrag}
@@ -1165,7 +1166,7 @@ export default function PdfPage({
                 key={run.key}
                 d={run.d}
                 stroke={laserColor}
-                strokeWidth={size.width * laserWidth}
+                strokeWidth={size.width * LASER_WIDTH}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 fill="none"
@@ -1176,7 +1177,7 @@ export default function PdfPage({
               <circle
                 cx={laserRef.current[laserRef.current.length - 1].x * size.width}
                 cy={(1 - laserRef.current[laserRef.current.length - 1].y) * size.height}
-                r={size.width * laserWidth * 1.1}
+                r={size.width * LASER_WIDTH * 1.1}
                 fill={laserColor}
                 opacity={
                   laserRef.current[laserRef.current.length - 1].held

@@ -244,6 +244,44 @@ button.link.danger { color: var(--red); }
   box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
 }
 
+/* The menagerie. Five animals, each shown as the drawing that will land
+   on the page rather than as the button's glyph — the sheet has room for
+   the animal, and the animal is what is being chosen between. Two rows,
+   because five across is wider than the sheet and a lone fifth on a second
+   row looks like a mistake rather than a layout. */
+.beasts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.brush-pop .beast {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 5px 4px 4px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+}
+
+.brush-pop .beast.on { background: var(--accent-soft); }
+
+.brush-pop .beast svg {
+  width: 46px;
+  height: 32px;
+  display: block;
+}
+
+.beast-name {
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  line-height: 1;
+}
+
+.brush-pop .beast.on .beast-name { color: var(--ink); }
+
 /* One colour at three strengths, on the white the ink will be on. Anything
    put underneath to show what survives — a rule of type, a half-black
    patch — reads as a second colour being offered, in a row whose whole
@@ -269,9 +307,13 @@ button.link.danger { color: var(--red); }
 
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
 
-/* Three dots running out, for how long a trail stays up. */
-.brush-pop .trail { display: flex; align-items: center; gap: 3px; }
-.brush-pop .trail span { width: 6px; height: 6px; border-radius: 50%; }
+/* How long a trail stays, in seconds, because that is what it is. */
+.brush-pop .trail-time {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1;
+}
 .brush-pop .weight-strip.round { border-radius: 50%; }
 
 .brush-pop .brush-label {

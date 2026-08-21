@@ -7,6 +7,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { pdfHref, getReferences, getReference } from './api';
 import { resolveSource, getToken } from './source';
 import PdfPage from './PdfPage';
+import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
@@ -89,22 +90,14 @@ const INK_DEFAULTS_VERSION = '2';
 // says how big that is in pixels.
 const SAMPLE_MAX = 24;
 
-// The laser's own settings. Nothing here is ever sent anywhere: a laser
+// The laser's own colour. Nothing here is ever sent anywhere: a laser
 // leaves nothing on the paper, so what it is set to is a fact about this
 // reader's browser and no more.
-const LASER_WIDTHS = [0.003, 0.005, 0.008];
-const LASER_LINGERS = [
-  { ms: 700, name: 'Brief' },
-  { ms: 2000, name: 'Steady' },
-  { ms: 4500, name: 'Long' },
-];
 const LASER_COLOR = '#d92b1f';
-const LASER_WIDTH = LASER_WIDTHS[1];
-const LASER_LINGER = LASER_LINGERS[1].ms;
 
 // Which tools keep a sheet of settings under them, so that reaching for one
 // already in your hand opens it.
-const SHEETS = new Set(['brush', 'laser']);
+const SHEETS = new Set(['brush', 'laser', 'cow']);
 
 const sampleSize = (width) => {
   const tall = (width / INK_WIDTHS[INK_WIDTHS.length - 1]) * SAMPLE_MAX;
@@ -137,7 +130,7 @@ const TOOLS = [
   { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'Vanishes' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
   { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'Anchor, shifted' },
-  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'Moo' },
+  { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' , mnemonic: 'Menagerie' },
 ];
 
 // The two anchors are one-shot: they are a thing you are holding until you
@@ -200,6 +193,13 @@ export default function App() {
   const [tool, setTool] = useState(
     () => localStorage.getItem('papol_viewer_tool') || 'arrow'
   );
+  // Which animal the menagerie is set to. Remembered like the tool and the
+  // ink: whoever put a cat on one paper is putting a cat on the next one.
+  const [animal, setAnimal] = useState(() => {
+    const kept = localStorage.getItem('papol_viewer_animal');
+    return ANIMALS.some((a) => a.id === kept) ? kept : 'cow';
+  });
+
   // Their ink on this edition. The laser is not in here — it leaves
   // nothing, which is the point of it.
   const [ink, setInk] = useState([]);
@@ -243,14 +243,6 @@ export default function App() {
   const [laserColor, setLaserColor] = useState(
     () => localStorage.getItem('papol_viewer_laser') || LASER_COLOR
   );
-  const [laserWidth, setLaserWidth] = useState(() => {
-    const kept = Number(localStorage.getItem('papol_viewer_laser_width'));
-    return LASER_WIDTHS.includes(kept) ? kept : LASER_WIDTH;
-  });
-  const [laserLinger, setLaserLinger] = useState(() => {
-    const kept = Number(localStorage.getItem('papol_viewer_laser_linger'));
-    return LASER_LINGERS.some((l) => l.ms === kept) ? kept : LASER_LINGER;
-  });
   // The sheet that is open, if any: 'brush', 'laser', or nothing. One at a
   // time, because it hangs off the tool it belongs to and only one tool is
   // ever in hand.
@@ -376,6 +368,10 @@ export default function App() {
   }, [tool]);
 
   useEffect(() => {
+    localStorage.setItem('papol_viewer_animal', animal);
+  }, [animal]);
+
+  useEffect(() => {
     localStorage.setItem('papol_viewer_ink', inkColor);
     localStorage.setItem('papol_viewer_ink_width', String(inkWidth));
     localStorage.setItem('papol_viewer_ink_opacity', String(inkOpacity));
@@ -384,9 +380,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_laser', laserColor);
-    localStorage.setItem('papol_viewer_laser_width', String(laserWidth));
-    localStorage.setItem('papol_viewer_laser_linger', String(laserLinger));
-  }, [laserColor, laserWidth, laserLinger]);
+  }, [laserColor]);
 
   // Putting a tool down closes the sheet that belonged to it.
   useEffect(() => {
@@ -771,6 +765,9 @@ export default function App() {
       ...herd,
       {
         id: `cow-${(nextCowId.current += 1)}`,
+        // What it is. Kept on the record rather than looked up from the
+        // tool, because the tool moves on and the animal stays put.
+        kind: animal,
         page,
         x: at.x,
         y: at.y,
@@ -1203,12 +1200,14 @@ export default function App() {
                 title={
                   t.id === 'brush'
                     ? `${t.label} (X) — ${t.hint}. X again for colour and width`
-                    : `${t.label} (${t.badge}) — ${t.hint}`
+                    : t.id === 'cow'
+                      ? `${t.label} (M) — ${t.hint}. M again to choose which`
+                      : `${t.label} (${t.badge}) — ${t.hint}`
                 }
                 // Once to pick it up, again to open what belongs to it.
                 onClick={() => takeTool(t.id)}
               >
-                <ToolGlyph id={t.id} />
+                <ToolGlyph id={t.id} animal={animal} />
                 {/* The key, on the thing it presses. A shortcut written only
                     in a tooltip is one nobody finds. */}
                 <span
@@ -1345,6 +1344,43 @@ export default function App() {
                 </div>
               )}
 
+              {/* Hung off the animal rather than put in the bar: which
+                  animal it is is a fact about this one tool, and means
+                  nothing while anything else is in hand. */}
+              {t.id === 'cow' && sheet === 'cow' && (
+                <div className="brush-pop" role="group" aria-label="The menagerie">
+                  <span className="brush-label">Animal</span>
+                  <div className="beasts">
+                    {ANIMALS.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={`beast${a.id === animal ? ' on' : ''}`}
+                        aria-pressed={a.id === animal}
+                        aria-label={a.label}
+                        title={`${a.label} — ${a.hint}`}
+                        onClick={() => setAnimal(a.id)}
+                      >
+                        {/* The animal itself, not its glyph: the sheet has
+                            room for the drawing, and the drawing is what
+                            the reader is choosing between. */}
+                        <svg viewBox={`0 0 ${a.box.w} ${a.box.h}`} aria-hidden="true">
+                          <g
+                            fill="#faf7ef"
+                            stroke="#33383f"
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                            dangerouslySetInnerHTML={{ __html: a.pale }}
+                          />
+                          <g fill="#33383f" dangerouslySetInnerHTML={{ __html: a.dark }} />
+                        </svg>
+                        <span className="beast-name">{a.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {t.id === 'laser' && sheet === 'laser' && (
                 <div className="brush-pop" role="group" aria-label="The laser">
                   <span className="brush-label">Colour</span>
@@ -1363,62 +1399,10 @@ export default function App() {
                     ))}
                   </div>
 
-                  <span className="brush-label">Size</span>
-                  <div className="weights" role="group" aria-label="Size">
-                    {LASER_WIDTHS.map((w, i2) => (
-                      <button
-                        key={w}
-                        type="button"
-                        className={`weight${w === laserWidth ? ' on' : ''}`}
-                        aria-pressed={w === laserWidth}
-                        aria-label={`Size ${i2 + 1}`}
-                        onClick={() => setLaserWidth(w)}
-                      >
-                        <span
-                          className="weight-strip round"
-                          style={{
-                            width: (w / LASER_WIDTHS[LASER_WIDTHS.length - 1]) * SAMPLE_MAX,
-                            height: (w / LASER_WIDTHS[LASER_WIDTHS.length - 1]) * SAMPLE_MAX,
-                            background: laserColor,
-                          }}
-                        />
-                      </button>
-                    ))}
-                  </div>
-
-                  <span className="brush-label">Trail</span>
-                  <div className="weights" role="group" aria-label="Trail">
-                    {LASER_LINGERS.map((l) => (
-                      <button
-                        key={l.ms}
-                        type="button"
-                        className={`weight${l.ms === laserLinger ? ' on' : ''}`}
-                        aria-pressed={l.ms === laserLinger}
-                        aria-label={l.name}
-                        title={`${l.name} — how long a held trail stays after you let go`}
-                        onClick={() => setLaserLinger(l.ms)}
-                      >
-                        {/* A trail's worth of dots, running out. Longer
-                            settings keep more of it up for longer. */}
-                        <span className="trail">
-                          {[0, 1, 2].map((k) => (
-                            <span
-                              key={k}
-                              style={{
-                                background: laserColor,
-                                opacity:
-                                  1 - (k * 0.9) / (LASER_LINGERS.indexOf(l) + 2),
-                              }}
-                            />
-                          ))}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <p className="brush-tip">A laser leaves nothing behind.</p>
+                  <p className="brush-tip">
+                    Try holding shift while pressing.
+                  </p>
                 </div>
-              )}
               )}
             </span>
           ))}
@@ -1489,8 +1473,6 @@ export default function App() {
               inkOpacity={inkOpacity}
               inkShape={inkShape}
               laserColor={laserColor}
-              laserWidth={laserWidth}
-              laserLinger={laserLinger}
               onDrawStroke={drawStroke}
               onEraseStroke={eraseStroke}
               onEraseNote={removeNote}
@@ -1500,6 +1482,7 @@ export default function App() {
               onDropAnchor={dropAnchor}
               onMoveStroke={moveStroke}
               onDragNote={setDraggingNoteId}
+              animal={animal}
               cows={cowsByPage.get(n) || EMPTY_INK}
               onDropCow={dropCow}
               onMoveCow={moveCow}
@@ -1530,7 +1513,7 @@ export default function App() {
                     <dt>
                       <kbd>{t.badge}</kbd>
                       <span className="help-glyph">
-                        <ToolGlyph id={t.id} />
+                        <ToolGlyph id={t.id} animal={animal} />
                       </span>
                       {/* Beside the name, where the eye already is when it
                           reads the key next to it, with the key's own

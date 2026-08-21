@@ -5,9 +5,7 @@
 // on its own means it can be driven by something other than a document
 // while it is being got right.
 
-import {
-  COW_BOX, COW_GROUND, COW_LEGS, COW_TAIL_PIVOT, COW_EAR_PIVOT, COW_HEAD_PIVOT,
-} from './glyphs';
+import { animalFor } from './animals';
 
 // How fast it walks across the page. Slow: a cow crossing a page in half a
 // minute is a cow.
@@ -42,6 +40,7 @@ const COW_DUTY = 0.65;
 // the paper, which about thirty degrees on this drawing does.
 const COW_BOB = 0.9;
 const COW_STOOP = 29;
+// Overridable per species: a pig's head does not have far to go.
 // How long the head takes to get down there and back up.
 const COW_NOD = 320;
 // An ear goes back about this often, and stays back about this long. It
@@ -50,9 +49,6 @@ const COW_NOD = 320;
 const COW_EAR_EVERY = [3800, 9000];
 const COW_EAR_HELD = 130;
 const COW_EAR_BACK = 30;
-// The feet are not centred in the box — the head takes up the front of it
-// — so neither is what they stand on.
-const SHADOW_AT = 10;
 // How far the tail swings, and how fast. It is the one part of a cow that
 // is never still, and on an animal standing in one place for half a minute
 // it is most of what says the thing is alive rather than printed — so it is
@@ -165,6 +161,7 @@ export function stepCow(c, dt, now) {
 // state, no React: this runs every frame and reconciling it would cost
 // more than the arithmetic above and below put together.
 export function poseCow(c, parts, now, k, cx, cy) {
+  const spec = animalFor(c.kind);
   // It arrives with a little weight in it and settles. Damped hard enough
   // that it is over before it can turn into a bounce.
   const age = now - c.born;
@@ -181,7 +178,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const sx = Math.abs(c.turn) < 0.02 ? (c.turn < 0 ? -0.02 : 0.02) : c.turn;
   parts.frame.setAttribute(
     'transform',
-    `scale(${sx.toFixed(3)} 1) translate(${-COW_BOX.w / 2} ${-COW_BOX.h / 2})`
+    `scale(${sx.toFixed(3)} 1) translate(${-spec.box.w / 2} ${-spec.box.h / 2})`
   );
 
   // The legs. Stance is the long slow half — the foot is down and the body
@@ -190,7 +187,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   // same speed, and that is the thing that makes a walk look like a
   // pendulum rather than like walking.
   for (let i = 0; i < parts.legs.length; i += 1) {
-    const leg = COW_LEGS[i];
+    const leg = spec.legs[i];
     const p = (c.stride + leg.phase) % 1;
     const swing = p < COW_DUTY
       ? 1 - (2 * p) / COW_DUTY
@@ -208,19 +205,19 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const breath = 1 + 0.008 * (1 - c.gait) * Math.sin(now * 0.0016 + c.seed * 6.28);
   // Scaled about the ground, so it is the back that lifts and not the feet.
   const ride =
-    `translate(0 ${bob.toFixed(2)}) translate(0 ${COW_GROUND}) ` +
-    `scale(1 ${breath.toFixed(4)}) translate(0 ${-COW_GROUND})`;
+    `translate(0 ${bob.toFixed(2)}) translate(0 ${spec.ground}) ` +
+    `scale(1 ${breath.toFixed(4)}) translate(0 ${-spec.ground})`;
   for (let i = 0; i < parts.bob.length; i += 1) parts.bob[i].setAttribute('transform', ride);
 
   // Down to the grass, with a slow nuzzle once it is there.
   const nuzzle = c.head > 0.85 ? Math.sin(now * 0.004 + c.seed * 6.28) * 1.4 : 0;
   parts.head.setAttribute(
     'transform',
-    `rotate(${(c.head * (nuzzle - COW_STOOP)).toFixed(2)} ${COW_HEAD_PIVOT[0]} ${COW_HEAD_PIVOT[1]})`
+    `rotate(${(c.head * (nuzzle - COW_STOOP)).toFixed(2)} ${spec.headPivot[0]} ${spec.headPivot[1]})`
   );
   parts.ear.setAttribute(
     'transform',
-    `rotate(${(COW_EAR_BACK * c.ear).toFixed(2)} ${COW_EAR_PIVOT[0]} ${COW_EAR_PIVOT[1]})`
+    `rotate(${(COW_EAR_BACK * c.ear).toFixed(2)} ${spec.ear.pivot[0]} ${spec.ear.pivot[1]})`
   );
 
   // The tail keeps its own time, deliberately: everything on the animal
@@ -231,7 +228,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const tail = Math.sin(now * COW_SWISH_RATE + c.seed * 6.28) * COW_SWISH + over;
   parts.tail.setAttribute(
     'transform',
-    `rotate(${tail.toFixed(2)} ${COW_TAIL_PIVOT[0]} ${COW_TAIL_PIVOT[1]})`
+    `rotate(${tail.toFixed(2)} ${spec.tail.pivot[0]} ${spec.tail.pivot[1]})`
   );
 
   // And a little weight on the paper. Without it the animal is a sticker
@@ -241,7 +238,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const near = 1 + bob * 0.6;
   parts.shadow.setAttribute(
     'transform',
-    `translate(${c.turn < 0 ? -SHADOW_AT : SHADOW_AT} ${COW_GROUND - COW_BOX.h / 2}) ` +
+    `translate(${c.turn < 0 ? -spec.shadow.at : spec.shadow.at} ${spec.ground - spec.box.h / 2}) ` +
     `scale(${Math.max(0.25, Math.abs(c.turn)).toFixed(3)} ${near.toFixed(3)})`
   );
   parts.shadow.setAttribute('opacity', (0.1 * near).toFixed(3));
