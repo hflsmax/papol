@@ -25,21 +25,22 @@ const MAX_SCALE = 10;
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
 const FIT_MAX_WIDTH = 1100;
-// Five colours, not a colour wheel. Ink goes over a printed page, and most
-// of the colour space is either invisible on white or unreadable across
-// black text; these are Papol's own, each dark enough to read over a line
-// of type. Picked with 1 to 5 while the brush is in hand.
+// Five colours, not a colour wheel. Ink goes over a printed page, so each
+// has to be legible across black type — but they also have to be legible
+// against *each other*, and Papol's own palette is a set of muted siblings
+// that were hard to tell apart at the size of a swatch. These are brighter
+// and further apart. Picked with 1 to 5 while the brush is in hand.
 const INK_COLORS = [
-  { hex: '#b3923d', name: 'Gold' },
-  { hex: '#8c2f22', name: 'Red' },
-  { hex: '#2b4a6f', name: 'Blue' },
-  { hex: '#4a6b52', name: 'Green' },
-  { hex: '#1d2129', name: 'Ink' },
+  { hex: '#e0a020', name: 'Gold' },
+  { hex: '#d92b1f', name: 'Red' },
+  { hex: '#1668dc', name: 'Blue' },
+  { hex: '#1f9d55', name: 'Green' },
+  { hex: '#14161a', name: 'Ink' },
 ];
 
 // Fractions of the page width, so a stroke keeps its weight at any zoom.
 // Stepped with [ and ].
-const INK_WIDTHS = [0.002, 0.004, 0.007, 0.012];
+const INK_WIDTHS = [0.002, 0.004, 0.008, 0.022];
 
 // Three, one of them solid. Anything less than solid lets the words
 // underneath show through, which is what marking a line wants and what
@@ -175,6 +176,9 @@ export default function App() {
   const tempInkId = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
+  // Strokes still being saved, by the temporary id they are wearing until
+  // the server gives them a real one.
+  const inkSaving = useRef(new Map());
   // Where the pointer last was over a page. A ref, not state: it changes
   // with every mouse move and nothing renders from it — it is read once,
   // when a key asks for an anchor where the reader is looking.
@@ -554,12 +558,37 @@ export default function App() {
     if (!source?.ink) return;
     const provisional = `wet-${++tempInkId.current}`;
     setInk((all) => [...all, { ...stroke, id: provisional }]);
+    const saving = source.ink.create(paper?.edition_id, stroke);
+    inkSaving.current.set(provisional, saving);
     try {
-      const saved = await source.ink.create(paper?.edition_id, stroke);
+      const saved = await saving;
       setInk((all) => all.map((s) => (s.id === provisional ? saved : s)));
     } catch (err) {
       setInk((all) => all.filter((s) => s.id !== provisional));
       setError(err.message || 'That stroke could not be saved.');
+    } finally {
+      inkSaving.current.delete(provisional);
+    }
+  };
+
+  // The id the server knows this stroke by, waiting for it if the stroke is
+  // still on its way there.
+  //
+  // Rubbing out a stroke drawn a moment ago used to send its temporary id
+  // to the server, which refused it — and refusing is not a 404, so the
+  // stroke was put back. Worse, the save landing in the meantime tried to
+  // swap the temporary id for the real one on a list the stroke had already
+  // been taken out of, so it came back wearing a name the server had never
+  // heard of and could not be erased again until the page was reloaded.
+  // Which is exactly what it looked like from the outside.
+  const settledInkId = async (id) => {
+    if (typeof id === 'number') return id;
+    const saving = inkSaving.current.get(id);
+    if (!saving) return null;
+    try {
+      return (await saving)?.id ?? null;
+    } catch {
+      return null; // it was never saved, so there is nothing to erase
     }
   };
 
@@ -570,7 +599,9 @@ export default function App() {
     const was = ink.find((s) => s.id === id);
     setInk((all) => all.map((s) => (s.id === id ? { ...s, points } : s)));
     try {
-      const saved = await source.ink.move(id, points);
+      const real = await settledInkId(id);
+      if (real == null) return;
+      const saved = await source.ink.move(real, points);
       if (saved) setInk((all) => all.map((s) => (s.id === id ? saved : s)));
     } catch (err) {
       if (was) setInk((all) => all.map((s) => (s.id === id ? was : s)));
@@ -592,7 +623,9 @@ export default function App() {
     erasing.current.add(id);
     setInk((all) => all.filter((s) => s.id !== id));
     try {
-      await source.ink.remove(id);
+      const real = await settledInkId(id);
+      if (real == null) return; // never reached the server; already gone here
+      await source.ink.remove(real);
     } catch (err) {
       // A stroke the server does not have is a stroke that is gone, which
       // is what was wanted; anything else is a failure worth undoing.

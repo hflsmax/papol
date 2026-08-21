@@ -245,25 +245,14 @@ button.link.danger { color: var(--red); }
 
 .brush-pop .shade.on { border-color: var(--ink); }
 
-/* A stroke over a single hairline, which is the least that can show what
-   is being chosen: how much of what is underneath a mark leaves showing.
-   It was a whole ruled paragraph, and three ruled paragraphs side by side
-   is a texture rather than a choice. */
+/* Just the stroke, at the three strengths. The line behind it was there to
+   show what shows through, and was one thing too many in a sheet this
+   small — a paler bar already says paler. */
 .brush-pop .shade-sample {
   position: relative;
   display: block;
   width: 26px;
   height: 12px;
-}
-
-.brush-pop .shade-sample::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: var(--ink-faint);
 }
 
 .brush-pop .shade-ink {
@@ -695,7 +684,7 @@ button.link.danger { color: var(--red); }
 .help-sheet dl {
   margin: 0;
   display: grid;
-  grid-template-columns: 34px 18px max-content 1fr;
+  grid-template-columns: 34px 22px max-content 1fr;
   column-gap: 10px;
   align-items: center;
 }
@@ -733,8 +722,8 @@ button.link.danger { color: var(--red); }
   color: var(--ink-soft);
 }
 
-.help-glyph { display: grid; place-items: center; width: 18px; color: var(--ink-soft); }
-.help-glyph svg { width: 16px; height: 16px; }
+.help-glyph { display: grid; place-items: center; width: 22px; color: var(--ink-soft); }
+.help-glyph svg { width: 21px; height: 21px; }
 
 /* How to remember the key, beside the name it belongs to. Quieter than
    both, because it is a nudge rather than a fact about the viewer. */

@@ -754,65 +754,35 @@ export default function PdfPage({
     if (d) onMoveCow(d.id, { held: false, grazing: true, until: performance.now() + 1200 });
   };
 
-  // A brush, held at the angle a hand holds one, with its bristles in the
-  // colour it is about to leave behind and its tip on the spot the ink will
-  // land.
+  // The cursor is the stroke: a short strip exactly as thick on screen as
+  // the ink will be, worked out with the same arithmetic the stroke itself
+  // is drawn with, so the two cannot disagree. Its ends are half-circles,
+  // like the round caps a stroke is drawn with, so the shape under the hand
+  // is the shape that will be left behind. The hotspot is its middle,
+  // because that is where the line goes.
   //
-  // The same brush at every weight. It used to swell with the width, which
-  // put the bristles further from the tip the heavier the ink got — so how
-  // far the pointer was from the mark it was making depended on the
-  // setting, and aiming a wide brush meant aiming a different tool. The
-  // weight is said by the popover, by the button, and by the stroke itself;
-  // it does not also need saying by the distance to the reader's hand.
+  // There was a drawing of a brush here. It said which tool was in hand,
+  // which the bar already says, and it wanted a tip to aim with that was
+  // not where the ink lands.
   //
-  // White under everything, because a cursor has to be visible over black
-  // text and over a white page alike.
+  // White underneath, because a cursor has to be seen over black text and
+  // over a white page alike. Ninety is as far as the thickness goes: past
+  // about 128px a browser drops a cursor image altogether.
   const brushCursor = () => {
-    const bristles = 'M4.6 21.4c0-3.3 2.1-5.4 4.4-5.4s3.3 1.1 3.3 3.3-2.2 4.4-5.5 4.4H4.6z';
+    const thick = Math.max(1, Math.min(90, inkWidth * size.width * scale));
+    const LEN = 18;
+    const w = LEN + 4;
+    const h = thick + 4;
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26">` +
-      `<path d="M11.8 16.2 22.6 5.4" stroke="#ffffff" stroke-width="5.2" stroke-linecap="round"/>` +
-      `<path d="${bristles}" fill="#ffffff" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/>` +
-      `<path d="M11.8 16.2 22.6 5.4" stroke="#2b4a6f" stroke-width="2.6" stroke-linecap="round"/>` +
-      `<path d="${bristles}" fill="${inkColor}" fill-opacity="${inkOpacity}" ` +
-      `stroke="#2b4a6f" stroke-width="1" stroke-linejoin="round"/>` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h.toFixed(1)}">` +
+      `<rect x="1" y="1" width="${LEN + 2}" height="${(thick + 2).toFixed(1)}" ` +
+      `rx="${((thick + 2) / 2).toFixed(1)}" fill="#ffffff" fill-opacity="0.9"/>` +
+      `<rect x="2" y="2" width="${LEN}" height="${thick.toFixed(1)}" ` +
+      `rx="${(thick / 2).toFixed(1)}" fill="${inkColor}" fill-opacity="${inkOpacity}"/>` +
       `</svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 5 22, crosshair`;
-  };
-
-  // The anchor in hand is the anchor it drops: the same path, at the size
-  // the pin is drawn, with the hotspot on the point the pin hangs from — so
-  // where the cursor says it will land is where it lands. A margin round
-  // the box, because the white it is outlined in has to go somewhere.
-  const anchorCursor = (gold) => {
-    const PAD = 1.2;
-    const unit = 24 + PAD * 2;
-    const px = 30 * (unit / 24);
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${px.toFixed(1)}" ` +
-      `height="${px.toFixed(1)}" viewBox="${-PAD} ${-PAD} ${unit} ${unit}">` +
-      `<path d="${ANCHOR_D}" fill="none" stroke="#ffffff" stroke-width="2.4" ` +
-      `stroke-linejoin="round"/>` +
-      `<path d="${ANCHOR_D}" fill="${gold ? '#b3923d' : '#2b4a6f'}" fill-rule="evenodd"/></svg>`;
-    const hot = (v) => (((v + PAD) * px) / unit).toFixed(1);
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hot(ANCHOR_HANG.x)} ${hot(
-      ANCHOR_HANG.y
-    )}, copy`;
-  };
-
-  // A cow in hand, at the size the cow will be, with the hotspot under its
-  // feet — a cow is put down on the ground, not centred on a point.
-  const cowCursor = () => {
-    const w = Math.min(96, Math.max(28, COW_SIZE * size.width * scale));
-    const h = (w * COW_BOX.h) / COW_BOX.w;
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
-      `viewBox="0 0 ${COW_BOX.w} ${COW_BOX.h}">` +
-      `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
-      `${COW_PARTS}</g><g fill="#33383f">${COW_PATCH_PARTS}</g></svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(
-      1
-    )} ${(h * 0.9).toFixed(1)}, copy`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
+      h / 2
+    ).toFixed(1)}, crosshair`;
   };
 
   const strokeProps = {
