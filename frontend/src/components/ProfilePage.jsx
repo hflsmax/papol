@@ -325,8 +325,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
         <p className="panel-note">
           This permanently deletes your profile, notes, 
           and discussions. It cannot be undone.
-        </p>
-        <p className="panel-note">
           Download your data first if you want to keep it.
         </p>
 
