@@ -306,7 +306,7 @@ health_check() {
   say "Checking http://127.0.0.1:$port/"
   local i
   for i in $(seq 30); do
-    if curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:$port/"; then
+    if curl -fs -o /dev/null --max-time 3 "http://127.0.0.1:$port/"; then
       note "production is answering on $port"
       return 0
     fi
@@ -321,7 +321,7 @@ health_check() {
 # --- pulling production's data down ------------------------------------------
 
 dev_is_up() {
-  curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
+  curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
 }
 
 # The dev shell carries sqlite3; a shell that skipped direnv does not.
