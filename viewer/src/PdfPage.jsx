@@ -754,31 +754,43 @@ export default function PdfPage({
     if (d) onMoveCow(d.id, { held: false, grazing: true, until: performance.now() + 1200 });
   };
 
-  // The cursor is the stroke: a short strip exactly as thick on screen as
-  // the ink will be, worked out with the same arithmetic the stroke itself
-  // is drawn with, so the two cannot disagree. Its ends are half-circles,
-  // like the round caps a stroke is drawn with, so the shape under the hand
-  // is the shape that will be left behind. The hotspot is its middle,
-  // because that is where the line goes.
+  // The cursor is the stroke: a short strip as thick as the ink is on the
+  // page, with half-circle ends like the round caps a stroke is drawn with,
+  // and its hotspot in the middle, where the line goes.
+  //
+  // On the page, not on the screen. A stroke's width is a fraction of the
+  // page, so how many screen pixels it covers depends on the zoom — and
+  // the zoom changes on its own whenever the window is resized, which made
+  // the thing under the reader's hand change shape while they were not
+  // touching it. It is pinned to the page instead: constant for a document
+  // at any zoom and any window, and still true of the ink at 100%.
   //
   // There was a drawing of a brush here. It said which tool was in hand,
   // which the bar already says, and it wanted a tip to aim with that was
   // not where the ink lands.
   //
-  // White underneath, because a cursor has to be seen over black text and
-  // over a white page alike. Ninety is as far as the thickness goes: past
-  // about 128px a browser drops a cursor image altogether.
+  // Drawn at the strength the ink is drawn at, so a faint brush looks
+  // faint in the hand. A white backing was making it look solid whatever
+  // the setting said, which is the opposite of the point — ink over a page
+  // lets the print show through, and the thing you are holding should say
+  // so before you commit to a stroke. A white rim rather than a white
+  // filling, so it is still findable over black type without pretending to
+  // be opaque.
+  //
+  // Ninety is as far as the thickness goes: past about 128px a browser
+  // drops a cursor image altogether.
   const brushCursor = () => {
-    const thick = Math.max(1, Math.min(90, inkWidth * size.width * scale));
+    const thick = Math.max(1, Math.min(90, inkWidth * size.width));
     const LEN = 18;
     const w = LEN + 4;
     const h = thick + 4;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h.toFixed(1)}">` +
-      `<rect x="1" y="1" width="${LEN + 2}" height="${(thick + 2).toFixed(1)}" ` +
-      `rx="${((thick + 2) / 2).toFixed(1)}" fill="#ffffff" fill-opacity="0.9"/>` +
       `<rect x="2" y="2" width="${LEN}" height="${thick.toFixed(1)}" ` +
       `rx="${(thick / 2).toFixed(1)}" fill="${inkColor}" fill-opacity="${inkOpacity}"/>` +
+      `<rect x="1.4" y="1.4" width="${LEN + 1.2}" height="${(thick + 1.2).toFixed(1)}" ` +
+      `rx="${((thick + 1.2) / 2).toFixed(1)}" fill="none" stroke="#ffffff" ` +
+      `stroke-opacity="0.8" stroke-width="1.2"/>` +
       `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
       h / 2
