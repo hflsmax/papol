@@ -130,6 +130,35 @@ in {
       };
     };
 
+    deploy = {
+      passwordless = lib.mkEnableOption ''
+        running deploy.sh without being asked for a password. Grants
+        ${cfg.user} NOPASSWD sudo for exactly what a deploy does — starting,
+        stopping and reading the log of this one unit, and making the
+        directory the production checkout lives in — and nothing else. Worth
+        it when deploys are run unattended, by a cron job or by an agent,
+        where a password prompt is not a question anyone is there to answer
+      '';
+
+      passwordlessRebuild = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Extend that to `nixos-rebuild switch`, which deploy.sh runs when
+          module.nix or flake.nix moved.
+
+          Read this one twice. The system builds ${cfg.srcDir}/module.nix,
+          and ${cfg.user} can write that file — so a passwordless rebuild is
+          a passwordless way to run anything as root. It does not hand out
+          access that ${cfg.user} lacks, since they can already sudo with a
+          password; it removes the password as the thing standing between a
+          process running as them and the machine. Left off, deploys still
+          run unattended and only the rare deploy that changes the service
+          itself stops to ask.
+        '';
+      };
+    };
+
     contactEmail = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -210,6 +239,36 @@ in {
         RestartSec = 5;
       };
     };
+
+    # What deploy.sh needs from root, named one command at a time. The
+    # paths are the ones sudo will resolve out of PATH; the arguments are
+    # matched too, so this is the papol unit and no other.
+    #
+    # mkAfter because sudoers is last-match-wins: the wheel rule that asks
+    # for a password matches these commands too, and whichever is written
+    # second decides.
+    security.sudo.extraRules = lib.mkIf cfg.deploy.passwordless (lib.mkAfter [{
+      users = [ cfg.user ];
+      commands = map (command: { inherit command; options = [ "NOPASSWD" ]; }) (
+        lib.concatMap (verb: [
+          "/run/current-system/sw/bin/systemctl ${verb} papol"
+          "/run/current-system/sw/bin/systemctl ${verb} papol.service"
+        ]) [ "start" "stop" "restart" ]
+        ++ [
+          "/run/current-system/sw/bin/systemctl status papol"
+          "/run/current-system/sw/bin/journalctl -u papol *"
+          "/run/current-system/sw/bin/install -d -o ${cfg.user} -g users ${dirOf cfg.srcDir}"
+        ]
+        ++ lib.optional cfg.deploy.passwordlessRebuild
+          "/run/current-system/sw/bin/nixos-rebuild switch"
+      );
+    }]);
+
+    # And once this has been applied, the directory is simply there, so the
+    # one command above that makes it never has to run again.
+    systemd.tmpfiles.rules = lib.mkIf cfg.deploy.passwordless [
+      "d ${dirOf cfg.srcDir} 0755 ${cfg.user} users -"
+    ];
 
     # oci-containers defaults to podman, which would stand a second container
     # runtime up beside the docker this host already runs — and pull the

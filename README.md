@@ -6,46 +6,139 @@ read, anyone can **call for a spontaneous seminar** on a paper — notifying all
 readers — and whoever answers to lead plans it in a **room** (availability, platform,
 discussion). See [USER_STORIES.md](USER_STORIES.md) for the full feature set.
 
-## NixOS Deployment
+## Deployment
 
-### 1. Initial Setup
+Papol runs twice on one machine. **Development** is this working tree, started
+by hand on port 8000, holding its own database and free to break.
+**Production** is a checkout of its own under `/srv/papol/prod`, run as
+`papol.service`, with its own database, uploads and `.env`. Nothing crosses
+between them except code, and only by promoting it.
 
-Add to your NixOS configuration:
+The two are reached differently, which is the point:
+
+| | development | production |
+|---|---|---|
+| address | `http://papol.local` on the LAN, `http://localhost:5173` here | `https://mc-pony.com/papol`, `http://localhost` |
+| started by | `uvicorn main:app --reload` | systemd |
+| database | `backend/papol.db` in this tree | `backend/papol.db` in its own |
+
+`papol.local` is the easy name to type from a phone across the room, so it
+points at development — the copy that is allowed to be half-finished. It
+serves the built frontend, so `./deploy.sh dev` first; the Vite dev server
+with hot reload stays at `localhost:5173`.
+
+### Deploying
+
+```bash
+./deploy.sh dev            # build this tree, for papol.local
+./deploy.sh prod           # promote main to production
+./deploy.sh prod v1.2      # promote some other ref
+./deploy.sh pull           # copy production's data down to development
+./deploy.sh status         # what is running where
+```
+
+Code goes up with `prod`, data comes down with `pull`, and neither ever runs
+the other way.
+
+`deploy.sh prod` moves the production checkout to the ref, builds it, backs
+up its database, restarts the service, and waits for it to answer. When
+`module.nix` or `flake.nix` moved — or when the running unit is not yet this
+checkout's — it runs `nixos-rebuild switch` instead of a plain restart, since
+those files *are* the service. It refuses to deploy over uncommitted changes
+in the production tree and says so when the ref is ahead of `origin/main`.
+
+### Working against real data
+
+`./deploy.sh pull` gives development production's database and PDFs, so a
+change can be tried against the paper that actually renders oddly and the
+nook that actually has a hundred entries. It is also how a schema change is
+rehearsed: the copy arrives at production's schema and `migrate()` runs over
+it on the next start, which is what the next deploy will do for real.
+
+The copy is taken with SQLite's backup API rather than `cp`, so production can
+keep serving readers while it runs, and nothing is ever written back the other
+way. Development's own database is kept beside it as `papol.db.bak-*-pre-pull`
+first. Pass `--no-uploads` to skip the 60-odd megabytes of PDFs, at the cost of
+404s on papers whose file only exists in production.
+
+Two things are scrubbed out of the copy on the way in, because a database is
+not only data:
+
+- the `smtp_*` rows, which are live credentials. `_smtp_cfg` reads the
+  environment first and the `settings` table second, so an unscrubbed copy
+  mails real readers from a development machine. Development's `.env` points
+  SMTP at a dead port as well, but that only holds in a shell that loaded it —
+  dropping the rows holds everywhere.
+- `site_url`, rewritten to `http://papol.local/`, so a link generated here
+  leads here.
+
+It refuses to run while the development server is up: replacing a database
+under a process that has it open is how you end up with half of each.
+
+The first `./deploy.sh prod` creates the worktree and hands production a copy
+of today's database, uploads and secrets, then prints the `configuration.nix`
+it now needs:
 
 ```nix
 # /etc/nixos/configuration.nix
-{ ... }: {
-  imports = [ /home/congm/src/papol/module.nix ];
+imports = [ /srv/papol/prod/module.nix ];
 
-  services.papol.enable = true;
-  # services.papol.domain = "papers.example.com";  # for HTTPS
-}
+services.papol = {
+  enable = true;
+  srcDir = "/srv/papol/prod";
+  port = 8001;          # development keeps 8000, the one you type by hand
+  hostAliasPort = 8000; # so http://papol.local reaches development
+  grobid.enable = true;
+  contactEmail = "you@example.com";
+  # domain = "papers.example.com";  # for HTTPS on a name of its own
+};
 ```
 
-Build frontend and switch:
+### Deploying without a password
 
-```bash
-cd /home/congm/src/papol
-nix develop --command bash -c "cd frontend && npm install && npm run build"
-sudo nixos-rebuild switch
+A deploy stops the service, reads its log and sometimes rebuilds the system,
+so parts of `deploy.sh` need root. Run from a terminal that is just a sudo
+prompt; run by a cron job or an agent it is a script waiting forever on a
+stdin nobody will answer. `deploy.sh` checks, per command, whether sudo would
+ask — and when it would and there is no terminal, it says so and stops rather
+than hanging.
+
+To make it not ask:
+
+```nix
+services.papol.deploy.passwordless = true;
 ```
 
-Access at http://localhost
+That grants NOPASSWD sudo for exactly what a deploy does and nothing else:
+start, stop, restart, `status` and `journalctl` for the `papol` unit, and the
+one `install -d` that makes the directory the checkout lives in. Every other
+sudo still wants your password. It also declares that directory as a tmpfiles
+rule, so after the first rebuild even that command is moot.
 
-### 2. Updating
+`nixos-rebuild switch` is deliberately not in that set, so a deploy that
+changes the service itself still stops to ask. Adding it:
 
-After code changes:
-
-```bash
-./update.sh
+```nix
+services.papol.deploy.passwordlessRebuild = true;
 ```
 
-Or manually:
+is a bigger step than it looks. The system builds `/srv/papol/prod/module.nix`
+and that file is writable by the same user, so a passwordless rebuild is a
+passwordless way to run anything as root. It grants no access that user did
+not already have — they can sudo with a password — but it removes the password
+as the thing between a process running as them and the machine. Left off,
+unattended deploys still work; only the rare one that moves `module.nix` or
+`flake.nix` needs a human.
 
-```bash
-nix develop --command bash -c "cd frontend && npm run build"  # if frontend changed
-sudo systemctl restart papol                      # if backend changed
-```
+The module is imported from the production checkout rather than from this
+tree, so the service is described by the same commit that runs it, and an
+unfinished edit here cannot break `nixos-rebuild`.
+
+Two settings differ between the trees and must not be copied back and forth.
+Production's `.env` carries the real SMTP credentials; development's points
+them at a dead port, because `_smtp_cfg` falls back to the `settings` table
+and a database copied from production will otherwise mail real readers.
+`PAPOL_URL` decides which of the two an emailed link leads to.
 
 ## The reference analyzer (optional)
 
@@ -77,12 +170,14 @@ day without a key, about a thousand with a free one from
 `configuration.nix`: anything written into a NixOS option is copied into the
 world-readable `/nix/store`. Papol reads `.env` beside the code if it is there
 — the same file direnv loads into a development shell, and where `SMTP_*`
-belongs too. It is gitignored, and must stay that way:
+belongs too. It is gitignored, and must stay that way. Each tree has its own,
+so the key goes in whichever one you are setting up:
 
 ```bash
 umask 077
-echo 'PAPOL_OPENALEX_KEY=your-key-here' >> .env
-sudo systemctl restart papol
+echo 'PAPOL_OPENALEX_KEY=your-key-here' >> .env                  # development
+echo 'PAPOL_OPENALEX_KEY=your-key-here' >> /srv/papol/prod/.env  # production
+sudo systemctl restart papol                                     # production only
 ```
 
 Papol is frugal with them regardless: CrossRef is asked first, and a search is
