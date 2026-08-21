@@ -506,18 +506,17 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                 Read
               </a>
             )}
-            {/* Reading is offered to everyone, because it is what a reader
-                came here to do — but a paper is read in your own copy of
-                it, where your place and your notes are kept. So the button
-                is here and says what has to happen first, rather than
-                being absent and leaving the reader to work out that taking
-                the paper is what unlocks it. */}
+            {/* Reading is offered before the paper is taken, because it is
+                what a reader came here to do. Pressing it says what has to
+                happen first — and only that. The reason a paper is read
+                from your own copy is not what someone wants at the moment
+                they are told they cannot read it yet. */}
             {currentUser && !paper.viewer_has_entry && (
               <span className="hint-anchor">
                 <button onClick={() => setReadHint(true)}>Read</button>
                 {readHint && (
                   <HintPop
-                    text="Add this paper to your nook first — reading happens in your own copy, which is where your place and your notes are kept."
+                    text="Add this paper to your nook first."
                     onClose={() => setReadHint(false)}
                   />
                 )}
