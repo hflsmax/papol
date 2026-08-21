@@ -25,16 +25,28 @@ const MAX_SCALE = 10;
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
 const FIT_MAX_WIDTH = 1100;
-// The brush draws in Papol's gold: it reads as a mark made over a page
-// rather than as part of it, at both the weights a printed paper uses.
-const INK_COLOR = '#b3923d';
-// A fraction of the page width, so a stroke keeps its weight at any zoom.
-const INK_WIDTH = 0.004;
+// Five colours, not a colour wheel. Ink goes over a printed page, and most
+// of the colour space is either invisible on white or unreadable across
+// black text; these are Papol's own, each dark enough to read over a line
+// of type. Picked with 1 to 5 while the brush is in hand.
+const INK_COLORS = [
+  { hex: '#b3923d', name: 'Gold' },
+  { hex: '#8c2f22', name: 'Red' },
+  { hex: '#2b4a6f', name: 'Blue' },
+  { hex: '#4a6b52', name: 'Green' },
+  { hex: '#1d2129', name: 'Ink' },
+];
+
+// Fractions of the page width, so a stroke keeps its weight at any zoom.
+// Stepped with [ and ].
+const INK_WIDTHS = [0.002, 0.004, 0.007, 0.012];
+const INK_COLOR = INK_COLORS[0].hex;
+const INK_WIDTH = INK_WIDTHS[1];
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
 
-// What the reader can be holding. The arrow is reading as it has always
-// been: text selects, a double-click places an anchor. The other three put
+// What the reader can be holding. The arrow is reading: text selects, and
+// what is already on the page can be picked up and moved. The rest put
 // something in their hand, and the page stops being selectable while they
 // hold it.
 // z x c v, in the order the tools sit in the bar: four keys in a row under
@@ -116,6 +128,18 @@ export default function App() {
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
   const [draggingNoteId, setDraggingNoteId] = useState(null);
+  // What the brush is loaded with. Remembered like the tool itself: someone
+  // who marks a paper up in red goes on doing it in red.
+  const [inkColor, setInkColor] = useState(
+    () => localStorage.getItem('papol_viewer_ink') || INK_COLOR
+  );
+  const [inkWidth, setInkWidth] = useState(() => {
+    const kept = Number(localStorage.getItem('papol_viewer_ink_width'));
+    return INK_WIDTHS.includes(kept) ? kept : INK_WIDTH;
+  });
+  // The little sheet under the brush. It exists only while the brush is
+  // held, which is the point of it: this is not a setting about the viewer.
+  const [brushOpen, setBrushOpen] = useState(false);
   const tempInkId = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
@@ -232,6 +256,16 @@ export default function App() {
     localStorage.setItem('papol_viewer_tool', tool);
   }, [tool]);
 
+  useEffect(() => {
+    localStorage.setItem('papol_viewer_ink', inkColor);
+    localStorage.setItem('papol_viewer_ink_width', String(inkWidth));
+  }, [inkColor, inkWidth]);
+
+  // Putting the brush down closes the sheet that belongs to it.
+  useEffect(() => {
+    if (tool !== 'brush') setBrushOpen(false);
+  }, [tool]);
+
   // Through a ref that is refreshed every render, because the listener is
   // bound once and would otherwise go on reading the first render's `tool`
   // and `placeAt` for the life of the page — which looked like it worked,
@@ -260,6 +294,30 @@ export default function App() {
       // a and A are looked up as typed — they are two tools, not one tool
       // and a modifier — and everything else by its lower case, so a
       // shifted X is still the brush.
+      if (e.key === 'Escape' && brushOpen) {
+        e.preventDefault();
+        setBrushOpen(false);
+        return;
+      }
+
+      // Loading the brush, while the brush is what is in hand. Digits and
+      // brackets, so nothing here is a letter another tool wanted.
+      if (tool === 'brush') {
+        const slot = Number(e.key);
+        if (slot >= 1 && slot <= INK_COLORS.length) {
+          e.preventDefault();
+          setInkColor(INK_COLORS[slot - 1].hex);
+          return;
+        }
+        if (e.key === '[' || e.key === ']') {
+          e.preventDefault();
+          const at = INK_WIDTHS.indexOf(inkWidth);
+          const to = e.key === '[' ? at - 1 : at + 1;
+          if (INK_WIDTHS[to] !== undefined) setInkWidth(INK_WIDTHS[to]);
+          return;
+        }
+      }
+
       const picked = TOOL_KEYS[e.key] ?? TOOL_KEYS[e.key?.toLowerCase()];
       if (!picked) return;
       e.preventDefault();
@@ -604,10 +662,10 @@ export default function App() {
     };
   }, [doc]);
 
-  // A double-click on the page puts an anchor there straight away — on
-  // screen at once, saved in the background, so a slow server never makes
-  // the reader wait to see their own mark. Temporary ids are negative, so
-  // they can never collide with the server's.
+  // An anchor appears on screen at once and is saved in the background, so
+  // a slow server never makes the reader wait to see their own mark.
+  // Temporary ids are negative, so they can never collide with the
+  // server's.
   const handlePlace = (spot) => {
     const tempId = -Date.now();
     const optimistic = {
@@ -638,8 +696,8 @@ export default function App() {
     return tempId;
   };
 
-  // A triple-click marks the reader's place in the paper: one per paper,
-  // so any earlier one steps down.
+  // Marking the reader's place in the paper: one per paper, so any earlier
+  // one steps down.
   // Picking up an anchor remembers what was put down for it, so that
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
@@ -879,26 +937,81 @@ export default function App() {
         <span className="spacer" />
         <span className="tools" role="group" aria-label="Tool">
           {TOOLS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`tool${tool === t.id ? ' on' : ''}`}
-              aria-pressed={tool === t.id}
-              aria-label={t.label}
-              title={`${t.label} (${t.badge}) — ${t.hint}`}
-              onClick={() => takeTool(t.id)}
-            >
-              <ToolGlyph id={t.id} />
-              {/* The key, on the thing it presses. A shortcut written only
-                  in a tooltip is one nobody finds. */}
-              <span
-                className="tool-key"
-                data-wide={t.badge.length > 1 ? 'true' : undefined}
-                aria-hidden="true"
+            <span className="tool-slot" key={t.id}>
+              <button
+                type="button"
+                className={`tool${tool === t.id ? ' on' : ''}`}
+                // The brush wears what it is loaded with, so the bar answers
+                // "what will I draw with" without anything being opened.
+                style={t.id === 'brush' ? { '--loaded': inkColor } : undefined}
+                aria-pressed={tool === t.id}
+                aria-label={t.label}
+                aria-expanded={t.id === 'brush' ? brushOpen : undefined}
+                title={
+                  t.id === 'brush'
+                    ? `${t.label} (X) — ${t.hint}. Click again for colour and width`
+                    : `${t.label} (${t.badge}) — ${t.hint}`
+                }
+                onClick={() => {
+                  // Once to pick it up, again to open what belongs to it.
+                  if (t.id === 'brush' && tool === 'brush') setBrushOpen((o) => !o);
+                  else takeTool(t.id);
+                }}
               >
-                {t.badge}
-              </span>
-            </button>
+                <ToolGlyph id={t.id} />
+                {/* The key, on the thing it presses. A shortcut written only
+                    in a tooltip is one nobody finds. */}
+                <span
+                  className="tool-key"
+                  data-wide={t.badge.length > 1 ? 'true' : undefined}
+                  aria-hidden="true"
+                >
+                  {t.badge}
+                </span>
+              </button>
+
+              {/* Hung off the brush rather than put in the bar: how heavy
+                  the ink is and what colour it is are facts about the
+                  brush, and mean nothing while anything else is in hand. */}
+              {t.id === 'brush' && brushOpen && (
+                <div className="brush-pop" role="group" aria-label="Colour and width">
+                  <div className="swatches">
+                    {INK_COLORS.map((c, i) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        className={`swatch${c.hex === inkColor ? ' on' : ''}`}
+                        style={{ background: c.hex }}
+                        aria-pressed={c.hex === inkColor}
+                        aria-label={c.name}
+                        title={`${c.name} (${i + 1})`}
+                        onClick={() => setInkColor(c.hex)}
+                      />
+                    ))}
+                  </div>
+                  <div className="weights">
+                    {INK_WIDTHS.map((w, i) => (
+                      <button
+                        key={w}
+                        type="button"
+                        className={`weight${w === inkWidth ? ' on' : ''}`}
+                        aria-pressed={w === inkWidth}
+                        aria-label={`Width ${i + 1}`}
+                        title={i === 0 ? 'Finest ([ and ])' : `Width ${i + 1}`}
+                        onClick={() => setInkWidth(w)}
+                      >
+                        {/* Drawn at the weight it means, which is the only
+                            way anyone judges a stroke width. */}
+                        <span
+                          className="weight-dot"
+                          style={{ width: 4 + i * 4, height: 4 + i * 4, background: inkColor }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </span>
           ))}
         </span>
         {/* The paper page no longer offers the raw file, so the way to keep
@@ -962,8 +1075,8 @@ export default function App() {
               onMoveNote={moveNote}
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
-              inkColor={INK_COLOR}
-              inkWidth={INK_WIDTH}
+              inkColor={inkColor}
+              inkWidth={inkWidth}
               onDrawStroke={drawStroke}
               onEraseStroke={eraseStroke}
               onEraseNote={removeNote}
@@ -1045,12 +1158,15 @@ export default function App() {
           {numbered.length === 0 && (
             <div className="manual">
               <p>
-                <b>Double-click</b> the page to drop an anchor. Give it a name, 
-                and add a note if you like.
+                Press <b>A</b> and click the page to drop an anchor. Give it a
+                name, and add a note if you like.
               </p>
               <p>
-                <b>Triple-click</b> to mark where you are. One per paper.
-                The viewer opens at that spot next time you return.
+                Press <b>shift-A</b> to mark where you are. One per paper. The
+                viewer opens at that spot next time you return.
+              </p>
+              <p>
+                The <b>?</b> above says what the rest of the tools do.
               </p>
             </div>
           )}

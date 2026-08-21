@@ -177,6 +177,52 @@ button.link.danger { color: var(--red); }
    changes often enough while marking a paper up that it should cost one
    click and no reading. */
 .tools { flex: none; display: flex; align-items: center; gap: 2px; }
+.tool-slot { position: relative; display: flex; }
+
+/* Hung under the brush, pointing at it. */
+.brush-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -6px;
+  z-index: 30;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 10px 26px rgba(29, 33, 41, 0.2);
+}
+
+.swatches, .weights { display: flex; align-items: center; gap: 6px; }
+
+.brush-pop .swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
+}
+
+.brush-pop .swatch.on { border-color: var(--ink); }
+
+.brush-pop .weight {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+}
+
+.brush-pop .weight.on { border-color: var(--ink); }
+.brush-pop .weight-dot { border-radius: 50%; display: block; }
+
 
 .viewer-bar .tool {
   position: relative;

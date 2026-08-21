@@ -68,9 +68,10 @@ function BrushTool() {
         fill="currentColor"
         d="M20.9 3.4a2.2 2.2 0 0 0-3.1 0l-7.6 7.6 3.1 3.1 7.6-7.6a2.2 2.2 0 0 0 0-3.1Z"
       />
-      {/* The bristles, wider than the handle so the two read apart. */}
+      {/* The bristles, wider than the handle so the two read apart, and in
+          whatever the brush is loaded with when anything has said. */}
       <path
-        fill="currentColor"
+        fill="var(--loaded, currentColor)"
         d="M8.6 12.7 4.9 16.4c-1.1 1.1-1.1 3 0 4.1s3 1.1 4.1 0l3.7-3.7Z"
       />
     </>

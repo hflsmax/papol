@@ -111,6 +111,10 @@ export default function PdfPage({
   // the far end of the line rather than adding to a freehand path.
   const straightRef = useRef(false);
   const holdRef = useRef(null);
+  // Shift, held now. Unlike the hold, this is not sticky: let go of shift
+  // and the freehand line the hand actually drew comes back, because it was
+  // never thrown away — only drawn over.
+  const shiftRef = useRef(false);
   // What the eraser is over. Shown lit rather than left to be guessed at:
   // rubbing out is not undoable here, and a reader should be able to see
   // what is about to go before they press.
@@ -539,7 +543,30 @@ export default function PdfPage({
     // ordinary way to use it, and holding a button down to do that is not
     // how anyone points at anything.
     if (tool === 'laser') {
-      pushLaser(at, (e.buttons & 1) === 1);
+      const pressed = (e.buttons & 1) === 1;
+      // Ruled, while shift is down: the run keeps where it started and its
+      // far end follows the pointer square to the page. Everything it had
+      // wandered through in between is not part of a ruled line.
+      if (pressed && e.shiftKey) {
+        const trail = laserRef.current;
+        const run = laserRunRef.current;
+        const from = trail.findIndex((pt) => pt.run === run);
+        if (from >= 0) {
+          laserRef.current = [
+            ...trail.slice(0, from + 1),
+            {
+              ...axisSnap(trail[from], at),
+              t: performance.now(),
+              life: LASER_PASSING,
+              held: true,
+              run,
+            },
+          ];
+          frameLaser();
+          return;
+        }
+      }
+      pushLaser(at, pressed);
       return;
     }
     // The eraser lights up what it is over whether or not it is pressed:
@@ -561,16 +588,14 @@ export default function PdfPage({
       // Snapped already: the line keeps its start and follows the pointer
       // with its far end, so it can still be aimed after it has gone
       // straight.
-      if (straightRef.current) {
-        wetRef.current = [points[0], axisSnap(points[0], at)];
-        setWet(wetRef.current);
-        return;
-      }
       if (points.length >= MAX_POINTS) return;
       if (inPageUnits(points[points.length - 1], at) < MIN_STEP) return;
       wetRef.current = [...points, at];
+      shiftRef.current = e.shiftKey;
       setWet(wetRef.current);
-      armStraighten();
+      // Holding shift is a decision, not a pause: it needs no waiting for.
+      if (e.shiftKey) stopStraighten();
+      else armStraighten();
     } else if (tool === 'laser') {
       laserRef.current = [...laserRef.current, { ...at, t: performance.now() }];
       frameLaser();
@@ -589,9 +614,19 @@ export default function PdfPage({
     wetRef.current = null;
     setWet(null);
     if (tool === 'brush' && points?.length) {
-      onDrawStroke({ page: pageNumber, points, color: inkColor, width: inkWidth });
+      onDrawStroke({ page: pageNumber, points: laid(points), color: inkColor, width: inkWidth });
     }
+    shiftRef.current = false;
   };
+
+  // The shape a wet stroke is currently making: what the hand drew, or —
+  // while shift is down, or once holding still has snapped it — the
+  // straight line square to the page between where it started and where the
+  // pointer is now.
+  const laid = (points) =>
+    points && points.length > 1 && (shiftRef.current || straightRef.current)
+      ? [points[0], axisSnap(points[0], points[points.length - 1])]
+      : points;
 
   // A lone point is a dot the reader meant to make, and a path that only
   // moves draws nothing — so it is given somewhere to go.
@@ -803,7 +838,7 @@ export default function PdfPage({
             })}
             {wet && (
               <path
-                d={pathFor(wet)}
+                d={pathFor(laid(wet))}
                 stroke={inkColor}
                 strokeWidth={inkWidth * size.width}
                 {...strokeProps}
