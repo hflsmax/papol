@@ -249,6 +249,7 @@ export default function App() {
   const [sheet, setSheet] = useState(null);
   const brushOpen = sheet === 'brush';
   const tempInkId = useRef(0);
+  const tempNoteId = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
   // Strokes still being saved, by the temporary id they are wearing until
@@ -935,7 +936,13 @@ export default function App() {
   // Temporary ids are negative, so they can never collide with the
   // server's.
   const handlePlace = (spot) => {
-    const tempId = -Date.now();
+    // Counted, not clocked. This was -Date.now(), so two anchors dropped in
+    // the same millisecond took the same temporary id: two notes with one
+    // key, and a `pending` entry for the second standing in for the first,
+    // whose real id could then never be found — leaving an anchor that
+    // could not be moved, renamed or deleted until the page was reloaded.
+    // Negative still, so it can never be mistaken for one of the server's.
+    const tempId = -(tempNoteId.current += 1);
     const optimistic = {
       id: tempId,
       ...spot,
@@ -1113,6 +1120,13 @@ export default function App() {
 
   const removeNote = async (id) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
+    // Let go of it everywhere. SQLite hands out a deleted row's id again,
+    // so a number kept here after the note it named has gone will one day
+    // name a different note — and open its card, or light its row, for no
+    // reason anyone could see.
+    setActiveNoteId((open) => (open === id ? null : open));
+    setFlashId((lit) => (lit === id ? null : lit));
+    setDraggingNoteId((carried) => (carried === id ? null : carried));
     try {
       const real = await settledId(id);
       if (real != null) await source.notes.remove(real);
