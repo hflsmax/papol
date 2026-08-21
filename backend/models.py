@@ -254,6 +254,11 @@ class InkStroke(Base):
     points = Column(Text, nullable=False)
     color = Column(String, nullable=False, default="#b3923d")
     width = Column(Float, nullable=False, default=0.004)
+    # 1 is solid ink; less lets the words underneath show through, which is
+    # what a reader wants when marking a line rather than crossing it out.
+    # A server_default so that migrate() can add it to an existing table:
+    # SQLite will not add a NOT NULL column without one.
+    opacity = Column(Float, nullable=False, default=1.0, server_default="1.0")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     edition = relationship("PaperEdition")

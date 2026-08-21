@@ -226,6 +226,45 @@ button.link.danger { color: var(--red); }
 }
 
 .brush-pop .weight.on { border-color: var(--ink); }
+
+.brush-pop .shade {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+}
+
+.brush-pop .shade.on { border-color: var(--ink); }
+
+/* A stroke over a line of type, since what is being chosen is how much of
+   the page a mark leaves readable. */
+.brush-pop .shade-sample {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 14px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--ink-faint) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.brush-pop .shade-ink {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 6px;
+  border-radius: 3px;
+  display: block;
+}
 .brush-pop .weight-dot { border-radius: 50%; display: block; }
 
 

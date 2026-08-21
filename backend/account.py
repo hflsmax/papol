@@ -179,6 +179,7 @@ def gather(db: Session, user: User) -> dict:
                 "points": json.loads(i.points),
                 "color": i.color,
                 "width": i.width,
+                "opacity": i.opacity,
                 "drawn": _when(i.created_at),
             }
             for i in ink

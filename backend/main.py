@@ -1391,6 +1391,7 @@ def _stroke_out(stroke: InkStroke) -> InkStrokeOut:
         points=json.loads(stroke.points),
         color=stroke.color,
         width=stroke.width,
+        opacity=stroke.opacity,
     )
 
 
@@ -1443,6 +1444,7 @@ async def add_ink(
         points=json.dumps([p.model_dump() for p in stroke.points]),
         color=stroke.color,
         width=stroke.width,
+        opacity=stroke.opacity,
     )
     db.add(row)
     db.commit()

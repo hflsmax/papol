@@ -83,6 +83,7 @@ export default function PdfPage({
   ink,
   inkColor,
   inkWidth,
+  inkOpacity,
   onDrawStroke,
   onEraseStroke,
   onEraseNote,
@@ -638,7 +639,13 @@ export default function PdfPage({
     wetRef.current = null;
     setWet(null);
     if (tool === 'brush' && points?.length) {
-      onDrawStroke({ page: pageNumber, points: laid(points), color: inkColor, width: inkWidth });
+      onDrawStroke({
+        page: pageNumber,
+        points: laid(points),
+        color: inkColor,
+        width: inkWidth,
+        opacity: inkOpacity,
+      });
     }
     shiftRef.current = false;
   };
@@ -762,7 +769,8 @@ export default function PdfPage({
       `<path d="M11.8 16.2 22.6 5.4" stroke="#ffffff" stroke-width="5.2" stroke-linecap="round"/>` +
       `<path d="${bristles}" fill="#ffffff" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/>` +
       `<path d="M11.8 16.2 22.6 5.4" stroke="#2b4a6f" stroke-width="2.6" stroke-linecap="round"/>` +
-      `<path d="${bristles}" fill="${inkColor}" stroke="#2b4a6f" stroke-width="1" stroke-linejoin="round"/>` +
+      `<path d="${bristles}" fill="${inkColor}" fill-opacity="${inkOpacity}" ` +
+      `stroke="#2b4a6f" stroke-width="1" stroke-linejoin="round"/>` +
       `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 5 22, crosshair`;
   };
@@ -879,6 +887,7 @@ export default function PdfPage({
                     d={pathFor(points)}
                     stroke={stroke.color}
                     strokeWidth={stroke.width * size.width}
+                    opacity={stroke.opacity ?? 1}
                     {...strokeProps}
                   />
                   {/* Something to take hold of. A drawn line is a few pixels
@@ -907,6 +916,7 @@ export default function PdfPage({
                 d={pathFor(laid(wet))}
                 stroke={inkColor}
                 strokeWidth={inkWidth * size.width}
+                opacity={inkOpacity}
                 {...strokeProps}
               />
             )}

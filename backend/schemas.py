@@ -112,6 +112,7 @@ class InkStrokeCreate(BaseModel):
     points: List[InkPoint] = Field(min_length=1, max_length=4000)
     color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
     width: float = Field(default=0.004, gt=0, le=0.1)
+    opacity: float = Field(default=1.0, gt=0, le=1)
 
 
 class InkStrokeUpdate(BaseModel):
@@ -127,6 +128,7 @@ class InkStrokeOut(BaseModel):
     points: List[InkPoint]
     color: str
     width: float
+    opacity: float
 
     class Config:
         from_attributes = True

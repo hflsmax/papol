@@ -40,8 +40,18 @@ const INK_COLORS = [
 // Fractions of the page width, so a stroke keeps its weight at any zoom.
 // Stepped with [ and ].
 const INK_WIDTHS = [0.002, 0.004, 0.007, 0.012];
+
+// Three, one of them solid. Anything less than solid lets the words
+// underneath show through, which is what marking a line wants and what
+// crossing one out does not.
+const INK_OPACITIES = [
+  { value: 1, name: 'Solid' },
+  { value: 0.5, name: 'Half' },
+  { value: 0.25, name: 'Faint' },
+];
 const INK_COLOR = INK_COLORS[0].hex;
 const INK_WIDTH = INK_WIDTHS[1];
+const INK_OPACITY = INK_OPACITIES[0].value;
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
 
@@ -154,6 +164,10 @@ export default function App() {
   });
   // The little sheet under the brush. It exists only while the brush is
   // held, which is the point of it: this is not a setting about the viewer.
+  const [inkOpacity, setInkOpacity] = useState(() => {
+    const kept = Number(localStorage.getItem('papol_viewer_ink_opacity'));
+    return INK_OPACITIES.some((o) => o.value === kept) ? kept : INK_OPACITY;
+  });
   const [brushOpen, setBrushOpen] = useState(false);
   const tempInkId = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
@@ -274,7 +288,8 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('papol_viewer_ink', inkColor);
     localStorage.setItem('papol_viewer_ink_width', String(inkWidth));
-  }, [inkColor, inkWidth]);
+    localStorage.setItem('papol_viewer_ink_opacity', String(inkOpacity));
+  }, [inkColor, inkWidth, inkOpacity]);
 
   // Putting the brush down closes the sheet that belongs to it.
   useEffect(() => {
@@ -1079,6 +1094,28 @@ export default function App() {
                       />
                     ))}
                   </div>
+                  <div className="weights" role="group" aria-label="Transparency">
+                    {INK_OPACITIES.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        className={`shade${o.value === inkOpacity ? ' on' : ''}`}
+                        aria-pressed={o.value === inkOpacity}
+                        aria-label={o.name}
+                        title={o.name}
+                        onClick={() => setInkOpacity(o.value)}
+                      >
+                        {/* Shown over a rule of text, because how much of
+                            the page a mark hides is the whole question. */}
+                        <span className="shade-sample">
+                          <span
+                            className="shade-ink"
+                            style={{ background: inkColor, opacity: o.value }}
+                          />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                   <div className="weights">
                     {INK_WIDTHS.map((w, i) => (
                       <button
@@ -1094,7 +1131,12 @@ export default function App() {
                             way anyone judges a stroke width. */}
                         <span
                           className="weight-dot"
-                          style={{ width: 4 + i * 4, height: 4 + i * 4, background: inkColor }}
+                          style={{
+                            width: 4 + i * 4,
+                            height: 4 + i * 4,
+                            background: inkColor,
+                            opacity: inkOpacity,
+                          }}
                         />
                       </button>
                     ))}
@@ -1167,6 +1209,7 @@ export default function App() {
               ink={inkByPage.get(n) || EMPTY_INK}
               inkColor={inkColor}
               inkWidth={inkWidth}
+              inkOpacity={inkOpacity}
               onDrawStroke={drawStroke}
               onEraseStroke={eraseStroke}
               onEraseNote={removeNote}
@@ -1257,15 +1300,7 @@ export default function App() {
           {numbered.length === 0 && (
             <div className="manual">
               <p>
-                Press <b>A</b> and click the page to drop an anchor. Give it a
-                name, and add a note if you like.
-              </p>
-              <p>
-                Press <b>shift-A</b> to mark where you are. One per paper. The
-                viewer opens at that spot next time you return.
-              </p>
-              <p>
-                The <b>?</b> above says what the rest of the tools do.
+                Use the help above to learn the different tools.
               </p>
             </div>
           )}
