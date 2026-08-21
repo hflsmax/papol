@@ -508,7 +508,7 @@ export default function PdfPage({
       if (nearStroke(stroke.points, at, ERASE_REACH)) found.ink.push(stroke.id);
     }
     for (const note of notes) {
-      if (note.content || note.current_place || !note.anchor) continue;
+      if (note.content || !note.anchor) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.id);
     }
     for (const cow of cows) {
@@ -521,13 +521,13 @@ export default function PdfPage({
     for (const stroke of ink) {
       if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.id);
     }
-    // An anchor is a mark on the page, so the eraser takes it too. What it
-    // does not take is a note with words in it, or the reader's place: the
-    // first is writing and the second is a bookmark, neither is something
-    // drawn, and a swipe of the hand is no way to lose either — there is no
-    // undo here. Both are still deleted from the pin's own menu.
+    // An anchor is a mark on the page, so the eraser takes it — including
+    // the one that says where you are, which is as easy to put back as any
+    // other. What it does not take is a note with words in it: that is
+    // writing, there is no undo here, and a swipe of the hand is no way to
+    // lose it. Those are still deleted from the pin's own menu.
     for (const note of notes) {
-      if (note.content || note.current_place || !note.anchor) continue;
+      if (note.content || !note.anchor) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.id);
     }
     for (const cow of cows) {

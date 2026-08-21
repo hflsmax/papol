@@ -712,6 +712,17 @@ button.link.danger { color: var(--red); }
 .help-glyph { display: grid; place-items: center; width: 18px; color: var(--ink-soft); }
 .help-glyph svg { width: 16px; height: 16px; }
 
+/* How to remember the key, under what the tool does. Quieter than either,
+   because it is a nudge rather than a fact about the viewer. */
+.help-sheet .mnemonic {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
 .help-foot {
   margin: 18px 0 0;
   font-size: var(--fs-sm);

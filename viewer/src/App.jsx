@@ -61,15 +61,17 @@ const EMPTY_INK = [];
 // hold it.
 // z x c v, in the order the tools sit in the bar: four keys in a row under
 // the hand that is not holding the mouse, so switching costs nothing in
-// the middle of marking a paper up.
+// the middle of marking a paper up. Each carries a way to remember it, for
+// the help sheet — a shortcut nobody can recall is a shortcut nobody uses,
+// and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
-  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' },
-  { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' },
-  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, and anchors with nothing written on them' },
-  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' },
-  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' },
-  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' },
-  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' },
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools: nothing in your hand but the pointer' },
+  { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks the page' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, cows, and anchors with nothing written on them' , mnemonic: 'C for clean' },
+  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'V for the tip of a pointer' },
+  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'A for anchor' },
+  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'The anchor key, shifted, for the anchor that outranks the rest' },
+  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'M for moo' },
 ];
 
 // How big a cow is, as a fraction of the page width, and how fast it walks
@@ -99,6 +101,7 @@ const HELP = {
   laser: 'A laser pointer.',
   anchor: 'Click to drop an anchor. Anchors can optionally be named and carry a note.',
   here: 'Click to drop a "here anchor" that marks where you have got to. Only one per paper.',
+  cow: 'A cow. It wanders, stops to graze, and is not kept.',
 };
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 
@@ -1248,17 +1251,19 @@ export default function App() {
                       </span>
                       {t.label}
                     </dt>
-                    <dd>{HELP[t.id]}</dd>
+                    <dd>
+                      {HELP[t.id]}
+                      <span className="mnemonic">{t.mnemonic}</span>
+                    </dd>
                   </React.Fragment>
                 ))}
               </dl>
               <p className="help-foot">
-                Reaching for a tool you are already holding opens what
-                belongs to it — clicking the brush again, or pressing X
-                again, brings up its colours and weights.
+                Paint and anchors are stored with the paper.
               </p>
               <p className="help-foot">
-                Paint and anchors are stored with the paper.
+                Reach for a tool you are already holding — click it, or press
+                its key again — to open its settings.
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done
