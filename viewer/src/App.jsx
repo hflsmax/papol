@@ -8,7 +8,7 @@ import { pdfHref, getReferences, getReference } from './api';
 import { resolveSource, getToken } from './source';
 import PdfPage from './PdfPage';
 import ReferenceCard from './ReferenceCard';
-import { GlyphFor } from './glyphs';
+import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -25,7 +25,48 @@ const MAX_SCALE = 10;
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
 const FIT_MAX_WIDTH = 1100;
-const STEP = 1.25; // one press of a zoom button
+// The brush draws in Papol's gold: it reads as a mark made over a page
+// rather than as part of it, at both the weights a printed paper uses.
+const INK_COLOR = '#b3923d';
+// A fraction of the page width, so a stroke keeps its weight at any zoom.
+const INK_WIDTH = 0.004;
+// One array, so a page with no ink does not get a new one every render.
+const EMPTY_INK = [];
+
+// What the reader can be holding. The arrow is reading as it has always
+// been: text selects, a double-click places an anchor. The other three put
+// something in their hand, and the page stops being selectable while they
+// hold it.
+// z x c v, in the order the tools sit in the bar: four keys in a row under
+// the hand that is not holding the mouse, so switching costs nothing in
+// the middle of marking a paper up.
+const TOOLS = [
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, double-click to place an anchor' },
+  { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, and anchors with nothing written on them' },
+  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' },
+  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' },
+  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' },
+];
+
+// The two anchors are one-shot: they are a thing you are holding until you
+// put it down, and then you have what you were holding before back.
+const DROP_TOOLS = new Set(['anchor', 'here']);
+
+// Keyed by the letter as typed, so a and A are two tools rather than one
+// tool and a modifier — which also means caps lock picks the capital's.
+const TOOL_KEYS = Object.fromEntries(TOOLS.map((t) => [t.key, t.id]));
+
+// One line each. Someone opening this wants to know what the thing does,
+// not to read about it.
+const HELP = {
+  arrow: 'Select text. Double-click to drop an anchor, triple-click to mark your place.',
+  brush: 'Draw on the page.',
+  eraser: 'Rub out ink, and anchors with nothing written on them. What it is over lights up.',
+  laser: 'Point while you talk. Hold to keep the trail up; it fades when you let go.',
+  anchor: 'Click the page to drop an anchor, then you have your last tool back.',
+  here: 'The same, for the one anchor that marks where you have got to.',
+};
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 
 function numberParam(name) {
@@ -62,6 +103,23 @@ export default function App() {
   });
   // The paper's bibliography, and where it is cited in the PDF. Null until
   // it has been asked for; `status` says whether it is worth waiting on.
+  // What the reader is holding. Remembered, like the rail: someone marking
+  // up a paper puts the brush down between sittings, not between pages.
+  const [tool, setTool] = useState(
+    () => localStorage.getItem('papol_viewer_tool') || 'arrow'
+  );
+  // Their ink on this edition. The laser is not in here — it leaves
+  // nothing, which is the point of it.
+  const [ink, setInk] = useState([]);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const tempInkId = useRef(0);
+  // Where the pointer last was over a page. A ref, not state: it changes
+  // with every mouse move and nothing renders from it — it is read once,
+  // when a key asks for an anchor where the reader is looking.
+  const hoverRef = useRef(null);
+  // The tool that was in hand when an anchor was dropped, to be given back
+  // when the reader is done with the card the anchor opened.
+  const toolBefore = useRef(null);
   const [analysis, setAnalysis] = useState(null);
   // The reference whose card is open, and the marker it was opened from —
   // the card is placed beside that box.
@@ -163,6 +221,71 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('papol_viewer_rail', railOpen ? 'open' : 'closed');
   }, [railOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('papol_viewer_tool', tool);
+  }, [tool]);
+
+  // Through a ref that is refreshed every render, because the listener is
+  // bound once and would otherwise go on reading the first render's `tool`
+  // and `placeAt` for the life of the page — which looked like it worked,
+  // since placing an anchor does not depend on either, and quietly did not.
+  const onKeyRef = useRef(null);
+
+  // Not while the reader is writing a note: in a textarea, x is an x.
+  onKeyRef.current = (e) => {
+      // Escape closes the help sheet first, before anything else looks at
+      // the key: while it is up it is the thing in front of the reader.
+      if (e.key === 'Escape' && helpOpen) {
+        e.preventDefault();
+        setHelpOpen(false);
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target;
+      if (
+        el?.isContentEditable ||
+        el?.tagName === 'INPUT' ||
+        el?.tagName === 'TEXTAREA' ||
+        el?.tagName === 'SELECT'
+      ) {
+        return;
+      }
+      // a and A are looked up as typed — they are two tools, not one tool
+      // and a modifier — and everything else by its lower case, so a
+      // shifted X is still the brush.
+      const picked = TOOL_KEYS[e.key] ?? TOOL_KEYS[e.key?.toLowerCase()];
+      if (!picked) return;
+      e.preventDefault();
+      takeTool(picked);
+    };
+
+  useEffect(() => {
+    const onKey = (e) => onKeyRef.current?.(e);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // The ink already on this edition. Like the references, it belongs to
+  // the file rather than to the paper, so it is asked for once the paper
+  // has said which edition is open.
+  useEffect(() => {
+    if (!paper || !source?.ink) return undefined;
+    let cancelled = false;
+    source.ink
+      .list(paper.edition_id)
+      .then((loaded) => {
+        if (!cancelled) setInk(loaded);
+      })
+      .catch(() => {
+        // Ink is an addition to a paper, not the paper. Failing to load it
+        // is not worth an error bar over what the reader came to read.
+        if (!cancelled) setInk([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [paper, source]);
 
   const referencesById = useMemo(
     () => new Map((analysis?.references || []).map((r) => [r.id, r])),
@@ -317,6 +440,48 @@ export default function App() {
     return map;
   }, [numbered]);
 
+  const inkByPage = useMemo(() => {
+    const map = new Map();
+    for (const stroke of ink) {
+      if (!map.has(stroke.page)) map.set(stroke.page, []);
+      map.get(stroke.page).push(stroke);
+    }
+    return map;
+  }, [ink]);
+
+  // A stroke appears the instant the pointer lifts and is saved behind it.
+  // Waiting for the server first would make the brush feel like it was
+  // dragging something heavy; if the save fails the stroke is taken back,
+  // which is the honest thing to do with a mark that was not kept.
+  const drawStroke = async (stroke) => {
+    if (!source?.ink) return;
+    const provisional = `wet-${++tempInkId.current}`;
+    setInk((all) => [...all, { ...stroke, id: provisional }]);
+    try {
+      const saved = await source.ink.create(paper?.edition_id, stroke);
+      setInk((all) => all.map((s) => (s.id === provisional ? saved : s)));
+    } catch (err) {
+      setInk((all) => all.filter((s) => s.id !== provisional));
+      setError(err.message || 'That stroke could not be saved.');
+    }
+  };
+
+  const eraseStroke = async (id) => {
+    if (!source?.ink) return;
+    const gone = ink.find((s) => s.id === id);
+    if (!gone) return; // already rubbed out on the way past
+    setInk((all) => all.filter((s) => s.id !== id));
+    try {
+      await source.ink.remove(id);
+    } catch (err) {
+      // Put it back rather than leave the reader believing something is
+      // gone that is not. It returns to the top of the pile, which changes
+      // nothing but which stroke is drawn over which.
+      setInk((all) => [...all, gone]);
+      setError(err.message || 'That stroke could not be erased.');
+    }
+  };
+
   // Zooming keeps the spot under the cursor under the cursor.
   //
   // The focal point is recorded as a fraction of a particular page, and the
@@ -445,6 +610,24 @@ export default function App() {
 
   // A triple-click marks the reader's place in the paper: one per paper,
   // so any earlier one steps down.
+  // Picking up an anchor remembers what was put down for it, so that
+  // dropping one in the middle of marking a paper up does not cost the
+  // brush that was in hand.
+  const takeTool = (picked) => {
+    if (DROP_TOOLS.has(picked) && !DROP_TOOLS.has(tool)) toolBefore.current = tool;
+    if (!DROP_TOOLS.has(picked)) toolBefore.current = null;
+    setTool(picked);
+  };
+
+  // The drop itself: the anchor lands where it was clicked, and the hand
+  // goes back to whatever it was holding.
+  const dropAnchor = (spot, asPlace) => {
+    const id = handlePlace(spot);
+    if (asPlace) markPlace(id);
+    setTool(toolBefore.current || 'arrow');
+    toolBefore.current = null;
+  };
+
   const markPlace = async (id) => {
     try {
       const real = await settledId(id);
@@ -664,8 +847,30 @@ export default function App() {
           ← <span className="back-word">Back to </span>Papol
         </a>
         <span className="spacer" />
+        <span className="tools" role="group" aria-label="Tool">
+          {TOOLS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`tool${tool === t.id ? ' on' : ''}`}
+              aria-pressed={tool === t.id}
+              aria-label={t.label}
+              title={`${t.label} (${t.badge}) — ${t.hint}`}
+              onClick={() => takeTool(t.id)}
+            >
+              <ToolGlyph id={t.id} />
+              {/* The key, on the thing it presses. A shortcut written only
+                  in a tooltip is one nobody finds. */}
+              <span className="tool-key" aria-hidden="true">
+                {t.badge}
+              </span>
+            </button>
+          ))}
+        </span>
         {/* The paper page no longer offers the raw file, so the way to keep
-            a copy lives here, beside the reading of it. */}
+            a copy lives here, beside the reading of it — and at the end of
+            the bar, because everything before it acts on the page in front
+            of you and this one leaves with a copy of it. */}
         {paper && (
           <a
             className="bar-link"
@@ -675,23 +880,6 @@ export default function App() {
             Download
           </a>
         )}
-        <span className="zoom">
-          <button
-            onClick={() => zoomBy(1 / STEP)}
-            disabled={!scale || scale <= MIN_SCALE}
-            aria-label="Zoom out"
-          >
-            −
-          </button>
-          <span className="zoom-level">{scale ? `${Math.round(scale * 100)}%` : '—'}</span>
-          <button
-            onClick={() => zoomBy(STEP)}
-            disabled={!scale || scale >= MAX_SCALE}
-            aria-label="Zoom in"
-          >
-            +
-          </button>
-        </span>
       </header>
 
       {error && (
@@ -740,9 +928,57 @@ export default function App() {
               onMarkPlace={markPlace}
               onSelectNote={pointAtNote}
               onMoveNote={moveNote}
+              tool={tool}
+              ink={inkByPage.get(n) || EMPTY_INK}
+              inkColor={INK_COLOR}
+              inkWidth={INK_WIDTH}
+              onDrawStroke={drawStroke}
+              onEraseStroke={eraseStroke}
+              onEraseNote={removeNote}
+              onHover={(spot) => {
+                hoverRef.current = spot;
+              }}
+              onDropAnchor={dropAnchor}
             />
           ))}
         </div>
+
+        {helpOpen && (
+          <div
+            className="help-back"
+            role="dialog"
+            aria-modal="true"
+            aria-label="What the tools do"
+            onClick={() => setHelpOpen(false)}
+          >
+            {/* Stopped here so a click inside the sheet does not close it. */}
+            <div className="help-sheet" onClick={(e) => e.stopPropagation()}>
+              <h3>What the tools do</h3>
+              <dl>
+                {TOOLS.map((t) => (
+                  <React.Fragment key={t.id}>
+                    <dt>
+                      <kbd>{t.badge}</kbd>
+                      <span className="help-glyph">
+                        <ToolGlyph id={t.id} />
+                      </span>
+                      {t.label}
+                    </dt>
+                    <dd>{HELP[t.id]}</dd>
+                  </React.Fragment>
+                ))}
+              </dl>
+              <p className="help-foot">
+                Ink and anchors are yours alone and are kept. The laser is not
+                kept. Hold the brush still mid-stroke and the line snaps
+                straight, level or upright.
+              </p>
+              <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        )}
 
         {returnTo != null && (
           <button className="jump-back" onClick={goBack}>
@@ -762,7 +998,16 @@ export default function App() {
         {railOpen && (
         <aside className="rail">
           <h2>
-            My anchors <span className="count">{numbered.length}</span>
+            My anchors
+            <button
+              type="button"
+              className="rail-help"
+              aria-label="What the tools do"
+              title="What the tools do"
+              onClick={() => setHelpOpen(true)}
+            >
+              ?
+            </button>
           </h2>
 
           {numbered.length === 0 && (

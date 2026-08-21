@@ -1,6 +1,7 @@
 import { demoPapers, demoNotes } from '../../shared/demoWorld';
 import {
   getPaper, createNote, updateNote, moveNote, renameNote, markPlace, deleteNote,
+  getInk, addInk, eraseInk,
   getToken,
 } from './api';
 
@@ -11,8 +12,8 @@ import {
  *   ?paper=9   a paper in the reader's nook: notes live in Papol
  *   ?url=…     a file the app already serves: notes live only in memory
  *
- * Both return the same shape, so the viewer only ever calls load() and
- * notes.{create,update,remove}.
+ * Both return the same shape, so the viewer only ever calls load(),
+ * notes.{create,update,remove} and ink.{list,create,remove}.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
@@ -38,6 +39,11 @@ function apiSource(paperId) {
       rename: (id, name) => renameNote(id, name),
       markPlace: (id) => markPlace(id),
       remove: (id) => deleteNote(id),
+    },
+    ink: {
+      list: (editionId) => getInk(editionId),
+      create: (editionId, stroke) => addInk(editionId, stroke),
+      remove: (id) => eraseInk(id),
     },
   };
 }
@@ -70,6 +76,8 @@ function localSource(paperId) {
   // The demo's papers live in memory and reset on reload (see demo.js);
   // its notes do the same, so "nothing is saved" stays true.
   let notes = seedFor(paperId);
+  let strokes = [];
+  let nextInkId = 1;
 
   return {
     backHref: `../#/paper/${paperId}`,
@@ -109,6 +117,22 @@ function localSource(paperId) {
       },
       async remove(id) {
         notes = notes.filter((n) => n.id !== id);
+      },
+    },
+    // The demo keeps ink the way it keeps everything else: in memory, and
+    // gone on reload. The brush is worth meeting even where nothing is
+    // saved — it is how a visitor finds out the feature is there.
+    ink: {
+      async list() {
+        return strokes;
+      },
+      async create(_editionId, stroke) {
+        const drawn = { ...stroke, id: nextInkId++ };
+        strokes = [...strokes, drawn];
+        return drawn;
+      },
+      async remove(id) {
+        strokes = strokes.filter((s) => s.id !== id);
       },
     },
   };

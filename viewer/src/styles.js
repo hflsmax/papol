@@ -21,6 +21,7 @@ export const styles = `
   --accent-soft: #eaeff5;
   --gold-ink: #7a5b1e;
   /* Orange is the reader's place: one thing, one hue, used nowhere else. */
+  --gold: #b3923d;
   --orange: #d2691e;
   --orange-soft: #fbeee2;
   --orange-line: #efd2b6;
@@ -172,14 +173,57 @@ button.link.danger { color: var(--red); }
 }
 
 .viewer-bar .bar-link:hover { border-color: var(--accent); color: var(--accent); }
-.zoom { flex: none; display: flex; align-items: center; gap: 6px; }
-.zoom-level {
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  color: var(--ink-faint);
-  min-width: 42px;
-  text-align: center;
+/* What the reader is holding. Icon buttons rather than a menu: the choice
+   changes often enough while marking a paper up that it should cost one
+   click and no reading. */
+.tools { flex: none; display: flex; align-items: center; gap: 2px; }
+
+.viewer-bar .tool {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
 }
+
+.viewer-bar .tool svg { width: 18px; height: 18px; display: block; }
+
+/* Tucked into the corner the glyph leaves empty, and small enough to be
+   read as a label on the button rather than as part of the drawing. */
+.viewer-bar .tool-key {
+  position: absolute;
+  left: 3px;
+  bottom: 1px;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.viewer-bar .tool.on .tool-key { opacity: 0.85; }
+.viewer-bar .tool:hover { border-color: var(--line-strong); color: var(--ink); }
+
+.viewer-bar .tool[aria-label='Here'] { color: var(--gold); }
+.viewer-bar .tool[aria-label='Here']:hover { color: var(--gold); }
+
+/* The held tool, said with fill rather than only with a border: at this
+   size a border alone is easy to miss, and which tool is in your hand is
+   the thing the page's behaviour depends on. */
+.viewer-bar .tool.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
 
 /* ---------- Pages ---------- */
 
@@ -486,6 +530,155 @@ button.link.danger { color: var(--red); }
 
 .pin-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 
+/* A question mark where the count was. The count said how many anchors
+   there are, which the list underneath already says. */
+.rail-help {
+  float: right;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rail-help:hover { border-color: var(--accent); color: var(--accent); }
+
+.help-back {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(29, 33, 41, 0.42);
+}
+
+.help-sheet {
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 20px 22px;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 18px 48px rgba(29, 33, 41, 0.28);
+}
+
+.help-sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
+.help-sheet dl { margin: 0; }
+
+.help-sheet dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  margin-top: 12px;
+}
+
+.help-sheet dd {
+  margin: 2px 0 0 46px;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.help-sheet kbd {
+  min-width: 22px;
+  padding: 2px 5px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.help-glyph { display: grid; place-items: center; width: 18px; color: var(--ink-soft); }
+.help-glyph svg { width: 16px; height: 16px; }
+
+.help-foot {
+  margin: 18px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+
+.help-done {
+  margin-top: 16px;
+  padding: 7px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: none;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.help-done:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Under the eraser. The same lift a pointer gives it, and nothing else:
+   an anchor about to be rubbed out is still that anchor, and recolouring
+   it says something about it that is not true. */
+.pin.going {
+  transform: translate(-50%, -12%) scale(1.12);
+}
+
+/* ---------- Ink ---------- */
+
+/* Over the page and under the pins: a mark belongs to the paper, a pin is
+   a control sitting on top of it. Never in the way of a pointer — the
+   surface below is what listens. */
+.ink-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* With a tool in hand, this covers the page above the text layer, so a
+   drag lays ink instead of selecting words. It does not exist while the
+   reader is holding the arrow, and reading is then exactly as it was. */
+.ink-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Cursors drawn rather than named, so the pointer is the tool: each has
+   its hotspot at the end that touches the page. */
+.ink-surface.tool-brush {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 20c0-3 2-5 4-5s3 1 3 3-2 4-5 4H4z' fill='%23b3923d' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpath d='M10.5 15.5 21 5' stroke='%23ffffff' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M10.5 15.5 21 5' stroke='%232b4a6f' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") 4 20, crosshair;
+}
+
+.ink-surface.tool-eraser {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='4' y='11' width='15' height='9' rx='2' transform='rotate(-40 4 11)' fill='%23f5f6f8' stroke='%232b4a6f' stroke-width='1.6'/%3E%3C/svg%3E") 5 19, cell;
+}
+
+/* Holding an anchor: the pointer is the mark it will leave, with its point
+   at the hotspot so it lands where it looks like it will. */
+.ink-surface.tool-anchor,
+.ink-surface.tool-here {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg stroke='%23ffffff' stroke-width='3.4' fill='none'%3E%3Ccircle cx='13' cy='5.6' r='2.6'/%3E%3Cpath d='M13 8.4v13M8 12.4h10M6.6 16.4a7 7 0 0 0 12.8 0'/%3E%3C/g%3E%3Cg stroke='%232b4a6f' stroke-width='1.9' fill='none' stroke-linecap='round'%3E%3Ccircle cx='13' cy='5.6' r='2.6'/%3E%3Cpath d='M13 8.4v13M8 12.4h10M6.6 16.4a7 7 0 0 0 12.8 0'/%3E%3C/g%3E%3C/svg%3E") 13 4, copy;
+}
+
+/* The laser's own mark is the trail it leaves, so the cursor stays out of
+   the way: a small ring, not a shape with a body. */
+.ink-surface.tool-laser {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='5' fill='none' stroke='%23ffffff' stroke-width='3'/%3E%3Ccircle cx='12' cy='12' r='5' fill='none' stroke='%23d0342c' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='1.6' fill='%23d0342c'/%3E%3C/svg%3E") 12 12, crosshair;
+}
+
 .pin {
   position: absolute;
   /* The shape hangs from its ring, so the anchor's point is the top of the
@@ -523,7 +716,10 @@ button.link.danger { color: var(--red); }
 
 /* Where the reader is in this paper: one per paper, told apart by colour
    alone — every anchor is the same size. */
-.pin.here, .pin.bare.here { color: var(--orange); }
+/* Where you have got to, in Papol's gold: the one anchor that is not
+   about a place in the argument but about you, and the only one worth
+   picking out of a page of them at a glance. */
+.pin.here, .pin.bare.here { color: var(--gold); }
 
 .pin.dragging { cursor: grabbing; opacity: 0.85; }
 
@@ -763,8 +959,7 @@ button.link.danger { color: var(--red); }
 @media (max-width: 560px) {
   .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .back-word { display: none; }
-  .viewer-bar .bar-link, .viewer-bar .zoom button { padding: 6px 9px; }
-  .zoom-level { min-width: 32px; }
+  .viewer-bar .bar-link { padding: 6px 9px; }
   .jump-back { left: 12px; bottom: 12px; }
 }
 

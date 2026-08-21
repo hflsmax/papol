@@ -1852,6 +1852,14 @@ select {
   margin-left: auto;
 }
 
+/* Except in a nooks row, where the chips belong to the words beside them
+   rather than to the width of the row. "In 2 nooks:" and the faces are one
+   phrase, and the auto margin that sends chips to the end of a title row
+   put the rest of the line through the middle of it. */
+.nooks-row .title-chips {
+  margin-left: 0;
+}
+
 /* A nook row's readers. They answer to the whole row rather than to the
    title, so they sit at the row's right edge and centre against all of it,
    and they are drawn large: who else has this paper is the reason to look

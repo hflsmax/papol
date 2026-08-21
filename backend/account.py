@@ -29,6 +29,7 @@ from models import (
     AuthToken,
     Comment,
     Copy,
+    InkStroke,
     Notification,
     Paper,
     PaperEdition,
@@ -119,6 +120,12 @@ def gather(db: Session, user: User) -> dict:
         .order_by(PaperEdition.created_at)
         .all()
     )
+    ink = (
+        db.query(InkStroke)
+        .filter(InkStroke.user_id == user.id)
+        .order_by(InkStroke.id)
+        .all()
+    )
 
     return {
         "profile": {
@@ -160,6 +167,21 @@ def gather(db: Session, user: User) -> dict:
                 "written": _when(n.created_at),
             }
             for n in notes
+        ],
+        "ink": [
+            {
+                "id": i.id,
+                "paper": _paper_ref(i.edition.paper) if i.edition and i.edition.paper else None,
+                "edition_id": i.edition_id,
+                "page": i.page,
+                # Fractions of the page, y from the bottom — the same
+                # coordinates a note's anchor uses.
+                "points": json.loads(i.points),
+                "color": i.color,
+                "width": i.width,
+                "drawn": _when(i.created_at),
+            }
+            for i in ink
         ],
         "seminars": [
             {
@@ -235,6 +257,8 @@ Everything Papol holds about you, as of {date}.
   notes.json          Every note you have written, with the page and the exact
                       spot on it where you placed each one.
   notes.md            The same notes, written out to be read.
+  ink.json            What you drew on the page with the brush, as points on
+                      the page rather than as a picture.
   seminars.json       The seminar cohorts you joined, and what you said in them.
   notifications.json  What Papol has told you.
   uploads.json        The PDFs you contributed.
@@ -280,6 +304,7 @@ def write_zip(db: Session, user: User, uploads_dir: Path, out_path: Path) -> Pat
             ("profile", data["profile"]),
             ("nook", data["nook"]),
             ("notes", data["notes"]),
+            ("ink", data["ink"]),
             ("seminars", data["seminars"]),
             ("notifications", data["notifications"]),
             ("uploads", data["pdfs_i_uploaded"]),
@@ -421,6 +446,11 @@ def tombstone(
     # Private, and theirs alone.
     removed["notes"] = (
         db.query(Comment).filter(Comment.user_id == user_id).delete(synchronize_session=False)
+    )
+    removed["ink"] = (
+        db.query(InkStroke).filter(InkStroke.user_id == user_id).delete(
+            synchronize_session=False
+        )
     )
     removed["papers_in_nook"] = (
         db.query(Copy).filter(Copy.user_id == user_id).delete(synchronize_session=False)

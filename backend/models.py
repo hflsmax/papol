@@ -231,6 +231,35 @@ class Comment(Base):
     edition = relationship("PaperEdition")
 
 
+class InkStroke(Base):
+    """One freehand mark a reader drew on a page.
+
+    Ink belongs to an edition rather than to a paper, for the same reason a
+    located note does: it was drawn over a particular PDF, and a different
+    file has different pages. It is private to the reader who drew it, as
+    notes are.
+
+    `points` is a JSON array of {"x": …, "y": …}, each a fraction of the
+    page in PDF user space with y measured from the bottom — the same
+    coordinates a note's anchor uses, so zoom, DPI and screen size never
+    enter it. `width` is a fraction of the page width for the same reason:
+    a stroke drawn at 100% is the same weight when read at 250%.
+    """
+    __tablename__ = "ink_strokes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    page = Column(Integer, nullable=False, index=True)
+    points = Column(Text, nullable=False)
+    color = Column(String, nullable=False, default="#b3923d")
+    width = Column(Float, nullable=False, default=0.004)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    edition = relationship("PaperEdition")
+    user = relationship("User")
+
+
 class Room(Base):
     """A seminar cohort for a paper (keyed like the paper)."""
     __tablename__ = "rooms"

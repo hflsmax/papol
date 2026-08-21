@@ -97,6 +97,34 @@ class PointAnchor(BaseModel):
 Anchor = PointAnchor
 
 
+class InkPoint(BaseModel):
+    """A point on a stroke: a fraction of the page, y from the bottom."""
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
+class InkStrokeCreate(BaseModel):
+    page: int = Field(ge=1)
+    # Two points is a dash and one is a dot; both are marks a reader meant
+    # to make. The ceiling is what stops a stray gesture, or a script, from
+    # posting a megabyte of coordinates: a stroke drawn across a page at
+    # pointer resolution is a few hundred points.
+    points: List[InkPoint] = Field(min_length=1, max_length=4000)
+    color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
+    width: float = Field(default=0.004, gt=0, le=0.1)
+
+
+class InkStrokeOut(BaseModel):
+    id: int
+    page: int
+    points: List[InkPoint]
+    color: str
+    width: float
+
+    class Config:
+        from_attributes = True
+
+
 class CommentCreate(BaseModel):
     # A bare anchor is allowed: the reader marks a place first and writes
     # about it later. A note with no place must say something.

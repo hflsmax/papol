@@ -90,3 +90,19 @@ export function getReferences(editionId, { refresh = false } = {}) {
 export function getReference(id) {
   return request(`/references/${id}`);
 }
+
+// ---- Ink ----
+
+// What the reader has drawn on this edition. Kept per edition, like the
+// references: the marks were made over a particular PDF.
+export function getInk(editionId) {
+  return request(`/editions/${editionId}/ink`);
+}
+
+export function addInk(editionId, stroke) {
+  return jsonRequest(`/editions/${editionId}/ink`, 'POST', stroke);
+}
+
+export function eraseInk(strokeId) {
+  return request(`/ink/${strokeId}`, { method: 'DELETE' });
+}

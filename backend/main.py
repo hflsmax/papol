@@ -30,6 +30,7 @@ from models import (
     User, AuthToken, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
+    InkStroke,
 )
 import account
 from schemas import (
@@ -45,6 +46,7 @@ from schemas import (
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, CitationOut, ResolvedWork,
+    InkStrokeCreate, InkStrokeOut,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -1373,6 +1375,98 @@ def _papol_papers_for(db: Session, references) -> dict[int, int]:
 
 
 # ---------------- Comments ----------------
+
+# ---- Ink -------------------------------------------------------------
+#
+# Marks a reader made on the page with the brush: private to them, kept
+# against the edition they were drawn on. The laser pointer leaves nothing
+# here on purpose — it is a way of pointing while you talk, and a gesture
+# that outlived the sentence would be litter.
+
+
+def _stroke_out(stroke: InkStroke) -> InkStrokeOut:
+    return InkStrokeOut(
+        id=stroke.id,
+        page=stroke.page,
+        points=json.loads(stroke.points),
+        color=stroke.color,
+        width=stroke.width,
+    )
+
+
+def _readable_edition(edition_id: int, user: User, db: Session) -> PaperEdition:
+    """The edition, if this reader is someone who may be reading it.
+
+    Ink is private, so letting it be stored against any edition would leak
+    nothing — but a reader who has not taken the paper has no page to draw
+    on, and notes already ask for the paper to be in the nook first. Ink is
+    the same kind of mark and answers the same way."""
+    edition = db.query(PaperEdition).filter(PaperEdition.id == edition_id).first()
+    if not edition or edition.paper is None:
+        raise HTTPException(status_code=404, detail="Edition not found")
+    _require_copy(edition.paper, user)
+    return edition
+
+
+@app.get("/api/editions/{edition_id}/ink", response_model=list[InkStrokeOut])
+async def list_ink(
+    edition_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Your marks on this edition, oldest first — which is the order they
+    have to be drawn in for later ink to sit over earlier ink."""
+    _readable_edition(edition_id, current_user, db)
+    rows = (
+        db.query(InkStroke)
+        .filter(InkStroke.edition_id == edition_id, InkStroke.user_id == current_user.id)
+        .order_by(InkStroke.id)
+        .all()
+    )
+    return [_stroke_out(r) for r in rows]
+
+
+@app.post("/api/editions/{edition_id}/ink", response_model=InkStrokeOut)
+async def add_ink(
+    edition_id: int,
+    stroke: InkStrokeCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Keep one stroke. Posted when the pointer lifts, not as it moves: a
+    stroke is one mark, and half of one is not worth storing."""
+    _readable_edition(edition_id, current_user, db)
+    row = InkStroke(
+        edition_id=edition_id,
+        user_id=current_user.id,
+        page=stroke.page,
+        points=json.dumps([p.model_dump() for p in stroke.points]),
+        color=stroke.color,
+        width=stroke.width,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _stroke_out(row)
+
+
+@app.delete("/api/ink/{stroke_id}")
+async def delete_ink(
+    stroke_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Rub out one stroke. The eraser works by the stroke rather than by
+    the pixel: it is what the reader drew, so it is what they undraw."""
+    row = db.query(InkStroke).filter(InkStroke.id == stroke_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No such stroke")
+    if row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only erase your own ink")
+    db.delete(row)
+    db.commit()
+    return {"message": "Stroke erased"}
+
 
 @app.post("/api/papers/{paper_id}/comments", response_model=CommentSchema)
 async def add_comment(
