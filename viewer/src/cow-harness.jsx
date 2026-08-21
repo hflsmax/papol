@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CowJointed } from './glyphs';
+import { CowJointed, COW_PARTS, COW_MARKS, CowFigure } from './glyphs';
 import { poseCow } from './cow';
 
 const K = 3.2, CW = 260, CH = 190;
@@ -57,8 +57,27 @@ function Cell({ label, cow, i }) {
   );
 }
 
+function Sizes() {
+  const cursor =
+    `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.5" stroke-linejoin="round">` +
+    `${COW_PARTS}</g><g fill="#33383f">${COW_MARKS}</g>`;
+  return (
+    <div style={{ display: 'flex', gap: 28, alignItems: 'center', padding: '14px 20px' }}>
+      <span style={{ font: '11px monospace', color: '#888' }}>bar 24 / cursor 46 / 92</span>
+      <svg width="24" height="24" viewBox="0 0 24 24" style={{ color: '#2b4a6f' }}>
+        <g fill="currentColor" transform="translate(0.4 2.6) scale(0.365)"><CowFigure /></g>
+      </svg>
+      <svg width="46" height="32" viewBox="0 0 64 44" dangerouslySetInnerHTML={{ __html: cursor }} />
+      <svg width="92" height="63" viewBox="0 0 64 44" dangerouslySetInnerHTML={{ __html: cursor }} />
+    </div>
+  );
+}
+
 createRoot(document.getElementById('root')).render(
-  <div style={{ display: 'grid', gridTemplateColumns: `repeat(4, ${CW}px)` }}>
-    {CELLS.map(([label, cow], i) => <Cell key={label} label={label} cow={cow} i={i} />)}
-  </div>
+  <>
+    <Sizes />
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(4, ${CW}px)` }}>
+      {CELLS.map(([label, cow], i) => <Cell key={label} label={label} cow={cow} i={i} />)}
+    </div>
+  </>
 );

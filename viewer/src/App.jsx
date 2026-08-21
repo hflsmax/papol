@@ -1162,9 +1162,13 @@ export default function App() {
                         title={o.name}
                         onClick={() => setInkOpacity(o.value)}
                       >
-                        {/* Shown over a rule of text, because how much of
-                            the page a mark hides is the whole question. */}
+                        {/* Half over the page and half over its print, so
+                            what is being chosen can be seen at once: how
+                            much of what is underneath a mark leaves
+                            showing. Solid covers both halves; faint lets
+                            the paper and the type through. */}
                         <span className="shade-sample">
+                          <span className="shade-under" />
                           <span
                             className="shade-ink"
                             style={{ background: inkColor, opacity: o.value }}

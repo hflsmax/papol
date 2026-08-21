@@ -246,23 +246,30 @@ button.link.danger { color: var(--red); }
 
 .brush-pop .shade.on { border-color: var(--ink); }
 
-/* Just the stroke, at the three strengths. The line behind it was there to
-   show what shows through, and was one thing too many in a sheet this
-   small — a paler bar already says paler. */
+/* A patch of page with print on it, and the ink laid over the whole thing.
+   A paler bar on white only says "paler"; the question is how much of what
+   is underneath a mark survives it, and that needs something underneath.
+   Two flat halves rather than a texture — this sheet is small, and three
+   ruled paragraphs side by side was a pattern, not a choice. */
 .brush-pop .shade-sample {
   position: relative;
   display: block;
   width: 26px;
-  height: 12px;
+  height: 18px;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.18);
+}
+
+.brush-pop .shade-under {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #ffffff 0 50%, var(--ink) 50% 100%);
 }
 
 .brush-pop .shade-ink {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 2px;
-  height: 8px;
-  border-radius: 4px;
+  inset: 0;
   display: block;
 }
 .brush-pop .weight-strip { border-radius: 1px; display: block; }

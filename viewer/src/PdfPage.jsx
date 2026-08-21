@@ -981,11 +981,13 @@ export default function PdfPage({
         stroke={fill}
         strokeWidth={thick}
         {...strokeProps}
-        // After the defaults, not before: strokeProps carries a butt cap,
-        // and a butt cap on a click — a subpath with no length — draws
-        // nothing whatsoever. A round nib set down once leaves a dot, and
-        // the only cap that will draw one is the round one.
-        strokeLinecap={points.length === 1 ? 'round' : 'butt'}
+        // After the defaults, not before, and always round: this branch is
+        // the round nib, and a circle sitting on the last point of a path
+        // does put half a disc of ink past it. Cutting that off squared the
+        // ends of a brush that has none. It is also the only cap that
+        // renders a click at all, a subpath with no length being invisible
+        // under the butt cap the defaults carry.
+        strokeLinecap="round"
         {...rest}
       />
     );

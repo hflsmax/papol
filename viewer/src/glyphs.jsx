@@ -183,23 +183,27 @@ export const COW_TAIL_PIVOT = [52, 11];
 // underneath it, so where the two meet is a join that never has to be got
 // right — it is not visible.
 export const COW_BODY = '<rect x="20" y="8" width="34" height="20" rx="9.6"/>';
-export const COW_SKULL = '<rect x="2" y="10" width="23" height="19" rx="8"/>';
-export const COW_MUZZLE = '<ellipse cx="7" cy="24.5" rx="6.6" ry="4.6"/>';
-// Nubs, not horns. A calf's are barely through, which is the right amount
-// of horn for something 45 pixels across — but one alone reads as a
-// mistake, and it is the pair that says cow rather than dog.
-//
-// Wide and low rather than tall. Tall, they were a third thing the same
-// shape and size as the ear behind them, and three upright lobes in a row
-// on a round head is a rabbit.
+// Long rather than round. A round head with a round ear on top of it is a
+// bear, whatever else is done to the rest of the animal — the length of
+// the head and the droop of the muzzle off the front of it are most of
+// what makes the profile a cow's.
+export const COW_SKULL = '<rect x="2" y="11" width="24" height="16" rx="6.5"/>';
+export const COW_MUZZLE = '<ellipse cx="6" cy="23" rx="6" ry="5"/>';
+
+// Nubs, at the front, well clear of the ear. A calf's horns are barely
+// through, which is the right amount of horn for something 45 pixels
+// across — but one alone reads as a mistake, and it is the pair that says
+// cow rather than dog.
 export const COW_HORN =
-  '<ellipse cx="9" cy="8.6" rx="2.3" ry="2.4"/>' +
-  '<ellipse cx="14.2" cy="8.2" rx="2.1" ry="2.2"/>';
-// Behind the horns, over the shoulder, where there is sky to see it
-// against — anywhere further back and the barrel is drawn over it.
-export const COW_EAR = '<path d="M17 12.8c.2-4.4 3.2-7.4 6.2-6.3s2.6 5.5-1.1 8z"/>';
-export const COW_EAR_PIVOT = [18, 13.8];
-export const COW_EYE = '<circle cx="10.8" cy="17" r="2.1"/>';
+  '<ellipse cx="7.6" cy="8.2" rx="1.9" ry="2.6"/>' +
+  '<ellipse cx="11.8" cy="7.6" rx="1.7" ry="2.4"/>';
+
+// One ear, at the back, long and narrow and steep enough to clear the
+// shoulder — the barrel is drawn over anything that does not, and a cow's
+// ear is right where the barrel begins.
+export const COW_EAR = '<path d="M18 13.6c-.4-5.6 2.6-9.8 5.8-9.4s3.6 5.6.6 9.6z"/>';
+export const COW_EAR_PIVOT = [19, 13.4];
+export const COW_EYE = '<circle cx="11.4" cy="16.4" r="2"/>';
 export const COW_HEAD = COW_EAR + COW_HORN + COW_SKULL + COW_MUZZLE;
 
 // Where the head turns.
