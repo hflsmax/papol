@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Papol">
-  <!-- A nook: an arched alcove holding two books, one of them read more than
-       the other. Papol's own metaphor, and a shape that stays legible at the
-       16px a browser tab actually gives it. Colours are the app's own —
-       --accent, --gold and --gold-soft from the palette in App.jsx. -->
+  <!-- A nook: an arched alcove holding two books, one of them read further
+       than the other. Papol's own metaphor, and a shape that stays legible
+       at the 16px a browser tab actually gives it. The colours are the
+       app's own accent, gold and gold-soft tokens, from the palette in
+       App.jsx. (Written without double hyphens on purpose: this file is
+       parsed as XML, where they are illegal inside a comment.) -->
   <rect width="64" height="64" rx="13" fill="#2b4a6f"/>
   <path d="M14 54V30a18 18 0 0 1 36 0v24z" fill="#faf3e3"/>
   <rect x="21" y="31" width="9" height="17" fill="#2b4a6f"/>
