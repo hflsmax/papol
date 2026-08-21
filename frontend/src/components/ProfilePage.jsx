@@ -330,11 +330,14 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
           Download your data first if you want to keep it.
         </p>
 
+        <p className="panel-note">
+          To confirm, type{' '}
+          <span className="confirm-address">{user.email}</span> below.
+        </p>
+
         <form onSubmit={handleClose}>
           <div className="form-group">
-            <label>
-              Type <b className="confirm-address">{user.email}</b> to confirm
-            </label>
+            <label>Your email address</label>
             <input
               type="email"
               value={closeEmail}

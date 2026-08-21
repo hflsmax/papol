@@ -1688,6 +1688,18 @@ select {
   line-height: 1.3;
 }
 
+/* The state pill and the reader chips are the same kind of thing here:
+   something sitting beside the title, on the title's first line. Giving
+   them the same box is what makes them agree with each other and with the
+   line — the pill used to be inside the heading, riding the text baseline,
+   which left it low against a serif line. */
+.title-state {
+  display: flex;
+  align-items: center;
+  height: 1.3em;
+  flex: none;
+}
+
 .title-chips {
   display: flex;
   gap: 4px;
@@ -2398,13 +2410,17 @@ h4 .state-pill {
   font-family: var(--font-serif);
 }
 
-/* The reader has to type this address out exactly, so it has to be shown
-   exactly. Small-caps is the label's treatment and it hides the casing of
-   whatever sits inside it — fine for the words around it, wrong for the
-   one string being copied. */
+/* An address the reader has to copy out exactly is an identifier, which
+   the type roles give to the data face. It used to sit inside the field's
+   label, where it needed a normal variant and a letter-spacing reset just
+   to escape the small-caps kicker around it — four treatments in five
+   words. In the sentence above the field it is simply prose and one
+   identifier. Mono at --fs-sm beside --fs-md prose, as .md code does,
+   because mono reads a size larger than it is set. */
 .profile-page .confirm-address {
-  font-variant: normal;
-  letter-spacing: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--ink);
 }
 
 /* Explanatory text in a settings panel is an instruction, not an aside.

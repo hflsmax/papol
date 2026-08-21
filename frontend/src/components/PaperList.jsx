@@ -96,8 +96,16 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                   <a className="paper-title-link" href={paperHref(paper)}>
                     {paper.title}
                   </a>
-                  {paper.room_status && <StatePill status={paper.room_status} />}
                 </h4>
+                {/* Beside the title rather than inside it: inside, the pill
+                    rides the text baseline and sits low against a serif
+                    line. Out here it takes the same first-line box as the
+                    reader chips, and the two agree. */}
+                {paper.room_status && (
+                  <span className="title-state">
+                    <StatePill status={paper.room_status} />
+                  </span>
+                )}
                 {paper.readers && paper.readers.length > 0 && (
                   <div className="title-chips">
                     {paper.readers.map((entry) => (
