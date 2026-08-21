@@ -19,18 +19,29 @@ The two are reached differently, which is the point:
 | | development | production |
 |---|---|---|
 | address | `http://papol.local` on the LAN, `http://localhost:5173` here | `https://mc-pony.com/papol`, `http://localhost` |
-| started by | `uvicorn main:app --reload` | systemd |
+| started by | you, in a shell | systemd, as `papol.service` |
+| port | 8000 | 8001 |
 | database | `backend/papol.db` in this tree | `backend/papol.db` in its own |
 
+Only production is deployed. Development is a server you start in a shell and
+stop when you are done, so there is nothing to deploy about it:
+
+```bash
+cd backend && uvicorn main:app --reload    # the API and the built apps, on 8000
+cd frontend && npm run dev                 # hot reload, on 5173
+cd viewer   && npm run dev                 # hot reload, on 5174
+```
+
 `papol.local` is the easy name to type from a phone across the room, so it
-points at development — the copy that is allowed to be half-finished. It
-serves the built frontend, so `./deploy.sh dev` first; the Vite dev server
-with hot reload stays at `localhost:5173`.
+points at that server rather than at production — the copy that is allowed to
+be half-finished. It reaches uvicorn on 8000, which serves whatever is in
+`frontend/dist` and `viewer/dist`, so run `npm run build` in either when you
+want the phone to see your work. The Vite servers on 5173 and 5174 are for
+this machine, and are where the inner loop lives.
 
 ### Deploying
 
 ```bash
-./deploy.sh dev            # build this tree, for papol.local
 ./deploy.sh prod           # promote main to production
 ./deploy.sh prod v1.2      # promote some other ref
 ./deploy.sh pull           # copy production's data down to development

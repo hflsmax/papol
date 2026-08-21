@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Papol's deployment, all of it.
 #
-#   ./deploy.sh dev            build this working tree
 #   ./deploy.sh prod [ref]     promote a ref (default: main) to production
 #   ./deploy.sh pull           copy production's data down to development
 #   ./deploy.sh status         what is running where
@@ -9,11 +8,12 @@
 # Code goes up with `prod`, data comes down with `pull`, and neither ever
 # runs the other way.
 #
-# Development runs from this tree, by hand, on port 8000. Production runs
-# from a checkout of its own under /srv/papol/prod, as papol.service, on
-# the port that tree's module.nix gives it. They share a host and a GROBID
-# container and nothing else — separate databases, separate uploads,
-# separate .env. Promoting is the only thing that moves code between them.
+# Only production is deployed. Development is a server you start in a shell
+# and stop when you are done — `uvicorn main:app --reload` and `npm run dev`
+# — so it has nothing here to deploy. Production runs from a checkout of its
+# own under /srv/papol/prod, as papol.service. The two share a host and a
+# GROBID container and nothing else: separate databases, separate uploads,
+# separate .env.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +28,7 @@ note() { printf '    %s\n' "$*"; }
 die()  { printf '\n\033[1;31mdeploy: %s\033[0m\n' "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -65,9 +65,8 @@ as_root() {
 
 # --- building ---------------------------------------------------------------
 
-# The two Vite apps, built in whichever tree is given. `npm ci` only when
-# the lockfile has moved on: a deploy that changes no dependency should not
-# spend a minute proving it.
+# The two Vite apps. `npm ci` only when the lockfile has moved on: a deploy
+# that changes no dependency should not spend a minute proving it.
 build_tree() {
   local dir=$1 app
   for app in frontend viewer; do
@@ -348,7 +347,7 @@ status() {
   if dev_is_up; then
     note "running on $DEV_PORT, and http://papol.local reaches it"
   else
-    note "not running (cd backend && uvicorn main:app --reload)"
+    note "not running — start it in a shell: cd backend && uvicorn main:app --reload"
   fi
 
   say "production — $PROD_DIR"
@@ -363,10 +362,9 @@ status() {
 # --- ------------------------------------------------------------------------
 
 case "${1:-}" in
-  dev)    build_tree "$DEV_DIR"; say "Done. Development serves this build on 8000." ;;
   prod)   deploy_prod "${2:-main}" ;;
   pull)   pull_prod "${2:-}" ;;
   status) status ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, pull, status)" ;;
+  *)      die "unknown target: $1 (try prod, pull, status)" ;;
 esac
