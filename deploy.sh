@@ -279,19 +279,36 @@ deploy_prod() {
   # Taken with the service down, and immediately before the new backend
   # runs its startup migrations — which is the thing a backup is for.
   if [ -e "$PROD_DIR/backend/papol.db" ]; then
-    local bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-deploy"
+    local bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M%S)-pre-deploy"
     cp -p "$PROD_DIR/backend/papol.db" "$bak"
     note "database backed up to $(basename "$bak")"
     ls -1t "$PROD_DIR"/backend/papol.db.bak-*-pre-deploy 2>/dev/null \
       | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -- || true
   fi
 
+  # From here production is down, so nothing may exit without either
+  # bringing it back or saying plainly that it could not. A rebuild is
+  # exactly where this bites: it runs when module.nix moved, and a
+  # module.nix that does not evaluate is the likeliest reason for it to
+  # fail — which would otherwise end the deploy with a stopped service and
+  # a stack trace about Nix.
   if [ "$rebuild" = yes ]; then
     say "nixos-rebuild switch"
-    as_root nixos-rebuild switch
+    if ! as_root nixos-rebuild switch; then
+      note "the rebuild failed — putting the old service back"
+      as_root systemctl start "$UNIT" \
+        || die "the rebuild failed AND $UNIT would not start. Production is down.
+    The database is untouched, backed up beside it, and the checkout is at
+    $(git -C "$PROD_DIR" rev-parse --short HEAD); putting the code back is
+    git -C $PROD_DIR reset --hard $old"
+      die "the rebuild failed; the previous service is running again, from the
+    new checkout. Fix module.nix or flake.nix and deploy again."
+    fi
   else
     say "Starting $UNIT"
-    as_root systemctl start "$UNIT"
+    as_root systemctl start "$UNIT" || die "$UNIT would not start. Production is down.
+    journalctl -u $UNIT is where it says why; the pre-deploy database backup
+    is beside the database."
   fi
 
   health_check
@@ -374,7 +391,12 @@ pull_prod() {
   say "Scrubbing production's reach out of the copy"
   sqlite "$DEV_DIR/backend/papol.db" <<SQL
 DELETE FROM settings WHERE key LIKE 'smtp_%';
-UPDATE settings SET value = 'http://papol.local/' WHERE key = 'site_url';
+-- Upsert, not UPDATE: a production database without a site_url row would
+-- leave this a silent no-op, and _site_url then falls through PAPOL_URL
+-- (unset here) to a default that points at production. Development would
+-- put production's address in every link it generated.
+INSERT INTO settings (key, value) VALUES ('site_url', 'http://papol.local/')
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value;
 SQL
   note "SMTP credentials dropped; site_url now points at development"
 
