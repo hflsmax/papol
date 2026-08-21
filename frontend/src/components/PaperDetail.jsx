@@ -20,6 +20,10 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [isAddingEdition, setIsAddingEdition] = useState(false);
   const [pendingPdf, setPendingPdf] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
+  // Set when Read is pressed on a paper the reader has not taken yet. Up
+  // here with the rest: there are early returns below, and a hook after
+  // one of those is a hook that sometimes does not run.
+  const [readHint, setReadHint] = useState(false);
   const [editingThought, setEditingThought] = useState(false);
   const [thoughtDraft, setThoughtDraft] = useState('');
   const [editingSummary, setEditingSummary] = useState(false);
@@ -502,11 +506,31 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                 Read
               </a>
             )}
+            {/* Reading is offered to everyone, because it is what a reader
+                came here to do — but a paper is read in your own copy of
+                it, where your place and your notes are kept. So the button
+                is here and says what has to happen first, rather than
+                being absent and leaving the reader to work out that taking
+                the paper is what unlocks it. */}
+            {currentUser && !paper.viewer_has_entry && (
+              <span className="hint-anchor">
+                <button onClick={() => setReadHint(true)}>Read</button>
+                {readHint && (
+                  <HintPop
+                    text="Add this paper to your nook first — reading happens in your own copy, which is where your place and your notes are kept."
+                    onClose={() => setReadHint(false)}
+                  />
+                )}
+              </span>
+            )}
             {hasEntry && (
               <button onClick={startMetadataEdit}>Edit</button>
             )}
             {currentUser && !paper.viewer_has_entry && (
-              <button onClick={handleAddToNook}>Add to my nook</button>
+              /* The actual next step, so it carries the weight. */
+              <button className="primary" onClick={handleAddToNook}>
+                Add to my nook
+              </button>
             )}
           </div>
 
