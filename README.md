@@ -27,14 +27,22 @@ Production is deployed and stays up. Development runs for exactly as long as
 you leave one command running:
 
 ```bash
-./deploy.sh dev              # builds both apps, then serves on 8000
-./deploy.sh dev --no-build   # skip the build, for a quick restart
+./deploy.sh dev              # build both apps, watch them, and serve on 8000
+./deploy.sh dev --no-build   # skip the initial build
+./deploy.sh dev --no-watch   # build once and stop watching
 ```
 
 It builds `frontend` and `viewer`, loads `.env` itself rather than trusting
 direnv to have done it, and runs `uvicorn --reload` in the foreground. Ctrl-C
 stops it and nothing survives. It refuses to start if something already holds
 port 8000, which is the one way development and production can collide.
+
+Saving a file rebuilds it. The backend reloads itself; the two Vite apps are
+watched with `vite build --watch`, so a saved component is rebuilt into `dist`
+within a second and the next page load has it. There is no hot reload here —
+reload the page — and during the second a rebuild takes, the page is briefly
+unavailable, which is Vite emptying `dist` before writing it. For hot reload
+without a refresh, use the Vite servers below.
 
 `papol.local` is the easy name to type from a phone across the room, so it
 points at that server rather than at production — the copy that is allowed to

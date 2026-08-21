@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Papol's deployment, all of it.
 #
-#   ./deploy.sh dev            run development here, in this shell
+#   ./deploy.sh dev            run development here, rebuilding as you save
 #   ./deploy.sh prod [ref]     promote a ref (default: main) to production
 #   ./deploy.sh pull           copy production's data down to development
 #   ./deploy.sh status         what is running where
@@ -86,16 +86,51 @@ build_tree() {
 # blunter question, which is the one that matters before binding it again.
 port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
+WATCH_PIDS=()
+
+stop_watchers() {
+  local p
+  [ "${#WATCH_PIDS[@]}" -eq 0 ] && return 0
+  for p in "${WATCH_PIDS[@]}"; do
+    kill -TERM -"$p" 2>/dev/null || true
+  done
+  WATCH_PIDS=()
+}
+
+# What the server on 8000 hands out is dist, not source, so saving a file
+# changes nothing until something rebuilds it. `vite build --watch` is that
+# something: it rebuilds on save, and the next page load is the new code.
+#
+# `set -m` gives each watcher a process group of its own. Ctrl-C then does
+# not reach them — which is the point, because it means Ctrl-C reaches the
+# server first and the trap below takes the watchers down whole, nix develop
+# and npm and vite together, instead of orphaning vite to rebuild into a
+# directory nobody is serving any more.
+start_watchers() {
+  local app
+  set -m
+  for app in frontend viewer; do
+    nix develop "$DEV_DIR" --command bash -c \
+      "cd '$DEV_DIR/$app' && npm run build -- --watch 2>&1 | sed -u 's/^/[$app] /'" &
+    WATCH_PIDS+=($!)
+  done
+  set +m
+  trap stop_watchers EXIT INT TERM
+}
+
 # Development, in the foreground, for as long as this command runs. Nothing
 # is installed and nothing survives Ctrl-C — which is the whole difference
 # between this and production.
 run_dev() {
-  local build=yes
-  case "${1:-}" in
-    --no-build) build=no ;;
-    "") ;;
-    *) die "unknown option: $1 (only --no-build)" ;;
-  esac
+  local build=yes watch=yes
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --no-build) build=no ;;
+      --no-watch) watch=no ;;
+      *) die "unknown option: $1 (--no-build, --no-watch)" ;;
+    esac
+    shift
+  done
 
   if port_busy "$DEV_PORT"; then
     die "something already has port $DEV_PORT.
@@ -119,15 +154,23 @@ run_dev() {
     note "warning: no SMTP_HOST in .env — this server can send real email"
   fi
 
+  [ "$watch" = yes ] && start_watchers
+
   say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
-  note "backend edits reload themselves; rebuild for frontend edits, or use"
-  note "  cd frontend && npm run dev    (5173, hot reload)"
-  note "  cd viewer   && npm run dev    (5174, hot reload)"
-  note "Ctrl-C stops it."
+  if [ "$watch" = yes ]; then
+    note "saving a file rebuilds it: backend reloads itself, frontend and"
+    note "viewer rebuild into dist — reload the page to see them"
+  else
+    note "not watching; backend still reloads itself"
+  fi
+  note "For hot reload without a page refresh, npm run dev gives you 5173/5174."
+  note "Ctrl-C stops everything."
   echo
 
+  # Not exec: this shell has to outlive the server to take the watchers with
+  # it on the way out.
   cd "$DEV_DIR/backend"
-  exec nix develop "$DEV_DIR" --command \
+  nix develop "$DEV_DIR" --command \
     uvicorn main:app --reload --host 127.0.0.1 --port "$DEV_PORT"
 }
 
@@ -435,7 +478,7 @@ status() {
 # --- ------------------------------------------------------------------------
 
 case "${1:-}" in
-  dev)    run_dev "${2:-}" ;;
+  dev)    shift; run_dev "$@" ;;
   prod)   deploy_prod "${2:-main}" ;;
   pull)   pull_prod "${2:-}" ;;
   status) status ;;
