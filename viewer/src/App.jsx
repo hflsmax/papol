@@ -10,6 +10,7 @@ import PdfPage from './PdfPage';
 import ReferenceCard from './ReferenceCard';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
+import { strokePx, STRIP_RATIO, PAGE_WIDTH_GUESS } from './ink';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -173,6 +174,10 @@ export default function App() {
     return INK_OPACITIES.some((o) => o.value === kept) ? kept : INK_OPACITY;
   });
   const [brushOpen, setBrushOpen] = useState(false);
+  // The width of a page of this document, reported by the first page to
+  // measure itself. The brush's weights are drawn at the size of the mark
+  // they make, and that size is a fraction of this.
+  const [pageWidth, setPageWidth] = useState(PAGE_WIDTH_GUESS);
   const tempInkId = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
@@ -1163,13 +1168,16 @@ export default function App() {
                         title={i === 0 ? 'Finest ([ and ])' : `Width ${i + 1}`}
                         onClick={() => setInkWidth(w)}
                       >
-                        {/* Drawn at the weight it means, which is the only
-                            way anyone judges a stroke width. */}
+                        {/* The mark itself, at the size and the strength
+                            and the colour it will be made in — the same
+                            strip the cursor shows, from the same
+                            arithmetic. Nobody judges a stroke width from a
+                            number, or from a dot that only ranks it. */}
                         <span
-                          className="weight-dot"
+                          className="weight-strip"
                           style={{
-                            width: 4 + i * 4,
-                            height: 4 + i * 4,
+                            width: strokePx(w, pageWidth),
+                            height: strokePx(w, pageWidth) * STRIP_RATIO,
                             background: inkColor,
                             opacity: inkOpacity,
                           }}
@@ -1255,6 +1263,7 @@ export default function App() {
               onDropAnchor={dropAnchor}
               onMoveStroke={moveStroke}
               onDragNote={setDraggingNoteId}
+              onPageSize={setPageWidth}
               cows={cowsByPage.get(n) || EMPTY_INK}
               onDropCow={dropCow}
               onMoveCow={moveCow}

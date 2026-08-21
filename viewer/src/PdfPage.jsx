@@ -5,6 +5,7 @@ import {
   ANCHOR_D, ANCHOR_HANG,
 } from './glyphs';
 import { pageOverlays } from './references';
+import { strokePx, STRIP_RATIO } from './ink';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -96,6 +97,7 @@ export default function PdfPage({
   onDropAnchor,
   onMoveStroke,
   onDragNote,
+  onPageSize,
   cows,
   onDropCow,
   onMoveCow,
@@ -175,6 +177,9 @@ export default function PdfPage({
       if (cancelled) return;
       const viewport = page.getViewport({ scale: 1 });
       setSize({ width: viewport.width, height: viewport.height });
+      // The bar needs this too: the weights it offers are drawn at the size
+      // of the mark they make, and that size comes from the page.
+      onPageSize?.(viewport.width);
     });
     return () => {
       cancelled = true;
@@ -780,22 +785,26 @@ export default function PdfPage({
   // Ninety is as far as the thickness goes: past about 128px a browser
   // drops a cursor image altogether.
   const brushCursor = () => {
-    const thick = Math.max(1.5, Math.min(40, inkWidth * size.width));
-    // Three times as long as it is thick, always. The length used to be
-    // fixed, so the strip went from a long thin sliver at the finest weight
-    // to very nearly a circle at the heaviest — a different shape for each
-    // setting, when what changes between settings is a size.
-    const LEN = thick * 3;
-    const w = LEN + 4;
-    const h = thick + 4;
+    const thick = strokePx(inkWidth, size.width);
+    // Standing up, and three times as long as it is thick, always. Upright
+    // because a hand drawing a line moves across the page, so a strip lying
+    // along the direction of travel hides the very thing being aimed at;
+    // stood on end it sits clear of the line it is about to make. The
+    // length is a multiple rather than a fixed number, so the strip is one
+    // shape at every weight — it used to go from a thin sliver at the
+    // finest to nearly a circle at the heaviest, which is a different shape
+    // for each setting when what changes between settings is a size.
+    const LEN = thick * STRIP_RATIO;
+    const w = thick + 4;
+    const h = LEN + 4;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" ` +
       `height="${h.toFixed(1)}">` +
-      `<rect x="2" y="2" width="${LEN.toFixed(1)}" height="${thick.toFixed(1)}" ` +
-      `rx="${(thick / 2).toFixed(1)}" fill="${inkColor}" fill-opacity="${inkOpacity}"/>` +
-      `<rect x="1.4" y="1.4" width="${(LEN + 1.2).toFixed(1)}" ` +
-      `height="${(thick + 1.2).toFixed(1)}" ` +
-      `rx="${((thick + 1.2) / 2).toFixed(1)}" fill="none" stroke="#ffffff" ` +
+      `<rect x="2" y="2" width="${thick.toFixed(1)}" height="${LEN.toFixed(1)}" ` +
+      `rx="1" fill="${inkColor}" fill-opacity="${inkOpacity}"/>` +
+      `<rect x="1.4" y="1.4" width="${(thick + 1.2).toFixed(1)}" ` +
+      `height="${(LEN + 1.2).toFixed(1)}" ` +
+      `rx="1.4" fill="none" stroke="#ffffff" ` +
       `stroke-opacity="0.8" stroke-width="1.2"/>` +
       `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
@@ -838,9 +847,22 @@ export default function PdfPage({
     )} ${(h * 0.9).toFixed(1)}, copy`;
   };
 
+  // Ends that stop where the stroke stops. A round cap puts a half-disc of
+  // ink past each end and a square cap puts half a square there, so with
+  // either the paint began before the pointer did — by half the width of
+  // the brush, which at the heaviest weight is most of a word. A butt cap
+  // ends on the last point, which is where the hand was.
+  //
+  // Except for a stroke that is one point: a dot has no length for a butt
+  // cap to end, and would draw nothing at all, so it keeps the square cap
+  // that gives it a body.
+  //
+  // Joins stay round either way: a mitre spikes at an acute bend, and a
+  // hand drawing freehand makes a great many acute bends.
+  const capFor = (points) => (points.length === 1 ? 'square' : 'butt');
+
   const strokeProps = {
     fill: 'none',
-    strokeLinecap: 'round',
     strokeLinejoin: 'round',
   };
 
@@ -908,6 +930,7 @@ export default function PdfPage({
                       stroke={stroke.color}
                       strokeWidth={stroke.width * size.width + HALO_SPREAD * 2}
                       opacity="0.3"
+                      strokeLinecap={capFor(points)}
                       {...strokeProps}
                     />
                   )}
@@ -916,6 +939,7 @@ export default function PdfPage({
                     stroke={stroke.color}
                     strokeWidth={stroke.width * size.width}
                     opacity={stroke.opacity ?? 1}
+                    strokeLinecap={capFor(points)}
                     {...strokeProps}
                   />
                   {/* Something to take hold of. A drawn line is a few pixels
@@ -929,6 +953,7 @@ export default function PdfPage({
                       d={pathFor(points)}
                       stroke="transparent"
                       strokeWidth={Math.max(stroke.width * size.width * 3, GRAB_WIDTH)}
+                      strokeLinecap="square"
                       onPointerDown={(e) => startInkDrag(e, stroke)}
                       onPointerMove={moveInkDrag}
                       onPointerUp={endInkDrag}
@@ -945,6 +970,7 @@ export default function PdfPage({
                 stroke={inkColor}
                 strokeWidth={inkWidth * size.width}
                 opacity={inkOpacity}
+                strokeLinecap={capFor(laid(wet))}
                 {...strokeProps}
               />
             )}

@@ -220,8 +220,9 @@ button.link.danger { color: var(--red); }
 .brush-pop .weight {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  /* Tall enough for the heaviest strip to stand up in. */
+  height: 46px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius);
@@ -264,7 +265,7 @@ button.link.danger { color: var(--red); }
   border-radius: 4px;
   display: block;
 }
-.brush-pop .weight-dot { border-radius: 50%; display: block; }
+.brush-pop .weight-strip { border-radius: 1px; display: block; }
 
 
 .viewer-bar .tool {
