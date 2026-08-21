@@ -3123,6 +3123,11 @@ a.btn:hover {
 .flow-step-title {
   font-weight: 600;
   font-size: var(--fs-base);
+  /* The pill is the whole line here, so let it be the line rather than an
+     inline-block sitting on a baseline inside a taller one — that leading
+     is what left it two points low against the step's numbered dot. */
+  display: flex;
+  align-items: center;
 }
 
 .flow-step-desc {
@@ -3876,8 +3881,8 @@ export default function App() {
                 nothing is saved.
               </p>
               <p>
-                The real Papol needs an account. Registration takes a
-                minute, and your nook is yours to keep.
+                Register an account to have your own nook 
+                and keep your papers and notes.
               </p>
               <div className="form-actions">
                 <button
@@ -3887,7 +3892,7 @@ export default function App() {
                     navigate('#/join');
                   }}
                 >
-                  Create a real account
+                  Register
                 </button>
                 <button
                   onClick={() => {

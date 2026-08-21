@@ -126,14 +126,21 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
             {shown.map((paper) => (
               <li key={paper.id} className="paper-group">
                 <div className="paper-group-head">
-                  <h4>
-                    <a className="paper-title-link" href={paperHref(paper)}>
-                      {paper.title}
-                    </a>
+                  {/* Same arrangement as the nook's rows: the pill beside
+                      the title rather than inside the heading, so it sits
+                      on the title's line instead of riding its baseline. */}
+                  <div className="paper-title-row">
+                    <h4>
+                      <a className="paper-title-link" href={paperHref(paper)}>
+                        {paper.title}
+                      </a>
+                    </h4>
                     {paper.room_status && paper.room_status !== 'finished' && (
-                      <StatePill status={paper.room_status} />
+                      <span className="title-state">
+                        <StatePill status={paper.room_status} />
+                      </span>
                     )}
-                  </h4>
+                  </div>
                   <p className="paper-meta">
                     {parseAuthors(paper.authors)}
                     {paper.year && ` (${paper.year})`}

@@ -22,6 +22,22 @@ let
     python-multipart
   ]));
 
+  # The one proxy location, twice: the service's own vhost and the LAN
+  # names' vhost differ only in where they point.
+  proxyTo = port: {
+    proxyPass = "http://127.0.0.1:${toString port}";
+    extraConfig = ''
+      add_header Cache-Control "no-cache, no-store, must-revalidate";
+      add_header Pragma "no-cache";
+      add_header Expires "0";
+
+      # A paper is the whole point and nginx stops at 10 MB by default.
+      # Scoped here rather than set globally: other vhosts on this host
+      # are not papol's to widen.
+      client_max_body_size 200m;
+    '';
+  };
+
 in {
   options.services.papol = {
     enable = lib.mkEnableOption "Papol paper documentation service";
@@ -53,7 +69,26 @@ in {
     hostAliases = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "papol" "papol.local" "papol.lan" "papol.home" ];
-      description = "LAN names the nginx vhost also answers to (when domain is null)";
+      description = ''
+        LAN names nginx answers to, on a vhost of their own. Where that
+        vhost points is hostAliasPort, which need not be this service.
+      '';
+    };
+
+    hostAliasPort = lib.mkOption {
+      type = lib.types.port;
+      default = cfg.port;
+      defaultText = lib.literalExpression "config.services.papol.port";
+      description = ''
+        Where the LAN names proxy to. Defaults to this service's own port.
+
+        Set it to the development server's port to leave http://papol.local
+        pointing at a hand-run `uvicorn --reload` in the working tree: the
+        name that is easy to type from a phone on the sofa then reaches the
+        copy that is allowed to break, while the deployed service keeps the
+        address the world uses. Nothing here starts that server — while it
+        is down the LAN names answer 502, which is the honest reply.
+      '';
     };
 
     lanInterface = lib.mkOption {
@@ -191,20 +226,20 @@ in {
 
     services.nginx = {
       enable = true;
-      virtualHosts.${if cfg.domain != null then cfg.domain else "localhost"} = {
-        forceSSL = cfg.domain != null;
-        enableACME = cfg.domain != null;
-
-        # Answer to LAN names too (http://papol, http://papol.local).
-        serverAliases = lib.optionals (cfg.domain == null) cfg.hostAliases;
-
-        locations."/" = {
-          proxyPass = "http://${cfg.host}:${toString cfg.port}";
-          extraConfig = ''
-            add_header Cache-Control "no-cache, no-store, must-revalidate";
-            add_header Pragma "no-cache";
-            add_header Expires "0";
-          '';
+      virtualHosts = {
+        # The service this module runs.
+        ${if cfg.domain != null then cfg.domain else "localhost"} = {
+          forceSSL = cfg.domain != null;
+          enableACME = cfg.domain != null;
+          locations."/" = proxyTo cfg.port;
+        };
+      } // lib.optionalAttrs (cfg.hostAliases != [ ]) {
+        # http://papol, http://papol.local. Their own vhost, so that they
+        # can be aimed somewhere this module does not run — see
+        # hostAliasPort. Named after the first alias; the rest answer too.
+        ${builtins.head cfg.hostAliases} = {
+          serverAliases = builtins.tail cfg.hostAliases;
+          locations."/" = proxyTo cfg.hostAliasPort;
         };
       };
     };

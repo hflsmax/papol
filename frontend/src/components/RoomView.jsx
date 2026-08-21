@@ -390,7 +390,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                   }
                 }}
               >
-                + Join the cohort
+                + Join
               </button>
               {joinWarning && (
                 <HintPop
