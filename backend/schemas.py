@@ -68,10 +68,9 @@ class PasswordChange(BaseModel):
 
 
 class AccountDeletion(BaseModel):
-    """Deleting an account is irreversible, so it asks for two things: the
-    password, which proves it is the reader, and their own email typed out,
-    which proves they meant it."""
-    password: str
+    """Closing an account is irreversible, so it asks the reader to type
+    their own address out. Being signed in is what proves who they are;
+    this is what proves they meant it."""
     confirm_email: str
 
 

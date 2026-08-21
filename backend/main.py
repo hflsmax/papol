@@ -343,8 +343,6 @@ async def delete_my_account(
     who were there too. Their notes, their nook and their notifications —
     private, and theirs alone — are deleted; see account.py.
     """
-    if not verify_password(data.password, current_user.password_hash):
-        raise HTTPException(status_code=401, detail="Password is incorrect")
     if data.confirm_email.strip().lower() != current_user.email.lower():
         raise HTTPException(
             status_code=400,

@@ -3,7 +3,6 @@ import {
   updateProfile,
   changePassword,
   uploadAvatar,
-  deleteAvatar,
   downloadMyData,
   deleteAccount,
 } from '../api';
@@ -35,7 +34,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
   const [exportError, setExportError] = useState(null);
   const [exportedBytes, setExportedBytes] = useState(null);
 
-  const [closePassword, setClosePassword] = useState('');
   const [closeEmail, setCloseEmail] = useState('');
   const [closeError, setCloseError] = useState(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -73,7 +71,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
     }
     setIsClosing(true);
     try {
-      await deleteAccount(closePassword, closeEmail.trim());
+      await deleteAccount(closeEmail.trim());
       // The session is gone with the account; onLogout clears the token
       // and takes them out to the landing page.
       onLogout();
@@ -96,19 +94,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
     } finally {
       setIsAvatarBusy(false);
       e.target.value = '';
-    }
-  };
-
-  const handleAvatarRemove = async () => {
-    setProfileError(null);
-    setIsAvatarBusy(true);
-    try {
-      const updated = await deleteAvatar();
-      onUserUpdated(updated);
-    } catch (err) {
-      setProfileError(err.message);
-    } finally {
-      setIsAvatarBusy(false);
     }
   };
 
@@ -187,16 +172,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
                     ? 'Change image'
                     : 'Upload image'}
               </button>
-              {user.avatar_path && (
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={handleAvatarRemove}
-                  disabled={isAvatarBusy}
-                >
-                  Remove
-                </button>
-              )}
             </div>
             <p className="avatar-hint">PNG, JPEG, or WebP, up to 2 MB.</p>
             <input
@@ -330,10 +305,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
         )}
 
         <p className="panel-note">
-          A zip of everything Papol holds about you: your profile, the papers
-          in your nook with your ratings and summaries, every note you have
-          written — as data and as a document you can read — the seminars you
-          joined, and the PDF of each paper in your nook.
+        A ZIP file containing all your Papol data: your profile, 
+        papers and PDFs in your nook, ratings, summaries, notes 
+        in both data and readable formats, and seminars you joined.
         </p>
 
         <div className="form-actions">
@@ -349,33 +323,14 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
         {closeError && <div className="error">{closeError}</div>}
 
         <p className="panel-note">
-          This removes your profile, your notes, the papers in your nook and
-          your notifications. It cannot be undone.
-        </p>
-        <p className="panel-note">
-          Two things stay, because they are no longer only yours. A PDF you
-          uploaded remains for the readers who have that paper. What you said
-          in a seminar stays where you said it, under “A former reader” — and
-          a seminar you were hosting passes to someone else in the cohort, or
-          opens again for another reader to host, so that it is not left
-          stranded without one.
+          This permanently deletes your profile, notes, 
+          notifications, and the papers in your nook. It cannot be undone.
         </p>
         <p className="panel-note">
           Download your data first if you want to keep it.
         </p>
 
         <form onSubmit={handleClose}>
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              value={closePassword}
-              onChange={(e) => setClosePassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
           <div className="form-group">
             <label>
               Type <b>{user.email}</b> to confirm

@@ -133,11 +133,8 @@ export async function downloadMyData() {
   return blob.size;
 }
 
-export function deleteAccount(password, confirmEmail) {
-  return jsonRequest('/auth/account', 'DELETE', {
-    password,
-    confirm_email: confirmEmail,
-  });
+export function deleteAccount(confirmEmail) {
+  return jsonRequest('/auth/account', 'DELETE', { confirm_email: confirmEmail });
 }
 
 export function uploadAvatar(file) {
