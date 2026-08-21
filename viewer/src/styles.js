@@ -195,9 +195,13 @@ button.link.danger { color: var(--red); }
   top: calc(100% + 8px);
   right: -6px;
   z-index: 30;
+  /* A column of names beside a column of rows, so each row says what it is
+     without a legend to look up. */
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
@@ -266,7 +270,16 @@ button.link.danger { color: var(--red); }
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
 .brush-pop .weight-strip.round { border-radius: 50%; }
 
+.brush-pop .brush-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  text-align: right;
+  white-space: nowrap;
+}
+
 .brush-pop .brush-tip {
+  grid-column: 1 / -1;
   margin: 0;
   padding-top: 10px;
   border-top: 1px solid var(--line);

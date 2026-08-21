@@ -67,7 +67,7 @@ createRoot(document.getElementById('root')).render(
     <div style={{ display: 'flex', gap: 26, alignItems: 'center', padding: '12px 18px' }}>
       <span style={{ font: '11px monospace', color: '#999' }}>bar 24 / page 46 / 92</span>
       <svg width="24" height="24" viewBox="0 0 24 24" style={{ color: '#2b4a6f' }}>
-        <g fill="currentColor" transform="translate(0.63 5.25) scale(0.369)"><CowFigure /></g>
+        <g fill="currentColor" transform="translate(0.85 5.35) scale(0.3636)"><CowFigure /></g>
       </svg>
       {[46, 92].map((w) => (
         <svg key={w} width={w} height={(w * 44) / 64} viewBox="0 0 64 44"

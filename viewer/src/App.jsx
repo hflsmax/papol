@@ -659,8 +659,11 @@ export default function App() {
     // back. It looked exactly like ink that could not be rubbed out. A ref
     // is the only thing here that is current within a frame.
     if (erasing.current.has(id)) return;
+    // Whatever the eraser was over, it was over: the page is rendering it,
+    // which is a better witness than this render's copy of the list. If the
+    // copy has not caught up, take it out anyway rather than quietly do
+    // nothing — doing nothing is what "it will not rub out" looks like.
     const gone = ink.find((s) => s.id === id);
-    if (!gone) return;
     erasing.current.add(id);
     setInk((all) => all.filter((s) => s.id !== id));
     try {
@@ -672,7 +675,7 @@ export default function App() {
       // is what was wanted; anything else is a failure worth undoing.
       if (err.status === 404) return;
       erasing.current.delete(id);
-      setInk((all) => [...all, gone]);
+      if (gone) setInk((all) => [...all, gone]);
       setError(err.message || 'That stroke could not be erased.');
     }
   };
@@ -1160,6 +1163,7 @@ export default function App() {
                   colour, this strong, from this nib, at that size. */}
               {t.id === 'brush' && brushOpen && (
                 <div className="brush-pop" role="group" aria-label="The brush">
+                  <span className="brush-label">Colour</span>
                   <div className="swatches">
                     {INK_COLORS.map((c, i) => (
                       <button
@@ -1174,6 +1178,7 @@ export default function App() {
                       />
                     ))}
                   </div>
+                  <span className="brush-label">Strength</span>
                   <div className="weights" role="group" aria-label="Transparency">
                     {INK_OPACITIES.map((o) => (
                       <button
@@ -1199,6 +1204,7 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                  <span className="brush-label">Nib</span>
                   <div className="weights" role="group" aria-label="Nib">
                     {INK_SHAPES.map((sh) => (
                       <button
@@ -1226,6 +1232,7 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                  <span className="brush-label">Size</span>
                   <div className="weights">
                     {INK_WIDTHS.map((w, i) => (
                       <button
