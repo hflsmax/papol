@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Papol's deployment, all of it.
 #
+#   ./deploy.sh dev            run development here, in this shell
 #   ./deploy.sh prod [ref]     promote a ref (default: main) to production
 #   ./deploy.sh pull           copy production's data down to development
 #   ./deploy.sh status         what is running where
@@ -8,12 +9,11 @@
 # Code goes up with `prod`, data comes down with `pull`, and neither ever
 # runs the other way.
 #
-# Only production is deployed. Development is a server you start in a shell
-# and stop when you are done — `uvicorn main:app --reload` and `npm run dev`
-# — so it has nothing here to deploy. Production runs from a checkout of its
-# own under /srv/papol/prod, as papol.service. The two share a host and a
-# GROBID container and nothing else: separate databases, separate uploads,
-# separate .env.
+# Production is deployed and stays up; development is a server that runs for
+# as long as you leave this command running. Production is a checkout of its
+# own under /srv/papol/prod, served by papol.service. The two share a host
+# and a GROBID container and nothing else: separate databases, separate
+# uploads, separate .env.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +28,7 @@ note() { printf '    %s\n' "$*"; }
 die()  { printf '\n\033[1;31mdeploy: %s\033[0m\n' "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -78,6 +78,57 @@ build_tree() {
     fi
     (cd "$dir" && nix develop --command bash -c "cd $app && npm run build")
   done
+}
+
+# --- development -------------------------------------------------------------
+
+# Bound, by anyone. dev_is_up asks whether papol is answering; this asks the
+# blunter question, which is the one that matters before binding it again.
+port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+# Development, in the foreground, for as long as this command runs. Nothing
+# is installed and nothing survives Ctrl-C — which is the whole difference
+# between this and production.
+run_dev() {
+  local build=yes
+  case "${1:-}" in
+    --no-build) build=no ;;
+    "") ;;
+    *) die "unknown option: $1 (only --no-build)" ;;
+  esac
+
+  if port_busy "$DEV_PORT"; then
+    die "something already has port $DEV_PORT.
+    If that is still production, it has not been moved to 8001 yet — see the
+    services.papol lines in /etc/nixos/configuration.nix."
+  fi
+
+  # papol.local reaches this server, and this server hands out whatever is
+  # in the two dist directories. Building first is what makes the name show
+  # the code you are working on.
+  [ "$build" = yes ] && build_tree "$DEV_DIR"
+
+  # .env carries development's mail sink, and nothing here guarantees direnv
+  # loaded it. Papol reads the environment before the settings table, so a
+  # shell without this file mails real readers through the credentials in a
+  # database copied from production. Read it directly rather than hope.
+  if [ -e "$DEV_DIR/.env" ]; then
+    set -a; . "$DEV_DIR/.env"; set +a
+  fi
+  if [ "${SMTP_HOST:-}" = "" ]; then
+    note "warning: no SMTP_HOST in .env — this server can send real email"
+  fi
+
+  say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
+  note "backend edits reload themselves; rebuild for frontend edits, or use"
+  note "  cd frontend && npm run dev    (5173, hot reload)"
+  note "  cd viewer   && npm run dev    (5174, hot reload)"
+  note "Ctrl-C stops it."
+  echo
+
+  cd "$DEV_DIR/backend"
+  exec nix develop "$DEV_DIR" --command \
+    uvicorn main:app --reload --host 127.0.0.1 --port "$DEV_PORT"
 }
 
 # --- production -------------------------------------------------------------
@@ -347,7 +398,7 @@ status() {
   if dev_is_up; then
     note "running on $DEV_PORT, and http://papol.local reaches it"
   else
-    note "not running — start it in a shell: cd backend && uvicorn main:app --reload"
+    note "not running (./deploy.sh dev)"
   fi
 
   say "production — $PROD_DIR"
@@ -362,9 +413,10 @@ status() {
 # --- ------------------------------------------------------------------------
 
 case "${1:-}" in
+  dev)    run_dev "${2:-}" ;;
   prod)   deploy_prod "${2:-main}" ;;
   pull)   pull_prod "${2:-}" ;;
   status) status ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try prod, pull, status)" ;;
+  *)      die "unknown target: $1 (try dev, prod, pull, status)" ;;
 esac

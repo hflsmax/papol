@@ -23,25 +23,40 @@ The two are reached differently, which is the point:
 | port | 8000 | 8001 |
 | database | `backend/papol.db` in this tree | `backend/papol.db` in its own |
 
-Only production is deployed. Development is a server you start in a shell and
-stop when you are done, so there is nothing to deploy about it:
+Production is deployed and stays up. Development runs for exactly as long as
+you leave one command running:
 
 ```bash
-cd backend && uvicorn main:app --reload    # the API and the built apps, on 8000
-cd frontend && npm run dev                 # hot reload, on 5173
-cd viewer   && npm run dev                 # hot reload, on 5174
+./deploy.sh dev              # builds both apps, then serves on 8000
+./deploy.sh dev --no-build   # skip the build, for a quick restart
 ```
+
+It builds `frontend` and `viewer`, loads `.env` itself rather than trusting
+direnv to have done it, and runs `uvicorn --reload` in the foreground. Ctrl-C
+stops it and nothing survives. It refuses to start if something already holds
+port 8000, which is the one way development and production can collide.
 
 `papol.local` is the easy name to type from a phone across the room, so it
 points at that server rather than at production — the copy that is allowed to
-be half-finished. It reaches uvicorn on 8000, which serves whatever is in
-`frontend/dist` and `viewer/dist`, so run `npm run build` in either when you
-want the phone to see your work. The Vite servers on 5173 and 5174 are for
-this machine, and are where the inner loop lives.
+be half-finished. It reaches uvicorn on 8000, which serves what is in
+`frontend/dist` and `viewer/dist`, so a page there is as fresh as the last
+build. For the inner loop use the Vite servers instead, which reload as you
+type and proxy the API back to 8000:
+
+```bash
+cd frontend && npm run dev   # 5173
+cd viewer   && npm run dev   # 5174
+```
+
+Loading `.env` directly is deliberate. Papol reads the environment before the
+`settings` table, and development's database is usually a copy of
+production's — complete with production's SMTP credentials. A shell that
+skipped direnv would otherwise mail real readers.
 
 ### Deploying
 
 ```bash
+./deploy.sh dev            # run development here, in this shell
 ./deploy.sh prod           # promote main to production
 ./deploy.sh prod v1.2      # promote some other ref
 ./deploy.sh pull           # copy production's data down to development
