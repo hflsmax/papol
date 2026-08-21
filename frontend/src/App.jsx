@@ -2781,6 +2781,13 @@ a.btn:hover {
 .participant-chips {
   display: flex;
   flex-wrap: wrap;
+  /* Centred, not stretched. The chips and the Join button are not the same
+     height — a reader chip carries an avatar and the button does not — and
+     stretching lines up their tops, which is the one thing about them that
+     should not have to agree. Worse, the button sits inside .hint-anchor,
+     so stretching the anchor left the button itself at the anchor's top
+     rather than the row's middle. */
+  align-items: center;
   gap: 8px;
   margin-bottom: 10px;
 }
