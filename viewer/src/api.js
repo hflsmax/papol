@@ -103,6 +103,10 @@ export function addInk(editionId, stroke) {
   return jsonRequest(`/editions/${editionId}/ink`, 'POST', stroke);
 }
 
+export function moveInk(strokeId, points) {
+  return jsonRequest(`/ink/${strokeId}`, 'PUT', { points });
+}
+
 export function eraseInk(strokeId) {
   return request(`/ink/${strokeId}`, { method: 'DELETE' });
 }

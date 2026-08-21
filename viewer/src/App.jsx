@@ -60,12 +60,12 @@ const TOOL_KEYS = Object.fromEntries(TOOLS.map((t) => [t.key, t.id]));
 // One line each. Someone opening this wants to know what the thing does,
 // not to read about it.
 const HELP = {
-  arrow: 'Select text. Double-click to drop an anchor, triple-click to mark your place.',
-  brush: 'Draw on the page.',
-  eraser: 'Rub out ink, and anchors with nothing written on them. What it is over lights up.',
-  laser: 'Point while you talk. Hold to keep the trail up; it fades when you let go.',
-  anchor: 'Click the page to drop an anchor, then you have your last tool back.',
-  here: 'The same, for the one anchor that marks where you have got to.',
+  arrow: 'A regular cursor.',
+  brush: 'Hold the brush mid-stroke and the line snaps straight.',
+  eraser: 'Remove paint and anchors.',
+  laser: 'A laser pointer.',
+  anchor: 'Click to drop an anchor. Anchors can optionally be named and carry a note.',
+  here: 'Click to drop a "here anchor" that marks where you have got to. Only one per paper.',
 };
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 
@@ -463,6 +463,21 @@ export default function App() {
     } catch (err) {
       setInk((all) => all.filter((s) => s.id !== provisional));
       setError(err.message || 'That stroke could not be saved.');
+    }
+  };
+
+  // Carried on screen as it is dragged and written down when it is put
+  // down, so the page keeps up with the hand and the server hears once.
+  const moveStroke = async (id, points) => {
+    if (!source?.ink?.move) return;
+    const was = ink.find((s) => s.id === id);
+    setInk((all) => all.map((s) => (s.id === id ? { ...s, points } : s)));
+    try {
+      const saved = await source.ink.move(id, points);
+      if (saved) setInk((all) => all.map((s) => (s.id === id ? saved : s)));
+    } catch (err) {
+      if (was) setInk((all) => all.map((s) => (s.id === id ? was : s)));
+      setError(err.message || 'That stroke could not be moved.');
     }
   };
 
@@ -943,6 +958,7 @@ export default function App() {
                 hoverRef.current = spot;
               }}
               onDropAnchor={dropAnchor}
+              onMoveStroke={moveStroke}
             />
           ))}
         </div>
@@ -973,9 +989,7 @@ export default function App() {
                 ))}
               </dl>
               <p className="help-foot">
-                Ink and anchors are yours alone and are kept. The laser is not
-                kept. Hold the brush still mid-stroke and the line snaps
-                straight, level or upright.
+                Paint and anchors are stored with the paper.
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done

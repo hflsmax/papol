@@ -114,6 +114,13 @@ class InkStrokeCreate(BaseModel):
     width: float = Field(default=0.004, gt=0, le=0.1)
 
 
+class InkStrokeUpdate(BaseModel):
+    """A stroke that has been picked up and put down somewhere else. The
+    shape is unchanged — moving ink is moving it, not redrawing it — so
+    only the points travel, and they are checked the same way."""
+    points: List[InkPoint] = Field(min_length=1, max_length=4000)
+
+
 class InkStrokeOut(BaseModel):
     id: int
     page: int

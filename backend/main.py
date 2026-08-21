@@ -46,7 +46,7 @@ from schemas import (
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, CitationOut, ResolvedWork,
-    InkStrokeCreate, InkStrokeOut,
+    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -1445,6 +1445,27 @@ async def add_ink(
         width=stroke.width,
     )
     db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _stroke_out(row)
+
+
+@app.put("/api/ink/{stroke_id}", response_model=InkStrokeOut)
+async def move_ink(
+    stroke_id: int,
+    move: InkStrokeUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Put a stroke down somewhere else. Sent when the drag ends rather
+    than as it moves, for the same reason a stroke is sent when the pointer
+    lifts: where it was passing through is not where it went."""
+    row = db.query(InkStroke).filter(InkStroke.id == stroke_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No such stroke")
+    if row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only move your own ink")
+    row.points = json.dumps([p.model_dump() for p in move.points])
     db.commit()
     db.refresh(row)
     return _stroke_out(row)

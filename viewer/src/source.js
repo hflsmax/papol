@@ -1,7 +1,7 @@
 import { demoPapers, demoNotes } from '../../shared/demoWorld';
 import {
   getPaper, createNote, updateNote, moveNote, renameNote, markPlace, deleteNote,
-  getInk, addInk, eraseInk,
+  getInk, addInk, moveInk, eraseInk,
   getToken,
 } from './api';
 
@@ -43,6 +43,7 @@ function apiSource(paperId) {
     ink: {
       list: (editionId) => getInk(editionId),
       create: (editionId, stroke) => addInk(editionId, stroke),
+      move: (id, points) => moveInk(id, points),
       remove: (id) => eraseInk(id),
     },
   };
@@ -130,6 +131,10 @@ function localSource(paperId) {
         const drawn = { ...stroke, id: nextInkId++ };
         strokes = [...strokes, drawn];
         return drawn;
+      },
+      async move(id, points) {
+        strokes = strokes.map((s) => (s.id === id ? { ...s, points } : s));
+        return strokes.find((s) => s.id === id);
       },
       async remove(id) {
         strokes = strokes.filter((s) => s.id !== id);

@@ -644,9 +644,21 @@ button.link.danger { color: var(--red); }
   inset: 0;
   width: 100%;
   height: 100%;
+  /* The layer itself lets everything through; only .ink-grab inside it
+     listens, and only while the arrow is in hand. */
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
 }
+
+/* The handle on a stroke. pointer-events: stroke means only the line
+   itself listens, so the page around it still selects as text. */
+.ink-grab {
+  pointer-events: stroke;
+  cursor: grab;
+}
+
+.ink-layer g.carrying { cursor: grabbing; opacity: 0.85; }
+.ink-layer g.carrying .ink-grab { cursor: grabbing; }
 
 /* With a tool in hand, this covers the page above the text layer, so a
    drag lays ink instead of selecting words. It does not exist while the

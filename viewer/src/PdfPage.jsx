@@ -38,6 +38,8 @@ const ANCHOR_REACH = 13;
 const MAX_POINTS = 4000;
 // One object, so clearing the highlight does not count as a change.
 const EMPTY_DOOMED = { ink: [], notes: [] };
+// How wide a stroke is to take hold of, whatever it was drawn at.
+const GRAB_WIDTH = 14;
 // Draw, then stop and hold: the stroke snaps to a straight line from where
 // it began, square to the page. Underlining a sentence and ruling a bar
 // down a margin are most of what a brush is used for on a paper, and both
@@ -78,6 +80,7 @@ export default function PdfPage({
   onEraseNote,
   onHover,
   onDropAnchor,
+  onMoveStroke,
 }) {
   const canvasRef = useRef(null);
   const holderRef = useRef(null);
@@ -116,6 +119,11 @@ export default function PdfPage({
   // rubbing out is not undoable here, and a reader should be able to see
   // what is about to go before they press.
   const [doomed, setDoomed] = useState(EMPTY_DOOMED);
+  // A stroke being carried. Like the pin's drag, in a ref because
+  // pointermove outruns React, with state beside it only to redraw the ink
+  // under the hand.
+  const inkDragRef = useRef(null);
+  const [inkDrag, setInkDrag] = useState(null);
   // The laser keeps nothing, so its trail is points with the moment each
   // was made, thrown away by a frame loop rather than stored anywhere.
   const laserRef = useRef([]);
@@ -562,6 +570,54 @@ export default function PdfPage({
     return points.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
   };
 
+  // Ink is moved with the arrow, for the same reason an anchor is: the
+  // tools each do their own thing to a stroke, and the hand that is not
+  // holding one is the hand that rearranges what is already there.
+  const startInkDrag = (e, stroke) => {
+    if (tool !== 'arrow' || e.button !== 0) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    inkDragRef.current = {
+      id: stroke.id,
+      points: stroke.points,
+      from: anchorAt(e.clientX, e.clientY),
+      by: { x: 0, y: 0 },
+      moved: false,
+    };
+    setInkDrag({ id: stroke.id, by: { x: 0, y: 0 } });
+  };
+
+  const moveInkDrag = (e) => {
+    const d = inkDragRef.current;
+    if (!d) return;
+    const at = anchorAt(e.clientX, e.clientY);
+    const by = { x: at.x - d.from.x, y: at.y - d.from.y };
+    if (!d.moved && inPageUnits(at, d.from) < DRAG_SLOP) return;
+    d.moved = true;
+    d.by = by;
+    setInkDrag({ id: d.id, by });
+  };
+
+  const endInkDrag = (e) => {
+    const d = inkDragRef.current;
+    inkDragRef.current = null;
+    setInkDrag(null);
+    if (!d || !d.moved) return;
+    e.stopPropagation();
+    const clamp = (v) => Math.min(1, Math.max(0, v));
+    onMoveStroke(
+      d.id,
+      d.points.map((pt) => ({ x: clamp(pt.x + d.by.x), y: clamp(pt.y + d.by.y) }))
+    );
+  };
+
+  // Where a stroke is being drawn right now: its own points, plus however
+  // far it has been carried.
+  const shifted = (stroke) =>
+    inkDrag?.id === stroke.id
+      ? stroke.points.map((pt) => ({ x: pt.x + inkDrag.by.x, y: pt.y + inkDrag.by.y }))
+      : stroke.points;
+
   // The cursor is the mark it makes: a dot the width of the stroke, in the
   // colour of the stroke. A picture of a brush says which tool is in hand,
   // which the bar already says; what a reader aiming one actually wants to
@@ -656,13 +712,14 @@ export default function PdfPage({
           >
             {ink.map((stroke) => {
               const going = doomed.ink.includes(stroke.id);
+              const points = shifted(stroke);
               return (
-                <g key={stroke.id}>
+                <g key={stroke.id} className={inkDrag?.id === stroke.id ? 'carrying' : undefined}>
                   {/* Lit from behind in its own colour, so a stroke about
                       to go still looks like the stroke it is. */}
                   {going && (
                     <path
-                      d={pathFor(stroke.points)}
+                      d={pathFor(points)}
                       stroke={stroke.color}
                       strokeWidth={stroke.width * size.width * 3.4}
                       opacity="0.3"
@@ -670,11 +727,29 @@ export default function PdfPage({
                     />
                   )}
                   <path
-                    d={pathFor(stroke.points)}
+                    d={pathFor(points)}
                     stroke={stroke.color}
                     strokeWidth={stroke.width * size.width}
                     {...strokeProps}
                   />
+                  {/* Something to take hold of. A drawn line is a few pixels
+                      wide and a hand is not that accurate, so the thing that
+                      listens is a fat transparent copy of it. Only with the
+                      arrow: the brush and the eraser have their own business
+                      with a stroke. */}
+                  {tool === 'arrow' && (
+                    <path
+                      className="ink-grab"
+                      d={pathFor(points)}
+                      stroke="transparent"
+                      strokeWidth={Math.max(stroke.width * size.width * 3, GRAB_WIDTH)}
+                      onPointerDown={(e) => startInkDrag(e, stroke)}
+                      onPointerMove={moveInkDrag}
+                      onPointerUp={endInkDrag}
+                      onPointerCancel={endInkDrag}
+                      {...strokeProps}
+                    />
+                  )}
                 </g>
               );
             })}
