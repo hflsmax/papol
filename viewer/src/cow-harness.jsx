@@ -4,6 +4,7 @@ import { CowJointed } from './glyphs';
 import { poseCow } from './cow';
 
 const K = 3.2, CW = 260, CH = 190;
+import { COW_GROUND, COW_BOX } from './glyphs';
 
 const rest = (o) => ({
   id: 'x', x: 0, y: 0, facing: -1, grazing: false, until: 1e9, held: false,
@@ -16,9 +17,11 @@ const rest = (o) => ({
 // picture rather than in a blur.
 const CELLS = [
   ['rest', rest({})],
-  ['head .5', rest({ head: 0.5 })],
+  ['head .33', rest({ head: 0.33 })],
+  ['head .66', rest({ head: 0.66 })],
   ['head 1 (graze)', rest({ head: 1 })],
   ['ear 1', rest({ ear: 1 })],
+  ['graze + ear', rest({ head: 1, ear: 1 })],
   ['stride .00', rest({ gait: 1, stride: 0 })],
   ['stride .15', rest({ gait: 1, stride: 0.15 })],
   ['stride .30', rest({ gait: 1, stride: 0.3 })],
@@ -48,7 +51,7 @@ function Cell({ label, cow, i }) {
     <svg width={CW} height={CH} style={{ background: i % 2 ? '#fbfbfa' : '#fff' }}>
       <text x="8" y="16" fontSize="11" fill="#888" fontFamily="monospace">{label}</text>
       {/* Where the feet should be, so skating and floating are visible. */}
-      <line x1="0" y1={CH / 2 + 10 + 17.5 * K} x2={CW} y2={CH / 2 + 10 + 17.5 * K} stroke="#d33" strokeWidth="0.5" />
+      <line x1="0" y1={CH / 2 + 10 + (COW_GROUND - COW_BOX.h / 2) * K} x2={CW} y2={CH / 2 + 10 + (COW_GROUND - COW_BOX.h / 2) * K} stroke="#d33" strokeWidth="0.5" />
       <g ref={ref}><CowJointed /></g>
     </svg>
   );

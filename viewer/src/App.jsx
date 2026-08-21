@@ -1129,9 +1129,14 @@ export default function App() {
 
               {/* Hung off the brush rather than put in the bar: how heavy
                   the ink is and what colour it is are facts about the
-                  brush, and mean nothing while anything else is in hand. */}
+                  brush, and mean nothing while anything else is in hand.
+
+                  Colour, then how much it hides, then the nib, then the
+                  weight — and each row is drawn in everything chosen above
+                  it, so by the last row the sample is the mark itself: this
+                  colour, this strong, from this nib, at that size. */}
               {t.id === 'brush' && brushOpen && (
-                <div className="brush-pop" role="group" aria-label="Colour and width">
+                <div className="brush-pop" role="group" aria-label="The brush">
                   <div className="swatches">
                     {INK_COLORS.map((c, i) => (
                       <button
@@ -1144,6 +1149,28 @@ export default function App() {
                         title={`${c.name} (${i + 1})`}
                         onClick={() => setInkColor(c.hex)}
                       />
+                    ))}
+                  </div>
+                  <div className="weights" role="group" aria-label="Transparency">
+                    {INK_OPACITIES.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        className={`shade${o.value === inkOpacity ? ' on' : ''}`}
+                        aria-pressed={o.value === inkOpacity}
+                        aria-label={o.name}
+                        title={o.name}
+                        onClick={() => setInkOpacity(o.value)}
+                      >
+                        {/* Shown over a rule of text, because how much of
+                            the page a mark hides is the whole question. */}
+                        <span className="shade-sample">
+                          <span
+                            className="shade-ink"
+                            style={{ background: inkColor, opacity: o.value }}
+                          />
+                        </span>
+                      </button>
                     ))}
                   </div>
                   <div className="weights" role="group" aria-label="Nib">
@@ -1173,28 +1200,6 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  <div className="weights" role="group" aria-label="Transparency">
-                    {INK_OPACITIES.map((o) => (
-                      <button
-                        key={o.value}
-                        type="button"
-                        className={`shade${o.value === inkOpacity ? ' on' : ''}`}
-                        aria-pressed={o.value === inkOpacity}
-                        aria-label={o.name}
-                        title={o.name}
-                        onClick={() => setInkOpacity(o.value)}
-                      >
-                        {/* Shown over a rule of text, because how much of
-                            the page a mark hides is the whole question. */}
-                        <span className="shade-sample">
-                          <span
-                            className="shade-ink"
-                            style={{ background: inkColor, opacity: o.value }}
-                          />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
                   <div className="weights">
                     {INK_WIDTHS.map((w, i) => (
                       <button
@@ -1212,9 +1217,12 @@ export default function App() {
                             arithmetic. Nobody judges a stroke width from a
                             number, or from a dot that only ranks it. */}
                         <span
-                          className="weight-strip"
+                          className={`weight-strip${inkShape === 'round' ? ' round' : ''}`}
                           style={{
-                            width: stripSize(w, pageWidth, scale || 1).wide,
+                            width:
+                              inkShape === 'round'
+                                ? stripSize(w, pageWidth, scale || 1).tall
+                                : stripSize(w, pageWidth, scale || 1).wide,
                             height: stripSize(w, pageWidth, scale || 1).tall,
                             background: inkColor,
                             opacity: inkOpacity,

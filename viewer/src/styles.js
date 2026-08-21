@@ -266,6 +266,7 @@ button.link.danger { color: var(--red); }
   display: block;
 }
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
+.brush-pop .weight-strip.round { border-radius: 50%; }
 
 .brush-pop .shape {
   display: grid;

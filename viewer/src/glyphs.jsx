@@ -152,67 +152,76 @@ export function ToolGlyph({ id }) {
 // The box it is drawn in. The animal is centred in it, because the page
 // puts a cow down by its middle.
 export const COW_BOX = { w: 64, h: 44 };
-// Where its feet are. The shadow goes here, and so does the grass the
-// head is trying to reach.
+// Where its feet are. The shadow goes here, and so does the grass the head
+// is trying to reach.
 export const COW_GROUND = 36;
 
-// Short and thick, with rounded ends, and the far pair a touch shorter so
-// they start higher and still finish on the ground.
+// Short, thick and round-ended, with the far pair a touch shorter so they
+// start higher and still finish on the ground.
 //
 // A cow walks in four beats rather than two, one foot down after another:
 // near hind, near fore, far hind, far fore. That is what the quarters are.
 export const COW_LEGS = [
-  { x: 26.5, y: 26, w: 4.6, h: 10, pivot: [28.8, 27], phase: 0.25 },
-  { x: 32.6, y: 26.5, w: 4.6, h: 9.5, pivot: [34.9, 27.5], phase: 0.75 },
-  { x: 44.4, y: 26, w: 4.6, h: 10, pivot: [46.7, 27], phase: 0 },
-  { x: 50, y: 26.5, w: 4.6, h: 9.5, pivot: [52.3, 27.5], phase: 0.5 },
+  { x: 24.6, y: 25, w: 5, h: 11, pivot: [27.1, 26], phase: 0.25 },
+  { x: 31, y: 25.5, w: 5, h: 10.5, pivot: [33.5, 26.5], phase: 0.75 },
+  { x: 43.4, y: 25, w: 5, h: 11, pivot: [45.9, 26], phase: 0 },
+  { x: 49, y: 25.5, w: 5, h: 10.5, pivot: [51.5, 26.5], phase: 0.5 },
 ];
 const legMarkup = (leg) =>
-  `<rect x="${leg.x}" y="${leg.y}" width="${leg.w}" height="${leg.h}" rx="2.2"/>`;
+  `<rect x="${leg.x}" y="${leg.y}" width="${leg.w}" height="${leg.h}" rx="2.4"/>`;
 
-// Up over the rump and down, with a tuft on the end.
+// Up over the rump, down, and a tuft on the end.
 export const COW_TAIL =
-  '<path d="M51 8c4.6 0 7.2 3.3 7.2 7.6V22h-3.1v-6.4c0-2.6-1.7-4.4-4.1-4.4z"/>' +
-  '<ellipse cx="56.6" cy="24.2" rx="2.5" ry="3.1"/>';
-export const COW_TAIL_PIVOT = [52, 10];
+  '<path d="M51.6 10.2c4 .8 5.7 4.2 5.2 8.2l-.7 5.3-2.5-.3.7-5.3c.3-2.5-.8-4.1-3.1-4.4z"/>' +
+  '<ellipse cx="55.4" cy="25.6" rx="2.7" ry="3.3"/>';
+export const COW_TAIL_PIVOT = [52, 11];
 
-export const COW_BODY = '<ellipse cx="39" cy="18" rx="15" ry="11"/>';
-
-// The head, and the neck that carries it. They swing as one piece.
+// One barrel, one head, and nothing between them. There was a neck here,
+// and it was the worst thing in the drawing: a four-cornered slab that
+// read as a collar at rest and slid about across the body when the head
+// went down. The head simply overlaps the barrel instead, and is drawn
+// underneath it, so where the two meet is a join that never has to be got
+// right — it is not visible.
+export const COW_BODY = '<rect x="20" y="8" width="34" height="20" rx="9.6"/>';
+export const COW_SKULL = '<rect x="2" y="10" width="23" height="19" rx="8"/>';
+export const COW_MUZZLE = '<ellipse cx="7" cy="24.5" rx="6.6" ry="4.6"/>';
+// Nubs, not horns. A calf's are barely through, which is the right amount
+// of horn for something 45 pixels across — but one alone reads as a
+// mistake, and it is the pair that says cow rather than dog.
 //
-// The neck reaches a long way back into the body on purpose: that end of
-// it moves when the head goes down, and inside the barrel is the one place
-// it can move without showing. The ear and the horn are drawn before the
-// head so the head covers their roots and leaves a nub and a leaf.
-export const COW_NECK = '<path d="M34 14 19 16v11l15-1z"/>';
-export const COW_EAR = '<path d="M16.8 12.4c1.2-3.1 4.6-4.4 6.3-2.8s.1 4.8-3.3 6z"/>';
-export const COW_EAR_PIVOT = [17.6, 14.4];
-export const COW_HORN = '<ellipse cx="10.6" cy="9.6" rx="1.9" ry="2.5"/>';
-export const COW_SKULL = '<ellipse cx="13" cy="17" rx="9" ry="7.5"/>';
-export const COW_MUZZLE = '<ellipse cx="6.5" cy="21" rx="5" ry="4.2"/>';
-export const COW_EYE = '<circle cx="11.2" cy="15.6" r="1.9"/>';
-export const COW_HEAD = COW_EAR + COW_HORN + COW_NECK + COW_SKULL + COW_MUZZLE;
+// Wide and low rather than tall. Tall, they were a third thing the same
+// shape and size as the ear behind them, and three upright lobes in a row
+// on a round head is a rabbit.
+export const COW_HORN =
+  '<ellipse cx="9" cy="8.6" rx="2.3" ry="2.4"/>' +
+  '<ellipse cx="14.2" cy="8.2" rx="2.1" ry="2.2"/>';
+// Behind the horns, over the shoulder, where there is sky to see it
+// against — anywhere further back and the barrel is drawn over it.
+export const COW_EAR = '<path d="M17 12.8c.2-4.4 3.2-7.4 6.2-6.3s2.6 5.5-1.1 8z"/>';
+export const COW_EAR_PIVOT = [18, 13.8];
+export const COW_EYE = '<circle cx="10.8" cy="17" r="2.1"/>';
+export const COW_HEAD = COW_EAR + COW_HORN + COW_SKULL + COW_MUZZLE;
 
-// Where the head turns, which is the number the rest of the drawing was
-// laid out around.
+// Where the head turns.
 //
 // A head goes down to the grass by turning, and turning moves a point at
-// right angles to the arm holding it — so for the muzzle to travel
-// straight down rather than swing backwards into the animal's own chest,
-// the hinge has to be level with the muzzle and a long way behind it. This
-// one is, and it is buried in the barrel where the neck can pivot on it
-// without either end of the neck coming out from under the body.
-export const COW_HEAD_PIVOT = [28, 21];
+// right angles to the arm that holds it — so for the muzzle to travel down
+// rather than swing backwards into the animal's own chest, the hinge has
+// to be roughly level with the muzzle and a long way behind it. This one
+// is also just inside the barrel, and just inside the back of the head:
+// the back of the head barely moves, which is what keeps the join covered
+// while the front of it dips.
+export const COW_HEAD_PIVOT = [28, 20];
 
-// The head and neck first, so the barrel covers the back of the neck.
+// The head first, so the barrel is drawn over the back of it.
 export const COW_PARTS =
   COW_LEGS.map(legMarkup).join('') + COW_TAIL + COW_HEAD + COW_BODY;
 
 // The dark markings. They mean nothing over a dark animal, so they are
 // their own set: over the pale one they are the patches and the eye.
 export const COW_PATCH_PARTS =
-  '<ellipse cx="33" cy="12" rx="5.4" ry="3.9"/>' +
-  '<ellipse cx="45.5" cy="20.5" rx="4.8" ry="3.6"/>';
+  '<ellipse cx="32" cy="13.5" rx="5.2" ry="3.8"/>' +
+  '<ellipse cx="45" cy="21" rx="4.8" ry="3.5"/>';
 export const COW_MARKS = COW_PATCH_PARTS + COW_EYE;
 
 // Constants written in this file, never anything from outside it.
@@ -228,7 +237,7 @@ export function CowJointed() {
   return (
     <>
       <g data-cow="shadow" opacity="0.1">
-        <ellipse cx="0" cy="0" rx="16" ry="2.4" fill="#33383f" />
+        <ellipse cx="0" cy="0" rx="14" ry="2.4" fill="#33383f" />
       </g>
       <g data-cow="frame">
         <g fill="#faf7ef" stroke="#33383f" strokeWidth="1.5" strokeLinejoin="round">
@@ -240,18 +249,20 @@ export function CowJointed() {
               y={leg.y}
               width={leg.w}
               height={leg.h}
-              rx="2.2"
+              rx="2.4"
             />
           ))}
           <g data-cow="tail" dangerouslySetInnerHTML={{ __html: COW_TAIL }} />
-          <g data-cow="head">
-            <g data-cow="ear" dangerouslySetInnerHTML={{ __html: COW_EAR }} />
-            <g dangerouslySetInnerHTML={{ __html: COW_HORN + COW_NECK + COW_SKULL + COW_MUZZLE }} />
-            {/* The eye is dark, and it is on the head, so it is inside the
-                group the head turns in and not with the patches. */}
-            <g fill="#33383f" stroke="none" dangerouslySetInnerHTML={{ __html: COW_EYE }} />
+          <g data-cow="bob">
+            <g data-cow="head">
+              <g data-cow="ear" dangerouslySetInnerHTML={{ __html: COW_EAR }} />
+              <g dangerouslySetInnerHTML={{ __html: COW_HORN + COW_SKULL + COW_MUZZLE }} />
+              {/* The eye is dark, and it is on the head, so it belongs in
+                  the group the head turns in and not with the patches. */}
+              <g fill="#33383f" stroke="none" dangerouslySetInnerHTML={{ __html: COW_EYE }} />
+            </g>
+            <g dangerouslySetInnerHTML={{ __html: COW_BODY }} />
           </g>
-          <g data-cow="bob" dangerouslySetInnerHTML={{ __html: COW_BODY }} />
         </g>
         {/* The patches are on the barrel, so they take the barrel's beat —
             which is why they are a second group marked the same way rather

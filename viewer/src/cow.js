@@ -6,7 +6,7 @@
 // while it is being got right.
 
 import {
-  COW_BOX, COW_LEGS, COW_TAIL_PIVOT, COW_EAR_PIVOT, COW_HEAD_PIVOT,
+  COW_BOX, COW_GROUND, COW_LEGS, COW_TAIL_PIVOT, COW_EAR_PIVOT, COW_HEAD_PIVOT,
 } from './glyphs';
 
 // How fast it walks across the page. Slow: a cow crossing a page in half a
@@ -41,7 +41,7 @@ const COW_DUTY = 0.65;
 // goes down to the page to graze — far enough to put the muzzle just off
 // the paper, which about thirty degrees on this drawing does.
 const COW_BOB = 0.9;
-const COW_STOOP = 30;
+const COW_STOOP = 21;
 // How long the head takes to get down there and back up.
 const COW_NOD = 320;
 // An ear goes back about this often, and stays back about this long. It
@@ -50,6 +50,9 @@ const COW_NOD = 320;
 const COW_EAR_EVERY = [3800, 9000];
 const COW_EAR_HELD = 130;
 const COW_EAR_BACK = 30;
+// The feet are not centred in the box — the head takes up the front of it
+// — so neither is what they stand on.
+const SHADOW_AT = 6;
 // And the tail flicks properly, now and then, on top of its slow swing.
 const COW_FLICK_EVERY = [5000, 14000];
 const COW_FLICK_HELD = 420;
@@ -165,10 +168,10 @@ export function poseCow(c, parts, now, k, cx, cy) {
   // which nobody sees and everybody notices the absence of.
   const bob = -COW_BOB * c.gait * (0.5 - 0.5 * Math.cos(4 * Math.PI * c.stride));
   const breath = 1 + 0.008 * (1 - c.gait) * Math.sin(now * 0.0016 + c.seed * 6.28);
-  // Scaled about the belly, so it is the back that lifts and not the feet.
+  // Scaled about the ground, so it is the back that lifts and not the feet.
   const ride =
-    `translate(0 ${bob.toFixed(2)}) translate(0 30) ` +
-    `scale(1 ${breath.toFixed(4)}) translate(0 -30)`;
+    `translate(0 ${bob.toFixed(2)}) translate(0 ${COW_GROUND}) ` +
+    `scale(1 ${breath.toFixed(4)}) translate(0 ${-COW_GROUND})`;
   for (let i = 0; i < parts.bob.length; i += 1) parts.bob[i].setAttribute('transform', ride);
 
   // Down to the grass, with a slow nuzzle once it is there.
@@ -198,7 +201,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const near = 1 + bob * 0.6;
   parts.shadow.setAttribute(
     'transform',
-    `translate(${(c.turn < 0 ? -6 : 6).toFixed(1)} 17.5) ` +
+    `translate(${c.turn < 0 ? -SHADOW_AT : SHADOW_AT} ${COW_GROUND - COW_BOX.h / 2}) ` +
     `scale(${Math.max(0.25, Math.abs(c.turn)).toFixed(3)} ${near.toFixed(3)})`
   );
   parts.shadow.setAttribute('opacity', (0.1 * near).toFixed(3));

@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import {
-  GlyphFor, CowJointed, COW_PARTS, COW_PATCH_PARTS, COW_BOX,
+  GlyphFor, CowJointed, COW_PARTS, COW_MARKS, COW_BOX,
   ANCHOR_D, ANCHOR_HANG,
 } from './glyphs';
 import { stepCow, poseCow } from './cow';
@@ -949,7 +949,7 @@ export default function PdfPage({
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
       `viewBox="0 0 ${COW_BOX.w} ${COW_BOX.h}">` +
       `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
-      `${COW_PARTS}</g><g fill="#33383f">${COW_PATCH_PARTS}</g></svg>`;
+      `${COW_PARTS}</g><g fill="#33383f">${COW_MARKS}</g></svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(
       1
     )} ${(h * 0.9).toFixed(1)}, copy`;
