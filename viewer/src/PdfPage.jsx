@@ -780,21 +780,62 @@ export default function PdfPage({
   // Ninety is as far as the thickness goes: past about 128px a browser
   // drops a cursor image altogether.
   const brushCursor = () => {
-    const thick = Math.max(1, Math.min(90, inkWidth * size.width));
-    const LEN = 18;
+    const thick = Math.max(1.5, Math.min(40, inkWidth * size.width));
+    // Three times as long as it is thick, always. The length used to be
+    // fixed, so the strip went from a long thin sliver at the finest weight
+    // to very nearly a circle at the heaviest — a different shape for each
+    // setting, when what changes between settings is a size.
+    const LEN = thick * 3;
     const w = LEN + 4;
     const h = thick + 4;
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h.toFixed(1)}">` +
-      `<rect x="2" y="2" width="${LEN}" height="${thick.toFixed(1)}" ` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" ` +
+      `height="${h.toFixed(1)}">` +
+      `<rect x="2" y="2" width="${LEN.toFixed(1)}" height="${thick.toFixed(1)}" ` +
       `rx="${(thick / 2).toFixed(1)}" fill="${inkColor}" fill-opacity="${inkOpacity}"/>` +
-      `<rect x="1.4" y="1.4" width="${LEN + 1.2}" height="${(thick + 1.2).toFixed(1)}" ` +
+      `<rect x="1.4" y="1.4" width="${(LEN + 1.2).toFixed(1)}" ` +
+      `height="${(thick + 1.2).toFixed(1)}" ` +
       `rx="${((thick + 1.2) / 2).toFixed(1)}" fill="none" stroke="#ffffff" ` +
       `stroke-opacity="0.8" stroke-width="1.2"/>` +
       `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
       h / 2
     ).toFixed(1)}, crosshair`;
+  };
+
+  // The anchor in hand is the anchor it drops: the same path, at the size
+  // the pin is drawn, with the hotspot on the point the pin hangs from — so
+  // where the cursor says it will land is where it lands. A margin round
+  // the box, because the white it is outlined in has to go somewhere.
+  const anchorCursor = (gold) => {
+    const PAD = 1.2;
+    const unit = 24 + PAD * 2;
+    const px = 30 * (unit / 24);
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${px.toFixed(1)}" ` +
+      `height="${px.toFixed(1)}" viewBox="${-PAD} ${-PAD} ${unit} ${unit}">` +
+      `<path d="${ANCHOR_D}" fill="none" stroke="#ffffff" stroke-width="2.4" ` +
+      `stroke-linejoin="round"/>` +
+      `<path d="${ANCHOR_D}" fill="${gold ? '#b3923d' : '#2b4a6f'}" fill-rule="evenodd"/></svg>`;
+    const hot = (v) => (((v + PAD) * px) / unit).toFixed(1);
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hot(ANCHOR_HANG.x)} ${hot(
+      ANCHOR_HANG.y
+    )}, copy`;
+  };
+
+  // A cow in hand, at the size the cow will be, with the hotspot under its
+  // feet — a cow is put down on the ground, not centred on a point.
+  const cowCursor = () => {
+    const w = Math.min(96, Math.max(28, COW_SIZE * size.width * scale));
+    const h = (w * COW_BOX.h) / COW_BOX.w;
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
+      `viewBox="0 0 ${COW_BOX.w} ${COW_BOX.h}">` +
+      `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
+      `${COW_PARTS}</g><g fill="#33383f">${COW_PATCH_PARTS}</g></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(
+      1
+    )} ${(h * 0.9).toFixed(1)}, copy`;
   };
 
   const strokeProps = {
