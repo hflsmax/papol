@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import {
-  GlyphFor, CowFigure, CowPatches, COW_PARTS, COW_PATCH_PARTS,
+  GlyphFor, CowJointed, COW_PARTS, COW_PATCH_PARTS, COW_BOX,
   ANCHOR_D, ANCHOR_HANG,
 } from './glyphs';
+import { stepCow, poseCow } from './cow';
 import { pageOverlays } from './references';
-import { strokePx, STRIP_RATIO } from './ink';
+import { STRIP_RATIO } from './ink';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -53,9 +54,9 @@ const MAX_POINTS = 4000;
 const EMPTY_DOOMED = { ink: [], notes: [], cows: [] };
 // How wide a stroke is to take hold of, whatever it was drawn at.
 const GRAB_WIDTH = 14;
-// A cow, as a fraction of the page width, and the shape it is drawn in.
+// A cow, as a fraction of the page width. The shape it is drawn in is
+// COW_BOX, next to the drawing itself.
 const COW_SIZE = 0.075;
-const COW_BOX = { w: 64, h: 44 };
 // Draw, then stop and hold: the stroke snaps to a straight line from where
 // it began, square to the page. Underlining a sentence and ruling a bar
 // down a margin are most of what a brush is used for on a paper, and both
@@ -90,6 +91,7 @@ export default function PdfPage({
   inkColor,
   inkWidth,
   inkOpacity,
+  inkShape,
   onDrawStroke,
   onEraseStroke,
   onEraseNote,
@@ -141,6 +143,9 @@ export default function PdfPage({
   // rubbing out is not undoable here, and a reader should be able to see
   // what is about to go before they press.
   const [doomed, setDoomed] = useState(EMPTY_DOOMED);
+  // Where the brush is hovering, so its own footprint can be drawn on the
+  // page under it.
+  const [brushAt, setBrushAt] = useState(null);
   // A stroke being carried. Like the pin's drag, in a ref because
   // pointermove outruns React, with state beside it only to redraw the ink
   // under the hand.
@@ -452,6 +457,7 @@ export default function PdfPage({
   // stays there — nothing else lights it, so nothing else turns it off.
   useEffect(() => {
     if (tool !== 'eraser') setDoomed(EMPTY_DOOMED);
+    if (tool !== 'brush') setBrushAt(null);
   }, [tool]);
 
   // Square to the page, along whichever axis the stroke went furthest —
@@ -558,6 +564,7 @@ export default function PdfPage({
       return;
     }
     if (tool === 'brush') {
+      setBrushAt(at);
       stopStraighten();
       wetRef.current = [at];
       setWet(wetRef.current);
@@ -571,6 +578,7 @@ export default function PdfPage({
 
   const inkMove = (e) => {
     const at = anchorAt(e.clientX, e.clientY);
+    if (tool === 'brush') setBrushAt(at);
     // The laser follows a pointer that is only passing over, not just one
     // that is pressed: pointing at a figure while you talk about it is the
     // ordinary way to use it, and holding a button down to do that is not
@@ -655,6 +663,7 @@ export default function PdfPage({
         color: inkColor,
         width: inkWidth,
         opacity: inkOpacity,
+        shape: inkShape,
       });
     }
     shiftRef.current = false;
@@ -668,6 +677,62 @@ export default function PdfPage({
     points && points.length > 1 && (shiftRef.current || straightRef.current)
       ? [points[0], axisSnap(points[0], points[points.length - 1])]
       : points;
+
+  // What a flat nib leaves behind.
+  //
+  // A stroke used to be drawn as a line of constant thickness, which is a
+  // round pipe dragged over the page: it looked the same whichever way the
+  // hand went, and so had nothing to do with the upright strip the reader
+  // was holding. A real flat brush is wide across and thin along, so moving
+  // sideways leaves a broad band and moving up the page leaves a hairline,
+  // and the mark records the direction it was made in.
+  //
+  // The shape is the region the nib swept: for each step of the hand, the
+  // convex hull of the nib in both places. Consecutive hulls overlap on the
+  // point they share, so the joins fill themselves, and all of them wound
+  // the same way means a nonzero fill unions the lot into one mark.
+  const convexHull = (pts) => {
+    const by = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) =>
+      (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const half = (list) => {
+      const out = [];
+      for (const pt of list) {
+        while (out.length > 1 && cross(out[out.length - 2], out[out.length - 1], pt) <= 0) {
+          out.pop();
+        }
+        out.push(pt);
+      }
+      out.pop();
+      return out;
+    };
+    return [...half(by), ...half([...by].reverse())];
+  };
+
+  const nibPath = (points, thick, shape) => {
+    // A round nib sweeps a circle, which is a line of constant thickness
+    // whichever way it goes — so it is drawn the way it always was, as a
+    // stroked path, and only the flat one needs a swept outline.
+    if (shape === 'round') return null;
+    const w = Math.max(thick / STRIP_RATIO, 0.2) / 2;
+    const h = thick / 2;
+    const at = (p) => [p.x * size.width, (1 - p.y) * size.height];
+    const corners = ([x, y]) => [
+      [x - w, y - h],
+      [x + w, y - h],
+      [x + w, y + h],
+      [x - w, y + h],
+    ];
+    const poly = (pts) =>
+      `M${pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join('L')}Z`;
+
+    if (points.length === 1) return poly(corners(at(points[0])));
+    let d = '';
+    for (let i = 1; i < points.length; i += 1) {
+      d += poly(convexHull([...corners(at(points[i - 1])), ...corners(at(points[i]))]));
+    }
+    return d;
+  };
 
   // A lone point is a dot the reader meant to make, and a path that only
   // moves draws nothing — so it is given somewhere to go.
@@ -759,58 +824,101 @@ export default function PdfPage({
     if (d) onMoveCow(d.id, { held: false, grazing: true, until: performance.now() + 1200 });
   };
 
-  // The cursor is the stroke: a short strip as thick as the ink is on the
-  // page, with half-circle ends like the round caps a stroke is drawn with,
-  // and its hotspot in the middle, where the line goes.
-  //
-  // On the page, not on the screen. A stroke's width is a fraction of the
-  // page, so how many screen pixels it covers depends on the zoom — and
-  // the zoom changes on its own whenever the window is resized, which made
-  // the thing under the reader's hand change shape while they were not
-  // touching it. It is pinned to the page instead: constant for a document
-  // at any zoom and any window, and still true of the ink at 100%.
-  //
-  // There was a drawing of a brush here. It said which tool was in hand,
-  // which the bar already says, and it wanted a tip to aim with that was
-  // not where the ink lands.
-  //
-  // Drawn at the strength the ink is drawn at, so a faint brush looks
-  // faint in the hand. A white backing was making it look solid whatever
-  // the setting said, which is the opposite of the point — ink over a page
-  // lets the print show through, and the thing you are holding should say
-  // so before you commit to a stroke. A white rim rather than a white
-  // filling, so it is still findable over black type without pretending to
-  // be opaque.
-  //
-  // Ninety is as far as the thickness goes: past about 128px a browser
-  // drops a cursor image altogether.
-  const brushCursor = () => {
-    const thick = strokePx(inkWidth, size.width);
-    // Standing up, and three times as long as it is thick, always. Upright
-    // because a hand drawing a line moves across the page, so a strip lying
-    // along the direction of travel hides the very thing being aimed at;
-    // stood on end it sits clear of the line it is about to make. The
-    // length is a multiple rather than a fixed number, so the strip is one
-    // shape at every weight — it used to go from a thin sliver at the
-    // finest to nearly a circle at the heaviest, which is a different shape
-    // for each setting when what changes between settings is a size.
-    const LEN = thick * STRIP_RATIO;
-    const w = thick + 4;
-    const h = LEN + 4;
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" ` +
-      `height="${h.toFixed(1)}">` +
-      `<rect x="2" y="2" width="${thick.toFixed(1)}" height="${LEN.toFixed(1)}" ` +
-      `rx="1" fill="${inkColor}" fill-opacity="${inkOpacity}"/>` +
-      `<rect x="1.4" y="1.4" width="${(thick + 1.2).toFixed(1)}" ` +
-      `height="${(LEN + 1.2).toFixed(1)}" ` +
-      `rx="1.4" fill="none" stroke="#ffffff" ` +
-      `stroke-opacity="0.8" stroke-width="1.2"/>` +
-      `</svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
-      h / 2
-    ).toFixed(1)}, crosshair`;
+  // Reduced motion means reduced motion. A cow wandering across a page is
+  // a decoration, and a decoration is the kind of thing that setting is
+  // about: it stands where it was put instead, and can still be picked up
+  // and moved, because that is the reader doing it and not the page.
+  const [stillCows, setStillCows] = useState(
+    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mq) return undefined;
+    const onChange = () => setStillCows(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // The groups the frame loop writes to, found once when React puts a cow
+  // on the page. The callback is kept and handed back for the same cow
+  // every time, because a fresh one each render would have React take the
+  // whole herd off the page and put it back on for every laser frame.
+  const cowPartsRef = useRef(new Map());
+  const cowRefsRef = useRef(new Map());
+
+  const cowRef = (id) => {
+    const made = cowRefsRef.current;
+    if (!made.has(id)) {
+      made.set(id, (node) => {
+        if (!node) {
+          cowPartsRef.current.delete(id);
+          return;
+        }
+        cowPartsRef.current.set(id, {
+          root: node,
+          frame: node.querySelector('[data-cow="frame"]'),
+          bob: node.querySelectorAll('[data-cow="bob"]'),
+          head: node.querySelector('[data-cow="head"]'),
+          ear: node.querySelector('[data-cow="ear"]'),
+          tail: node.querySelector('[data-cow="tail"]'),
+          legs: node.querySelectorAll('[data-cow="leg"]'),
+          shadow: node.querySelector('[data-cow="shadow"]'),
+        });
+      });
+    }
+    return made.get(id);
   };
+
+  // One frame loop for the whole herd on this page, and nothing about a
+  // cow in React state between one being put down and it being rubbed out.
+  //
+  // Before a frame, so a cow that has just been put down is in the right
+  // place in the frame it appears in rather than the one after it. And a
+  // loop only while the page is somewhere near the window: a cow four
+  // screens up is still grazing when you get back to it, but it is not
+  // grazing on the battery in between.
+  useLayoutEffect(() => {
+    for (const id of [...cowRefsRef.current.keys()]) {
+      if (!cows.some((c) => c.id === id)) cowRefsRef.current.delete(id);
+    }
+    if (!cows.length || !size.width) return undefined;
+    const k = (COW_SIZE * size.width) / COW_BOX.w;
+    const paint = (now) => {
+      for (const c of cows) {
+        const parts = cowPartsRef.current.get(c.id);
+        if (parts) poseCow(c, parts, now, k, c.x * size.width, (1 - c.y) * size.height);
+      }
+    };
+    if (stillCows) {
+      for (const c of cows) {
+        c.turn = c.facing === 1 ? -1 : 1;
+        c.gait = 0;
+        c.head = 0;
+        c.ear = 0;
+        c.tailTill = 0;
+        c.born = -1e6;
+      }
+      paint(performance.now());
+      return undefined;
+    }
+    paint(performance.now());
+    if (!visible) return undefined;
+    let last = performance.now();
+    let raf = 0;
+    const frame = (now) => {
+      // A tab in the background is given no frames at all, and comes back
+      // holding a gap of minutes. Capped, because the herd should be where
+      // it was left rather than somewhere across the field.
+      const dt = Math.min(50, now - last);
+      last = now;
+      for (const c of cows) stepCow(c, dt, now);
+      paint(now);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [cows, visible, size.width, size.height, stillCows]);
 
   // The anchor in hand is the anchor it drops: the same path, at the size
   // the pin is drawn, with the hotspot on the point the pin hangs from — so
@@ -859,10 +967,29 @@ export default function PdfPage({
   //
   // Joins stay round either way: a mitre spikes at an acute bend, and a
   // hand drawing freehand makes a great many acute bends.
-  const capFor = (points) => (points.length === 1 ? 'square' : 'butt');
+  // A click leaves the brush's own footprint: the upright strip that was
+  // under the hand, not a square. A square cap on a stroke with no length
+  // draws a square block, which is neither the shape of the brush nor
+  // anything the reader was shown before they pressed.
+  const markFor = (points, thick, shape, extra) => {
+    const swept = nibPath(points, thick, shape);
+    if (swept) return <path d={swept} fillRule="nonzero" stroke="none" {...extra} />;
+    const { fill, ...rest } = extra;
+    return (
+      <path
+        d={pathFor(points)}
+        stroke={fill}
+        strokeWidth={thick}
+        strokeLinecap={points.length === 1 ? 'round' : 'butt'}
+        {...strokeProps}
+        {...rest}
+      />
+    );
+  };
 
   const strokeProps = {
     fill: 'none',
+    strokeLinecap: 'butt',
     strokeLinejoin: 'round',
   };
 
@@ -889,6 +1016,7 @@ export default function PdfPage({
       onPointerLeave={() => {
         onHover(null);
         setDoomed(EMPTY_DOOMED);
+        setBrushAt(null);
       }}
       data-page={pageNumber}
     >
@@ -924,24 +1052,15 @@ export default function PdfPage({
                 <g key={stroke.id} className={inkDrag?.id === stroke.id ? 'carrying' : undefined}>
                   {/* Lit from behind in its own colour, so a stroke about
                       to go still looks like the stroke it is. */}
-                  {going && (
-                    <path
-                      d={pathFor(points)}
-                      stroke={stroke.color}
-                      strokeWidth={stroke.width * size.width + HALO_SPREAD * 2}
-                      opacity="0.3"
-                      strokeLinecap={capFor(points)}
-                      {...strokeProps}
-                    />
-                  )}
-                  <path
-                    d={pathFor(points)}
-                    stroke={stroke.color}
-                    strokeWidth={stroke.width * size.width}
-                    opacity={stroke.opacity ?? 1}
-                    strokeLinecap={capFor(points)}
-                    {...strokeProps}
-                  />
+                  {going &&
+                    markFor(points, stroke.width * size.width + HALO_SPREAD * 2, stroke.shape, {
+                      fill: stroke.color,
+                      opacity: 0.3,
+                    })}
+                  {markFor(points, stroke.width * size.width, stroke.shape, {
+                    fill: stroke.color,
+                    opacity: stroke.opacity ?? 1,
+                  })}
                   {/* Something to take hold of. A drawn line is a few pixels
                       wide and a hand is not that accurate, so the thing that
                       listens is a fat transparent copy of it. Only with the
@@ -964,56 +1083,74 @@ export default function PdfPage({
                 </g>
               );
             })}
-            {wet && (
-              <path
-                d={pathFor(laid(wet))}
-                stroke={inkColor}
-                strokeWidth={inkWidth * size.width}
-                opacity={inkOpacity}
-                strokeLinecap={capFor(laid(wet))}
-                {...strokeProps}
-              />
+            {wet &&
+              markFor(laid(wet), inkWidth * size.width, inkShape, {
+                fill: inkColor,
+                opacity: inkOpacity,
+              })}
+            {/* The brush itself, drawn on the page rather than handed to
+                the browser as a cursor image. A cursor image is dropped
+                past about 128px, so on a zoomed page it could not keep up
+                with the ink and the two stopped agreeing — which is what
+                capped the zoom. Here it is in the stroke's own coordinates,
+                so it is the stroke's own thickness at any zoom, exactly,
+                with nothing to clamp and no ceiling to reach. No rim: the
+                brush is the mark, and a white edge around it is a thing the
+                mark will not have. */}
+            {tool === 'brush' && brushAt && (
+              <g pointerEvents="none">
+                {inkShape === 'round' ? (
+                  <circle
+                    cx={brushAt.x * size.width}
+                    cy={(1 - brushAt.y) * size.height}
+                    r={(inkWidth * size.width) / 2}
+                    fill={inkColor}
+                    opacity={inkOpacity}
+                  />
+                ) : (
+                  <rect
+                    x={brushAt.x * size.width - (inkWidth * size.width) / (2 * STRIP_RATIO)}
+                    y={(1 - brushAt.y) * size.height - (inkWidth * size.width) / 2}
+                    width={(inkWidth * size.width) / STRIP_RATIO}
+                    height={inkWidth * size.width}
+                    fill={inkColor}
+                    opacity={inkOpacity}
+                  />
+                )}
+              </g>
             )}
-            {cows.map((cow) => {
-              const k = (COW_SIZE * size.width) / COW_BOX.w;
-              const cx = cow.x * size.width;
-              const cy = (1 - cow.y) * size.height;
-              const going = doomed.cows.includes(cow.id);
-              return (
-                <g
-                  key={cow.id}
-                  className={going ? 'cow going' : 'cow'}
-                  transform={
-                    `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) ` +
-                    // The drawing faces left, so a cow walking right is it
-                    // turned over.
-                    `scale(${(cow.facing === 1 ? -k : k).toFixed(4)} ${k.toFixed(4)}) ` +
-                    `translate(${-COW_BOX.w / 2} ${-COW_BOX.h / 2})`
-                  }
-                >
-                  <g fill="#faf7ef" stroke="#33383f" strokeWidth="1.5" strokeLinejoin="round">
-                    <CowFigure />
-                  </g>
-                  <g fill="#33383f">
-                    <CowPatches />
-                  </g>
-                  {tool === 'arrow' && (
-                    <rect
-                      className="cow-grab"
-                      x="0"
-                      y="0"
-                      width={COW_BOX.w}
-                      height={COW_BOX.h}
-                      fill="transparent"
-                      onPointerDown={(e) => startCowDrag(e, cow)}
-                      onPointerMove={moveCowDrag}
-                      onPointerUp={endCowDrag}
-                      onPointerCancel={endCowDrag}
-                    />
-                  )}
-                </g>
-              );
-            })}
+            {/* A cow is a set of groups with nothing on them: every
+                transform here, down to where the animal is standing, is
+                written by the frame loop above. Nothing React renders and
+                the loop writes is ever the same attribute, so the two are
+                never arguing over one. */}
+            {cows.map((cow) => (
+              <g
+                key={cow.id}
+                ref={cowRef(cow.id)}
+                className={doomed.cows.includes(cow.id) ? 'cow going' : 'cow'}
+              >
+                <CowJointed />
+                {/* Taken hold of anywhere on it. The box that listens sits
+                    outside the turn, because halfway through one the animal
+                    is edge-on and a box that turned with it would be a few
+                    pixels wide just as a hand reached for it. */}
+                {tool === 'arrow' && (
+                  <rect
+                    className="cow-grab"
+                    x={-COW_BOX.w / 2}
+                    y={-COW_BOX.h / 2}
+                    width={COW_BOX.w}
+                    height={COW_BOX.h}
+                    fill="transparent"
+                    onPointerDown={(e) => startCowDrag(e, cow)}
+                    onPointerMove={moveCowDrag}
+                    onPointerUp={endCowDrag}
+                    onPointerCancel={endCowDrag}
+                  />
+                )}
+              </g>
+            ))}
             {laserRuns().map((run) => (
               <path
                 key={run.key}
@@ -1056,7 +1193,7 @@ export default function PdfPage({
             className={`ink-surface tool-${tool}`}
             style={
               tool === 'brush'
-                ? { cursor: brushCursor() }
+                ? undefined
                 : tool === 'anchor' || tool === 'here'
                   ? { cursor: anchorCursor(tool === 'here') }
                   : tool === 'cow'

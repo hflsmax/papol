@@ -1392,6 +1392,7 @@ def _stroke_out(stroke: InkStroke) -> InkStrokeOut:
         color=stroke.color,
         width=stroke.width,
         opacity=stroke.opacity,
+        shape=stroke.shape,
     )
 
 
@@ -1445,6 +1446,7 @@ async def add_ink(
         color=stroke.color,
         width=stroke.width,
         opacity=stroke.opacity,
+        shape=stroke.shape,
     )
     db.add(row)
     db.commit()

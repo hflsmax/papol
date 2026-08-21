@@ -113,6 +113,7 @@ class InkStrokeCreate(BaseModel):
     color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
     width: float = Field(default=0.004, gt=0, le=0.1)
     opacity: float = Field(default=1.0, gt=0, le=1)
+    shape: Literal["flat", "round"] = "flat"
 
 
 class InkStrokeUpdate(BaseModel):
@@ -129,6 +130,7 @@ class InkStrokeOut(BaseModel):
     color: str
     width: float
     opacity: float
+    shape: str
 
     class Config:
         from_attributes = True

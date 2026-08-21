@@ -10,7 +10,7 @@ import PdfPage from './PdfPage';
 import ReferenceCard from './ReferenceCard';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
-import { strokePx, STRIP_RATIO, PAGE_WIDTH_GUESS } from './ink';
+import { stripSize, PAGE_WIDTH_GUESS } from './ink';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -19,6 +19,17 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 const NARROW = 860;
 
 const MIN_SCALE = 0.5;
+// Four hundred per cent, which is as far as reading a paper ever needs to
+// go — and, not by coincidence, as far as the brush can be honest. A
+// cursor image is dropped by the browser past about 128px, so beyond this
+// the strip in your hand would stop growing while the ink went on getting
+// thicker, and the two would quietly stop agreeing. The heaviest weight on
+// the widest page anyone uploads comes to about 74px here.
+// The brush no longer limits this. It was capped at four while the brush
+// was a cursor image, which a browser refuses to draw past about 128px —
+// so past that the strip in your hand stopped growing while the ink went
+// on getting thicker. The brush is drawn on the page now, in the stroke's
+// own coordinates, and has no ceiling to reach.
 const MAX_SCALE = 10;
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
@@ -54,6 +65,14 @@ const INK_OPACITIES = [
 const INK_COLOR = INK_COLORS[0].hex;
 const INK_WIDTH = INK_WIDTHS[1];
 const INK_OPACITY = INK_OPACITIES[0].value;
+
+// The nib. Flat is a chisel held upright — broad across the page, thin
+// along it, so a mark says which way the hand went. Round is the same
+// weight in every direction, which is what a pen does.
+const INK_SHAPES = [
+  { id: 'flat', name: 'Flat' },
+  { id: 'round', name: 'Round' },
+];
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
 
@@ -75,16 +94,6 @@ const TOOLS = [
   { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'Anchor, shifted' },
   { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'Moo' },
 ];
-
-// How big a cow is, as a fraction of the page width, and how fast it walks
-// across it. Slow: a cow crossing a page in half a minute is a cow.
-const COW_SIZE = 0.075;
-const COW_SPEED = 0.00003;
-// A cow is either walking somewhere or has stopped to graze, and does each
-// for a while before thinking better of it.
-const COW_WALK = [1400, 3600];
-const COW_GRAZE = [2200, 6000];
-const spell = ([a, b]) => a + Math.random() * (b - a);
 
 // The two anchors are one-shot: they are a thing you are holding until you
 // put it down, and then you have what you were holding before back.
@@ -173,6 +182,9 @@ export default function App() {
     const kept = Number(localStorage.getItem('papol_viewer_ink_opacity'));
     return INK_OPACITIES.some((o) => o.value === kept) ? kept : INK_OPACITY;
   });
+  const [inkShape, setInkShape] = useState(
+    () => localStorage.getItem('papol_viewer_ink_shape') || 'flat'
+  );
   const [brushOpen, setBrushOpen] = useState(false);
   // The width of a page of this document, reported by the first page to
   // measure itself. The brush's weights are drawn at the size of the mark
@@ -301,7 +313,8 @@ export default function App() {
     localStorage.setItem('papol_viewer_ink', inkColor);
     localStorage.setItem('papol_viewer_ink_width', String(inkWidth));
     localStorage.setItem('papol_viewer_ink_opacity', String(inkOpacity));
-  }, [inkColor, inkWidth, inkOpacity]);
+    localStorage.setItem('papol_viewer_ink_shape', inkShape);
+  }, [inkColor, inkWidth, inkOpacity, inkShape]);
 
   // Putting the brush down closes the sheet that belongs to it.
   useEffect(() => {
@@ -650,7 +663,17 @@ export default function App() {
     return map;
   }, [cows]);
 
+  // A cow is a plain record that the page it stands on then mutates in
+  // place, frame by frame. React is told when one is put down and when one
+  // is rubbed out, and nothing in between: an animal that has moved a pixel
+  // is not a change to the document, and putting every step through state
+  // re-rendered every page in it ten times a second to say so.
+  //
+  // Which is also why the walking is not here any more. It is in PdfPage,
+  // which knows how big the page is and can therefore draw the animal as
+  // well as move it — and can stop doing both when the page scrolls away.
   const dropCow = (page, at) => {
+    const facing = Math.random() < 0.5 ? 1 : -1;
     setCows((herd) => [
       ...herd,
       {
@@ -658,60 +681,48 @@ export default function App() {
         page,
         x: at.x,
         y: at.y,
-        facing: Math.random() < 0.5 ? 1 : -1,
-        grazing: true,
-        until: performance.now() + spell(COW_GRAZE),
+        facing,
+        // Not grazing yet and no spell left to run: the first frame it is
+        // alive for gives it one, so it lands, puts its head down, and
+        // thinks about walking somewhere in a few seconds' time.
+        grazing: false,
+        until: 0,
+        held: false,
+        // What it is doing: where it is trying to go, and how fast it is
+        // actually going, which are not the same thing while it is getting
+        // under way or coming to a stop.
+        tvx: 0,
+        tvy: 0,
         vx: 0,
         vy: 0,
+        // How it looks while it does it. `turn` is which way round it is,
+        // and it travels between the two rather than jumping; `gait` is
+        // how much of a walk to show; `stride` is where in that walk it is.
+        turn: facing === 1 ? -1 : 1,
+        gait: 0,
+        stride: Math.random(),
+        head: 0,
+        ear: 0,
+        earAt: 0,
+        earTill: 0,
+        tailAt: 0,
+        tailTill: 0,
+        born: performance.now(),
+        // No two of them alike. A herd whose tails swing together, at one
+        // speed, is a row of clockwork; the seed and the pace are what keep
+        // them from ever quite lining up.
+        seed: Math.random(),
+        pace: 0.85 + Math.random() * 0.3,
       },
     ]);
   };
 
-  const moveCow = (id, at) =>
-    setCows((herd) => herd.map((c) => (c.id === id ? { ...c, ...at } : c)));
+  const moveCow = (id, at) => {
+    const cow = cows.find((c) => c.id === id);
+    if (cow) Object.assign(cow, at);
+  };
 
   const eraseCow = (id) => setCows((herd) => herd.filter((c) => c.id !== id));
-
-  // Ten times a second, which is plenty for an animal that spends most of
-  // its time standing still, and cheap enough that nothing else notices.
-  useEffect(() => {
-    if (!cows.length) return undefined;
-    let last = performance.now();
-    const tick = setInterval(() => {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      setCows((herd) =>
-        herd.map((c) => {
-          if (c.held) return c; // being carried; it can graze later
-          if (now >= c.until) {
-            if (!c.grazing) return { ...c, grazing: true, until: now + spell(COW_GRAZE) };
-            const dir = Math.random() < 0.5 ? -1 : 1;
-            return {
-              ...c,
-              grazing: false,
-              facing: dir,
-              vx: dir * COW_SPEED,
-              // Barely any drift up or down: a page is not a field.
-              vy: (Math.random() - 0.5) * COW_SPEED * 0.3,
-              until: now + spell(COW_WALK),
-            };
-          }
-          if (c.grazing) return c;
-          let { x, y, vx, vy, facing } = c;
-          x += vx * dt;
-          y += vy * dt;
-          // The edges of the page are the edges of the field.
-          if (x < 0.05) { x = 0.05; vx = -vx; facing = -facing; }
-          if (x > 0.95) { x = 0.95; vx = -vx; facing = -facing; }
-          if (y < 0.05) { y = 0.05; vy = -vy; }
-          if (y > 0.95) { y = 0.95; vy = -vy; }
-          return { ...c, x, y, vx, vy, facing };
-        })
-      );
-    }, 100);
-    return () => clearInterval(tick);
-  }, [cows.length]);
 
   // Zooming keeps the spot under the cursor under the cursor.
   //
@@ -1135,6 +1146,37 @@ export default function App() {
                       />
                     ))}
                   </div>
+                  <div className="weights" role="group" aria-label="Nib">
+                    {INK_SHAPES.map((sh) => (
+                      <button
+                        key={sh.id}
+                        type="button"
+                        className={`shape${sh.id === inkShape ? ' on' : ''}`}
+                        aria-pressed={sh.id === inkShape}
+                        aria-label={sh.name}
+                        title={
+                          sh.id === 'flat'
+                            ? 'Flat — broad across the page, thin along it'
+                            : 'Round — the same weight in every direction'
+                        }
+                        onClick={() => setInkShape(sh.id)}
+                      >
+                        {/* The nib itself, at the weight it is set to. */}
+                        <span
+                          className={`nib nib-${sh.id}`}
+                          style={{
+                            width:
+                              sh.id === 'flat'
+                                ? stripSize(inkWidth, pageWidth, scale || 1).wide
+                                : stripSize(inkWidth, pageWidth, scale || 1).tall,
+                            height: stripSize(inkWidth, pageWidth, scale || 1).tall,
+                            background: inkColor,
+                            opacity: inkOpacity,
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
                   <div className="weights" role="group" aria-label="Transparency">
                     {INK_OPACITIES.map((o) => (
                       <button
@@ -1176,8 +1218,8 @@ export default function App() {
                         <span
                           className="weight-strip"
                           style={{
-                            width: strokePx(w, pageWidth),
-                            height: strokePx(w, pageWidth) * STRIP_RATIO,
+                            width: stripSize(w, pageWidth, scale || 1).wide,
+                            height: stripSize(w, pageWidth, scale || 1).tall,
                             background: inkColor,
                             opacity: inkOpacity,
                           }}
@@ -1254,6 +1296,7 @@ export default function App() {
               inkColor={inkColor}
               inkWidth={inkWidth}
               inkOpacity={inkOpacity}
+              inkShape={inkShape}
               onDrawStroke={drawStroke}
               onEraseStroke={eraseStroke}
               onEraseNote={removeNote}

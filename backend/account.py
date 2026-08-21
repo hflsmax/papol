@@ -180,6 +180,7 @@ def gather(db: Session, user: User) -> dict:
                 "color": i.color,
                 "width": i.width,
                 "opacity": i.opacity,
+                "shape": i.shape,
                 "drawn": _when(i.created_at),
             }
             for i in ink

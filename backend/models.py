@@ -259,6 +259,15 @@ class InkStroke(Base):
     # A server_default so that migrate() can add it to an existing table:
     # SQLite will not add a NOT NULL column without one.
     opacity = Column(Float, nullable=False, default=1.0, server_default="1.0")
+    # The nib: "flat" is a chisel held upright, wide across the page and
+    # thin along it, so the mark records the direction the hand went;
+    # "round" is the same weight whichever way it is drawn.
+    #
+    # The server default is "round" and the client's is "flat": ink drawn
+    # before there was a choice was drawn with a round nib, and should go on
+    # looking the way it looked, while a stroke drawn today gets the nib the
+    # brush now shows.
+    shape = Column(String, nullable=False, default="flat", server_default="round")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     edition = relationship("PaperEdition")

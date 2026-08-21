@@ -267,6 +267,22 @@ button.link.danger { color: var(--red); }
 }
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
 
+.brush-pop .shape {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+}
+
+.brush-pop .shape.on { border-color: var(--ink); }
+.brush-pop .nib { display: block; border-radius: 1px; }
+.brush-pop .nib-round { border-radius: 50%; }
+
 
 .viewer-bar .tool {
   position: relative;
@@ -813,8 +829,12 @@ button.link.danger { color: var(--red); }
   user-select: none;
 }
 
-/* Cursors drawn rather than named, so the pointer is the tool: each has
-   its hotspot at the end that touches the page. The brush's is not here —
+/* The brush has no cursor image: its mark is drawn on the page itself, at
+   the ink's own size, which a cursor cannot be past about 128px. */
+.ink-surface.tool-brush { cursor: none; }
+
+/* The other cursors are drawn rather than named, so the pointer is the
+   tool: each has its hotspot at the end that touches the page. The brush's is not here —
    it is the width and colour of the ink it will lay down, which depends on
    the zoom, so PdfPage draws it. */
 
@@ -856,10 +876,14 @@ button.link.danger { color: var(--red); }
 
 .pin svg { display: block; width: 100%; height: 100%; }
 
+/* No lift on hover. The anchor in your hand is drawn at the size the pin
+   will be, and the pin lands under the pointer — so growing it by a tenth
+   the moment it arrived made the mark disagree with the cursor that had
+   just promised it. The pointer already turns to a grab over a pin, which
+   says the same thing without resizing the mark. */
 .pin:hover:not(:disabled) {
   border: none;
   background: none;
-  transform: translate(-50%, -50%) scale(1.12);
 }
 
 /* Never a box. An anchor is a mark on a page, not a control on a form, and
