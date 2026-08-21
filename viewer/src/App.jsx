@@ -10,7 +10,7 @@ import PdfPage from './PdfPage';
 import ReferenceCard from './ReferenceCard';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
-import { stripSize, PAGE_WIDTH_GUESS } from './ink';
+import { STRIP_RATIO } from './ink';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -81,6 +81,35 @@ const INK_SHAPE = 'flat';
 // defaults around in localStorage rather than no answer at all, and would
 // have gone on carrying them for ever.
 const INK_DEFAULTS_VERSION = '2';
+
+// The size row is drawn to fill its cell rather than to scale: the heaviest
+// weight spans the button and the rest are its true fractions, so the four
+// read as a ramp instead of as four specks at the bottom of the range. What
+// is being chosen there is which of four, and the brush on the page is what
+// says how big that is in pixels.
+const SAMPLE_MAX = 24;
+
+// The laser's own settings. Nothing here is ever sent anywhere: a laser
+// leaves nothing on the paper, so what it is set to is a fact about this
+// reader's browser and no more.
+const LASER_WIDTHS = [0.003, 0.005, 0.008];
+const LASER_LINGERS = [
+  { ms: 700, name: 'Brief' },
+  { ms: 2000, name: 'Steady' },
+  { ms: 4500, name: 'Long' },
+];
+const LASER_COLOR = '#d92b1f';
+const LASER_WIDTH = LASER_WIDTHS[1];
+const LASER_LINGER = LASER_LINGERS[1].ms;
+
+// Which tools keep a sheet of settings under them, so that reaching for one
+// already in your hand opens it.
+const SHEETS = new Set(['brush', 'laser']);
+
+const sampleSize = (width) => {
+  const tall = (width / INK_WIDTHS[INK_WIDTHS.length - 1]) * SAMPLE_MAX;
+  return { tall, wide: Math.max(2, tall / STRIP_RATIO) };
+};
 
 // The nib. Flat is a chisel held upright — broad across the page, thin
 // along it, so a mark says which way the hand went. Round is the same
@@ -211,11 +240,22 @@ export default function App() {
   const [inkShape, setInkShape] = useState(
     () => localStorage.getItem('papol_viewer_ink_shape') || INK_SHAPE
   );
-  const [brushOpen, setBrushOpen] = useState(false);
-  // The width of a page of this document, reported by the first page to
-  // measure itself. The brush's weights are drawn at the size of the mark
-  // they make, and that size is a fraction of this.
-  const [pageWidth, setPageWidth] = useState(PAGE_WIDTH_GUESS);
+  const [laserColor, setLaserColor] = useState(
+    () => localStorage.getItem('papol_viewer_laser') || LASER_COLOR
+  );
+  const [laserWidth, setLaserWidth] = useState(() => {
+    const kept = Number(localStorage.getItem('papol_viewer_laser_width'));
+    return LASER_WIDTHS.includes(kept) ? kept : LASER_WIDTH;
+  });
+  const [laserLinger, setLaserLinger] = useState(() => {
+    const kept = Number(localStorage.getItem('papol_viewer_laser_linger'));
+    return LASER_LINGERS.some((l) => l.ms === kept) ? kept : LASER_LINGER;
+  });
+  // The sheet that is open, if any: 'brush', 'laser', or nothing. One at a
+  // time, because it hangs off the tool it belongs to and only one tool is
+  // ever in hand.
+  const [sheet, setSheet] = useState(null);
+  const brushOpen = sheet === 'brush';
   const tempInkId = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
@@ -342,9 +382,15 @@ export default function App() {
     localStorage.setItem('papol_viewer_ink_shape', inkShape);
   }, [inkColor, inkWidth, inkOpacity, inkShape]);
 
-  // Putting the brush down closes the sheet that belongs to it.
   useEffect(() => {
-    if (tool !== 'brush') setBrushOpen(false);
+    localStorage.setItem('papol_viewer_laser', laserColor);
+    localStorage.setItem('papol_viewer_laser_width', String(laserWidth));
+    localStorage.setItem('papol_viewer_laser_linger', String(laserLinger));
+  }, [laserColor, laserWidth, laserLinger]);
+
+  // Putting a tool down closes the sheet that belonged to it.
+  useEffect(() => {
+    setSheet((open) => (open === tool ? open : null));
   }, [tool]);
 
   // So does looking away. On the way down rather than the way up, and in
@@ -355,15 +401,15 @@ export default function App() {
   // The brush's own button is left out of this: it toggles the sheet on
   // click, and closing here first would only let that reopen it.
   useEffect(() => {
-    if (!brushOpen) return undefined;
+    if (!sheet) return undefined;
     const away = (e) => {
       const el = e.target;
-      if (el?.closest?.('.brush-pop') || el?.closest?.('.tool[aria-label="Brush"]')) return;
-      setBrushOpen(false);
+      if (el?.closest?.('.brush-pop') || el?.closest?.('.tool-slot')) return;
+      setSheet(null);
     };
     document.addEventListener('pointerdown', away, true);
     return () => document.removeEventListener('pointerdown', away, true);
-  }, [brushOpen]);
+  }, [sheet]);
 
   // Through a ref that is refreshed every render, because the listener is
   // bound once and would otherwise go on reading the first render's `tool`
@@ -393,9 +439,9 @@ export default function App() {
       // a and A are looked up as typed — they are two tools, not one tool
       // and a modifier — and everything else by its lower case, so a
       // shifted X is still the brush.
-      if (e.key === 'Escape' && brushOpen) {
+      if (e.key === 'Escape' && sheet) {
         e.preventDefault();
-        setBrushOpen(false);
+        setSheet(null);
         return;
       }
 
@@ -905,8 +951,8 @@ export default function App() {
   const takeTool = (picked) => {
     // Reaching for what is already in your hand opens what belongs to it,
     // whether you reached with the pointer or with the key.
-    if (picked === 'brush' && tool === 'brush') {
-      setBrushOpen((open) => !open);
+    if (picked === tool && SHEETS.has(picked)) {
+      setSheet((open) => (open === picked ? null : picked));
       return;
     }
     if (DROP_TOOLS.has(picked) && !DROP_TOOLS.has(tool)) toolBefore.current = tool;
@@ -1153,7 +1199,7 @@ export default function App() {
                 style={t.id === 'brush' ? { '--loaded': inkColor } : undefined}
                 aria-pressed={tool === t.id}
                 aria-label={t.label}
-                aria-expanded={t.id === 'brush' ? brushOpen : undefined}
+                aria-expanded={SHEETS.has(t.id) ? sheet === t.id : undefined}
                 title={
                   t.id === 'brush'
                     ? `${t.label} (X) — ${t.hint}. X again for colour and width`
@@ -1272,19 +1318,19 @@ export default function App() {
                             number, or from a dot that only ranks it. */}
                         <span
                           className={`weight-strip${inkShape === 'round' ? ' round' : ''}`}
-                          // At the size the ink is on the page, not on the
-                          // screen: the zoom is not part of what is being
-                          // chosen here, and a row of controls that grew
-                          // and shrank as the reader zoomed the paper would
-                          // be answering a question nobody asked. The brush
-                          // itself still follows the zoom, because it has
-                          // to agree with the ink it is about to lay down.
+                          // Fixed, and in proportion. The zoom is not part
+                          // of what is being chosen here, and a row of
+                          // controls that grew and shrank as the reader
+                          // zoomed the paper would be answering a question
+                          // nobody asked. The brush on the page is what
+                          // follows the zoom, because it is the only thing
+                          // that has to agree with the ink.
                           style={{
                             width:
                               inkShape === 'round'
-                                ? stripSize(w, pageWidth).tall
-                                : stripSize(w, pageWidth).wide,
-                            height: stripSize(w, pageWidth).tall,
+                                ? sampleSize(w).tall
+                                : sampleSize(w).wide,
+                            height: sampleSize(w).tall,
                             background: inkColor,
                             opacity: inkOpacity,
                           }}
@@ -1297,6 +1343,82 @@ export default function App() {
                       see it. */}
                   <p className="brush-tip">Try holding shift while drawing.</p>
                 </div>
+              )}
+
+              {t.id === 'laser' && sheet === 'laser' && (
+                <div className="brush-pop" role="group" aria-label="The laser">
+                  <span className="brush-label">Colour</span>
+                  <div className="swatches">
+                    {INK_COLORS.map((c, i2) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        className={`swatch${c.hex === laserColor ? ' on' : ''}`}
+                        style={{ '--swatch': c.hex }}
+                        aria-pressed={c.hex === laserColor}
+                        aria-label={c.name}
+                        title={`${c.name} (${i2 + 1})`}
+                        onClick={() => setLaserColor(c.hex)}
+                      />
+                    ))}
+                  </div>
+
+                  <span className="brush-label">Size</span>
+                  <div className="weights" role="group" aria-label="Size">
+                    {LASER_WIDTHS.map((w, i2) => (
+                      <button
+                        key={w}
+                        type="button"
+                        className={`weight${w === laserWidth ? ' on' : ''}`}
+                        aria-pressed={w === laserWidth}
+                        aria-label={`Size ${i2 + 1}`}
+                        onClick={() => setLaserWidth(w)}
+                      >
+                        <span
+                          className="weight-strip round"
+                          style={{
+                            width: (w / LASER_WIDTHS[LASER_WIDTHS.length - 1]) * SAMPLE_MAX,
+                            height: (w / LASER_WIDTHS[LASER_WIDTHS.length - 1]) * SAMPLE_MAX,
+                            background: laserColor,
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+
+                  <span className="brush-label">Trail</span>
+                  <div className="weights" role="group" aria-label="Trail">
+                    {LASER_LINGERS.map((l) => (
+                      <button
+                        key={l.ms}
+                        type="button"
+                        className={`weight${l.ms === laserLinger ? ' on' : ''}`}
+                        aria-pressed={l.ms === laserLinger}
+                        aria-label={l.name}
+                        title={`${l.name} — how long a held trail stays after you let go`}
+                        onClick={() => setLaserLinger(l.ms)}
+                      >
+                        {/* A trail's worth of dots, running out. Longer
+                            settings keep more of it up for longer. */}
+                        <span className="trail">
+                          {[0, 1, 2].map((k) => (
+                            <span
+                              key={k}
+                              style={{
+                                background: laserColor,
+                                opacity:
+                                  1 - (k * 0.9) / (LASER_LINGERS.indexOf(l) + 2),
+                              }}
+                            />
+                          ))}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="brush-tip">A laser leaves nothing behind.</p>
+                </div>
+              )}
               )}
             </span>
           ))}
@@ -1366,6 +1488,9 @@ export default function App() {
               inkWidth={inkWidth}
               inkOpacity={inkOpacity}
               inkShape={inkShape}
+              laserColor={laserColor}
+              laserWidth={laserWidth}
+              laserLinger={laserLinger}
               onDrawStroke={drawStroke}
               onEraseStroke={eraseStroke}
               onEraseNote={removeNote}
@@ -1375,7 +1500,6 @@ export default function App() {
               onDropAnchor={dropAnchor}
               onMoveStroke={moveStroke}
               onDragNote={setDraggingNoteId}
-              onPageSize={setPageWidth}
               cows={cowsByPage.get(n) || EMPTY_INK}
               onDropCow={dropCow}
               onMoveCow={moveCow}

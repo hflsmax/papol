@@ -264,10 +264,14 @@ button.link.danger { color: var(--red); }
 /* The nib's shape, at a size of its own: what is chosen here is which nib,
    and the row below already says how big it is. */
 .brush-pop .nib { display: block; border-radius: 1px; }
-.brush-pop .nib-flat { width: 6px; height: 18px; }
-.brush-pop .nib-round { width: 18px; height: 18px; border-radius: 50%; }
+.brush-pop .nib-flat { width: 8px; height: 24px; }
+.brush-pop .nib-round { width: 24px; height: 24px; border-radius: 50%; }
 
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
+
+/* Three dots running out, for how long a trail stays up. */
+.brush-pop .trail { display: flex; align-items: center; gap: 3px; }
+.brush-pop .trail span { width: 6px; height: 6px; border-radius: 50%; }
 .brush-pop .weight-strip.round { border-radius: 50%; }
 
 .brush-pop .brush-label {

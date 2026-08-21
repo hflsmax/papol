@@ -24,9 +24,8 @@ const LASER_PASSING = 260;
 // while you talk about it — and while the button is down it does not fade
 // at all: the shape is not finished, and half of it going pale before the
 // rest is drawn is no help to anyone looking at it. Letting go is what
-// starts the clock, and then the whole shape goes together, slowly enough
-// to still be there while you say what it was for.
-const LASER_LINGER = 2000;
+// starts the clock, and how long it then takes is the reader's own
+// setting: see the laser's sheet.
 // Samples nearer than this to the last add nothing but points to draw.
 const LASER_STEP = 1.0;
 // Points nearer than this to the last one add bytes and no shape. In page
@@ -92,6 +91,9 @@ export default function PdfPage({
   inkWidth,
   inkOpacity,
   inkShape,
+  laserColor,
+  laserWidth,
+  laserLinger,
   onDrawStroke,
   onEraseStroke,
   onEraseNote,
@@ -99,7 +101,6 @@ export default function PdfPage({
   onDropAnchor,
   onMoveStroke,
   onDragNote,
-  onPageSize,
   cows,
   onDropCow,
   onMoveCow,
@@ -182,9 +183,6 @@ export default function PdfPage({
       if (cancelled) return;
       const viewport = page.getViewport({ scale: 1 });
       setSize({ width: viewport.width, height: viewport.height });
-      // The bar needs this too: the weights it offers are drawn at the size
-      // of the mark they make, and that size comes from the page.
-      onPageSize?.(viewport.width);
     });
     return () => {
       cancelled = true;
@@ -398,7 +396,7 @@ export default function PdfPage({
   const releaseLaser = () => {
     const now = performance.now();
     laserRef.current = laserRef.current.map((p) =>
-      p.held ? { ...p, held: false, t: now, life: LASER_LINGER } : p
+      p.held ? { ...p, held: false, t: now, life: laserLinger } : p
     );
     // The shape is finished. What the pointer does next is a new one, and
     // is not to be drawn back to the end of this — which is what left the
@@ -1166,8 +1164,8 @@ export default function PdfPage({
               <path
                 key={run.key}
                 d={run.d}
-                stroke="#d0342c"
-                strokeWidth={size.width * 0.005}
+                stroke={laserColor}
+                strokeWidth={size.width * laserWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 fill="none"
@@ -1178,8 +1176,8 @@ export default function PdfPage({
               <circle
                 cx={laserRef.current[laserRef.current.length - 1].x * size.width}
                 cy={(1 - laserRef.current[laserRef.current.length - 1].y) * size.height}
-                r={size.width * 0.0055}
-                fill="#d0342c"
+                r={size.width * laserWidth * 1.1}
+                fill={laserColor}
                 opacity={
                   laserRef.current[laserRef.current.length - 1].held
                     ? 1

@@ -249,11 +249,6 @@ export const COW_PATCH_PARTS =
   '<ellipse cx="47" cy="23" rx="4.8" ry="3.5"/>';
 export const COW_MARKS = COW_PATCH_PARTS + COW_EYE + COW_NOSTRIL;
 
-// Constants written in this file, never anything from outside it.
-export function CowFigure() {
-  return <g dangerouslySetInnerHTML={{ __html: COW_PARTS }} />;
-}
-
 export function CowPatches() {
   return <g dangerouslySetInnerHTML={{ __html: COW_PATCH_PARTS }} />;
 }
@@ -300,16 +295,34 @@ export function CowJointed() {
   );
 }
 
+// The button in the bar is not the animal.
+//
+// Every other glyph in this file is one silhouette with no interior
+// detail, because at eighteen pixels that is all a glyph can be — a brush
+// is its bristles, an eraser is its slant. The cow was the exception: the
+// whole drawing above, shrunk, which at that size is a dark smudge with
+// four legs somewhere inside it. Four legs, a tail, two horns and an ear
+// is a lot of information to put through a hole that small, and none of it
+// arrives.
+//
+// So the button is the head, seen face on. Horns up, ears out: it is the
+// one view of a cow that survives being eighteen pixels wide, and it says
+// cow at a glance where the side view says small dark animal. A glyph
+// stands for the tool; it is not a picture of what the tool leaves behind,
+// and what this one leaves behind is still the drawing above.
+const COW_TOOL =
+  // The horns, and they have to be big — they are most of the reading.
+  '<path d="M7 6.6C4.9 4 5.4 1.4 7.7.6c-.9 1.6-.7 3.5.8 5.4z"/>' +
+  '<path d="M17 6.6C19.1 4 18.6 1.4 16.3.6c.9 1.6.7 3.5-.8 5.4z"/>' +
+  // The ears, straight out to the sides, which is where a cow keeps them.
+  '<ellipse cx="3.4" cy="10.8" rx="3.3" ry="2.1"/>' +
+  '<ellipse cx="20.6" cy="10.8" rx="3.3" ry="2.1"/>' +
+  // A face wide at the brow and narrowing to the muzzle. A face that is a
+  // rounded square is a bear's, at this size as at any other.
+  '<path d="M12 5.2c3.8 0 5.6 1.5 5.6 3.7v3.4c0 3.4-2.5 6-5.6 6s-5.6-2.6-5.6-6V8.9c0-2.2 1.8-3.7 5.6-3.7z"/>';
+
 function CowTool() {
-  return (
-    // Centred on the drawing's own bounds rather than on its box: the box
-    // has room over the animal's back for a head that has been thrown up,
-    // and a button that leaves that room empty looks like it is sitting
-    // wrong in the bar.
-    <g fill="currentColor" transform="translate(0.1 4.8) scale(0.376)">
-      <CowFigure />
-    </g>
-  );
+  return <g fill="currentColor" dangerouslySetInnerHTML={{ __html: COW_TOOL }} />;
 }
 
 const TOOL_GLYPHS = {

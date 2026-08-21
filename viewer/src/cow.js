@@ -59,10 +59,36 @@ const SHADOW_AT = 10;
 // worth more than the drawing strictly justifies.
 const COW_SWISH = 14;
 const COW_SWISH_RATE = 0.0029;
-// And it flicks properly, now and then, on top of that.
-const COW_FLICK_EVERY = [2600, 7000];
-const COW_FLICK_HELD = 520;
-const COW_FLICK_FAR = 18;
+// And now and then a fly lands on the flank, and the whole tail goes over
+// after it: up behind the rump, right over the back and down the far side,
+// a clean half-turn. It is the only thing a cow can do about a fly and it
+// is what one actually does.
+//
+// The direction is not a free choice. Half a turn arrives at the same
+// place whichever way it is taken, but one way goes up and over the back
+// and the other sweeps the tail forward through the animal's own belly, so
+// the arc is signed and stays signed.
+const COW_SWAT_EVERY = [9000, 22000];
+const COW_SWAT_HELD = 640;
+const COW_SWAT_ARC = -180;
+// The three parts of a swat, as fractions of the whole: whipping over,
+// shivering at the top of the arc, unwinding. Fast out and slower back,
+// because the going is the work and the coming back is the tail falling.
+const SWAT_OVER = 0.26;
+const SWAT_TOP = 0.5;
+
+// How far through its arc the tail is, from 0 to 1.
+function swat(p) {
+  if (p < SWAT_OVER) {
+    const t = p / SWAT_OVER;
+    return 1 - (1 - t) ** 3;
+  }
+  // Held over the flank, shivering — a cow does not swat once and stop,
+  // it worries at the spot.
+  if (p < SWAT_TOP) return 1 + Math.sin((p - SWAT_OVER) * 150) * 0.035;
+  const t = (p - SWAT_TOP) / (1 - SWAT_TOP);
+  return 1 - t * t * (3 - 2 * t);
+}
 
 // Where the animal has got to. Mutates the record in place; see App's
 // dropCow for why there is no state here.
@@ -118,15 +144,20 @@ export function stepCow(c, dt, now) {
 
   c.head += ((c.grazing && !c.held ? 1 : 0) - c.head) * (1 - Math.exp(-dt / COW_NOD));
 
-  if (now >= c.earAt) {
+  if (!c.earAt) c.earAt = now + spell(COW_EAR_EVERY);
+  else if (now >= c.earAt) {
     c.earAt = now + spell(COW_EAR_EVERY);
     c.earTill = now + COW_EAR_HELD;
   }
   c.ear += ((now < c.earTill ? 1 : 0) - c.ear) * (1 - Math.exp(-dt / 45));
 
-  if (now >= c.tailAt) {
-    c.tailAt = now + spell(COW_FLICK_EVERY);
-    c.tailTill = now + COW_FLICK_HELD;
+  // A cow that has only just been put down should not be bothered by a fly
+  // in its first frame, nor have its ear go back in it. Both spells are
+  // started here rather than counted from a zero it was born with.
+  if (!c.tailAt) c.tailAt = now + spell(COW_SWAT_EVERY);
+  else if (now >= c.tailAt) {
+    c.tailAt = now + spell(COW_SWAT_EVERY);
+    c.tailTill = now + COW_SWAT_HELD;
   }
 }
 
@@ -194,10 +225,10 @@ export function poseCow(c, parts, now, k, cx, cy) {
 
   // The tail keeps its own time, deliberately: everything on the animal
   // moving to one beat is exactly what makes a drawn animal look drawn.
-  const flick = now < c.tailTill
-    ? Math.sin((c.tailTill - now) * 0.03) * COW_FLICK_FAR * ((c.tailTill - now) / COW_FLICK_HELD)
+  const over = now < c.tailTill
+    ? COW_SWAT_ARC * swat(1 - (c.tailTill - now) / COW_SWAT_HELD)
     : 0;
-  const tail = Math.sin(now * COW_SWISH_RATE + c.seed * 6.28) * COW_SWISH + flick;
+  const tail = Math.sin(now * COW_SWISH_RATE + c.seed * 6.28) * COW_SWISH + over;
   parts.tail.setAttribute(
     'transform',
     `rotate(${tail.toFixed(2)} ${COW_TAIL_PIVOT[0]} ${COW_TAIL_PIVOT[1]})`
