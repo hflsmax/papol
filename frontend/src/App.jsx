@@ -999,8 +999,8 @@ select {
 }
 
 .paper-list li {
-  /* room on the left for the display bar */
-  padding: 14px 8px 14px 22px;
+  /* room on the left for the display bar's lane */
+  padding: 14px 8px 14px 26px;
   border-bottom: 1px solid var(--line);
   position: relative;
   display: flex;
@@ -1030,31 +1030,65 @@ select {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 14px;
+  width: 18px;
   display: flex;
 }
 
+/* A lane, which lights up under the cursor. The bar alone said "edge of a
+   row"; a lane that answers to the pointer says "press here", and --paper
+   is the token's own job — page ground and subtle hovers. */
 .display-bar {
-  width: 14px;
+  width: 18px;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
   background: none;
   box-shadow: none;
   cursor: pointer;
   position: relative;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Three steps, so the control announces itself before it is found rather
+   than only once the cursor is already on it. Pointing anywhere at the row
+   raises the lane faintly; pointing at the lane itself fills it and grows
+   the pill; pressing sinks it. */
+.paper-list li:hover .display-bar {
+  background: var(--paper);
+}
+
+/* Written through .paper-list li so these outweigh the row-hover rule
+   above it — that one carries an extra element in its selector, and would
+   otherwise win against a bare .display-bar:hover and swallow both of
+   these states. */
+.paper-list li .display-bar:hover:not(:disabled),
+.paper-list li .display-bar:focus-visible {
+  background: var(--paper-sunken);
+  /* An actual edge, not just a tint. --paper-sunken against --card is a
+     couple of values apart and reads as nothing on its own; the line is
+     what makes the lane look like a surface with a boundary, which is what
+     a button looks like. */
+  box-shadow: inset -1px 0 0 var(--line-strong);
+}
+
+.paper-list li .display-bar:active:not(:disabled) {
+  background: var(--fill);
 }
 
 /* The paint, inside the target. */
 .display-bar::before {
   content: '';
   position: absolute;
-  left: 4px;
-  top: 0;
-  bottom: 0;
-  width: 4px;
+  left: 6px;
+  /* Held clear of the row's edges so it reads as an object sitting in the
+     lane rather than as the row's border. A border is scenery; a pill with
+     air around it is a thing you can press. */
+  top: 9px;
+  bottom: 9px;
+  width: 5px;
   border-radius: var(--radius-pill);
-  transition: background 0.12s ease, left 0.12s ease, width 0.12s ease;
+  transition: background 0.12s ease, left 0.12s ease, width 0.12s ease,
+    top 0.12s ease, bottom 0.12s ease;
 }
 
 /* --green at its own strength. The family has four roles and no fifth: a
@@ -1074,10 +1108,18 @@ select {
   opacity: 1;
 }
 
+/* Under the cursor it grows into the lane it lives in. */
 .display-bar:hover::before,
 .display-bar:focus-visible::before {
-  left: 3px;
-  width: 6px;
+  left: 5px;
+  width: 7px;
+  top: 5px;
+  bottom: 5px;
+}
+
+.display-bar:active::before {
+  top: 9px;
+  bottom: 9px;
 }
 
 .display-bar.off:hover::before {
