@@ -326,6 +326,24 @@ export default function App() {
     if (tool !== 'brush') setBrushOpen(false);
   }, [tool]);
 
+  // So does looking away. On the way down rather than the way up, and in
+  // the capture phase, so that the click which closes the sheet is also the
+  // click that does whatever it was for — reaching past an open sheet to
+  // draw should not cost a click.
+  //
+  // The brush's own button is left out of this: it toggles the sheet on
+  // click, and closing here first would only let that reopen it.
+  useEffect(() => {
+    if (!brushOpen) return undefined;
+    const away = (e) => {
+      const el = e.target;
+      if (el?.closest?.('.brush-pop') || el?.closest?.('.tool[aria-label="Brush"]')) return;
+      setBrushOpen(false);
+    };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [brushOpen]);
+
   // Through a ref that is refreshed every render, because the listener is
   // bound once and would otherwise go on reading the first render's `tool`
   // and `placeAt` for the life of the page — which looked like it worked,
@@ -1148,7 +1166,7 @@ export default function App() {
                         key={c.hex}
                         type="button"
                         className={`swatch${c.hex === inkColor ? ' on' : ''}`}
-                        style={{ background: c.hex }}
+                        style={{ '--swatch': c.hex }}
                         aria-pressed={c.hex === inkColor}
                         aria-label={c.name}
                         title={`${c.name} (${i + 1})`}

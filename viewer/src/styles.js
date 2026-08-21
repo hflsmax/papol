@@ -184,15 +184,20 @@ button.link.danger { color: var(--red); }
 .tools { flex: none; display: flex; align-items: center; gap: 2px; }
 .tool-slot { position: relative; display: flex; }
 
-/* Hung under the brush, pointing at it. */
+/* Hung under the brush, pointing at it.
+ *
+ * Every control is one cell of the same size, so the four rows line up
+ * down the sheet however different the samples inside them are — a swatch,
+ * a patch of ink, a nib and a weight are all different shapes, and only
+ * the cells they sit in can make them a grid. */
 .brush-pop {
   position: absolute;
   top: calc(100% + 8px);
   right: -6px;
   z-index: 30;
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
@@ -201,108 +206,75 @@ button.link.danger { color: var(--red); }
 
 .swatches, .weights { display: flex; align-items: center; gap: 6px; }
 
-/* A hairline between what is being chosen and what is being chosen next.
-   Three rows of round things with nothing between them read as one heap. */
-.brush-pop .weights + .weights { border-top: 1px solid var(--line); padding-top: 8px; }
-
-.brush-pop .swatch {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
-}
-
-/* Chosen, said with a soft halo rather than a hard edge. A black rule
-   drawn round a sample competes with the sample — and in a sheet whose
-   whole job is to show what the mark will look like, nothing should be
-   drawn on top of the mark. */
-.brush-pop .swatch.on {
-  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16), 0 0 0 3px var(--accent-soft);
-}
-
+.brush-pop .swatch,
+.brush-pop .shade,
+.brush-pop .shape,
 .brush-pop .weight {
   display: grid;
   place-items: center;
-  width: 30px;
-  /* Tall enough for the heaviest strip to stand up in. */
-  height: 46px;
+  width: 32px;
+  height: 28px;
   padding: 0;
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--radius);
   background: none;
   cursor: pointer;
 }
 
+/* Chosen, said with a soft ground rather than a hard edge. A black rule
+   drawn round a sample competes with the sample — and in a sheet whose
+   whole job is to show what the mark will look like, nothing should be
+   drawn on top of the mark. */
+.brush-pop .swatch.on,
+.brush-pop .shade.on,
+.brush-pop .shape.on,
 .brush-pop .weight.on { background: var(--accent-soft); }
 
-.brush-pop .shade {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: none;
-  cursor: pointer;
+/* The colour itself, round, and rimmed so a pale one still has an edge. */
+.brush-pop .swatch::after {
+  content: '';
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
 }
 
-.brush-pop .shade.on { background: var(--accent-soft); }
-
-/* One colour, three strengths, on the white the ink will be on. Anything
+/* One colour at three strengths, on the white the ink will be on. Anything
    put underneath to show what survives — a rule of type, a half-black
    patch — reads as a second colour being offered, in a row whose whole
    point is that the colour is already settled. */
 .brush-pop .shade-sample {
   position: relative;
   display: block;
-  width: 26px;
-  height: 18px;
+  width: 24px;
+  height: 16px;
   border-radius: 3px;
   overflow: hidden;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.18);
 }
 
-.brush-pop .shade-ink {
-  position: absolute;
-  inset: 0;
-  display: block;
-}
+.brush-pop .shade-ink { position: absolute; inset: 0; display: block; }
+
+/* The nib's shape, at a size of its own: what is chosen here is which nib,
+   and the row below already says how big it is. */
+.brush-pop .nib { display: block; border-radius: 1px; }
+.brush-pop .nib-flat { width: 6px; height: 18px; }
+.brush-pop .nib-round { width: 18px; height: 18px; border-radius: 50%; }
+
+.brush-pop .weight-strip { border-radius: 1px; display: block; }
+.brush-pop .weight-strip.round { border-radius: 50%; }
+
 .brush-pop .brush-tip {
-  margin: 2px 0 0;
-  padding-top: 8px;
+  margin: 0;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   color: var(--ink-faint);
   white-space: nowrap;
 }
-
-.brush-pop .weight-strip { border-radius: 1px; display: block; }
-.brush-pop .weight-strip.round { border-radius: 50%; }
-
-.brush-pop .shape {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 46px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: none;
-  cursor: pointer;
-}
-
-.brush-pop .shape.on { background: var(--accent-soft); }
-.brush-pop .nib { display: block; border-radius: 1px; }
-/* Upright and narrow, the way the flat nib is held. */
-.brush-pop .nib-flat { width: 6px; height: 20px; }
-.brush-pop .nib-round { width: 20px; height: 20px; border-radius: 50%; }
-
 
 .viewer-bar .tool {
   position: relative;
