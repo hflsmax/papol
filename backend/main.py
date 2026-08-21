@@ -27,7 +27,7 @@ from database import engine, get_db, Base, migrate, normalize_papers, SessionLoc
 from models import (
     User, AuthToken, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
-    Setting, Feedback, PaperEdition,
+    Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
 )
 from schemas import (
     UserRegister, UserLogin, UserBase, UserPublic, UserPrivate, UserDirectoryEntry,
@@ -41,6 +41,7 @@ from schemas import (
     FeedbackCreate, FeedbackOut, FeedbackUpdate,
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
+    EditionReferences, ReferenceOut, CitationOut, ResolvedWork,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -49,6 +50,8 @@ from auth import (
 from emailer import send_email
 from pdf_parser import extract_doi_from_pdf, get_title_from_filename
 from crossref import fetch_metadata_from_doi
+import grobid
+import biblio
 import dbmetrics
 
 # Create database tables and apply column migrations
@@ -191,7 +194,12 @@ async def logout(
     db: Session = Depends(get_db),
 ):
     if credentials:
-        db.query(AuthToken).filter(AuthToken.token == credentials.credentials).delete()
+        # Revoke rather than delete: the row is the record of a session, and
+        # when it ended is part of knowing who is coming back.
+        db.query(AuthToken).filter(
+            AuthToken.token == credentials.credentials,
+            AuthToken.revoked_at.is_(None),
+        ).update({AuthToken.revoked_at: datetime.utcnow()})
         db.commit()
     return {"message": "Logged out"}
 
@@ -965,6 +973,307 @@ async def adopt_paper_edition(
     db.commit()
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
+
+
+# ---------------- References ----------------
+
+# A PDF's bibliography is read once and kept, because reading it costs a
+# GROBID pass over the whole document. The work happens in the background
+# and the viewer asks again; what follows is the bookkeeping that makes
+# "ask again" cheap and "ask twice at once" harmless.
+
+# Editions being analyzed right now in this process, so a viewer polling
+# every second does not start a second pass over the same PDF.
+_analyzing: set[int] = set()
+
+# A pass that has been pending longer than this was interrupted — the
+# server restarted mid-analysis — and may be started again.
+_ANALYSIS_STALE = timedelta(minutes=15)
+
+
+def _edition_pdf_path(edition: PaperEdition) -> Path | None:
+    """Where an edition's PDF sits on disk. Demo papers ship with the
+    frontend and are served from its build; uploads live under /uploads."""
+    if not edition.file_path:
+        return None
+    if edition.file_path.startswith("assets/"):
+        for root in (FRONTEND_DIR, FRONTEND_DIR.parent / "public"):
+            candidate = root / edition.file_path
+            if candidate.exists():
+                return candidate
+        return None
+    candidate = UPLOADS_DIR / edition.file_path
+    return candidate if candidate.exists() else None
+
+
+async def _analyze_edition(edition_id: int):
+    """Read one edition's references through GROBID and store them.
+
+    Runs after the response, on its own session: the request that asked is
+    already answered with `pending`, and the viewer comes back for the
+    result. Any failure is recorded on the edition rather than raised, so
+    a PDF that cannot be analyzed says so instead of being retried
+    forever."""
+    db = SessionLocal()
+    try:
+        edition = db.get(PaperEdition, edition_id)
+        if edition is None:
+            return
+        path = _edition_pdf_path(edition)
+        if path is None:
+            _finish_analysis(db, edition, "failed", "The PDF for this edition is missing")
+            return
+        try:
+            analysis = await grobid.analyze(str(path))
+        except Exception as e:
+            logger.warning(f"GROBID failed on edition {edition_id}: {e}")
+            _finish_analysis(db, edition, "failed", str(e)[:500])
+            return
+
+        # A re-analysis replaces what was there. Resolutions are lost with
+        # it, which is the honest thing: they were attached to references
+        # read out of the PDF a different way.
+        db.query(EditionCitation).filter(
+            EditionCitation.edition_id == edition_id
+        ).delete()
+        db.query(EditionReference).filter(
+            EditionReference.edition_id == edition_id
+        ).delete()
+
+        rows: dict[str, EditionReference] = {}
+        for ref in analysis.references:
+            row = EditionReference(
+                edition_id=edition_id,
+                key=ref.key,
+                index=ref.index,
+                raw=ref.raw,
+                title=ref.title,
+                authors=json.dumps(ref.authors) if ref.authors else None,
+                year=ref.year,
+                journal=ref.journal,
+                doi=ref.doi,
+                arxiv_id=ref.arxiv_id,
+                page=ref.page,
+                y=ref.y,
+            )
+            db.add(row)
+            rows[ref.key] = row
+        db.flush()  # the citations need the reference ids
+
+        for cite in analysis.citations:
+            row = rows.get(cite.key)
+            if row is None:
+                continue
+            db.add(EditionCitation(
+                edition_id=edition_id,
+                reference_id=row.id,
+                label=cite.label,
+                page=cite.page,
+                x=cite.x, y=cite.y, w=cite.w, h=cite.h,
+                inferred=cite.inferred,
+            ))
+
+        _finish_analysis(db, edition, "ready", None)
+        logger.info(
+            f"Edition {edition_id}: {len(analysis.references)} references, "
+            f"{len(analysis.citations)} citation markers"
+        )
+    except Exception as e:
+        # Whatever went wrong, the edition must not be left saying
+        # "pending" forever: a reader would poll a job that is not running.
+        logger.error(f"Reference analysis of edition {edition_id} failed: {e}")
+        db.rollback()
+        try:
+            edition = db.get(PaperEdition, edition_id)
+            if edition is not None:
+                _finish_analysis(db, edition, "failed", str(e)[:500])
+        except Exception:
+            db.rollback()
+    finally:
+        db.close()
+        _analyzing.discard(edition_id)
+
+
+def _finish_analysis(db: Session, edition: PaperEdition, status: str, detail: str | None):
+    edition.references_status = status
+    edition.references_error = detail
+    edition.references_at = datetime.utcnow()
+    db.commit()
+
+
+def _may_start_analysis(edition: PaperEdition) -> bool:
+    """Whether this edition wants a pass now. Never for a failure — a PDF
+    GROBID could not read will not read differently on the next open, and
+    a reader refreshing should not queue a job each time."""
+    if edition.id in _analyzing:
+        return False
+    if edition.references_status is None:
+        return True
+    if edition.references_status == "pending":
+        stamped = edition.references_at
+        return stamped is None or datetime.utcnow() - stamped > _ANALYSIS_STALE
+    return False
+
+
+@app.get("/api/editions/{edition_id}/references", response_model=EditionReferences)
+async def edition_references(
+    edition_id: int,
+    background: BackgroundTasks,
+    refresh: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The references of one edition, and where they are cited in it.
+
+    The first ask starts the analysis and answers `pending`; the viewer
+    asks again until it is `ready`. Pass `refresh=true` to read a PDF
+    again — the way to retry one GROBID could not handle."""
+    edition = db.get(PaperEdition, edition_id)
+    if edition is None:
+        raise HTTPException(status_code=404, detail="Edition not found")
+    _require_visible(edition.paper, current_user)
+
+    # A reading already done is served whatever the analyzer is doing now.
+    # References belong to the edition, not to the service that read them,
+    # so an analyzer that is stopped — or one taken away again — must not
+    # empty the citations out of every paper anyone has already read.
+    stored = edition.references_status == "ready"
+
+    if not grobid.configured() and not stored:
+        return EditionReferences(
+            edition_id=edition_id,
+            status="unavailable",
+            detail="This Papol has no reference analyzer configured.",
+        )
+
+    if grobid.configured():
+        if refresh and edition.id not in _analyzing:
+            edition.references_status = None
+        if _may_start_analysis(edition):
+            _analyzing.add(edition.id)
+            _finish_analysis(db, edition, "pending", None)
+            background.add_task(_analyze_edition, edition.id)
+
+    if edition.references_status != "ready":
+        return EditionReferences(
+            edition_id=edition_id,
+            status=edition.references_status or "pending",
+            detail=edition.references_error,
+        )
+
+    references = edition.references
+    known = _papol_papers_for(db, references)
+    return EditionReferences(
+        edition_id=edition_id,
+        status="ready",
+        references=[_reference_out(r, known.get(r.id)) for r in references],
+        citations=[
+            CitationOut(
+                reference_id=c.reference_id,
+                label=c.label,
+                page=c.page,
+                x=c.x, y=c.y, w=c.w, h=c.h,
+                inferred=bool(c.inferred),
+            )
+            for c in edition.citations
+            if c.reference_id is not None
+        ],
+    )
+
+
+@app.get("/api/references/{reference_id}", response_model=ReferenceOut)
+async def open_reference(
+    reference_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One reference, looked up if it has not been looked up before.
+
+    Lazy on purpose: a paper cites forty works and a reader opens three of
+    them, so forty lookups would be thirty-seven asked of CrossRef and
+    OpenAlex for nobody's benefit."""
+    reference = db.get(EditionReference, reference_id)
+    if reference is None:
+        raise HTTPException(status_code=404, detail="Reference not found")
+    _require_visible(reference.edition.paper, current_user)
+
+    if reference.resolved_status is None:
+        try:
+            status, summary = await biblio.resolve(reference)
+        except Exception as e:
+            logger.warning(f"Could not resolve reference {reference_id}: {e}")
+            status, summary = "error", None
+        if status == "error":
+            # Nobody could be asked just now — a lookup service was down or
+            # its daily allowance was spent. That is a fact about today, not
+            # about this reference, so nothing is stored and the next open
+            # tries again.
+            answer = _reference_out(reference, None)
+            answer.resolved_status = "error"
+            return answer
+        reference.resolved_status = status
+        reference.resolution = json.dumps(summary) if summary else None
+        reference.resolved_at = datetime.utcnow()
+        db.commit()
+
+    known = _papol_papers_for(db, [reference])
+    return _reference_out(reference, known.get(reference.id))
+
+
+def _reference_out(reference: EditionReference, papol_paper_id: int | None) -> ReferenceOut:
+    resolution = None
+    if reference.resolution:
+        try:
+            resolution = ResolvedWork(**json.loads(reference.resolution))
+        except Exception:
+            resolution = None
+    return ReferenceOut(
+        id=reference.id,
+        key=reference.key,
+        index=reference.index,
+        raw=reference.raw,
+        title=reference.title,
+        year=reference.year,
+        page=reference.page,
+        y=reference.y,
+        resolved_status=reference.resolved_status,
+        resolution=resolution,
+        papol_paper_id=papol_paper_id,
+    )
+
+
+def _papol_papers_for(db: Session, references) -> dict[int, int]:
+    """Which of these references name a paper Papol already holds.
+
+    A reference is worth more when the paper it names is one someone here
+    has read: the reader can open it rather than leave. Matched on the same
+    key papers are deduplicated by, so this agrees with Papol's own idea of
+    when two papers are the same paper."""
+    by_key = {}
+    for paper in db.query(Paper).all():
+        by_key.setdefault(_paper_key_for(paper), paper.id)
+
+    found = {}
+    for reference in references:
+        keys = []
+        doi = reference.doi
+        title = reference.title
+        if reference.resolution:
+            try:
+                resolved = json.loads(reference.resolution)
+                doi = resolved.get("doi") or doi
+                title = resolved.get("title") or title
+            except Exception:
+                pass
+        if doi:
+            keys.append("doi:" + doi.strip().lower())
+        if title:
+            keys.append("title:" + title.strip().lower())
+        for key in keys:
+            if key in by_key:
+                found[reference.id] = by_key[key]
+                break
+    return found
 
 
 # ---------------- Comments ----------------

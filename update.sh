@@ -4,10 +4,10 @@ set -e
 cd "$(dirname "$0")"
 
 echo "Building frontend..."
-nix-shell --run "cd frontend && npm run build"
+nix develop --command bash -c "cd frontend && npm run build"
 
 echo "Building PDF viewer..."
-nix-shell --run "cd viewer && npm run build"
+nix develop --command bash -c "cd viewer && npm run build"
 
 echo "Restarting backend..."
 sudo systemctl restart papol

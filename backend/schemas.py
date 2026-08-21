@@ -316,6 +316,72 @@ class ReaderEntry(BaseModel):
     rating_liking: Optional[int] = None
 
 
+# ---------- References ----------
+
+class ResolvedWork(BaseModel):
+    """What a reference turned out to be, once looked up. Every field is
+    optional: a match may be thin, and a thin match still beats none."""
+    title: Optional[str] = None
+    authors: List[str] = []
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    abstract: Optional[str] = None
+    citations: Optional[int] = None
+    doi: Optional[str] = None
+    url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    source: Optional[str] = None
+
+
+class ReferenceOut(BaseModel):
+    """One work cited by the paper being read."""
+    id: int
+    key: str
+    index: int
+    # As printed. Always shown when the lookup found nothing, so a reader
+    # is never left with an empty card.
+    raw: Optional[str] = None
+    title: Optional[str] = None
+    year: Optional[int] = None
+    # Where the entry sits in the bibliography, as fractions of the page:
+    # the viewer uses it to match the PDF's own citation links, which point
+    # at a place rather than at an entry.
+    page: Optional[int] = None
+    y: Optional[float] = None
+    # none | ok | miss | error — filled in the first time it is opened.
+    resolved_status: Optional[str] = None
+    resolution: Optional[ResolvedWork] = None
+    # A paper already in Papol that this reference names, when there is
+    # one: the reader can go straight to it instead of out to a publisher.
+    papol_paper_id: Optional[int] = None
+
+
+class CitationOut(BaseModel):
+    """One clickable marker in the text, as fractions of its page measured
+    from the top-left corner."""
+    reference_id: int
+    label: Optional[str] = None
+    page: int
+    x: float
+    y: float
+    w: float
+    h: float
+    inferred: bool = False
+
+
+class EditionReferences(BaseModel):
+    """The state of one edition's reference analysis.
+
+    `status` is what the viewer acts on: `pending` means come back shortly,
+    `unavailable` means this Papol has no analyzer and the feature is
+    simply off."""
+    edition_id: int
+    status: str  # pending | ready | failed | unavailable
+    detail: Optional[str] = None
+    references: List[ReferenceOut] = []
+    citations: List[CitationOut] = []
+
+
 class PaperEditionOut(BaseModel):
     id: int
     file_path: str

@@ -4,16 +4,27 @@ import * as pdfjs from 'pdfjs-dist';
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { pdfHref } from './api';
+import { pdfHref, getReferences, getReference } from './api';
 import { resolveSource, getToken } from './source';
 import PdfPage from './PdfPage';
+import ReferenceCard from './ReferenceCard';
 import { GlyphFor } from './glyphs';
 import { styles } from './styles';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
+// The width at which the rail stops having a column of its own — the same
+// number as the breakpoint in styles.js, and it has to stay that way.
+const NARROW = 860;
+
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 10;
+// How wide a page is allowed to open. Fitting the window is right up to a
+// point; past it a two-column paper on a large monitor is blown to a size
+// nobody reads at. The reader can still zoom past this — it only bounds
+// the scale the viewer chooses on its own, and .page-skeleton is the same
+// width so the shape shown while loading is the shape that arrives.
+const FIT_MAX_WIDTH = 1100;
 const STEP = 1.25; // one press of a zoom button
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 
@@ -42,9 +53,24 @@ export default function App() {
   const [flashId, setFlashId] = useState(null);
   // The rail can be put away to give the page the whole window; the choice
   // is remembered, since it is about how this reader likes to read.
-  const [railOpen, setRailOpen] = useState(
-    () => localStorage.getItem('papol_viewer_rail') !== 'closed'
-  );
+  const [railOpen, setRailOpen] = useState(() => {
+    const saved = localStorage.getItem('papol_viewer_rail');
+    if (saved) return saved !== 'closed';
+    // Below the breakpoint the rail lies over the page rather than beside
+    // it, so on a phone it starts away and is asked for.
+    return window.innerWidth > NARROW;
+  });
+  // The paper's bibliography, and where it is cited in the PDF. Null until
+  // it has been asked for; `status` says whether it is worth waiting on.
+  const [analysis, setAnalysis] = useState(null);
+  // The reference whose card is open, and the marker it was opened from —
+  // the card is placed beside that box.
+  const [openCite, setOpenCite] = useState(null);
+  const [reference, setReference] = useState(null);
+  // Where the reader was before a link took them somewhere. Following a
+  // cross-reference is only useful if coming back is easy.
+  const [returnTo, setReturnTo] = useState(null);
+  const [referenceError, setReferenceError] = useState(null);
   const [editing, setEditing] = useState(null); // note id being reworded
   const [naming, setNaming] = useState(null); // note id being renamed
   const [nameDraft, setNameDraft] = useState('');
@@ -93,21 +119,170 @@ export default function App() {
     };
   }, [paper]);
 
-  // Open at the width of the viewer. Only the opening scale — from then on
-  // the zoom is the reader's.
+  // The references, fetched once the paper is known and then waited on.
+  // Reading a PDF's bibliography takes a pass over the whole document, so
+  // the first reader of an edition starts that pass and everyone after
+  // them gets the stored answer straight away.
+  useEffect(() => {
+    const editionId = paper?.edition_id;
+    if (!editionId || !source?.requiresSignIn) return undefined;
+
+    let cancelled = false;
+    let timer = null;
+    // Back off as the wait goes on: a short paper is ready in a second, a
+    // long one takes a minute, and neither should be asked about every
+    // second for a minute.
+    let wait = 1500;
+
+    const ask = () => {
+      getReferences(editionId)
+        .then((loaded) => {
+          if (cancelled) return;
+          setAnalysis(loaded);
+          if (loaded.status === 'pending') {
+            wait = Math.min(wait * 1.4, 10000);
+            timer = setTimeout(ask, wait);
+          }
+        })
+        .catch(() => {
+          // References are an extra. Failing to load them is not worth an
+          // error bar over the reader's paper.
+          if (!cancelled) setAnalysis({ status: 'failed', references: [], citations: [] });
+        });
+    };
+    ask();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [paper?.edition_id, source]);
+
+  // The comment above the state says the choice is remembered; this is
+  // what remembers it.
+  useEffect(() => {
+    localStorage.setItem('papol_viewer_rail', railOpen ? 'open' : 'closed');
+  }, [railOpen]);
+
+  const referencesById = useMemo(
+    () => new Map((analysis?.references || []).map((r) => [r.id, r])),
+    [analysis]
+  );
+
+  // Opening a citation. What is already known is shown at once — the raw
+  // reference always, and the looked-up work if anyone has opened this
+  // reference before — and the lookup fills the rest in.
+  const openReference = (referenceId, box) => {
+    const known = referencesById.get(referenceId) || null;
+    setOpenCite({ referenceId, box });
+    setReference(known);
+    setReferenceError(null);
+    if (known?.resolved_status) return; // already looked up, and stored
+
+    getReference(referenceId)
+      .then((full) => {
+        setReference((current) =>
+          current && current.id !== referenceId ? current : full
+        );
+        // Keep it, so opening the same marker again costs nothing.
+        setAnalysis((prev) =>
+          prev
+            ? {
+                ...prev,
+                references: prev.references.map((r) => (r.id === full.id ? full : r)),
+              }
+            : prev
+        );
+      })
+      .catch((e) => setReferenceError(e.message));
+  };
+
+  // A link in the PDF: "see Section 3.2", "Figure 4". The destination is a
+  // fraction down a page, so it survives any zoom.
+  const followLink = ({ page, y }) => {
+    const scroller = scrollerRef.current;
+    const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
+    if (!scroller || !pageEl) return;
+    const from = scroller.scrollTop;
+    const pageBox = pageEl.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    // A little above what was linked to, rather than flush against the top
+    // edge: a heading with nothing above it is hard to place.
+    const target =
+      from + pageBox.top - box.top + y * pageBox.height - box.height * 0.15;
+    const top = Math.max(0, target);
+    const far = Math.abs(top - from) > box.height * 1.5;
+    scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
+    // Only worth offering the way back when the jump actually went
+    // somewhere; a link to what is already on screen has not lost anyone.
+    // A quarter of the window is enough to have lost it, though — the
+    // paragraph being read rarely survives that much movement.
+    setReturnTo(Math.abs(top - from) > box.height * 0.25 ? from : null);
+  };
+
+  const goBack = () => {
+    const scroller = scrollerRef.current;
+    if (scroller && returnTo != null) {
+      scroller.scrollTo({ top: returnTo, behavior: 'auto' });
+    }
+    setReturnTo(null);
+  };
+
+  const closeReference = () => {
+    setOpenCite(null);
+    setReference(null);
+    setReferenceError(null);
+  };
+
+  // The card closes on Escape, like every other transient thing here.
+  useEffect(() => {
+    if (!openCite) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeReference();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openCite]);
+
+  // Open at the width of the viewer, and stay there until the reader picks
+  // a zoom of their own. Rotating a phone, resizing a window and putting
+  // the rail away all change how much room a page has, and a document that
+  // opened fitted should still be fitted afterwards. Once the reader has
+  // zoomed, the scale is theirs and nothing touches it again.
+  const chosenZoom = useRef(false);
+
   useEffect(() => {
     const el = scrollerRef.current;
-    if (!doc || !el) return;
-    doc.getPage(1).then((page) => {
+    if (!doc || !el) return undefined;
+    let gone = false;
+    let pageWidth = null;
+
+    const fit = () => {
+      if (gone || pageWidth == null || chosenZoom.current) return;
       const style = getComputedStyle(el);
       const room =
         el.clientWidth -
         parseFloat(style.paddingLeft) -
         parseFloat(style.paddingRight);
-      const fit = clampScale(room / page.getViewport({ scale: 1 }).width);
-      setScale(fit);
-      setRenderScale(fit);
+      if (room <= 0) return; // laid out but not yet given a size
+      const next = clampScale(Math.min(room, FIT_MAX_WIDTH) / pageWidth);
+      setScale(next);
+      setRenderScale(next);
+    };
+
+    doc.getPage(1).then((page) => {
+      pageWidth = page.getViewport({ scale: 1 }).width;
+      fit();
     });
+
+    // The element's own width, not the window's: the rail opening takes
+    // room from the pages without the window changing at all.
+    const watch = new ResizeObserver(fit);
+    watch.observe(el);
+    return () => {
+      gone = true;
+      watch.disconnect();
+    };
   }, [doc]);
 
   // A note placed on a different edition may sit anywhere on this one; it
@@ -156,6 +331,7 @@ export default function App() {
   const zoomBy = (factor, at) => {
     const el = scrollerRef.current;
     if (!el) return;
+    chosenZoom.current = true;
     const box = el.getBoundingClientRect();
     const cx = at ? at.x : box.left + box.width / 2;
     const cy = at ? at.y : box.top + box.height / 2;
@@ -361,7 +537,9 @@ export default function App() {
     setRailOpen(true);
     setFlashId(id);
     clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlashId(null), 3600);
+    // A shade longer than the 5s fade in styles.js, so the class outlives
+    // the animation rather than cutting it short.
+    flashTimer.current = setTimeout(() => setFlashId(null), 6100);
     requestAnimationFrame(() => {
       document
         .querySelector(`.rail [data-note="${id}"]`)
@@ -483,7 +661,7 @@ export default function App() {
             }
           }}
         >
-          ← Back to Papol
+          ← <span className="back-word">Back to </span>Papol
         </a>
         <span className="spacer" />
         {/* The paper page no longer offers the raw file, so the way to keep
@@ -554,6 +732,10 @@ export default function App() {
               renderScale={renderScale}
               notes={notesByPage.get(n) || []}
               activeNoteId={activeNoteId}
+              analysis={analysis}
+              openReferenceId={openCite?.referenceId ?? null}
+              onOpenReference={openReference}
+              onFollowLink={followLink}
               onPlace={handlePlace}
               onMarkPlace={markPlace}
               onSelectNote={pointAtNote}
@@ -561,6 +743,21 @@ export default function App() {
             />
           ))}
         </div>
+
+        {returnTo != null && (
+          <button className="jump-back" onClick={goBack}>
+            ← Back to where you were
+          </button>
+        )}
+
+        {openCite && (
+          <ReferenceCard
+            box={openCite.box}
+            reference={reference}
+            error={referenceError}
+            onClose={closeReference}
+          />
+        )}
 
         {railOpen && (
         <aside className="rail">
@@ -715,6 +912,7 @@ export default function App() {
               </div>
             )
           )}
+
         </aside>
         )}
       </div>

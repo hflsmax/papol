@@ -38,9 +38,29 @@ export const styles = `
   --fs-lg: 1.05rem;
   --radius: 3px;
   --radius-pill: 999px;
+
+  /* The rail's width, in one place: the handle clings to its edge and the
+     pages take what is left, so all three have to agree. */
+  --rail-w: 320px;
 }
 
 * { box-sizing: border-box; }
+
+/* The viewer is one screenful: the bar on top, the pages and the rail
+   filling the rest and scrolling inside themselves. dvh rather than vh so
+   a phone's retracting address bar does not leave a strip of nothing at
+   the bottom. */
+#root {
+  display: flex;
+  flex-direction: column;
+  /* height, not min-height, and the difference is not cosmetic. The pages
+     below need a definite height to scroll inside. Given only a minimum,
+     the flex item under it has no free space to divide, so it grows to the
+     length of the whole document, .pages stops being a scroller, and
+     nothing in the viewer scrolls at all. */
+  height: 100vh;
+  height: 100dvh;
+}
 
 body {
   margin: 0;
@@ -118,6 +138,7 @@ button.link.danger { color: var(--red); }
   position: sticky;
   top: 0;
   z-index: 20;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -131,6 +152,9 @@ button.link.danger { color: var(--red); }
   text-decoration: none;
   font-size: var(--fs-base);
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .viewer-bar .spacer { flex: 1; }
@@ -148,7 +172,7 @@ button.link.danger { color: var(--red); }
 }
 
 .viewer-bar .bar-link:hover { border-color: var(--accent); color: var(--accent); }
-.zoom { display: flex; align-items: center; gap: 6px; }
+.zoom { flex: none; display: flex; align-items: center; gap: 6px; }
 .zoom-level {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
@@ -162,18 +186,21 @@ button.link.danger { color: var(--red); }
 .viewer-body {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
   gap: 0;
-  height: calc(100vh - 53px);
+  /* Whatever the bar leaves — measured rather than assumed, so the bar can
+     change height without the pages hanging off the bottom of the window. */
+  flex: 1;
+  min-height: 0;
 }
 
 .viewer-body.rail-hidden { grid-template-columns: minmax(0, 1fr); }
 
 .rail-handle {
   position: absolute;
-  z-index: 25;
+  z-index: 35;
   top: 18px;
-  right: 320px;
+  right: var(--rail-w);
   width: 15px;
   height: 52px;
   padding: 0;
@@ -197,6 +224,7 @@ button.link.danger { color: var(--red); }
 
 .pages {
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -209,7 +237,7 @@ button.link.danger { color: var(--red); }
    something rather than a sentence. */
 .page-skeleton {
   flex: none;
-  width: min(100%, 820px);
+  width: min(100%, 1100px);
   aspect-ratio: 1 / 1.294;
   border-radius: 2px;
   background: linear-gradient(100deg, var(--card) 30%, var(--paper) 50%, var(--card) 70%);
@@ -251,6 +279,210 @@ button.link.danger { color: var(--red); }
    the library's stylesheet. */
 .textLayer { z-index: 2; }
 .textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
+
+/* The PDF's own links. Invisible until pointed at, like the citations:
+   a paper is not improved by underlining every cross-reference in it. */
+.link-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+
+.pdf-link {
+  position: absolute;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.pdf-link:hover,
+.pdf-link:focus-visible {
+  background: rgba(43, 74, 111, 0.14);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
+  outline: none;
+}
+
+/* Offered after a jump, and only when the jump actually moved the page. */
+.jump-back {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 12;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--accent);
+  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
+  cursor: pointer;
+}
+
+.jump-back:hover { background: var(--accent-soft); }
+
+/* A citation marker in the text. Nothing is drawn over the page until the
+   reader is near it: the PDF already shows "[12]", and a box around every
+   one of them would be a rash across the paper. */
+.cite-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+
+.cite {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* The highlight has to be translucent, not merely pale: this layer is
+   drawn over the page, so an opaque wash — however light — would hide the
+   very "[12]" the reader is pointing at. */
+.cite:hover,
+.cite:focus-visible {
+  background: rgba(43, 74, 111, 0.14);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
+  outline: none;
+}
+
+.cite.open {
+  background: rgba(43, 74, 111, 0.16);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.16), inset 0 -2px 0 var(--accent);
+}
+
+/* Matched by counting rather than by the analyzer, so it is marked as the
+   guess it is — a dotted underline instead of a solid one. */
+.cite.guessed.open {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  border-bottom: 1px dotted var(--accent);
+}
+
+.ref-card {
+  position: fixed;
+  z-index: 20;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(29, 33, 41, 0.18);
+  padding: 14px 16px 12px;
+  /* A starting cap, for the pass that measures the card. ReferenceCard
+     then sets the real one from the room beside the marker. */
+  max-height: 62vh;
+  max-width: calc(100vw - 24px);
+  overflow-y: auto;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+
+/* On every card, and meant to be read rather than merely present. Plain
+   words, not a badge: the card already carries a chip for the citation
+   count, and a second one would read as another piece of the record
+   rather than as a caveat about it. */
+.ref-flag {
+  margin: 0 0 7px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--gold-ink);
+}
+
+.ref-looking { margin: 2px 0; color: var(--ink-faint); font-style: italic; }
+
+.ref-title {
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-size: var(--fs-lg);
+  line-height: 1.35;
+  margin: 0 22px 6px 0;
+}
+
+.ref-title a { color: var(--accent); text-decoration: none; }
+.ref-title a:hover { text-decoration: underline; }
+
+.ref-authors { margin: 0 0 2px; color: var(--ink-soft); font-size: var(--fs-xs); }
+
+.ref-where {
+  margin: 0 0 8px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.ref-cited {
+  color: var(--gold-ink);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-pill);
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.ref-abstract {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ref-abstract.full { display: block; overflow: visible; }
+
+.ref-more { margin: 2px 0 0; padding: 0; }
+
+.ref-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.ref-link {
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 2px 9px;
+}
+
+.ref-link:hover { background: var(--accent-soft); }
+
+/* A paper Papol already holds is the one link worth leading with. */
+.ref-link.here {
+  color: var(--ink-inverse);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ref-link.here:hover { background: var(--accent-strong); }
+
+.ref-unmatched { margin: 0 22px 6px 0; color: var(--ink-soft); }
+
+.ref-raw {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--paper-sunken);
+  border-left: 2px solid var(--line-strong);
+  padding: 7px 10px;
+}
 
 .pin-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 
@@ -306,13 +538,17 @@ button.link.danger { color: var(--red); }
   100% { box-shadow: 0 0 0 2px transparent; }
 }
 
-.anchor-row.flash, .note-card.flash { animation: railFlash 2.5s ease-out; }
-.anchor-row.here.flash, .note-card.here.flash { animation: railFlashHere 2.5s ease-out; }
+/* Five seconds: long enough to find the row without hunting, and to still
+   be lit when the eye comes back from the page. App.jsx drops the class a
+   moment after this ends — the two are meant to stay in step. */
+.anchor-row.flash, .note-card.flash { animation: railFlash 5s ease-out; }
+.anchor-row.here.flash, .note-card.here.flash { animation: railFlashHere 5s ease-out; }
 
 /* ---------- Rail ---------- */
 
 .rail {
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px;
   background: var(--card);
   border-left: 1px solid var(--line);
@@ -343,10 +579,12 @@ button.link.danger { color: var(--red); }
 
 .note-card {
   position: relative;
-  padding-right: 28px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 10px 12px;
+  /* Room for the × in the corner. After the shorthand, or the shorthand
+     puts it back. */
+  padding-right: 28px;
   margin-bottom: 10px;
   background: var(--accent-soft);
   cursor: pointer;
@@ -376,6 +614,7 @@ button.link.danger { color: var(--red); }
 
 .note-where {
   margin: 0 0 4px;
+  flex-wrap: wrap;
   font-family: var(--font-ui);
   font-size: var(--fs-2xs);
   color: var(--ink-faint);
@@ -393,7 +632,12 @@ button.link.danger { color: var(--red); }
   color: var(--gold-ink);
 }
 
-.note-text { margin: 0 0 6px; font-size: var(--fs-md); white-space: pre-wrap; }
+.note-text {
+  margin: 0 0 6px;
+  font-size: var(--fs-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
 /* A bare anchor: a mark in a list of notes, deliberately not a card. */
 .anchor-row {
@@ -489,11 +733,51 @@ button.link.danger { color: var(--red); }
   resize: vertical;
 }
 
+/* ---------- Narrower windows ---------- */
+
+/* Below two comfortable columns the rail stops taking one of its own and
+   slides over the pages instead. It does not go under them: every jump in
+   the viewer scrolls the .pages element, so a layout where the window
+   scrolled instead would quietly break going to an anchor. */
 @media (max-width: 860px) {
-  .viewer-body { grid-template-columns: minmax(0, 1fr); height: auto; }
-  /* The rail sits under the pages here, so there is no edge to cling to. */
-  .rail-handle { display: none; }
+  .viewer-body {
+    --rail-w: min(320px, 86vw);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--rail-w);
+    box-shadow: -8px 0 24px rgba(25, 35, 50, 0.16);
+  }
+
   .pages { padding: 12px; }
-  .rail { border-left: none; border-top: 1px solid var(--line); }
+}
+
+/* A phone. The bar has to hold a way back, the file and the zoom in about
+   320 points, so the words give way and the paddings tighten. */
+@media (max-width: 560px) {
+  .viewer-bar { gap: 8px; padding: 8px 12px; }
+  .viewer-bar .back-word { display: none; }
+  .viewer-bar .bar-link, .viewer-bar .zoom button { padding: 6px 9px; }
+  .zoom-level { min-width: 32px; }
+  .jump-back { left: 12px; bottom: 12px; }
+}
+
+/* A touch screen has no hover, so anything that was only revealed by one
+   is simply there, and the small marks are given a finger's worth of
+   room. */
+@media (hover: none) {
+  .anchor-row .anchor-write { opacity: 1; }
+  /* The name looks like a field on hover; with no hover to give, it just
+     looks like one. */
+  .name { border-bottom: 1px dotted var(--ink-faint); }
+  .card-x { width: 26px; height: 26px; }
+  .anchor-row .card-x { width: 22px; height: 22px; }
+  .note-card { padding-right: 32px; }
 }
 `;

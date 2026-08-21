@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -22,11 +22,18 @@ class User(Base):
 
 
 class AuthToken(Base):
+    """A sign-in session. The row outlives the session: signing out stamps
+    revoked_at instead of deleting, so the record of who came back, and
+    when, survives."""
     __tablename__ = "auth_tokens"
 
     token = Column(String, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # The last authenticated request made with this session. Signing in is
+    # itself a use, so it starts at the creation time.
+    last_used_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
 
     user = relationship("User")
 
@@ -68,8 +75,86 @@ class PaperEdition(Base):
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # How far the reference analysis of this PDF has got. References are
+    # a property of the file, not of the paper, so they are read once per
+    # edition and kept: pending | ready | failed | unavailable.
+    references_status = Column(String, nullable=True)
+    references_error = Column(Text, nullable=True)
+    references_at = Column(DateTime, nullable=True)
+
     paper = relationship("Paper", back_populates="editions")
     uploader = relationship("User")
+    references = relationship(
+        "EditionReference",
+        back_populates="edition",
+        cascade="all, delete-orphan",
+        order_by="EditionReference.index",
+    )
+    citations = relationship(
+        "EditionCitation", back_populates="edition", cascade="all, delete-orphan"
+    )
+
+
+class EditionReference(Base):
+    """One work cited by an edition, as the analyzer read it off the page.
+
+    `raw` is the reference exactly as printed — the string a bibliographic
+    search matches against, and the thing to show a reader when no match is
+    found. Everything under `resolved_*` is what the lookup added, filled
+    in the first time someone opens this reference and kept thereafter."""
+    __tablename__ = "edition_references"
+
+    id = Column(Integer, primary_key=True, index=True)
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    # The analyzer's own id for the entry (its xml:id), which is what the
+    # in-text markers point at.
+    key = Column(String, nullable=False)
+    index = Column(Integer, nullable=False)
+    raw = Column(Text, nullable=True)
+    title = Column(Text, nullable=True)
+    authors = Column(Text, nullable=True)  # JSON array stored as text
+    year = Column(Integer, nullable=True)
+    journal = Column(Text, nullable=True)
+    doi = Column(Text, nullable=True)
+    arxiv_id = Column(Text, nullable=True)
+    # Where the entry is printed in the bibliography, as fractions of the
+    # page: a PDF's own citation links point at a place on a page, and this
+    # is what lets such a link be matched to the entry it lands on.
+    page = Column(Integer, nullable=True)
+    y = Column(Float, nullable=True)
+
+    # The lookup: none | ok | miss | error.
+    resolved_status = Column(String, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    resolution = Column(Text, nullable=True)  # JSON blob, see biblio.resolve
+
+    edition = relationship("PaperEdition", back_populates="references")
+
+
+class EditionCitation(Base):
+    """One in-text marker — the "[12]" a reader clicks — and its box.
+
+    The box is fractions of the page from its top-left corner, so it lands
+    in the same place at any zoom and on any screen. A marker that names
+    several works, "[3, 5]", is several rows: each is separately clickable
+    because each leads somewhere different."""
+    __tablename__ = "edition_citations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    reference_id = Column(Integer, ForeignKey("edition_references.id"), nullable=True)
+    label = Column(Text, nullable=True)
+    page = Column(Integer, nullable=False, index=True)
+    x = Column(Float, nullable=False)
+    y = Column(Float, nullable=False)
+    w = Column(Float, nullable=False)
+    h = Column(Float, nullable=False)
+    # The analyzer found the marker but not what it pointed at, and the
+    # number printed in it was read instead. A guess, and marked as one.
+    inferred = Column(Boolean, default=False)
+
+    edition = relationship("PaperEdition", back_populates="citations")
+    reference = relationship("EditionReference")
 
 
 class Copy(Base):

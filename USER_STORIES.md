@@ -74,6 +74,16 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.4** My notes are listed in a rail beside the page — all of them, whether or not they have a place; the ones that do show their page, carry a pin, and scroll there when clicked. A note taken on a different edition is marked as such, and never moved for me.
 - **US-7.5** On the paper page, a note that has a place shows a **page** chip that opens the viewer at that note. A note taken there and a note typed on the paper page are the same kind of thing, in the same list.
 
+## 7b. Following a citation
+
+- **US-7.6** As a reader, when I meet a citation in the text — "[12]" — I can click it and see what it is without leaving my place: title, authors, where and when it appeared, its abstract, and how often it has been cited.
+- **US-7.7** The card offers what can be done with the work: a free PDF where one exists, the publisher's page, and a Scholar search. When the cited paper is **already in Papol**, that link comes first — a citation is how a reader finds the next paper in their nook, and the next seminar.
+- **US-7.8** A reference Papol cannot match is not hidden: the card shows the line exactly as the author printed it, with a way to go and search for it. A thin answer beats a blank one.
+- **US-7.9** Clickable citations come from the PDF where the PDF has them — papers built with LaTeX carry a link on every marker, and the author's own link is better than any analysis. Where they are absent, the analyzer's reading of the page is used, and a marker matched only by counting its number is marked as the guess it is.
+- **US-7.10** Reading a paper's bibliography happens once per **edition** and is kept, so only the first reader of a PDF waits. Looking up a particular reference happens the first time someone opens it, and is kept too.
+- **US-7.11** As a reader, the paper's **other links work too**: "see Section 3.2" and "Figure 4" scroll me there, and a URL opens in a new tab. Following a cross-reference offers **← Back to where you were**, because a jump that loses my place is worse than no link at all.
+- **US-7.12** The analyzer is optional. Where it is not running, everything else in Papol works exactly as before and citations are simply not clickable.
+
 ## Non-functional
 
 - **US-8.1** Minimalist, academic visual style: serif typography, restrained palette, generous whitespace, no decorative chrome.

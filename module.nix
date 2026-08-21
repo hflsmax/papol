@@ -1,9 +1,18 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, ... }@args:
 
 let
   cfg = config.services.papol;
 
-  pythonEnv = pkgs.python312.withPackages (ps: with ps; [
+  # Imported through the flake as nixosModules.default, `papolPython` is
+  # handed in, built from the one dependency list in flake.nix. Imported on
+  # its own — by a system that does not use the flake — the list below
+  # stands in. flake.nix is where the list is maintained; this copy exists
+  # so that importing this file directly still produces a working service.
+  #
+  # Read out of `args` rather than declared as a function argument on
+  # purpose: a declared argument is one the NixOS module system insists on
+  # supplying from `_module.args`, default or no default.
+  pythonEnv = args.papolPython or (pkgs.python312.withPackages (ps: with ps; [
     fastapi
     uvicorn
     sqlalchemy
@@ -11,7 +20,7 @@ let
     pymupdf
     httpx
     python-multipart
-  ]);
+  ]));
 
 in {
   options.services.papol = {
@@ -59,6 +68,45 @@ in {
       description = "User to run the backend as";
     };
 
+    grobid = {
+      enable = lib.mkEnableOption ''
+        the reference analyzer. GROBID reads a PDF's bibliography and finds
+        where each work is cited in the text, which is what makes a citation
+        clickable in the viewer. It is a JVM service, so it runs as a
+        container beside papol rather than in it. Without it papol works
+        exactly as before, minus that one feature
+      '';
+
+      image = lib.mkOption {
+        type = lib.types.str;
+        default = "grobid/grobid:0.9.1-crf";
+        description = ''
+          The CRF build: about 1 GB and CPU-only. The "-full" images add
+          deep-learning models, are ten times the size and want a GPU, for
+          accuracy papol does not need — a reference is only ever used as a
+          search query.
+        '';
+      };
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 8070;
+        description = "Port GROBID listens on, bound to localhost only";
+      };
+    };
+
+    contactEmail = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "you@example.com";
+      description = ''
+        An address to identify papol to CrossRef and OpenAlex when looking
+        up references. Both are free and keyless; sending a contact address
+        puts the requests in their faster, more reliable pool, and is how
+        they reach you if papol ever misbehaves.
+      '';
+    };
+
     cloudflare = {
       enable = lib.mkEnableOption "exposing papol via a Cloudflare Tunnel (for mc-pony.com/papol)";
 
@@ -98,15 +146,42 @@ in {
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
+      environment =
+        (lib.optionalAttrs cfg.grobid.enable {
+          GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
+        })
+        // (lib.optionalAttrs (cfg.contactEmail != null) {
+          PAPOL_CONTACT_EMAIL = cfg.contactEmail;
+        });
+
       serviceConfig = {
         Type = "simple";
         User = cfg.user;
         Group = "users";
         WorkingDirectory = "${cfg.srcDir}/backend";
         ExecStart = "${pythonEnv}/bin/uvicorn main:app --host ${cfg.host} --port ${toString cfg.port}";
+        # Secrets by file, never through the store: anything written into a
+        # NixOS option is copied into a world-readable /nix/store path. Same
+        # place and shape as hoom's, so there is one habit to remember —
+        # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail. The
+        # leading "-" means the file may simply not exist.
+        EnvironmentFile = "-/home/${cfg.user}/.config/papol/secrets.env";
         Restart = "on-failure";
         RestartSec = 5;
       };
+    };
+
+    # oci-containers defaults to podman, which would stand a second container
+    # runtime up beside the docker this host already runs — and pull the
+    # image again into it. mkDefault, so setting it yourself still wins.
+    virtualisation.oci-containers.backend = lib.mkIf cfg.grobid.enable (lib.mkDefault "docker");
+
+    # The reference analyzer. Bound to localhost: only papol talks to it,
+    # and it will happily read any PDF anyone sends it.
+    virtualisation.oci-containers.containers.papol-grobid = lib.mkIf cfg.grobid.enable {
+      image = cfg.grobid.image;
+      ports = [ "127.0.0.1:${toString cfg.grobid.port}:8070" ];
+      extraOptions = [ "--init" ];
     };
 
     services.nginx = {

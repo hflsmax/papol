@@ -76,3 +76,17 @@ export function markPlace(id) {
 export function deleteNote(id) {
   return request(`/comments/${id}`, { method: 'DELETE' });
 }
+
+// ---- References ----
+
+// The bibliography of the PDF being read, and where each work is cited in
+// it. The first ask may answer `pending`: reading a PDF's references takes
+// a pass over the whole document, which happens once and is then kept.
+export function getReferences(editionId, { refresh = false } = {}) {
+  return request(`/editions/${editionId}/references${refresh ? '?refresh=true' : ''}`);
+}
+
+// One reference, looked up the first time anyone opens it.
+export function getReference(id) {
+  return request(`/references/${id}`);
+}

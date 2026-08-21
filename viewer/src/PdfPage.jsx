@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import { GlyphFor } from './glyphs';
+import { pageOverlays } from './references';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -10,6 +11,14 @@ import { GlyphFor } from './glyphs';
  * fraction of the page in PDF user space, origin bottom-left. `viewport`
  * converts between them, so nothing above this component ever sees a pixel.
  */
+// A box stored as fractions of the page, as CSS.
+const boxStyle = (box) => ({
+  left: `${box.x * 100}%`,
+  top: `${box.y * 100}%`,
+  width: `${box.w * 100}%`,
+  height: `${box.h * 100}%`,
+});
+
 export default function PdfPage({
   doc,
   pageNumber,
@@ -17,6 +26,10 @@ export default function PdfPage({
   renderScale,
   notes,
   activeNoteId,
+  analysis,
+  openReferenceId,
+  onOpenReference,
+  onFollowLink,
   onPlace,
   onMarkPlace,
   onSelectNote,
@@ -29,6 +42,12 @@ export default function PdfPage({
   const textTaskRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [visible, setVisible] = useState(false);
+  // The citation markers on this page. Worked out when the page first
+  // comes into view, because finding them means resolving the PDF's own
+  // links, and a page nobody has reached should not cost that.
+  const [citations, setCitations] = useState([]);
+  // The PDF's own links: "see Section 3", "Figure 4", a URL in a footnote.
+  const [links, setLinks] = useState([]);
   // The drag lives in a ref, because pointermove fires faster than React
   // re-renders and a stale `moved` flag would read a drag as a click. The
   // state alongside it exists only to redraw the pin under the pointer.
@@ -137,6 +156,23 @@ export default function PdfPage({
       textTaskRef.current?.cancel();
     };
   }, [doc, pageNumber, renderScale, visible]);
+
+  // Only that the page is on screen — not that the references are ready.
+  // The PDF's own links are in the file itself: they need no analyzer, and
+  // in the demo, where there is no analysis at all, they are the whole of
+  // what this layer has to offer.
+  useEffect(() => {
+    if (!visible) return undefined;
+    let cancelled = false;
+    pageOverlays(doc, pageNumber, analysis).then((found) => {
+      if (cancelled) return;
+      setCitations(found.citations);
+      setLinks(found.links);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, pageNumber, visible, analysis]);
 
   // Double-click marks a place. A single click belongs to the text layer,
   // so reading and selecting are never interrupted by note-taking.
@@ -274,6 +310,63 @@ export default function PdfPage({
         {/* Selectable text sits above the drawing; a double-click passes
             through it to the page, so both reading and marking work. */}
         <div className="textLayer" ref={textRef} />
+        {/* What the author linked: a place in the paper, or a page on the
+            web. Under the citation layer, so where a link is both, the
+            card wins over the jump. */}
+        <div className="link-layer">
+          {links.map((link, i) =>
+            link.href ? (
+              <a
+                key={`u${i}`}
+                className="pdf-link"
+                href={link.href}
+                target="_blank"
+                rel="noreferrer noopener"
+                title={link.href}
+                style={boxStyle(link)}
+              />
+            ) : (
+              <button
+                key={`d${i}`}
+                type="button"
+                className="pdf-link"
+                title={`Go to page ${link.spot.page}`}
+                aria-label={`Go to page ${link.spot.page}`}
+                style={boxStyle(link)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFollowLink(link.spot);
+                }}
+              />
+            )
+          )}
+        </div>
+        {/* Citations sit above the text layer: a click on "[12]" belongs
+            to the reference it names, not to the words beneath it. The
+            layer itself lets everything else through. */}
+        <div className="cite-layer">
+          {citations.map((cite, i) => (
+            <button
+              key={`${cite.referenceId}-${i}`}
+              type="button"
+              className={`cite${cite.referenceId === openReferenceId ? ' open' : ''}${
+                cite.exact ? '' : ' guessed'
+              }`}
+              style={{
+                left: `${cite.x * 100}%`,
+                top: `${cite.y * 100}%`,
+                width: `${cite.w * 100}%`,
+                height: `${cite.h * 100}%`,
+              }}
+              title={cite.exact ? 'What is this?' : 'What is this? (matched by number)'}
+              aria-label={`Open reference ${cite.label || ''}`.trim()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenReference(cite.referenceId, e.currentTarget.getBoundingClientRect());
+              }}
+            />
+          ))}
+        </div>
         <div className="pin-layer">
           {notes.map((note) => (
             <button
