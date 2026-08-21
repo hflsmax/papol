@@ -2286,10 +2286,20 @@ async def admin_run_sql(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+# A name that never changes, for a file that does. Papol is reached both
+# through nginx, which adds no-store, and through the Cloudflare tunnel,
+# which goes straight to uvicorn and so gets whatever is set here — and a
+# CDN left to its own devices caches an .svg for hours. The hashed files
+# under /assets are exempt from this problem by construction; index.html and
+# the build-root files are not, and they are the two that decide what the
+# hashed names even are.
+_REVALIDATE = {"Cache-Control": "public, max-age=0, must-revalidate"}
+
+
 @app.get("/")
 async def serve_frontend():
     """Serve the frontend index.html."""
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)
 
 
 @app.get("/{filename}")
@@ -2307,4 +2317,4 @@ async def serve_frontend_root_file(filename: str):
     candidate = (FRONTEND_DIR / filename).resolve()
     if candidate.parent != FRONTEND_DIR.resolve() or not candidate.is_file():
         raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(candidate)
+    return FileResponse(candidate, headers=_REVALIDATE)
