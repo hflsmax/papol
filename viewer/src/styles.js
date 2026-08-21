@@ -272,6 +272,16 @@ button.link.danger { color: var(--red); }
   inset: 0;
   display: block;
 }
+.brush-pop .brush-tip {
+  margin: 2px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
 .brush-pop .weight-strip.round { border-radius: 50%; }
 

@@ -293,7 +293,11 @@ export function CowJointed() {
 
 function CowTool() {
   return (
-    <g fill="currentColor" transform="translate(0.4 2.6) scale(0.365)">
+    // Centred on the drawing's own bounds rather than on its box: the box
+    // has room over the animal's back for a head that has been thrown up,
+    // and a button that leaves that room empty looks like it is sitting
+    // wrong in the bar.
+    <g fill="currentColor" transform="translate(0.73 4.22) scale(0.383)">
       <CowFigure />
     </g>
   );

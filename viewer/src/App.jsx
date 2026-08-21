@@ -52,7 +52,12 @@ const INK_COLORS = [
 
 // Fractions of the page width, so a stroke keeps its weight at any zoom.
 // Stepped with [ and ].
-const INK_WIDTHS = [0.002, 0.004, 0.008, 0.022];
+//
+// Even steps apart. They used to double and then nearly treble — 2, 4, 8
+// and 22 pixels on an ordinary page — so the last was as big as the other
+// three together and the first two were hard to tell apart at all. Four
+// weights only work as a scale if the rungs are the same distance up.
+const INK_WIDTHS = [0.003, 0.009, 0.015, 0.021];
 
 // Three, one of them solid. Anything less than solid lets the words
 // underneath show through, which is what marking a line wants and what
@@ -1234,6 +1239,10 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                  {/* The one thing about the brush that is not in this
+                      sheet, said where someone setting the brush up will
+                      see it. */}
+                  <p className="brush-tip">Try holding shift while drawing.</p>
                 </div>
               )}
             </span>

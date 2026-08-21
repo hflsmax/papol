@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import {
-  GlyphFor, CowJointed, COW_PARTS, COW_MARKS, COW_BOX,
+  GlyphFor, CowJointed, COW_PARTS, COW_MARKS, COW_BOX, COW_GROUND,
   ANCHOR_D, ANCHOR_HANG,
 } from './glyphs';
 import { stepCow, poseCow } from './cow';
@@ -556,7 +556,12 @@ export default function PdfPage({
     e.currentTarget.setPointerCapture(e.pointerId);
     const at = anchorAt(e.clientX, e.clientY);
     if (tool === 'cow') {
-      onDropCow(pageNumber, at);
+      // Under its feet, not under its middle. The cursor is a cow standing
+      // on the pointer, so that is where the cow has to end up standing —
+      // and a cow is kept by its middle, which is this much above them.
+      const feet = ((COW_GROUND - COW_BOX.h / 2) * COW_SIZE * size.width)
+        / (COW_BOX.w * size.height);
+      onDropCow(pageNumber, { x: at.x, y: Math.min(0.95, at.y + feet) });
       return;
     }
     if (tool === 'anchor' || tool === 'here') {
@@ -950,9 +955,9 @@ export default function PdfPage({
       `viewBox="0 0 ${COW_BOX.w} ${COW_BOX.h}">` +
       `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
       `${COW_PARTS}</g><g fill="#33383f">${COW_MARKS}</g></svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(
-      1
-    )} ${(h * 0.9).toFixed(1)}, copy`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
+      (h * COW_GROUND) / COW_BOX.h
+    ).toFixed(1)}, copy`;
   };
 
   // Ends that stop where the stroke stops. A round cap puts a half-disc of
