@@ -215,7 +215,13 @@ button.link.danger { color: var(--red); }
   box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
 }
 
-.brush-pop .swatch.on { border-color: var(--ink); }
+/* Chosen, said with a soft halo rather than a hard edge. A black rule
+   drawn round a sample competes with the sample — and in a sheet whose
+   whole job is to show what the mark will look like, nothing should be
+   drawn on top of the mark. */
+.brush-pop .swatch.on {
+  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16), 0 0 0 3px var(--accent-soft);
+}
 
 .brush-pop .weight {
   display: grid;
@@ -230,7 +236,7 @@ button.link.danger { color: var(--red); }
   cursor: pointer;
 }
 
-.brush-pop .weight.on { border-color: var(--ink); }
+.brush-pop .weight.on { background: var(--accent-soft); }
 
 .brush-pop .shade {
   display: grid;
@@ -244,13 +250,12 @@ button.link.danger { color: var(--red); }
   cursor: pointer;
 }
 
-.brush-pop .shade.on { border-color: var(--ink); }
+.brush-pop .shade.on { background: var(--accent-soft); }
 
-/* A patch of page with print on it, and the ink laid over the whole thing.
-   A paler bar on white only says "paler"; the question is how much of what
-   is underneath a mark survives it, and that needs something underneath.
-   Two flat halves rather than a texture — this sheet is small, and three
-   ruled paragraphs side by side was a pattern, not a choice. */
+/* One colour, three strengths, on the white the ink will be on. Anything
+   put underneath to show what survives — a rule of type, a half-black
+   patch — reads as a second colour being offered, in a row whose whole
+   point is that the colour is already settled. */
 .brush-pop .shade-sample {
   position: relative;
   display: block;
@@ -258,13 +263,8 @@ button.link.danger { color: var(--red); }
   height: 18px;
   border-radius: 3px;
   overflow: hidden;
+  background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.18);
-}
-
-.brush-pop .shade-under {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, #ffffff 0 50%, var(--ink) 50% 100%);
 }
 
 .brush-pop .shade-ink {
@@ -287,7 +287,7 @@ button.link.danger { color: var(--red); }
   cursor: pointer;
 }
 
-.brush-pop .shape.on { border-color: var(--ink); }
+.brush-pop .shape.on { background: var(--accent-soft); }
 .brush-pop .nib { display: block; border-radius: 1px; }
 /* Upright and narrow, the way the flat nib is held. */
 .brush-pop .nib-flat { width: 6px; height: 20px; }

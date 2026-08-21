@@ -1,10 +1,9 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CowJointed, COW_PARTS, COW_MARKS, CowFigure } from './glyphs';
+import { CowJointed, COW_PARTS, COW_MARKS, CowFigure, COW_GROUND, COW_BOX } from './glyphs';
 import { poseCow } from './cow';
 
 const K = 3.2, CW = 260, CH = 190;
-import { COW_GROUND, COW_BOX } from './glyphs';
 
 const rest = (o) => ({
   id: 'x', x: 0, y: 0, facing: -1, grazing: false, until: 1e9, held: false,
@@ -13,8 +12,6 @@ const rest = (o) => ({
   born: -1e6, seed: 0, pace: 1, ...o,
 });
 
-// Each cell is one frozen pose, so a joint that is wrong is wrong in a
-// picture rather than in a blur.
 const CELLS = [
   ['rest', rest({})],
   ['head .33', rest({ head: 0.33 })],
@@ -50,8 +47,8 @@ function Cell({ label, cow, i }) {
   return (
     <svg width={CW} height={CH} style={{ background: i % 2 ? '#fbfbfa' : '#fff' }}>
       <text x="8" y="16" fontSize="11" fill="#888" fontFamily="monospace">{label}</text>
-      {/* Where the feet should be, so skating and floating are visible. */}
-      <line x1="0" y1={CH / 2 + 10 + (COW_GROUND - COW_BOX.h / 2) * K} x2={CW} y2={CH / 2 + 10 + (COW_GROUND - COW_BOX.h / 2) * K} stroke="#d33" strokeWidth="0.5" />
+      <line x1="0" y1={CH / 2 + 10 + (COW_GROUND - COW_BOX.h / 2) * K} x2={CW}
+            y2={CH / 2 + 10 + (COW_GROUND - COW_BOX.h / 2) * K} stroke="#d33" strokeWidth="0.5" />
       <g ref={ref}><CowJointed /></g>
     </svg>
   );
@@ -59,7 +56,7 @@ function Cell({ label, cow, i }) {
 
 function Sizes() {
   const cursor =
-    `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.5" stroke-linejoin="round">` +
+    '<g fill="#faf7ef" stroke="#33383f" stroke-width="1.5" stroke-linejoin="round">' +
     `${COW_PARTS}</g><g fill="#33383f">${COW_MARKS}</g>`;
   return (
     <div style={{ display: 'flex', gap: 28, alignItems: 'center', padding: '14px 20px' }}>

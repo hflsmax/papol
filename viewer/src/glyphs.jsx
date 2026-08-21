@@ -162,19 +162,19 @@ export const COW_GROUND = 36;
 // A cow walks in four beats rather than two, one foot down after another:
 // near hind, near fore, far hind, far fore. That is what the quarters are.
 export const COW_LEGS = [
-  { x: 24.6, y: 25, w: 5, h: 11, pivot: [27.1, 26], phase: 0.25 },
-  { x: 31, y: 25.5, w: 5, h: 10.5, pivot: [33.5, 26.5], phase: 0.75 },
-  { x: 43.4, y: 25, w: 5, h: 11, pivot: [45.9, 26], phase: 0 },
-  { x: 49, y: 25.5, w: 5, h: 10.5, pivot: [51.5, 26.5], phase: 0.5 },
+  { x: 25, y: 24, w: 5, h: 12, pivot: [27.5, 25], phase: 0.25 },
+  { x: 31.5, y: 24.5, w: 5, h: 11.5, pivot: [34, 25.5], phase: 0.75 },
+  { x: 43.5, y: 24, w: 5, h: 12, pivot: [46, 25], phase: 0 },
+  { x: 49.5, y: 24.5, w: 5, h: 11.5, pivot: [52, 25.5], phase: 0.5 },
 ];
 const legMarkup = (leg) =>
   `<rect x="${leg.x}" y="${leg.y}" width="${leg.w}" height="${leg.h}" rx="2.4"/>`;
 
 // Up over the rump, down, and a tuft on the end.
 export const COW_TAIL =
-  '<path d="M51.6 10.2c4 .8 5.7 4.2 5.2 8.2l-.7 5.3-2.5-.3.7-5.3c.3-2.5-.8-4.1-3.1-4.4z"/>' +
-  '<ellipse cx="55.4" cy="25.6" rx="2.7" ry="3.3"/>';
-export const COW_TAIL_PIVOT = [52, 11];
+  '<path d="M51.6 9.4c4 .8 5.7 4.2 5.2 8.2l-.7 5.3-2.5-.3.7-5.3c.3-2.5-.8-4.1-3.1-4.4z"/>' +
+  '<ellipse cx="55.4" cy="24.8" rx="2.7" ry="3.3"/>';
+export const COW_TAIL_PIVOT = [52, 10.2];
 
 // One barrel, one head, and nothing between them. There was a neck here,
 // and it was the worst thing in the drawing: a four-cornered slab that
@@ -182,28 +182,40 @@ export const COW_TAIL_PIVOT = [52, 11];
 // went down. The head simply overlaps the barrel instead, and is drawn
 // underneath it, so where the two meet is a join that never has to be got
 // right — it is not visible.
-export const COW_BODY = '<rect x="20" y="8" width="34" height="20" rx="9.6"/>';
-// Long rather than round. A round head with a round ear on top of it is a
-// bear, whatever else is done to the rest of the animal — the length of
-// the head and the droop of the muzzle off the front of it are most of
-// what makes the profile a cow's.
-export const COW_SKULL = '<rect x="2" y="11" width="24" height="16" rx="6.5"/>';
-export const COW_MUZZLE = '<ellipse cx="6" cy="23" rx="6" ry="5"/>';
+// One barrel, one head, and nothing between them. There was a neck here,
+// and it was the worst thing in the drawing: a four-cornered slab that
+// read as a collar at rest and slid about across the body when the head
+// went down. The head simply overlaps the barrel instead, and is drawn
+// underneath it, so where the two meet is a join that never has to be got
+// right — it is not visible.
+//
+// The head hangs below the line of the back, which is how a cow carries
+// it, and is long rather than round: a round head is a bear's however the
+// rest of the animal is drawn.
+export const COW_BODY = '<rect x="20" y="7" width="34" height="20" rx="9.6"/>';
+export const COW_SKULL = '<rect x="2" y="13" width="23" height="16" rx="6.8"/>';
+export const COW_MUZZLE = '<ellipse cx="6.5" cy="24.5" rx="5.8" ry="4.6"/>';
 
-// Nubs, at the front, well clear of the ear. A calf's horns are barely
-// through, which is the right amount of horn for something 45 pixels
-// across — but one alone reads as a mistake, and it is the pair that says
-// cow rather than dog.
+// Two horns and one ear.
+//
+// Horns were tried twice as nubs — two upright lobes on the brow, with the
+// ear a third behind them — and three lobes in a row across the top of a
+// head is a rabbit. The shape that works is the crescent: a thin curve
+// sweeping up and forward is a horn and cannot be read as anything else,
+// at any size, which is exactly what the nubs could not manage. Without
+// them the animal is a hippopotamus; four head designs were drawn side by
+// side to be sure of it, and this was the only one anybody would call a
+// cow.
+//
+// The ear goes behind them, long and swept back, and stays forward of the
+// shoulder: the barrel is drawn over the head and swallows anything that
+// reaches behind it.
+export const COW_EAR = '<path d="M15.4 14.6c.4-4.4 4.4-7.2 6.8-5.6s-.4 5.6-3.4 7.6z"/>';
+export const COW_EAR_PIVOT = [16.6, 15.4];
 export const COW_HORN =
-  '<ellipse cx="7.6" cy="8.2" rx="1.9" ry="2.6"/>' +
-  '<ellipse cx="11.8" cy="7.6" rx="1.7" ry="2.4"/>';
-
-// One ear, at the back, long and narrow and steep enough to clear the
-// shoulder — the barrel is drawn over anything that does not, and a cow's
-// ear is right where the barrel begins.
-export const COW_EAR = '<path d="M18 13.6c-.4-5.6 2.6-9.8 5.8-9.4s3.6 5.6.6 9.6z"/>';
-export const COW_EAR_PIVOT = [19, 13.4];
-export const COW_EYE = '<circle cx="11.4" cy="16.4" r="2"/>';
+  '<path d="M8.6 13.8c-2.9-2.6-3.3-6.8-.7-9.2.9 1.3-.4 2.4-.7 3.9-.2 2 .9 3.3 2.6 4.2z"/>' +
+  '<path d="M13.4 13.2c-2.4-2.2-2.9-5.7-.7-7.9.8 1.1-.2 2.1-.4 3.3-.2 1.6.7 2.9 2.2 3.5z"/>';
+export const COW_EYE = '<circle cx="11.5" cy="18.5" r="2"/>';
 export const COW_HEAD = COW_EAR + COW_HORN + COW_SKULL + COW_MUZZLE;
 
 // Where the head turns.
@@ -224,8 +236,8 @@ export const COW_PARTS =
 // The dark markings. They mean nothing over a dark animal, so they are
 // their own set: over the pale one they are the patches and the eye.
 export const COW_PATCH_PARTS =
-  '<ellipse cx="32" cy="13.5" rx="5.2" ry="3.8"/>' +
-  '<ellipse cx="45" cy="21" rx="4.8" ry="3.5"/>';
+  '<ellipse cx="32" cy="12.5" rx="5.2" ry="3.8"/>' +
+  '<ellipse cx="45" cy="20" rx="4.8" ry="3.5"/>';
 export const COW_MARKS = COW_PATCH_PARTS + COW_EYE;
 
 // Constants written in this file, never anything from outside it.
@@ -241,7 +253,7 @@ export function CowJointed() {
   return (
     <>
       <g data-cow="shadow" opacity="0.1">
-        <ellipse cx="0" cy="0" rx="14" ry="2.4" fill="#33383f" />
+        <ellipse cx="0" cy="0" rx="15" ry="2.4" fill="#33383f" />
       </g>
       <g data-cow="frame">
         <g fill="#faf7ef" stroke="#33383f" strokeWidth="1.5" strokeLinejoin="round">

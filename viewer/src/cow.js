@@ -52,7 +52,7 @@ const COW_EAR_HELD = 130;
 const COW_EAR_BACK = 30;
 // The feet are not centred in the box — the head takes up the front of it
 // — so neither is what they stand on.
-const SHADOW_AT = 6;
+const SHADOW_AT = 8;
 // And the tail flicks properly, now and then, on top of its slow swing.
 const COW_FLICK_EVERY = [5000, 14000];
 const COW_FLICK_HELD = 420;
