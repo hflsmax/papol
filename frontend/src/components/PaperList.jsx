@@ -106,8 +106,20 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                     <StatePill status={paper.room_status} />
                   </span>
                 )}
+                </div>
+                <p className="paper-meta">
+                  {parseAuthors(paper.authors)}
+                  {paper.year && ` (${paper.year})`}
+                  {paper.journal && ` - ${paper.journal}`}
+                </p>
+                <RatingSummary paper={paper} compact />
+              </div>
+              {/* The readers are the row's right-hand feature: who else
+                  has this paper is the reason to look at a nook. Out of
+                  the title row so they answer to the whole row rather
+                  than to the title. */}
                 {paper.readers && paper.readers.length > 0 && (
-                  <div className="title-chips">
+                  <div className="row-readers">
                     {paper.readers.map((entry) => (
                       <a
                         key={entry.user.id}
@@ -141,40 +153,35 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                     ))}
                   </div>
                 )}
-                </div>
-                <p className="paper-meta">
-                  {parseAuthors(paper.authors)}
-                  {paper.year && ` (${paper.year})`}
-                  {paper.journal && ` - ${paper.journal}`}
-                </p>
-                <RatingSummary paper={paper} compact />
-              </div>
               {isOwn && (
                 <div className="paper-side" onClick={(e) => e.stopPropagation()}>
                   <span className="hint-anchor">
+                  {/* The row already says whether a paper is hidden — it
+                      goes sunken, dashed and faded. So this is the action,
+                      not a second telling of the state, and it says who can
+                      see the paper in the same two words, and the same two
+                      tints, that visibility wears everywhere else here. */}
                   <button
                     className={
                       paper.marketed !== false
-                        ? 'market-toggle on'
-                        : 'market-toggle off'
+                        ? 'visibility-toggle public'
+                        : 'visibility-toggle private'
                     }
                     onClick={() =>
                       handleMarketToggle(paper, paper.marketed === false)
                     }
                     title={
                       paper.marketed !== false
-                        ? 'On display — other readers can see that you have this paper.'
-                        : 'Hidden — only you can see this paper. Click to put it on display.'
+                        ? 'Other readers can see that you have this paper. Click to hide it.'
+                        : 'Only you can see this paper. Click to put it on display.'
                     }
                     aria-label={
                       paper.marketed !== false
-                        ? 'On display; click to hide'
+                        ? 'On display; click to hide from your nook'
                         : 'Hidden; click to put on display'
                     }
                   >
-                    <span className="switch bare" aria-hidden="true">
-                      <span className="switch-knob" />
-                    </span>
+                    {paper.marketed !== false ? 'public' : 'private'}
                   </button>
                   {toggleWarning?.id === paper.id && (
                     <HintPop

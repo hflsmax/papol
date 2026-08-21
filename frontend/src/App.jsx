@@ -1016,13 +1016,76 @@ select {
   min-width: 0;
 }
 
+/* The switch says whether a paper is on display. It is a setting, not the
+   point of the row, so it sits out of the way in the corner and is drawn
+   small — it used to take a column of its own at the row's right, which is
+   the most prominent place there is and gave a preference the weight of the
+   thing it was a preference about. Absolute, over the li, which is already
+   positioned. */
 .paper-side {
+  position: absolute;
+  top: 6px;
+  right: 8px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
   flex-shrink: 0;
   cursor: default;
+  z-index: 1;
+}
+
+/* Whether a paper is on display, said in the words and tints visibility
+   already wears in this app: the same green and accent as .visibility-badge,
+   which is the vocabulary a reader has already learnt from the ratings and
+   the summary. A switch said the same thing with a knob whose meaning has
+   to be remembered, in a saturated accent fill that contradicted it —
+   accent-soft is what private looks like here.
+   The row is what shows the state; this is the action. So it rests quietly
+   and comes up when the row is pointed at. */
+.visibility-toggle {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid;
+  box-shadow: none;
+  opacity: 0.75;
+  transition: opacity 0.12s ease, border-color 0.12s ease;
+}
+
+.visibility-toggle.public {
+  color: var(--green-ink);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+
+.visibility-toggle.private {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.paper-list li:hover .visibility-toggle,
+.visibility-toggle:focus-visible {
+  opacity: 1;
+}
+
+/* It is a control, so pointing at it says so — the badge it borrows its
+   look from is not clickable, and the two must not be mistaken. */
+.visibility-toggle.public:hover:not(:disabled) {
+  color: var(--green-ink);
+  background: var(--green-soft);
+  border-color: var(--green);
+}
+
+.visibility-toggle.private:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .paper-list li:last-child {
@@ -1708,11 +1771,32 @@ select {
   display: flex;
   gap: 4px;
   align-items: center;
-  /* The readers gather at the row's end, in a column down the list beside
-     the display toggles — who has a paper is a fact about the row, not
-     about the title, and it should not sit at a different place in every
-     row because the titles are different lengths. */
   margin-left: auto;
+}
+
+/* A nook row's readers. They answer to the whole row rather than to the
+   title, so they sit at the row's right edge and centre against all of it,
+   and they are drawn large: who else has this paper is the reason to look
+   down someone's nook, and it should be legible at a glance rather than
+   read one 22px circle at a time. */
+.row-readers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  margin-left: auto;
+  /* clear of the switch in the corner above */
+  padding-top: 10px;
+}
+
+.row-readers .mini-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: var(--fs-sm);
+}
+
+.row-readers .avatar-chip.mini {
+  padding: 2px;
 }
 
 .avatar-chip.mini {
