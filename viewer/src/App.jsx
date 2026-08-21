@@ -150,7 +150,7 @@ const HELP = {
   laser: 'A laser pointer.',
   anchor: 'Click to drop an anchor. Anchors can optionally be named and carry a note.',
   here: 'Click to drop a "here anchor" that marks where you have got to. Only one per paper.',
-  cow: 'A cow, a dog, a cat, a pig or a sheep. It wanders about in its own way, stops to graze or sniff or sit, and is not kept. Press M again to choose which.',
+  cow: 'An animal that wonders.',
 };
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 
