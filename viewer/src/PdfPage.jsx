@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import { GlyphFor } from './glyphs';
+import { GlyphFor, ANCHOR_D, ANCHOR_HANG } from './glyphs';
 import { pageOverlays } from './references';
 
 /**
@@ -67,8 +67,6 @@ export default function PdfPage({
   openReferenceId,
   onOpenReference,
   onFollowLink,
-  onPlace,
-  onMarkPlace,
   onSelectNote,
   onMoveNote,
   tool,
@@ -81,6 +79,7 @@ export default function PdfPage({
   onHover,
   onDropAnchor,
   onMoveStroke,
+  onDragNote,
 }) {
   const canvasRef = useRef(null);
   const holderRef = useRef(null);
@@ -103,9 +102,6 @@ export default function PdfPage({
   // Set when a drag ends, so the click that follows it is not also read as
   // "open the menu".
   const draggedRef = useRef(false);
-  // The anchor the last double-click made, so a third click can turn it
-  // into the reader's place rather than leaving a stray mark behind.
-  const justPlacedRef = useRef(null);
   // Ink being laid down now. In a ref for the same reason the drag is:
   // pointermove outruns React, and the state beside it exists only to put
   // the wet stroke on screen while it is being made.
@@ -127,6 +123,10 @@ export default function PdfPage({
   // The laser keeps nothing, so its trail is points with the moment each
   // was made, thrown away by a frame loop rather than stored anywhere.
   const laserRef = useRef([]);
+  // Which pass of the pointer a point belongs to. A trail that was let go
+  // of must not be joined to wherever the pointer wandered next, so letting
+  // go — and pressing again — starts a new one.
+  const laserRunRef = useRef(0);
   const [, setLaserTick] = useState(0);
   const rafRef = useRef(null);
 
@@ -244,31 +244,11 @@ export default function PdfPage({
     };
   }, [doc, pageNumber, visible, analysis]);
 
-  // Double-click marks a place. A single click belongs to the text layer,
-  // so reading and selecting are never interrupted by note-taking.
-  const handleDoubleClick = async (e) => {
-    // Read the event before awaiting: React clears currentTarget once the
-    // handler returns, so anything needed after an await must be captured
-    // now.
-    const box = e.currentTarget.getBoundingClientRect();
-    const { clientX, clientY } = e;
-    const page = await doc.getPage(pageNumber);
-    const viewport = page.getViewport({ scale });
-    const [x, y] = viewport.convertToPdfPoint(clientX - box.left, clientY - box.top);
-    // Stored as a fraction of the page, so the note lands in the same place
-    // at any zoom, on any screen, at any rotation.
-    const [, , pageWidth, pageHeight] = page.view;
-    // A double-click also selects a word; the reader asked for an anchor.
-    window.getSelection()?.removeAllRanges();
-    justPlacedRef.current = onPlace({
-      page: pageNumber,
-      anchor: {
-        type: 'point',
-        x: Math.min(Math.max(x / pageWidth, 0), 1),
-        y: Math.min(Math.max(y / pageHeight, 0), 1),
-      },
-    });
-  };
+  // There was a double-click here that dropped an anchor and a triple-click
+  // that marked a place. The A and shift-A tools do both now, at a spot the
+  // reader can see before committing to it, and a page where an ordinary
+  // double-click on a word did something other than select the word was a
+  // page that argued with the reader about what a double-click is for.
 
   // A pin is dragged with the pointer captured, so the gesture survives
   // leaving the pin. A small movement is a click, not a drag — otherwise
@@ -302,14 +282,17 @@ export default function PdfPage({
     setDrag({ id: note.id, anchor: note.anchor, moved: false });
   };
 
+  // The pin follows from the first pixel, and the slop decides only what
+  // the gesture turns out to have been. Holding the pin still until six
+  // pixels had gone by and then catching up in one step is what made the
+  // start of a drag feel like it was lagging behind the hand — the pin was
+  // not moving yet, and then it was six pixels away.
   const onDragMove = (e) => {
     const d = dragRef.current;
     if (!d) return;
-    const moved =
+    d.moved =
       d.moved ||
       Math.abs(e.clientX - d.from.x) + Math.abs(e.clientY - d.from.y) > DRAG_SLOP;
-    if (!moved) return;
-    d.moved = true;
     const under = anchorAt(e.clientX, e.clientY);
     const clamp = (v) => Math.min(1, Math.max(0, v));
     d.anchor = {
@@ -317,13 +300,18 @@ export default function PdfPage({
       x: clamp(under.x - d.grab.x),
       y: clamp(under.y - d.grab.y),
     };
-    setDrag({ id: d.id, anchor: d.anchor, moved: true });
+    setDrag({ id: d.id, anchor: d.anchor, moved: d.moved });
+    if (d.moved) onDragNote(d.id);
   };
 
   const endDrag = (e, note) => {
     e.stopPropagation();
     const d = dragRef.current;
     dragRef.current = null;
+    onDragNote(null);
+    // Dropping the drag state is also what puts a pin back that moved a
+    // pixel or two and turned out to be a click: it is drawn from the
+    // note's own anchor again.
     setDrag(null);
     if (!d) return;
     draggedRef.current = d.moved;
@@ -362,8 +350,11 @@ export default function PdfPage({
   const pushLaser = (at, held) => {
     const trail = laserRef.current;
     const last = trail[trail.length - 1];
-    if (last && inPageUnits(last, at) < LASER_STEP) return;
-    laserRef.current = [...trail, { ...at, t: performance.now(), life: LASER_PASSING, held }];
+    if (last && last.run === laserRunRef.current && inPageUnits(last, at) < LASER_STEP) return;
+    laserRef.current = [
+      ...trail,
+      { ...at, t: performance.now(), life: LASER_PASSING, held, run: laserRunRef.current },
+    ];
     frameLaser();
   };
 
@@ -375,37 +366,51 @@ export default function PdfPage({
     laserRef.current = laserRef.current.map((p) =>
       p.held ? { ...p, held: false, t: now, life: LASER_LINGER } : p
     );
+    // The shape is finished. What the pointer does next is a new one, and
+    // is not to be drawn back to the end of this — which is what left the
+    // last stroke of it hanging off the cursor.
+    laserRunRef.current += 1;
     frameLaser();
   };
 
-  // Quadratic segments through the midpoints of the samples: consecutive
-  // segments meet at a midpoint sharing a tangent, so the trail is a curve
-  // where straight lines between raw pointer samples showed every sample as
-  // a corner. Each segment keeps its own age, so the tail can fade along
-  // its length — which one smooth path could not do.
-  const laserSegments = () => {
-    const pts = laserRef.current;
-    if (pts.length < 2) return [];
+  // One path per pass of the pointer, not one per sample.
+  //
+  // Each sample used to be its own stroke with its own width and its own
+  // opacity, and a row of separately drawn semi-transparent strokes with
+  // round ends is not a line: it is beads. One path, curved through the
+  // midpoints so consecutive spans share a tangent, is a line — and it
+  // fades as a whole, at the age of its newest point, which is the age of
+  // the gesture. The tail still runs out, because points are dropped from
+  // the back as they expire; the trail shortens rather than greying.
+  const smoothPath = (pts) => {
     const px = (p) => [p.x * size.width, (1 - p.y) * size.height];
-    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     const at = (q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`;
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const P = pts.map(px);
+    if (P.length === 1) return `M${at(P[0])}L${at(P[0])}`;
+    let d = `M${at(P[0])}`;
+    for (let i = 1; i < P.length - 1; i += 1) d += `Q${at(P[i])} ${at(mid(P[i], P[i + 1]))}`;
+    return `${d}L${at(P[P.length - 1])}`;
+  };
+
+  const laserRuns = () => {
+    const pts = laserRef.current;
+    if (!pts.length) return [];
     const now = performance.now();
-    const out = [];
-    for (let i = 1; i < pts.length; i += 1) {
-      const prev = px(pts[i - 1]);
-      const here = px(pts[i]);
-      const next = i + 1 < pts.length ? px(pts[i + 1]) : here;
-      const left = i === 1 ? prev : mid(prev, here);
-      const right = i + 1 < pts.length ? mid(here, next) : here;
-      out.push({
-        key: `${pts[i].t}-${i}`,
-        d: `M${at(left)}Q${at(here)} ${at(right)}`,
-        // Fading and thinning together: a trail that only faded read as a
-        // line going grey rather than as one running out.
-        fade: pts[i].held ? 1 : Math.max(0, 1 - (now - pts[i].t) / pts[i].life),
-      });
+    const runs = [];
+    for (const p of pts) {
+      const last = runs[runs.length - 1];
+      if (!last || last.run !== p.run) runs.push({ run: p.run, pts: [p] });
+      else last.pts.push(p);
     }
-    return out;
+    return runs.map((r) => {
+      const newest = r.pts[r.pts.length - 1];
+      return {
+        key: r.run,
+        d: smoothPath(r.pts),
+        fade: newest.held ? 1 : Math.max(0, 1 - (now - newest.t) / newest.life),
+      };
+    });
   };
 
   useEffect(() => () => {
@@ -451,13 +456,38 @@ export default function PdfPage({
   // The eraser works by the stroke, not by the pixel: what the reader drew
   // is what they undraw. A stroke counts as touched if the pointer passes
   // near any of its points, which for hand-drawn ink is every part of it.
+  // How near the pointer came to the stroke — to the line, not to the
+  // points it is described by. Measuring to the points alone was enough for
+  // freehand ink, where they are a pixel or two apart, and wrong for
+  // everything else: a line straightened by draw-and-hold is stored as its
+  // two ends, so the whole length between them could not be rubbed out at
+  // all, while the pointer could still take hold of it with the arrow.
+  const nearStroke = (points, at, reach) => {
+    const ax = at.x * size.width;
+    const ay = at.y * size.height;
+    for (let i = 0; i < points.length; i += 1) {
+      const px = points[i].x * size.width;
+      const py = points[i].y * size.height;
+      if (i === points.length - 1) return Math.hypot(px - ax, py - ay) < reach;
+      const qx = points[i + 1].x * size.width;
+      const qy = points[i + 1].y * size.height;
+      const dx = qx - px;
+      const dy = qy - py;
+      const len2 = dx * dx + dy * dy;
+      // How far along this span the nearest point lies, kept on the span.
+      const t = len2 ? Math.min(1, Math.max(0, ((ax - px) * dx + (ay - py) * dy) / len2)) : 0;
+      if (Math.hypot(px + t * dx - ax, py + t * dy - ay) < reach) return true;
+    }
+    return false;
+  };
+
   // The same reckoning the eraser itself uses, so what lights up is exactly
   // what would go.
   const under = (at) => {
     const found = { ink: [], notes: [] };
     for (const stroke of ink) {
       const reach = ERASE_REACH + (stroke.width * size.width) / 2;
-      if (stroke.points.some((p) => inPageUnits(p, at) < reach)) found.ink.push(stroke.id);
+      if (nearStroke(stroke.points, at, reach)) found.ink.push(stroke.id);
     }
     for (const note of notes) {
       if (note.content || note.current_place || !note.anchor) continue;
@@ -469,7 +499,7 @@ export default function PdfPage({
   const eraseUnder = (at) => {
     for (const stroke of ink) {
       const reach = ERASE_REACH + (stroke.width * size.width) / 2;
-      if (stroke.points.some((p) => inPageUnits(p, at) < reach)) onEraseStroke(stroke.id);
+      if (nearStroke(stroke.points, at, reach)) onEraseStroke(stroke.id);
     }
     // An anchor is a mark on the page, so the eraser takes it too. What it
     // does not take is a note with words in it, or the reader's place: the
@@ -497,6 +527,7 @@ export default function PdfPage({
     } else if (tool === 'eraser') {
       eraseUnder(at);
     } else if (tool === 'laser') {
+      laserRunRef.current += 1;
       pushLaser(at, true);
     }
   };
@@ -587,12 +618,19 @@ export default function PdfPage({
     setInkDrag({ id: stroke.id, by: { x: 0, y: 0 } });
   };
 
+  // No slop here, unlike the pin's drag. A pin needs one because a click on
+  // it opens its menu, so a small movement has to be allowed to stay a
+  // click; nothing happens when a stroke is clicked, so there is nothing to
+  // protect — and the threshold is not free. Waiting for six units and then
+  // applying the whole offset makes the stroke jump that distance the
+  // instant it starts moving, which is what the first moment of carrying
+  // one felt like. It now follows from the first pixel.
   const moveInkDrag = (e) => {
     const d = inkDragRef.current;
     if (!d) return;
     const at = anchorAt(e.clientX, e.clientY);
     const by = { x: at.x - d.from.x, y: at.y - d.from.y };
-    if (!d.moved && inPageUnits(at, d.from) < DRAG_SLOP) return;
+    if (by.x === 0 && by.y === 0) return;
     d.moved = true;
     d.by = by;
     setInkDrag({ id: d.id, by });
@@ -618,27 +656,49 @@ export default function PdfPage({
       ? stroke.points.map((pt) => ({ x: pt.x + inkDrag.by.x, y: pt.y + inkDrag.by.y }))
       : stroke.points;
 
-  // The cursor is the mark it makes: a dot the width of the stroke, in the
-  // colour of the stroke. A picture of a brush says which tool is in hand,
-  // which the bar already says; what a reader aiming one actually wants to
-  // know is where the ink will land and how much of it there will be.
+  // A brush, held at the angle a hand holds one, with its bristles in the
+  // colour it is about to leave behind and its tip on the spot the ink will
+  // land. Drawn here rather than in the stylesheet so the colour is the
+  // colour actually loaded, and so the bristles can carry a little of how
+  // heavy the stroke will be — a hint, not a measurement, because the thing
+  // in the reader's hand should still look like a brush.
   //
-  // Built here rather than in the stylesheet because the answer moves: the
-  // width is a fraction of the page, so how many pixels across it is
-  // depends on the zoom.
+  // White under everything, because a cursor has to be visible over black
+  // text and over a white page alike.
   const brushCursor = () => {
     const across = inkWidth * size.width * scale;
-    // Past about 128px a browser ignores a cursor image entirely, and a dot
-    // that small is no longer a dot; both ends fall back to a crosshair.
-    if (!across || across > 96) return 'crosshair';
-    const r = Math.max(3, across / 2);
-    const box = Math.ceil(r * 2 + 4);
-    const c = box / 2;
+    const load = Math.min(1.6, Math.max(0.8, across / 4));
+    const bristles =
+      `M4.6 21.4c0-3.3 2.1-${(5.4 * load).toFixed(1)} 4.4-${(5.4 * load).toFixed(1)}` +
+      `s3.3 1.1 3.3 3.3-2.2 ${(4.4 * load).toFixed(1)}-5.5 ${(4.4 * load).toFixed(1)}H4.6z`;
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}">` +
-      `<circle cx="${c}" cy="${c}" r="${r}" fill="${inkColor}" ` +
-      `stroke="#ffffff" stroke-width="1.4" stroke-opacity="0.9"/></svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${c} ${c}, crosshair`;
+      `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26">` +
+      `<path d="M11.8 16.2 22.6 5.4" stroke="#ffffff" stroke-width="5.2" stroke-linecap="round"/>` +
+      `<path d="${bristles}" fill="#ffffff" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/>` +
+      `<path d="M11.8 16.2 22.6 5.4" stroke="#2b4a6f" stroke-width="2.6" stroke-linecap="round"/>` +
+      `<path d="${bristles}" fill="${inkColor}" stroke="#2b4a6f" stroke-width="1" stroke-linejoin="round"/>` +
+      `</svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 5 22, crosshair`;
+  };
+
+  // The anchor in hand is the anchor it drops: the same path, at the size
+  // the pin is drawn, with the hotspot on the point the pin hangs from — so
+  // where the cursor says it will land is where it lands. A margin round
+  // the box, because the white it is outlined in has to go somewhere.
+  const anchorCursor = (gold) => {
+    const PAD = 1.2;
+    const unit = 24 + PAD * 2;
+    const px = 30 * (unit / 24);
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${px.toFixed(1)}" ` +
+      `height="${px.toFixed(1)}" viewBox="${-PAD} ${-PAD} ${unit} ${unit}">` +
+      `<path d="${ANCHOR_D}" fill="none" stroke="#ffffff" stroke-width="2.4" ` +
+      `stroke-linejoin="round"/>` +
+      `<path d="${ANCHOR_D}" fill="${gold ? '#b3923d' : '#2b4a6f'}" fill-rule="evenodd"/></svg>`;
+    const hot = (v) => (((v + PAD) * px) / unit).toFixed(1);
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hot(ANCHOR_HANG.x)} ${hot(
+      ANCHOR_HANG.y
+    )}, copy`;
   };
 
   const strokeProps = {
@@ -647,18 +707,8 @@ export default function PdfPage({
     strokeLinejoin: 'round',
   };
 
-  // A triple-click is a third click on the pair that just placed an anchor.
-  // It may land on the page or on the new pin itself, so both ask.
-  const markedPlace = (e) => {
-    if (e.detail !== 3 || justPlacedRef.current == null) return false;
-    onMarkPlace(justPlacedRef.current);
-    justPlacedRef.current = null;
-    return true;
-  };
-
   const pointAt = (e, note) => {
     e.stopPropagation();
-    if (markedPlace(e)) return;
     if (draggedRef.current) {
       draggedRef.current = false;
       return;
@@ -681,8 +731,6 @@ export default function PdfPage({
         onHover(null);
         setDoomed(EMPTY_DOOMED);
       }}
-      onDoubleClick={tool === 'arrow' ? handleDoubleClick : undefined}
-      onClick={tool === 'arrow' ? markedPlace : undefined}
       data-page={pageNumber}
     >
       {/* Drawn at renderScale and stretched to the scale being looked at:
@@ -761,15 +809,16 @@ export default function PdfPage({
                 {...strokeProps}
               />
             )}
-            {laserSegments().map((seg) => (
+            {laserRuns().map((run) => (
               <path
-                key={seg.key}
-                d={seg.d}
+                key={run.key}
+                d={run.d}
                 stroke="#d0342c"
-                strokeWidth={size.width * 0.005 * (0.35 + 0.65 * seg.fade)}
+                strokeWidth={size.width * 0.005}
                 strokeLinecap="round"
+                strokeLinejoin="round"
                 fill="none"
-                opacity={seg.fade}
+                opacity={run.fade}
               />
             ))}
             {laserRef.current.length > 0 && (
@@ -800,7 +849,13 @@ export default function PdfPage({
         {tool !== 'arrow' && (
           <div
             className={`ink-surface tool-${tool}`}
-            style={tool === 'brush' ? { cursor: brushCursor() } : undefined}
+            style={
+              tool === 'brush'
+                ? { cursor: brushCursor() }
+                : tool === 'anchor' || tool === 'here'
+                  ? { cursor: anchorCursor(tool === 'here') }
+                  : undefined
+            }
             onPointerDown={inkDown}
             onPointerMove={inkMove}
             onPointerUp={inkUp}

@@ -41,7 +41,7 @@ const EMPTY_INK = [];
 // the hand that is not holding the mouse, so switching costs nothing in
 // the middle of marking a paper up.
 const TOOLS = [
-  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, double-click to place an anchor' },
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' },
   { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' },
   { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, and anchors with nothing written on them' },
   { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' },
@@ -112,7 +112,13 @@ export default function App() {
   // nothing, which is the point of it.
   const [ink, setInk] = useState([]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // The anchor being carried across the page, so its row in the rail can
+  // say so: the pin and the row are the same anchor seen twice, and moving
+  // one ought to be visible in the other.
+  const [draggingNoteId, setDraggingNoteId] = useState(null);
   const tempInkId = useRef(0);
+  // Strokes already asked to go, so the eraser cannot ask twice.
+  const erasing = useRef(new Set());
   // Where the pointer last was over a page. A ref, not state: it changes
   // with every mouse move and nothing renders from it — it is read once,
   // when a key asks for an anchor where the reader is looking.
@@ -483,15 +489,24 @@ export default function App() {
 
   const eraseStroke = async (id) => {
     if (!source?.ink) return;
+    // The eraser asks on every movement of the pointer, several times in a
+    // frame, and `ink` is whatever it was when this render began — so the
+    // same stroke was asked for twice, the first delete succeeded, the
+    // second came back "no such stroke", and the error path put the stroke
+    // back. It looked exactly like ink that could not be rubbed out. A ref
+    // is the only thing here that is current within a frame.
+    if (erasing.current.has(id)) return;
     const gone = ink.find((s) => s.id === id);
-    if (!gone) return; // already rubbed out on the way past
+    if (!gone) return;
+    erasing.current.add(id);
     setInk((all) => all.filter((s) => s.id !== id));
     try {
       await source.ink.remove(id);
     } catch (err) {
-      // Put it back rather than leave the reader believing something is
-      // gone that is not. It returns to the top of the pile, which changes
-      // nothing but which stroke is drawn over which.
+      // A stroke the server does not have is a stroke that is gone, which
+      // is what was wanted; anything else is a failure worth undoing.
+      if (err.status === 404) return;
+      erasing.current.delete(id);
       setInk((all) => [...all, gone]);
       setError(err.message || 'That stroke could not be erased.');
     }
@@ -943,8 +958,6 @@ export default function App() {
               openReferenceId={openCite?.referenceId ?? null}
               onOpenReference={openReference}
               onFollowLink={followLink}
-              onPlace={handlePlace}
-              onMarkPlace={markPlace}
               onSelectNote={pointAtNote}
               onMoveNote={moveNote}
               tool={tool}
@@ -959,6 +972,7 @@ export default function App() {
               }}
               onDropAnchor={dropAnchor}
               onMoveStroke={moveStroke}
+              onDragNote={setDraggingNoteId}
             />
           ))}
         </div>
@@ -1050,7 +1064,7 @@ export default function App() {
                 data-note={note.id}
                 className={`anchor-row${note.current_place ? ' here' : ''}${
                   note.id === flashId ? ' flash' : ''
-                }`}
+                }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
               >
                 <span className="row-glyph">
@@ -1092,7 +1106,7 @@ export default function App() {
                 data-note={note.id}
                 className={`note-card${note.current_place ? ' here' : ''}${
                   note.id === flashId ? ' flash' : ''
-                }`}
+                }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
               >
                 <button

@@ -764,6 +764,12 @@ button.link.danger { color: var(--red); }
 /* Five seconds: long enough to find the row without hunting, and to still
    be lit when the eye comes back from the page. App.jsx drops the class a
    moment after this ends — the two are meant to stay in step. */
+/* The same anchor, seen in the rail while it is being carried on the page.
+   Steady rather than animated: it lasts exactly as long as the hand does. */
+.anchor-row.carrying, .note-card.carrying {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 .anchor-row.flash, .note-card.flash { animation: railFlash 5s ease-out; }
 .anchor-row.here.flash, .note-card.here.flash { animation: railFlashHere 5s ease-out; }
 
