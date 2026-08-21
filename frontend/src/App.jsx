@@ -2158,6 +2158,21 @@ h4 .state-pill {
   font-style: italic;
 }
 
+/* The source link on the About page. A quiet mark, not a call to action:
+   it sits below the note about incubation and is meant to be found by
+   someone looking for it, not to compete with the demo button. */
+.home-source {
+  display: inline-block;
+  margin-top: 14px;
+  width: 22px;
+  height: 22px;
+  color: var(--ink-faint);
+  transition: color 0.12s ease;
+}
+
+.home-source:hover { color: var(--ink); }
+.home-source svg { display: block; width: 100%; height: 100%; }
+
 .demo-cta-block {
   margin-top: 24px;
 }
