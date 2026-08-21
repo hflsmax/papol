@@ -65,13 +65,13 @@ const EMPTY_INK = [];
 // the help sheet — a shortcut nobody can recall is a shortcut nobody uses,
 // and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
-  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'zero tools' },
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools' },
   { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks' },
-  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, cows, and anchors with nothing written on them' , mnemonic: 'clean' },
-  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'points' },
-  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'anchor' },
-  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'anchor, shifted' },
-  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'moo' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, cows, and anchors with nothing written on them' , mnemonic: 'Clean' },
+  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'Vanishes' },
+  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
+  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'Anchor, shifted' },
+  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'Moo' },
 ];
 
 // How big a cow is, as a fraction of the page width, and how fast it walks
@@ -1244,15 +1244,24 @@ export default function App() {
               <dl>
                 {TOOLS.map((t) => (
                   <React.Fragment key={t.id}>
+                    {/* Four columns — key, glyph, name, mnemonic — so a
+                        wide badge like the shifted one cannot shunt its row
+                        out of line with the others. The dt is
+                        display: contents, which lets its children be the
+                        columns. */}
                     <dt>
                       <kbd>{t.badge}</kbd>
                       <span className="help-glyph">
                         <ToolGlyph id={t.id} />
                       </span>
-                      {t.label}
                       {/* Beside the name, where the eye already is when it
-                          reads the key next to it. */}
-                      <span className="mnemonic">{t.mnemonic}</span>
+                          reads the key next to it, with the key's own
+                          letter picked out of the word. */}
+                      <span className="help-name">{t.label}</span>
+                      <span className="mnemonic">
+                        <b>{t.mnemonic[0]}</b>
+                        {t.mnemonic.slice(1)}
+                      </span>
                     </dt>
                     <dd>{HELP[t.id]}</dd>
                   </React.Fragment>
@@ -1260,10 +1269,6 @@ export default function App() {
               </dl>
               <p className="help-foot">
                 Paint and anchors are stored with the paper.
-              </p>
-              <p className="help-foot">
-                Reach for a tool you are already holding — click it, or press
-                its key again — to open its settings.
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done

@@ -201,6 +201,10 @@ button.link.danger { color: var(--red); }
 
 .swatches, .weights { display: flex; align-items: center; gap: 6px; }
 
+/* A hairline between what is being chosen and what is being chosen next.
+   Three rows of round things with nothing between them read as one heap. */
+.brush-pop .weights + .weights { border-top: 1px solid var(--line); padding-top: 8px; }
+
 .brush-pop .swatch {
   width: 22px;
   height: 22px;
@@ -241,28 +245,34 @@ button.link.danger { color: var(--red); }
 
 .brush-pop .shade.on { border-color: var(--ink); }
 
-/* A stroke over a line of type, since what is being chosen is how much of
-   the page a mark leaves readable. */
+/* A stroke over a single hairline, which is the least that can show what
+   is being chosen: how much of what is underneath a mark leaves showing.
+   It was a whole ruled paragraph, and three ruled paragraphs side by side
+   is a texture rather than a choice. */
 .brush-pop .shade-sample {
   position: relative;
   display: block;
-  width: 24px;
-  height: 14px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(
-    180deg,
-    var(--ink-faint) 0 2px,
-    transparent 2px 5px
-  );
+  width: 26px;
+  height: 12px;
+}
+
+.brush-pop .shade-sample::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--ink-faint);
 }
 
 .brush-pop .shade-ink {
   position: absolute;
   left: 0;
   right: 0;
-  top: 4px;
-  height: 6px;
-  border-radius: 3px;
+  top: 2px;
+  height: 8px;
+  border-radius: 4px;
   display: block;
 }
 .brush-pop .weight-dot { border-radius: 50%; display: block; }
@@ -679,27 +689,41 @@ button.link.danger { color: var(--red); }
 }
 
 .help-sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
-.help-sheet dl { margin: 0; }
+/* Key, glyph, name, mnemonic — then the sentence under them, starting at
+   the name. Columns rather than a row of flexed items, so a wide badge
+   cannot shunt its row out of line with the rest. */
+.help-sheet dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 34px 18px max-content 1fr;
+  column-gap: 10px;
+  align-items: center;
+}
 
 .help-sheet dt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: contents;
+}
+
+.help-sheet .help-name {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   font-weight: 600;
-  margin-top: 12px;
 }
 
+/* One gap between entries rather than four that have to agree: everything
+   on the row lifts together. */
+.help-sheet dt > * { margin-top: 13px; }
+
 .help-sheet dd {
-  margin: 2px 0 0 46px;
+  grid-column: 3 / -1;
+  margin: 3px 0 0;
   font-size: var(--fs-sm);
   color: var(--ink-soft);
 }
 
 .help-sheet kbd {
-  min-width: 22px;
-  padding: 2px 5px;
+  justify-self: stretch;
+  padding: 2px 0;
   border: 1px solid var(--line-strong);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -720,6 +744,14 @@ button.link.danger { color: var(--red); }
   font-weight: 400;
   font-style: italic;
   color: var(--ink-faint);
+}
+
+/* The letter the key is. Darker and heavier than the rest of the word, so
+   the eye lands on it first and carries the key with it. */
+.help-sheet .mnemonic b {
+  font-weight: 700;
+  font-style: normal;
+  color: var(--ink-soft);
 }
 
 .help-foot {
