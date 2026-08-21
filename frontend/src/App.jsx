@@ -2350,6 +2350,48 @@ h4 .state-pill {
   font-family: var(--font-ui);
 }
 
+/* The profile page is settings from top to bottom: nothing on it is prose
+   the reader wrote, it is all structured configuration, which the type
+   roles put in the interface font. Same reasoning as .announce-card above,
+   over a whole page rather than one card — and the reason the page read as
+   a jumble was that its chrome was borrowing the prose face and then
+   distinguishing itself with italics, small-caps and five sizes instead.
+   Two faces with one job each: serif says heading, sans says control. */
+.profile-page,
+.profile-page input,
+.profile-page label,
+.profile-page button {
+  font-family: var(--font-ui);
+}
+
+/* A heading is prose wherever it sits. */
+.profile-page .panel-title {
+  font-family: var(--font-serif);
+}
+
+/* The avatar is the same component everywhere; it should not change face
+   because of the page it happens to be on. */
+.profile-page .avatar-initial {
+  font-family: var(--font-serif);
+}
+
+/* The reader has to type this address out exactly, so it has to be shown
+   exactly. Small-caps is the label's treatment and it hides the casing of
+   whatever sits inside it — fine for the words around it, wrong for the
+   one string being copied. */
+.profile-page .confirm-address {
+  font-variant: normal;
+  letter-spacing: 0;
+}
+
+/* Explanatory text in a settings panel is an instruction, not an aside.
+   Italic earns its keep on a one-line empty state; over three lines of
+   sans it is just harder to read. */
+.profile-page .panel-note,
+.profile-page .avatar-hint {
+  font-style: normal;
+}
+
 .panel-head-row {
   display: flex;
   align-items: flex-start;

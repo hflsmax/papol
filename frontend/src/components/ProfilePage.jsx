@@ -324,7 +324,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
 
         <p className="panel-note">
           This permanently deletes your profile, notes, 
-          notifications, and the papers in your nook. It cannot be undone.
+          and discussions. It cannot be undone.
         </p>
         <p className="panel-note">
           Download your data first if you want to keep it.
@@ -333,7 +333,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
         <form onSubmit={handleClose}>
           <div className="form-group">
             <label>
-              Type <b>{user.email}</b> to confirm
+              Type <b className="confirm-address">{user.email}</b> to confirm
             </label>
             <input
               type="email"
