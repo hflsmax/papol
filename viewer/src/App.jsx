@@ -1161,18 +1161,14 @@ export default function App() {
                         }
                         onClick={() => setInkShape(sh.id)}
                       >
-                        {/* The nib itself, at the weight it is set to. */}
+                        {/* The nib's shape, at a size of its own. What is
+                            being chosen here is which nib, and the row
+                            below already says how big it is — a sample
+                            that changed size too would be answering a
+                            question that has been asked once already. */}
                         <span
                           className={`nib nib-${sh.id}`}
-                          style={{
-                            width:
-                              sh.id === 'flat'
-                                ? stripSize(inkWidth, pageWidth, scale || 1).wide
-                                : stripSize(inkWidth, pageWidth, scale || 1).tall,
-                            height: stripSize(inkWidth, pageWidth, scale || 1).tall,
-                            background: inkColor,
-                            opacity: inkOpacity,
-                          }}
+                          style={{ background: inkColor, opacity: inkOpacity }}
                         />
                       </button>
                     ))}

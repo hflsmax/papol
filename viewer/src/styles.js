@@ -281,7 +281,9 @@ button.link.danger { color: var(--red); }
 
 .brush-pop .shape.on { border-color: var(--ink); }
 .brush-pop .nib { display: block; border-radius: 1px; }
-.brush-pop .nib-round { border-radius: 50%; }
+/* Upright and narrow, the way the flat nib is held. */
+.brush-pop .nib-flat { width: 6px; height: 20px; }
+.brush-pop .nib-round { width: 20px; height: 20px; border-radius: 50%; }
 
 
 .viewer-bar .tool {

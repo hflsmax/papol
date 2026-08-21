@@ -980,8 +980,12 @@ export default function PdfPage({
         d={pathFor(points)}
         stroke={fill}
         strokeWidth={thick}
-        strokeLinecap={points.length === 1 ? 'round' : 'butt'}
         {...strokeProps}
+        // After the defaults, not before: strokeProps carries a butt cap,
+        // and a butt cap on a click — a subpath with no length — draws
+        // nothing whatsoever. A round nib set down once leaves a dot, and
+        // the only cap that will draw one is the round one.
+        strokeLinecap={points.length === 1 ? 'round' : 'butt'}
         {...rest}
       />
     );
