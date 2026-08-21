@@ -1664,21 +1664,21 @@ select {
 }
 
 /* Title, state pill and reader chips read as one line about one paper.
-   Two things used to break that. The row wrapped, and because a flex line
-   is broken on an item's *unwrapped* width, a title long enough to wrap
-   sent the chips to a line of their own — the narrow-screen arrangement,
-   arriving on a wide screen by accident. And the items were centred on the
-   row, so once a title did wrap the chips settled into the gap between its
-   two lines rather than beside either of them.
+   The row used to wrap, and because a flex line is broken on an item's
+   *unwrapped* width, a title long enough to wrap sent the chips to a line
+   of their own — the narrow-screen arrangement, arriving on a wide screen
+   by accident. So the row is one line and the title shrinks to make room,
+   wrapping inside itself instead.
 
-   So: one line, the title shrinking to make room (it wraps inside itself
-   instead), and everything aligned to the title's first line rather than
-   to the middle of however many lines it turned out to need. The chips get
+   The pill and the chips are then centred against the title however many
+   lines it turns out to need, rather than pinned to its first: they belong
+   to the whole title, and a two-line title with them hanging off the top
+   reads as though they belong only to the words above them. The chips get
    a line of their own again below 560px, where there genuinely is no room
    — see the media query at the end of this sheet. */
 .paper-title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
 }
 
@@ -1701,21 +1701,12 @@ select {
 .title-state {
   display: flex;
   align-items: center;
-  height: 1.3em;
   flex: none;
 }
 
 .title-chips {
   display: flex;
   gap: 4px;
-  /* Exactly the title's first line box, so the circles centre on that line
-     however many lines the title runs to. Matches the h4 above; both sit at
-     the same font size, so 1.3em is the same box. A height rather than a
-     minimum: the chips are 22px and the line box is 20.8px, so a minimum
-     would leave the box the chips' own size and hang them below the line —
-     at this height they overflow it evenly instead, which is what centred
-     means here. */
-  height: 1.3em;
   align-items: center;
   /* The readers gather at the row's end, in a column down the list beside
      the display toggles — who has a paper is a fact about the row, not
