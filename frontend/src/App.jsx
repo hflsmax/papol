@@ -1683,7 +1683,12 @@ select {
 }
 
 .paper-title-row h4 {
-  /* Shrink rather than push the chips off the line. */
+  /* Grow, so the pill and the chips are carried to the end of the row
+     instead of trailing the title wherever it happens to stop — the row's
+     end is a fixed place, and a column of them lines up down the list.
+     Shrink too, so a long title gives way rather than pushing them off
+     the line. */
+  flex: 1 1 auto;
   min-width: 0;
   line-height: 1.3;
 }
