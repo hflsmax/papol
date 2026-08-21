@@ -90,6 +90,43 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
             >
+              {/* The row's left edge already said whether a paper was on
+                  display — it went dashed when hidden. So the edge is the
+                  control: one thing that both shows the state and changes
+                  it, instead of a badge in one corner repeating what the
+                  border in the other was already saying. */}
+              {isOwn && (
+                <span className="hint-anchor bar-anchor">
+                  <button
+                    className={
+                      paper.marketed !== false
+                        ? 'display-bar on'
+                        : 'display-bar off'
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarketToggle(paper, paper.marketed === false);
+                    }}
+                    title={
+                      paper.marketed !== false
+                        ? 'On display — other readers can see that you have this paper. Click to hide it.'
+                        : 'Hidden — only you can see this paper. Click to put it on display.'
+                    }
+                    aria-label={
+                      paper.marketed !== false
+                        ? 'On display; click to hide from your nook'
+                        : 'Hidden; click to put on display'
+                    }
+                    aria-pressed={paper.marketed !== false}
+                  />
+                  {toggleWarning?.id === paper.id && (
+                    <HintPop
+                      text={toggleWarning.text}
+                      onClose={() => setToggleWarning(null)}
+                    />
+                  )}
+                </span>
+              )}
               <div className="paper-item">
                 <div className="paper-title-row">
                 <h4>
@@ -153,45 +190,6 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                     ))}
                   </div>
                 )}
-              {isOwn && (
-                <div className="paper-side" onClick={(e) => e.stopPropagation()}>
-                  <span className="hint-anchor">
-                  {/* The row already says whether a paper is hidden — it
-                      goes sunken, dashed and faded. So this is the action,
-                      not a second telling of the state, and it says who can
-                      see the paper in the same two words, and the same two
-                      tints, that visibility wears everywhere else here. */}
-                  <button
-                    className={
-                      paper.marketed !== false
-                        ? 'visibility-toggle public'
-                        : 'visibility-toggle private'
-                    }
-                    onClick={() =>
-                      handleMarketToggle(paper, paper.marketed === false)
-                    }
-                    title={
-                      paper.marketed !== false
-                        ? 'Other readers can see that you have this paper. Click to hide it.'
-                        : 'Only you can see this paper. Click to put it on display.'
-                    }
-                    aria-label={
-                      paper.marketed !== false
-                        ? 'On display; click to hide from your nook'
-                        : 'Hidden; click to put on display'
-                    }
-                  >
-                    {paper.marketed !== false ? 'public' : 'private'}
-                  </button>
-                  {toggleWarning?.id === paper.id && (
-                    <HintPop
-                      text={toggleWarning.text}
-                      onClose={() => setToggleWarning(null)}
-                    />
-                  )}
-                  </span>
-                </div>
-              )}
             </li>
             </React.Fragment>
           ))}

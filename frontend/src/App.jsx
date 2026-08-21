@@ -539,11 +539,6 @@ button.full-width {
 }
 
 /* Popups anchored at a row's right edge open leftward to stay in view */
-.paper-side .hint-pop {
-  left: auto;
-  right: 0;
-}
-
 .success {
   background: var(--green-soft);
   color: var(--green-ink);
@@ -775,10 +770,11 @@ select {
   left: 3px;
 }
 
+/* A hidden row still reads as set aside — the bar says it at the edge, and
+   the ground and the faded text say it across the whole row. The dashed
+   border it used to draw here is now the bar's job. */
 .paper-list li.unmarketed {
   background: var(--paper-sunken);
-  border-left: 3px dashed var(--line);
-  padding-left: 9px;
 }
 
 .paper-list li.unmarketed .paper-item h4,
@@ -1003,7 +999,8 @@ select {
 }
 
 .paper-list li {
-  padding: 14px 8px;
+  /* room on the left for the display bar */
+  padding: 14px 8px 14px 22px;
   border-bottom: 1px solid var(--line);
   position: relative;
   display: flex;
@@ -1016,76 +1013,90 @@ select {
   min-width: 0;
 }
 
-/* The switch says whether a paper is on display. It is a setting, not the
-   point of the row, so it sits out of the way in the corner and is drawn
-   small — it used to take a column of its own at the row's right, which is
-   the most prominent place there is and gave a preference the weight of the
-   thing it was a preference about. Absolute, over the li, which is already
-   positioned. */
-.paper-side {
+
+/* Whether a paper is on display, drawn as the row's own left edge.
+   That edge already carried this: a hidden row went dashed there. Making
+   it the control means one thing says the state and changes it, rather
+   than a badge in one corner repeating a border in the other.
+
+   Solid green is Papol's "public"; hollow is a paper withheld. The strip
+   is 3px of paint in a 14px target that runs the row's full height — thin
+   to look at, but tall and against the edge, which is the easiest kind of
+   thing to hit. */
+.bar-anchor {
   position: absolute;
-  top: 6px;
-  right: 8px;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 14px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-  cursor: default;
-  z-index: 1;
 }
 
-/* Whether a paper is on display, said in the words and tints visibility
-   already wears in this app: the same green and accent as .visibility-badge,
-   which is the vocabulary a reader has already learnt from the ratings and
-   the summary. A switch said the same thing with a knob whose meaning has
-   to be remembered, in a saturated accent fill that contradicted it —
-   accent-soft is what private looks like here.
-   The row is what shows the state; this is the action. So it rests quietly
-   and comes up when the row is pointed at. */
-.visibility-toggle {
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 500;
-  padding: 1px 8px;
-  border-radius: var(--radius-lg);
-  border: 1px solid;
+.display-bar {
+  width: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
   box-shadow: none;
-  opacity: 0.75;
-  transition: opacity 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
+  position: relative;
 }
 
-.visibility-toggle.public {
-  color: var(--green-ink);
-  border-color: var(--green-line);
-  background: var(--green-soft);
+/* The paint, inside the target. */
+.display-bar::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  transition: background 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
 
-.visibility-toggle.private {
-  color: var(--accent);
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
+.display-bar.on::before {
+  background: var(--green);
+  opacity: 0.55;
 }
 
-.paper-list li:hover .visibility-toggle,
-.visibility-toggle:focus-visible {
+/* Withheld: the same bar, broken. Dashed rather than hollow — at 3px wide
+   an outline just reads as a thinner solid line, and dashed is what a
+   hidden row already used to draw along this edge. */
+.display-bar.off::before {
+  background: repeating-linear-gradient(
+    var(--line-strong) 0 5px,
+    transparent 5px 10px
+  );
   opacity: 1;
 }
 
-/* It is a control, so pointing at it says so — the badge it borrows its
-   look from is not clickable, and the two must not be mistaken. */
-.visibility-toggle.public:hover:not(:disabled) {
-  color: var(--green-ink);
-  background: var(--green-soft);
-  border-color: var(--green);
+.paper-list li:hover .display-bar::before {
+  opacity: 1;
 }
 
-.visibility-toggle.private:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: var(--accent);
+.display-bar:hover::before,
+.display-bar:focus-visible::before {
+  left: 4px;
+  width: 5px;
+}
+
+.display-bar.off:hover::before {
+  background: repeating-linear-gradient(
+    var(--ink-faint) 0 5px,
+    transparent 5px 10px
+  );
+}
+
+.display-bar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The warning pops from the edge the bar is on. */
+.bar-anchor .hint-pop {
+  left: 0;
+  right: auto;
 }
 
 .paper-list li:last-child {
