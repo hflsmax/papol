@@ -1019,9 +1019,11 @@ select {
    it the control means one thing says the state and changes it, rather
    than a badge in one corner repeating a border in the other.
 
-   Solid green is Papol's "public"; hollow is a paper withheld. The strip
-   is 3px of paint in a 14px target that runs the row's full height — thin
-   to look at, but tall and against the edge, which is the easiest kind of
+   Solid --green is Papol's "public"; dashed --line-strong is a paper
+   withheld. Both are the tokens' own values — the bar is a saturated mark
+   on the page, which is exactly the role the base of a family plays.
+   4px of paint in a 14px target that runs the row's full height: thin to
+   look at, but tall and against the edge, which is the easiest kind of
    thing to hit. */
 .bar-anchor {
   position: absolute;
@@ -1047,17 +1049,18 @@ select {
 .display-bar::before {
   content: '';
   position: absolute;
-  left: 5px;
+  left: 4px;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 4px;
   border-radius: var(--radius-pill);
-  transition: background 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  transition: background 0.12s ease, left 0.12s ease, width 0.12s ease;
 }
 
+/* --green at its own strength. The family has four roles and no fifth: a
+   faded green is not one of them, it is a new colour. */
 .display-bar.on::before {
   background: var(--green);
-  opacity: 0.55;
 }
 
 /* Withheld: the same bar, broken. Dashed rather than hollow — at 3px wide
@@ -1071,14 +1074,10 @@ select {
   opacity: 1;
 }
 
-.paper-list li:hover .display-bar::before {
-  opacity: 1;
-}
-
 .display-bar:hover::before,
 .display-bar:focus-visible::before {
-  left: 4px;
-  width: 5px;
+  left: 3px;
+  width: 6px;
 }
 
 .display-bar.off:hover::before {
