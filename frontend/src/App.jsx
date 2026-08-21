@@ -1075,6 +1075,26 @@ select {
   background: var(--fill);
 }
 
+/* A hidden row is already sitting on --paper-sunken, which is the colour
+   the lane sinks to — so on those rows the whole escalation landed on the
+   ground it was drawn against and the strongest state disappeared
+   entirely. There the lane lifts instead. Sinking or lifting is not the
+   point; separating from the row is, and which direction does that depends
+   on what the row is sitting on. */
+.paper-list li.unmarketed:hover .display-bar {
+  background: var(--paper);
+}
+
+.paper-list li.unmarketed .display-bar:hover:not(:disabled),
+.paper-list li.unmarketed .display-bar:focus-visible {
+  background: var(--card);
+  box-shadow: inset -1px 0 0 var(--line-strong);
+}
+
+.paper-list li.unmarketed .display-bar:active:not(:disabled) {
+  background: var(--fill);
+}
+
 /* The paint, inside the target. */
 .display-bar::before {
   content: '';
