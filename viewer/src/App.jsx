@@ -65,13 +65,13 @@ const EMPTY_INK = [];
 // the help sheet — a shortcut nobody can recall is a shortcut nobody uses,
 // and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
-  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools: nothing in your hand but the pointer' },
-  { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks the page' },
-  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, cows, and anchors with nothing written on them' , mnemonic: 'C for clean' },
-  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'V for the tip of a pointer' },
-  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'A for anchor' },
-  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'The anchor key, shifted, for the anchor that outranks the rest' },
-  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'M for moo' },
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'zero tools' },
+  { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, cows, and anchors with nothing written on them' , mnemonic: 'clean' },
+  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'points' },
+  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'anchor' },
+  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'anchor, shifted' },
+  { id: 'cow', key: 'm', badge: 'M', label: 'Cow', hint: 'Put a cow on the page. It wanders, and is not kept' , mnemonic: 'moo' },
 ];
 
 // How big a cow is, as a fraction of the page width, and how fast it walks
@@ -1250,11 +1250,11 @@ export default function App() {
                         <ToolGlyph id={t.id} />
                       </span>
                       {t.label}
-                    </dt>
-                    <dd>
-                      {HELP[t.id]}
+                      {/* Beside the name, where the eye already is when it
+                          reads the key next to it. */}
                       <span className="mnemonic">{t.mnemonic}</span>
-                    </dd>
+                    </dt>
+                    <dd>{HELP[t.id]}</dd>
                   </React.Fragment>
                 ))}
               </dl>

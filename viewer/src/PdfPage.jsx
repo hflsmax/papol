@@ -37,6 +37,11 @@ const MIN_STEP = 1.2;
 // the hand was that the eraser reached further for some ink than for other
 // ink, and reaching is the part the reader has to aim.
 const ERASE_REACH = 9;
+// How far the glow stands out from a stroke the eraser is over. A margin,
+// not a multiple: the halo used to be drawn at a multiple of the stroke's
+// own width, so a heavy line got a heavy glow and a fine one got almost
+// none — when what the glow is saying, "this one", is the same either way.
+const HALO_SPREAD = 5;
 // An anchor is a pin the size of a fingertip rather than a line, so the
 // eraser has to be nearer its point before it counts as over it.
 const ANCHOR_REACH = 13;
@@ -878,7 +883,7 @@ export default function PdfPage({
                     <path
                       d={pathFor(points)}
                       stroke={stroke.color}
-                      strokeWidth={stroke.width * size.width * 3.4}
+                      strokeWidth={stroke.width * size.width + HALO_SPREAD * 2}
                       opacity="0.3"
                       {...strokeProps}
                     />
