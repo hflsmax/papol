@@ -161,11 +161,15 @@ in {
         WorkingDirectory = "${cfg.srcDir}/backend";
         ExecStart = "${pythonEnv}/bin/uvicorn main:app --host ${cfg.host} --port ${toString cfg.port}";
         # Secrets by file, never through the store: anything written into a
-        # NixOS option is copied into a world-readable /nix/store path. Same
-        # place and shape as hoom's, so there is one habit to remember —
-        # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail. The
-        # leading "-" means the file may simply not exist.
-        EnvironmentFile = "-/home/${cfg.user}/.config/papol/secrets.env";
+        # NixOS option is copied into a world-readable /nix/store path.
+        # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail.
+        #
+        # The same .env the development shell reads through direnv, so a
+        # setting is written once and both the shell and the service see it.
+        # It sits beside the code the service already runs from, and is
+        # gitignored — the repository is public, and this file must never
+        # follow it. The leading "-" means it may simply not exist.
+        EnvironmentFile = "-${cfg.srcDir}/.env";
         Restart = "on-failure";
         RestartSec = 5;
       };
