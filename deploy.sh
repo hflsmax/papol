@@ -88,6 +88,12 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 WATCH_PIDS=()
 
+# Killing the group is the polite way and usually enough. It is not
+# guaranteed, though: npm and nix each get a say in how the processes below
+# them are grouped, and a watcher that ends up in a group of its own
+# survives a signal aimed at its parent's. Since the thing left behind
+# rebuilds into a directory the next run is about to serve, the sweep
+# afterwards is worth the two lines.
 stop_watchers() {
   local p
   [ "${#WATCH_PIDS[@]}" -eq 0 ] && return 0
@@ -95,6 +101,44 @@ stop_watchers() {
     kill -TERM -"$p" 2>/dev/null || true
   done
   WATCH_PIDS=()
+  sleep 1
+  kill -TERM $(pgrep -f 'vite build --watch' || true) 2>/dev/null || true
+}
+
+# Anything left rebuilding into dist from a run that is already over. Two
+# watchers on one directory is worse than none: they take turns writing the
+# same files and which one you are looking at is a race.
+kill_stray_watchers() {
+  local found
+  found=$(pgrep -f 'vite build --watch' || true)
+  [ -z "$found" ] && return 0
+  note "an earlier watcher is still running — stopping it first"
+  kill -TERM $found 2>/dev/null || true
+  sleep 1
+  kill -KILL $(pgrep -f 'vite build --watch' || true) 2>/dev/null || true
+}
+
+# One app's watcher, kept alive for as long as this run lasts.
+#
+# The loop is the point. A watcher is the only thing standing between a
+# saved file and what papol.local hands out, and when one dies nothing says
+# so — the server keeps serving, the page keeps loading, and every change
+# made from then on is invisible. That is a silent failure and an expensive
+# one: it costs you an afternoon of believing your own source.
+#
+# So a watcher that stops is restarted and complained about. `stop` is set
+# by the trap when this run is ending, which is the one case where a
+# watcher exiting is not news.
+watch_app() {
+  local app=$1 stop=no
+  trap 'stop=yes' TERM INT
+  while [ "$stop" = no ]; do
+    nix develop "$DEV_DIR" --command bash -c \
+      "cd '$DEV_DIR/$app' && npm run build -- --watch" 2>&1 | sed -u "s/^/[$app] /"
+    [ "$stop" = yes ] && break
+    note "[$app] watcher stopped on its own — restarting"
+    sleep 2
+  done
 }
 
 # What the server on 8000 hands out is dist, not source, so saving a file
@@ -106,12 +150,22 @@ stop_watchers() {
 # server first and the trap below takes the watchers down whole, nix develop
 # and npm and vite together, instead of orphaning vite to rebuild into a
 # directory nobody is serving any more.
+#
+# Each watcher is backgrounded as a plain function call and not as a
+# pipeline, which matters more than it looks. After `cmd | sed &`, `$!` is
+# the pid of *sed* — while the process group `set -m` made is led by the
+# first command in the pipeline. `kill -TERM -$!` then names a group that
+# does not exist, the trap above quietly does nothing, and the watchers are
+# left orphaned onto init to go on rebuilding into a directory nobody is
+# serving. That is what used to happen here. A function call has one pid,
+# it leads its own group, and the pipe now lives inside it where it cannot
+# confuse the bookkeeping.
 start_watchers() {
   local app
+  kill_stray_watchers
   set -m
   for app in frontend viewer; do
-    nix develop "$DEV_DIR" --command bash -c \
-      "cd '$DEV_DIR/$app' && npm run build -- --watch 2>&1 | sed -u 's/^/[$app] /'" &
+    watch_app "$app" &
     WATCH_PIDS+=($!)
   done
   set +m
