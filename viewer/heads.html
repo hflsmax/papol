@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8"><title>heads</title>
+<style>body{margin:0;padding:16px;background:#2b2f36;color:#e8e4da;font:12px system-ui}
+h2{font:600 11px system-ui;letter-spacing:.07em;text-transform:uppercase;opacity:.6;margin:14px 0 6px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+figure{margin:0;background:#f3efe4;border-radius:6px;padding:4px}
+figure svg{display:block;width:300px;height:230px}
+figcaption{text-align:center;font-size:10px;color:#5b6068}</style>
+<div id="host"></div>
+<script type="module">
+import { RIGS, BOX } from '/src/beasts';
+const NS='http://www.w3.org/2000/svg';
+// Just the head end of the box, blown up.
+const VIEW={cow:'5 3 28 24',dog:'7 5 28 24',cat:'9 4 28 24'};
+const POSES=[['stand',{}],['graze',{head:34,wag:1.4}],['up',{head:-16}],['ear back',{ear:1}]];
+const only=new URLSearchParams(location.search).get('only');
+const host=document.getElementById('host');
+for(const [id,rig] of Object.entries(RIGS)){
+  if(only && id!==only) continue;
+  const h=document.createElement('h2'); h.textContent=id; host.appendChild(h);
+  const row=document.createElement('div'); row.className='row';
+  for(const [label,extra] of POSES){
+    const mem=rig.memory(); let f;
+    for(let i=0;i<300;i++) f=rig.frame({mem,dt:1/120,now:i*8.3,seed:0.25,head:0,gait:0,stride:0,tail:0,wag:0,ear:0,...extra});
+    const fig=document.createElement('figure');
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox',VIEW[id]||`0 0 ${BOX.w} ${BOX.h}`);
+    const g=document.createElementNS(NS,'g');
+    g.setAttribute('stroke-width',1.5); g.setAttribute('stroke-linejoin','round');
+    for(const [key,fill,stroke] of rig.layers){
+      if(!f[key]) continue;
+      const p=document.createElementNS(NS,'path');
+      p.setAttribute('d',f[key]); p.setAttribute('fill',fill); p.setAttribute('stroke',stroke);
+      g.appendChild(p);
+    }
+    svg.appendChild(g); fig.appendChild(svg);
+    const c=document.createElement('figcaption'); c.textContent=label; fig.appendChild(c);
+    row.appendChild(fig);
+  }
+  host.appendChild(row);
+}
+</script>

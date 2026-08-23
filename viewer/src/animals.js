@@ -1,23 +1,37 @@
+import { RIGS } from './beasts';
+
 // The animals a reader can put on a page.
 //
-// All five are the same beast underneath: a barrel, a neck, a head, four
+// All three are the same beast underneath: a barrel, a neck, a head, four
 // legs and a tail, each in the group it turns in. What differs between a
 // cow and a cat is proportion and a handful of shapes — which is the whole
-// reason they are records in a list rather than five drawings. One engine
+// reason they are records in a list rather than three drawings. One engine
 // walks all of them (see cow.js), and adding a sixth is a matter of
 // writing down where its legs are.
 //
 // The rules the cow was got right under, which the rest inherit:
 //
+//  - Everything that can be a capsule is one: the barrel, the neck, the
+//    head, every leg. Shapes drawn the same way read as animals
+//    of one family, and a rounded rectangle with its corners at half its
+//    height is the roundest, plainest shape there is. What is left over —
+//    a snout, an ear, a horn, a tail — is one shape each, and no part of
+//    any animal here is two curves where it could be one.
 //  - The head is drawn under the barrel, and it turns. Anything that turns
 //    sweeps, so a shape tucked under the body at rest comes out from under
-//    it at twenty degrees. The neck therefore ends in a circle centred on
-//    the head's pivot: a circle centred on the point it turns about does
-//    not move when it turns, so it is covered at every angle, and the neck
-//    in front of it may be any shape at all.
+//    it at twenty degrees. The neck is therefore a capsule laid along the
+//    animal with its far end centred on the head's pivot: the round end of
+//    the neck *is* the cap over the joint, because a circle centred on the
+//    point it turns about does not move when it turns. That is one shape
+//    doing the work of two, and it is why every neck below is a `rect`
+//    whose right edge runs half its own height past the pivot.
 //  - The pivot sits roughly level with the muzzle and a long way behind
 //    it, so that turning carries the muzzle down to the grass rather than
 //    backwards into the animal's own chest.
+//  - One eye, and nothing on the body but the cow's two spots. Markings
+//    were the first thing tried for telling them apart and the worst:
+//    what tells a cat from a dog across a page is the shape of the whole
+//    animal, and a flank full of detail only makes it later to read.
 //  - Nothing sets its own fill. The parent decides, because the page wants
 //    a pale animal with a dark outline and dark markings, and the button
 //    wants one flat colour.
@@ -25,14 +39,31 @@
 // One thing an animal does, with everything it does not care about left
 // out. `head` is degrees — positive down to the floor, negative up to look
 // at something — and `wag` is the working it does while it is there: a
-// size and a rate. A cow nuzzling, a dog snuffling, a pig rooting and a
-// cat washing are all this one oscillation at four very different sizes,
-// and that is most of what tells them apart.
+// size and a rate. A cow nuzzling, a dog snuffling and a cat washing are
+// all this one oscillation at three very different sizes, and that is
+// most of what tells them apart.
 //
 // `tilt` drops the rear (a dog sitting) and `sink` lowers the whole body
-// (a cat crouching). Both only ever bring the body nearer its own feet,
-// which is what makes them safe: the legs are drawn under the body, so a
-// body that comes down covers more of them and never less.
+// (a cat crouching, a cat loafing until it has no feet). Both only ever
+// bring the body nearer its own feet, which is what makes them safe: the
+// legs are drawn under the body, so a body that comes down covers more of
+// them and never less.
+//
+// `paw` is the one thing that takes a foot off the ground while the animal
+// is standing still — `[leg, degrees, wobble, rate]`, where the leg is an
+// index into `legs` and a positive angle carries the foot forward, the way
+// the gait's own positive angle does. It is what a cat washing and a dog
+// scratching have and nothing else does, and it is most of why those two
+// no longer look like animals grazing.
+//
+// A foot carried far enough forward ends up under the barrel, and the
+// barrel is drawn over the legs — which is why a dog scratching used to be
+// a dog standing still and shivering, with the leg doing the work hidden
+// behind its own body. See `pawOver` for the way out of that.
+//
+// `nod` overrides how long the body takes to settle into the activity, for
+// the one or two that are not settling into anything: a dog that hears
+// something does not ease its head up over a third of a second.
 const act = (id, o) => ({
   id,
   weight: 1,
@@ -42,6 +73,8 @@ const act = (id, o) => ({
   ear: 0,
   tilt: 0,
   sink: 0,
+  paw: null,
+  nod: 0,
   walks: false,
   ...o,
 });
@@ -91,6 +124,15 @@ const DEFAULT_WAYS = {
   swatEvery: [9000, 22000],
   swatHeld: 640,
   swatArc: -180,
+  // The angle past which a raised foot is drawn on our side of the body
+  // rather than behind it, or null for a species that never needs it. A
+  // near leg swung up under the belly is in front of the barrel in life,
+  // and behind it in this drawing, so at some point in the swing the two
+  // have to part company. Set it where the leg is on its way out of sight
+  // — the swap then adds the top of a leg to a picture that already has
+  // the bottom of it, while the whole thing is moving fast, which is the
+  // cheapest moment there is to change your mind about z-order.
+  pawOver: null,
   // And the things it does. The cow's, since the cow is the default in
   // everything else too: it eats, it chews what it ate, it looks up, and
   // now and then it walks somewhere.
@@ -124,9 +166,87 @@ function legsFor({ fore, hind, top, len, w, rx, lean = 0.5 }) {
   ];
 }
 
+// The neck: a capsule from somewhere inside the head to half its own
+// height past the pivot, so that its round end is exactly the circle the
+// joint turns inside. See the rules at the top of the file — this is the
+// one measurement in an animal that is not free.
+const neck = (from, [px, py], h) =>
+  `<rect x="${from}" y="${py - h / 2}" width="${px + h / 2 - from}" height="${h}" rx="${h / 2}"/>`;
+
+// The pen.
+//
+// One line width, and "the same width" means the same number of pixels
+// where the reader is looking. That sounds like one number and is not,
+// because an animal is drawn in three places at three different scales:
+// on the page at its own size, in the hand as a cursor at that same size,
+// and in the menu where they all share one cell. A single stroke written
+// in box units comes out at three different weights in those three
+// places, and picking whichever one of them to be right about is what
+// made this wrong three times over.
+//
+// So there is no stroke here. There is a width the page is to be inked at
+// — `PEN`, which is what the cow was tuned at — and each drawing site
+// derives what it has to ask for to land on it. The two below cover the
+// two that are scaled by something knowable; the cursor works its own out
+// from the size it is about to be, because it clamps.
+const PEN = 1.5;
+const PEN_AT = { size: 0.075, w: 64, rx: 14.5 };
+
+// For an animal drawn at its own size on the page. A species drawn small
+// needs a wider stroke in its own box to arrive at the same line.
+const penFor = (spec) => (PEN * PEN_AT.size * spec.box.w) / (spec.size * PEN_AT.w);
+
+// How much to scale a species by to draw it at the size the family is
+// drawn at. The menu is the one place they all appear together, and it
+// gives each of them the same cell — but a cat fills forty-six units of
+// its sixty-four-wide box where a cow fills fifty-four, so the cat came
+// out smaller than the cow in a box the same size. `shadow.rx` is the
+// half-width of what the animal stands on, which is the one measurement
+// of how big it is drawn that every species already carries.
+const fitFor = (spec) => PEN_AT.rx / spec.shadow.rx;
+
+// And the pen to use inside a group that has been scaled by `fit`: the
+// scale multiplies the stroke along with everything else, so the stroke
+// has to be divided by it going in. `fitStroke * fit` is `PEN` for every
+// species, which is the whole point — same size in the sheet, and the
+// same number of pixels of ink round it.
+const fitPenFor = (spec) => PEN / fitFor(spec);
+
 // Everything a species needs that is not simply written down: the flat
 // resting composition the cursor and the menu use, in its two colours.
 function assemble(spec) {
+  // A rigged species has no capsules to compose: its still picture is its
+  // own rest pose, painted by the rig, and the parent supplies only the
+  // pen. See `restMarkup`.
+  if (spec.rig) {
+    const ways = { ...DEFAULT_WAYS, ...(spec.ways || {}) };
+    ways.acts = ways.acts.map((a) => ({ ...a, tail: a.tail || [ways.swish, ways.swishRate] }));
+    // How often it puts a foot down, which is not a thing anybody gets to
+    // choose. It is how fast the animal is going divided by how far one
+    // stride carries it, and both of those are already written down — the
+    // speed here, the stride in the rig. It used to be a sixth number,
+    // written by hand next to the speed, and it disagreed with it in
+    // every case: the cat was covering four times as much ground
+    // as its feet were, which is not a cat walking, it is a cat on a
+    // trolley. See `carry` in beast.js.
+    //
+    // `speed` is page-fractions a millisecond and the rig thinks in its
+    // own box, so the conversion is how much of a page one box unit is.
+    const unitsASecond = (ways.speed * 1000 * spec.box.w) / spec.size;
+    ways.beat = unitsASecond / spec.rig.carry;
+    return {
+      ...spec,
+      stroke: penFor(spec),
+      fit: fitFor(spec),
+      fitStroke: fitPenFor(spec),
+      ways,
+      overLegs: [],
+      painted: spec.rig.rest(),
+      pale: '',
+      dark: '',
+      flat: '',
+    };
+  }
   const legs = spec.legs.map(legRect).join('');
   const pale = [
     spec.legsDark ? '' : legs,
@@ -148,9 +268,19 @@ function assemble(spec) {
   const ways = { ...DEFAULT_WAYS, ...(spec.ways || {}) };
   // An activity that says nothing about the tail gets the species' own.
   ways.acts = ways.acts.map((a) => ({ ...a, tail: a.tail || [ways.swish, ways.swishRate] }));
+  // The legs that ever come up far enough to want drawing in front of the
+  // body, worked out from the activities rather than written down twice.
+  // A species with no `pawOver` has none, and pays for none.
+  const overLegs = ways.pawOver == null
+    ? []
+    : [...new Set(ways.acts.filter((a) => a.paw).map((a) => a.paw[0]))].sort();
   return {
     ...spec,
+    stroke: penFor(spec),
+    fit: fitFor(spec),
+    fitStroke: fitPenFor(spec),
     ways,
+    overLegs,
     legRects: legs,
     pale,
     dark,
@@ -170,35 +300,54 @@ const COW = {
   box: { w: 64, h: 44 },
   ground: 36,
   size: 0.075,
-  legs: legsFor({ fore: 28, hind: 45, top: 25, len: 11, w: 5, rx: 2.5, lean: 1 }),
-  body: { markup: '<rect x="25" y="11" width="32" height="18" rx="9"/>' },
+  legs: legsFor({ fore: 30, hind: 45, top: 26, len: 10, w: 5, rx: 2.5, lean: 1 }),
+  body: { markup: '<rect x="26" y="11" width="29" height="18" rx="9"/>' },
   headPivot: [30, 20],
   head: {
     markup:
-      '<circle cx="30" cy="20" r="3.6"/>' +
-      '<path d="M17 10.5c6 0 10.5 3 13.2 6.3v6.4c-4.7.8-9.7.3-13.2-.7z"/>' +
-      // Horn nubs were tried twice and read as a third ear; a thin crescent
-      // is a horn and cannot be read as anything else, at any size.
-      '<path d="M11.6 9.5c-2.3-2-2.6-5.3-.6-7.2.7 1-.3 1.9-.5 3-.2 1.6.7 2.6 2.1 3.3z"/>' +
-      '<path d="M15.9 9.1c-1.9-1.7-2.3-4.4-.6-6.2.6.9-.2 1.6-.3 2.6-.2 1.2.6 2.3 1.7 2.7z"/>' +
-      '<rect x="4" y="8.5" width="19" height="17" rx="7.5"/>' +
-      '<ellipse cx="7.8" cy="21" rx="5.4" ry="4.6"/>',
+      neck(19, [30, 20], 11) +
+      // Two nubs rather than the pair of crescents this had before. A
+      // crescent is three curves and a calf's horn is a bump, and at the
+      // size an animal is drawn on a page the bump is the one that reads.
+      // Canted well out, which is the whole of what keeps them horns
+      // rather than a third and fourth ear.
+      '<ellipse cx="12.2" cy="5.8" rx="2.1" ry="2.9" transform="rotate(-34 12.2 5.8)"/>' +
+      '<ellipse cx="18.8" cy="5.4" rx="2" ry="2.7" transform="rotate(28 18.8 5.4)"/>' +
+      '<rect x="6.5" y="8" width="19" height="17.5" rx="8.75"/>' +
+      '<ellipse cx="10" cy="20.6" rx="5" ry="4.4"/>',
   },
   ear: {
-    markup: '<path d="M16.6 13.9c1.2-5 5.8-8 8.2-6.2s-.4 6.2-4.2 8.2z"/>',
-    pivot: [17.8, 14.7],
+    // High on the back of the head, because with the head carried this
+    // close to the shoulder an ear behind it is an ear behind the barrel,
+    // and the barrel is drawn last.
+    markup: '<ellipse cx="22.8" cy="8.8" rx="4.6" ry="3" transform="rotate(-38 22.8 8.8)"/>',
+    pivot: [20.4, 10.8],
   },
   tail: {
+    // Hung off the flank rather than curled round it: a straight rope and
+    // a round tuft, which is a cow's tail with nothing else in it. Short,
+    // because a tuft that hangs level with the feet is a fifth leg.
     markup:
-      '<path d="M54.4 12.4c4 .8 5.7 4.2 5.2 8.2l-.7 5.3-2.5-.3.7-5.3c.3-2.5-.8-4.1-3.1-4.4z"/>' +
-      '<ellipse cx="58.2" cy="27.6" rx="2.7" ry="3.3"/>',
-    pivot: [54.6, 13.2],
+      '<rect x="54.6" y="16" width="3" height="11" rx="1.5"/>' +
+      '<ellipse cx="56.1" cy="28" rx="3" ry="3.4"/>',
+    pivot: [56.1, 17],
   },
   bodyMarks:
-    '<ellipse cx="35" cy="16" rx="5.4" ry="3.9"/>' +
-    '<ellipse cx="47" cy="23" rx="4.8" ry="3.5"/>',
-  headMarks: '<circle cx="13.8" cy="16.5" r="2.4"/><ellipse cx="5.2" cy="22.1" rx="1.3" ry="1"/>',
-  shadow: { at: 10, rx: 14.5 },
+    '<ellipse cx="34" cy="16.5" rx="5" ry="4"/>' +
+    '<ellipse cx="46.5" cy="23.5" rx="4.4" ry="3.4"/>',
+  headMarks: '<circle cx="17" cy="16" r="2.8"/>',
+  shadow: { at: 9, rx: 14.5 },
+  // Drawn on the bone rig rather than out of capsules: one outline bound
+  // to a spine that bends, legs solved to the ground, and every joint on
+  // a spring of its own. See beasts.js for the three, beast.js for the
+  // machinery.
+  //
+  // The capsules above are still here and still describe the animal — the
+  // shadow, the size and the ways are read off this record whatever it is
+  // drawn out of. A species with a `rig` uses it everywhere it is drawn,
+  // page and cursor and menu alike; one without goes on exactly as
+  // before, which is what let this be done one animal at a time.
+  rig: RIGS.cow,
   // The cow is the default in every particular: see DEFAULT_WAYS.
   // Head face on, horns up, ears out: the one view of a cow that survives
   // being eighteen pixels wide.
@@ -211,9 +360,10 @@ const COW = {
 };
 
 // ---------------------------------------------------------------------
-// The dog. Longer in the leg and lighter in the barrel, with a muzzle out
-// front instead of under the head, one ear hanging, and a tail that is up
-// rather than down — the one animal here whose tail says something.
+// The dog. A muzzle out front instead of under the head, one ear hanging
+// past the jaw, and a tail that is up rather than down — the one animal
+// here whose tail says something. Everything else about it is a cow's
+// shapes at a puppy's proportions.
 
 const DOG = {
   id: 'dog',
@@ -222,47 +372,54 @@ const DOG = {
   box: { w: 64, h: 44 },
   ground: 36,
   size: 0.066,
-  legs: legsFor({ fore: 27, hind: 45, top: 23, len: 13, w: 4.2, rx: 2.1, lean: 1 }),
-  body: { markup: '<rect x="24" y="12" width="32" height="15" rx="7.5"/>' },
-  headPivot: [29, 19],
+  legs: legsFor({ fore: 29, hind: 45, top: 27, len: 9, w: 4.6, rx: 2.3, lean: 0.9 }),
+  body: { markup: '<rect x="25" y="13" width="30" height="17" rx="8.5"/>' },
+  headPivot: [29, 21.5],
   head: {
     markup:
-      '<circle cx="29" cy="19" r="3.4"/>' +
-      '<path d="M16 10c5.6 0 9.8 2.8 12.4 5.9v6c-4.4.8-9 .3-12.4-.7z"/>' +
-      '<rect x="5" y="9" width="17" height="14" rx="6.5"/>' +
-      // The snout goes out in front, not down: that and the leg length are
-      // most of what makes this a dog and not a small cow.
-      '<rect x="0.8" y="15" width="10" height="7.4" rx="3.5"/>',
+      neck(18.5, [29, 21.5], 10) +
+      '<rect x="7" y="10" width="18" height="16" rx="8"/>' +
+      // The snout goes out in front, not down: that and the drop of the
+      // ear are most of what makes this a dog and not a small cow.
+      '<rect x="4" y="17" width="8.6" height="7.4" rx="3.7"/>',
   },
   ear: {
     // Hanging, and drawn over the head rather than behind it, because a
-    // dropped ear lies on the side of the face.
-    markup: '<path d="M16.4 11.2c3.4-.8 6 1.4 6 5s-2.4 6.4-4.8 5.8c1-2 1.4-3.6 1.2-5.6s-1.2-3.6-2.4-5.2z"/>',
-    pivot: [17.2, 12],
+    // dropped ear lies on the side of the face. Long enough to hang past
+    // the jaw, which is the whole of what makes it read as an ear: one
+    // drawn wholly inside the head reads as a hole cut in it.
+    markup: '<ellipse cx="21.2" cy="19.4" rx="3.8" ry="8" transform="rotate(10 21.2 19.4)"/>',
+    pivot: [19.8, 11.8],
     over: true,
   },
   tail: {
-    markup:
-      '<path d="M53.8 14.2c1-4 4.4-6.2 7.2-4.6l-1.2 2.4c-1.4-.7-3.2.5-3.6 2.8z"/>' +
-      '<ellipse cx="60.4" cy="10.4" rx="2.2" ry="2.6"/>',
-    pivot: [54, 14.8],
+    // Up and stiff, which is the one thing a dog's tail says at rest.
+    markup: '<rect x="48" y="12.2" width="9.5" height="4.4" rx="2.2" transform="rotate(-48 49 14.4)"/>',
+    pivot: [49, 14.4],
   },
-  bodyMarks: '<ellipse cx="46" cy="18" rx="5" ry="3.6"/>',
-  headMarks: '<circle cx="14.6" cy="15" r="2.2"/><ellipse cx="2.6" cy="17.6" rx="1.7" ry="1.4"/>',
-  // Twice a cow's pace in short bursts, and never still for long. A trot
-  // rather than a plod — `duty` at a half means the legs are off the
+  bodyMarks: '',
+  headMarks: '<circle cx="13.6" cy="16" r="2.6"/><ellipse cx="5.8" cy="19.6" rx="1.8" ry="1.5"/>',
+  // Half again a cow's pace in short bursts, and never still for long. A
+  // trot rather than a plod — `duty` at a half means the legs are off the
   // ground as much as on it — and a tail that does not stop, because that
   // is the whole of a dog.
+  //
+  // It was twice the cow's, and on a page that is not a dog, it is a dog
+  // being chased: an animal a fifth of the page long crossing the whole of
+  // it in a dozen seconds reads as fleeing rather than as pottering about.
+  // `beat` came down with it — strides a second at walking pace, so it has
+  // to fall with the speed or the feet are running under an animal that is
+  // no longer keeping up with them.
   ways: {
-    speed: 0.00007,
-    ease: 180,
-    turn: 150,
-    beat: 3.4,
+    speed: 0.000048,
+    ease: 220,
+    turn: 180,
+    beat: 2.5,
     swing: 22,
     duty: 0.5,
     bob: 1.4,
     nod: 180,
-    drift: 0.9,
+    drift: 0.7,
     swish: 26,
     swishRate: 0.011,
     earEvery: [1400, 4000],
@@ -271,32 +428,52 @@ const DOG = {
     swatEvery: [2200, 6000],
     swatHeld: 380,
     swatArc: -55,
-    // It does not graze. It puts its nose down at something, briefly and
-    // hard; or it sits, which is the one posture here that needed the
-    // rear to be able to drop; or it stands with its head up and its ears
-    // forward at something it has heard; or it shakes itself.
+    // The hind foot goes up under the belly to get at the ear, and from
+    // there on it is drawn in front of the barrel. See `pawOver`.
+    pawOver: 46,
+    // The dog's own, and not one of them is a head held down at the
+    // ground for eight seconds. It sits and works at its ear with a hind
+    // foot; it sits and wags; it hears something and stands up into it,
+    // ears forward; it puts its nose down at a spot, briefly and hard,
+    // and is done with it; it shakes itself out.
     acts: [
-      act('sniff', { weight: 3, span: [900, 2200], head: 30, wag: [3.4, 0.021] }),
-      act('sit', { weight: 2, span: [1800, 4500], head: -16, tilt: 15, tail: [30, 0.014] }),
-      act('alert', { weight: 2, span: [700, 1800], head: -20, tail: [10, 0.006] }),
-      act('shake', { weight: 1, span: [500, 1000], head: 2, wag: [7, 0.06], tail: [24, 0.02] }),
+      // The scratch, which is the one activity here that needed the leg
+      // doing the work to be visible. The foot comes right up under the
+      // belly — 104 degrees, where a walk's is twenty — the rear drops
+      // onto the other hip, the head goes down and over towards the foot,
+      // and the whole dog jerks with it: `wag` is at the paw's own rate,
+      // so the head and the leg are one movement rather than two.
+      //
+      // The thump was at fourteen a second, which is faster than a screen
+      // can show and read as a shiver with no shape to it; six is a dog.
+      act('scratch', {
+        weight: 3, span: [1300, 2800], head: 20, tilt: 12, ear: 0.55,
+        paw: [2, 104, 16, 0.036], wag: [4, 0.036], tail: [10, 0.006], nod: 110,
+      }),
+      act('sit', { weight: 3, span: [1800, 4500], head: -16, tilt: 15, tail: [34, 0.021] }),
+      act('alert', { weight: 2, span: [700, 1800], head: -20, ear: -0.6, tail: [10, 0.006], nod: 90 }),
+      act('sniff', { weight: 2, span: [700, 1600], head: 30, wag: [3.4, 0.021] }),
+      act('shake', { weight: 1, span: [500, 1000], head: 2, wag: [7, 0.06], tail: [24, 0.02], nod: 70 }),
       act('trot', { weight: 4, span: [900, 2400], walks: true, tail: [22, 0.012] }),
     ],
   },
   shadow: { at: 9, rx: 14 },
-  // Head face on: one ear up, one ear folded, which is the friendliest
-  // thing a dog silhouette can do at this size.
+  // Head face on, and hanging off it the two ears that are the whole of
+  // what a beagle is at eighteen pixels. They were up and folded, which is
+  // the friendliest thing a dog silhouette can do and the one thing this
+  // dog's ears do not do.
+  rig: RIGS.dog,
   glyph:
-    '<path d="M4.6 4.2c2.2-.6 4 .6 4.6 2.6L5 9.4C3.4 8 3 5.6 4.6 4.2z"/>' +
-    '<path d="M19.4 4.2c-2.2-.6-4 .6-4.6 2.6L19 9.4c1.6-1.4 2-3.8.4-5.2z"/>' +
+    '<ellipse cx="5.8" cy="12.2" rx="2.7" ry="5.6" transform="rotate(-8 5.8 12.2)"/>' +
+    '<ellipse cx="18.2" cy="12.2" rx="2.7" ry="5.6" transform="rotate(8 18.2 12.2)"/>' +
     '<path d="M12 5.6c3.6 0 5.8 1.6 5.8 4.2v2.6c0 3-1.6 4.6-2.8 5.6-.9.8-1.2 3-3 3s-2.1-2.2-3-3c-1.2-1-2.8-2.6-2.8-5.6V9.8c0-2.6 2.2-4.2 5.8-4.2z"/>' +
     '<ellipse cx="12" cy="17.4" rx="3" ry="2.4"/>',
 };
 
 // ---------------------------------------------------------------------
-// The cat. Small, low and light, with a tail carried straight up — which
-// is the whole silhouette, really, and the reason it is drawn as a long
-// thin shape rather than the thick one every other tail here has.
+// The cat. Small and light, with two corners on its head and a tail
+// carried straight up — which between them are the whole silhouette,
+// really, and the only two shapes in the file that are not round.
 
 const CAT = {
   id: 'cat',
@@ -305,37 +482,61 @@ const CAT = {
   box: { w: 64, h: 44 },
   ground: 36,
   size: 0.055,
-  legs: legsFor({ fore: 28, hind: 44, top: 26, len: 10, w: 3.8, rx: 1.9, lean: 0.9 }),
-  body: { markup: '<rect x="25" y="16" width="30" height="12" rx="6"/>' },
-  headPivot: [30, 22],
+  // A kitten, not a cat: everything that says young says it by proportion,
+  // and the proportions are all the same one — the head is too big for the
+  // body, the eye is too big for the head, the ears are too big for both,
+  // and the legs are too short for any of it. The cat had a cat's
+  // proportions and was the least cuddly thing on the page for it.
+  legs: legsFor({ fore: 30, hind: 44, top: 29.4, len: 6.6, w: 4.4, rx: 2.2, lean: 0.9 }),
+  body: { markup: '<rect x="28" y="15" width="26" height="16" rx="8"/>' },
+  headPivot: [30, 22.5],
   head: {
     markup:
-      '<circle cx="30" cy="22" r="3" />' +
-      '<path d="M19 15c5 0 8.8 2.4 11.2 5.2v4.8c-4 .7-8.2.2-11.2-.6z"/>' +
+      neck(19, [30, 22.5], 10) +
       // Two pointed ears, and they are the cat. Nothing else in this list
-      // has a corner anywhere on it.
-      '<path d="M11.4 15.2 9.6 6.8l6.4 4.6z"/>' +
-      '<rect x="8" y="12" width="15" height="12.6" rx="6"/>',
+      // has a corner anywhere on it — and they are drawn a size too big
+      // for the head, because a kitten's are. Upright and close together,
+      // where they used to splay: a pair of ears leaning away from each
+      // other over a big round head is a bat, and the difference between
+      // the two animals is about fifteen degrees.
+      '<path d="M12.4 12.6 12.9 3.4l6.4 6z"/>' +
+      '<rect x="8.4" y="9.2" width="20" height="18" rx="9"/>' +
+      // A cheek. The cat was the one animal here with nothing at the front
+      // of its face, and a head with an eye and no muzzle is a bean. Low
+      // and small, which leaves the whole top half of the head to be
+      // forehead — the other half of what makes a face young.
+      '<ellipse cx="11.4" cy="22.8" rx="3.6" ry="3"/>',
   },
   ear: {
-    markup: '<path d="M18.6 15.6 21.4 8l3.4 6.6z"/>',
-    pivot: [20, 15.2],
+    markup: '<path d="M20.6 12.2 25.9 4.2l3.3 8.8z"/>',
+    pivot: [22.8, 12.4],
   },
   tail: {
-    markup: '<path d="M52 17.6c3.6-2.6 7.4-1 8.2 3.2l1 5.2-2.6.5-1-5.2c-.5-2.4-2.4-3.3-4.2-2z"/>',
-    pivot: [52.6, 18.4],
+    // Straight up and then hooked over at the tip, towards the head. Up
+    // is what a cat's tail says; the hook is what stops it being a stick,
+    // and it is still one shape — a band drawn up one side, round the
+    // tip and back down the other.
+    markup: '<path d="M53.1 24V12A5.7 5.7 0 0 0 47.4 6.3A1.7 1.7 0 0 0 47.4 9.7A2.3 2.3 0 0 1 49.7 12V24z"/>',
+    pivot: [51.4, 23],
   },
-  bodyMarks:
-    '<rect x="36" y="16.4" width="2.6" height="5" rx="1.3"/>' +
-    '<rect x="41" y="16.4" width="2.6" height="5.6" rx="1.3"/>' +
-    '<rect x="46" y="16.6" width="2.6" height="5.2" rx="1.3"/>',
-  headMarks: '<circle cx="13.6" cy="17.4" r="2.1"/><ellipse cx="9.4" cy="20.6" rx="1.3" ry="1"/>',
+  bodyMarks: '',
+  // One round eye, bigger than any other animal's here and low enough in
+  // the head to leave a forehead over it, which is the whole of what makes
+  // a face young. Nothing in it: every animal in this file has a flat dark
+  // eye, and a cat that alone had a glint in its would be a cat from a
+  // different drawing.
+  headMarks: '<circle cx="16.8" cy="19" r="3.5"/>',
   // Sits for a very long time and then goes somewhere, unhurried about
   // all of it. The back stays level — a cat does not bob — and the tail is
   // slow, high and lazy where the dog's is frantic. Its ears do more than
   // any other animal's here.
   ways: {
-    speed: 0.000045,
+    // A cat crossing a page used to do it at half again a cow's speed,
+    // which is a cat being carried past on a trolley: it is a third of
+    // the animal, so the same page a second is three times the ground in
+    // its own body-lengths. At this it walks about its own length a
+    // second, which is a cat.
+    speed: 0.00003,
     ease: 260,
     turn: 320,
     beat: 2.6,
@@ -351,188 +552,34 @@ const CAT = {
     swatEvery: [5000, 13000],
     swatHeld: 900,
     swatArc: -120,
-    // Sits, mostly, and washes. Nothing here puts its head to the floor to
-    // eat: sitting holds the head *up*, which the neck takes without
-    // complaint because its cap is centred on the pivot and is therefore
-    // as covered at a negative angle as at a positive one. Stalking is a
-    // walk done low, which is the same walk with the body dropped.
+    // Washing is the cat's: a front paw comes up off the ground and the
+    // head comes down to meet it, which is a thing no other animal here
+    // does with a foot. The loaf is the other one — down onto its own
+    // feet until it has none, which the body may do because coming down
+    // only ever covers more leg. Stalking is a walk done low.
     acts: [
-      act('sit', { weight: 4, span: [3000, 9000], head: -14, tail: [16, 0.0014] }),
-      act('wash', { weight: 2, span: [1400, 3200], head: 34, wag: [5.5, 0.022] }),
-      act('crouch', { weight: 1, span: [900, 1800], head: 6, sink: 1.6, tail: [8, 0.004] }),
+      act('wash', {
+        weight: 3, span: [1800, 4200], head: 22, wag: [4.5, 0.03],
+        paw: [0, 54, 7, 0.032], tail: [8, 0.002],
+      }),
+      act('loaf', { weight: 3, span: [3200, 9000], head: -6, sink: 4, tail: [5, 0.0012] }),
+      act('sit', { weight: 2, span: [2000, 6000], head: -14, tail: [16, 0.0014] }),
       act('stalk', { weight: 2, span: [1000, 2600], walks: true, head: 8, sink: 1.3, tail: [10, 0.003] }),
-      act('prowl', { weight: 1, span: [800, 2000], walks: true }),
+      act('prowl', { weight: 2, span: [800, 2000], walks: true }),
     ],
   },
-  shadow: { at: 8, rx: 13 },
-  // Ears and whiskers. A cat's head is a triangle with two more on top.
+  shadow: { at: 8, rx: 12.5 },
+  // Ears and whiskers. A cat's head is a triangle with two more on top,
+  // and they are a size too big for it, because a kitten's are.
+  rig: RIGS.cat,
   glyph:
-    '<path d="M6.4 8.6 4.2 1.8l6 4.2z"/>' +
-    '<path d="M17.6 8.6 19.8 1.8l-6 4.2z"/>' +
+    '<path d="M6.4 8.6 4.4 2.6l5.8 3.8z"/>' +
+    '<path d="M17.6 8.6 19.6 2.6l-5.8 3.8z"/>' +
     '<path d="M12 5.4c4 0 6.6 2.2 6.6 5.4 0 4.4-3 8-6.6 8s-6.6-3.6-6.6-8c0-3.2 2.6-5.4 6.6-5.4z"/>' +
     '<rect x="0.6" y="12.4" width="5.4" height="1.5" rx="0.75"/>' +
     '<rect x="18" y="12.4" width="5.4" height="1.5" rx="0.75"/>',
 };
 
-// ---------------------------------------------------------------------
-// The pig. All barrel and no leg, with the snout carried high and a tail
-// that is one curl. The only one whose head does not really go down,
-// because there is nowhere for it to go.
-
-const PIG = {
-  id: 'pig',
-  label: 'Pig',
-  hint: 'It roots about, stands still, and is not kept',
-  box: { w: 64, h: 44 },
-  ground: 36,
-  size: 0.07,
-  legs: legsFor({ fore: 27, hind: 45, top: 27, len: 9, w: 4.6, rx: 2.3, lean: 0.9 }),
-  body: { markup: '<rect x="22" y="12" width="34" height="18" rx="9"/>' },
-  headPivot: [28, 21],
-  head: {
-    markup:
-      '<circle cx="28" cy="21" r="3.6"/>' +
-      '<path d="M15 13c5.6 0 10 2.6 12.4 5.6v6c-4.4.8-9.2.3-12.4-.7z"/>' +
-      '<rect x="4" y="11" width="17" height="14.5" rx="6.5"/>' +
-      // The disc on the front. A pig is its snout and nothing else.
-      '<ellipse cx="4.6" cy="19.8" rx="4.4" ry="4"/>',
-  },
-  ear: {
-    // Forward and flopping, over the brow.
-    markup: '<path d="M14.6 12.6c2.6-2.6 5.8-2.2 6.4.6.5 2.4-1.6 4.2-4.4 4z"/>',
-    pivot: [15.4, 13.4],
-    over: true,
-  },
-  tail: {
-    // One curl, and it is the only tail here that is a loop.
-    markup:
-      '<path d="M54.8 14.4c3.6-.6 5.6 1.4 5.2 4-.3 2-2 3.2-3.6 2.6-1.2-.5-1.5-2-.4-2.5.5.9 1.4.5 1.5-.4.2-1-.7-1.8-2.2-1.5z"/>',
-    pivot: [55, 15.2],
-  },
-  bodyMarks: '<ellipse cx="44" cy="18" rx="5.6" ry="4"/>',
-  headMarks:
-    '<circle cx="12.4" cy="17" r="2.1"/>' +
-    '<ellipse cx="3.4" cy="18.6" rx="0.9" ry="1.2"/>' +
-    '<ellipse cx="3.4" cy="21.4" rx="0.9" ry="1.2"/>',
-  // Short legs mean quick little steps: the highest beat here and the
-  // smallest swing, which together are a trundle. It roots more than it
-  // walks, turns like a barge, and has a tail with almost nothing to
-  // swing — so what it does instead is twitch it, often.
-  ways: {
-    speed: 0.000034,
-    ease: 300,
-    turn: 330,
-    beat: 3.6,
-    swing: 12,
-    duty: 0.7,
-    bob: 1.1,
-    nod: 260,
-    drift: 0.45,
-    swish: 22,
-    swishRate: 0.008,
-    earEvery: [2600, 7000],
-    earBack: 22,
-    swatEvery: [3000, 8000],
-    swatHeld: 260,
-    swatArc: -40,
-    // Rooting, which is not grazing: the head goes down a short way — the
-    // snout is nearly at the floor to begin with — and then works, hard
-    // and fast. It is the widest, quickest head movement of the five.
-    acts: [
-      act('root', { weight: 4, span: [2600, 7000], head: 24, wag: [4.2, 0.028] }),
-      act('stand', { weight: 2, span: [1400, 3000], head: 2, ear: 0.2 }),
-      act('trundle', { weight: 3, span: [700, 1900], walks: true }),
-    ],
-  },
-  shadow: { at: 9, rx: 14.5 },
-  // Snout on, which is the only view where a pig is unmistakable: a disc
-  // with two nostrils and two folded ears above it.
-  glyph:
-    '<path d="M5.4 7.4C4 4.6 5 2.2 7.6 2c-.7 1.4-.5 3 .8 4.4z"/>' +
-    '<path d="M18.6 7.4C20 4.6 19 2.2 16.4 2c.7 1.4.5 3-.8 4.4z"/>' +
-    '<path d="M12 5.6c4.2 0 6.8 2 6.8 5v3c0 3.4-3 6-6.8 6s-6.8-2.6-6.8-6v-3c0-3 2.6-5 6.8-5z"/>',
-};
-
-// ---------------------------------------------------------------------
-// The sheep. A cloud on four dark sticks, with a dark face — which is the
-// whole trick, and the reason this file lets a species say which of its
-// parts are drawn dark rather than pale.
-
-const SHEEP = {
-  id: 'sheep',
-  label: 'Sheep',
-  hint: 'It drifts about, stops to crop the grass, and is not kept',
-  box: { w: 64, h: 44 },
-  ground: 36,
-  size: 0.07,
-  legs: legsFor({ fore: 29, hind: 45, top: 24, len: 12, w: 3.4, rx: 1.7, lean: 0.9 }),
-  legsDark: true,
-  body: {
-    // Scalloped, because a sheep read as a rounded rectangle is a small
-    // pale pig. The bumps are the fleece and they are the whole animal.
-    markup:
-      '<path d="M28 10c1.6-2.4 4.6-2.6 6.4-.8 1.4-2.4 4.6-2.6 6.4-.6 1.6-2.2 4.8-2 6.2.4 2.6-1 5.4.8 5.6 3.6 2.8.4 4.4 3 3.4 5.6 2 1.8 1.6 5-.8 6.4.4 2.8-2 5-4.8 4.4-1 2.6-4.2 3.4-6.4 1.8-1.8 2.2-5 2-6.6-.4-2.4 1.4-5.4.2-6.2-2.4-2.8.6-5.4-1.4-5.4-4.2-2.6-.8-3.6-3.8-2-6 -1.6-2.2-.8-5.2 1.8-6.2-.4-2.8 1.8-5 4.4-4.6z"/>',
-  },
-  headPivot: [29, 21],
-  head: {
-    dark: true,
-    markup:
-      '<circle cx="29" cy="21" r="3.4"/>' +
-      '<path d="M17 14c5.4 0 9.6 2.6 12 5.6v5.8c-4.2.8-8.8.3-12-.7z"/>' +
-      '<rect x="5" y="12.5" width="16" height="13.5" rx="6.4"/>' +
-      '<ellipse cx="6.4" cy="22.4" rx="4" ry="3.4"/>',
-  },
-  ear: {
-    dark: true,
-    markup: '<path d="M15.4 15c3-1.6 5.8-.6 6 1.8s-2.6 3.8-5.6 3z"/>',
-    pivot: [16.2, 15.8],
-  },
-  tail: {
-    markup: '<ellipse cx="55.6" cy="16.6" rx="3.4" ry="3.8"/>',
-    pivot: [54.4, 15.6],
-  },
-  bodyMarks: '',
-  // A pale eye, because the face it sits in is dark. The only mark in this
-  // file that is not drawn in the dark colour, so it carries its own.
-  headMarks: '',
-  headLight: '<circle cx="12.6" cy="18.4" r="2"/>',
-  // The slowest of the five, and the one with its head down the longest:
-  // a few steps, then four seconds of grass. Ears that go back often,
-  // because a sheep is a nervous animal, and a tail too small to do much
-  // with.
-  ways: {
-    speed: 0.000026,
-    ease: 400,
-    turn: 380,
-    beat: 2.8,
-    swing: 13,
-    duty: 0.66,
-    bob: 0.6,
-    nod: 300,
-    drift: 0.35,
-    swish: 10,
-    swishRate: 0.004,
-    earEvery: [1800, 5200],
-    earBack: 26,
-    swatEvery: [6000, 15000],
-    swatHeld: 300,
-    swatArc: -35,
-    // Cropping grass, which is grazing done in small quick bites rather
-    // than the cow's slow pull — and then standing bolt upright with its
-    // ears back, having heard something, which is the other half of being
-    // a sheep.
-    acts: [
-      act('crop', { weight: 5, span: [4000, 11000], head: 30, wag: [1.2, 0.015] }),
-      act('stare', { weight: 2, span: [1000, 2400], head: -10, ear: 0.5 }),
-      act('drift', { weight: 2, span: [800, 2200], walks: true }),
-    ],
-  },
-  shadow: { at: 9, rx: 14 },
-  // Fleece over a dark face, which is a sheep at any size at all.
-  glyph:
-    '<path d="M12 2.4c2.4 0 4 1.2 4.6 2.8 2.4-.2 4.2 1.6 4 4 1.8 1 2.2 3.6.6 5.2.6 2.2-1.2 4.2-3.6 4-.8 1.8-3 2.6-4.8 1.6-1.8 1-4 .2-4.8-1.6-2.4.2-4.2-1.8-3.6-4-1.6-1.6-1.2-4.2.6-5.2-.2-2.4 1.6-4.2 4-4C8 3.6 9.6 2.4 12 2.4z"/>',
-};
-
-export const ANIMALS = [COW, DOG, CAT, PIG, SHEEP].map(assemble);
+export const ANIMALS = [COW, DOG, CAT].map(assemble);
 export const ANIMAL_BY_ID = Object.fromEntries(ANIMALS.map((a) => [a.id, a]));
 export const animalFor = (id) => ANIMAL_BY_ID[id] || ANIMAL_BY_ID.cow;

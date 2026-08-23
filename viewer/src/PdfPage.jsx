@@ -874,7 +874,11 @@ export default function PdfPage({
           ear: node.querySelector('[data-cow="ear"]'),
           tail: node.querySelector('[data-cow="tail"]'),
           legs: node.querySelectorAll('[data-cow="leg"]'),
+          over: node.querySelectorAll('[data-cow="over"]'),
           shadow: node.querySelector('[data-cow="shadow"]'),
+          // A rigged species has these instead of the groups above; see
+          // AnimalJointed. Empty for the four that are still capsules.
+          rig: node.querySelectorAll('[data-rig]'),
         });
       });
     }
@@ -909,6 +913,14 @@ export default function PdfPage({
         c.gait = 0;
         c.head = 0;
         c.ear = 0;
+        // Everything an activity was holding the body in, let go of: a
+        // reader who turns the setting on halfway through should get an
+        // animal standing where it was put, not one frozen mid-scratch
+        // with a foot in the air or sunk down into a loaf.
+        c.paw = 0;
+        c.pawWag = 0;
+        c.tilt = 0;
+        c.sink = 0;
         c.tailTill = 0;
         c.born = -1e6;
       }
@@ -955,6 +967,13 @@ export default function PdfPage({
 
   // A cow in hand, at the size the cow will be, with the hotspot under its
   // feet — a cow is put down on the ground, not centred on a point.
+  //
+  // The line the cursor is inked at, in screen pixels rather than in the
+  // animal's box, so that it is the same line whatever species is in hand
+  // and whatever the clamp below did to the size. A fifth again the page's
+  // own weight, because a cursor is small and a hairline in one is a
+  // cursor with nothing in it.
+  const CURSOR_PEN = 1.8;
   const cowCursor = () => {
     const held = animalFor(animal);
     const w = Math.min(96, Math.max(28, held.size * size.width * scale));
@@ -962,8 +981,20 @@ export default function PdfPage({
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
       `viewBox="0 0 ${held.box.w} ${held.box.h}">` +
-      `<g fill="#faf7ef" stroke="#33383f" stroke-width="1.8" stroke-linejoin="round">` +
-      `${held.pale}</g><g fill="#33383f">${held.dark}</g></svg>`;
+      // A fifth again the page's line, because a cursor is small and a
+      // hairline in a cursor is a cursor with nothing in it. Worked out
+      // from `w` rather than taken from the spec, because `w` is clamped:
+      // a cat pinned to the twenty-eight-pixel floor is not being drawn at
+      // its own size any more, and a stroke that assumed it was would come
+      // out heavier on the small animals at exactly the sizes where it
+      // shows most. This lands on the same pixels whatever the clamp did.
+      (held.painted
+        ? `<g stroke-width="${((CURSOR_PEN * held.box.w) / w).toFixed(3)}">${held.painted}</g>`
+        : `<g fill="#faf7ef" stroke="#33383f" ` +
+          `stroke-width="${((CURSOR_PEN * held.box.w) / w).toFixed(3)}" ` +
+          `stroke-linejoin="round">` +
+          `${held.pale}</g><g fill="#33383f">${held.dark}</g>`) +
+      `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
       (h * held.ground) / held.box.h
     ).toFixed(1)}, copy`;

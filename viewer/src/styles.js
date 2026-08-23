@@ -244,11 +244,10 @@ button.link.danger { color: var(--red); }
   box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
 }
 
-/* The menagerie. Five animals, each shown as the drawing that will land
+/* The menagerie. Each animal shown as the drawing that will land
    on the page rather than as the button's glyph — the sheet has room for
-   the animal, and the animal is what is being chosen between. Two rows,
-   because five across is wider than the sheet and a lone fifth on a second
-   row looks like a mistake rather than a layout. */
+   the animal, and the animal is what is being chosen between. Three
+   across, which is one row and the whole choice at once. */
 .beasts {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

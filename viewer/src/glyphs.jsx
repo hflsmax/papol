@@ -136,11 +136,41 @@ export function ToolGlyph({ id, animal }) {
 // so long as React is never rendering the same attribute, so it renders
 // none of them. The `data-cow` marks are how the frame loop finds them
 // once, when the animal is first put on the page.
+// A rigged animal is not a pile of groups that turn — it is a fixed list
+// of paths whose `d` is rewritten every frame. Nothing here has a
+// transform on it at all except the two the loop owns, and React renders
+// no `d`, so the two never argue over an attribute. See beasts.js for
+// what the names mean and what order they go in.
+function AnimalRigged({ spec }) {
+  return (
+    <>
+      <g data-cow="shadow" opacity="0.1">
+        <ellipse cx="0" cy="0" rx={spec.shadow.rx} ry="2.4" fill="#33383f" />
+      </g>
+      <g data-cow="frame" strokeWidth={spec.stroke}>
+        {spec.rig.layers.map(([key, fill, stroke]) => (
+          <path
+            key={key}
+            data-rig={key}
+            fill={fill}
+            stroke={stroke}
+            strokeLinejoin={stroke === 'none' ? undefined : 'round'}
+          />
+        ))}
+      </g>
+    </>
+  );
+}
+
 export function AnimalJointed({ spec }) {
+  if (spec.rig) return <AnimalRigged spec={spec} />;
   const pale = {
     fill: '#faf7ef',
     stroke: '#33383f',
-    strokeWidth: 1.5,
+    // Not a constant: see `penFor` in animals.js. A species drawn small
+    // needs a wider stroke in its own box to reach the page with the same
+    // line on it as the rest.
+    strokeWidth: spec.stroke,
     strokeLinejoin: 'round',
   };
   const dark = { ...pale, fill: '#33383f' };
@@ -198,6 +228,25 @@ export function AnimalJointed({ spec }) {
               dangerouslySetInnerHTML={{ __html: spec.bodyMarks }} />
           )}
         </g>
+        {/* And the same leg again, in front of the body this time, for the
+            one or two a species ever lifts right up: a dog's hind foot at
+            its own ear is on our side of the dog, and drawn behind the
+            barrel it is not drawn at all. Only one of the pair is ever
+            shown — see poseCow, which hands the leg over mid-swing — so
+            this is a leg drawn twice and never seen twice. Outside the
+            bob group, with the legs it belongs to, because a leg does not
+            bob. */}
+        {spec.overLegs.map((i) => (
+          <g key={i} data-cow="over" display="none" {...(spec.legsDark ? dark : pale)}>
+            <rect
+              x={spec.legs[i].x}
+              y={spec.legs[i].y}
+              width={spec.legs[i].w}
+              height={spec.legs[i].h}
+              rx={spec.legs[i].rx ?? 2.5}
+            />
+          </g>
+        ))}
       </g>
     </>
   );

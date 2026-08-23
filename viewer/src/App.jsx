@@ -813,6 +813,16 @@ export default function App() {
         sink: 0,
         earTo: 0,
         swish: 0,
+        // The single raised foot, and which leg it belongs to. Null until
+        // an activity that uses one comes round.
+        paw: 0,
+        pawWag: 0,
+        pawPhase: 0,
+        pawLeg: null,
+        // The last walk and the last activity it chose, so that neither is
+        // chosen twice running.
+        wasWalk: null,
+        wasStill: null,
         // Phases accumulate, so an activity may change how fast the tail
         // swings or the head works without the shape jumping.
         tailPhase: Math.random() * 6.28,
@@ -1403,14 +1413,41 @@ export default function App() {
                             room for the drawing, and the drawing is what
                             the reader is choosing between. */}
                         <svg viewBox={`0 0 ${a.box.w} ${a.box.h}`} aria-hidden="true">
+                          {/* Scaled to the size the family is drawn at, not
+                              left at whatever fraction of its own box the
+                              species happens to fill: see `fitFor` in
+                              animals.js. It is what makes a cat as big as a
+                              cow here, and — since the pen is the same
+                              fraction of the animal — what makes its line
+                              the same number of pixels too. */}
                           <g
-                            fill="#faf7ef"
-                            stroke="#33383f"
-                            strokeWidth="1.5"
-                            strokeLinejoin="round"
-                            dangerouslySetInnerHTML={{ __html: a.pale }}
-                          />
-                          <g fill="#33383f" dangerouslySetInnerHTML={{ __html: a.dark }} />
+                            transform={`translate(${a.box.w / 2} ${a.box.h / 2}) scale(${a.fit.toFixed(
+                              3
+                            )}) translate(${-a.box.w / 2} ${-a.box.h / 2})`}
+                          >
+                            {a.painted ? (
+                              /* A rigged species arrives already painted —
+                                 it has parts that are filled and not
+                                 stroked and parts that are stroked and not
+                                 filled, which two flat groups cannot say.
+                                 All it wants from the sheet is the pen. */
+                              <g
+                                strokeWidth={a.fitStroke}
+                                dangerouslySetInnerHTML={{ __html: a.painted }}
+                              />
+                            ) : (
+                              <>
+                                <g
+                                  fill="#faf7ef"
+                                  stroke="#33383f"
+                                  strokeWidth={a.fitStroke}
+                                  strokeLinejoin="round"
+                                  dangerouslySetInnerHTML={{ __html: a.pale }}
+                                />
+                                <g fill="#33383f" dangerouslySetInnerHTML={{ __html: a.dark }} />
+                              </>
+                            )}
+                          </g>
                         </svg>
                         <span className="beast-name">{a.label}</span>
                       </button>
