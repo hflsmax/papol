@@ -63,6 +63,11 @@ const order = (extra = {}) => [
 // `l3` and `toe` are the metatarsus of a digitigrade animal — the segment
 // between the ankle and the toes it stands on. An ungulate leaves them
 // off and gets the two-bone leg it has always had.
+//
+// `bend` is which way the middle joint folds: +1 throws it towards the
+// head, -1 towards the tail. It is one character of a diff and it is the
+// difference between a leg and a leg on backwards, so it is worth naming.
+// See the dog's, which had a knee where its elbow should have been.
 const leg = (on, hip, l1, l2, foot, ground, bend, beat, w, l3, toe, more) =>
   ({ on, hip, l1, l2, foot, ground, bend, phase: beat, w, l3, toe, ...(more || {}) });
 
@@ -90,91 +95,124 @@ const COW = makeRig({
   // walking swings its whole head and neck once a step, and it is the
   // thing you would pick a cow out by at the far side of a field.
   pitch: 1.5, nod: 1,
-  // Nearly neutral across the head now. The swell is strongest furthest
-  // from the shoulder, so cranking it made the head deepest at the *nose*
-  // — a wedge, point backwards. A cow is deepest at the cheek and blunt
-  // at the front, and that is drawn below rather than scaled into being.
-  cute: { pivot: 25.0, head: [0.96, 1.04], body: 0.87, centre: 15.7, drop: 1.0 },
+  // No baby-schema on this one. Every number below is where a cow's is,
+  // and the last of the exaggeration has been folded back out of them:
+  // what `cute` was doing here was a four per cent swell across the head
+  // and a body squeezed an eighth shorter, on top of an outline that was
+  // already drawn as a calf's. Two lots of the same thing on one animal,
+  // and between them the head came out square. See `stretch` in beast.js
+  // for the machinery, which the cat and the dog still use.
   bones: [
-    { name: 'hip', parent: null, head: [49.5, 15.5], angle: 180, len: 5.5 },
-    { name: 'loin', parent: 'hip', head: [44.0, 15.5], angle: 180, len: 5.5 },
-    { name: 'chest', parent: 'loin', head: [38.5, 15.5], angle: 180, len: 7.5 },
-    { name: 'neck1', parent: 'chest', head: [31.0, 15.6], angle: 178, len: 3.3 },
-    { name: 'neck2', parent: 'neck1', head: [27.7, 15.7], angle: 178, len: 3.2 },
-    { name: 'skull', parent: 'neck2', head: [24.2, 15.6], angle: 173, len: 9 },
-    { name: 'ear', parent: 'skull', head: [24.4, 11.2], angle: 352, len: 5 },
-    { name: 'tail1', parent: 'hip', head: [55.6, 13.0], angle: 84, len: 5 },
-    { name: 'tail2', parent: 'tail1', head: [56.1, 18.0], angle: 92, len: 5 },
-    { name: 'tail3', parent: 'tail2', head: [55.9, 23.0], angle: 97, len: 4.5 },
+    // The spine sits a third of the way down the barrel rather than
+    // halfway, which is where a spine is: the ribs hang off it.
+    { name: 'hip', parent: null, head: [49.2, 15.8], angle: 180, len: 5.4 },
+    { name: 'loin', parent: 'hip', head: [43.8, 15.8], angle: 180, len: 5.4 },
+    { name: 'chest', parent: 'loin', head: [38.4, 15.8], angle: 180, len: 7.4 },
+    // A neck, at last. It was six units long and dead level, which put the
+    // poll where the withers are and left the head sitting straight on the
+    // shoulder. Seven and a half, and sloping: a cow carries its head
+    // below its withers and reaches forward for the grass.
+    { name: 'neck1', parent: 'chest', head: [31.0, 15.9], angle: 175, len: 3.7 },
+    { name: 'neck2', parent: 'neck1', head: [27.3, 16.2], angle: 174, len: 3.6 },
+    { name: 'skull', parent: 'neck2', head: [23.7, 16.6], angle: 171, len: 9.4 },
+    { name: 'ear', parent: 'skull', head: [24.4, 13.6], angle: 352, len: 5 },
+    // The tail hangs down the near side of the rump and is drawn over it,
+    // which is where a cow's tail is and — the reason it had to move — the
+    // only place on this animal there is room for it. Behind the body, as
+    // it was, and again hard against the rear edge, the rope ran along the
+    // buttock's own line for its whole length; two strokes half a unit
+    // apart are one thick stroke, and the cow had no visible tail at all.
+    // Well inside the flank it is a pale rope on a pale ground, and it
+    // crosses the outline once, low down, where crossing it reads as a tail
+    // hanging over the buttock. See `front` below.
+    { name: 'tail1', parent: 'hip', head: [51.6, 12.6], angle: 84, len: 5 },
+    { name: 'tail2', parent: 'tail1', head: [52.1, 17.6], angle: 88, len: 5 },
+    { name: 'tail3', parent: 'tail2', head: [52.3, 22.6], angle: 92, len: 5 },
   ],
   outline: [
-    // The face: a long flat plane from the nose pad up to the forehead,
-    // with the rise happening late. The ramp this used to be ran straight
-    // from the muzzle to the poll in one line, and a head with one line
-    // on top of it is a wedge.
-    // Thirteen long by ten deep. It was seventeen by nine — a tube, and
-    // no amount of detail rescues a head that is twice as long as it is
-    // deep. The bulk of it is at the back, where the cranium is, and the
-    // muzzle is short and blunt.
-    // Nine long by ten deep — deeper than it is long, which is a calf.
-    // Eleven-by-ten was still a face; the head has to go past square
-    // before it stops reading as one.
-    [15.8, 14.8, 'skull'], [17.4, 13.6, 'skull'], [19.4, 12.2, 'skull'],
-    [21.4, 11.0, 'skull'], [22.8, 10.4, 'skull'], [24.0, 10.5, 'skull'], [26.2, 10.7, 'neck2'], [27.8, 10.5, 'neck2'],
-    [29.4, 10.3, 'neck1'], [31.0, 10.3, 'neck1'], [32.6, 10.4, 'chest'],
-    [36.4, 11.0, 'chest'], [40.0, 11.5, 'loin'], [43.6, 11.8, 'loin'],
-    [46.2, 11.3, 'hip'], [50.2, 10.6, 'hip'], [52.8, 11.5, 'hip'],
-    [54.6, 13.6, 'hip'], [55.2, 16.8, 'hip'], [54.6, 20.4, 'hip'],
-    [53.4, 23.8, 'hip'], [51.2, 26.4, 'hip'], [48.0, 27.8, 'hip'],
-    [44.4, 28.5, 'loin'], [40.6, 28.8, 'loin'], [37.0, 28.5, 'chest'],
-    [34.2, 27.2, 'chest'], [32.2, 25.0, 'chest'], [30.8, 22.2, 'neck1'],
-    [29.6, 20.2, 'neck1'], [28.2, 18.8, 'neck2'], [26.6, 18.2, 'neck2'],
-    // And the jaw. The deepest part of a cow's head is the cheek, a third
-    // of the way back — not the nose, which is where all the depth was.
-    [24.6, 18.8, 'skull'], [22.8, 20.6, 'skull'], [20.4, 21.8, 'skull'],
-    [18.2, 22.2, 'skull'], [16.6, 21.6, 'skull'], [15.6, 20.2, 'skull'],
-    [15.2, 18.2, 'skull'], [15.3, 16.4, 'skull'],
+    // The head: nine and a half long by seven deep, and the length is the
+    // whole of it. It was ten by twelve — deeper than it was long, which
+    // is a calf, and the note that used to sit here said as much and
+    // called it a virtue. A grown cow's head is nearly half again as long
+    // as it is deep, blunt at the muzzle and deepest at the cheek, and no
+    // amount of detail on a square head makes up for the square.
+    [15.0, 15.4, 'skull'], [16.8, 14.8, 'skull'], [18.8, 14.1, 'skull'],
+    [20.8, 13.5, 'skull'], [22.4, 13.1, 'skull'], [23.8, 13.2, 'skull'],
+    // The neck top, rising from the poll to the withers. A cow's head is
+    // carried low; the topline is not one straight line from nose to tail.
+    [25.8, 13.2, 'neck2'], [27.8, 13.0, 'neck2'],
+    [29.6, 12.7, 'neck1'], [31.4, 12.3, 'neck1'],
+    [33.2, 12.0, 'chest'], [36.6, 11.8, 'chest'],
+    [39.9, 12.2, 'loin'], [43.4, 12.5, 'loin'],
+    [45.9, 12.1, 'hip'], [49.8, 11.7, 'hip'], [52.4, 12.4, 'hip'],
+    [54.1, 14.2, 'hip'], [54.7, 17.0, 'hip'], [54.1, 19.9, 'hip'],
+    // The buttock hangs lower than the belly does, which is what keeps a
+    // raised barrel from reading as a plank on sticks.
+    [53.4, 22.6, 'hip'], [51.4, 24.8, 'hip'], [48.0, 25.4, 'hip'],
+    // The belly, and it is high. This is the change that does most of the
+    // work: the barrel was eighteen deep with eight and a half of daylight
+    // under it, which is a calf standing in long grass. A cow is about as
+    // deep through the ribs as it is tall from brisket to ground.
+    [44.2, 25.2, 'loin'], [40.5, 25.1, 'loin'], [37.0, 24.8, 'chest'],
+    [34.2, 23.9, 'chest'], [32.0, 22.0, 'chest'],
+    // And a dewlap. It is one swell in the line under the neck and it is
+    // worth more than anything else this size on the animal: nothing else
+    // in the family has one, and it says cattle before the horns do.
+    [30.2, 22.0, 'neck1'], [28.4, 22.2, 'neck2'], [26.6, 21.7, 'neck2'],
+    // The jaw, and it runs on into the dewlap with only a dent at the
+    // throatlatch between them, because that is what the underside of a
+    // cow does. Drawn as a jaw that stopped and a dewlap that started, the
+    // step between the two read as a second chin.
+    [24.8, 20.6, 'skull'], [22.8, 21.0, 'skull'], [20.3, 21.0, 'skull'],
+    [17.8, 20.6, 'skull'], [16.0, 20.0, 'skull'], [14.8, 19.0, 'skull'],
+    [14.2, 17.6, 'skull'], [14.3, 16.2, 'skull'],
   ],
   legs: [
-    // Fore carpus high — a straight post with its knee up near the body.
-    // Hind hock low, which is the angular zigzag that says cattle. Both
-    // were at half height, which is what made every leg here the same
-    // bent stick. The third number in each width list is the joint: it
-    // is now a little wider than its neighbours, so there is a knee to
-    // see rather than an even taper.
-    leg('chest', [36.0, 19.4], 7.9, 9.6, 34.4, FAR, 1, WALK[0], [5.4, 4.2, 4.5, 2.9, 2.5], 0, 0, FORE),
-    leg('hip', [50.6, 18.0], 12.2, 6.6, 52.0, FAR, -1, WALK[1], [6.2, 5.2, 5.4, 3.0, 2.6], 0, 0, HIND),
-    leg('chest', [33.0, 19.0], 8.4, 10.3, 31.4, GROUND, 1, WALK[2], [6.0, 4.7, 5.0, 3.2, 2.8], 0, 0, FORE),
-    leg('hip', [48.0, 17.6], 13.2, 7.3, 49.4, GROUND, -1, WALK[3], [7.0, 5.9, 6.1, 3.4, 3.0], 0, 0, HIND),
+    // Long, because they were short. A cow stands about as far off the
+    // ground as it is deep through the barrel, and the knee and the hock
+    // are both well clear of the belly — which they could not be while the
+    // belly hung to within eight units of the floor. The fore is a post
+    // with its carpus a little over half way down; the hind keeps the
+    // angular zigzag that says cattle. The third number in each width list
+    // is the joint: a little wider than its neighbours, so there is a knee
+    // to see rather than an even taper.
+    leg('chest', [35.9, 18.5], 8.8, 7.5, 34.4, FAR, 1, WALK[0], [5.1, 4.0, 4.2, 2.7, 2.4], 0, 0, FORE),
+    leg('hip', [50.2, 17.8], 12.4, 6.8, 51.6, FAR, -1, WALK[1], [5.9, 4.9, 5.1, 3.0, 2.6], 0, 0, HIND),
+    leg('chest', [33.0, 18.2], 9.8, 8.4, 31.4, GROUND, 1, WALK[2], [5.6, 4.4, 4.6, 3.0, 2.6], 0, 0, FORE),
+    leg('hip', [47.7, 17.4], 13.8, 7.7, 49.4, GROUND, -1, WALK[3], [6.6, 5.4, 5.6, 3.2, 2.8], 0, 0, HIND),
   ],
   pieces: order({
     behind: [
-      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [3.2, 2.6, 2.1, 1.7], fill: PALE, stroke: DARK },
-      { key: 'tuft', kind: 'rigid', bone: 'tail3', points: ring(55.3, 28.8, 2.4, 3.1, 0, 12), fill: PALE, stroke: DARK },
-      { key: 'hornA', kind: 'rigid', bone: 'skull', points: [[20.3, 11.2], [21.2, 7.3], [22.3, 10.9]], fill: PALE, stroke: DARK },
-      { key: 'hornB', kind: 'rigid', bone: 'skull', points: [[22.8, 10.8], [23.7, 7.2], [24.7, 10.6]], fill: PALE, stroke: DARK },
+      { key: 'hornA', kind: 'rigid', bone: 'skull', points: [[21.4, 13.3], [22.1, 10.4], [23.2, 13.0]], fill: PALE, stroke: DARK },
+      { key: 'hornB', kind: 'rigid', bone: 'skull', points: [[23.3, 13.0], [24.1, 10.3], [25.0, 12.8]], fill: PALE, stroke: DARK },
     ],
     over: [
-      // The nose pad. A cow's face is mostly this: a broad soft plate
-      // across the front of the muzzle with the nostril in it, and
-      // without it the head is a shape that happens to end.
-      { key: 'muzzle', kind: 'rigid', bone: 'skull',
-      // Flat, and hugging the front of the muzzle. Drawn round it drew a
-      // ball, and a ball on the front of a face is a snout.
-        points: [[18.1, 15.6], [16.9, 14.6], [15.9, 14.8], [15.0, 16.6],
-                 [15.5, 18.9], [16.8, 19.9], [17.8, 19.3], [18.3, 17.3]],
-        fill: PALE, stroke: DARK },
-      { key: 'ear', kind: 'rigid', bone: 'ear', points: ring(27.4, 10.9, 4.5, 1.9, -13), fill: PALE, stroke: DARK },
+      // Ear-sized, and behind the poll. It was nine units long on a head
+      // nine and a half long, which is not an ear, it is a wing — and lying
+      // forward over the face like that it read as a second eye. Set across
+      // the crest rather than under it: an ear wholly inside the silhouette
+      // is a hole in the neck, and half of one standing proud of the line
+      // is the only way this reads as an ear at the size it is drawn.
+      { key: 'ear', kind: 'rigid', bone: 'ear', points: ring(27.0, 13.4, 2.6, 1.4, 14), fill: PALE, stroke: DARK },
     ],
     front: [
-      { key: 'shoulder', kind: 'rigid', bone: 'chest', points: [[30.6, 16.0], [34.0, 13.8], [37.0, 15.4], [37.6, 20.0], [36.6, 25.2], [34.0, 27.4], [31.6, 25.6], [30.2, 20.8]], fill: PALE },
-      { key: 'thigh', kind: 'rigid', bone: 'hip', points: [[44.4, 16.6], [48.4, 13.8], [52.4, 14.6], [53.8, 19.0], [53.4, 24.0], [50.6, 27.4], [47.4, 26.6], [45.0, 21.6]], fill: PALE },
-      { key: 'creaseA', kind: 'line', bone: 'chest', points: [[33.6, 12.4], [31.8, 16.6], [31.2, 20.6], [32.2, 24.4], [34.0, 26.8]], fill: 'none', stroke: DARK },
-      { key: 'creaseB', kind: 'line', bone: 'hip', points: [[45.0, 13.6], [44.6, 18.0], [45.6, 22.4], [47.6, 25.6], [49.4, 27.4]], fill: 'none', stroke: DARK },
-      { key: 'spotA', kind: 'skin', points: ring(39.5, 14.4, 4.2, 3.2, 10, 12).map(([x, y]) => [x, y, 'loin']), fill: DARK },
-      { key: 'spotB', kind: 'skin', points: ring(41.5, 23.4, 3.6, 2.8, -12, 12).map(([x, y]) => [x, y, 'loin']), fill: DARK },
-      { key: 'eye', kind: 'rigid', bone: 'skull', points: ring(21.0, 14.4, 2.1, 2.1, 0, 12), fill: DARK },
-      { key: 'nose', kind: 'rigid', bone: 'skull', points: ring(16.3, 17.0, 1.1, 0.9, -14, 8), fill: DARK },
+      { key: 'shoulder', kind: 'rigid', bone: 'chest', points: [[30.9, 15.6], [33.4, 12.8], [36.4, 13.4], [37.2, 17.2], [36.6, 21.6], [34.6, 23.4], [32.6, 22.2], [30.6, 19.0]], fill: PALE },
+      { key: 'thigh', kind: 'rigid', bone: 'hip', points: [[44.2, 16.8], [48.0, 14.0], [51.9, 14.8], [53.2, 18.4], [52.8, 22.0], [50.2, 24.6], [47.2, 24.0], [44.8, 20.2]], fill: PALE },
+      { key: 'creaseA', kind: 'line', bone: 'chest', points: [[33.6, 12.6], [31.9, 16.0], [31.4, 19.4], [32.3, 22.0], [33.9, 23.4]], fill: 'none', stroke: DARK },
+      { key: 'creaseB', kind: 'line', bone: 'hip', points: [[44.8, 13.8], [44.4, 17.4], [45.3, 20.8], [47.3, 23.2], [49.0, 24.6]], fill: 'none', stroke: DARK },
+      { key: 'spotA', kind: 'skin', points: ring(39.4, 15.6, 4.2, 2.6, 8, 12).map(([x, y]) => [x, y, 'loin']), fill: DARK },
+      { key: 'spotB', kind: 'skin', points: ring(42.5, 21.6, 3.4, 2.2, -10, 12).map(([x, y]) => [x, y, 'loin']), fill: DARK },
+      { key: 'eye', kind: 'rigid', bone: 'skull', points: ring(20.8, 16.4, 1.4, 1.4, 0, 12), fill: DARK },
+      { key: 'nose', kind: 'rigid', bone: 'skull', points: ring(16.6, 17.9, 0.95, 0.75, -14, 8), fill: DARK },
+      // The tail, last of all, because it hangs in front of the rump it
+      // comes off. There is no nose pad any more to keep it company: a head
+      // eight units deep has room for an outline, an eye and a nostril, and
+      // the pad that used to be drawn on the muzzle put a second stroke
+      // within half a unit of the first and turned the whole front of the
+      // face solid. What it was there to say — that the head ends in
+      // something rather than merely stopping — the nostril says on its own.
+      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [3.2, 2.6, 2.1, 1.7], fill: PALE, stroke: DARK },
+      { key: 'tuft', kind: 'rigid', bone: 'tail3', points: ring(52.0, 29.2, 1.9, 2.9, 0, 12), fill: PALE, stroke: DARK },
     ],
   }),
 });
@@ -216,7 +254,26 @@ const DOG = makeRig({
   },
   // Quick and snappy: a dog's head answers at once and overshoots.
   loose: { neck1: [2.8, 0.55], neck2: [2.4, 0.45], skull: [2.1, 0.34] },
-  duty: 0.45, lift: 4.6, roll: 18, swing: 'trot', stride: 7.8,
+  // A short step, taken often. All three of these came down together,
+  // because between them they are what made the dog read as leggy: a foot
+  // that swings four units either side of where it stands takes the leg
+  // with it, and a leg swung that far is a leg on show. Half of what looks
+  // like too much leg on any animal is not the leg, it is how far the leg
+  // goes. Six and a bit, and the feet stay under the dog.
+  //
+  // `stride` is not free — see `carry` in beast.js and the beat it feeds
+  // in animals.js. A shorter step at the same speed across the page is a
+  // quicker one, and on its own this would have put a third of a stride a
+  // second on the dog. It did not, because the speed came down with it:
+  // two and a half strides a second against the two and two-thirds it was,
+  // which is near enough the same feet at a slower dog. The pair have to
+  // move together or one of them is wrong.
+  //
+  // And the lift with them, because a foot that leaves the ground by a
+  // third of the leg it is on has to fold that third away somewhere, and
+  // it was all going into one flat tibia carried through the swing like a
+  // shelf. Still the highest of the three.
+  duty: 0.44, lift: 2.8, roll: 18, swing: 'trot', stride: 6.2,
   // A trot is the bouncy one and the level one at once: a little more
   // rock than the cow, and almost no nod, because a dog at a trot carries
   // its head like a tray. What moves instead is everything behind it.
@@ -280,19 +337,61 @@ const DOG = makeRig({
 
 
   legs: [
-    // Three segments, and seven widths to go with them: the joints now
-    // land on indices 2 and 4. The fore has a low wrist just above the
-    // pad; the hind folds twice — stifle forward, hock back, metatarsus
-    // forward again — which is the spring a dog stands on and the thing
-    // two bones could not say at all.
-    leg('chest', [37.0, 23.4], 5.9, 3.9, 35.6, FAR, 1, TROT[0],
-      [5.0, 4.2, 4.4, 3.2, 3.4, 2.6, 2.4], 2.6, 4, FORE),
-    leg('hip', [50.6, 22.4], 5.4, 4.2, 52.0, FAR, -1, TROT[1],
-      [5.4, 4.6, 4.8, 3.4, 3.6, 2.7, 2.5], 3.8, -16, HIND),
-    leg('chest', [34.0, 23.0], 6.7, 4.5, 32.6, GROUND, 1, TROT[2],
-      [5.4, 4.5, 4.8, 3.4, 3.6, 2.8, 2.6], 3.1, 4, FORE),
-    leg('hip', [48.4, 22.0], 6.2, 4.8, 50.0, GROUND, -1, TROT[3],
-      [6.0, 5.1, 5.4, 3.7, 3.9, 3.0, 2.7], 4.2, -16, HIND),
+    // Three segments, and seven widths to go with them: the joints land
+    // on indices 2 and 4.
+    //
+    // `bend` is which way the middle joint folds, and both of these were
+    // the cow's — which is how this dog came to walk on four knees. A
+    // knee is a hind leg's joint. What an animal has in front is an
+    // elbow, and an elbow folds the other way: the fore's mid joint goes
+    // back (-1) and the hind's goes forward (+1). Written the cow's way
+    // round the fore threw its elbow forward like a forearm being raised
+    // and the hind put its stifle behind and its hock in front, which is
+    // no animal at all — it is the Z of a hind leg held up to a mirror.
+    // The right way round, the hind is the Z it should have been: stifle
+    // forward, hock back, metatarsus down and forward again, which is the
+    // spring a dog stands on.
+    //
+    // The hind is properly angulated, which is the other half of the
+    // legginess. A dog's stifle and hock are folded when it is standing
+    // still — the femur and the tibia meet at something like a hundred and
+    // fifteen degrees — and a hind leg written short enough to come out
+    // nearly straight at mid-stance is a hind leg on stilts, whichever way
+    // its joints bend. Femur and tibia are long enough now that the leg
+    // never comes past about eighty-five per cent of its own length, which
+    // is where a dog's is standing square.
+    //
+    // The lower half of every one of these is thicker, too. It is the same
+    // point from the other side: a leg reads as leggy when it is thin, and
+    // these tapered to a cannon two and a half units wide under a barrel
+    // eighteen deep, which is a wading bird.
+    //
+    // And the humerus is short — half what it was, with the length handed
+    // down to the forearm and the pastern under it. A dog's front leg is
+    // not a zigzag, it is a post: the elbow is tucked into the chest and
+    // everything below it drops in one line to the pad. A fore leg carries slack
+    // however it is written, because the foot swings through a stride the
+    // hip does not, and a two-bone solve puts all of that slack out
+    // sideways at the middle joint. How far sideways is capped by the
+    // shorter of the two bones — so a short humerus cannot throw the
+    // elbow further than the shoulder patch that covers it, and the fold
+    // happens where a dog's fold is: out of sight, under the coat.
+    //
+    // `toe` leans the last segment, measured up the leg from the foot.
+    // Behind, it was negative, which stood the hock in front of the toes
+    // and sloped the rear pastern back-to-front. Every corner of a dog
+    // stands with its ankle behind its toes — that is what walking on the
+    // toes means — so it is positive on all four, and by enough to see:
+    // four degrees is a post, and the one break below the elbow that the
+    // eye can find on a front leg is the wrist.
+    leg('chest', [37.0, 23.4], 3.1, 6.3, 36.2, FAR, -1, TROT[0],
+      [5.0, 4.2, 4.4, 3.8, 4.0, 3.1, 2.6], 3.0, 12, FORE),
+    leg('hip', [50.6, 22.4], 6.1, 4.5, 51.4, FAR, 1, TROT[1],
+      [5.4, 4.6, 4.8, 4.0, 4.2, 3.2, 2.7], 3.8, 16, HIND),
+    leg('chest', [34.0, 23.0], 3.6, 7.3, 33.4, GROUND, -1, TROT[2],
+      [5.4, 4.5, 4.8, 4.0, 4.2, 3.3, 2.9], 3.4, 12, FORE),
+    leg('hip', [48.4, 22.0], 7.0, 5.2, 49.3, GROUND, 1, TROT[3],
+      [6.0, 5.1, 5.4, 4.4, 4.6, 3.5, 3.0], 4.2, 16, HIND),
   ],
   pieces: order({
     farLeg: { hoofFill: OFF, hoofStroke: DARK },

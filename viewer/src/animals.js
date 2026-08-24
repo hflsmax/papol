@@ -351,12 +351,18 @@ const COW = {
   // The cow is the default in every particular: see DEFAULT_WAYS.
   // Head face on, horns up, ears out: the one view of a cow that survives
   // being eighteen pixels wide.
+  //
+  // The horns used to be thin sickles floating clear of the skull, with a
+  // gap between horn and head at this size a stroke wide — so nothing
+  // told them from a pair of antennae, and the whole glyph read as a bug.
+  // Short, blunt, and lapped onto the skull instead: a horn a tenth the
+  // old one's length, fused into the head rather than perched above it.
   glyph:
-    '<path d="M7 6.6C4.9 4 5.4 1.4 7.7.6c-.9 1.6-.7 3.5.8 5.4z"/>' +
-    '<path d="M17 6.6C19.1 4 18.6 1.4 16.3.6c.9 1.6.7 3.5-.8 5.4z"/>' +
-    '<ellipse cx="3.4" cy="10.8" rx="3.3" ry="2.1"/>' +
-    '<ellipse cx="20.6" cy="10.8" rx="3.3" ry="2.1"/>' +
-    '<path d="M12 5.2c3.8 0 5.6 1.5 5.6 3.7v3.4c0 3.4-2.5 6-5.6 6s-5.6-2.6-5.6-6V8.9c0-2.2 1.8-3.7 5.6-3.7z"/>',
+    '<path d="M8.2 4.2c-.4-1.4.1-2.6 1.5-3.4-.6 1.2-.6 2.3.1 3.4z"/>' +
+    '<path d="M15.8 4.2c.4-1.4-.1-2.6-1.5-3.4.6 1.2.6 2.3-.1 3.4z"/>' +
+    '<ellipse cx="3.5" cy="11.6" rx="3.1" ry="2.2"/>' +
+    '<ellipse cx="20.5" cy="11.6" rx="3.1" ry="2.2"/>' +
+    '<path d="M12 4.6c3.9 0 6 1.7 6 4.2v3.1c0 3.6-2.6 6.5-6 6.5s-6-2.9-6-6.5V8.8c0-2.5 2.1-4.2 6-4.2z"/>',
 };
 
 // ---------------------------------------------------------------------
@@ -411,7 +417,7 @@ const DOG = {
   // to fall with the speed or the feet are running under an animal that is
   // no longer keeping up with them.
   ways: {
-    speed: 0.000048,
+    speed: 0.000037,
     ease: 220,
     turn: 180,
     beat: 2.5,
@@ -459,15 +465,22 @@ const DOG = {
   },
   shadow: { at: 9, rx: 14 },
   // Head face on, and hanging off it the two ears that are the whole of
-  // what a beagle is at eighteen pixels. They were up and folded, which is
-  // the friendliest thing a dog silhouette can do and the one thing this
-  // dog's ears do not do.
+  // what a beagle is at eighteen pixels.
+  //
+  // They used to be up and folded, but drawn as flat fill with no line to
+  // separate ear from skull, "folded" was invisible: the ear's own curve
+  // ran tangent into the head's, and the two fused into one smooth outline
+  // — a lump, not a dog. What a silhouette can show instead is a real gap:
+  // each ear now leaves the skull at a point and swells out into open
+  // space beside it rather than along it, so there is background between
+  // ear and head for most of the ear's own length. That gap is the whole
+  // of what makes it read as hung off the head rather than part of it.
   rig: RIGS.dog,
   glyph:
-    '<ellipse cx="5.8" cy="12.2" rx="2.7" ry="5.6" transform="rotate(-8 5.8 12.2)"/>' +
-    '<ellipse cx="18.2" cy="12.2" rx="2.7" ry="5.6" transform="rotate(8 18.2 12.2)"/>' +
+    '<path d="M17.6 7.8C22 7.4 24.4 11 23.6 14.8 23 17.8 20.4 19.8 17.6 19.2 19.6 15.7 19.8 11.6 17.6 7.8Z"/>' +
+    '<path d="M6.4 7.8C2 7.4-.4 11 .4 14.8 1 17.8 3.6 19.8 6.4 19.2 4.4 15.7 4.2 11.6 6.4 7.8Z"/>' +
     '<path d="M12 5.6c3.6 0 5.8 1.6 5.8 4.2v2.6c0 3-1.6 4.6-2.8 5.6-.9.8-1.2 3-3 3s-2.1-2.2-3-3c-1.2-1-2.8-2.6-2.8-5.6V9.8c0-2.6 2.2-4.2 5.8-4.2z"/>' +
-    '<ellipse cx="12" cy="17.4" rx="3" ry="2.4"/>',
+    '<ellipse cx="12" cy="17.4" rx="2.6" ry="2.1"/>',
 };
 
 // ---------------------------------------------------------------------
