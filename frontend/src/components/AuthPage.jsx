@@ -58,7 +58,8 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="How other readers will see you"
+                  placeholder="Use your real name for a professional profile"
+                  autoComplete="name"
                   required
                 />
               </div>

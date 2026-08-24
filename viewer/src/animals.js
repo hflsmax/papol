@@ -64,6 +64,9 @@ import { RIGS } from './beasts';
 // `nod` overrides how long the body takes to settle into the activity, for
 // the one or two that are not settling into anything: a dog that hears
 // something does not ease its head up over a third of a second.
+// `prop` asks the renderer for the one tiny loose object an activity may
+// need. It is deliberately exceptional: most character still has to come
+// from the animal rather than from scenery explaining it.
 const act = (id, o) => ({
   id,
   weight: 1,
@@ -76,6 +79,9 @@ const act = (id, o) => ({
   paw: null,
   nod: 0,
   walks: false,
+  speed: 1,
+  prop: null,
+  special: false,
   ...o,
 });
 
@@ -97,8 +103,16 @@ const DEFAULT_WAYS = {
   // Getting up to speed and coming to a stop. An animal that reaches its
   // walking pace in one frame is a vehicle.
   ease: 350,
+  // Starting and stopping are different muscular acts. `rampIn` and
+  // `rampOut` reserve part of a walking spell for them; accel/decel say
+  // how quickly the body's actual momentum follows that authored intent.
+  accel: 520,
+  decel: 820,
+  rampIn: 0.24,
+  rampOut: 0.30,
+  pacePulse: 0.045,
   // How long a whole turn takes, through zero — not a mirroring.
-  turn: 260,
+  turn: 880,
   beat: 2,
   swing: 15,
   duty: 0.65,
@@ -108,12 +122,14 @@ const DEFAULT_WAYS = {
   nod: 320,
   // How much it wanders up and down the page as well as across it. A page
   // is not a field.
-  drift: 0.3,
+  drift: 0.82,
   // The tail an activity gets if it does not ask for its own. On an animal
   // standing still for half a minute this is most of what says the thing
   // is alive rather than printed.
   swish: 14,
   swishRate: 0.0029,
+  tailHarmonic: 0.16,
+  tailDrift: 0.10,
   earEvery: [3800, 9000],
   earHeld: 130,
   earBack: 30,
@@ -140,6 +156,10 @@ const DEFAULT_WAYS = {
     act('graze', { weight: 4, span: [2600, 7000], head: 29, wag: [1.4, 0.004] }),
     act('chew', { weight: 2, span: [1800, 4200], head: 9, wag: [0.9, 0.012], ear: 0.15 }),
     act('gaze', { weight: 1, span: [1200, 2600], head: -8 }),
+    // Rare little breaks in the placid routine: a fly makes the whole
+    // calf start, or an itch earns a slow hoof and a patient head tilt.
+    act('startle', { special: true, weight: 0.22, span: [1800, 3000], head: -25, ear: -1, tail: [38, 0.018], nod: 55 }),
+    act('scratch', { special: true, weight: 0.28, span: [4200, 6500], head: 9, tilt: 6, paw: [3, 46, 13, 0.018], tail: [7, 0.002] }),
     act('amble', { weight: 3, span: [1400, 3600], walks: true }),
   ],
 };
@@ -362,7 +382,11 @@ const COW = {
     '<path d="M15.8 4.2c.4-1.4-.1-2.6-1.5-3.4.6 1.2.6 2.3-.1 3.4z"/>' +
     '<ellipse cx="3.5" cy="11.6" rx="3.1" ry="2.2"/>' +
     '<ellipse cx="20.5" cy="11.6" rx="3.1" ry="2.2"/>' +
-    '<path d="M12 4.6c3.9 0 6 1.7 6 4.2v3.1c0 3.6-2.6 6.5-6 6.5s-6-2.9-6-6.5V8.8c0-2.5 2.1-4.2 6-4.2z"/>',
+    '<path d="M12 4.6c3.9 0 6 1.7 6 4.2v3.1c0 3.6-2.6 6.5-6 6.5s-6-2.9-6-6.5V8.8c0-2.5 2.1-4.2 6-4.2z"/>' +
+    '<circle cx="9.2" cy="10.1" r="1" fill="var(--glyph-cutout, #fff)"/>' +
+    '<circle cx="14.8" cy="10.1" r="1" fill="var(--glyph-cutout, #fff)"/>' +
+    '<ellipse cx="12" cy="15.2" rx="3.9" ry="2.7" fill="var(--glyph-cutout, #fff)"/>' +
+    '<circle cx="10.5" cy="15.2" r=".7"/><circle cx="13.5" cy="15.2" r=".7"/>',
 };
 
 // ---------------------------------------------------------------------
@@ -419,15 +443,22 @@ const DOG = {
   ways: {
     speed: 0.000037,
     ease: 220,
-    turn: 180,
+    accel: 150,
+    decel: 270,
+    rampIn: 0.16,
+    rampOut: 0.22,
+    pacePulse: 0.075,
+    turn: 680,
     beat: 2.5,
     swing: 22,
     duty: 0.5,
     bob: 1.4,
     nod: 180,
-    drift: 0.7,
+    drift: 1.15,
     swish: 26,
     swishRate: 0.011,
+    tailHarmonic: 0.30,
+    tailDrift: 0.07,
     earEvery: [1400, 4000],
     earBack: 34,
     // A wag, not a swat: often, and nothing like as far.
@@ -460,6 +491,12 @@ const DOG = {
       act('alert', { weight: 2, span: [700, 1800], head: -20, ear: -0.6, tail: [10, 0.006], nod: 90 }),
       act('sniff', { weight: 2, span: [700, 1600], head: 30, wag: [3.4, 0.021] }),
       act('shake', { weight: 1, span: [500, 1000], head: 2, wag: [7, 0.06], tail: [24, 0.02], nod: 70 }),
+      act('play-bow', { special: true, weight: 0.3, span: [2800, 4800], head: 34, sink: 3.2, ear: -0.65, wag: [4, 0.03], tail: [46, 0.04], nod: 70 }),
+      act('dig', { special: true, weight: 0.24, span: [3200, 5400], head: 31, paw: [0, 54, 24, 0.052], wag: [4, 0.038], tail: [36, 0.026], nod: 65 }),
+      // A low, springy pursuit of a fluttering scrap: watch, surge, miss,
+      // recover, and go again. Kept stationary at page scale so it cannot
+      // run off the paper while the body supplies all the acceleration.
+      act('chase', { special: true, weight: 0.24, span: [5600, 8200], walks: true, speed: 2.35, head: 11, wag: [2, 0.018], tail: [18, 0.012], ear: -0.55, nod: 70, prop: 'chase' }),
       act('trot', { weight: 4, span: [900, 2400], walks: true, tail: [22, 0.012] }),
     ],
   },
@@ -476,11 +513,21 @@ const DOG = {
   // ear and head for most of the ear's own length. That gap is the whole
   // of what makes it read as hung off the head rather than part of it.
   rig: RIGS.dog,
+  // Ears hung outside the head rather than fused to its sides, a muzzle
+  // that visibly protrudes past the chin, and a seam cut between ear and
+  // skull in the button's own background colour — the same trick the
+  // eraser uses to split rubber from sleeve — so two same-colour shapes
+  // read as two shapes instead of one wider blob.
   glyph:
-    '<path d="M17.6 7.8C22 7.4 24.4 11 23.6 14.8 23 17.8 20.4 19.8 17.6 19.2 19.6 15.7 19.8 11.6 17.6 7.8Z"/>' +
-    '<path d="M6.4 7.8C2 7.4-.4 11 .4 14.8 1 17.8 3.6 19.8 6.4 19.2 4.4 15.7 4.2 11.6 6.4 7.8Z"/>' +
-    '<path d="M12 5.6c3.6 0 5.8 1.6 5.8 4.2v2.6c0 3-1.6 4.6-2.8 5.6-.9.8-1.2 3-3 3s-2.1-2.2-3-3c-1.2-1-2.8-2.6-2.8-5.6V9.8c0-2.6 2.2-4.2 5.8-4.2z"/>' +
-    '<ellipse cx="12" cy="17.4" rx="2.6" ry="2.1"/>',
+    '<ellipse cx="5" cy="15.6" rx="4.1" ry="8.3" transform="rotate(-12 5 15.6)"/>' +
+    '<ellipse cx="19" cy="15.6" rx="4.1" ry="8.3" transform="rotate(12 19 15.6)"/>' +
+    '<path d="M12 5.2c3.5 0 5.7 1.7 5.7 4.3v2c0 3.6-1.9 5.9-3.4 7-.5 1.2-1 2.3-2.3 2.3s-1.8-1.1-2.3-2.3c-1.5-1.1-3.4-3.4-3.4-7v-2c0-2.6 2.2-4.3 5.7-4.3z"/>' +
+    '<ellipse cx="12" cy="19.4" rx="3" ry="2.4"/>' +
+    '<rect x="6.4" y="7.4" width="1.7" height="11.4" rx="0.85" fill="var(--glyph-cutout, #fff)" transform="rotate(-11 7.25 13.1)"/>' +
+    '<rect x="15.9" y="7.4" width="1.7" height="11.4" rx="0.85" fill="var(--glyph-cutout, #fff)" transform="rotate(11 16.75 13.1)"/>' +
+    '<circle cx="9.7" cy="11.7" r="1" fill="var(--glyph-cutout, #fff)"/>' +
+    '<circle cx="14.3" cy="11.7" r="1" fill="var(--glyph-cutout, #fff)"/>' +
+    '<ellipse cx="12" cy="17.9" rx="1.5" ry="1.1" fill="var(--glyph-cutout, #fff)"/>',
 };
 
 // ---------------------------------------------------------------------
@@ -551,15 +598,22 @@ const CAT = {
     // second, which is a cat.
     speed: 0.00003,
     ease: 260,
-    turn: 320,
+    accel: 310,
+    decel: 480,
+    rampIn: 0.30,
+    rampOut: 0.36,
+    pacePulse: 0.028,
+    turn: 980,
     beat: 2.6,
     swing: 17,
     duty: 0.58,
     bob: 0.7,
     nod: 420,
-    drift: 0.5,
+    drift: 0.95,
     swish: 20,
     swishRate: 0.0016,
+    tailHarmonic: 0.22,
+    tailDrift: 0.18,
     earEvery: [2200, 6000],
     earBack: 40,
     swatEvery: [5000, 13000],
@@ -577,6 +631,11 @@ const CAT = {
       }),
       act('loaf', { weight: 3, span: [3200, 9000], head: -6, sink: 4, tail: [5, 0.0012] }),
       act('sit', { weight: 2, span: [2000, 6000], head: -14, tail: [16, 0.0014] }),
+      // Infrequent enough to feel discovered. The ball is the only prop
+      // in the menagerie; hunting remains readable from the low body,
+      // fixed ears and the paw held just before the pounce.
+      act('play-ball', { special: true, weight: 0.28, span: [3800, 6500], head: 20, paw: [0, 48, 15, 0.038], ear: -0.25, tail: [28, 0.006], prop: 'ball', nod: 90 }),
+      act('hunt', { special: true, weight: 0.24, span: [5200, 7600], head: 15, sink: 1.25, paw: [0, 36, 8, 0.012], ear: -0.85, tail: [4, 0.0006], nod: 110 }),
       act('stalk', { weight: 2, span: [1000, 2600], walks: true, head: 8, sink: 1.3, tail: [10, 0.003] }),
       act('prowl', { weight: 2, span: [800, 2000], walks: true }),
     ],
@@ -589,8 +648,11 @@ const CAT = {
     '<path d="M6.4 8.6 4.4 2.6l5.8 3.8z"/>' +
     '<path d="M17.6 8.6 19.6 2.6l-5.8 3.8z"/>' +
     '<path d="M12 5.4c4 0 6.6 2.2 6.6 5.4 0 4.4-3 8-6.6 8s-6.6-3.6-6.6-8c0-3.2 2.6-5.4 6.6-5.4z"/>' +
-    '<rect x="0.6" y="12.4" width="5.4" height="1.5" rx="0.75"/>' +
-    '<rect x="18" y="12.4" width="5.4" height="1.5" rx="0.75"/>',
+    '<rect x="0.6" y="12.6" width="5.4" height="1" rx=".5"/>' +
+    '<rect x="18" y="12.6" width="5.4" height="1" rx=".5"/>' +
+    '<ellipse cx="9.4" cy="11.2" rx=".9" ry="1.2" fill="var(--glyph-cutout, #fff)"/>' +
+    '<ellipse cx="14.6" cy="11.2" rx=".9" ry="1.2" fill="var(--glyph-cutout, #fff)"/>' +
+    '<path d="M10.8 14.1h2.4L12 15.4z" fill="var(--glyph-cutout, #fff)"/>',
 };
 
 export const ANIMALS = [COW, DOG, CAT].map(assemble);

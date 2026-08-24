@@ -35,16 +35,20 @@ const FAR = 34.4;
 // *opposite* fore, which is a diagonal-sequence walk and is what lemurs
 // do. The array that was replaced was diagonal too, and swapping one pair
 // for another moved which two feet were wrong without fixing any of them.
-const WALK = [0.75, 0.5, 0.25, 0];
-// A trot moves diagonal pairs together, and it is the whole of what makes
-// a dog look busy next to a cow.
-const TROT = [0, 0.5, 0.5, 0];
-// And the cat's, which is a lateral walk with the couplets closed right
-// up: the fore foot comes down almost on the heels of the hind on the
-// same side, into the print it has just left. It is the one gait here
-// that is not four evenly spaced beats, and it is why a cat crossing a
-// room looks like it is being poured rather than carried.
-const COUPLE = [0.7, 0.5, 0.2, 0];
+// `phase` is where a leg is inside its cycle, not when it lands: a phase
+// of .75 wraps to contact one quarter-stride from now. Written in leg
+// order (far fore, far hind, near fore, near hind), these produce the
+// actual landing order near hind → near fore → far hind → far fore.
+// The cow distributes those four weights almost evenly.
+const COW_WALK = [0.25, 0.50, 0.75, 0];
+// A walking dog does not move diagonal pairs together—that is a trot, and
+// was precisely why two legs looked bolted to the other two. Its hind foot
+// follows the fore on one side quickly, then there is a longer transfer
+// across the body before the other pair answers.
+const DOG_WALK = [0.30, 0.48, 0.82, 0];
+// The kitten closes each same-side pair further. Four audible beats remain,
+// but they arrive as two soft couplets with a pause between them.
+const CAT_WALK = [0.35, 0.50, 0.85, 0];
 
 // The pieces every one of them has, in the order they are drawn. A
 // species adds to this; none of them reorders it, because back-to-front
@@ -88,20 +92,27 @@ const COW = makeRig({
   // reference that is only visible as an absence is one nobody finds.
   earBack: 34,
   breath: 0.022, breathRate: 0.0016,
+  share: {
+    tail1: { swish: 0.24, sway: -0.12 },
+    tail2: { swish: 0.62, sway: -0.20, drag: ['tail1', 0.045] },
+    tail3: { swish: 1.08, sway: -0.28, drag: ['tail2', 0.075] },
+  },
+  loose: { tail1: [3.1, 0.70], tail2: [2.4, 0.52], tail3: [1.8, 0.36] },
   // A plod: a foot planted and the barrel carried over it.
-  duty: 0.70, lift: 2.4, roll: 13, swing: 'plod', stride: 10.0,
+  duty: 0.74, lift: 2.0, roll: 10, swing: 'plod', stride: 8.8,
+  stepVariation: 0.045, reachVariation: 0.10,
+  impact: 7.0, impactPitch: 34, legGive: 10,
+  bodyHz: 2.0, bodyDamping: 0.82, pitchHz: 1.8, pitchDamping: 0.78,
+  legHz: 4.1, legDamping: 0.66,
   foot: 'cloven',
   // A degree and a half of rock, and the deepest nod of the three. A cow
   // walking swings its whole head and neck once a step, and it is the
   // thing you would pick a cow out by at the far side of a field.
-  pitch: 1.5, nod: 1,
-  // No baby-schema on this one. Every number below is where a cow's is,
-  // and the last of the exaggeration has been folded back out of them:
-  // what `cute` was doing here was a four per cent swell across the head
-  // and a body squeezed an eighth shorter, on top of an outline that was
-  // already drawn as a calf's. Two lots of the same thing on one animal,
-  // and between them the head came out square. See `stretch` in beast.js
-  // for the machinery, which the cat and the dog still use.
+  pitch: 1.15, bob: 0.55, nod: 1.25,
+  // Only a trace of calf proportion: a slightly fuller head and shorter
+  // barrel, kept close enough to real cattle anatomy that the long muzzle,
+  // deep ribs and weight-bearing legs remain the first things one sees.
+  cute: { pivot: 27.0, head: [1.04, 1.08], body: 0.96, centre: 18.0, drop: 0.2 },
   bones: [
     // The spine sits a third of the way down the barrel rather than
     // halfway, which is where a spine is: the ribs hang off it.
@@ -116,18 +127,12 @@ const COW = makeRig({
     { name: 'neck2', parent: 'neck1', head: [27.3, 16.2], angle: 174, len: 3.6 },
     { name: 'skull', parent: 'neck2', head: [23.7, 16.6], angle: 171, len: 9.4 },
     { name: 'ear', parent: 'skull', head: [24.4, 13.6], angle: 352, len: 5 },
-    // The tail hangs down the near side of the rump and is drawn over it,
-    // which is where a cow's tail is and — the reason it had to move — the
-    // only place on this animal there is room for it. Behind the body, as
-    // it was, and again hard against the rear edge, the rope ran along the
-    // buttock's own line for its whole length; two strokes half a unit
-    // apart are one thick stroke, and the cow had no visible tail at all.
-    // Well inside the flank it is a pale rope on a pale ground, and it
-    // crosses the outline once, low down, where crossing it reads as a tail
-    // hanging over the buttock. See `front` below.
-    { name: 'tail1', parent: 'hip', head: [51.6, 12.6], angle: 84, len: 5 },
-    { name: 'tail2', parent: 'tail1', head: [52.1, 17.6], angle: 88, len: 5 },
-    { name: 'tail3', parent: 'tail2', head: [52.3, 22.6], angle: 92, len: 5 },
+    // The short dock clears the rump before gravity takes over. From there
+    // the tail relaxes into a near-vertical chain, visibly separate from
+    // the buttock rather than drawn flat along its outline.
+    { name: 'tail1', parent: 'hip', head: [51.6, 12.6], angle: 25, len: 3 },
+    { name: 'tail2', parent: 'tail1', head: [54.3, 13.9], angle: 78, len: 5 },
+    { name: 'tail3', parent: 'tail2', head: [55.3, 18.8], angle: 92, len: 5 },
   ],
   outline: [
     // The head: nine and a half long by seven deep, and the length is the
@@ -136,19 +141,20 @@ const COW = makeRig({
     // called it a virtue. A grown cow's head is nearly half again as long
     // as it is deep, blunt at the muzzle and deepest at the cheek, and no
     // amount of detail on a square head makes up for the square.
-    [15.0, 15.4, 'skull'], [16.8, 14.8, 'skull'], [18.8, 14.1, 'skull'],
-    [20.8, 13.5, 'skull'], [22.4, 13.1, 'skull'], [23.8, 13.2, 'skull'],
+    [14.2, 16.0, 'skull'], [14.9, 14.7, 'skull'], [16.5, 13.6, 'skull'],
+    [18.8, 12.7, 'skull'], [21.4, 12.0, 'skull'], [23.2, 12.0, 'skull'],
+    [24.4, 12.7, 'skull'],
     // The neck top, rising from the poll to the withers. A cow's head is
     // carried low; the topline is not one straight line from nose to tail.
     [25.8, 13.2, 'neck2'], [27.8, 13.0, 'neck2'],
     [29.6, 12.7, 'neck1'], [31.4, 12.3, 'neck1'],
     [33.2, 12.0, 'chest'], [36.6, 11.8, 'chest'],
     [39.9, 12.2, 'loin'], [43.4, 12.5, 'loin'],
-    [45.9, 12.1, 'hip'], [49.8, 11.7, 'hip'], [52.4, 12.4, 'hip'],
-    [54.1, 14.2, 'hip'], [54.7, 17.0, 'hip'], [54.1, 19.9, 'hip'],
+    [45.9, 12.0, 'hip'], [49.4, 11.6, 'hip'], [52.0, 12.2, 'hip'],
+    [53.9, 13.8, 'hip'], [54.7, 16.5, 'hip'], [54.3, 19.6, 'hip'],
     // The buttock hangs lower than the belly does, which is what keeps a
     // raised barrel from reading as a plank on sticks.
-    [53.4, 22.6, 'hip'], [51.4, 24.8, 'hip'], [48.0, 25.4, 'hip'],
+    [53.6, 22.2, 'hip'], [51.7, 24.7, 'hip'], [48.1, 25.6, 'hip'],
     // The belly, and it is high. This is the change that does most of the
     // work: the barrel was eighteen deep with eight and a half of daylight
     // under it, which is a calf standing in long grass. A cow is about as
@@ -163,9 +169,9 @@ const COW = makeRig({
     // throatlatch between them, because that is what the underside of a
     // cow does. Drawn as a jaw that stopped and a dewlap that started, the
     // step between the two read as a second chin.
-    [24.8, 20.6, 'skull'], [22.8, 21.0, 'skull'], [20.3, 21.0, 'skull'],
-    [17.8, 20.6, 'skull'], [16.0, 20.0, 'skull'], [14.8, 19.0, 'skull'],
-    [14.2, 17.6, 'skull'], [14.3, 16.2, 'skull'],
+    [24.8, 20.8, 'skull'], [22.8, 21.5, 'skull'], [20.2, 21.8, 'skull'],
+    [17.6, 21.5, 'skull'], [15.6, 20.8, 'skull'], [14.3, 19.7, 'skull'],
+    [13.7, 18.2, 'skull'], [13.8, 16.7, 'skull'],
   ],
   legs: [
     // Long, because they were short. A cow stands about as far off the
@@ -176,10 +182,10 @@ const COW = makeRig({
     // angular zigzag that says cattle. The third number in each width list
     // is the joint: a little wider than its neighbours, so there is a knee
     // to see rather than an even taper.
-    leg('chest', [35.9, 18.5], 8.8, 7.5, 34.4, FAR, 1, WALK[0], [5.1, 4.0, 4.2, 2.7, 2.4], 0, 0, FORE),
-    leg('hip', [50.2, 17.8], 12.4, 6.8, 51.6, FAR, -1, WALK[1], [5.9, 4.9, 5.1, 3.0, 2.6], 0, 0, HIND),
-    leg('chest', [33.0, 18.2], 9.8, 8.4, 31.4, GROUND, 1, WALK[2], [5.6, 4.4, 4.6, 3.0, 2.6], 0, 0, FORE),
-    leg('hip', [47.7, 17.4], 13.8, 7.7, 49.4, GROUND, -1, WALK[3], [6.6, 5.4, 5.6, 3.2, 2.8], 0, 0, HIND),
+    leg('chest', [35.9, 18.5], 8.8, 7.5, 34.4, FAR, 1, COW_WALK[0], [5.1, 4.0, 4.2, 2.7, 2.4], 0, 0, { ...FORE, timing: 0.10, lead: 0.18 }),
+    leg('hip', [50.2, 17.8], 12.4, 6.8, 51.6, FAR, -1, COW_WALK[1], [5.9, 4.9, 5.1, 3.0, 2.6], 0, 0, { ...HIND, timing: -0.08, lead: -0.12 }),
+    leg('chest', [33.0, 18.2], 9.8, 8.4, 31.4, GROUND, 1, COW_WALK[2], [5.6, 4.4, 4.6, 3.0, 2.6], 0, 0, { ...FORE, timing: 0.06, lead: 0.22 }),
+    leg('hip', [47.7, 17.4], 13.8, 7.7, 49.4, GROUND, -1, COW_WALK[3], [6.6, 5.4, 5.6, 3.2, 2.8], 0, 0, { ...HIND, timing: -0.11, lead: -0.16 }),
   ],
   pieces: order({
     behind: [
@@ -193,7 +199,9 @@ const COW = makeRig({
       // the crest rather than under it: an ear wholly inside the silhouette
       // is a hole in the neck, and half of one standing proud of the line
       // is the only way this reads as an ear at the size it is drawn.
-      { key: 'ear', kind: 'rigid', bone: 'ear', points: ring(27.0, 13.4, 2.6, 1.4, 14), fill: PALE, stroke: DARK },
+      { key: 'ear', kind: 'rigid', bone: 'ear',
+        points: [[23.8, 13.1], [25.8, 11.7], [28.7, 12.0], [30.0, 13.2],
+                 [28.0, 14.6], [25.2, 14.7]], fill: PALE, stroke: DARK },
     ],
     front: [
       { key: 'shoulder', kind: 'rigid', bone: 'chest', points: [[30.9, 15.6], [33.4, 12.8], [36.4, 13.4], [37.2, 17.2], [36.6, 21.6], [34.6, 23.4], [32.6, 22.2], [30.6, 19.0]], fill: PALE },
@@ -202,8 +210,24 @@ const COW = makeRig({
       { key: 'creaseB', kind: 'line', bone: 'hip', points: [[44.8, 13.8], [44.4, 17.4], [45.3, 20.8], [47.3, 23.2], [49.0, 24.6]], fill: 'none', stroke: DARK },
       { key: 'spotA', kind: 'skin', points: ring(39.4, 15.6, 4.2, 2.6, 8, 12).map(([x, y]) => [x, y, 'loin']), fill: DARK },
       { key: 'spotB', kind: 'skin', points: ring(42.5, 21.6, 3.4, 2.2, -10, 12).map(([x, y]) => [x, y, 'loin']), fill: DARK },
-      { key: 'eye', kind: 'rigid', bone: 'skull', points: ring(20.8, 16.4, 1.4, 1.4, 0, 12), fill: DARK },
-      { key: 'nose', kind: 'rigid', bone: 'skull', points: ring(16.6, 17.9, 0.95, 0.75, -14, 8), fill: DARK },
+      // Warm, broad and blunt. It stops before the cheek, leaving a single
+      // curved boundary that turns the long skull towards the viewer.
+      { key: 'muzzle', kind: 'rigid', bone: 'skull',
+        points: [[13.9, 16.3], [15.4, 15.5], [17.5, 15.5], [18.7, 16.7],
+                 [18.7, 18.8], [17.5, 20.5], [15.5, 20.5], [14.1, 19.6],
+                 [13.6, 18.0]], fill: CREAM },
+      { key: 'muzzleTurn', kind: 'line', bone: 'skull',
+        points: [[18.2, 15.7], [18.8, 17.1], [18.6, 18.8], [17.6, 20.2]],
+        fill: 'none', stroke: DARK },
+      // An almond rather than a button, set under a slight brow. The tiny
+      // glint is enough expression to soften the face without humanising it.
+      { key: 'brow', kind: 'line', bone: 'skull',
+        points: [[19.4, 14.8], [20.7, 14.3], [22.1, 14.7]], fill: 'none', stroke: DARK },
+      { key: 'eye', kind: 'rigid', bone: 'skull', points: ring(20.7, 16.1, 1.35, 1.0, -8, 12), fill: DARK },
+      { key: 'eyeGlint', kind: 'rigid', bone: 'skull', points: ring(20.3, 15.8, 0.34, 0.30, 0, 8), fill: PALE },
+      { key: 'nose', kind: 'rigid', bone: 'skull', points: ring(14.9, 17.7, 0.78, 0.58, -14, 8), fill: DARK },
+      { key: 'mouth', kind: 'line', bone: 'skull',
+        points: [[14.6, 19.2], [15.8, 19.5], [17.0, 19.2]], fill: 'none', stroke: DARK },
       // The tail, last of all, because it hangs in front of the rump it
       // comes off. There is no nose pad any more to keep it company: a head
       // eight units deep has room for an outline, an eye and a nostril, and
@@ -211,8 +235,8 @@ const COW = makeRig({
       // within half a unit of the first and turned the whole front of the
       // face solid. What it was there to say — that the head ends in
       // something rather than merely stopping — the nostril says on its own.
-      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [3.2, 2.6, 2.1, 1.7], fill: PALE, stroke: DARK },
-      { key: 'tuft', kind: 'rigid', bone: 'tail3', points: ring(52.0, 29.2, 1.9, 2.9, 0, 12), fill: PALE, stroke: DARK },
+      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [2.9, 2.35, 1.85, 1.35], fill: PALE, stroke: DARK },
+      { key: 'tuft', kind: 'rigid', bone: 'tail3', points: ring(55.1, 25.4, 1.65, 2.7, 2, 12), fill: DARK, stroke: DARK },
     ],
   }),
 });
@@ -253,7 +277,7 @@ const DOG = makeRig({
     tail3: { swish: 1.15, beat: 0.85, sway: -0.20, drag: ['tail2', 0.085] },
   },
   // Quick and snappy: a dog's head answers at once and overshoots.
-  loose: { neck1: [2.8, 0.55], neck2: [2.4, 0.45], skull: [2.1, 0.34] },
+  loose: { neck1: [2.8, 0.55], neck2: [2.4, 0.45], skull: [2.1, 0.34], tail1: [4.2, 0.70], tail2: [3.4, 0.50], tail3: [2.7, 0.38] },
   // A short step, taken often. All three of these came down together,
   // because between them they are what made the dog read as leggy: a foot
   // that swings four units either side of where it stands takes the leg
@@ -273,7 +297,11 @@ const DOG = makeRig({
   // third of the leg it is on has to fold that third away somewhere, and
   // it was all going into one flat tibia carried through the swing like a
   // shelf. Still the highest of the three.
-  duty: 0.44, lift: 2.8, roll: 18, swing: 'trot', stride: 6.2,
+  duty: 0.50, lift: 2.25, roll: 14, swing: 'trot', stride: 6.8,
+  stepVariation: 0.09, reachVariation: 0.22,
+  impact: 10.0, impactPitch: 48, legGive: 18,
+  bodyHz: 3.4, bodyDamping: 0.52, pitchHz: 3.0, pitchDamping: 0.54,
+  legHz: 6.0, legDamping: 0.43,
   // A trot is the bouncy one and the level one at once: a little more
   // rock than the cow, and almost no nod, because a dog at a trot carries
   // its head like a tray. What moves instead is everything behind it.
@@ -290,10 +318,10 @@ const DOG = makeRig({
   //
   // The bounce of a trot lives in the legs instead, where it always did —
   // the shortest stance and the highest lift of the three, below.
-  pitch: 1.8, bob: 1.05, nod: 0.25,
+  pitch: 1.25, bob: 0.8, nod: 0.35,
   // A dog lands on a pad, in front of the cannon: it walks on its toes.
   foot: 'paw',
-  cute: { pivot: 27.0, head: [0.92, 1.28], body: 0.82, centre: 17.0, drop: 0.8 },
+  cute: { pivot: 27.0, head: [0.96, 1.18], body: 0.88, centre: 18.0, drop: 0.45 },
   bones: [
     { name: 'hip', parent: null, head: [50.0, 19.0], angle: 180, len: 5.0 },
     { name: 'loin', parent: 'hip', head: [45.0, 19.0], angle: 180, len: 5.5 },
@@ -313,15 +341,15 @@ const DOG = makeRig({
     // muzzle, with a step between them. Fourteen long by ten deep, where
     // it was fourteen by six — the stop was already written down here but
     // there was no depth behind it for the stop to be a step *in*.
-    [13.2, 16.2, 'skull'], [15.0, 15.6, 'skull'], [17.4, 15.2, 'skull'],
+    [12.8, 16.5, 'skull'], [14.7, 15.7, 'skull'], [17.2, 15.1, 'skull'],
     // The stop. A dog's brow comes up out of its muzzle; a lamb's slopes
     // off it, and that is the whole difference between the two.
-    [18.8, 13.2, 'skull'], [20.8, 11.6, 'skull'], [23.2, 11.0, 'skull'],
-    [25.6, 11.6, 'skull'],
+    [18.8, 13.0, 'skull'], [20.9, 11.4, 'skull'], [23.2, 10.9, 'skull'],
+    [25.7, 11.7, 'skull'],
     [27.6, 12.8, 'neck2'], [29.8, 14.0, 'neck1'], [31.6, 14.5, 'neck1'],
     [33.8, 14.8, 'chest'], [37.4, 15.0, 'chest'], [41.4, 15.2, 'loin'],
-    [45.4, 15.0, 'loin'], [49.0, 14.8, 'hip'], [51.6, 15.4, 'hip'],
-    [53.2, 17.2, 'hip'], [53.8, 20.0, 'hip'], [53.2, 23.0, 'hip'],
+    [45.4, 14.8, 'loin'], [49.0, 14.6, 'hip'], [51.7, 15.3, 'hip'],
+    [53.3, 17.0, 'hip'], [53.8, 19.7, 'hip'], [53.1, 22.7, 'hip'],
     [51.8, 25.4, 'hip'], [49.6, 27.0, 'hip'],
     // The tuck-up: the belly climbs from the chest back to the waist,
     // which is the line that says dog rather than small cow.
@@ -384,14 +412,14 @@ const DOG = makeRig({
     // toes means — so it is positive on all four, and by enough to see:
     // four degrees is a post, and the one break below the elbow that the
     // eye can find on a front leg is the wrist.
-    leg('chest', [37.0, 23.4], 3.1, 6.3, 36.2, FAR, -1, TROT[0],
-      [5.0, 4.2, 4.4, 3.8, 4.0, 3.1, 2.6], 3.0, 12, FORE),
-    leg('hip', [50.6, 22.4], 6.1, 4.5, 51.4, FAR, 1, TROT[1],
-      [5.4, 4.6, 4.8, 4.0, 4.2, 3.2, 2.7], 3.8, 16, HIND),
-    leg('chest', [34.0, 23.0], 3.6, 7.3, 33.4, GROUND, -1, TROT[2],
-      [5.4, 4.5, 4.8, 4.0, 4.2, 3.3, 2.9], 3.4, 12, FORE),
-    leg('hip', [48.4, 22.0], 7.0, 5.2, 49.3, GROUND, 1, TROT[3],
-      [6.0, 5.1, 5.4, 4.4, 4.6, 3.5, 3.0], 4.2, 16, HIND),
+    leg('chest', [37.0, 23.4], 3.1, 6.3, 36.2, FAR, -1, DOG_WALK[0],
+      [5.0, 4.2, 4.4, 3.8, 4.0, 3.1, 2.6], 3.0, 12, { ...FORE, timing: -0.10, lead: 0.26 }),
+    leg('hip', [50.6, 22.4], 6.1, 4.5, 51.4, FAR, 1, DOG_WALK[1],
+      [5.4, 4.6, 4.8, 4.0, 4.2, 3.2, 2.7], 3.8, 16, { ...HIND, timing: 0.08, lead: -0.20 }),
+    leg('chest', [34.0, 23.0], 3.6, 7.3, 33.4, GROUND, -1, DOG_WALK[2],
+      [5.4, 4.5, 4.8, 4.0, 4.2, 3.3, 2.9], 3.4, 12, { ...FORE, timing: -0.06, lead: 0.30 }),
+    leg('hip', [48.4, 22.0], 7.0, 5.2, 49.3, GROUND, 1, DOG_WALK[3],
+      [6.0, 5.1, 5.4, 4.4, 4.6, 3.5, 3.0], 4.2, 16, { ...HIND, timing: 0.12, lead: -0.24 }),
   ],
   pieces: order({
     farLeg: { hoofFill: OFF, hoofStroke: DARK },
@@ -401,8 +429,8 @@ const DOG = makeRig({
       // end of. A white tip on a white tail is a tip nobody can see, and
       // the flag on the end of a beagle's stern is half of what the back
       // of one looks like going away from you.
-      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [3.4, 2.8, 2.2, 1.7], fill: TAN, stroke: DARK },
-      { key: 'flag', kind: 'rigid', bone: 'tail3', points: ring(59.5, 13.2, 1.7, 1.3, -18, 10), fill: PALE, stroke: DARK },
+      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [3.8, 3.1, 2.35, 1.55], fill: TAN, stroke: DARK },
+      { key: 'flag', kind: 'rigid', bone: 'tail3', points: ring(59.5, 13.2, 2.25, 1.35, -18, 12), fill: PALE, stroke: DARK },
     ],
     over: [
       // And the head, which is tan from the stop back. Skin again, and on
@@ -526,16 +554,20 @@ const CAT = makeRig({
   // Loose. A cat pours rather than turns, and this is where that is
   // said: slow springs, barely damped, so every movement carries on a
   // moment after it is over.
-  loose: { chest: [2.6, 0.7], neck1: [1.9, 0.46], neck2: [1.6, 0.38], skull: [1.35, 0.28] },
+  loose: { chest: [2.6, 0.7], neck1: [1.9, 0.46], neck2: [1.6, 0.38], skull: [1.35, 0.28], tail1: [2.0, 0.42], tail2: [1.45, 0.28], tail3: [1.05, 0.20] },
   // A cat does not bob and a cat does not stamp.
-  duty: 0.62, lift: 1.9, roll: 9, swing: 'stalk', stride: 8.2,
+  duty: 0.68, lift: 1.45, roll: 7, swing: 'stalk', stride: 6.9,
+  stepVariation: 0.12, reachVariation: 0.18,
+  impact: 3.4, impactPitch: 17, legGive: 7,
+  bodyHz: 3.8, bodyDamping: 0.86, pitchHz: 3.2, pitchDamping: 0.82,
+  legHz: 6.8, legDamping: 0.72,
   // And it barely rocks and barely nods. A cat's back is the most level
   // thing here — the legs go and the line along the top does not answer
   // — which is the other half of the pouring, the first half being the
   // couplets its feet come down in.
-  pitch: 0.5, nod: 0.15,
+  pitch: 0.35, nod: 0.12,
   foot: 'paw',
-  cute: { pivot: 27.4, head: [0.86, 1.32], body: 0.85, centre: 20.2, drop: -0.8 },
+  cute: { pivot: 27.4, head: [0.92, 1.22], body: 0.90, centre: 20.2, drop: -0.45 },
   bones: [
     { name: 'hip', parent: null, head: [46.0, 21.5], angle: 180, len: 4.0 },
     { name: 'loin', parent: 'hip', head: [42.0, 21.5], angle: 180, len: 4.0 },
@@ -549,13 +581,13 @@ const CAT = makeRig({
     { name: 'tail3', parent: 'tail2', head: [52.2, 12.9], angle: -14, len: 3.6 },
   ],
   outline: [
-    [15.6, 19.2, 'skull'], [18.4, 17.2, 'skull'], [21.4, 15.6, 'skull'],
-    [24.2, 15.0, 'skull'], [26.8, 15.2, 'skull'], [28.6, 16.4, 'neck2'],
+    [15.3, 19.3, 'skull'], [17.8, 17.0, 'skull'], [20.8, 15.3, 'skull'],
+    [23.8, 14.7, 'skull'], [26.7, 15.2, 'skull'], [28.6, 16.4, 'neck2'],
     [30.6, 17.2, 'neck1'], [32.6, 17.6, 'neck1'], [35.0, 17.6, 'chest'],
     [38.4, 17.4, 'chest'], [41.8, 17.4, 'loin'], [44.8, 17.8, 'loin'],
-    [47.2, 18.8, 'hip'], [48.8, 20.6, 'hip'], [49.4, 23.4, 'hip'],
-    [48.6, 26.2, 'hip'], [47.0, 28.2, 'hip'], [44.8, 29.2, 'hip'],
-    [42.0, 29.6, 'loin'], [38.8, 29.6, 'loin'], [35.8, 29.2, 'chest'],
+    [47.1, 18.6, 'hip'], [48.8, 20.3, 'hip'], [49.4, 22.9, 'hip'],
+    [48.7, 25.6, 'hip'], [47.0, 27.5, 'hip'], [44.8, 28.5, 'hip'],
+    [42.0, 28.9, 'loin'], [38.8, 28.9, 'loin'], [35.8, 28.6, 'chest'],
     [33.2, 28.2, 'chest'], [31.4, 26.4, 'neck1'], [30.2, 24.4, 'neck1'],
     [29.0, 23.0, 'neck2'], [27.6, 22.6, 'neck2'], [25.8, 23.6, 'skull'],
     [22.8, 24.6, 'skull'], [19.6, 24.8, 'skull'], [16.8, 24.2, 'skull'],
@@ -577,14 +609,14 @@ const CAT = makeRig({
     // to put the difference but the knee. See the dog, which lost
     // twenty-five degrees of knee to the same arithmetic from the other
     // direction.
-    leg('chest', [36.4, 24.4], 5.7, 3.9, 35.4, FAR, 1, COUPLE[0],
-      [4.4, 3.7, 3.9, 2.8, 3.0, 2.3, 2.1], 3.4, 4, FORE),
-    leg('hip', [46.6, 23.8], 5.5, 4.0, 44.9, FAR, -1, COUPLE[1],
-      [4.6, 3.9, 4.1, 2.9, 3.1, 2.4, 2.2], 4.0, -12, HIND),
-    leg('chest', [34.0, 24.0], 6.5, 4.4, 33.0, GROUND, 1, COUPLE[2],
-      [4.8, 4.0, 4.2, 3.0, 3.2, 2.5, 2.3], 3.8, 4, FORE),
-    leg('hip', [44.8, 23.4], 6.1, 4.5, 43.2, GROUND, -1, COUPLE[3],
-      [5.2, 4.4, 4.6, 3.2, 3.4, 2.6, 2.4], 4.6, -12, HIND),
+    leg('chest', [36.4, 24.4], 5.7, 3.9, 35.4, FAR, 1, CAT_WALK[0],
+      [4.4, 3.7, 3.9, 2.8, 3.0, 2.3, 2.1], 3.4, 4, { ...FORE, timing: 0.16, lead: 0.34 }),
+    leg('hip', [46.6, 23.8], 5.5, 4.0, 44.9, FAR, -1, CAT_WALK[1],
+      [4.6, 3.9, 4.1, 2.9, 3.1, 2.4, 2.2], 4.0, -12, { ...HIND, timing: -0.12, lead: -0.28 }),
+    leg('chest', [34.0, 24.0], 6.5, 4.4, 33.0, GROUND, 1, CAT_WALK[2],
+      [4.8, 4.0, 4.2, 3.0, 3.2, 2.5, 2.3], 3.8, 4, { ...FORE, timing: 0.20, lead: 0.38 }),
+    leg('hip', [44.8, 23.4], 6.1, 4.5, 43.2, GROUND, -1, CAT_WALK[3],
+      [5.2, 4.4, 4.6, 3.2, 3.4, 2.6, 2.4], 4.6, -12, { ...HIND, timing: -0.16, lead: -0.32 }),
   ],
   bob: 0.7,
   pieces: order({
@@ -600,7 +632,7 @@ const CAT = makeRig({
       // Plumed. A Birman is a longhair and the tail is where that shows at
       // this size — barely tapered, and thicker at the root than the cat
       // before it had at its thickest.
-      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [3.6, 3.3, 2.9, 2.4], fill: POINT, stroke: DARK },
+      { key: 'tail', kind: 'rope', chain: ['tail1', 'tail2', 'tail3'], w: [4.4, 4.15, 3.65, 2.65], fill: POINT, stroke: DARK },
       // The far ear, small and mostly hidden: it is there so the near one
       // reads as one of a pair rather than as a fin.
       { key: 'earB', kind: 'rigid', bone: 'skull', points: [[27.2, 14.8], [29.0, 11.6], [30.3, 15.4]], fill: far(POINT), stroke: DARK },
@@ -650,8 +682,8 @@ const CAT = makeRig({
       // circle two and a half across leaves a rim of blue too thin to be a
       // colour at all. The pupil inside it does the holding instead, which
       // is what a pupil is for.
-      { key: 'eye', kind: 'rigid', bone: 'skull', points: ring(20.6, 18.7, 2.7, 2.7, 0, 14), fill: BLUE },
-      { key: 'pupil', kind: 'rigid', bone: 'skull', points: ring(20.5, 18.7, 1.15, 1.5, 0, 10), fill: DARK },
+      { key: 'eye', kind: 'rigid', bone: 'skull', points: ring(20.6, 18.7, 2.25, 2.25, 0, 14), fill: BLUE },
+      { key: 'pupil', kind: 'rigid', bone: 'skull', points: ring(20.5, 18.7, 0.9, 1.3, 0, 10), fill: DARK },
       { key: 'nose', kind: 'rigid', bone: 'skull', points: ring(16.2, 20.9, 1.15, 0.95, -10, 8), fill: DARK },
     ],
   }),

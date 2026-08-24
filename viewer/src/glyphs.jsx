@@ -157,6 +157,64 @@ function AnimalRigged({ spec }) {
             strokeLinejoin={stroke === 'none' ? undefined : 'round'}
           />
         ))}
+        {/* Activity-only duplicate of the near hind leg. It is normally
+            absent; a cow scratch promotes this copy above the flank so
+            the hoof-to-body contact cannot disappear behind the thigh. */}
+        <path data-cow="scratch-leg" display="none" fill="#faf7ef" stroke="#33383f" strokeLinejoin="round" />
+        <path data-cow="scratch-hoof" display="none" fill="#33383f" stroke="#33383f" strokeLinejoin="round" />
+        {/* A loose toy belongs to an activity, not to the animal's skin.
+            It lives in the same turned frame so it stays in front of the
+            face whichever way the animal is travelling. */}
+        <g data-cow="prop" display="none">
+          <ellipse cx="27" cy="36" rx="2.7" ry=".65" fill="#33383f" opacity=".14" />
+          <g data-cow="ball">
+            <circle cx="27" cy="33.5" r="2.4" fill="#d2691e" stroke="#33383f" />
+            <path d="M25.4 32c1.1.7 2.1 1.7 3.2 3" fill="none" stroke="#faf7ef" />
+            <path d="M28.5 31.8c-.8 1.1-1.6 2.2-2.8 3" fill="none" stroke="#faf7ef" opacity=".8" />
+          </g>
+        </g>
+        <g data-cow="dirt" display="none" fill="#9a6a3a" stroke="#6b4729" strokeWidth=".45">
+          {/* A deliberately oversized fan: at page scale a realistic grain
+              vanishes, while several distinct clods and translucent dust
+              read immediately as earth thrown by the working paw. */}
+          <ellipse cx="35" cy="35.7" rx="8.4" ry="1.65" opacity=".24" stroke="none" />
+          <circle cx="34" cy="33.6" r="4.2" fill="#b7834e" opacity=".20" stroke="none" />
+          <circle cx="38.5" cy="32.4" r="3.5" fill="#c09564" opacity=".18" stroke="none" />
+          <circle cx="29.6" cy="33.2" r="2.9" fill="#b7834e" opacity=".17" stroke="none" />
+          <path d="M32.5 34.5l-2.2-3.1 3.2-1.1 1.5 3.5z" />
+          <path d="M35.4 34.2l.6-4.1 3.3 1.8-1.7 3.1z" />
+          <path d="M39.2 33.8l2.1-3.4 2.2 2.8-1.8 2z" />
+          <path d="M28.8 34l-2.3-2.2 2.7-1.5 1.4 2.7z" />
+          <circle cx="44.2" cy="31.7" r="1.35" />
+          <circle cx="25.2" cy="32.5" r="1.1" />
+          <circle cx="41" cy="27.8" r=".9" />
+          <circle cx="29.4" cy="27.2" r=".75" />
+          <circle cx="46.5" cy="29.4" r=".65" />
+        </g>
+        <g data-cow="chase" display="none" stroke="#33383f" strokeWidth=".55" strokeLinejoin="round">
+          <path d="M0 0c-3-3-5-1.6-3.2.7C-5 3-2.6 3.5 0 .5 2.6 3.5 5 3 3.2.7 5-1.6 3-3 0 0z" fill="#f2b84b" />
+          <circle cx="0" cy=".3" r=".65" fill="#33383f" stroke="none" />
+          <path d="M-.3-.2l-1.2-1.8M.3-.2L1.5-2" fill="none" />
+        </g>
+      </g>
+      {/* Kept outside the mirrored animal frame so lettering never reads
+          backwards when the animal faces right. The animation places it
+          over the appropriate side of the head. */}
+      <g data-cow="sound" display="none">
+        <text
+          x="0"
+          y="2.5"
+          textAnchor="middle"
+          fill="#33383f"
+          stroke="#faf7ef"
+          strokeWidth="1.5"
+          paintOrder="stroke"
+          fontSize="7"
+          fontWeight="900"
+          fontStyle="italic"
+          fontFamily="Comic Sans MS, Comic Sans, cursive"
+          transform="rotate(-8)"
+        >moow</text>
       </g>
     </>
   );

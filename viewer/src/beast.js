@@ -21,7 +21,7 @@
 //    animals.js.
 
 import {
-  skeleton, pose, bind, rigid, reach, spline, curve, limb, joints, spring, settle,
+  skeleton, pose, bind, rigid, spline, curve, limb, spring, settle,
 } from './rig';
 
 export const PALE = '#faf7ef';
@@ -154,6 +154,56 @@ const SWING = {
   // makes a cat look deliberate and silent.
   stalk: (u) => [1 - (1 - u) ** 2.4, Math.sin(Math.PI * u) ** 0.55],
 };
+
+// An illustrative leg, rather than a drafting-compass leg.
+//
+// Exact two-circle IK preserves bone lengths but has an ugly visual
+// singularity near full extension: the knee accelerates sideways, flips
+// through a straight line and locks. That is physically tidy and looks
+// robotic at this scale. These guides preserve the anatomical *gesture*
+// instead—elbow back, stifle forward, hock returning under the body—while
+// allowing the few percent of stretch a hand-drawn moving shape needs.
+// The foot remains exact, so contact still has weight and never skates.
+function articulate(leg, hx, hy, fx, fy, give, phase, duty, out) {
+  const dx = fx - hx;
+  const dy = fy - hy;
+  const d = Math.hypot(dx, dy) || 1;
+  const nx = -dy / d;
+  const ny = dx / d;
+  const total = leg.l1 + leg.l2 + (leg.l3 || 0);
+  const fold = Math.min(5, Math.max(0, total - d));
+  const bend = leg.bend || 1;
+  const recovery = phase < duty
+    ? 0
+    : Math.sin((Math.PI * (phase - duty)) / (1 - duty));
+
+  if (!leg.l3) {
+    const at = leg.l1 / (leg.l1 + leg.l2);
+    // A hoof under load makes a column. Most of the visible knee comes
+    // only after toe-off, when the limb folds to clear the ground.
+    const bow = bend * (0.22 + fold * 0.20 + recovery * 1.35 + give * 0.12);
+    out[0] = hx; out[1] = hy;
+    out[2] = hx + dx * at + nx * bow;
+    out[3] = hy + dy * at + ny * bow + give * 0.28;
+    out[4] = fx; out[5] = fy;
+    return 3;
+  }
+
+  // Digitigrade legs are a shallow S. The middle two guides deliberately
+  // oppose one another: that readable counter-curve is a dog's hock and a
+  // cat's spring, and it survives much better than three exact rods.
+  const upper = leg.l1 / total;
+  const lower = (leg.l1 + leg.l2) / total;
+  const kneeBow = bend * (0.38 + fold * 0.20 + recovery * 1.15 + give * 0.12);
+  const hockBow = -bend * (0.20 + fold * 0.12 + recovery * 0.62) + give * 0.04;
+  out[0] = hx; out[1] = hy;
+  out[2] = hx + dx * upper + nx * kneeBow;
+  out[3] = hy + dy * upper + ny * kneeBow + give * 0.24;
+  out[4] = hx + dx * lower + nx * hockBow;
+  out[5] = hy + dy * lower + ny * hockBow + give * 0.12;
+  out[6] = fx; out[7] = fy;
+  return 4;
+}
 
 // How loosely each bone is hung, going out from the shoulder. A hip is
 // nearly rigid; a skull is on the end of a lot of muscle. See `spring`.
@@ -329,6 +379,15 @@ export function makeRig(raw) {
   const memory = () => {
     const m = {};
     for (const k of Object.keys(loose)) m[k] = { x: 0, v: 0 };
+    // Locomotion has memory of its own. A footfall is an event, not a
+    // sample on a sine wave: it sends a small impulse through the limb and
+    // trunk, then those masses recover on different springs.
+    m.motion = {
+      phases: null,
+      bob: { x: 0, v: 0 },
+      pitch: { x: 0, v: 0 },
+      legs: legs.map(() => ({ x: 0, v: 0 })),
+    };
     return m;
   };
   const HOUSE = memory();
@@ -337,8 +396,40 @@ export function makeRig(raw) {
   // Stance is the long half and the foot does not move over the ground
   // while it lasts — the body travels over it, which is the whole reason
   // a walk stops looking like a shuffle.
-  const step = (leg, stride, gait) => {
-    const p = (stride + leg.phase) % 1;
+  const phaseOf = (leg, travel, mode, index) => {
+    // A chase is a bound, not the dog's diagonal trot played faster. The
+    // two hind legs drive as a close pair, followed by the two forelegs
+    // reaching as a second pair; tiny near/far offsets keep the silhouette
+    // anatomical instead of making each pair one merged limb.
+    const chasePhase = index % 2 === 1
+      ? (index < 2 ? 0.02 : 0.08)
+      : (index < 2 ? 0.52 : 0.58);
+    const offset = mode === 'chase' ? chasePhase : leg.phase;
+    const raw = ((travel + offset) % 1 + 1) % 1;
+    // Real limbs do not pass through their cycle at clockwork speed. A
+    // small monotonic warp lets each shoulder or hip linger and catch up
+    // without changing where contact begins or allowing a planted foot to
+    // slide. Species tune this per leg; zero retains the exact old gait.
+    const duty = spec.duty || 0.65;
+    // Contact is sacred: stance must advance linearly so its local motion
+    // cancels the root's travel exactly. Character timing belongs only to
+    // the foot while it is in the air, where lingering and catching up
+    // cannot create skating. The sine is zero at toe-off and touchdown.
+    if (raw < duty) return raw;
+    const u = (raw - duty) / (1 - duty);
+    const warped = u + (leg.timing || 0) * Math.sin(2 * Math.PI * u) / (2 * Math.PI);
+    return duty + (1 - duty) * warped;
+  };
+
+  const step = (leg, i, travel, gait, seed, mode) => {
+    if (mode === 'hunt') {
+      // A four-point hunting crouch. Separate near from far as well as
+      // fore from hind so the preparation does not collapse into two dark
+      // posts under a low belly: forepaws reach, hind paws brace wide.
+      const spread = [-2.2, 2.5, -3.8, 1.0][i] || 0;
+      return [leg.foot + spread, leg.ground];
+    }
+    const p = phaseOf(leg, travel, mode, i);
     const duty = spec.duty || 0.65;
     // Every foot on the animal sweeps exactly the same distance, because
     // they are all attached to the same body and the body only goes one
@@ -346,16 +437,29 @@ export function makeRig(raw) {
     // is a thing a drawing may say and a walk may not: whichever of them
     // is wrong is a foot dragging along the floor, and both of them being
     // wrong in opposite directions is a cow tearing itself in half.
-    const s = (spec.stride || 9) * gait;
+    // Stride length is geometry, not an animation strength. Scaling it up
+    // with `gait` made the root start travelling before a stance foot had
+    // enough counter-travel, which is exactly the startup skid. Once there
+    // is locomotion, contact uses the full stride; gait may still fade lift,
+    // impact and secondary body motion without weakening traction.
+    const modeStride = mode === 'chase' ? 2.38 : 1;
+    const s = (spec.stride || 9) * modeStride * (gait > 0.015 ? 1 : gait / 0.015);
     if (p < duty) return [leg.foot - s / 2 + (s * p) / duty, leg.ground];
     const u = (p - duty) / (1 - duty);
     // What the fore and the hind may still differ in is the *shape* of the
     // swing — how high the foot comes and by what path — which is `lift`
     // and `swing` below and costs nothing on the ground.
     const [ux, uy] = (SWING[leg.swing || spec.swing] || SWING.plod)(u);
+    // No two recoveries are carbon copies. Variation is deterministic for
+    // one leg-cycle (so animation remains reproducible), changes only at
+    // contact where its contribution is zero, and never touches stance.
+    const cycle = Math.floor(travel + leg.phase);
+    const grain = Math.sin((cycle + 1) * (i + 2.37) * 12.9898 + seed * 4.17);
+    const lift = 1 + grain * (spec.stepVariation || 0.07);
+    const reach = (leg.lead || 0) + grain * (spec.reachVariation || 0.16);
     return [
-      leg.foot + s / 2 - s * ux,
-      leg.ground - (spec.lift || 3.4) * (leg.lift || 1) * gait * uy,
+      leg.foot + s / 2 - s * ux + reach * Math.sin(Math.PI * u) * gait,
+      leg.ground - (spec.lift || 3.4) * (leg.lift || 1) * lift * gait * uy * (mode === 'chase' ? 1.62 : 1),
     ];
   };
 
@@ -364,12 +468,43 @@ export function makeRig(raw) {
     const wag = s.wag || 0;
     const gait = s.gait || 0;
     const stride = s.stride || 0;
+    const travel = (s.cycle || 0) + stride;
     const dt = Math.min(0.05, s.dt || 0);
     const mem = s.mem || HOUSE;
     const t = (s.now || 0) / 1000;
     const seed = (s.seed || 0) * 6.28;
-    const bob = -(spec.bob || 0.9) * gait * (0.5 - 0.5 * Math.cos(4 * Math.PI * stride));
-    const beat = Math.cos(4 * Math.PI * stride) * gait;
+    // The fallback also makes hot-reloaded animals born under the previous
+    // rig version adopt the new locomotion state without disappearing.
+    const motion = mem.motion || (mem.motion = {
+      phases: null,
+      bob: { x: 0, v: 0 },
+      pitch: { x: 0, v: 0 },
+      legs: legs.map(() => ({ x: 0, v: 0 })),
+    });
+    const phases = legs.map((leg, i) => phaseOf(leg, travel, s.mode, i));
+    const duty = spec.duty || 0.65;
+    if (dt > 0 && motion.phases) {
+      for (let i = 0; i < phases.length; i += 1) {
+        // Crossing from recovery into stance is impact. Near legs carry a
+        // touch more visual weight; fore and hind tip the trunk in opposite
+        // directions. Exact simultaneity is already broken by the gait.
+        if (phases[i] < duty && motion.phases[i] >= duty && gait > 0.15) {
+          const near = i > 1 ? 1 : 0.78;
+          const impactScale = s.mode === 'chase' ? 0.38 : 1;
+          motion.bob.v += (spec.impact || 1.5) * near * gait * impactScale;
+          motion.pitch.v += (i % 2 === 0 ? 1 : -1) * (spec.impactPitch || 2.2) * near * gait * impactScale;
+          motion.legs[i].v += (spec.legGive || 2.4) * gait * impactScale;
+        }
+      }
+    }
+    motion.phases = phases;
+    const bob = dt > 0
+      ? spring(motion.bob, 0, dt, spec.bodyHz || 2.7, spec.bodyDamping || 0.62)
+      : settle(motion.bob, 0);
+    const pitch = dt > 0
+      ? spring(motion.pitch, 0, dt, spec.pitchHz || 2.2, spec.pitchDamping || 0.68)
+      : settle(motion.pitch, 0);
+    const beat = Math.max(-1, Math.min(1, -motion.bob.v * 0.12)) * gait;
     // The long one, once round the stride rather than twice. How much of
     // it each species takes is most of what tells their walks apart from
     // the neck up: a cow nods deeply enough to count the steps by, a
@@ -383,8 +518,6 @@ export function makeRig(raw) {
     // — which is what makes the two read as one movement instead of as a
     // body going up and down on a lift. A degree and a half is plenty:
     // this is the difference between a walk and a walk, not a see-saw.
-    const pitch = (spec.pitch == null ? 1.5 : spec.pitch)
-      * gait * Math.sin(4 * Math.PI * stride);
 
     // Breathing, and it is the barrel getting wider rather than the whole
     // animal moving up and down. On top of it the barrel takes the weight
@@ -425,10 +558,10 @@ export function makeRig(raw) {
       const lift = s.paw && s.paw[0] === i ? s.paw : null;
       const [fx, fy] = lift
         ? [leg.foot + lift[1], leg.ground - lift[2]]
-        : step(leg, stride, gait);
+        : step(leg, i, travel, gait, seed, s.mode);
       // Heel down as it lands, toe down as it leaves, and hanging a
       // little while it swings.
-      const ph = (stride + leg.phase) % 1;
+      const ph = phases[i];
       const dutyOf = spec.duty || 0.65;
       const R = (((spec.roll || 12) * Math.PI) / 180) * gait;
       let roll;
@@ -439,6 +572,10 @@ export function makeRig(raw) {
       } else {
         roll = R * 0.55;
       }
+      // Authored paw work may rotate the pad independently of the leg.
+      // Digging uses this to curl the toes back only after the scrape,
+      // while ordinary walking continues to use the contact roll above.
+      if (lift && lift[3]) roll += lift[3];
       // A digitigrade animal's ankle is well off the ground, so its leg
       // is three segments and not two: femur, tibia, and a metatarsus
       // standing on the toes. Solving all three to a foot is
@@ -455,24 +592,24 @@ export function makeRig(raw) {
       // hard Z with a right angle in the middle of it. A pastern leans with
       // the leg it is on. With the foot under the hip this is the same
       // arithmetic it always was; it only differs where it was wrong.
-      let ax = fx;
-      let ay = fy;
-      if (leg.l3) {
-        const t = Math.atan2(hy - fy, hx - fx) + ((leg.toe || 0) * Math.PI) / 180;
-        ax = fx + Math.cos(t) * leg.l3;
-        ay = fy + Math.sin(t) * leg.l3;
-      }
-      const [a1, a2] = reach(hx, hy, ax, ay, leg.l1, leg.l2, leg.bend);
-      const kx = hx + Math.cos((a1 * Math.PI) / 180) * leg.l1;
-      const ky = hy + Math.sin((a1 * Math.PI) / 180) * leg.l1;
-      const J = leg.l3 ? [hx, hy, kx, ky, ax, ay, fx, fy] : [hx, hy, kx, ky, fx, fy];
-      const n = joints(J, scratch);
-      const xy = limb(scratch.subarray(0, n * 2), leg.w);
+      const give = dt > 0
+        ? spring(motion.legs[i], 0, dt, spec.legHz || 5.2, spec.legDamping || 0.48)
+        : settle(motion.legs[i], 0);
+      const n = articulate(leg, hx, hy, fx, fy, give, phases[i], duty, scratch);
+      // The old exact solver inserted intermediate samples along every
+      // bone, so widths were authored as five or seven values. The new
+      // guides are the anatomical landmarks themselves; retain the hip,
+      // joint and toe widths rather than accidentally giving a paw the
+      // width of the hock above it.
+      const widths = leg.l3
+        ? [leg.w[0], leg.w[2], leg.w[4], leg.w[leg.w.length - 1]]
+        : [leg.w[0], leg.w[2], leg.w[leg.w.length - 1]];
+      const xy = limb(scratch.subarray(0, n * 2), widths);
+      const lower = (n - 2) * 2;
+      const footDir = Math.atan2(fy - scratch[lower + 1], fx - scratch[lower]);
       return {
         d: spline(xy, xy.length / 2, 0.6),
-        hoof: footPath(spec.foot || 'cloven', fx, fy,
-          leg.l3 ? Math.atan2(fy - ay, fx - ax) : (a2 * Math.PI) / 180,
-          leg.w[n - 1] * 0.85, roll),
+        hoof: footPath(spec.foot || 'cloven', fx, fy, footDir, widths[n - 1] * 0.85, roll),
       };
     });
 

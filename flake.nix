@@ -66,6 +66,7 @@
       (python312.withPackages devPython)
       nodejs_22            # frontend/ and viewer/ are both Vite apps
       sqlite               # papol.db is read and edited by hand often enough
+      ripgrep              # fast repository-wide source search
       ruff
       chromium
       # Playwright will not download browsers here and should not try; these

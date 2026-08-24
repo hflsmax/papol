@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
 import { animalFor } from './animals';
-import { stepCow, poseCow } from './cow';
+import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
 import { pageOverlays } from './references';
 import { STRIP_RATIO } from './ink';
 
@@ -51,7 +51,7 @@ const ANCHOR_REACH = 13;
 // after it has been drawn.
 const MAX_POINTS = 4000;
 // One object, so clearing the highlight does not count as a change.
-const EMPTY_DOOMED = { ink: [], notes: [], cows: [] };
+const EMPTY_DOOMED = { ink: [], notes: [], animals: [] };
 // How wide a stroke is to take hold of, whatever it was drawn at.
 const GRAB_WIDTH = 14;
 // Draw, then stop and hold: the stroke snaps to a straight line from where
@@ -98,10 +98,12 @@ export default function PdfPage({
   onMoveStroke,
   onDragNote,
   animal,
-  cows,
-  onDropCow,
-  onMoveCow,
-  onEraseCow,
+  animalSpeed,
+  animalActivity,
+  animals,
+  onDropAnimal,
+  onMoveAnimal,
+  onEraseAnimal,
 }) {
   const canvasRef = useRef(null);
   const holderRef = useRef(null);
@@ -524,7 +526,7 @@ export default function PdfPage({
   // The same reckoning the eraser itself uses, so what lights up is exactly
   // what would go.
   const under = (at) => {
-    const found = { ink: [], notes: [], cows: [] };
+    const found = { ink: [], notes: [], animals: [] };
     for (const stroke of ink) {
       if (nearStroke(stroke.points, at, ERASE_REACH)) found.ink.push(stroke.id);
     }
@@ -532,8 +534,8 @@ export default function PdfPage({
       if (note.content || !note.anchor) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.id);
     }
-    for (const cow of cows) {
-      if (inPageUnits(cow, at) < (animalFor(cow.kind).size * size.width) / 2) found.cows.push(cow.id);
+    for (const animalRecord of animals) {
+      if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) found.animals.push(animalRecord.id);
     }
     return found;
   };
@@ -551,8 +553,8 @@ export default function PdfPage({
       if (note.content || !note.anchor) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.id);
     }
-    for (const cow of cows) {
-      if (inPageUnits(cow, at) < (animalFor(cow.kind).size * size.width) / 2) onEraseCow(cow.id);
+    for (const animalRecord of animals) {
+      if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) onEraseAnimal(animalRecord.id);
     }
   };
 
@@ -567,7 +569,10 @@ export default function PdfPage({
       const held = animalFor(animal);
       const feet = ((held.ground - held.box.h / 2) * held.size * size.width)
         / (held.box.w * size.height);
-      onDropCow(pageNumber, { x: at.x, y: Math.min(0.95, at.y + feet) });
+      onDropAnimal(pageNumber, {
+        x: Math.max(-0.08, Math.min(1.08, at.x)),
+        y: Math.max(-0.10, Math.min(1.10, at.y + feet)),
+      });
       return;
     }
     if (tool === 'anchor' || tool === 'here') {
@@ -628,7 +633,7 @@ export default function PdfPage({
       setDoomed((was) =>
         was.ink.join() === found.ink.join() &&
         was.notes.join() === found.notes.join() &&
-        was.cows.join() === found.cows.join()
+        was.animals.join() === found.animals.join()
           ? was
           : found
       );
@@ -810,43 +815,43 @@ export default function PdfPage({
 
   // A cow is carried the way a stroke is: with the arrow, from wherever it
   // was taken hold of, and it goes on grazing where it is put down.
-  const cowDragRef = useRef(null);
+  const animalDragRef = useRef(null);
 
-  const startCowDrag = (e, cow) => {
+  const startAnimalDrag = (e, animalRecord) => {
     if (tool !== 'arrow' || e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const at = anchorAt(e.clientX, e.clientY);
-    cowDragRef.current = { id: cow.id, grab: { x: at.x - cow.x, y: at.y - cow.y } };
-    onMoveCow(cow.id, { held: true });
+    animalDragRef.current = { id: animalRecord.id, grab: { x: at.x - animalRecord.x, y: at.y - animalRecord.y } };
+    onMoveAnimal(animalRecord.id, { held: true });
   };
 
-  const moveCowDrag = (e) => {
-    const d = cowDragRef.current;
+  const moveAnimalDrag = (e) => {
+    const d = animalDragRef.current;
     if (!d) return;
     const at = anchorAt(e.clientX, e.clientY);
     const clamp = (v) => Math.min(0.95, Math.max(0.05, v));
-    onMoveCow(d.id, { x: clamp(at.x - d.grab.x), y: clamp(at.y - d.grab.y) });
+    onMoveAnimal(d.id, { x: clamp(at.x - d.grab.x), y: clamp(at.y - d.grab.y) });
   };
 
-  const endCowDrag = () => {
-    const d = cowDragRef.current;
-    cowDragRef.current = null;
-    if (d) onMoveCow(d.id, { held: false, act: null, until: performance.now() + 1200 });
+  const endAnimalDrag = () => {
+    const d = animalDragRef.current;
+    animalDragRef.current = null;
+    if (d) onMoveAnimal(d.id, { held: false, act: null, until: performance.now() + 1200 });
   };
 
   // Reduced motion means reduced motion. A cow wandering across a page is
   // a decoration, and a decoration is the kind of thing that setting is
   // about: it stands where it was put instead, and can still be picked up
   // and moved, because that is the reader doing it and not the page.
-  const [stillCows, setStillCows] = useState(
+  const [stillAnimals, setStillAnimals] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   );
 
   useEffect(() => {
     const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     if (!mq) return undefined;
-    const onChange = () => setStillCows(mq.matches);
+    const onChange = () => setStillAnimals(mq.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
@@ -855,18 +860,18 @@ export default function PdfPage({
   // on the page. The callback is kept and handed back for the same cow
   // every time, because a fresh one each render would have React take the
   // whole herd off the page and put it back on for every laser frame.
-  const cowPartsRef = useRef(new Map());
-  const cowRefsRef = useRef(new Map());
+  const animalPartsRef = useRef(new Map());
+  const animalRefsRef = useRef(new Map());
 
-  const cowRef = (id) => {
-    const made = cowRefsRef.current;
+  const animalRef = (id) => {
+    const made = animalRefsRef.current;
     if (!made.has(id)) {
       made.set(id, (node) => {
         if (!node) {
-          cowPartsRef.current.delete(id);
+          animalPartsRef.current.delete(id);
           return;
         }
-        cowPartsRef.current.set(id, {
+        animalPartsRef.current.set(id, {
           root: node,
           frame: node.querySelector('[data-cow="frame"]'),
           bob: node.querySelectorAll('[data-cow="bob"]'),
@@ -876,6 +881,13 @@ export default function PdfPage({
           legs: node.querySelectorAll('[data-cow="leg"]'),
           over: node.querySelectorAll('[data-cow="over"]'),
           shadow: node.querySelector('[data-cow="shadow"]'),
+          prop: node.querySelector('[data-cow="prop"]'),
+          ball: node.querySelector('[data-cow="ball"]'),
+          dirt: node.querySelector('[data-cow="dirt"]'),
+          chase: node.querySelector('[data-cow="chase"]'),
+          sound: node.querySelector('[data-cow="sound"]'),
+          scratchLeg: node.querySelector('[data-cow="scratch-leg"]'),
+          scratchHoof: node.querySelector('[data-cow="scratch-hoof"]'),
           // A rigged species has these instead of the groups above; see
           // AnimalJointed. Empty for the four that are still capsules.
           rig: node.querySelectorAll('[data-rig]'),
@@ -894,21 +906,54 @@ export default function PdfPage({
   // screens up is still grazing when you get back to it, but it is not
   // grazing on the battery in between.
   useLayoutEffect(() => {
-    for (const id of [...cowRefsRef.current.keys()]) {
-      if (!cows.some((c) => c.id === id)) cowRefsRef.current.delete(id);
+    for (const id of [...animalRefsRef.current.keys()]) {
+      if (!animals.some((c) => c.id === id)) animalRefsRef.current.delete(id);
     }
-    if (!cows.length || !size.width) return undefined;
+    if (!animals.length || !size.width) return undefined;
     const paint = (now) => {
-      for (const c of cows) {
-        const parts = cowPartsRef.current.get(c.id);
+      // A low-frequency social preference, not collision physics. This
+      // vector is merely consulted the next time an animal chooses to walk;
+      // it never pushes a body already standing or changes a route mid-step.
+      for (let i = 0; i < animals.length; i += 1) {
+        const c = animals[i];
+        let openX = 0;
+        let openY = 0;
+        for (let j = 0; j < animals.length; j += 1) {
+          if (i === j) continue;
+          let dx = c.x - animals[j].x;
+          let dy = c.y - animals[j].y;
+          let distance = Math.hypot(dx, dy);
+          if (distance >= 0.30) continue;
+          if (distance < 0.002) {
+            const angle = ((c.seed || 0.3) - (animals[j].seed || 0.7)) * Math.PI * 2;
+            dx = Math.cos(angle) * 0.002;
+            dy = Math.sin(angle) * 0.002;
+            distance = 0.002;
+          }
+          const weight = (1 - distance / 0.30) ** 2;
+          openX += (dx / distance) * weight;
+          openY += (dy / distance) * weight;
+        }
+        c.crowdX = openX;
+        c.crowdY = openY;
+      }
+      for (const c of animals) {
+        const parts = animalPartsRef.current.get(c.id);
         if (!parts) continue;
+        c.speedScale = animalSpeed;
+        const previousActivity = c.activityScale ?? 1;
+        c.activityScale = animalActivity;
+        if (animalActivity > previousActivity) {
+          c.specialAt = 0;
+          c.until = Math.min(c.until || Infinity, performance.now() + 600);
+        }
         const spec = animalFor(c.kind);
         const k = (spec.size * size.width) / spec.box.w;
-        poseCow(c, parts, now, k, c.x * size.width, (1 - c.y) * size.height);
+        poseAnimal(c, parts, now, k, c.x * size.width, (1 - c.y) * size.height);
       }
     };
-    if (stillCows) {
-      for (const c of cows) {
+    if (stillAnimals) {
+      for (const c of animals) {
         c.turn = c.facing === 1 ? -1 : 1;
         c.gait = 0;
         c.head = 0;
@@ -922,13 +967,16 @@ export default function PdfPage({
         c.tilt = 0;
         c.sink = 0;
         c.tailTill = 0;
+        c.act = null;
         c.born = -1e6;
       }
       paint(performance.now());
       return undefined;
     }
     paint(performance.now());
-    if (!visible) return undefined;
+    // Keep the lightweight animal clock running after its source page
+    // scrolls out of view, otherwise a follower freezes before reaching
+    // the gray gutter. PDF canvas and text work remain visibility-gated.
     let last = performance.now();
     let raf = 0;
     const frame = (now) => {
@@ -937,13 +985,13 @@ export default function PdfPage({
       // it was left rather than somewhere across the field.
       const dt = Math.min(50, now - last);
       last = now;
-      for (const c of cows) stepCow(c, dt, now);
+      for (const c of animals) stepAnimal(c, dt, now);
       paint(now);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [cows, visible, size.width, size.height, stillCows]);
+  }, [animals, visible, size.width, size.height, stillAnimals, animalSpeed, animalActivity]);
 
   // The anchor in hand is the anchor it drops: the same path, at the size
   // the pin is drawn, with the hotspot on the point the pin hangs from — so
@@ -1188,13 +1236,13 @@ export default function PdfPage({
                 written by the frame loop above. Nothing React renders and
                 the loop writes is ever the same attribute, so the two are
                 never arguing over one. */}
-            {cows.map((cow) => (
+            {animals.map((animalRecord) => (
               <g
-                key={cow.id}
-                ref={cowRef(cow.id)}
-                className={doomed.cows.includes(cow.id) ? 'cow going' : 'cow'}
+                key={animalRecord.id}
+                ref={animalRef(animalRecord.id)}
+                className={doomed.animals.includes(animalRecord.id) ? 'cow going' : 'cow'}
               >
-                <AnimalJointed spec={animalFor(cow.kind)} />
+                <AnimalJointed spec={animalFor(animalRecord.kind)} />
                 {/* Taken hold of anywhere on it. The box that listens sits
                     outside the turn, because halfway through one the animal
                     is edge-on and a box that turned with it would be a few
@@ -1202,15 +1250,15 @@ export default function PdfPage({
                 {tool === 'arrow' && (
                   <rect
                     className="cow-grab"
-                    x={-animalFor(cow.kind).box.w / 2}
-                    y={-animalFor(cow.kind).box.h / 2}
-                    width={animalFor(cow.kind).box.w}
-                    height={animalFor(cow.kind).box.h}
+                    x={-animalFor(animalRecord.kind).box.w / 2}
+                    y={-animalFor(animalRecord.kind).box.h / 2}
+                    width={animalFor(animalRecord.kind).box.w}
+                    height={animalFor(animalRecord.kind).box.h}
                     fill="transparent"
-                    onPointerDown={(e) => startCowDrag(e, cow)}
-                    onPointerMove={moveCowDrag}
-                    onPointerUp={endCowDrag}
-                    onPointerCancel={endCowDrag}
+                    onPointerDown={(e) => startAnimalDrag(e, animalRecord)}
+                    onPointerMove={moveAnimalDrag}
+                    onPointerUp={endAnimalDrag}
+                    onPointerCancel={endAnimalDrag}
                   />
                 )}
               </g>

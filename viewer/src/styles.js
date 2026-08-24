@@ -281,6 +281,36 @@ button.link.danger { color: var(--red); }
 
 .brush-pop .beast.on .beast-name { color: var(--ink); }
 
+.animal-control {
+  display: flex;
+  align-items: center;
+  min-width: 180px;
+}
+
+.animal-control input[type='range'] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.brush-pop .magic-wand-beast { color: var(--ink); }
+.brush-pop .magic-wand-beast:hover {
+  background: linear-gradient(145deg, var(--accent-soft), var(--paper));
+}
+
+.animal-follow-control {
+  gap: 8px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+}
+
+.animal-follow-control input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 /* One colour at three strengths, on the white the ink will be on. Anything
    put underneath to show what survives — a rule of type, a half-black
    patch — reads as a second colour being offered, in a row whose whole
@@ -382,6 +412,7 @@ button.link.danger { color: var(--red); }
    in hand still visibly answers the pointer — the brush opens its colours
    on a second click, and a button that does not respond looks spent. */
 .viewer-bar .tool.on {
+  --glyph-cutout: var(--accent);
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
@@ -389,6 +420,7 @@ button.link.danger { color: var(--red); }
 }
 
 .viewer-bar .tool.on:hover {
+  --glyph-cutout: var(--accent-strong);
   background: var(--accent-strong);
   border-color: var(--accent-strong);
   color: #ffffff;
@@ -449,8 +481,17 @@ button.link.danger { color: var(--red); }
   display: flex;
   flex-direction: column;
   align-items: safe center;
-  gap: 20px;
+  gap: 0;
   background: var(--paper-sunken);
+}
+
+.animal-gutter {
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  height: 20px;
+  flex: 0 0 20px;
+  background: transparent;
 }
 
 /* Over the page skeletons, saying what they alone do not: whether the
@@ -981,6 +1022,9 @@ button.link.danger { color: var(--red); }
      listens, and only while the arrow is in hand. */
   pointer-events: none;
   z-index: 3;
+  /* Animals may stand in the gray gutter between sheets. Ink paths remain
+     page-normalized and never use coordinates outside the viewBox. */
+  overflow: visible;
 }
 
 /* A cow is taken hold of anywhere on it. */

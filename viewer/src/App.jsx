@@ -12,6 +12,7 @@ import ReferenceCard from './ReferenceCard';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
 import { STRIP_RATIO } from './ink';
+import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -126,7 +127,7 @@ const EMPTY_INK = [];
 const TOOLS = [
   { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools' },
   { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks' },
-  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, cows, and anchors with nothing written on them' , mnemonic: 'Clean' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' , mnemonic: 'Clean' },
   { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'Vanishes' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
   { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'Anchor, shifted' },
@@ -203,6 +204,18 @@ export default function App() {
     const kept = localStorage.getItem('papol_viewer_animal');
     return ANIMALS.some((a) => a.id === kept) ? kept : 'cow';
   });
+  const [animalSpeed, setAnimalSpeed] = useState(() => {
+    const n = Number(localStorage.getItem('papol_viewer_animal_speed'));
+    return Number.isFinite(n) && n >= 0.4 && n <= 1.8 ? n : 1;
+  });
+  const [animalActivity, setAnimalActivity] = useState(() => {
+    const n = Number(localStorage.getItem('papol_viewer_animal_activity'));
+    return Number.isFinite(n) && n >= 0 && n <= 3 ? n : 1;
+  });
+  const [animalFollow, setAnimalFollow] = useState(() => {
+    const kept = localStorage.getItem('papol_viewer_animal_follow');
+    return kept == null ? true : kept === 'true';
+  });
 
   // Their ink on this edition. The laser is not in here — it leaves
   // nothing, which is the point of it.
@@ -219,8 +232,8 @@ export default function App() {
   const [draggingNoteId, setDraggingNoteId] = useState(null);
   // Cows. Nowhere near the server and gone on reload, like the laser's
   // trail: they are not a mark on the paper, they are company.
-  const [cows, setCows] = useState([]);
-  const nextCowId = useRef(0);
+  const [placedAnimals, setPlacedAnimals] = useState([]);
+  const nextAnimalId = useRef(0);
   // What the brush is loaded with. Remembered like the tool itself: someone
   // who marks a paper up in red goes on doing it in red.
   // Once, before any of the four are read.
@@ -384,6 +397,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('papol_viewer_animal', animal);
   }, [animal]);
+
+  useEffect(() => {
+    localStorage.setItem('papol_viewer_animal_speed', String(animalSpeed));
+    localStorage.setItem('papol_viewer_animal_activity', String(animalActivity));
+    localStorage.setItem('papol_viewer_animal_follow', String(animalFollow));
+  }, [animalSpeed, animalActivity, animalFollow]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_ink', inkColor);
@@ -777,98 +796,162 @@ export default function App() {
     }
   };
 
-  const cowsByPage = useMemo(() => {
+  const animalsByPage = useMemo(() => {
     const map = new Map();
-    for (const cow of cows) {
-      if (!map.has(cow.page)) map.set(cow.page, []);
-      map.get(cow.page).push(cow);
+    for (const animalRecord of placedAnimals) {
+      if (!map.has(animalRecord.page)) map.set(animalRecord.page, []);
+      map.get(animalRecord.page).push(animalRecord);
     }
     return map;
-  }, [cows]);
+  }, [placedAnimals]);
 
-  // A cow is a plain record that the page it stands on then mutates in
-  // place, frame by frame. React is told when one is put down and when one
-  // is rubbed out, and nothing in between: an animal that has moved a pixel
-  // is not a change to the document, and putting every step through state
-  // re-rendered every page in it ten times a second to say so.
-  //
-  // Which is also why the walking is not here any more. It is in PdfPage,
-  // which knows how big the page is and can therefore draw the animal as
-  // well as move it — and can stop doing both when the page scrolls away.
-  const dropCow = (page, at) => {
-    const facing = Math.random() < 0.5 ? 1 : -1;
-    setCows((herd) => [
-      ...herd,
-      {
-        id: `cow-${(nextCowId.current += 1)}`,
-        // What it is. Kept on the record rather than looked up from the
-        // tool, because the tool moves on and the animal stays put.
-        kind: animal,
-        page,
-        x: at.x,
-        y: at.y,
-        facing,
-        // No activity and no spell left to run: the first frame it is
-        // alive for picks it one, so it lands and immediately starts doing
-        // whatever its kind does.
-        act: null,
-        until: 0,
-        held: false,
-        // What it is doing: where it is trying to go, and how fast it is
-        // actually going, which are not the same thing while it is getting
-        // under way or coming to a stop.
-        tvx: 0,
-        tvy: 0,
-        vx: 0,
-        vy: 0,
-        // How it looks while it does it. `turn` is which way round it is,
-        // and it travels between the two rather than jumping; `gait` is
-        // how much of a walk to show; `stride` is where in that walk it is.
-        turn: facing === 1 ? -1 : 1,
-        gait: 0,
-        stride: Math.random(),
-        // What the activity is asking the body for, in degrees and units,
-        // eased toward rather than switched to.
-        head: 0,
-        tilt: 0,
-        sink: 0,
-        earTo: 0,
-        swish: 0,
-        // The single raised foot, and which leg it belongs to. Null until
-        // an activity that uses one comes round.
-        paw: 0,
-        pawWag: 0,
-        pawPhase: 0,
-        pawLeg: null,
-        // The last walk and the last activity it chose, so that neither is
-        // chosen twice running.
-        wasWalk: null,
-        wasStill: null,
-        // Phases accumulate, so an activity may change how fast the tail
-        // swings or the head works without the shape jumping.
-        tailPhase: Math.random() * 6.28,
-        wagPhase: 0,
-        ear: 0,
-        earAt: 0,
-        earTill: 0,
-        tailAt: 0,
-        tailTill: 0,
-        born: performance.now(),
-        // No two of them alike. A herd whose tails swing together, at one
-        // speed, is a row of clockwork; the seed and the pace are what keep
-        // them from ever quite lining up.
-        seed: Math.random(),
-        pace: 0.85 + Math.random() * 0.3,
-      },
-    ]);
+  // React owns arrivals and departures; PdfPage mutates motion between them.
+  const dropAnimal = (page, at, kind = animal) => {
+    const placed = createPlacedAnimal({
+      id: `animal-${(nextAnimalId.current += 1)}`,
+      kind,
+      page,
+      x: at.x,
+      y: at.y,
+      activityScale: animalActivity,
+    });
+    setPlacedAnimals((herd) => [...herd, placed]);
   };
 
-  const moveCow = (id, at) => {
-    const cow = cows.find((c) => c.id === id);
-    if (cow) Object.assign(cow, at);
+  // Scatter a little menagerie through what the reader can see right now.
+  // Screen points are converted back into coordinates belonging to the
+  // nearest sheet, so animals may also land naturally in a visible gutter.
+  const waveAnimalWand = () => {
+    const placements = randomViewportPlacements(
+      scrollerRef.current,
+      ANIMALS.map(({ id }) => id),
+      10
+    );
+    const now = performance.now();
+    const arrivals = placements.map((placement) => createPlacedAnimal({
+      ...placement,
+      id: `animal-${(nextAnimalId.current += 1)}`,
+      activityScale: animalActivity,
+      now,
+    }));
+    if (arrivals.length) setPlacedAnimals((herd) => [...herd, ...arrivals]);
   };
 
-  const eraseCow = (id) => setCows((herd) => herd.filter((c) => c.id !== id));
+  const moveAnimal = (id, at) => {
+    const animalRecord = placedAnimals.find((candidate) => candidate.id === id);
+    if (animalRecord) Object.assign(animalRecord, at);
+  };
+
+  const eraseAnimal = (id) => setPlacedAnimals((herd) => herd.filter((c) => c.id !== id));
+
+  useEffect(() => {
+    if (!animalFollow) {
+      for (const cow of placedAnimals) {
+        cow.followTarget = null;
+        cow.followPage = false;
+        cow.viewportFollowing = false;
+        cow.viewportOutsideAt = 0;
+      }
+      return undefined;
+    }
+    const guide = () => {
+      const scroller = scrollerRef.current;
+      if (!scroller) return;
+      const box = scroller.getBoundingClientRect();
+      let crossed = false;
+      for (const cow of placedAnimals) {
+        let cowCrossed = false;
+        cow.followPage = true;
+        let currentEl = scroller.querySelector(`[data-page="${cow.page}"]`);
+        if (!currentEl) continue;
+        let currentRect = currentEl.getBoundingClientRect();
+
+        // Coordinate ownership changes only after the animal itself walks
+        // through the physical midpoint of a gutter. It is unrelated to
+        // which page happens to cross the browser's centre line.
+        const nextEl = scroller.querySelector(`[data-page="${cow.page + 1}"]`);
+        if (nextEl) {
+          const nextRect = nextEl.getBoundingClientRect();
+          const halfGap = Math.max(0, nextRect.top - currentRect.bottom) / 2;
+          const edge = -halfGap / currentRect.height;
+          if (cow.y <= edge && cow.vy < -1e-7) {
+            cow.page += 1;
+            cow.y = 1 + halfGap / nextRect.height;
+            currentEl = nextEl;
+            currentRect = nextRect;
+            crossed = true;
+            cowCrossed = true;
+          }
+        }
+        const previousEl = scroller.querySelector(`[data-page="${cow.page - 1}"]`);
+        if (!cowCrossed && previousEl) {
+          const previousRect = previousEl.getBoundingClientRect();
+          const halfGap = Math.max(0, currentRect.top - previousRect.bottom) / 2;
+          const edge = 1 + halfGap / currentRect.height;
+          if (cow.y >= edge && cow.vy > 1e-7) {
+            cow.page -= 1;
+            cow.y = -halfGap / previousRect.height;
+            currentEl = previousEl;
+            currentRect = previousRect;
+            crossed = true;
+            cowCrossed = true;
+          }
+        }
+
+        // Focus is a continuous rectangle in browser coordinates. If the
+        // animal is already comfortably visible it stays where it is. If
+        // not, steer to the nearest point inside that rectangle, expressed
+        // in the current page's coordinates—even when that point lies
+        // beyond the page and across one or more gray gutters.
+        const outerLeft = box.left + box.width * 0.10;
+        const outerRight = box.right - box.width * 0.10;
+        const outerTop = box.top + box.height * 0.10;
+        const outerBottom = box.bottom - box.height * 0.10;
+        const settleLeft = box.left + box.width * 0.13;
+        const settleRight = box.right - box.width * 0.13;
+        const settleTop = box.top + box.height * 0.13;
+        const settleBottom = box.bottom - box.height * 0.13;
+        const screenX = currentRect.left + cow.x * currentRect.width;
+        const screenY = currentRect.top + (1 - cow.y) * currentRect.height;
+        const outside = screenX < outerLeft || screenX > outerRight
+          || screenY < outerTop || screenY > outerBottom;
+        const settleSlop = 6;
+        const settled = screenX >= settleLeft - settleSlop && screenX <= settleRight + settleSlop
+          && screenY >= settleTop - settleSlop && screenY <= settleBottom + settleSlop;
+        if (cow.viewportFollowing && settled) {
+          cow.viewportFollowing = false;
+          cow.viewportOutsideAt = 0;
+        } else if (!cow.viewportFollowing && outside) {
+          if (!cow.viewportOutsideAt) cow.viewportOutsideAt = performance.now();
+          // Different animals notice that they have fallen behind at
+          // different times. This grace period prevents a scroll from
+          // producing an immediate, conspicuous synchronized response.
+          const grace = 650 + (cow.seed || 0.5) * 950;
+          if (performance.now() - cow.viewportOutsideAt >= grace) cow.viewportFollowing = true;
+        } else if (!outside) {
+          cow.viewportOutsideAt = 0;
+        }
+        if (cow.viewportFollowing) {
+          const targetX = Math.max(settleLeft, Math.min(settleRight, screenX));
+          const targetY = Math.max(settleTop, Math.min(settleBottom, screenY));
+          cow.followTarget = {
+            x: (targetX - currentRect.left) / currentRect.width,
+            y: 1 - (targetY - currentRect.top) / currentRect.height,
+          };
+          cow.followPrecision = Math.max(0.003, 4 / currentRect.width);
+        } else {
+          cow.followTarget = null;
+          cow.followPrecision = null;
+        }
+
+        if (cow.act && cow.followTarget && !cow.act.walks) cow.until = 0;
+      }
+      if (crossed) setPlacedAnimals((herd) => [...herd]);
+    };
+    guide();
+    const timer = window.setInterval(guide, 50);
+    return () => window.clearInterval(timer);
+  }, [animalFollow, placedAnimals]);
 
   // Zooming keeps the spot under the cursor under the cursor.
   //
@@ -1522,6 +1605,55 @@ export default function App() {
                         <span className="beast-name">{a.label}</span>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className="beast magic-wand-beast"
+                      aria-label="Magic wand"
+                      title="Magic wand — conjure ten random animals into the current view"
+                      onClick={waveAnimalWand}
+                    >
+                      <svg viewBox="0 0 72 48" aria-hidden="true">
+                        <g transform="rotate(-36 36 24)">
+                          <path d="M19 30 L53 16" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
+                          <path d="M16 31 L22 27" fill="none" stroke="#d7a72d" strokeWidth="6" strokeLinecap="round" />
+                        </g>
+                        <path d="M54 7v10M49 12h10M62 18v7M58.5 21.5h7M48 23v6M45 26h6" fill="none" stroke="#d7a72d" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      <span className="beast-name">Magic wand</span>
+                    </button>
+                  </div>
+                  <label className="brush-label" htmlFor="animal-speed">Speed</label>
+                  <div className="animal-control">
+                    <input
+                      id="animal-speed"
+                      type="range"
+                      min="0.4"
+                      max="1.8"
+                      step="0.1"
+                      value={animalSpeed}
+                      onChange={(e) => setAnimalSpeed(Number(e.target.value))}
+                    />
+                  </div>
+                  <label className="brush-label" htmlFor="animal-activity">Activities</label>
+                  <div className="animal-control">
+                    <input
+                      id="animal-activity"
+                      type="range"
+                      min="0"
+                      max="3"
+                      step="0.25"
+                      value={animalActivity}
+                      onChange={(e) => setAnimalActivity(Number(e.target.value))}
+                    />
+                  </div>
+                  <label className="brush-label" htmlFor="animal-follow">Follow page</label>
+                  <div className="animal-control animal-follow-control">
+                    <input
+                      id="animal-follow"
+                      type="checkbox"
+                      checked={animalFollow}
+                      onChange={(e) => setAnimalFollow(e.target.checked)}
+                    />
                   </div>
                 </div>
               )}
@@ -1589,7 +1721,25 @@ export default function App() {
         >
           {railOpen ? '›' : '‹'}
         </button>
-        <div className="pages" ref={scrollerRef}>
+        <div
+          className="pages"
+          ref={scrollerRef}
+          onPointerDown={(e) => {
+            if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
+            const pages = [...e.currentTarget.querySelectorAll('.pdf-page')];
+            const nearest = pages.reduce((best, el) => {
+              const r = el.getBoundingClientRect();
+              const dx = e.clientX < r.left ? r.left - e.clientX : Math.max(0, e.clientX - r.right);
+              const dy = e.clientY < r.top ? r.top - e.clientY : Math.max(0, e.clientY - r.bottom);
+              const distance = Math.hypot(dx, dy);
+              return !best || distance < best.distance ? { el, r, distance } : best;
+            }, null);
+            if (!nearest) return;
+            const x = Math.max(-0.08, Math.min(1.08, (e.clientX - nearest.r.left) / nearest.r.width));
+            const y = Math.max(-0.10, Math.min(1.10, 1 - (e.clientY - nearest.r.top) / nearest.r.height));
+            dropAnimal(Number(nearest.el.dataset.page), { x, y });
+          }}
+        >
           {!doc && (
             <div className="pdf-loading" role="status" aria-live="polite">
               <div className="pdf-loading-card">
@@ -1610,9 +1760,27 @@ export default function App() {
               <div className="page-skeleton" />
             </>
           )}
-          {scale && pages.map((n) => (
-            <PdfPage
-              key={n}
+          {scale && pages.map((n, index) => (
+            <React.Fragment key={n}>
+              {index > 0 && (
+                <div
+                  className="animal-gutter"
+                  aria-hidden="true"
+                  onPointerDown={(e) => {
+                    if (tool !== 'cow') return;
+                    e.stopPropagation();
+                    const pageEl = e.currentTarget.nextElementSibling;
+                    if (!pageEl?.classList.contains('pdf-page')) return;
+                    const r = pageEl.getBoundingClientRect();
+                    const x = Math.max(-0.08, Math.min(1.08, (e.clientX - r.left) / r.width));
+                    // Stored against the lower sheet but physically above
+                    // its top edge, in the gray inter-page margin.
+                    const y = Math.max(1.01, Math.min(1.10, 1 - (e.clientY - r.top) / r.height));
+                    dropAnimal(n, { x, y });
+                  }}
+                />
+              )}
+              <PdfPage
               doc={doc}
               pageNumber={n}
               scale={scale}
@@ -1642,11 +1810,14 @@ export default function App() {
               onMoveStroke={moveStroke}
               onDragNote={setDraggingNoteId}
               animal={animal}
-              cows={cowsByPage.get(n) || EMPTY_INK}
-              onDropCow={dropCow}
-              onMoveCow={moveCow}
-              onEraseCow={eraseCow}
-            />
+              animalSpeed={animalSpeed}
+              animalActivity={animalActivity}
+              animals={animalsByPage.get(n) || EMPTY_INK}
+              onDropAnimal={dropAnimal}
+              onMoveAnimal={moveAnimal}
+              onEraseAnimal={eraseAnimal}
+              />
+            </React.Fragment>
           ))}
         </div>
 
