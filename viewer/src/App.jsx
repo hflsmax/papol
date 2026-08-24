@@ -1214,7 +1214,20 @@ export default function App() {
   return (
     <>
       <style>{styles}</style>
-      <header className="viewer-bar">
+      <header
+        className="viewer-bar"
+        // A tool taken with the pointer should not be left holding keyboard
+        // focus. Nothing shows while the pointer is what moved, but the
+        // moment a key is pressed the browser promotes that parked focus to
+        // a ring — so picking up the laser with V drew a box around the
+        // brush, which is the one thing on the bar that is *not* in hand.
+        // Two selections, disagreeing. Focus that arrives by Tab is left
+        // alone, so the bar is still walkable and still says where you are.
+        onClick={(e) => {
+          if (e.detail === 0) return;
+          e.target.closest?.('button')?.blur();
+        }}
+      >
         {/* Arriving from Papol, going back is a step back in history, not a
             new entry — otherwise Papol's own Back button walks the reader
             straight into the viewer again. The href stays for a direct
