@@ -328,6 +328,21 @@ in {
         "d ${dirOf cfg.health.logFile} 0755 ${cfg.user} users -"
       ];
 
+    # Left alone, health.logFile grows a line a minute forever. Each probe
+    # is one oneshot invocation that opens the file, appends, and closes —
+    # nothing holds it open between runs — so a plain rotate-and-recreate
+    # is enough; copytruncate would only be needed for a writer that keeps
+    # the file open across the rotation.
+    services.logrotate.settings.papol-health = lib.mkIf cfg.health.enable {
+      files = cfg.health.logFile;
+      frequency = "weekly";
+      rotate = 8;
+      compress = true;
+      missingok = true;
+      notifempty = true;
+      create = "0644 ${cfg.user} users";
+    };
+
     # oci-containers defaults to podman, which would stand a second container
     # runtime up beside the docker this host already runs — and pull the
     # image again into it. mkDefault, so setting it yourself still wins.
