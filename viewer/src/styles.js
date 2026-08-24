@@ -830,6 +830,74 @@ button.link.danger { color: var(--red); }
 
 .help-done:hover { border-color: var(--accent); color: var(--accent); }
 
+/* Same corner Papol itself puts it in, so leaving a note about the viewer
+   is not a different habit from leaving one anywhere else. */
+.feedback-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  padding: 9px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
+}
+
+.feedback-fab:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(29, 33, 41, 0.22);
+}
+
+.feedback-sheet { width: min(420px, 100%); }
+
+.feedback-sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
+
+.feedback-field { margin-bottom: 12px; }
+
+.feedback-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.feedback-field textarea,
+.feedback-field input {
+  width: 100%;
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+
+.feedback-note {
+  margin: 0 0 14px;
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+
+.feedback-error {
+  margin: 0 0 12px;
+  font-size: var(--fs-sm);
+  color: var(--red);
+}
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 /* Under the eraser. The same lift a pointer gives it, and nothing else:
    an anchor about to be rubbed out is still that anchor, and recolouring
    it says something about it that is not true. */

@@ -3,7 +3,6 @@ import { submitFeedback } from '../api';
 
 export default function FeedbackDialog({ currentUser, onClose }) {
   const [content, setContent] = useState('');
-  const [contact, setContact] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
@@ -17,7 +16,7 @@ export default function FeedbackDialog({ currentUser, onClose }) {
         content: content.trim(),
         // Where the reporter was standing, so an admin can retrace it.
         page: window.location.hash || '#/',
-        contact: currentUser ? null : contact.trim() || null,
+        contact: null,
       });
       setSent(true);
     } catch (e) {
@@ -34,10 +33,11 @@ export default function FeedbackDialog({ currentUser, onClose }) {
           <h3>{sent ? 'Thank you' : 'Report a bug or ask for a feature'}</h3>
           {sent ? (
             <>
-              <p className="panel-note">
-                Your note is with the admins. If it needs a reply, it comes
-                to {currentUser ? 'your email' : 'the address you left'}.
-              </p>
+              {currentUser && (
+                <p className="panel-note">
+                  If it needs a reply, it comes to your email.
+                </p>
+              )}
               <div className="form-actions">
                 <button className="primary" onClick={onClose}>
                   Close
@@ -60,18 +60,6 @@ export default function FeedbackDialog({ currentUser, onClose }) {
                 />
               </div>
 
-              {!currentUser && (
-                <div className="form-group">
-                  <label>Your email (optional, so we can reply)</label>
-                  <input
-                    type="email"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="you@example.com"
-                  />
-                </div>
-              )}
-
               {error && <div className="error">{error}</div>}
 
               <div className="form-actions">
@@ -83,7 +71,7 @@ export default function FeedbackDialog({ currentUser, onClose }) {
                   onClick={handleSend}
                   disabled={sending || !content.trim()}
                 >
-                  {sending ? 'Sending…' : 'Send to the admins'}
+                  {sending ? 'Sending…' : 'Submit'}
                 </button>
               </div>
             </>

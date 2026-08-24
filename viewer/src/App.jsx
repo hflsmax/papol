@@ -4,7 +4,7 @@ import * as pdfjs from 'pdfjs-dist';
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { pdfHref, getReferences, getReference } from './api';
+import { pdfHref, getReferences, getReference, submitFeedback } from './api';
 import { resolveSource, getToken } from './source';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
@@ -204,6 +204,11 @@ export default function App() {
   // nothing, which is the point of it.
   const [ink, setInk] = useState([]);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackContent, setFeedbackContent] = useState('');
+  const [feedbackSending, setFeedbackSending] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackError, setFeedbackError] = useState(null);
   // The anchor being carried across the page, so its row in the rail can
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
@@ -419,6 +424,14 @@ export default function App() {
       if (e.key === 'Escape' && helpOpen) {
         e.preventDefault();
         setHelpOpen(false);
+        return;
+      }
+      if (e.key === 'Escape' && feedbackOpen) {
+        e.preventDefault();
+        setFeedbackOpen(false);
+        setFeedbackContent('');
+        setFeedbackError(null);
+        setFeedbackSent(false);
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1195,6 +1208,34 @@ export default function App() {
     scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
   };
 
+  const signedIn = !!getToken();
+
+  const closeFeedback = () => {
+    setFeedbackOpen(false);
+    setFeedbackContent('');
+    setFeedbackError(null);
+    setFeedbackSent(false);
+  };
+
+  const sendFeedback = async () => {
+    if (!feedbackContent.trim()) return;
+    setFeedbackSending(true);
+    setFeedbackError(null);
+    try {
+      await submitFeedback({
+        content: feedbackContent.trim(),
+        // Where the reporter was standing, so an admin can retrace it.
+        page: window.location.href,
+        contact: null,
+      });
+      setFeedbackSent(true);
+    } catch (e) {
+      setFeedbackError(e.message);
+    } finally {
+      setFeedbackSending(false);
+    }
+  };
+
   if (error && !doc) {
     return (
       <>
@@ -1622,6 +1663,74 @@ export default function App() {
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done
               </button>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="feedback-fab"
+          onClick={() => setFeedbackOpen(true)}
+        >
+          Feedback
+        </button>
+
+        {feedbackOpen && (
+          <div
+            className="help-back"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Report a bug or ask for a feature"
+            onClick={closeFeedback}
+          >
+            <div className="help-sheet feedback-sheet" onClick={(e) => e.stopPropagation()}>
+              <h3>{feedbackSent ? 'Thank you' : 'Report a bug or ask for a feature'}</h3>
+              {feedbackSent ? (
+                <>
+                  {signedIn && (
+                    <p className="feedback-note">
+                      If it needs a reply, it comes to your email.
+                    </p>
+                  )}
+                  <div className="feedback-actions">
+                    <button type="button" className="primary" onClick={closeFeedback}>
+                      Close
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="feedback-field">
+                    <label>
+                      What went wrong, or what would you like the viewer to do?
+                    </label>
+                    <textarea
+                      rows="5"
+                      maxLength={4000}
+                      value={feedbackContent}
+                      onChange={(e) => setFeedbackContent(e.target.value)}
+                      placeholder="I clicked … and the page …, or: it would help if …"
+                      autoFocus
+                    />
+                  </div>
+
+                  {feedbackError && <p className="feedback-error">{feedbackError}</p>}
+
+                  <div className="feedback-actions">
+                    <button type="button" onClick={closeFeedback} disabled={feedbackSending}>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={sendFeedback}
+                      disabled={feedbackSending || !feedbackContent.trim()}
+                    >
+                      {feedbackSending ? 'Sending…' : 'Submit'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

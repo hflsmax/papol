@@ -110,3 +110,13 @@ export function moveInk(strokeId, points) {
 export function eraseInk(strokeId) {
   return request(`/ink/${strokeId}`, { method: 'DELETE' });
 }
+
+// ---- Feedback ----
+
+export function submitFeedback({ content, page, contact }) {
+  return jsonRequest('/feedback', 'POST', {
+    content,
+    page: page || null,
+    contact: contact || null,
+  });
+}
