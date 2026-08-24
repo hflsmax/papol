@@ -171,6 +171,36 @@ in {
       '';
     };
 
+    health = {
+      enable = lib.mkEnableOption ''
+        a periodic health check: a probe of this papol instance, run on a
+        timer, with each result appended to health.logFile as one JSON
+        line — status, timing, and the error text on a failed probe
+      '';
+
+      url = lib.mkOption {
+        type = lib.types.str;
+        default = "https://mc-pony.com/papol";
+        description = "URL to probe.";
+      };
+
+      interval = lib.mkOption {
+        type = lib.types.str;
+        default = "1min";
+        description = ''
+          How often to probe, as a systemd time span (OnUnitActiveSec). The
+          first probe fires this long after boot too, so a host that has
+          been up for a while runs one immediately on activation.
+        '';
+      };
+
+      logFile = lib.mkOption {
+        type = lib.types.str;
+        default = "/var/lib/papol-health/health.jsonl";
+        description = "Where each probe's JSON line is appended.";
+      };
+    };
+
     cloudflare = {
       enable = lib.mkEnableOption "exposing papol via a Cloudflare Tunnel (for mc-pony.com/papol)";
 
@@ -240,6 +270,28 @@ in {
       };
     };
 
+    systemd.services.papol-health-check = lib.mkIf cfg.health.enable {
+      description = "Papol health check probe (${cfg.health.url})";
+      path = [ pkgs.curl pkgs.coreutils ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = cfg.user;
+        Group = "users";
+        ExecStart = "${pkgs.bash}/bin/bash ${./health/check.sh} ${cfg.health.url} ${cfg.health.logFile}";
+      };
+    };
+
+    systemd.timers.papol-health-check = lib.mkIf cfg.health.enable {
+      description = "Run the papol health check every ${cfg.health.interval}";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = cfg.health.interval;
+        OnUnitActiveSec = cfg.health.interval;
+        AccuracySec = "5s";
+        Persistent = true;
+      };
+    };
+
     # What deploy.sh needs from root, named one command at a time. The
     # paths are the ones sudo will resolve out of PATH; the arguments are
     # matched too, so this is the papol unit and no other.
@@ -265,10 +317,16 @@ in {
     }]);
 
     # And once this has been applied, the directory is simply there, so the
-    # one command above that makes it never has to run again.
-    systemd.tmpfiles.rules = lib.mkIf cfg.deploy.passwordless [
-      "d ${dirOf cfg.srcDir} 0755 ${cfg.user} users -"
-    ];
+    # one command above that makes it never has to run again. Two
+    # independent reasons can each want a rule here, so this builds one list
+    # rather than assigning the option twice.
+    systemd.tmpfiles.rules =
+      lib.optionals cfg.deploy.passwordless [
+        "d ${dirOf cfg.srcDir} 0755 ${cfg.user} users -"
+      ]
+      ++ lib.optionals cfg.health.enable [
+        "d ${dirOf cfg.health.logFile} 0755 ${cfg.user} users -"
+      ];
 
     # oci-containers defaults to podman, which would stand a second container
     # runtime up beside the docker this host already runs — and pull the
