@@ -146,6 +146,7 @@ export default function CommentSection({
                       <a
                         className="note-page"
                         href={noteHref(comment)}
+                        data-document
                         title="Open this note in the PDF"
                       >
                         page {comment.page}

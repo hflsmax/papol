@@ -5,12 +5,14 @@
 // remains the sole authority for whether demo mode is active.
 
 import { demoPapers, demoNotes, noteAsComment } from '../../shared/demoWorld';
+import { stripAppBase } from './base';
 
 export function demoActive() {
+  const path = stripAppBase(window.location.pathname);
   return (
-    window.location.pathname.includes('/demo/viewer') ||
-    window.location.pathname === '/demo' ||
-    window.location.pathname.startsWith('/demo/')
+    path.includes('/demo/viewer') ||
+    path === '/demo' ||
+    path.startsWith('/demo/')
   );
 }
 

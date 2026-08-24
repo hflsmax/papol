@@ -1,4 +1,5 @@
 import React from 'react';
+import { appPath } from '../base';
 
 // Pastel grounds for the transparent demo portraits, picked per reader so
 // each character keeps their own. The matching colours for readers with no
@@ -24,7 +25,7 @@ export default function Avatar({ user, className }) {
     // Bundled images (demo characters) live under assets/; uploaded ones
     // are served from uploads/.
     const bundled = user.avatar_path.startsWith('assets/');
-    const src = bundled ? `/${user.avatar_path}` : `/uploads/${user.avatar_path}`;
+    const src = bundled ? appPath(`/${user.avatar_path}`) : appPath(`/uploads/${user.avatar_path}`);
     return (
       <img
         className={`avatar-img ${bundled ? 'head-crop ' : ''}${className}`}

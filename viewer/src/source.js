@@ -1,4 +1,5 @@
 import { demoPapers, demoNotes } from '../../shared/demoWorld';
+import { appPath } from './base';
 import {
   getPaper, createNote, updateNote, moveNote, renameNote, markPlace, deleteNote,
   getInk, addInk, moveInk, eraseInk,
@@ -26,7 +27,7 @@ export function resolveSource() {
 
 function apiSource(paperId) {
   return {
-    backHref: `/paper/${paperId}`,
+    backHref: appPath(`/paper/${paperId}`),
     requiresSignIn: true,
     async load() {
       const paper = await getPaper(paperId);
@@ -81,7 +82,7 @@ function localSource(paperId) {
   let nextInkId = 1;
 
   return {
-    backHref: `/demo/paper/${paperId}`,
+    backHref: appPath(`/demo/paper/${paperId}`),
     async load() {
       return { doc: paper, notes };
     },

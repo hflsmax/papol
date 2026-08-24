@@ -4,6 +4,7 @@ import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import PaperUpload from './PaperUpload';
+import { appPath } from '../base';
 
 function parseAuthors(authorsJson) {
   if (!authorsJson) return '';
@@ -156,7 +157,7 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
                           ? 'avatar-chip has-pop author'
                           : 'avatar-chip has-pop'
                       }
-                      href={`/u/${entry.user.id}`}
+                      href={appPath(`/u/${entry.user.id}`)}
                     >
                       <Avatar user={entry.user} className="nook-chip-avatar" />
                       <span className="chip-pop">

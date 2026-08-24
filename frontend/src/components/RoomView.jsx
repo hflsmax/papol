@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { appPath } from '../base';
 import {
   leadRoom,
   joinRoom,
@@ -341,7 +342,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
             <a
               key={u.id}
               className={leadsRoom(u) ? 'participant-chip leader' : 'participant-chip'}
-              href={`/u/${u.id}`}
+              href={appPath(`/u/${u.id}`)}
               title={
                 leadsRoom(u)
                   ? `${u.display_name} hosts this seminar`

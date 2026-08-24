@@ -1,8 +1,9 @@
 import { demoActive, demoRequest } from './demo';
+import { appPath } from './base';
 
 // Relative, so it resolves against the app's own base URL — works at / and
 // under a proxied subpath like mc-pony.com/papol/.
-const API_BASE = '/api';
+const API_BASE = appPath('/api');
 
 const TOKEN_KEY = 'papol_token';
 
@@ -168,15 +169,15 @@ export function getUserSpace(userId) {
 
 // Papers are addressed by DOI when they have one, else by numeric id.
 export function paperHref(paper) {
-  return `/paper/${paper.doi || paper.id}`;
+  return appPath(`/paper/${paper.doi || paper.id}`);
 }
 
 // Uploaded PDFs live in uploads/. Demo papers link to each paper's
 // canonical open-access copy; demo-created papers use a bundled placeholder.
 export function pdfHref(paper) {
   if (paper.file_path.startsWith('http')) return paper.file_path;
-  if (paper.file_path.startsWith('assets/')) return `/${paper.file_path}`;
-  return `/uploads/${paper.file_path}`;
+  if (paper.file_path.startsWith('assets/')) return appPath(`/${paper.file_path}`);
+  return appPath(`/uploads/${paper.file_path}`);
 }
 
 export function listPapers() {

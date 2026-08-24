@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getRoom } from '../api';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
+import { appPath } from '../base';
 
 export default function RoomPage({ roomId, currentUser, onBack }) {
   const [room, setRoom] = useState(null);
@@ -43,7 +44,7 @@ export default function RoomPage({ roomId, currentUser, onBack }) {
         <div className="seminar-head">
           <h2 className="room-title">
             {room.paper_id ? (
-              <a href={`/paper/${room.paper_id}`} title="Open the paper">
+              <a href={appPath(`/paper/${room.paper_id}`)} title="Open the paper">
                 {room.paper_title}
               </a>
             ) : (

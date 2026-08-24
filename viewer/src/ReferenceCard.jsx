@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
+import { appPath } from './base';
 
 /**
  * What a citation turns out to be, shown beside the marker that was
@@ -143,7 +144,7 @@ export default function ReferenceCard({ box, reference, error, onClose }) {
             {reference.papol_paper_id && (
               // Papol already holds this paper: the reader can go to it
               // rather than out to a publisher.
-              <a className="ref-link here" href={`/paper/${reference.papol_paper_id}`}>
+              <a className="ref-link here" href={appPath(`/paper/${reference.papol_paper_id}`)}>
                 In Papol
               </a>
             )}

@@ -11,6 +11,7 @@ import { RatingInput, RatingSummary } from './Rating';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
 import { demoActive } from '../demo';
+import { appPath } from '../base';
 
 export default function PaperDetail({ paperId, currentUser, onBack, onSelectPaper, hideBack = false }) {
   const [paper, setPaper] = useState(null);
@@ -140,7 +141,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   };
 
   const noteHref = (comment) =>
-    `/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${comment.paper_id}&note=${comment.id}`;
+    appPath(`/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${comment.paper_id}&note=${comment.id}`);
 
   // A newer edition exists and this reader's copy is not on it. Only ever
   // an offer: nothing moves a reader's copy but the reader.
@@ -208,14 +209,14 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.
       const modePrefix = demoActive() ? '/demo' : '';
-      window.history.replaceState(null, '', `${modePrefix}/paper/${added.doi || added.id}`);
+      window.history.replaceState(null, '', appPath(`${modePrefix}/paper/${added.doi || added.id}`));
     } catch (err) {
       setError(err.message);
     }
   };
 
   const handleShare = async () => {
-    const link = `${window.location.origin}/paper/${paper.doi || paper.id}`;
+    const link = `${window.location.origin}${appPath(`/paper/${paper.doi || paper.id}`)}`;
     try {
       await navigator.clipboard.writeText(link);
       setShareCopied(true);
@@ -556,7 +557,8 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             {hasEntry && (
               <a
                 className="btn primary"
-                href={`/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${paper.id}`}
+                href={appPath(`/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${paper.id}`)}
+                data-document
               >
                 Read
               </a>
@@ -585,7 +587,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                     </a>
                     <a
                       role="menuitem"
-                      href={`/signin?next=${encodeURIComponent(`/paper/${paper.doi || paper.id}`)}`}
+                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.doi || paper.id}`)}`)}
                       title="Sign in to use the built-in viewer"
                     >
                       <strong>Use built-in viewer</strong>
@@ -636,7 +638,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                     <div className="share-link-row">
                       <input
                         id="canonical-share-url"
-                        value={`${window.location.origin}/paper/${paper.doi || paper.id}`}
+                        value={`${window.location.origin}${appPath(`/paper/${paper.doi || paper.id}`)}`}
                         readOnly
                         onFocus={(event) => event.target.select()}
                       />
@@ -652,7 +654,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
           {!currentUser && (paper.also_read_by || []).length > 0 && (
             <p className="signed-out-reviews">
-              <a href="/signin">Sign in</a> to see others’ reviews of the paper.
+              <a href={appPath('/signin')}>Sign in</a> to see others’ reviews of the paper.
             </p>
           )}
 
@@ -671,7 +673,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                         ? 'avatar-chip has-pop mini author'
                         : 'avatar-chip has-pop mini'
                     }
-                    href={`/u/${entry.user.id}`}
+                    href={appPath(`/u/${entry.user.id}`)}
                   >
                     <Avatar user={entry.user} className="mini-avatar" />
                     <span className="chip-pop">

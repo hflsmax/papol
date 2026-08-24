@@ -76,7 +76,11 @@ build_tree() {
       note "dependencies changed — npm ci"
       (cd "$dir" && nix develop --command bash -c "cd $app && npm ci")
     fi
-    (cd "$dir" && nix develop --command bash -c "cd $app && npm run build")
+    if [ "$dir" = "$PROD_DIR" ] && [ "$app" = frontend ]; then
+      (cd "$dir" && nix develop --command bash -c "cd frontend && VITE_BASE=/papol/ npm run build")
+    else
+      (cd "$dir" && nix develop --command bash -c "cd $app && npm run build")
+    fi
   done
 }
 

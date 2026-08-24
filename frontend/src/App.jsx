@@ -13,6 +13,7 @@ import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
+import { appPath, stripAppBase } from './base';
 
 const styles = `
 * {
@@ -3931,7 +3932,7 @@ a.btn:hover {
 `;
 
 function parseRoute() {
-  const rawPath = window.location.pathname || '/';
+  const rawPath = stripAppBase(window.location.pathname || '/');
   const demo = rawPath === '/demo' || rawPath.startsWith('/demo/');
   const path = demo
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
@@ -3972,8 +3973,9 @@ function navigate(path) {
     : path;
   // Don't push a history entry when already there; otherwise Back appears
   // to do nothing.
-  if (window.location.pathname === destination) return;
-  window.history.pushState(null, '', destination);
+  const mountedDestination = appPath(destination);
+  if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
+  window.history.pushState(null, '', mountedDestination);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
@@ -4092,7 +4094,7 @@ export default function App() {
   };
 
   const handleBackToAccount = async () => {
-    window.history.replaceState(null, '', '/');
+    window.history.replaceState(null, '', appPath('/'));
     setRoute(parseRoute());
     exitDemo();
     try {
@@ -4247,19 +4249,25 @@ export default function App() {
         onClickCapture={(event) => {
           const anchor = event.target.closest?.('a[href^="/"]');
           const href = anchor?.getAttribute('href');
-          if (!href) return;
+          if (
+            !href ||
+            anchor.hasAttribute('download') ||
+            anchor.hasAttribute('data-document') ||
+            (anchor.target && anchor.target !== '_self')
+          ) return;
           const destination = new URL(href, window.location.origin);
-          if (!/^\/(?:$|paper\/|u\/|room\/|library$|papers$|village$|readers$|about$|inbox$|profile$|admin$|signin$|join$)/.test(destination.pathname)) return;
+          if (destination.origin !== window.location.origin) return;
+          const routePath = stripAppBase(destination.pathname);
           event.preventDefault();
-          navigate(`${destination.pathname}${destination.search}`);
+          navigate(`${routePath}${destination.search}`);
         }}
       >
         <header className="topnav">
-          <a className="brand" href="/">Papol</a>
+          <a className="brand" href={appPath('/')}>Papol</a>
           <nav>
             {user ? (
               <a
-                href="/"
+                href={appPath('/')}
                 className={
                   route.page === 'home' ||
                   (route.page === 'space' && route.id === user.id)
@@ -4270,17 +4278,17 @@ export default function App() {
                 My nook
               </a>
             ) : (
-              <a href="/" className={route.page === 'home' ? 'active' : ''}>
+              <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
                 Home
               </a>
             )}
-            <a href="/village" className={route.page === 'directory' ? 'active' : ''}>
+            <a href={appPath('/village')} className={route.page === 'directory' ? 'active' : ''}>
               Village
             </a>
-            <a href="/library" className={route.page === 'papers' ? 'active' : ''}>
+            <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
               Library
             </a>
-            <a href="/about" className={route.page === 'about' ? 'active' : ''}>
+            <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
           </nav>
@@ -4288,7 +4296,7 @@ export default function App() {
           {user ? (
             <>
               <a
-                href="/inbox"
+                href={appPath('/inbox')}
                 className={
                   route.page === 'inbox' ? 'inbox-link active' : 'inbox-link'
                 }
@@ -4300,7 +4308,7 @@ export default function App() {
               </a>
               <a
                 className={route.page === 'profile' ? 'whoami whoami-link active' : 'whoami whoami-link'}
-                href="/profile"
+                href={appPath('/profile')}
                 title="Edit profile"
               >
                 <Avatar user={user} className="nav-avatar" />
@@ -4310,7 +4318,7 @@ export default function App() {
               </a>
               {user.is_admin && (
                 <a
-                  href="/admin"
+                  href={appPath('/admin')}
                   className={
                     route.page === 'admin' ? 'inbox-link active' : 'inbox-link'
                   }
