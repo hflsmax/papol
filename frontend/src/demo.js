@@ -78,6 +78,9 @@ function seed() {
     copy(10, ME, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, created_at: daysAgo(1) }),
     copy(10, 2, { is_author: true, thought: 'The karate chop lemma was the hard part.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
+    // marketed: false — kept in SpongeBob's own nook, but not shown to
+    // anyone browsing Papol. This is what a hidden entry looks like.
+    copy(9, ME, { marketed: false, thought: 'Reading this in secret.', created_at: daysAgo(0) }),
   ];
 
   // SpongeBob's notes, as the API would return them. Bare anchors and his
