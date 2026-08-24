@@ -133,8 +133,12 @@ watch_app() {
   local app=$1 stop=no
   trap 'stop=yes' TERM INT
   while [ "$stop" = no ]; do
+    # `|| true`: under pipefail this pipeline's exit status is whatever
+    # killed the watcher, and set -e would otherwise take this whole
+    # function down right here — silently, before the restart below ever
+    # runs. That is the failure mode this loop exists to avoid.
     nix develop "$DEV_DIR" --command bash -c \
-      "cd '$DEV_DIR/$app' && npm run build -- --watch" 2>&1 | sed -u "s/^/[$app] /"
+      "cd '$DEV_DIR/$app' && npm run build -- --watch" 2>&1 | sed -u "s/^/[$app] /" || true
     [ "$stop" = yes ] && break
     note "[$app] watcher stopped on its own — restarting"
     sleep 2
