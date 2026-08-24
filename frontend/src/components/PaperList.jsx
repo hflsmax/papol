@@ -165,7 +165,7 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
                             ? 'avatar-chip has-pop mini author'
                             : 'avatar-chip has-pop mini'
                         }
-                        href={`#/u/${entry.user.id}`}
+                        href={`/u/${entry.user.id}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Avatar user={entry.user} className="mini-avatar" />

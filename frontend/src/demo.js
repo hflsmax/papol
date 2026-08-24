@@ -1,22 +1,24 @@
 // Demo mode: a fictional Papol that lives entirely in the browser.
-// api.js routes every request here when the demo flag is set, so the real
-// backend is never touched. State is seeded fresh on each page load.
+// api.js routes every request here when the demo URL is active, so the real
+// backend is never touched. Its working data can cross the full-page trip
+// into the viewer and back, but an explicit refresh resets it. The URL
+// remains the sole authority for whether demo mode is active.
 
 import { demoPapers, demoNotes, noteAsComment } from '../../shared/demoWorld';
 
-const DEMO_FLAG = 'papol_demo';
-
 export function demoActive() {
-  return localStorage.getItem(DEMO_FLAG) === '1';
+  return (
+    window.location.pathname.includes('/demo/viewer') ||
+    window.location.pathname === '/demo' ||
+    window.location.pathname.startsWith('/demo/')
+  );
 }
 
 export function enterDemo() {
-  localStorage.setItem(DEMO_FLAG, '1');
-  db = null; // fresh world on entry
+  db = null;
 }
 
 export function exitDemo() {
-  localStorage.removeItem(DEMO_FLAG);
   db = null;
 }
 
@@ -136,7 +138,33 @@ function seed() {
 }
 
 let db = null;
-const ensure = () => { if (!db) db = seed(); return db; };
+const STORAGE_KEY = 'papol.demoWorld.v1';
+const navigation = window.performance.getEntriesByType('navigation')[0];
+if (navigation?.type === 'reload') {
+  window.sessionStorage.removeItem(STORAGE_KEY);
+}
+
+function storedWorld() {
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
+    return value && Array.isArray(value.papers) && Array.isArray(value.copies) && value.nextId
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistWorld() {
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  } catch {
+    // The demo remains usable in browsers where session storage is blocked;
+    // it simply falls back to lasting until this document is replaced.
+  }
+}
+
+const ensure = () => { if (!db) db = storedWorld() || seed(); return db; };
 
 // ---------- Helpers mirroring the backend ----------
 
@@ -309,7 +337,7 @@ function inActiveCohort(k) {
 
 // ---------- The router ----------
 
-export async function demoRequest(path, options = {}) {
+async function routeDemoRequest(path, options = {}) {
   const d = ensure();
   const method = (options.method || 'GET').toUpperCase();
   const body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
@@ -577,4 +605,10 @@ export async function demoRequest(path, options = {}) {
   }
 
   throw demoError('Not available in the demo', 404);
+}
+
+export async function demoRequest(path, options = {}) {
+  const result = await routeDemoRequest(path, options);
+  if ((options.method || 'GET').toUpperCase() !== 'GET') persistWorld();
+  return result;
 }

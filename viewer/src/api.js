@@ -1,7 +1,10 @@
 // The viewer is its own app but not its own world: it runs on Papol's
 // origin and carries the same session token, so there is no second sign-in
 // and no second idea of who a reader is.
-const API_BASE = '../api';
+// Both /viewer and /demo/viewer run this build. Step back once from the
+// former and twice from the latter to reach Papol's root API and assets.
+const ROOT = window.location.pathname.includes('/demo/viewer') ? '../..' : '..';
+const API_BASE = `${ROOT}/api`;
 const TOKEN_KEY = 'papol_token';
 
 export function getToken() {
@@ -47,8 +50,8 @@ export function pdfHref(paper) {
   if (!paper?.file_path) return null;
   if (paper.file_path.startsWith('http')) return paper.file_path;
   // Demo papers are shipped with the app; uploaded ones live in /uploads.
-  if (paper.file_path.startsWith('assets/')) return `../${paper.file_path}`;
-  return `../uploads/${paper.file_path}`;
+  if (paper.file_path.startsWith('assets/')) return `${ROOT}/${paper.file_path}`;
+  return `${ROOT}/uploads/${paper.file_path}`;
 }
 
 // A located note is a note: the same endpoints Papol's own notes use, with

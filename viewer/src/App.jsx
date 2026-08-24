@@ -19,6 +19,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
+const markReturnToPapol = () => {
+  // This is a one-shot navigation handoff, not demo-mode state. Papol
+  // consumes it on arrival so returning from the viewer does not greet the
+  // same visit a second time.
+  window.sessionStorage.setItem('papol.viewerReturn', '1');
+};
 
 const MIN_SCALE = 0.5;
 // Four hundred per cent, which is as far as reading a paper ever needs to
@@ -1334,7 +1340,7 @@ export default function App() {
         <div className="shell">
           <div className="error">{error}</div>
           <p className="hint">
-            <a href="../">Back to Papol</a>
+            <a href={source.backHref} onClick={markReturnToPapol}>Back to Papol</a>
           </p>
         </div>
       </>
@@ -1376,6 +1382,7 @@ export default function App() {
           className="back"
           href={source.backHref}
           onClick={(e) => {
+            markReturnToPapol();
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
               e.preventDefault();

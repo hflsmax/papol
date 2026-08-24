@@ -135,6 +135,9 @@ app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="
 # without a second sign-in.
 VIEWER_DIR = Path(__file__).parent.parent / "viewer" / "dist"
 if VIEWER_DIR.exists():
+    # The same viewer build, under an explicit demo namespace. Its source
+    # resolver uses this path—not localStorage—to choose fictional data.
+    app.mount("/demo/viewer", StaticFiles(directory=str(VIEWER_DIR), html=True), name="demo-viewer")
     app.mount("/viewer", StaticFiles(directory=str(VIEWER_DIR), html=True), name="viewer")
 
 
@@ -885,11 +888,12 @@ async def create_paper(
 @app.get("/api/papers/{paper_ref:path}", response_model=PaperSchema)
 async def get_paper(
     paper_ref: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     """Get a paper by id or DOI, merged with the viewer's own copy and notes.
-    Signed-in readers only."""
+    Publicly displayed papers may be opened from a shared canonical URL;
+    signed-in readers additionally receive their own nook fields and notes."""
     paper = _resolve_paper_or_404(paper_ref, db)
     _require_visible(paper, current_user)
     return _paper_detail(db, paper, current_user)
@@ -2025,7 +2029,7 @@ def send_daily_digest(db: Session) -> dict:
             f"Hello {user.display_name},\n\n"
             f"You have {count} new message{'s' if count != 1 else ''} in Papol today:\n\n"
             f"{lines}\n\n"
-            f"Read and reply in your inbox: {_site_url(db)}#/inbox\n\n"
+            f"Read and reply in your inbox: {_site_url(db).rstrip('/')}/inbox\n\n"
             "— Papol"
         )
         try:
@@ -2157,7 +2161,7 @@ def _email_admins_feedback(feedback_id: int, notification_ids: dict):
             "",
             fb.content,
             "",
-            f"Reports are listed on the admin page: {_site_url(db)}#/admin",
+            f"Reports are listed on the admin page: {_site_url(db).rstrip('/')}/admin",
             "",
             "— Papol",
         ]
@@ -2421,19 +2425,15 @@ async def serve_frontend():
     return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)
 
 
-@app.get("/{filename}")
-async def serve_frontend_root_file(filename: str):
-    """Files Vite copies to the top of the build — favicon.svg,
-    apple-touch-icon.png, and anything else dropped in frontend/public.
+@app.get("/{frontend_path:path}")
+async def serve_frontend_path(frontend_path: str):
+    """Serve Vite root files and fall back to the SPA for clean routes.
 
-    /assets is mounted, and index.html has a route of its own, but the files
-    beside them had nowhere to be served from and answered 404. Registered
-    last, so every /api route above still matches first, and confined to one
-    path segment: {filename} does not match a slash, and the resolved path is
-    checked to be a file directly in the build rather than something reached
-    from it.
+    Registered last, so /api and mounted static trees win first. Only a real
+    file directly in frontend/dist is served as a file; every other path is
+    index.html for History API routing (/paper/…, /demo/…, /library, …).
     """
-    candidate = (FRONTEND_DIR / filename).resolve()
-    if candidate.parent != FRONTEND_DIR.resolve() or not candidate.is_file():
-        raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(candidate, headers=_REVALIDATE)
+    candidate = (FRONTEND_DIR / frontend_path).resolve()
+    if candidate.parent == FRONTEND_DIR.resolve() and candidate.is_file():
+        return FileResponse(candidate, headers=_REVALIDATE)
+    return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)

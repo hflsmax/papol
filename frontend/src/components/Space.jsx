@@ -20,9 +20,24 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   }, [userId]);
 
   useEffect(() => {
+    let active = true;
     setIsLoading(true);
-    loadSpace();
-  }, [loadSpace]);
+    setSpace(null);
+    setError(null);
+    getUserSpace(userId)
+      .then((data) => {
+        if (active) setSpace(data);
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   if (isLoading) return <div className="loading">Loading nook…</div>;
   if (error) return <div className="error">{error}</div>;

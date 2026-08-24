@@ -15,7 +15,7 @@ export default function FeedbackDialog({ currentUser, onClose }) {
       await submitFeedback({
         content: content.trim(),
         // Where the reporter was standing, so an admin can retrace it.
-        page: window.location.hash || '#/',
+        page: window.location.pathname || '/',
         contact: null,
       });
       setSent(true);

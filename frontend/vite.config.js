@@ -2,9 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  // Relative asset URLs, so the app works both at / (papol.local) and under
-  // a proxied subpath (mc-pony.com/papol/).
-  base: './',
+  // History API routes such as /paper/<doi> must load the same root assets;
+  // a relative base would incorrectly request /paper/<doi>/assets/….
+  base: '/',
   plugins: [react()],
   server: {
     // The demo world is shared between the two apps, a level above

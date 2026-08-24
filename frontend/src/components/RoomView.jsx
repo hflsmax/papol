@@ -341,7 +341,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
             <a
               key={u.id}
               className={leadsRoom(u) ? 'participant-chip leader' : 'participant-chip'}
-              href={`#/u/${u.id}`}
+              href={`/u/${u.id}`}
               title={
                 leadsRoom(u)
                   ? `${u.display_name} hosts this seminar`

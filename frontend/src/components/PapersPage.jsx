@@ -156,7 +156,7 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
                           ? 'avatar-chip has-pop author'
                           : 'avatar-chip has-pop'
                       }
-                      href={`#/u/${entry.user.id}`}
+                      href={`/u/${entry.user.id}`}
                     >
                       <Avatar user={entry.user} className="nook-chip-avatar" />
                       <span className="chip-pop">

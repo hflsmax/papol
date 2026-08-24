@@ -19,14 +19,14 @@ export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
   const paper = params.get('paper');
   if (!paper || !/^\d+$/.test(paper)) return null;
-  const inDemo = localStorage.getItem('papol_demo') === '1';
+  const inDemo = window.location.pathname.includes('/demo/viewer');
   if (inDemo && DEMO_PAPERS[paper]) return localSource(paper);
   return apiSource(paper);
 }
 
 function apiSource(paperId) {
   return {
-    backHref: `../#/paper/${paperId}`,
+    backHref: `/paper/${paperId}`,
     requiresSignIn: true,
     async load() {
       const paper = await getPaper(paperId);
@@ -81,7 +81,7 @@ function localSource(paperId) {
   let nextInkId = 1;
 
   return {
-    backHref: `../#/paper/${paperId}`,
+    backHref: `/demo/paper/${paperId}`,
     async load() {
       return { doc: paper, notes };
     },

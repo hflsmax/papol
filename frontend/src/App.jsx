@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getMe, getToken, setToken, logout, getNotifications } from './api';
 import AuthPage from './components/AuthPage';
 import UserDirectory from './components/UserDirectory';
@@ -2118,6 +2118,87 @@ select {
   background: var(--accent-soft);
 }
 
+.share-control {
+  position: relative;
+}
+
+.share-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 270px;
+  padding: 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(29, 33, 41, 0.18);
+}
+
+.paper-actions .share-menu > button,
+.paper-actions .share-menu > a {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  box-shadow: none;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.paper-actions .share-menu > button:hover:not(:disabled),
+.paper-actions .share-menu > a:hover {
+  background: var(--accent-soft);
+}
+
+.share-menu button strong,
+.share-menu button span,
+.share-menu a strong,
+.share-menu a span {
+  display: block;
+}
+
+.share-menu button span,
+.share-menu a span {
+  margin-top: 2px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+}
+
+.canonical-share-menu label {
+  display: block;
+  margin: 2px 3px 6px;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.share-link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.share-link-row input {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 6px 7px;
+  font-size: var(--fs-xs);
+}
+
+.paper-actions .share-link-row button {
+  width: auto;
+  flex: none;
+}
+
+.signed-out-reviews {
+  margin-top: 18px;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+
 /* ---------- Seminar / interest ---------- */
 
 .discussion-card {
@@ -3850,47 +3931,78 @@ a.btn:hover {
 `;
 
 function parseRoute() {
-  const hash = window.location.hash || '#/';
-  let match = hash.match(/^#\/u\/(\d+)$/);
-  if (match) return { page: 'space', id: parseInt(match[1]) };
+  const rawPath = window.location.pathname || '/';
+  const demo = rawPath === '/demo' || rawPath.startsWith('/demo/');
+  const path = demo
+    ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
+    : rawPath;
+  const routed = (route) => (demo ? { ...route, demo: true } : route);
+  let match = path.match(/^\/u\/(\d+)\/?$/);
+  if (match) return routed({ page: 'space', id: parseInt(match[1]) });
   // Papers are addressed by DOI when they have one (DOIs contain slashes),
   // falling back to the numeric id.
-  match = hash.match(/^#\/paper\/(.+)$/);
-  if (match) return { page: 'paper', id: match[1] };
-  match = hash.match(/^#\/room\/(\d+)$/);
-  if (match) return { page: 'room', id: parseInt(match[1]) };
-  if (hash === '#/profile') return { page: 'profile' };
-  if (hash === '#/join') return { page: 'join' };
-  if (hash === '#/about') return { page: 'about' };
-  if (hash === '#/signin') return { page: 'signin' };
-  if (hash === '#/demo') return { page: 'demo-entry' };
-  if (hash === '#/library' || hash === '#/papers') return { page: 'papers' };
-  if (hash === '#/village' || hash === '#/readers') return { page: 'directory' };
-  if (hash === '#/inbox') return { page: 'inbox' };
-  if (hash === '#/admin') return { page: 'admin' };
-  return { page: 'home' };
+  match = path.match(/^\/paper\/(.+)\/?$/);
+  if (match) return routed({ page: 'paper', id: match[1] });
+  match = path.match(/^\/room\/(\d+)\/?$/);
+  if (match) return routed({ page: 'room', id: parseInt(match[1]) });
+  if (path === '/profile') return routed({ page: 'profile' });
+  if (path === '/join') return routed({ page: 'join' });
+  if (path === '/about') return routed({ page: 'about' });
+  if (path === '/signin') return routed({ page: 'signin' });
+  if (path === '/library' || path === '/papers') return routed({ page: 'papers' });
+  if (path === '/village' || path === '/readers') return routed({ page: 'directory' });
+  if (path === '/inbox') return routed({ page: 'inbox' });
+  if (path === '/admin') return routed({ page: 'admin' });
+  return routed({ page: 'home' });
 }
 
-function navigate(hash) {
-  // Don't push a history entry when we're already there ('' and '#/' both
-  // render home) — otherwise Back appears to do nothing.
-  if ((window.location.hash || '#/') === hash) return;
-  window.location.hash = hash;
+const demoPath = (path) => {
+  if (path === '/') return '/demo';
+  return path.startsWith('/') ? `/demo${path}` : path;
+};
+
+const SIGN_IN_PAGES = new Set([
+  'directory', 'space', 'papers', 'room', 'inbox', 'admin', 'profile',
+]);
+
+function navigate(path) {
+  const destination = demoActive() && !['/signin', '/join'].includes(path)
+    && !path.startsWith('/demo')
+    ? demoPath(path)
+    : path;
+  // Don't push a history entry when already there; otherwise Back appears
+  // to do nothing.
+  if (window.location.pathname === destination) return;
+  window.history.pushState(null, '', destination);
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 export default function App() {
+  // A canonical paper URL may be someone's front door into Papol. There is
+  // no meaningful in-app place for Back to promise in that case.
+  const enteredOnPaper = useRef(parseRoute().page === 'paper');
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  // The welcome modal greets every visit until the visitor signs in for
-  // real — dismissing it only lasts for the current page load.
-  const [demoIntroSeen, setDemoIntroSeen] = useState(false);
+  // The welcome modal greets every fresh demo visit. Returning from its
+  // viewer is still the same visit, so consume the viewer's one-shot marker
+  // rather than greeting the reader again after the full-page transition.
+  const [demoIntroSeen, setDemoIntroSeen] = useState(() => {
+    const returnedFromViewer = window.sessionStorage.getItem('papol.viewerReturn') === '1';
+    window.sessionStorage.removeItem('papol.viewerReturn');
+    return returnedFromViewer;
+  });
+
+  // State-machine precedence is deliberate: an explicit demo URL wins;
+  // otherwise a real authenticated reader wins; guest is only the public
+  // fallback when neither of those primary modes applies.
+  const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
 
   const dismissDemoIntro = () => setDemoIntroSeen(true);
 
-  const demoIntroVisible = Boolean(user) && demoActive() && !demoIntroSeen;
+  const demoIntroVisible = mode === 'demo' && Boolean(user) && !demoIntroSeen;
 
   useEffect(() => {
     if (!demoIntroVisible) return;
@@ -3902,37 +4014,60 @@ export default function App() {
   }, [demoIntroVisible]);
 
   useEffect(() => {
-    const onHashChange = () => setRoute(parseRoute());
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
+    const onRouteChange = async () => {
+      const next = parseRoute();
+      if (next.demo && !route.demo) {
+        enterDemo();
+        setUser(await getMe());
+      } else if (!next.demo && route.demo) {
+        exitDemo();
+        if (getToken()) {
+          try {
+            setUser(await getMe());
+          } catch {
+            setToken(null);
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      }
+      setRoute(next);
+    };
+    window.addEventListener('popstate', onRouteChange);
+    return () => window.removeEventListener('popstate', onRouteChange);
+  }, [route.demo]);
 
   useEffect(() => {
-    if (demoActive()) {
-      getMe()
-        .then(setUser)
-        .finally(() => setAuthChecked(true));
+    // A canonical paper URL is public and real. Do not route a signed-out
+    // recipient into the fictional demo before that paper is opened.
+    const initialRoute = parseRoute();
+    if (initialRoute.demo) {
+      enterDemo();
+      getMe().then(setUser).finally(() => setAuthChecked(true));
+      return;
+    }
+    exitDemo();
+    if (initialRoute.page === 'paper') {
+      if (getToken()) {
+        getMe().then(setUser).catch(() => setToken(null)).finally(() => setAuthChecked(true));
+      } else {
+        setAuthChecked(true);
+      }
       return;
     }
     if (!getToken()) {
-      // A visitor without an account is not met by a login wall: they
-      // land straight in the demo, greeted by the welcome message.
-      // #/signin and #/join still reach the auth page from inside the
-      // demo shell.
-      (async () => {
-        enterDemo();
-        setUser(await getMe());
-        setAuthChecked(true);
-      })();
+      setUser(null);
+      setAuthChecked(true);
       return;
     }
     getMe()
       .then(setUser)
       .catch(async () => {
-        // Stale or revoked token: fall back to the demo landing.
+        // A stale session becomes an ordinary guest session. Demo is only
+        // entered by a URL that explicitly contains /demo.
         setToken(null);
-        enterDemo();
-        setUser(await getMe());
+        setUser(null);
       })
       .finally(() => setAuthChecked(true));
   }, []);
@@ -3948,13 +4083,17 @@ export default function App() {
   }, [user, route]);
 
   const handleAuth = ({ token, user }) => {
+    const requestedPage = new URLSearchParams(window.location.search).get('next');
+    const returnTo = requestedPage?.startsWith('/paper/') ? requestedPage : '/';
     exitDemo();
     setToken(token);
     setUser(user);
-    navigate('#/');
+    navigate(returnTo);
   };
 
   const handleBackToAccount = async () => {
+    window.history.replaceState(null, '', '/');
+    setRoute(parseRoute());
     exitDemo();
     try {
       setUser(await getMe());
@@ -3962,27 +4101,11 @@ export default function App() {
       setToken(null);
       setUser(null);
     }
-    navigate('#/');
   };
 
-  const handleDemo = async () => {
-    enterDemo();
-    setUser(await getMe());
-    navigate('#/');
+  const handleDemo = () => {
+    navigate('/demo');
   };
-
-  // #/demo is the demo's front door — a shareable link that drops the
-  // visitor straight into demo mode, then lands on the demo home page
-  // (replacing the entry so Back doesn't re-enter the demo).
-  useEffect(() => {
-    if (route.page !== 'demo-entry') return;
-    (async () => {
-      enterDemo();
-      setUser(await getMe());
-      setAuthChecked(true);
-      window.location.replace('#/');
-    })();
-  }, [route]);
 
   const handleLogout = async () => {
     if (demoActive()) {
@@ -3997,7 +4120,7 @@ export default function App() {
       ) {
         return;
       }
-      navigate('#/signin');
+      navigate('/signin');
       return;
     }
     try {
@@ -4006,12 +4129,9 @@ export default function App() {
       // best effort
     }
     setToken(null);
-    // Signed out means not logged in, and not logged in means the demo
-    // landing — same as a fresh visit, welcome message included.
-    enterDemo();
-    setDemoIntroSeen(false);
-    setUser(await getMe());
-    navigate('#/');
+    exitDemo();
+    setUser(null);
+    navigate('/');
   };
 
   if (!authChecked) {
@@ -4027,9 +4147,11 @@ export default function App() {
     if (window.history.length > 1) {
       window.history.back();
     } else {
-      navigate('#/');
+      navigate('/');
     }
   };
+
+  const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
 
   return (
     <>
@@ -4057,7 +4179,7 @@ export default function App() {
                   className="primary"
                   onClick={() => {
                     dismissDemoIntro();
-                    navigate('#/join');
+                    navigate('/join');
                   }}
                 >
                   Register
@@ -4065,7 +4187,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     dismissDemoIntro();
-                    navigate('#/signin');
+                    navigate('/signin');
                   }}
                 >
                   Sign in
@@ -4090,13 +4212,13 @@ export default function App() {
             <span className="demo-banner-actions">
               <button
                 className="demo-banner-btn"
-                onClick={() => navigate('#/join')}
+                onClick={() => navigate('/join')}
               >
                 Create a real account
               </button>
               <button
                 className="link-btn demo-banner-link"
-                onClick={() => navigate('#/signin')}
+                onClick={() => navigate('/signin')}
               >
                 Sign in
               </button>
@@ -4120,13 +4242,24 @@ export default function App() {
           onClose={() => setFeedbackOpen(false)}
         />
       )}
-      <div className="app">
+      <div
+        className="app"
+        onClickCapture={(event) => {
+          const anchor = event.target.closest?.('a[href^="/"]');
+          const href = anchor?.getAttribute('href');
+          if (!href) return;
+          const destination = new URL(href, window.location.origin);
+          if (!/^\/(?:$|paper\/|u\/|room\/|library$|papers$|village$|readers$|about$|inbox$|profile$|admin$|signin$|join$)/.test(destination.pathname)) return;
+          event.preventDefault();
+          navigate(`${destination.pathname}${destination.search}`);
+        }}
+      >
         <header className="topnav">
-          <a className="brand" href="#/">Papol</a>
+          <a className="brand" href="/">Papol</a>
           <nav>
             {user ? (
               <a
-                href="#/"
+                href="/"
                 className={
                   route.page === 'home' ||
                   (route.page === 'space' && route.id === user.id)
@@ -4137,17 +4270,17 @@ export default function App() {
                 My nook
               </a>
             ) : (
-              <a href="#/" className={route.page === 'home' ? 'active' : ''}>
+              <a href="/" className={route.page === 'home' ? 'active' : ''}>
                 Home
               </a>
             )}
-            <a href="#/village" className={route.page === 'directory' ? 'active' : ''}>
+            <a href="/village" className={route.page === 'directory' ? 'active' : ''}>
               Village
             </a>
-            <a href="#/library" className={route.page === 'papers' ? 'active' : ''}>
+            <a href="/library" className={route.page === 'papers' ? 'active' : ''}>
               Library
             </a>
-            <a href="#/about" className={route.page === 'about' ? 'active' : ''}>
+            <a href="/about" className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
           </nav>
@@ -4155,7 +4288,7 @@ export default function App() {
           {user ? (
             <>
               <a
-                href="#/inbox"
+                href="/inbox"
                 className={
                   route.page === 'inbox' ? 'inbox-link active' : 'inbox-link'
                 }
@@ -4167,7 +4300,7 @@ export default function App() {
               </a>
               <a
                 className={route.page === 'profile' ? 'whoami whoami-link active' : 'whoami whoami-link'}
-                href="#/profile"
+                href="/profile"
                 title="Edit profile"
               >
                 <Avatar user={user} className="nav-avatar" />
@@ -4177,7 +4310,7 @@ export default function App() {
               </a>
               {user.is_admin && (
                 <a
-                  href="#/admin"
+                  href="/admin"
                   className={
                     route.page === 'admin' ? 'inbox-link active' : 'inbox-link'
                   }
@@ -4186,18 +4319,27 @@ export default function App() {
                 </a>
               )}
             </>
+          ) : mode === 'guest' ? (
+            <button className="primary" onClick={() => navigate('/signin')}>
+              Sign in
+            </button>
           ) : null}
         </header>
 
-        {/* Keyed by world: leaving or entering the demo remounts every
-            page so nothing keeps showing data from the other world. */}
-        <main className="main-content" key={demoActive() ? 'demo' : 'real'}>
+        {/* Keyed by world and identity: leaving or entering the demo, or
+            changing real accounts, remounts every page so no nook or private
+            paper state can survive an identity boundary. */}
+        <main className="main-content" key={`${mode}:${user?.id ?? 'none'}`}>
+          {guestNeedsSignIn ? (
+            <AuthPage onAuth={handleAuth} initialMode="login" />
+          ) : (
+          <>
           {route.page === 'home' &&
             (user ? (
               <Space
                 userId={user.id}
                 currentUser={user}
-                onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+                onSelectPaper={(id) => navigate(`/paper/${id}`)}
               />
             ) : (
               <HomePage
@@ -4208,14 +4350,14 @@ export default function App() {
           {route.page === 'directory' && (
             <UserDirectory
               currentUser={user}
-              onVisit={(id) => navigate(`#/u/${id}`)}
+              onVisit={(id) => navigate(`/u/${id}`)}
             />
           )}
           {route.page === 'space' && (
             <Space
               userId={route.id}
               currentUser={user}
-              onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+              onSelectPaper={(id) => navigate(`/paper/${id}`)}
               onBack={goBack}
             />
           )}
@@ -4224,13 +4366,14 @@ export default function App() {
               paperId={route.id}
               currentUser={user}
               onBack={goBack}
-              onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+              hideBack={enteredOnPaper.current && mode !== 'demo'}
+              onSelectPaper={(id) => navigate(`/paper/${id}`)}
             />
           )}
           {route.page === 'papers' && (
             <PapersPage
               currentUser={user}
-              onSelectPaper={(id) => navigate(`#/paper/${id}`)}
+              onSelectPaper={(id) => navigate(`/paper/${id}`)}
             />
           )}
           {route.page === 'room' && (
@@ -4238,7 +4381,7 @@ export default function App() {
           )}
           {route.page === 'inbox' && (
             <InboxPage
-              onOpenRoom={(id) => navigate(`#/room/${id}`)}
+              onOpenRoom={(id) => navigate(`/room/${id}`)}
               onUnread={setUnreadCount}
             />
           )}
@@ -4262,9 +4405,6 @@ export default function App() {
           {route.page === 'signin' && (
             <AuthPage onAuth={handleAuth} initialMode="login" />
           )}
-          {route.page === 'demo-entry' && (
-            <div className="loading">Entering the demo…</div>
-          )}
           {route.page === 'profile' &&
             (user ? (
               <ProfilePage
@@ -4273,6 +4413,8 @@ export default function App() {
                 onLogout={handleLogout}
               />
             ) : null)}
+          </>
+          )}
         </main>
       </div>
     </>

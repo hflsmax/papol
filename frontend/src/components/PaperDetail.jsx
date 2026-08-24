@@ -10,8 +10,9 @@ import Avatar from './Avatar';
 import { RatingInput, RatingSummary } from './Rating';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
+import { demoActive } from '../demo';
 
-export default function PaperDetail({ paperId, currentUser, onBack, onSelectPaper }) {
+export default function PaperDetail({ paperId, currentUser, onBack, onSelectPaper, hideBack = false }) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
@@ -28,7 +29,44 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [thoughtDraft, setThoughtDraft] = useState('');
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [readMenuOpen, setReadMenuOpen] = useState(false);
   const pdfInputRef = useRef(null);
+  const readControlRef = useRef(null);
+  const shareControlRef = useRef(null);
+
+  useEffect(() => {
+    if (!readMenuOpen) return undefined;
+    const dismiss = (event) => {
+      if (!readControlRef.current?.contains(event.target)) setReadMenuOpen(false);
+    };
+    const dismissWithKey = (event) => {
+      if (event.key === 'Escape') setReadMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    window.addEventListener('keydown', dismissWithKey);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      window.removeEventListener('keydown', dismissWithKey);
+    };
+  }, [readMenuOpen]);
+
+  useEffect(() => {
+    if (!shareOpen) return undefined;
+    const dismiss = (event) => {
+      if (!shareControlRef.current?.contains(event.target)) setShareOpen(false);
+    };
+    const dismissWithKey = (event) => {
+      if (event.key === 'Escape') setShareOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    window.addEventListener('keydown', dismissWithKey);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      window.removeEventListener('keydown', dismissWithKey);
+    };
+  }, [shareOpen]);
 
   const handlePdfPick = (e) => {
     const file = e.target.files[0];
@@ -102,7 +140,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   };
 
   const noteHref = (comment) =>
-    `viewer/?paper=${comment.paper_id}&note=${comment.id}`;
+    `/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${comment.paper_id}&note=${comment.id}`;
 
   // A newer edition exists and this reader's copy is not on it. Only ever
   // an offer: nothing moves a reader's copy but the reader.
@@ -169,9 +207,21 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       setPaper(added);
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.
-      window.history.replaceState(null, '', `#/paper/${added.doi || added.id}`);
+      const modePrefix = demoActive() ? '/demo' : '';
+      window.history.replaceState(null, '', `${modePrefix}/paper/${added.doi || added.id}`);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleShare = async () => {
+    const link = `${window.location.origin}/paper/${paper.doi || paper.id}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 1600);
+    } catch {
+      setShareCopied(false);
     }
   };
 
@@ -248,7 +298,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     return (
       <div className="panel paper-detail">
         <div className="error">{error}</div>
-        <button onClick={onBack}>Back</button>
+        {!hideBack && <button onClick={onBack}>Back</button>}
       </div>
     );
   }
@@ -262,9 +312,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
   return (
     <div className="paper-detail">
-      <button className="back-btn" onClick={onBack}>
-        &larr; Back
-      </button>
+      {!hideBack && (
+        <button className="back-btn" onClick={onBack}>
+          &larr; Back
+        </button>
+      )}
 
       {error && <div className="error">{error}</div>}
 
@@ -502,9 +554,46 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
           <div className="paper-actions">
             {hasEntry && (
-              <a className="btn primary" href={`viewer/?paper=${paper.id}`}>
+              <a
+                className="btn primary"
+                href={`/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${paper.id}`}
+              >
                 Read
               </a>
+            )}
+            {!currentUser && (
+              <div className="share-control" ref={readControlRef}>
+                <button
+                  type="button"
+                  className="primary"
+                  aria-expanded={readMenuOpen}
+                  aria-haspopup="menu"
+                  onClick={() => setReadMenuOpen((open) => !open)}
+                >
+                  Read <span aria-hidden="true">▾</span>
+                </button>
+                {readMenuOpen && (
+                  <div className="share-menu read-menu" role="menu">
+                    <a
+                      role="menuitem"
+                      href={pdfHref(paper)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <strong>Read PDF directly</strong>
+                      <span>Open the original PDF in your browser.</span>
+                    </a>
+                    <a
+                      role="menuitem"
+                      href={`/signin?next=${encodeURIComponent(`/paper/${paper.doi || paper.id}`)}`}
+                      title="Sign in to use the built-in viewer"
+                    >
+                      <strong>Use built-in viewer</strong>
+                      <span>Sign in required — continue to sign in.</span>
+                    </a>
+                  </div>
+                )}
+              </div>
             )}
             {/* Reading is offered before the paper is taken, because it is
                 what a reader came here to do. Pressing it says what has to
@@ -531,9 +620,43 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                 Add to my nook
               </button>
             )}
+            {currentUser && (
+              <div className="share-control" ref={shareControlRef}>
+                <button
+                  type="button"
+                  aria-expanded={shareOpen}
+                  aria-haspopup="menu"
+                  onClick={() => setShareOpen((open) => !open)}
+                >
+                  Share <span aria-hidden="true">▾</span>
+                </button>
+                {shareOpen && (
+                  <div className="share-menu canonical-share-menu" role="menu">
+                    <label htmlFor="canonical-share-url">Paper URL</label>
+                    <div className="share-link-row">
+                      <input
+                        id="canonical-share-url"
+                        value={`${window.location.origin}/paper/${paper.doi || paper.id}`}
+                        readOnly
+                        onFocus={(event) => event.target.select()}
+                      />
+                      <button type="button" onClick={handleShare}>
+                        {shareCopied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {(paper.also_read_by || []).length > 0 && (
+          {!currentUser && (paper.also_read_by || []).length > 0 && (
+            <p className="signed-out-reviews">
+              <a href="/signin">Sign in</a> to see others’ reviews of the paper.
+            </p>
+          )}
+
+          {currentUser && (paper.also_read_by || []).length > 0 && (
             <div className="nooks-row">
               <span className="nooks-label">
                 In {paper.also_read_by.length}{' '}
@@ -548,7 +671,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                         ? 'avatar-chip has-pop mini author'
                         : 'avatar-chip has-pop mini'
                     }
-                    href={`#/u/${entry.user.id}`}
+                    href={`/u/${entry.user.id}`}
                   >
                     <Avatar user={entry.user} className="mini-avatar" />
                     <span className="chip-pop">

@@ -43,7 +43,7 @@ export default function RoomPage({ roomId, currentUser, onBack }) {
         <div className="seminar-head">
           <h2 className="room-title">
             {room.paper_id ? (
-              <a href={`#/paper/${room.paper_id}`} title="Open the paper">
+              <a href={`/paper/${room.paper_id}`} title="Open the paper">
                 {room.paper_title}
               </a>
             ) : (

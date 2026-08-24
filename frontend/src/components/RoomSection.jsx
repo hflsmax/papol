@@ -99,7 +99,7 @@ function RoomCard({ room, paper, currentUser }) {
             <a
               key={u.id}
               className="avatar-chip has-pop mini"
-              href={`#/u/${u.id}`}
+              href={`/u/${u.id}`}
             >
               <Avatar user={u} className="mini-avatar" />
               <span className="chip-pop">
@@ -117,7 +117,7 @@ function RoomCard({ room, paper, currentUser }) {
       )}
       {currentUser ? (
         <p className="room-enter">
-          <a className="btn" href={`#/room/${room.id}`}>
+          <a className="btn" href={`/room/${room.id}`}>
             Open the room
           </a>
         </p>

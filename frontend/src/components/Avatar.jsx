@@ -24,7 +24,7 @@ export default function Avatar({ user, className }) {
     // Bundled images (demo characters) live under assets/; uploaded ones
     // are served from uploads/.
     const bundled = user.avatar_path.startsWith('assets/');
-    const src = bundled ? user.avatar_path : `uploads/${user.avatar_path}`;
+    const src = bundled ? `/${user.avatar_path}` : `/uploads/${user.avatar_path}`;
     return (
       <img
         className={`avatar-img ${bundled ? 'head-crop ' : ''}${className}`}
