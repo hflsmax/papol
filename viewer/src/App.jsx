@@ -165,6 +165,10 @@ export default function App() {
   const wantedNoteId = numberParam('note');
   const [paper, setPaper] = useState(null);
   const [doc, setDoc] = useState(null);
+  // How much of the PDF has arrived, while it has not: null until the
+  // first progress event, since a bar at 0% before the request has even
+  // answered reads as stalled rather than as "not yet known".
+  const [pdfProgress, setPdfProgress] = useState(null);
   const [notes, setNotes] = useState([]);
   const [error, setError] = useState(null);
   // Null until the page is measured: the document opens at the width of
@@ -310,11 +314,15 @@ export default function App() {
       return undefined;
     }
     let cancelled = false;
+    setPdfProgress(null);
     const task = pdfjs.getDocument({
       url: href,
       standardFontDataUrl: 'standard_fonts/',
       wasmUrl: 'wasm/',
     });
+    task.onProgress = ({ loaded, total }) => {
+      if (!cancelled) setPdfProgress({ loaded, total });
+    };
     task.promise
       .then((d) => !cancelled && setDoc(d))
       .catch((e) => !cancelled && setError(`Could not open the PDF: ${e.message}`));
@@ -1252,6 +1260,14 @@ export default function App() {
 
   const pages = doc ? Array.from({ length: doc.numPages }, (_, i) => i + 1) : [];
 
+  // A percentage once the server has said how big the file is; null while
+  // that is still unknown, which reads as "under way" rather than "stuck
+  // at zero".
+  const pdfPct =
+    pdfProgress && pdfProgress.total > 0
+      ? Math.min(100, Math.round((pdfProgress.loaded / pdfProgress.total) * 100))
+      : null;
+
   return (
     <>
       <style>{styles}</style>
@@ -1574,6 +1590,20 @@ export default function App() {
           {railOpen ? '›' : '‹'}
         </button>
         <div className="pages" ref={scrollerRef}>
+          {!doc && (
+            <div className="pdf-loading" role="status" aria-live="polite">
+              <div className="pdf-loading-card">
+                <p>Loading the paper…</p>
+                <div className={`pdf-progress-track${pdfPct == null ? ' indeterminate' : ''}`}>
+                  <div
+                    className="pdf-progress-fill"
+                    style={pdfPct != null ? { width: `${pdfPct}%` } : undefined}
+                  />
+                </div>
+                {pdfPct != null && <span className="pdf-progress-pct">{pdfPct}%</span>}
+              </div>
+            </div>
+          )}
           {(!doc || !scale) && (
             <>
               <div className="page-skeleton" />
