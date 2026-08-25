@@ -467,6 +467,7 @@ export function makeRig(raw) {
     const head = s.head || 0;
     const wag = s.wag || 0;
     const gait = s.gait || 0;
+    const emphasis = s.emphasis || 1;
     const stride = s.stride || 0;
     const travel = (s.cycle || 0) + stride;
     const dt = Math.min(0.05, s.dt || 0);
@@ -491,9 +492,9 @@ export function makeRig(raw) {
         if (phases[i] < duty && motion.phases[i] >= duty && gait > 0.15) {
           const near = i > 1 ? 1 : 0.78;
           const impactScale = s.mode === 'chase' ? 0.38 : 1;
-          motion.bob.v += (spec.impact || 1.5) * near * gait * impactScale;
-          motion.pitch.v += (i % 2 === 0 ? 1 : -1) * (spec.impactPitch || 2.2) * near * gait * impactScale;
-          motion.legs[i].v += (spec.legGive || 2.4) * gait * impactScale;
+          motion.bob.v += (spec.impact || 1.5) * near * gait * impactScale * emphasis;
+          motion.pitch.v += (i % 2 === 0 ? 1 : -1) * (spec.impactPitch || 2.2) * near * gait * impactScale * emphasis;
+          motion.legs[i].v += (spec.legGive || 2.4) * gait * impactScale * emphasis;
         }
       }
     }
@@ -510,7 +511,7 @@ export function makeRig(raw) {
     // the neck up: a cow nods deeply enough to count the steps by, a
     // trotting dog hardly nods at all, and a cat holds its head so still
     // that the only thing moving is the tail behind it.
-    const sway = Math.sin(2 * Math.PI * stride) * gait * (spec.nod == null ? 1 : spec.nod);
+    const sway = Math.sin(2 * Math.PI * stride) * gait * (spec.nod == null ? 1 : spec.nod) * emphasis;
     // And the trunk rocks fore and aft as well as up and down, about the
     // croup, because the end with a foot under it is the end being held
     // up. A quarter of a cycle out of step with the bob — the withers are

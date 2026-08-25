@@ -7,6 +7,11 @@
 
 import { animalFor } from './animals';
 
+// Animals occupy very little of a PDF page, so their articulation needs a
+// little extra reach to remain legible. Keep translation unchanged: amplifying
+// that would make planted feet slide instead of making the animal feel alive.
+const MOTION_EMPHASIS = 1.22;
+
 const spell = ([a, b]) => a + Math.random() * (b - a);
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
 const smooth = (n) => {
@@ -474,7 +479,7 @@ function tailAngle(c, w, now) {
   const phase = c.tailPhase + c.seed * 6.28;
   const harmonic = (w.tailHarmonic ?? 0.16) * Math.sin(phase * 2.07 + c.seed * 2.3);
   const drift = (w.tailDrift ?? 0.10) * Math.sin(phase * 0.39 + c.seed * 8.1);
-  return (Math.sin(phase) + harmonic + drift) * c.swish + over;
+  return ((Math.sin(phase) + harmonic + drift) * c.swish + over) * MOTION_EMPHASIS;
 }
 
 // A rigged animal: no transforms to write beyond the two above, because
@@ -655,14 +660,15 @@ function poseRigged(c, parts, now, k, cx, cy) {
     dt,
     now,
     seed: c.seed,
-    head: posedHead,
-    wag: Math.sin(c.wagPhase + c.seed * 6.28) * act.wag[0],
+    head: posedHead * MOTION_EMPHASIS,
+    wag: Math.sin(c.wagPhase + c.seed * 6.28) * act.wag[0] * MOTION_EMPHASIS,
     tail: tailAngle(c, w, now),
     ear: posedEar,
-    tilt: c.tilt,
-    sink: posedSink,
-    paw: posedPaw,
+    tilt: c.tilt * MOTION_EMPHASIS,
+    sink: posedSink * MOTION_EMPHASIS,
+    paw: posedPaw && [posedPaw[0], posedPaw[1] * MOTION_EMPHASIS, posedPaw[2] * MOTION_EMPHASIS],
     gait: c.gait,
+    emphasis: MOTION_EMPHASIS,
     stride: c.stride,
     cycle: c.strideCycle || 0,
     mode: act.id === 'chase' ? 'chase' : (act.id === 'hunt' ? 'hunt' : null),
@@ -779,7 +785,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
     const up = c.pawLeg === i
       ? c.paw + Math.sin(c.pawPhase + c.seed * 6.28) * c.pawWag
       : 0;
-    turned[i] = `rotate(${(w.swing * c.gait * swing + up).toFixed(2)} ${leg.pivot[0]} ${leg.pivot[1]})`;
+    turned[i] = `rotate(${((w.swing * c.gait * swing + up) * MOTION_EMPHASIS).toFixed(2)} ${leg.pivot[0]} ${leg.pivot[1]})`;
     parts.legs[i].setAttribute('transform', turned[i]);
   }
 
@@ -802,7 +808,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   // The body rises twice a stride, where the legs are under it. Standing,
   // it breathes instead — a hundredth of itself, at a quarter of a hertz,
   // which nobody sees and everybody notices the absence of.
-  const bob = -w.bob * c.gait * (0.5 - 0.5 * Math.cos(4 * Math.PI * c.stride));
+  const bob = -w.bob * MOTION_EMPHASIS * c.gait * (0.5 - 0.5 * Math.cos(4 * Math.PI * c.stride));
   const breath = 1 + 0.008 * (1 - c.gait) * Math.sin(now * 0.0016 + c.seed * 6.28);
   // Scaled about the ground, so it is the back that lifts and not the feet.
   // Sitting and crouching, on top of that. Both only ever bring the body
@@ -826,7 +832,7 @@ export function poseCow(c, parts, now, k, cx, cy) {
   const work = Math.sin(c.wagPhase + c.seed * 6.28) * act.wag[0];
   parts.head.setAttribute(
     'transform',
-    `rotate(${(-(c.head + work)).toFixed(2)} ${spec.headPivot[0]} ${spec.headPivot[1]})`
+    `rotate(${(-(c.head + work) * MOTION_EMPHASIS).toFixed(2)} ${spec.headPivot[0]} ${spec.headPivot[1]})`
   );
   parts.ear.setAttribute(
     'transform',
