@@ -1391,6 +1391,7 @@ export default function PdfPage({
             <button
               key={`${cite.referenceId}-${i}`}
               type="button"
+              data-reference-id={cite.referenceId}
               className={`cite${cite.referenceId === openReferenceId ? ' open' : ''}${
                 cite.exact ? '' : ' guessed'
               }`}
@@ -1406,7 +1407,7 @@ export default function PdfPage({
                 e.stopPropagation();
                 onOpenReference(
                   cite.referenceId,
-                  e.currentTarget.getBoundingClientRect(),
+                  e.currentTarget,
                   cite.reference || null
                 );
               }}

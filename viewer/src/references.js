@@ -27,6 +27,11 @@
 // downward and tight upward.
 const ABOVE = 0.012;
 const BELOW = 0.06;
+// hyperref raises a destination slightly above the bibliography line so a
+// jump does not pin the text flush to the window edge. Matching the nearest
+// line mistakes a tightly spaced next entry for the preceding one. This is
+// the typical raised-link distance on a letter-sized page (about 5.5pt).
+const EXPECTED_DROP = 0.007;
 
 /**
  * Citation boxes for one page, in fractions of the page from its
@@ -256,16 +261,26 @@ export async function readNamedReference(doc, dest) {
   const textOf = (line) => line.items.sort((a, b) => a.x - b.x)
     .map((item) => item.text).join(' ').replace(/\s+/g, ' ').trim();
   const marker = /^\s*\[\d+\]/;
-  const start = lines.findIndex((line) => line.y <= targetY + 2 && marker.test(textOf(line)));
+  let start = lines.findIndex((line) => line.y <= targetY + 2 && marker.test(textOf(line)));
+  const numbered = start >= 0;
+  // Author-year bibliographies have no [n] boundary. Their named hyperref
+  // destination still sits immediately above the first line, so begin at
+  // the first printed line below it and stop when another surname-led entry
+  // begins. This is deliberately only the PDF-native fallback; analyzed
+  // references continue to use GROBID's structure.
+  if (!numbered) start = lines.findIndex((line) => line.y <= targetY + 2);
   if (start < 0) return null;
 
   const gathered = [];
   for (let i = start; i < lines.length && gathered.length < 8; i += 1) {
     const text = textOf(lines[i]);
-    if (i > start && marker.test(text)) break;
+    if (i > start && (
+      (numbered && marker.test(text)) ||
+      (!numbered && /^[A-ZÀ-ÖØ-Þ][\p{L}'’.-]+,\s+(?:[A-Z]\.|[A-Z][\p{L}'’.-]+)/u.test(text))
+    )) break;
     if (text) gathered.push(text);
   }
-  return gathered.join(' ').replace(marker, '').trim() || null;
+  return gathered.join(' ').replace(numbered ? marker : /^$/, '').trim() || null;
 }
 
 export function destinationY(target) {
@@ -312,13 +327,19 @@ async function destinationSpot(doc, dest) {
   return { page: index + 1, y: (viewport.height - y) / viewport.height };
 }
 
-function referenceAt(references, spot) {
+export function referenceAt(references, spot) {
   let best = null;
   for (const reference of references) {
     if (reference.page !== spot.page) continue;
     const drop = reference.y - spot.y; // positive: the entry is below the mark
     if (drop < -ABOVE || drop > BELOW) continue;
-    if (!best || Math.abs(drop) < Math.abs(best.y - spot.y)) best = reference;
+    if (
+      !best ||
+      Math.abs(drop - EXPECTED_DROP) <
+        Math.abs((best.y - spot.y) - EXPECTED_DROP)
+    ) {
+      best = reference;
+    }
   }
   return best;
 }

@@ -14,7 +14,7 @@ import { appPath } from './base';
 const WIDTH = 400;
 const MARGIN = 12;
 
-export default function ReferenceCard({ box, reference, error, onClose }) {
+export default function ReferenceCard({ anchor, reference, error, onClose }) {
   const cardRef = useRef(null);
   const [placement, setPlacement] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -29,9 +29,11 @@ export default function ReferenceCard({ box, reference, error, onClose }) {
   // scrolling inside itself rather than hanging off the screen.
   useLayoutEffect(() => {
     const el = cardRef.current;
-    if (!el || !box) return undefined;
+    if (!el || !anchor) return undefined;
 
     const place = () => {
+      if (!anchor.isConnected) return;
+      const box = anchor.getBoundingClientRect();
       const width = Math.min(WIDTH, window.innerWidth - 2 * MARGIN);
       const height = el.offsetHeight;
       const roomBelow = window.innerHeight - box.bottom - 2 * MARGIN;
@@ -58,11 +60,19 @@ export default function ReferenceCard({ box, reference, error, onClose }) {
     };
 
     place();
-    // A rotated phone moves the marker as well as the card, but the card
-    // is the one that would end up off the screen.
+    // Scroll is captured because it does not bubble; this follows the
+    // paper's own scroller as well as the window. ResizeObserver covers a
+    // zoom changing the marker's box without changing the window itself.
     window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [box, reference, error, showAll]);
+    window.addEventListener('scroll', place, true);
+    const observer = new ResizeObserver(place);
+    observer.observe(anchor);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      observer.disconnect();
+    };
+  }, [anchor, reference, error, showAll]);
 
   // A click anywhere else puts the card away. Registered on the window in
   // a capture phase so it fires before anything else takes the click.

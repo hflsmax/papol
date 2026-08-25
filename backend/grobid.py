@@ -22,6 +22,8 @@ from typing import Optional
 
 import httpx
 
+from pdf_parser import extract_arxiv_id
+
 TEI = "{http://www.tei-c.org/ns/1.0}"
 
 # Where the required analyzer lives. Production always sets this; keeping the
@@ -373,6 +375,8 @@ def _reference_from(bibl, key: str, index: int, pages) -> Reference:
             doi = value.lower().replace("https://doi.org/", "")
         elif kind == "arxiv":
             arxiv = value.replace("arXiv:", "").strip()
+    if not arxiv:
+        arxiv = extract_arxiv_id(raw or "")
 
     # Only the first box matters here: an entry may wrap over several
     # lines, and where it *starts* is what a link into it points at.

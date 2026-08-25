@@ -55,6 +55,7 @@ from typing import Optional
 
 import crossref
 import openalex
+from pdf_parser import extract_arxiv_id
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ _STOPWORDS = {
 # How much of a candidate's title must appear in the printed reference for
 # the match to be believed. Not 1.0: OCR, line-break hyphens and subtitles
 # dropped by one side or the other all cost a word or two honestly.
-_TITLE_AGREEMENT = 0.6
+_TITLE_AGREEMENT = 0.75
 
 # At or below this many words, a title has no room to lose one: the words
 # it does have are all that distinguish it from its neighbours.
@@ -168,7 +169,7 @@ async def _by_identifier(reference, context: ReferenceContext) -> tuple[Optional
     failed = False
     for identifier, lookup in (
         (reference.doi, openalex.by_doi),
-        (reference.arxiv_id, openalex.by_arxiv),
+        (reference.arxiv_id or extract_arxiv_id(reference.raw or ""), openalex.by_arxiv),
     ):
         if not identifier:
             continue
@@ -263,6 +264,15 @@ def _merge(primary: dict, secondary: dict, printed_year: Optional[int]) -> dict:
             if candidate == printed_year:
                 merged["year"] = candidate
                 break
+    # Enrichment should not shorten a correctly matched title. OpenAlex can
+    # call the Emscripten paper merely "Emscripten" while Crossref retains
+    # the identifying subtitle printed in the bibliography.
+    titles = [primary.get("title"), secondary.get("title")]
+    merged["title"] = max(
+        (title for title in titles if title),
+        key=lambda title: len(_content_words(title)),
+        default=merged.get("title"),
+    )
     return merged
 
 
@@ -293,10 +303,25 @@ def _title_matches(
     haystack = _content_words(f"{raw} {parsed_title or ''}")
     if not haystack:
         return False
-    missing = len(words - haystack)
+    if len(words) == 1:
+        # A one-word search result contained somewhere in a long reference
+        # has no identity: "MLC" and "LangChain" produced unrelated works.
+        # It is usable only when the structural parser independently says
+        # that exact word is the complete title.
+        return words == _content_words(parsed_title)
+    matched = words & haystack
+    # PDF line-break recovery can join a real compound ("general- purpose"
+    # becomes "generalpurpose"). Count both component words when their
+    # concatenation is present, without relaxing the test for unrelated
+    # words elsewhere in a long raw reference.
+    for first in words:
+        for second in words - {first}:
+            if first + second in haystack:
+                matched.update((first, second))
+    missing = len(words - matched)
     if len(words) <= _SHORT_TITLE:
         return missing == 0
-    return len(words & haystack) / len(words) >= _TITLE_AGREEMENT
+    return len(matched) / len(words) >= _TITLE_AGREEMENT
 
 
 def _content_words(text: Optional[str]) -> set[str]:

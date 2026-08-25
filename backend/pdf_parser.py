@@ -4,7 +4,8 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 ARXIV_ID_PATTERN = re.compile(
-    r"arXiv\s*:\s*((?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?)",
+    r"(?:arXiv\s*:\s*|arxiv\s*\.\s*org\s*/\s*abs\s*/\s*)"
+    r"((?:\d{4}\s*\.\s*\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\s*/\s*\d{7})(?:v\d+)?)",
     re.IGNORECASE,
 )
 
@@ -39,9 +40,9 @@ def extract_doi_from_pdf(file_path: str) -> tuple[str | None, str]:
 
 
 def extract_arxiv_id(text: str) -> str | None:
-    """Return the arXiv identifier printed in PDF text, including its version."""
+    """Return an arXiv id printed explicitly or in an arxiv.org URL."""
     match = ARXIV_ID_PATTERN.search(text)
-    return match.group(1) if match else None
+    return re.sub(r"\s+", "", match.group(1)) if match else None
 
 
 def arxiv_doi(arxiv_id: str) -> str:

@@ -396,7 +396,7 @@ class ReferenceOut(BaseModel):
     # at a place rather than at an entry.
     page: Optional[int] = None
     y: Optional[float] = None
-    # none | ok | miss | error — filled in the first time it is opened.
+    # none | ok | bibliography | error — filled in when it is opened.
     resolved_status: Optional[str] = None
     resolution: Optional[ResolvedWork] = None
     # A paper already in Papol that this reference names, when there is

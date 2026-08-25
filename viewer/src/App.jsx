@@ -622,9 +622,9 @@ export default function App() {
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
   // reference before — and the lookup fills the rest in.
-  const openReference = (referenceId, box, inlineReference = null) => {
+  const openReference = (referenceId, anchor, inlineReference = null) => {
     const known = referencesById.get(referenceId) || inlineReference || null;
-    setOpenCite({ referenceId, box });
+    setOpenCite({ referenceId, anchor });
     setReference(known);
     setReferenceError(null);
     // A PDF-native `cite.*` destination is recognizable before server-side
@@ -663,8 +663,10 @@ export default function App() {
       }
       return;
     }
-    if (known?.resolved_status) return; // already looked up, and stored
-
+    // Show a cached answer immediately, but still ask the item endpoint.
+    // The backend cheaply returns valid stored data and can invalidate a
+    // match made under older consolidation rules. Trusting the bundle
+    // forever made a corrected matcher unable to repair existing popups.
     getViewerReference(referenceId)
       .then((full) => {
         setReference((current) =>
@@ -2403,7 +2405,7 @@ export default function App() {
 
         {openCite && (
           <ReferenceCard
-            box={openCite.box}
+            anchor={openCite.anchor}
             reference={reference}
             error={referenceError}
             onClose={closeReference}

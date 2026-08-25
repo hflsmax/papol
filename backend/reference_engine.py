@@ -9,12 +9,14 @@ state so the HTTP routes do not become a second reference engine.
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import biblio
 import grobid
+from pdf_parser import extract_arxiv_id
 from schemas import CitationOut, EditionReferences, ReferenceOut, ResolvedWork
 
 logger = logging.getLogger(__name__)
@@ -48,20 +50,105 @@ def reference_out(reference) -> ReferenceOut:
 
 async def resolve(reference) -> ReferenceOut:
     """Resolve and cache metadata on a database row or ephemeral row."""
+    if reference.resolved_status == "ok" and reference.resolution:
+        try:
+            cached = json.loads(reference.resolution)
+        except (TypeError, ValueError):
+            cached = None
+        if cached and not biblio.ReferenceContext.from_reference(reference).accepts(cached):
+            reference.resolved_status = None
+            reference.resolution = None
+    # Older analyses may have cached a search miss even though the printed
+    # reference contains an exact arXiv URL that GROBID did not put in an
+    # idno. An exact identifier is materially new evidence, so retry that
+    # miss instead of preserving an answer produced by a broad title search.
+    if (
+        reference.resolved_status == "miss"
+        and not reference.arxiv_id
+        and extract_arxiv_id(reference.raw or "")
+    ):
+        reference.resolved_status = None
+    if reference.resolved_status == "miss":
+        reference.resolved_status = "bibliography"
+        reference.resolution = json.dumps(_bibliography_summary(reference))
+        reference.resolved_at = datetime.utcnow()
     if reference.resolved_status is None:
         try:
             status, summary = await biblio.resolve(reference)
         except Exception as exc:
             logger.warning("Could not resolve reference %s: %s", reference.id, exc)
             status, summary = "error", None
-        if status == "error":
-            answer = reference_out(reference)
-            answer.resolved_status = "error"
-            return answer
+        if status in {"miss", "error"}:
+            # Crossref/OpenAlex enrichment is useful, but it is not the
+            # citation itself. GROBID has already read the bibliography, so
+            # an unavailable index must not turn that local evidence into a
+            # broken popup.
+            status = "bibliography"
+            summary = _bibliography_summary(reference)
         reference.resolved_status = status
         reference.resolution = json.dumps(summary) if summary else None
         reference.resolved_at = datetime.utcnow()
     return reference_out(reference)
+
+
+def _bibliography_summary(reference) -> dict:
+    """A useful, honest card when the citation is not an indexed paper."""
+    raw = reference.raw or ""
+    doi = getattr(reference, "doi", None)
+    arxiv_id = getattr(reference, "arxiv_id", None) or extract_arxiv_id(raw)
+    if doi:
+        url = f"https://doi.org/{doi}"
+    elif arxiv_id:
+        arxiv_id = re.sub(r"^arxiv:\s*", "", arxiv_id, flags=re.IGNORECASE)
+        url = f"https://arxiv.org/abs/{arxiv_id}"
+    else:
+        url = _cited_url(raw)
+    title = reference.title or _url_title(url)
+    if not title:
+        title = raw[:240].strip().rstrip(".,") or "Cited reference"
+    try:
+        authors = json.loads(reference.authors) if reference.authors else []
+    except (TypeError, ValueError):
+        authors = []
+    year = reference.year
+    if year is None:
+        years = re.findall(r"\b(?:19|20)\d{2}\b", raw)
+        year = int(years[-1]) if years else None
+    return {
+        "title": title,
+        "authors": authors,
+        "year": year,
+        "venue": reference.journal,
+        "url": url,
+        "source": "bibliography",
+    }
+
+
+def _cited_url(raw: str) -> str | None:
+    match = re.search(
+        r"(https?\s*:\s*//.*?)(?=,\s*(?:19|20)\d{2}[a-z]?\b|\.\s*\[?Accessed\b|$)",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    url = re.sub(r"\s+", "", match.group(1)).rstrip(".,;)")
+    return url if re.match(r"^https?://[^/\s]+", url) else None
+
+
+def _url_title(url: str | None) -> str | None:
+    if not url:
+        return None
+    match = re.match(r"https?://(?:www\.)?([^/]+)(?:/(.*))?", url)
+    if not match:
+        return None
+    host, path = match.groups()
+    parts = [part for part in (path or "").split("/") if part]
+    if host == "github.com" and len(parts) >= 2:
+        return "/".join(parts[:2])
+    if host == "huggingface.co" and len(parts) >= 3 and parts[0] == "datasets":
+        return "/".join(parts[1:3])
+    return None
 
 
 class EphemeralReferenceEngine:

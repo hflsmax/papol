@@ -21,6 +21,12 @@ class MetadataExtractionTests(unittest.TestCase):
             "1705.07354v3",
         )
 
+    def test_finds_arxiv_id_in_spaced_reference_url(self):
+        self.assertEqual(
+            extract_arxiv_id("URL https: //arxiv.org/abs/2310. 06825."),
+            "2310.06825",
+        )
+
     def test_pdf_arxiv_doi_identifies_the_uploaded_work(self):
         self.assertEqual(arxiv_doi("1705.07354v3"), "10.48550/arXiv.1705.07354")
 
