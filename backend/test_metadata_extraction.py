@@ -32,6 +32,26 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertEqual(header.year, 2018)
         self.assertEqual(header.arxiv_id, "arXiv:1705.07354v3")
 
+    def test_normalizes_display_only_all_caps_title(self):
+        self.assertEqual(
+            grobid.normalize_title(
+                "XGRAMMAR: FLEXIBLE AND EFFICIENT STRUCTURED GENERATION "
+                "ENGINE FOR LARGE LANGUAGE MODELS"
+            ),
+            "XGrammar: Flexible and Efficient Structured Generation "
+            "Engine for Large Language Models",
+        )
+
+    def test_preserves_mixed_case_title_and_short_acronyms(self):
+        self.assertEqual(
+            grobid.normalize_title("An API for SQL: Mixed-Case Titles"),
+            "An API for SQL: Mixed-Case Titles",
+        )
+        self.assertEqual(
+            grobid.normalize_title("AN API FOR SQL"),
+            "An API for SQL",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -80,6 +80,8 @@ up its database, restarts the service, and waits for it to answer. When
 checkout's — it runs `nixos-rebuild switch` instead of a plain restart, since
 those files *are* the service. It refuses to deploy over uncommitted changes
 in the production tree and says so when the ref is ahead of `origin/main`.
+Before changing production it shows the current and target commits and asks
+for confirmation, so production deploys require an interactive terminal.
 
 ### Working against real data
 

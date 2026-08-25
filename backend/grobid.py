@@ -132,7 +132,7 @@ def parse_header(xml: str) -> HeaderMetadata:
     if bibl is None:
         raise RuntimeError("GROBID returned no bibliographic header")
 
-    title = _text(bibl.find(f"{TEI}analytic/{TEI}title[@type='main']"))
+    title = normalize_title(_text(bibl.find(f"{TEI}analytic/{TEI}title[@type='main']")))
     authors = []
     for author in bibl.findall(f"{TEI}analytic/{TEI}author"):
         person = author.find(f"{TEI}persName")
@@ -163,6 +163,50 @@ def parse_header(xml: str) -> HeaderMetadata:
         doi=identifiers.get("doi"),
         arxiv_id=identifiers.get("arxiv"),
     )
+
+
+_TITLE_SMALL_WORDS = {
+    "a", "an", "and", "as", "at", "but", "by", "for", "from", "in",
+    "into", "nor", "of", "on", "or", "over", "per", "the", "to", "via",
+    "with", "without", "yet",
+}
+
+
+def normalize_title(title: str | None) -> str | None:
+    """Undo display-only all-caps styling in a GROBID header title.
+
+    Mixed-case titles are authoritative and pass through untouched. For an
+    all-caps heading, use ordinary title casing while retaining short
+    acronyms. A leading X-name is common in systems papers (XGrammar,
+    XLA, XGBoost); its X remains a prefix rather than becoming "Xgrammar".
+    """
+    if not title:
+        return title
+    letters = "".join(char for char in title if char.isalpha())
+    if not letters or letters != letters.upper():
+        return title
+
+    parts = re.findall(r"[A-Za-z]+|[^A-Za-z]+", title)
+    word_indexes = [index for index, part in enumerate(parts) if part.isalpha()]
+    first = word_indexes[0]
+    last = word_indexes[-1]
+    after_colon = False
+    for index, part in enumerate(parts):
+        if not part.isalpha():
+            if ":" in part:
+                after_colon = True
+            continue
+        lower = part.lower()
+        if lower in _TITLE_SMALL_WORDS and index not in {first, last} and not after_colon:
+            parts[index] = lower
+        elif len(part) <= 4 and lower not in _TITLE_SMALL_WORDS:
+            parts[index] = part
+        elif index == first and part.startswith("X") and len(part) > 5:
+            parts[index] = "X" + lower[1:].capitalize()
+        else:
+            parts[index] = lower.capitalize()
+        after_colon = False
+    return "".join(parts)
 
 
 async def analyze(pdf_path: str) -> Analysis:

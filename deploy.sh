@@ -27,6 +27,17 @@ say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
 die()  { printf '\n\033[1;31mdeploy: %s\033[0m\n' "$*" >&2; exit 1; }
 
+confirm_deploy() {
+  local answer
+  [ -t 0 ] || die "production deployment requires confirmation from a terminal"
+  printf '\nDeploy this revision to production? [y/N] '
+  IFS= read -r answer || die "deployment confirmation was not received"
+  case "$answer" in
+    y|Y|yes|YES|Yes) ;;
+    *) die "deployment cancelled" ;;
+  esac
+}
+
 usage() {
   sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
@@ -352,10 +363,14 @@ deploy_prod() {
   old=$(git -C "$PROD_DIR" rev-parse HEAD)
 
   if [ "$old" = "$rev" ]; then
-    note "production is already at $(git -C "$DEV_DIR" log -1 --oneline "$rev")"
+    say "Production revision"
+    note "current and target: $(git -C "$DEV_DIR" log -1 --oneline "$rev")"
   else
-    say "Promoting $ref → production"
-    git -C "$DEV_DIR" log --oneline "$old..$rev" 2>/dev/null | sed 's/^/    /' || true
+    say "Commits for $ref → production"
+    note "current: $(git -C "$DEV_DIR" log -1 --oneline "$old")"
+    note "target:  $(git -C "$DEV_DIR" log -1 --oneline "$rev")"
+    git -C "$DEV_DIR" log --oneline --left-right "$old...$rev" 2>/dev/null \
+      | sed -e 's/^</    remove /' -e 's/^>/    add    /' || true
   fi
 
   # Deploying something no remote has is allowed — it is a solo project —
@@ -365,6 +380,8 @@ deploy_prod() {
      && ! git -C "$DEV_DIR" merge-base --is-ancestor "$rev" origin/main; then
     note "note: $ref is ahead of origin/main — these commits are not pushed anywhere"
   fi
+
+  confirm_deploy
 
   git -C "$PROD_DIR" reset --hard "$rev" --quiet
   note "production is at $(git -C "$PROD_DIR" log -1 --oneline)"
