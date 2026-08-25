@@ -7,9 +7,136 @@ import {
   adminRunSql,
   adminDbMetrics,
   adminResetDbMetrics,
+  adminActiveUsers,
+  adminConcurrencySeries,
   adminListFeedback,
   adminSetFeedbackResolved,
 } from '../api';
+
+function ConcurrencyChart({ points }) {
+  const width = 900;
+  const height = 220;
+  const pad = { top: 14, right: 12, bottom: 30, left: 34 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const maximum = Math.max(1, ...points.map((point) => point.count));
+  const x = (index) => pad.left + (index / Math.max(1, points.length - 1)) * plotWidth;
+  const y = (count) => pad.top + plotHeight - (count / maximum) * plotHeight;
+  const line = points.map((point, index) => `${x(index)},${y(point.count)}`).join(' ');
+  const ticks = [0, 6, 12, 18, 24].map((hours) => {
+    const index = Math.min(points.length - 1, Math.round(hours * 12));
+    return { index, label: new Date(`${points[index].at}Z`).toLocaleTimeString([], {
+      hour: 'numeric', minute: '2-digit',
+    }) };
+  });
+
+  return (
+    <div className="concurrency-chart-wrap">
+      <svg
+        className="concurrency-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Concurrent readers over the last 24 hours"
+      >
+        {[0, maximum].map((value) => (
+          <g key={value}>
+            <line x1={pad.left} x2={width - pad.right} y1={y(value)} y2={y(value)} />
+            <text x={pad.left - 8} y={y(value) + 4} textAnchor="end">{value}</text>
+          </g>
+        ))}
+        <polygon
+          className="concurrency-area"
+          points={`${pad.left},${y(0)} ${line} ${width - pad.right},${y(0)}`}
+        />
+        <polyline className="concurrency-line" points={line} />
+        {ticks.map((tick) => (
+          <text
+            key={tick.index}
+            x={x(tick.index)}
+            y={height - 7}
+            textAnchor={tick.index === 0 ? 'start' : tick.index === points.length - 1 ? 'end' : 'middle'}
+          >
+            {tick.label}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function ActiveUsersPanel() {
+  const [presence, setPresence] = useState(null);
+  const [series, setSeries] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      Promise.all([adminActiveUsers(), adminConcurrencySeries()])
+        .then(([data, history]) => {
+          if (alive) {
+            setPresence(data);
+            setSeries(history);
+            setError(null);
+          }
+        })
+        .catch((e) => alive && setError(e.message));
+    };
+    load();
+    const timer = window.setInterval(load, 30_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  if (error && !presence) return <div className="error">{error}</div>;
+  if (!presence) return <div className="loading">Loading active readers…</div>;
+
+  return (
+    <>
+      <p className="active-user-count">
+        <span>{presence.count}</span>{' '}
+        concurrent {presence.count === 1 ? 'reader' : 'readers'}
+      </p>
+      <p className="panel-note">
+        Signed-in readers seen in the last {presence.window_seconds / 60} minutes.
+        Updates every 30 seconds.
+      </p>
+      {series?.points?.length > 0 && (
+        <>
+          <h6 className="mini-title concurrency-title">Last 24 hours</h6>
+          <ConcurrencyChart points={series.points} />
+        </>
+      )}
+      {error && <div className="error">{error}</div>}
+      {presence.users.length > 0 && (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>reader</th>
+                <th>email</th>
+                <th>last seen</th>
+                <th>sessions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {presence.users.map((reader) => (
+                <tr key={reader.id}>
+                  <td>{reader.display_name}</td>
+                  <td>{reader.email}</td>
+                  <td>{new Date(`${reader.last_seen_at}Z`).toLocaleTimeString()}</td>
+                  <td>{reader.session_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
 
 function DbMetricsPanel() {
   const [metrics, setMetrics] = useState(null);
@@ -260,6 +387,11 @@ export default function AdminPage() {
 
   return (
     <div className="admin-page">
+      <div className="panel">
+        <h2 className="panel-title">Concurrent readers</h2>
+        <ActiveUsersPanel />
+      </div>
+
       <div className="panel">
         <h2 className="panel-title">Bug reports and feature requests</h2>
         <FeedbackPanel />

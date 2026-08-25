@@ -88,6 +88,10 @@ export function getMe() {
   return request('/auth/me');
 }
 
+export function sendPresence() {
+  return request('/presence', { method: 'POST' });
+}
+
 export function updateProfile(data) {
   return jsonRequest('/auth/profile', 'PUT', data);
 }
@@ -345,6 +349,14 @@ export function adminDbMetrics() {
 
 export function adminResetDbMetrics() {
   return request('/admin/db-metrics/reset', { method: 'POST' });
+}
+
+export function adminActiveUsers() {
+  return request('/admin/active-users');
+}
+
+export function adminConcurrencySeries() {
+  return request('/admin/concurrency-series');
 }
 
 export function adminListFeedback() {

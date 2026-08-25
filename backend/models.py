@@ -48,6 +48,18 @@ class AuthToken(Base):
     user = relationship("User")
 
 
+class PresencePing(Base):
+    """One reader heartbeat per minute, retained for concurrency history."""
+    __tablename__ = "presence_pings"
+    __table_args__ = (
+        UniqueConstraint("user_id", "bucket_at", name="uq_presence_user_bucket"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    bucket_at = Column(DateTime, nullable=False, index=True)
+
+
 class Paper(Base):
     """The canonical paper, keyed by DOI (or title when no DOI). One row
     per paper; its PDFs are its editions, and per-reader state lives in

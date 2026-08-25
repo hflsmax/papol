@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getMe, getToken, setToken, logout, getNotifications } from './api';
+import {
+  getMe, getToken, setToken, logout, getNotifications, sendPresence,
+} from './api';
 import AuthPage from './components/AuthPage';
 import UserDirectory from './components/UserDirectory';
 import Space from './components/Space';
@@ -3467,6 +3469,56 @@ a.btn:hover {
 
 /* ---------- Admin ---------- */
 
+.active-user-count {
+  margin: 2px 0 0;
+  font-family: var(--font-ui);
+  color: var(--ink-soft);
+}
+
+.active-user-count span {
+  color: var(--green-ink);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+}
+
+.concurrency-title {
+  margin-top: 18px;
+}
+
+.concurrency-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.concurrency-chart {
+  display: block;
+  width: 100%;
+  min-width: 540px;
+  height: auto;
+  font: 11px var(--font-ui);
+  color: var(--ink-faint);
+}
+
+.concurrency-chart line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.concurrency-chart text {
+  fill: currentColor;
+}
+
+.concurrency-area {
+  fill: var(--green-soft);
+}
+
+.concurrency-line {
+  fill: none;
+  stroke: var(--green-ink);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
 .admin-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -4084,6 +4136,14 @@ export default function App() {
       .then((d) => setUnreadCount(d.unread_count))
       .catch(() => {});
   }, [user, route]);
+
+  useEffect(() => {
+    if (!user || demoActive() || !getToken()) return;
+    const checkIn = () => sendPresence().catch(() => {});
+    checkIn();
+    const timer = window.setInterval(checkIn, 60_000);
+    return () => window.clearInterval(timer);
+  }, [user]);
 
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
