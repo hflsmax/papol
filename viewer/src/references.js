@@ -61,10 +61,87 @@ export async function pageOverlays(doc, pageNumber, analysis) {
       exact: !c.inferred,
     }));
 
+  let citations = annotated.citations.length ? annotated.citations : fromAnalyzer;
+  if (references.length) {
+    try {
+      const inferred = await numberedCitations(doc, pageNumber, references);
+      citations = [...citations, ...inferred.filter(
+        (candidate) => !citations.some((known) => overlaps(known, candidate))
+      )];
+    } catch {
+      // Selectable text is a fallback, never a reason to lose PDF-native or
+      // GROBID-provided citation markers.
+    }
+  }
+
   return {
-    citations: annotated.citations.length ? annotated.citations : fromAnalyzer,
+    citations,
     links: annotated.links,
   };
+}
+
+/** Numbered markers GROBID omitted, recovered from selectable PDF text. */
+async function numberedCitations(doc, pageNumber, references) {
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  const content = await page.getTextContent();
+  const found = [];
+  const byNumber = new Map(references.map((ref) => [ref.index + 1, ref]));
+  // Require a closing bracket. OCR fragments such as "[9," are too
+  // ambiguous; GROBID can still supply them when its structural model is
+  // confident, but this deliberately conservative fallback cannot.
+  const marker = /\[\s*(\d{1,3}(?:\s*[,;]\s*\d{1,3})*)\s*\]/g;
+
+  for (const item of content.items || []) {
+    if (!item?.str || !Array.isArray(item.transform) || !item.str.includes('[')) continue;
+    marker.lastIndex = 0;
+    let match;
+    while ((match = marker.exec(item.str))) {
+      const ids = match[1].split(/[,;]/).map((part) => Number(part.trim()));
+      const targets = ids.map((n) => byNumber.get(n));
+      if (!targets.length || targets.some((ref) => !ref)) continue;
+
+      const transform = multiply(viewport.transform, item.transform);
+      const height = Math.max(1, Math.hypot(transform[2], transform[3]));
+      const fullWidth = Math.max(1, item.width * viewport.scale);
+      const start = match.index / item.str.length;
+      const share = match[0].length / item.str.length;
+      const box = {
+        x: (transform[4] + fullWidth * start) / viewport.width,
+        y: (transform[5] - height) / viewport.height,
+        w: Math.max(3, fullWidth * share) / viewport.width,
+        h: height / viewport.height,
+      };
+      for (const reference of targets) {
+        found.push({
+          referenceId: reference.id,
+          label: match[0],
+          ...box,
+          exact: false,
+        });
+      }
+    }
+  }
+  return found;
+}
+
+function multiply(a, b) {
+  return [
+    a[0] * b[0] + a[2] * b[1],
+    a[1] * b[0] + a[3] * b[1],
+    a[0] * b[2] + a[2] * b[3],
+    a[1] * b[2] + a[3] * b[3],
+    a[0] * b[4] + a[2] * b[5] + a[4],
+    a[1] * b[4] + a[3] * b[5] + a[5],
+  ];
+}
+
+function overlaps(a, b) {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.w, b.x + b.w);
+  const bottom = Math.min(a.y + a.h, b.y + b.h);
+  return right > left && bottom > top;
 }
 
 /**
@@ -88,10 +165,29 @@ async function fromAnnotations(doc, pageNumber, references) {
     const box = rectToFractions(link.rect, viewport);
     if (!box) continue;
 
+    // With no analyzed references there is nothing to match the destination
+    // against. A hyperref `cite.*` name already tells us this is a citation,
+    // so make its card clickable immediately instead of resolving a trip to
+    // the bibliography first. Large papers can have hundreds of these.
+    if (!references.length && isNamedCitation(link.dest)) {
+      citations.push(namedCitation(link.dest, box));
+      continue;
+    }
+
     const spot = link.dest ? await destinationSpot(doc, link.dest) : null;
     const reference = spot && references.length ? referenceAt(references, spot) : null;
     if (reference) {
       citations.push({ referenceId: reference.id, label: null, ...box, exact: true });
+      continue;
+    }
+    // LaTeX/hyperref gives bibliography jumps stable names even before
+    // Papol's reference analysis has finished (and even when no analyzer is
+    // configured). Do not let those temporarily behave like ordinary
+    // cross-references: clicking a citation should always open the reference
+    // card, never whisk the reader to the bibliography. The card can replace
+    // this placeholder with analyzed details as soon as they arrive.
+    if (isNamedCitation(link.dest)) {
+      citations.push(namedCitation(link.dest, box));
       continue;
     }
     if (link.url) {
@@ -103,6 +199,82 @@ async function fromAnnotations(doc, pageNumber, references) {
   }
 
   return { citations, links: elsewhere };
+}
+
+function isNamedCitation(dest) {
+  return typeof dest === 'string' && /^cite\./i.test(dest);
+}
+
+function namedCitation(dest, box) {
+  const key = String(dest).replace(/^cite\./i, '');
+  return {
+    referenceId: `pdf:${dest}`,
+    label: null,
+    reference: {
+      id: `pdf:${dest}`,
+      key,
+      dest,
+      raw: null,
+      resolved_status: 'pending_analysis',
+    },
+    ...box,
+    exact: true,
+  };
+}
+
+/**
+ * Read the printed bibliography entry behind a named PDF citation.
+ *
+ * This is the no-server fallback used while reference analysis is absent.
+ * Hyperref destinations sit just above an entry; text is grouped into its
+ * printed lines, then collected from the first numbered entry below that
+ * destination until the next entry begins.
+ */
+export async function readNamedReference(doc, dest) {
+  if (!isNamedCitation(dest)) return null;
+  const target = await doc.getDestination(dest);
+  if (!Array.isArray(target) || !target.length) return null;
+  const pageIndex = await doc.getPageIndex(target[0]);
+  const page = await doc.getPage(pageIndex + 1);
+  const targetY = destinationY(target);
+  if (targetY == null) return null;
+
+  const content = await page.getTextContent();
+  const lines = [];
+  for (const item of content.items || []) {
+    const y = item?.transform?.[5];
+    const x = item?.transform?.[4];
+    if (typeof y !== 'number' || typeof x !== 'number' || !item.str) continue;
+    let line = lines.find((candidate) => Math.abs(candidate.y - y) < 1.5);
+    if (!line) {
+      line = { y, items: [] };
+      lines.push(line);
+    }
+    line.items.push({ x, text: item.str });
+  }
+  lines.sort((a, b) => b.y - a.y);
+  const textOf = (line) => line.items.sort((a, b) => a.x - b.x)
+    .map((item) => item.text).join(' ').replace(/\s+/g, ' ').trim();
+  const marker = /^\s*\[\d+\]/;
+  const start = lines.findIndex((line) => line.y <= targetY + 2 && marker.test(textOf(line)));
+  if (start < 0) return null;
+
+  const gathered = [];
+  for (let i = start; i < lines.length && gathered.length < 8; i += 1) {
+    const text = textOf(lines[i]);
+    if (i > start && marker.test(text)) break;
+    if (text) gathered.push(text);
+  }
+  return gathered.join(' ').replace(marker, '').trim() || null;
+}
+
+function destinationY(target) {
+  const kind = target[1]?.name;
+  if (kind === 'XYZ') return typeof target[3] === 'number' ? target[3] : null;
+  if (kind === 'FitH' || kind === 'FitBH') {
+    return typeof target[2] === 'number' ? target[2] : null;
+  }
+  return null;
 }
 
 /**

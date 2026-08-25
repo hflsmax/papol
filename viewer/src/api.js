@@ -85,13 +85,17 @@ export function deleteNote(id) {
 // The bibliography of the PDF being read, and where each work is cited in
 // it. The first ask may answer `pending`: reading a PDF's references takes
 // a pass over the whole document, which happens once and is then kept.
-export function getReferences(editionId, { refresh = false } = {}) {
-  return request(`/editions/${editionId}/references${refresh ? '?refresh=true' : ''}`);
+export function getViewerReferences(pdfHash, editionId) {
+  return request(`/viewer-references/${pdfHash}?edition_id=${editionId}`);
 }
 
 // One reference, looked up the first time anyone opens it.
-export function getReference(id) {
-  return request(`/references/${id}`);
+export function getViewerReference(id) {
+  return request(`/viewer-references/item/${id}`);
+}
+
+export function resolveViewerReference(pdfHash, { key, raw }) {
+  return jsonRequest(`/viewer-references/${pdfHash}/preview`, 'POST', { key, raw });
 }
 
 // ---- Ink ----

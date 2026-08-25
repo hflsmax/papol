@@ -1370,7 +1370,11 @@ export default function PdfPage({
               aria-label={`Open reference ${cite.label || ''}`.trim()}
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenReference(cite.referenceId, e.currentTarget.getBoundingClientRect());
+                onOpenReference(
+                  cite.referenceId,
+                  e.currentTarget.getBoundingClientRect(),
+                  cite.reference || null
+                );
               }}
             />
           ))}

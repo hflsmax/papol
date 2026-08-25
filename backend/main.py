@@ -10,15 +10,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
 from starlette.background import BackgroundTask
 import tempfile
+from functools import lru_cache
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 import hashlib
 import json
 import re
 import uuid
 import logging
+import shutil
 import traceback
 from pathlib import Path
 
@@ -49,7 +51,7 @@ from schemas import (
     FeedbackCreate, FeedbackOut, FeedbackUpdate,
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
-    EditionReferences, ReferenceOut, CitationOut, ResolvedWork,
+    EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut,
 )
 from auth import (
@@ -60,7 +62,9 @@ from emailer import send_email
 from pdf_parser import extract_doi_from_pdf, get_title_from_filename
 from crossref import fetch_metadata_from_doi
 import grobid
-import biblio
+from reference_engine import (
+    EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
+)
 import dbmetrics
 
 # Create database tables and apply column migrations
@@ -72,6 +76,24 @@ UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 AVATARS_DIR.mkdir(exist_ok=True)
+
+
+def _install_demo_pdfs() -> set[str]:
+    """Put immutable demo inputs into the same content-addressed PDF store."""
+    source = Path(__file__).parent.parent / "frontend" / "public" / "assets" / "demo" / "papers"
+    if not source.exists():
+        return set()
+    installed = set()
+    for pdf in source.glob("*.pdf"):
+        digest = hashlib.sha256(pdf.read_bytes()).hexdigest()
+        installed.add(digest)
+        target = UPLOADS_DIR / f"{digest}.pdf"
+        if not target.exists():
+            shutil.copyfile(pdf, target)
+    return installed
+
+
+_PUBLIC_DEMO_PDFS = _install_demo_pdfs()
 
 # Collapse pre-normalization duplicate entries into canonical papers + copies,
 # and drop the duplicate PDF copies they carried.
@@ -926,9 +948,20 @@ async def get_viewer_paper(
     db: Session = Depends(get_db),
 ):
     """Resolve the exact PDF edition named by a viewer URL."""
+    edition = _viewer_edition_or_404(pdf_sha256, current_user, db)
+    return _paper_detail(db, edition.paper, current_user, edition_override=edition)
+
+
+def _viewer_edition_or_404(
+    pdf_sha256: str,
+    current_user: User | None,
+    db: Session,
+) -> PaperEdition:
     digest = pdf_sha256.strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise HTTPException(status_code=404, detail="PDF not found")
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     editions = db.query(PaperEdition).filter(PaperEdition.sha256 == digest).all()
     if not editions:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -938,8 +971,7 @@ async def get_viewer_paper(
     )
     if edition is None:
         raise HTTPException(status_code=403, detail="Add this paper to your nook first")
-    paper = edition.paper
-    return _paper_detail(db, paper, current_user, edition_override=edition)
+    return edition
 
 
 _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
@@ -1138,6 +1170,22 @@ _analyzing: set[int] = set()
 # server restarted mid-analysis — and may be started again.
 _ANALYSIS_STALE = timedelta(minutes=15)
 
+# Demo editions live in the browser, but their bundled PDFs are available to
+# this backend. Their analysis mirrors a stored edition while remaining
+# process-local: restarting the demo clears it, just like every other demo
+# mutation.
+_bundled_references = EphemeralReferenceEngine()
+
+
+@lru_cache(maxsize=32)
+def _public_pdf_path(digest: str) -> Path | None:
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return None
+    if digest not in _PUBLIC_DEMO_PDFS:
+        return None
+    candidate = UPLOADS_DIR / f"{digest}.pdf"
+    return candidate if candidate.exists() else None
+
 
 def _edition_pdf_path(edition: PaperEdition) -> Path | None:
     """Where an edition's PDF sits on disk. Demo papers ship with the
@@ -1263,6 +1311,26 @@ def _may_start_analysis(edition: PaperEdition) -> bool:
     return False
 
 
+async def _bundled_edition_references(
+    edition_id: int,
+    pdf_sha256: str,
+    background: BackgroundTasks,
+):
+    """Analyze a bundled demo PDF through the same GROBID service as prod."""
+    digest = pdf_sha256.strip().lower()
+    path = _public_pdf_path(digest)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Demo PDF not found")
+    if not grobid.configured():
+        return EditionReferences(
+            edition_id=0, status="unavailable",
+            detail="This Papol has no reference analyzer configured.",
+        )
+    if _bundled_references.begin(digest):
+        background.add_task(_bundled_references.analyze, digest, path)
+    return _bundled_references.response(digest, edition_id)
+
+
 @app.get("/api/editions/{edition_id}/references", response_model=EditionReferences)
 async def edition_references(
     edition_id: int,
@@ -1345,49 +1413,117 @@ async def open_reference(
         raise HTTPException(status_code=404, detail="Reference not found")
     _require_visible(reference.edition.paper, current_user)
 
-    if reference.resolved_status is None:
-        try:
-            status, summary = await biblio.resolve(reference)
-        except Exception as e:
-            logger.warning(f"Could not resolve reference {reference_id}: {e}")
-            status, summary = "error", None
-        if status == "error":
-            # Nobody could be asked just now — a lookup service was down or
-            # its daily allowance was spent. That is a fact about today, not
-            # about this reference, so nothing is stored and the next open
-            # tries again.
-            answer = _reference_out(reference, None)
-            answer.resolved_status = "error"
-            return answer
-        reference.resolved_status = status
-        reference.resolution = json.dumps(summary) if summary else None
-        reference.resolved_at = datetime.utcnow()
-        db.commit()
+    answer = await resolve_reference(reference)
+    if answer.resolved_status == "error":
+        return answer
+    db.commit()
 
     known = _papol_papers_for(db, [reference])
     return _reference_out(reference, known.get(reference.id))
 
 
-def _reference_out(reference: EditionReference, papol_paper_id: int | None) -> ReferenceOut:
-    resolution = None
-    if reference.resolution:
-        try:
-            resolution = ResolvedWork(**json.loads(reference.resolution))
-        except Exception:
-            resolution = None
-    return ReferenceOut(
-        id=reference.id,
-        key=reference.key,
-        index=reference.index,
-        raw=reference.raw,
-        title=reference.title,
-        year=reference.year,
-        page=reference.page,
-        y=reference.y,
-        resolved_status=reference.resolved_status,
-        resolution=resolution,
-        papol_paper_id=papol_paper_id,
+@app.post("/api/editions/{edition_id}/references/preview", response_model=ReferenceOut)
+async def preview_pdf_reference(
+    edition_id: int,
+    data: ReferencePreviewIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resolve a citation recovered directly from a PDF's link layer.
+
+    Some PDFs identify every citation with a hyperref ``cite.*`` target even
+    when Papol's document analyzer is unavailable. The viewer can read the
+    printed bibliography entry itself; registering it here gives that entry
+    the same cached Crossref/OpenAlex enrichment as analyzed references.
+    """
+    edition = db.get(PaperEdition, edition_id)
+    if edition is None:
+        raise HTTPException(status_code=404, detail="Edition not found")
+    _require_visible(edition.paper, current_user)
+
+    key = data.key.strip()
+    raw = " ".join(data.raw.split())
+    reference = db.query(EditionReference).filter(
+        EditionReference.edition_id == edition.id,
+        EditionReference.key == key,
+    ).first()
+    if reference is None:
+        last_index = db.query(func.max(EditionReference.index)).filter(
+            EditionReference.edition_id == edition.id,
+        ).scalar()
+        reference = EditionReference(
+            edition_id=edition.id,
+            key=key,
+            index=(last_index if last_index is not None else -1) + 1,
+            raw=raw,
+        )
+        db.add(reference)
+        db.flush()
+    elif not reference.raw:
+        reference.raw = raw
+
+    answer = await resolve_reference(reference)
+    if answer.resolved_status == "error":
+        db.rollback()
+        return answer
+    db.commit()
+    db.refresh(reference)
+    known = _papol_papers_for(db, [reference])
+    return _reference_out(reference, known.get(reference.id))
+
+
+# The viewer speaks one reference protocol. Whether a hash belongs to a
+# bundled demo PDF or a reader's stored edition is an authorization/storage
+# decision made here, not a mode branch leaked into the UI.
+@app.get("/api/viewer-references/{pdf_sha256}", response_model=EditionReferences)
+async def viewer_references(
+    pdf_sha256: str,
+    edition_id: int,
+    background: BackgroundTasks,
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    digest = pdf_sha256.strip().lower()
+    if _public_pdf_path(digest) is not None:
+        return await _bundled_edition_references(edition_id, digest, background)
+    edition = _viewer_edition_or_404(digest, current_user, db)
+    return await edition_references(
+        edition.id, background, current_user=current_user, db=db,
     )
+
+
+@app.get("/api/viewer-references/item/{reference_id}", response_model=ReferenceOut)
+async def viewer_reference(
+    reference_id: int,
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    bundled = await _bundled_references.open(reference_id)
+    if bundled is not None:
+        return bundled
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return await open_reference(reference_id, current_user, db)
+
+
+@app.post("/api/viewer-references/{pdf_sha256}/preview", response_model=ReferenceOut)
+async def preview_viewer_reference(
+    pdf_sha256: str,
+    data: ReferencePreviewIn,
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    digest = pdf_sha256.strip().lower()
+    if _public_pdf_path(digest) is not None:
+        return await _bundled_references.preview(data.key.strip(), data.raw)
+    edition = _viewer_edition_or_404(digest, current_user, db)
+    return await preview_pdf_reference(edition.id, data, current_user, db)
+
+
+def _reference_out(reference: EditionReference, papol_paper_id: int | None) -> ReferenceOut:
+    answer = reference_out(reference)
+    answer.papol_paper_id = papol_paper_id
+    return answer
 
 
 def _papol_papers_for(db: Session, references) -> dict[int, int]:

@@ -216,6 +216,17 @@ run_dev() {
     note "warning: no SMTP_HOST in .env — this server can send real email"
   fi
 
+  # Development and production share the host's GROBID container. The
+  # production systemd unit receives this URL from module.nix; development
+  # is a foreground process, so give it the same service automatically when
+  # the standard localhost endpoint is alive. An explicit .env value still
+  # wins for anyone running GROBID elsewhere.
+  if [ "${GROBID_URL:-}" = "" ] &&
+      [ "$(curl -fsS --max-time 2 http://127.0.0.1:8070/api/isalive 2>/dev/null || true)" = "true" ]; then
+    export GROBID_URL=http://127.0.0.1:8070
+    note "using the shared GROBID analyzer on 127.0.0.1:8070"
+  fi
+
   [ "$watch" = yes ] && start_watchers
 
   say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"

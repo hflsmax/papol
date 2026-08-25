@@ -4,12 +4,16 @@ import * as pdfjs from 'pdfjs-dist';
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { pdfHref, getReferences, getReference, submitFeedback } from './api';
+import {
+  pdfHref, getViewerReferences, getViewerReference, resolveViewerReference,
+  submitFeedback,
+} from './api';
 import { resolveSource, getToken } from './source';
 import { appPath } from './base';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
+import { readNamedReference } from './references';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
 import { STRIP_RATIO } from './ink';
@@ -358,7 +362,8 @@ export default function App() {
   // them gets the stored answer straight away.
   useEffect(() => {
     const editionId = paper?.edition_id;
-    if (!editionId || !source?.requiresSignIn) return undefined;
+    const pdfHash = paper?.edition_sha256 || paper?.sha256;
+    if (!editionId || !pdfHash) return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -368,7 +373,7 @@ export default function App() {
     let wait = 1500;
 
     const ask = () => {
-      getReferences(editionId)
+      getViewerReferences(pdfHash, editionId)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -389,7 +394,7 @@ export default function App() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [paper?.edition_id, source]);
+  }, [paper]);
 
   // The comment above the state says the choice is remembered; this is
   // what remembers it.
@@ -546,14 +551,44 @@ export default function App() {
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
   // reference before — and the lookup fills the rest in.
-  const openReference = (referenceId, box) => {
-    const known = referencesById.get(referenceId) || null;
+  const openReference = (referenceId, box, inlineReference = null) => {
+    const known = referencesById.get(referenceId) || inlineReference || null;
     setOpenCite({ referenceId, box });
     setReference(known);
     setReferenceError(null);
+    // A PDF-native `cite.*` destination is recognizable before server-side
+    // analysis has assigned it a database id. Read the printed bibliography
+    // entry straight from the PDF so its card is useful without waiting for
+    // that analysis or an external metadata service.
+    if (typeof referenceId !== 'number') {
+      if (doc && inlineReference?.dest) {
+        readNamedReference(doc, inlineReference.dest)
+          .then(async (raw) => {
+            if (!raw) return;
+            setReference((current) => current?.id === referenceId
+              ? { ...current, raw, resolved_status: 'resolving' }
+              : current);
+            if (!paper?.edition_id) return;
+            const pdfHash = paper.edition_sha256 || paper.sha256;
+            const full = await resolveViewerReference(pdfHash, {
+              key: inlineReference.key,
+              raw,
+            });
+            setReference((current) => current?.id === referenceId ? full : current);
+          })
+          .catch(() => {
+            // The card is already open. An unusual PDF text layout should
+            // not turn a citation click into an error or a bibliography jump.
+            setReference((current) => current?.id === referenceId
+              ? { ...current, resolved_status: current.raw ? 'pdf_text' : 'error' }
+              : current);
+          });
+      }
+      return;
+    }
     if (known?.resolved_status) return; // already looked up, and stored
 
-    getReference(referenceId)
+    getViewerReference(referenceId)
       .then((full) => {
         setReference((current) =>
           current && current.id !== referenceId ? current : full

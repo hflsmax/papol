@@ -4,7 +4,7 @@
 // into the viewer and back, but an explicit refresh resets it. The URL
 // remains the sole authority for whether demo mode is active.
 
-import { demoPapers, demoNotes, noteAsComment } from '../../shared/demoWorld';
+import { demoPapers, demoNotes, demoEditionFor, noteAsComment } from '../../shared/demoWorld';
 import { stripAppBase } from './base';
 
 export function demoActive() {
@@ -219,7 +219,7 @@ const paperRooms = (p) =>
 // file they carry: enough for the viewer's edition fields to be real,
 // while the demo can never gain a second one (uploads are disabled).
 const editionsOf = (p) => [
-  { id: p.id * 100 + 1, file_path: p.file_path, sha256: p.sha256, created_at: p.created_at, uploader: null },
+  demoEditionFor(p),
 ];
 
 function paperDetail(p) {

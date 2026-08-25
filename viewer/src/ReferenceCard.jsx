@@ -77,6 +77,14 @@ export default function ReferenceCard({ box, reference, error, onClose }) {
   const work = reference?.resolution;
   const raw = reference?.raw;
   const looking = !reference || (!work && !reference.resolved_status && !error);
+  const status = reference?.resolved_status;
+  const waiting = looking || status === 'pending_analysis' || status === 'resolving';
+  const waitingMessage = status === 'pending_analysis'
+    ? 'Preparing this reference’s details…'
+    : status === 'resolving'
+      ? 'Looking up abstract and citation data…'
+      : 'Looking this reference up…';
+  const showRaw = raw && (looking || status === 'resolving' || status === 'pdf_text');
 
   return (
     <div
@@ -102,7 +110,23 @@ export default function ReferenceCard({ box, reference, error, onClose }) {
         experimental feature
       </p>
 
-      {looking && <p className="ref-looking">Looking this reference up…</p>}
+      {waiting && <p className="ref-looking">{waitingMessage}</p>}
+
+      {showRaw && (
+        <>
+          <p className="ref-raw">{raw}</p>
+          <div className="ref-links">
+            <a
+              className="ref-link"
+              href={scholarSearch(raw)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {status === 'pdf_text' ? 'Search for it' : 'Search now'}
+            </a>
+          </div>
+        </>
+      )}
 
       {!looking && work && (
         <>
@@ -172,7 +196,7 @@ export default function ReferenceCard({ box, reference, error, onClose }) {
         </>
       )}
 
-      {!looking && !work && (
+      {!waiting && !work && status !== 'pdf_text' && (
         <>
           <p className="ref-unmatched">
             {error || reference?.resolved_status === 'error'

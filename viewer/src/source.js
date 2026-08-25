@@ -1,4 +1,4 @@
-import { demoPapers, demoNotes } from '../../shared/demoWorld';
+import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld';
 import { appPath } from './base';
 import {
   getPaperByPdf, createNote, updateNote, moveNote, renameNote, markPlace, deleteNote,
@@ -89,7 +89,17 @@ function localSource(paperId) {
   return {
     backHref: appPath(`/demo/paper/${paperId}`),
     async load() {
-      return { doc: paper, notes };
+      const edition = demoEditionFor(paper);
+      return {
+        doc: {
+          ...paper,
+          edition_id: edition.id,
+          edition_sha256: edition.sha256,
+          editions: [edition],
+          latest_edition: edition,
+        },
+        notes,
+      };
     },
     notes: {
       async create({ page, anchor, content }) {

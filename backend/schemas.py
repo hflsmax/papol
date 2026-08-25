@@ -402,6 +402,12 @@ class ReferenceOut(BaseModel):
     papol_paper_id: Optional[int] = None
 
 
+class ReferencePreviewIn(BaseModel):
+    """A PDF-native citation recovered without the document analyzer."""
+    key: str = Field(min_length=1, max_length=300)
+    raw: str = Field(min_length=3, max_length=5000)
+
+
 class CitationOut(BaseModel):
     """One clickable marker in the text, as fractions of its page measured
     from the top-left corner."""
