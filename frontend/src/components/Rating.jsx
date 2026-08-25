@@ -24,7 +24,7 @@ export function RatingDots({ value }) {
 export function RatingSummary({ paper, compact = false }) {
   const rated = RATING_DIMENSIONS.filter((d) => paper[d.key]);
   // In compact list rows, omit unrated dimensions to keep rows tidy;
-  // on the paper page, show all three so the "not rated" choice is visible.
+  // on the paper page, show all three so the "unrated" choice is visible.
   const dims = compact ? rated : RATING_DIMENSIONS;
   if (dims.length === 0) return null;
   return (
@@ -69,7 +69,7 @@ export function RatingInput({ values, onChange }) {
                   ×
                 </button>
               ) : (
-                <span className="rating-none">not rated</span>
+                <span className="rating-none">unrated</span>
               )}
             </span>
           </div>
