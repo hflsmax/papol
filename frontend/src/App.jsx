@@ -3975,14 +3975,15 @@ function navigate(path) {
   // to do nothing.
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
-  window.history.pushState(null, '', mountedDestination);
+  window.history.pushState(
+    { ...(window.history.state || {}), papolNavigation: true },
+    '',
+    mountedDestination,
+  );
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 export default function App() {
-  // A canonical paper URL may be someone's front door into Papol. There is
-  // no meaningful in-app place for Back to promise in that case.
-  const enteredOnPaper = useRef(parseRoute().page === 'paper');
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [route, setRoute] = useState(parseRoute());
@@ -4374,7 +4375,10 @@ export default function App() {
               paperId={route.id}
               currentUser={user}
               onBack={goBack}
-              hideBack={enteredOnPaper.current && mode !== 'demo'}
+              hideBack={
+                mode !== 'demo' &&
+                !window.history.state?.papolNavigation
+              }
               onSelectPaper={(id) => navigate(`/paper/${id}`)}
             />
           )}

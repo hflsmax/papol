@@ -30,12 +30,13 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [thoughtDraft, setThoughtDraft] = useState('');
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
-  const [shareCopied, setShareCopied] = useState(false);
+  const [shareCopyStatus, setShareCopyStatus] = useState('idle');
   const [shareOpen, setShareOpen] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
   const pdfInputRef = useRef(null);
   const readControlRef = useRef(null);
   const shareControlRef = useRef(null);
+  const shareUrlRef = useRef(null);
 
   useEffect(() => {
     if (!readMenuOpen) return undefined;
@@ -221,7 +222,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.
       const modePrefix = demoActive() ? '/demo' : '';
-      window.history.replaceState(null, '', appPath(`${modePrefix}/paper/${added.doi || added.id}`));
+      window.history.replaceState(
+        window.history.state,
+        '',
+        appPath(`${modePrefix}/paper/${added.doi || added.id}`),
+      );
     } catch (err) {
       setError(err.message);
     }
@@ -229,13 +234,28 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
   const handleShare = async () => {
     const link = `${window.location.origin}${appPath(`/paper/${paper.doi || paper.id}`)}`;
+    let copied = false;
     try {
-      await navigator.clipboard.writeText(link);
-      setShareCopied(true);
-      window.setTimeout(() => setShareCopied(false), 1600);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+        copied = true;
+      }
     } catch {
-      setShareCopied(false);
+      // Permissions policies and older browsers may block the async API;
+      // selecting the visible URL gives them the established copy path.
     }
+    if (!copied && shareUrlRef.current) {
+      shareUrlRef.current.focus();
+      shareUrlRef.current.select();
+      shareUrlRef.current.setSelectionRange(0, link.length);
+      try {
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      }
+    }
+    setShareCopyStatus(copied ? 'copied' : 'failed');
+    window.setTimeout(() => setShareCopyStatus('idle'), 1800);
   };
 
   const handleDelete = async () => {
@@ -650,12 +670,17 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                     <div className="share-link-row">
                       <input
                         id="canonical-share-url"
+                        ref={shareUrlRef}
                         value={`${window.location.origin}${appPath(`/paper/${paper.doi || paper.id}`)}`}
                         readOnly
                         onFocus={(event) => event.target.select()}
                       />
                       <button type="button" onClick={handleShare}>
-                        {shareCopied ? 'Copied!' : 'Copy'}
+                        {shareCopyStatus === 'copied'
+                          ? 'Copied!'
+                          : shareCopyStatus === 'failed'
+                            ? 'Copy failed'
+                            : 'Copy'}
                       </button>
                     </div>
                   </div>
