@@ -122,7 +122,6 @@ services.papol = {
   srcDir = "/srv/papol/prod";
   port = 8001;          # development keeps 8000, the one you type by hand
   hostAliasPort = 8000; # so http://papol.local reaches development
-  grobid.enable = true;
   contactEmail = "you@example.com";
   # domain = "papers.example.com";  # for HTTPS on a name of its own
 };
@@ -174,14 +173,13 @@ them at a dead port, because `_smtp_cfg` falls back to the `settings` table
 and a database copied from production will otherwise mail real readers.
 `PAPOL_URL` decides which of the two an emailed link leads to.
 
-## The reference analyzer (optional)
+## The PDF analyzer
 
-Clickable citations need [GROBID](https://github.com/kermitt2/grobid) (Apache-2.0),
-which reads a PDF's bibliography and finds where each work is cited. It is a JVM
-service, so it runs as a container beside Papol:
+[GROBID](https://github.com/kermitt2/grobid) (Apache-2.0) extracts upload
+metadata, reads a PDF's bibliography, and finds where each work is cited. It is
+a required JVM service, run as a container beside Papol:
 
 ```nix
-services.papol.grobid.enable = true;
 # Identifies Papol to CrossRef and OpenAlex, which are asked what each
 # reference turned out to be. Both are free and keyless; an address puts the
 # requests in their faster pool.

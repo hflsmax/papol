@@ -104,14 +104,6 @@ in {
     };
 
     grobid = {
-      enable = lib.mkEnableOption ''
-        the reference analyzer. GROBID reads a PDF's bibliography and finds
-        where each work is cited in the text, which is what makes a citation
-        clickable in the viewer. It is a JVM service, so it runs as a
-        container beside papol rather than in it. Without it papol works
-        exactly as before, minus that one feature
-      '';
-
       image = lib.mkOption {
         type = lib.types.str;
         default = "grobid/grobid:0.9.1-crf";
@@ -238,14 +230,13 @@ in {
   config = lib.mkIf cfg.enable {
     systemd.services.papol = {
       description = "Papol Paper Documentation Service";
-      after = [ "network.target" ];
+      after = [ "network.target" "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
+      requires = [ "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
       wantedBy = [ "multi-user.target" ];
 
-      environment =
-        (lib.optionalAttrs cfg.grobid.enable {
-          GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
-        })
-        // (lib.optionalAttrs (cfg.contactEmail != null) {
+      environment = {
+        GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
+      } // (lib.optionalAttrs (cfg.contactEmail != null) {
           PAPOL_CONTACT_EMAIL = cfg.contactEmail;
         });
 
@@ -254,6 +245,18 @@ in {
         User = cfg.user;
         Group = "users";
         WorkingDirectory = "${cfg.srcDir}/backend";
+        ExecStartPre = pkgs.writeShellScript "wait-for-papol-grobid" ''
+          for attempt in $(${pkgs.coreutils}/bin/seq 1 60); do
+            if ${pkgs.curl}/bin/curl --fail --silent --max-time 2 \
+                "http://127.0.0.1:${toString cfg.grobid.port}/api/isalive" \
+                | ${pkgs.gnugrep}/bin/grep --quiet '^true$'; then
+              exit 0
+            fi
+            ${pkgs.coreutils}/bin/sleep 2
+          done
+          echo "Required GROBID service did not become healthy" >&2
+          exit 1
+        '';
         ExecStart = "${pythonEnv}/bin/uvicorn main:app --host ${cfg.host} --port ${toString cfg.port}";
         # Secrets by file, never through the store: anything written into a
         # NixOS option is copied into a world-readable /nix/store path.
@@ -346,11 +349,11 @@ in {
     # oci-containers defaults to podman, which would stand a second container
     # runtime up beside the docker this host already runs — and pull the
     # image again into it. mkDefault, so setting it yourself still wins.
-    virtualisation.oci-containers.backend = lib.mkIf cfg.grobid.enable (lib.mkDefault "docker");
+    virtualisation.oci-containers.backend = lib.mkDefault "docker";
 
     # The reference analyzer. Bound to localhost: only papol talks to it,
     # and it will happily read any PDF anyone sends it.
-    virtualisation.oci-containers.containers.papol-grobid = lib.mkIf cfg.grobid.enable {
+    virtualisation.oci-containers.containers.papol-grobid = {
       image = cfg.grobid.image;
       ports = [ "127.0.0.1:${toString cfg.grobid.port}:8070" ];
       extraOptions = [ "--init" ];

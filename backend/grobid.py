@@ -11,8 +11,7 @@ model that does exactly that job, and it hands back both halves:
     marker clickable.
 
 It runs as its own service — a JVM, so a container beside Papol rather
-than an import — and it is optional. Where it is absent the viewer simply
-has no references to offer, and everything else in Papol carries on.
+than an import. Papol requires it both for upload metadata and references.
 """
 
 import os
@@ -25,8 +24,8 @@ import httpx
 
 TEI = "{http://www.tei-c.org/ns/1.0}"
 
-# Where the analyzer lives. Unset means Papol has no analyzer, which is a
-# state the rest of the code is expected to handle, not an error.
+# Where the required analyzer lives. Production always sets this; keeping the
+# empty default makes a misconfigured development process fail explicitly.
 GROBID_URL = os.environ.get("GROBID_URL", "").rstrip("/")
 
 # GROBID reads the whole document with a CRF cascade; ten to sixty seconds
@@ -37,8 +36,9 @@ ANALYZE_TIMEOUT = float(os.environ.get("GROBID_TIMEOUT", "300"))
 @dataclass
 class Reference:
     """One entry in the bibliography."""
-    key: str            # GROBID's xml:id, e.g. "b11" — what markers target
-    index: int          # position in the list, 0-based
+
+    key: str  # GROBID's xml:id, e.g. "b11" — what markers target
+    index: int  # position in the list, 0-based
     raw: Optional[str]  # the reference exactly as printed, for matching
     title: Optional[str] = None
     authors: list[str] = field(default_factory=list)
@@ -55,14 +55,15 @@ class Reference:
 @dataclass
 class Citation:
     """One in-text marker, and the box it occupies on the page."""
-    key: str        # the reference it points at
-    label: str      # what is printed, e.g. "[13]" or "35,"
+
+    key: str  # the reference it points at
+    label: str  # what is printed, e.g. "[13]" or "35,"
     # True when the analyzer found the marker but could not say which
     # entry it meant, and Papol read the number instead. Worth keeping
     # apart: it is a guess, and a bibliography numbered differently from
     # the order it is printed in would make it a wrong one.
     inferred: bool = False
-    page: int = 0   # 1-based
+    page: int = 0  # 1-based
     # Fractions of the page, from its top-left corner. Stored this way
     # because the viewer draws at whatever zoom the reader chose, and a
     # fraction is the one form that survives that.
@@ -78,6 +79,16 @@ class Analysis:
     citations: list[Citation]
 
 
+@dataclass
+class HeaderMetadata:
+    title: Optional[str] = None
+    authors: list[str] = field(default_factory=list)
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+
+
 def configured() -> bool:
     return bool(GROBID_URL)
 
@@ -91,6 +102,67 @@ async def alive() -> bool:
             return r.status_code == 200 and r.text.strip() == "true"
     except Exception:
         return False
+
+
+async def extract_header(pdf_path: str) -> HeaderMetadata:
+    """Extract bibliographic metadata directly from a PDF with GROBID."""
+    if not GROBID_URL:
+        raise RuntimeError("No GROBID service configured")
+
+    with open(pdf_path, "rb") as fh:
+        payload = fh.read()
+    files = {"input": (os.path.basename(pdf_path), payload, "application/pdf")}
+    async with httpx.AsyncClient(timeout=ANALYZE_TIMEOUT) as client:
+        response = await client.post(
+            f"{GROBID_URL}/api/processHeaderDocument",
+            files=files,
+            data={"consolidateHeader": "0"},
+        )
+    if response.status_code == 204:
+        raise RuntimeError("GROBID could not read this PDF header")
+    if response.status_code != 200:
+        raise RuntimeError(f"GROBID returned {response.status_code}")
+    return parse_header(response.text)
+
+
+def parse_header(xml: str) -> HeaderMetadata:
+    """Parse GROBID's TEI header response into upload metadata."""
+    root = ET.fromstring(xml)
+    bibl = root.find(f".//{TEI}sourceDesc/{TEI}biblStruct")
+    if bibl is None:
+        raise RuntimeError("GROBID returned no bibliographic header")
+
+    title = _text(bibl.find(f"{TEI}analytic/{TEI}title[@type='main']"))
+    authors = []
+    for author in bibl.findall(f"{TEI}analytic/{TEI}author"):
+        person = author.find(f"{TEI}persName")
+        if person is None:
+            continue
+        parts = [
+            _text(part)
+            for part in person
+            if part.tag in {f"{TEI}forename", f"{TEI}surname"}
+        ]
+        name = " ".join(part for part in parts if part)
+        if name:
+            authors.append(name)
+
+    journal = _text(bibl.find(f"{TEI}monogr/{TEI}title[@level='j']"))
+    date = bibl.find(f"{TEI}monogr/{TEI}imprint/{TEI}date")
+    when = date.get("when") if date is not None else None
+    year = int(when[:4]) if when and when[:4].isdigit() else None
+    identifiers = {
+        (node.get("type") or "").lower(): _text(node)
+        for node in bibl.findall(f"{TEI}idno")
+    }
+    return HeaderMetadata(
+        title=title,
+        authors=authors,
+        journal=journal,
+        year=year,
+        doi=identifiers.get("doi"),
+        arxiv_id=identifiers.get("arxiv"),
+    )
 
 
 async def analyze(pdf_path: str) -> Analysis:
@@ -229,8 +301,11 @@ def _reference_from(bibl, key: str, index: int, pages) -> Reference:
 
     authors = []
     for person in bibl.iter(f"{TEI}persName"):
-        parts = [_text(p) for p in person.iter() if p.tag in
-                 (f"{TEI}forename", f"{TEI}surname")]
+        parts = [
+            _text(p)
+            for p in person.iter()
+            if p.tag in (f"{TEI}forename", f"{TEI}surname")
+        ]
         name = " ".join(p for p in parts if p)
         if name:
             authors.append(name)
@@ -261,8 +336,15 @@ def _reference_from(bibl, key: str, index: int, pages) -> Reference:
     first = boxes[0] if boxes else None
 
     return Reference(
-        key=key, index=index, raw=raw, title=title, authors=authors,
-        year=year, journal=journal, doi=doi, arxiv_id=arxiv,
+        key=key,
+        index=index,
+        raw=raw,
+        title=title,
+        authors=authors,
+        year=year,
+        journal=journal,
+        doi=doi,
+        arxiv_id=arxiv,
         page=first["page"] if first else None,
         y=first["y"] if first else None,
     )
@@ -299,13 +381,15 @@ def _boxes(coords: Optional[str], pages) -> list[dict]:
         width, height = pages.get(page, (0, 0))
         if not width or not height:
             continue
-        out.append({
-            "page": page,
-            "x": x / width,
-            "y": y / height,
-            "w": w / width,
-            "h": h / height,
-        })
+        out.append(
+            {
+                "page": page,
+                "x": x / width,
+                "y": y / height,
+                "w": w / width,
+                "h": h / height,
+            }
+        )
     return out
 
 

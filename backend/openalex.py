@@ -19,6 +19,7 @@ it is how OpenAlex reaches you, and it is the polite pool.
 """
 
 import os
+import re
 from typing import Optional
 
 import httpx
@@ -39,6 +40,10 @@ class Throttled(Exception):
     only the first is worth remembering."""
 
 
+class Unavailable(Exception):
+    """OpenAlex could not answer now; callers should not cache a miss."""
+
+
 def _params(extra: dict) -> dict:
     return {
         **extra,
@@ -57,6 +62,7 @@ async def by_arxiv(arxiv_id: str) -> Optional[dict]:
     """arXiv preprints carry a DataCite DOI of a fixed shape, so an arXiv
     number is a DOI lookup in disguise."""
     number = arxiv_id.strip().replace("arXiv:", "")
+    number = re.sub(r"v\d+$", "", number, flags=re.IGNORECASE)
     return await by_doi(f"10.48550/arXiv.{number}")
 
 
@@ -87,13 +93,15 @@ async def _get(url: str, params: dict) -> Optional[dict]:
             )
             if response.status_code == 429:
                 raise Throttled(_budget_message(response))
-            if response.status_code != 200:
+            if response.status_code == 404:
                 return None
+            if response.status_code != 200:
+                raise Unavailable(f"OpenAlex returned {response.status_code}")
             return response.json()
-    except Throttled:
+    except (Throttled, Unavailable):
         raise
-    except Exception:
-        return None
+    except (httpx.HTTPError, ValueError) as exc:
+        raise Unavailable(str(exc)) from exc
 
 
 def _budget_message(response) -> str:

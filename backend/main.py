@@ -60,8 +60,9 @@ from auth import (
     get_optional_user, bearer_scheme
 )
 from emailer import send_email
-from pdf_parser import extract_doi_from_pdf, get_title_from_filename
-from crossref import fetch_metadata_from_doi
+from pdf_parser import (
+    arxiv_doi, extract_arxiv_id, extract_doi_from_pdf, get_title_from_filename,
+)
 import grobid
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
@@ -629,7 +630,7 @@ async def extract_paper_metadata(
     file: UploadFile = File(...), current_user: User = Depends(get_current_user)
 ):
     """
-    Upload a PDF, extract DOI, fetch metadata from CrossRef.
+    Upload a PDF and fetch metadata by its DOI or arXiv identifier.
     Returns extracted metadata for user to review/edit.
     Does not save to database yet.
     """
@@ -639,8 +640,9 @@ async def extract_paper_metadata(
     filename, _ = _store_pdf(await file.read())
     file_path = UPLOADS_DIR / filename
 
-    # Extract DOI from PDF
-    doi, _ = extract_doi_from_pdf(str(file_path))
+    # Identifiers are normally printed near the front of a paper.
+    doi, text = extract_doi_from_pdf(str(file_path))
+    arxiv_id = extract_arxiv_id(text)
 
     # Default metadata from filename
     metadata = {
@@ -652,18 +654,24 @@ async def extract_paper_metadata(
         "file_path": filename
     }
 
-    # If DOI found, fetch metadata from CrossRef
-    if doi:
-        crossref_data = await fetch_metadata_from_doi(doi)
-        if crossref_data:
-            metadata.update({
-                "doi": crossref_data.get("doi") or doi,
-                "title": crossref_data.get("title") or metadata["title"],
-                "authors": crossref_data.get("authors"),
-                "journal": crossref_data.get("journal"),
-                "year": crossref_data.get("year"),
-            })
+    # Metadata extraction requires GROBID. A broken analyzer must be visible
+    # to operators rather than disguised as a successful, mostly-empty result.
+    try:
+        header = await grobid.extract_header(str(file_path))
+    except Exception as exc:
+        logger.exception("Required GROBID header extraction failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Paper metadata extraction is unavailable; GROBID failed",
+        ) from exc
 
+    metadata.update({
+        "doi": header.doi or (arxiv_doi(arxiv_id) if arxiv_id else doi),
+        "title": header.title or metadata["title"],
+        "authors": json.dumps(header.authors) if header.authors else None,
+        "journal": header.journal,
+        "year": header.year,
+    })
     return ExtractedMetadata(**metadata)
 
 
@@ -857,6 +865,7 @@ def _require_copy(paper: Paper, user: User) -> Copy:
 @app.post("/api/papers", response_model=PaperSchema)
 async def create_paper(
     paper: PaperCreate,
+    background: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -923,8 +932,20 @@ async def create_paper(
             user_id=current_user.id,
             content=paper.initial_comment.strip(),
         ))
+
+    # Full-document analysis is independent of the reviewed metadata and can
+    # take seconds. Mark it pending in the same commit as the edition, then run
+    # it after the response using its own database session.
+    queue_analysis = _may_start_analysis(edition)
+    if queue_analysis:
+        edition.references_status = "pending"
+        edition.references_error = None
+        edition.references_at = datetime.utcnow()
     db.commit()
     db.refresh(db_paper)
+    if queue_analysis:
+        _analyzing.add(edition.id)
+        background.add_task(_analyze_edition, edition.id)
     return _paper_detail(db, db_paper, current_user)
 
 
@@ -1206,11 +1227,10 @@ def _edition_pdf_path(edition: PaperEdition) -> Path | None:
 async def _analyze_edition(edition_id: int):
     """Read one edition's references through GROBID and store them.
 
-    Runs after the response, on its own session: the request that asked is
-    already answered with `pending`, and the viewer comes back for the
-    result. Any failure is recorded on the edition rather than raised, so
-    a PDF that cannot be analyzed says so instead of being retried
-    forever."""
+    Runs after the paper-save response, on its own session. The viewer can
+    observe `pending` and later retrieve the stored result. Any failure is
+    recorded on the edition rather than raised, so a PDF that cannot be
+    analyzed says so instead of being retried forever."""
     db = SessionLocal()
     try:
         edition = db.get(PaperEdition, edition_id)
@@ -1342,9 +1362,10 @@ async def edition_references(
 ):
     """The references of one edition, and where they are cited in it.
 
-    The first ask starts the analysis and answers `pending`; the viewer
-    asks again until it is `ready`. Pass `refresh=true` to read a PDF
-    again — the way to retry one GROBID could not handle."""
+    Upload starts the analysis and the viewer observes `pending` until it is
+    `ready`. Older unanalyzed editions are started on first access. Pass
+    `refresh=true` to read a PDF again — the way to retry one GROBID could
+    not handle."""
     edition = db.get(PaperEdition, edition_id)
     if edition is None:
         raise HTTPException(status_code=404, detail="Edition not found")

@@ -327,7 +327,6 @@ nothing reads. Replace the papol lines with:
     srcDir = "$PROD_DIR";
     port = 8001;          # development keeps 8000, the one you type by hand
     hostAliasPort = 8000; # http://papol.local reaches development
-    grobid.enable = true;
     contactEmail = "hflsmax@gmail.com";
     cloudflare = { enable = true; tunnelId = "9c2e5542-9cc6-407e-bd24-96890af50130"; };
   };

@@ -1,6 +1,12 @@
-import fitz  # PyMuPDF
 import re
 from pathlib import Path
+
+import fitz  # PyMuPDF
+
+ARXIV_ID_PATTERN = re.compile(
+    r"arXiv\s*:\s*((?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?)",
+    re.IGNORECASE,
+)
 
 
 def extract_doi_from_pdf(file_path: str) -> tuple[str | None, str]:
@@ -27,14 +33,26 @@ def extract_doi_from_pdf(file_path: str) -> tuple[str | None, str]:
     if match:
         doi = match.group(0)
         # Clean up trailing punctuation
-        doi = doi.rstrip('.,;:')
+        doi = doi.rstrip(".,;:")
 
     return doi, text
+
+
+def extract_arxiv_id(text: str) -> str | None:
+    """Return the arXiv identifier printed in PDF text, including its version."""
+    match = ARXIV_ID_PATTERN.search(text)
+    return match.group(1) if match else None
+
+
+def arxiv_doi(arxiv_id: str) -> str:
+    """Return the stable DataCite DOI for a versioned arXiv identifier."""
+    identifier = re.sub(r"v\d+$", "", arxiv_id, flags=re.IGNORECASE)
+    return f"10.48550/arXiv.{identifier}"
 
 
 def get_title_from_filename(file_path: str) -> str:
     """Extract a title from the filename."""
     path = Path(file_path)
     # Remove extension and replace underscores/hyphens with spaces
-    title = path.stem.replace('_', ' ').replace('-', ' ')
+    title = path.stem.replace("_", " ").replace("-", " ")
     return title.title()

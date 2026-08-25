@@ -50,6 +50,7 @@ enrichment is still describing the same work.
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Optional
 
 import crossref
@@ -95,6 +96,40 @@ _YEAR_LIMIT = 3
 _YEAR_UNKNOWN = 1.5
 
 
+@dataclass(frozen=True)
+class ReferenceContext:
+    raw: str
+    title: Optional[str]
+    year: Optional[int]
+
+    @classmethod
+    def from_reference(cls, reference):
+        return cls(
+            raw=(reference.raw or "").strip(),
+            title=getattr(reference, "title", None),
+            year=getattr(reference, "year", None),
+        )
+
+    def accepts(self, summary: dict) -> bool:
+        return (
+            _title_matches(summary.get("title"), self.raw, self.title)
+            and _year_distance(summary.get("year"), self.year) <= _YEAR_LIMIT
+        )
+
+
+@dataclass(frozen=True)
+class Candidate:
+    summary: dict
+    provider: str
+    rank: int
+    year_distance: float
+
+    @property
+    def sort_key(self) -> tuple[float, int, int]:
+        provider_rank = 0 if self.provider == "crossref" else 1
+        return self.year_distance, provider_rank, self.rank
+
+
 async def resolve(reference) -> tuple[str, Optional[dict]]:
     """Look up one reference. Returns (status, summary):
 
@@ -103,13 +138,34 @@ async def resolve(reference) -> tuple[str, Optional[dict]]:
       error — nobody could be asked just now; worth trying again later, so
               the caller should not remember this as an answer
     """
-    raw = (reference.raw or "").strip()
-    printed_year = getattr(reference, "year", None)
-    throttled = False
+    context = ReferenceContext.from_reference(reference)
+    identified, lookup_failed = await _by_identifier(reference, context)
+    if identified:
+        return "ok", identified
 
-    # An identifier the analyzer read off the page should settle it: the
-    # author named the work. Checked all the same, because the record an
-    # identifier lands on is not always the work it belongs to.
+    try:
+        crossref_candidates = await _crossref_candidates(context)
+    except crossref.Unavailable as unavailable:
+        lookup_failed = True
+        crossref_candidates = []
+        logger.warning(f"CrossRef search unavailable: {unavailable}")
+    candidates = list(crossref_candidates)
+    if not _confident(crossref_candidates):
+        try:
+            candidates.extend(await _openalex_candidates(context))
+        except (openalex.Throttled, openalex.Unavailable) as spent:
+            lookup_failed = True
+            logger.warning(f"OpenAlex search unavailable: {spent}{_KEY_HINT}")
+
+    best = min(candidates, key=lambda candidate: candidate.sort_key, default=None)
+    if best is None or best.year_distance > _YEAR_LIMIT:
+        return ("error" if lookup_failed else "miss"), None
+    return "ok", await _enrich(best, context)
+
+
+async def _by_identifier(reference, context: ReferenceContext) -> tuple[Optional[dict], bool]:
+    """Resolve identifiers GROBID read, tracking temporary lookup failure."""
+    failed = False
     for identifier, lookup in (
         (reference.doi, openalex.by_doi),
         (reference.arxiv_id, openalex.by_arxiv),
@@ -118,102 +174,73 @@ async def resolve(reference) -> tuple[str, Optional[dict]]:
             continue
         try:
             work = await lookup(identifier)
-        except openalex.Throttled:
-            throttled = True
+        except (openalex.Throttled, openalex.Unavailable):
+            failed = True
             continue
-        if not work:
-            continue
-        summary = openalex.summarize(work)
-        if _accepts(summary, raw, reference, printed_year):
-            return "ok", summary
-
-    crossref_candidates = []
-    for rank, item in enumerate(await crossref.match_reference(raw) if raw else []):
-        summary = crossref.summarize_crossref(item)
-        if _title_matches(summary.get("title"), raw, getattr(reference, "title", None)):
-            distance = _year_distance(summary.get("year"), printed_year)
-            crossref_candidates.append((distance, 0, rank, summary, item))
-
-    candidates = list(crossref_candidates)
-    if not _confident(crossref_candidates):
-        # Only now is a metered search worth spending: either CrossRef has
-        # nothing that matches, or what it has is the wrong year and may
-        # well be a later version of the paper under a similar title.
-        try:
-            candidates += await _searched(raw, reference, printed_year)
-        except openalex.Throttled as spent:
-            throttled = True
-            logger.warning(f"OpenAlex search unavailable: {spent}{_KEY_HINT}")
-
-    if not candidates:
-        # Nothing found, but not for want of looking in the same places —
-        # say so, rather than storing "no such paper" on a day the search
-        # could not be run.
-        return ("error" if throttled else "miss"), None
-
-    # Closest year wins; CrossRef breaks a tie, being the better matcher of
-    # a printed reference, and each index's own ranking breaks the rest.
-    distance, _, _, best, item = min(candidates, key=lambda c: c[:3])
-    if distance > _YEAR_LIMIT:
-        return ("error" if throttled else "miss"), None
-
-    if item is not None and best.get("doi"):
-        # CrossRef found the work; OpenAlex knows what became of it — how
-        # often it has been cited, and whether a copy is free. By DOI, so
-        # this costs a singleton request rather than a search.
-        try:
-            work = await openalex.by_doi(best["doi"])
-        except openalex.Throttled:
-            work = None
         if work:
-            merged = _merge(openalex.summarize(work), best, printed_year)
-            # Only if the enrichment is still describing the same paper.
-            if _accepts(merged, raw, reference, printed_year):
-                return "ok", merged
-    return "ok", best
+            summary = openalex.summarize(work)
+            if context.accepts(summary):
+                return summary, failed
+    return None, failed
 
 
-def _confident(candidates: list[tuple]) -> bool:
-    """Is CrossRef's answer good enough to stop here?
+async def _crossref_candidates(context: ReferenceContext) -> list[Candidate]:
+    items = await crossref.match_reference(context.raw) if context.raw else []
+    return _candidates(
+        (crossref.summarize_crossref(item) for item in items),
+        provider="crossref",
+        context=context,
+    )
 
-    Only an exact year counts. A near miss is exactly the case that needs a
-    second opinion: a conference paper and its later journal version share
-    a title and differ by a year or two."""
-    return any(distance == 0 for distance, *_ in candidates)
+
+async def _openalex_candidates(context: ReferenceContext) -> list[Candidate]:
+    """Spend a metered title search only when CrossRef is inconclusive."""
+    works = await openalex.by_title(context.title or context.raw)
+    return _candidates(
+        (openalex.summarize(work) for work in works),
+        provider="openalex",
+        context=context,
+    )
 
 
-async def _searched(raw: str, reference, printed_year: Optional[int]) -> list[tuple]:
-    """What OpenAlex offers for this title.
+def _candidates(summaries, provider: str, context: ReferenceContext) -> list[Candidate]:
+    candidates = []
+    for rank, summary in enumerate(summaries):
+        if not _title_matches(summary.get("title"), context.raw, context.title):
+            continue
+        candidates.append(Candidate(
+            summary=summary,
+            provider=provider,
+            rank=rank,
+            year_distance=_year_distance(summary.get("year"), context.year),
+        ))
+    return candidates
 
-    Worth the cost when CrossRef has faltered, because the two hold
-    different things: whole conference series (USENIX, and with it OSDI
-    and NSDI) have no CrossRef DOIs at all."""
-    found = []
-    title = getattr(reference, "title", None) or raw
-    for rank, work in enumerate(await openalex.by_title(title)):
-        summary = openalex.summarize(work)
-        if _title_matches(summary.get("title"), raw, getattr(reference, "title", None)):
-            found.append(
-                (_year_distance(summary.get("year"), printed_year), 1, rank, summary, None)
-            )
-    return found
+
+def _confident(candidates: list[Candidate]) -> bool:
+    """An exact-year CrossRef match is enough to avoid metered search."""
+    return any(candidate.year_distance == 0 for candidate in candidates)
+
+
+async def _enrich(candidate: Candidate, context: ReferenceContext) -> dict:
+    """Add OpenAlex data to a CrossRef winner without changing its identity."""
+    summary = candidate.summary
+    if candidate.provider != "crossref" or not summary.get("doi"):
+        return summary
+    try:
+        work = await openalex.by_doi(summary["doi"])
+    except (openalex.Throttled, openalex.Unavailable):
+        return summary
+    if not work:
+        return summary
+    merged = _merge(openalex.summarize(work), summary, context.year)
+    return merged if context.accepts(merged) else summary
 
 
 def _year_distance(candidate: Optional[int], printed: Optional[int]) -> float:
     if not _sane(candidate) or not _sane(printed):
         return _YEAR_UNKNOWN
     return float(abs(candidate - printed))
-
-
-def _accepts(summary: dict, raw: str, reference, printed_year: Optional[int]) -> bool:
-    """Is this really worth showing as the work the reference names?
-
-    Used on what is about to be shown, rather than on the thing that was
-    searched for — the two are not always the same record."""
-    return (
-        _title_matches(summary.get("title"), raw, getattr(reference, "title", None))
-        and _year_distance(summary.get("year"), printed_year) <= _YEAR_LIMIT
-    )
 
 
 def _sane(year: Optional[int]) -> bool:
@@ -227,13 +254,21 @@ def _merge(primary: dict, secondary: dict, printed_year: Optional[int]) -> dict:
 
     Except the year: where the two disagree, the one that agrees with the
     printed reference is the one the reader is looking at on the page."""
-    merged = {k: (primary.get(k) or secondary.get(k)) for k in {*primary, *secondary}}
+    merged = {
+        key: primary.get(key) if _present(primary.get(key)) else secondary.get(key)
+        for key in {*primary, *secondary}
+    }
     if printed_year:
         for candidate in (primary.get("year"), secondary.get("year")):
             if candidate == printed_year:
                 merged["year"] = candidate
                 break
     return merged
+
+
+def _present(value) -> bool:
+    """Whether a provider supplied a value; numeric zero is meaningful."""
+    return value is not None and value != "" and value != [] and value != {}
 
 
 def _title_matches(
