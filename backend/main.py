@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 import hashlib
 import json
+import re
 import uuid
 import logging
 import traceback
@@ -25,7 +26,10 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from database import engine, get_db, Base, migrate, normalize_papers, SessionLocal
+from database import (
+    engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
+    SessionLocal,
+)
 from models import (
     User, AuthToken, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
@@ -75,6 +79,7 @@ for _stale in normalize_papers():
     _stale_path = UPLOADS_DIR / _stale
     if _stale_path.exists():
         _stale_path.unlink()
+backfill_copy_edition_hashes()
 
 # Instrument after the startup migrations so the metrics reflect request
 # traffic, not one-time schema work.
@@ -436,8 +441,16 @@ def _latest_edition(paper: Paper) -> PaperEdition | None:
 def _edition_for(paper: Paper, user_copy: Copy | None) -> PaperEdition | None:
     """The edition a viewer opens: the one their copy is pinned to, or the
     latest when they have no copy (or a copy from before editions)."""
-    if user_copy is not None and user_copy.edition is not None:
-        return user_copy.edition
+    if user_copy is not None:
+        if user_copy.edition_sha256:
+            selected = next(
+                (edition for edition in paper.editions if edition.sha256 == user_copy.edition_sha256),
+                None,
+            )
+            if selected is not None:
+                return selected
+        if user_copy.edition is not None:
+            return user_copy.edition
     return _latest_edition(paper)
 
 
@@ -515,7 +528,9 @@ def _paper_list_entry(
         file_path=_edition_file(paper, user_copy),
         created_at=user_copy.created_at if user_copy else paper.created_at,
     )
-    entry.edition_id = user_copy.edition_id if user_copy else None
+    selected_edition = _edition_for(paper, user_copy)
+    entry.edition_id = selected_edition.id if selected_edition else None
+    entry.edition_sha256 = selected_edition.sha256 if selected_edition else None
     if user_copy:
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
@@ -728,7 +743,12 @@ def _copy_of(paper: Paper, viewer: User | None) -> Copy | None:
     return next((r for r in paper.copies if r.user_id == viewer.id), None)
 
 
-def _paper_detail(db: Session, paper: Paper, viewer: User | None) -> PaperSchema:
+def _paper_detail(
+    db: Session,
+    paper: Paper,
+    viewer: User | None,
+    edition_override: PaperEdition | None = None,
+) -> PaperSchema:
     """The canonical paper, merged with the viewer's own copy (summary,
     ratings, display, private notes) when they have one."""
     user_copy = _copy_of(paper, viewer)
@@ -739,7 +759,7 @@ def _paper_detail(db: Session, paper: Paper, viewer: User | None) -> PaperSchema
         authors=paper.authors,
         journal=paper.journal,
         year=paper.year,
-        file_path=_edition_file(paper, user_copy),
+        file_path=(edition_override.file_path if edition_override else _edition_file(paper, user_copy)),
         created_at=paper.created_at,
     )
     detail.editions = [PaperEditionOut.model_validate(e) for e in paper.editions]
@@ -747,10 +767,9 @@ def _paper_detail(db: Session, paper: Paper, viewer: User | None) -> PaperSchema
     detail.latest_edition = (
         PaperEditionOut.model_validate(latest) if latest else None
     )
-    detail.edition_id = (
-        user_copy.edition_id if user_copy and user_copy.edition_id
-        else (latest.id if latest else None)
-    )
+    selected_edition = edition_override or _edition_for(paper, user_copy)
+    detail.edition_id = selected_edition.id if selected_edition else None
+    detail.edition_sha256 = selected_edition.sha256 if selected_edition else None
     detail.ignored_edition_id = user_copy.ignored_edition_id if user_copy else None
     if user_copy:
         detail.summary = user_copy.summary
@@ -865,6 +884,7 @@ async def create_paper(
         paper_id=db_paper.id,
         user_id=current_user.id,
         edition_id=edition.id,
+        edition_sha256=edition.sha256,
         summary=paper.summary,
         thought=paper.thought,
         marketed=paper.marketed,
@@ -897,6 +917,29 @@ async def get_paper(
     paper = _resolve_paper_or_404(paper_ref, db)
     _require_visible(paper, current_user)
     return _paper_detail(db, paper, current_user)
+
+
+@app.get("/api/viewer/{pdf_sha256}", response_model=PaperSchema)
+async def get_viewer_paper(
+    pdf_sha256: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resolve the exact PDF edition named by a viewer URL."""
+    digest = pdf_sha256.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise HTTPException(status_code=404, detail="PDF not found")
+    editions = db.query(PaperEdition).filter(PaperEdition.sha256 == digest).all()
+    if not editions:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    edition = next(
+        (candidate for candidate in editions if _copy_of(candidate.paper, current_user)),
+        None,
+    )
+    if edition is None:
+        raise HTTPException(status_code=403, detail="Add this paper to your nook first")
+    paper = edition.paper
+    return _paper_detail(db, paper, current_user, edition_override=edition)
 
 
 _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
@@ -985,6 +1028,7 @@ async def add_to_nook(
         user_id=current_user.id,
         marketed=True,
         edition_id=latest.id if latest else None,
+        edition_sha256=latest.sha256 if latest else None,
     ))
     db.commit()
     db.refresh(paper)
@@ -1017,6 +1061,7 @@ async def add_paper_edition(
         edition = _register_edition(db, paper, filename, digest, current_user)
 
     user_copy.edition_id = edition.id
+    user_copy.edition_sha256 = edition.sha256
     # Choosing a PDF means having seen the ones that exist: an upload that
     # dedupes onto an older edition must not leave the reader being offered
     # a newer one they made themselves and moved off.
@@ -1069,6 +1114,7 @@ async def adopt_paper_edition(
 
     edition = _named_edition_or_404(paper, data.edition_id)
     user_copy.edition_id = edition.id
+    user_copy.edition_sha256 = edition.sha256
     # Adopting settles every edition that exists now, including ones older
     # than the latest if that is what they picked.
     user_copy.ignored_edition_id = _latest_edition(paper).id

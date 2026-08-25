@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.schema import CreateColumn
 import os
 from pathlib import Path
+import hashlib
 
 # Use absolute path for database in backend directory
 DB_PATH = Path(__file__).parent / "papol.db"
@@ -53,6 +54,34 @@ def _table_exists(conn, name: str) -> bool:
         text("SELECT name FROM sqlite_master WHERE type='table' AND name=:n"),
         {"n": name},
     ).fetchone() is not None
+
+
+def backfill_copy_edition_hashes():
+    """Give every edition and pinned nook copy a durable PDF identity."""
+    with engine.begin() as conn:
+        if not _table_exists(conn, "copies") or not _table_exists(conn, "paper_editions"):
+            return
+        uploads = Path(__file__).parent.parent / "uploads"
+        missing = conn.execute(text(
+            "SELECT id, file_path FROM paper_editions WHERE sha256 IS NULL"
+        )).all()
+        for edition_id, file_path in missing:
+            candidate = uploads / file_path
+            if not candidate.is_file():
+                continue
+            digest = hashlib.sha256()
+            with candidate.open("rb") as pdf:
+                for chunk in iter(lambda: pdf.read(1 << 20), b""):
+                    digest.update(chunk)
+            conn.execute(
+                text("UPDATE paper_editions SET sha256=:sha WHERE id=:id"),
+                {"sha": digest.hexdigest(), "id": edition_id},
+            )
+        conn.execute(text(
+            "UPDATE copies SET edition_sha256 = ("
+            "SELECT sha256 FROM paper_editions WHERE paper_editions.id = copies.edition_id"
+            ") WHERE edition_sha256 IS NULL AND edition_id IS NOT NULL"
+        ))
 
 
 def normalize_papers():

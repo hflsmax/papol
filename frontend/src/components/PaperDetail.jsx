@@ -140,8 +140,20 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     }
   };
 
-  const noteHref = (comment) =>
-    appPath(`/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${comment.paper_id}&note=${comment.id}`);
+  const editionHash = (editionId = paper?.edition_id) =>
+    paper?.editions?.find((edition) => edition.id === editionId)?.sha256 || null;
+
+  const viewerHref = () => {
+    if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}`);
+    const hash = editionHash();
+    return hash ? appPath(`/viewer/?pdf=${hash}`) : null;
+  };
+
+  const noteHref = (comment) => {
+    if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}&note=${comment.id}`);
+    const hash = editionHash(comment.edition_id || paper?.edition_id);
+    return hash ? appPath(`/viewer/?pdf=${hash}&note=${comment.id}`) : null;
+  };
 
   // A newer edition exists and this reader's copy is not on it. Only ever
   // an offer: nothing moves a reader's copy but the reader.
@@ -554,10 +566,10 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           </div>
 
           <div className="paper-actions">
-            {hasEntry && (
+            {hasEntry && viewerHref() && (
               <a
                 className="btn primary"
-                href={appPath(`/${demoActive() ? 'demo/viewer' : 'viewer'}/?paper=${paper.id}`)}
+                href={viewerHref()}
                 data-document
               >
                 Read
@@ -622,7 +634,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                 Add to my nook
               </button>
             )}
-            {currentUser && (
+            {currentUser && !demoActive() && (
               <div className="share-control" ref={shareControlRef}>
                 <button
                   type="button"

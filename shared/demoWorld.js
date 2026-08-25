@@ -21,6 +21,7 @@ export const demoPapers = [
     journal: 'ACM Transactions on Programming Languages and Systems',
     year: 1982,
     file_path: 'assets/demo/papers/byzantine-generals.pdf',
+    sha256: '40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08',
     daysAgo: 30,
   },
   {
@@ -32,6 +33,7 @@ export const demoPapers = [
     journal: 'Advances in Neural Information Processing Systems',
     year: 2017,
     file_path: 'assets/demo/papers/attention.pdf',
+    sha256: 'bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697',
     daysAgo: 21,
   },
   {
@@ -42,6 +44,7 @@ export const demoPapers = [
     journal: 'Communications of the ACM',
     year: 2017,
     file_path: 'assets/demo/papers/alexnet.pdf',
+    sha256: '90137160c57217953d5f61857e64ca58e85f06e1b13b4f475c918b1b582b9771',
     daysAgo: 18,
   },
   {
@@ -52,6 +55,7 @@ export const demoPapers = [
     journal: 'Communications of the ACM',
     year: 1970,
     file_path: 'assets/demo/papers/codd-relational.pdf',
+    sha256: 'fa2579f427a4da68466ef159a3ae0c3c1fe4eafec60f73c9f2f40378a65d8ef9',
     daysAgo: 14,
   },
   {
@@ -62,6 +66,7 @@ export const demoPapers = [
     journal: 'Bell System Technical Journal',
     year: 1948,
     file_path: 'assets/demo/papers/shannon-entropy.pdf',
+    sha256: '6e4e3411984f3edf99dbfe8b941cb5e8a321379ff0cae6ae5c1f592ad8882ca8',
     daysAgo: 12,
   },
   {
@@ -72,6 +77,7 @@ export const demoPapers = [
     journal: 'IEEE Transactions on Information Theory',
     year: 1976,
     file_path: 'assets/demo/papers/diffie-hellman.pdf',
+    sha256: '03fa2f493a1448a309586b9cf9e5c3a4dfd14735e0786cc94674519570b890ff',
     daysAgo: 9,
   },
   {
@@ -82,6 +88,7 @@ export const demoPapers = [
     journal: 'Computer Networks and ISDN Systems',
     year: 1998,
     file_path: 'assets/demo/papers/pagerank.pdf',
+    sha256: '3a155ade395c7789876a0bc08a1842f909486438c1b1739ae531fa5c797d93f0',
     daysAgo: 6,
   },
   {
@@ -93,6 +100,7 @@ export const demoPapers = [
     journal: 'Communications of the ACM',
     year: 1960,
     file_path: 'assets/demo/papers/mccarthy-recursive.pdf',
+    sha256: '3d981849e59505eff3f14397a177b409f5d978d43d114bdd67c956e74320fc92',
     daysAgo: 5,
   },
   {
@@ -103,6 +111,7 @@ export const demoPapers = [
     journal: 'Theoretical Computer Science',
     year: 1975,
     file_path: 'assets/demo/papers/plotkin-cbn-cbv.pdf',
+    sha256: '73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a',
     daysAgo: 3,
   },
   // Wholly fictional, and written by two of the demo readers — this is
@@ -116,6 +125,7 @@ export const demoPapers = [
     journal: 'Proceedings of the Bikini Bottom Symposium on Fry Cook Systems',
     year: 2026,
     file_path: 'assets/demo/papers/byzantine-fry-cooks.pdf',
+    sha256: '29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57',
     daysAgo: 1,
   },
 ];

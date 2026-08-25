@@ -42,8 +42,8 @@ function jsonRequest(path, method, body) {
   });
 }
 
-export function getPaper(id) {
-  return request(`/papers/${id}`);
+export function getPaperByPdf(hash) {
+  return request(`/viewer/${hash}`);
 }
 
 export function pdfHref(paper) {

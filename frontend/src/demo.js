@@ -219,7 +219,7 @@ const paperRooms = (p) =>
 // file they carry: enough for the viewer's edition fields to be real,
 // while the demo can never gain a second one (uploads are disabled).
 const editionsOf = (p) => [
-  { id: p.id * 100 + 1, file_path: p.file_path, created_at: p.created_at, uploader: null },
+  { id: p.id * 100 + 1, file_path: p.file_path, sha256: p.sha256, created_at: p.created_at, uploader: null },
 ];
 
 function paperDetail(p) {

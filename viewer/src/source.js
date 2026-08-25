@@ -1,7 +1,7 @@
 import { demoPapers, demoNotes } from '../../shared/demoWorld';
 import { appPath } from './base';
 import {
-  getPaper, createNote, updateNote, moveNote, renameNote, markPlace, deleteNote,
+  getPaperByPdf, createNote, updateNote, moveNote, renameNote, markPlace, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getToken,
 } from './api';
@@ -10,27 +10,30 @@ import {
  * Where this document and its notes come from — decided once, from the URL,
  * so nothing below has to care which it is.
  *
- *   ?paper=9   a paper in the reader's nook: notes live in Papol
- *   ?url=…     a file the app already serves: notes live only in memory
+ *   ?pdf=<sha256>  an exact PDF in the reader's nook: notes live in Papol
+ * Demo PDFs use the same hash identity; only their storage is local.
  *
  * Both return the same shape, so the viewer only ever calls load(),
  * notes.{create,update,remove} and ink.{list,create,remove}.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
-  const paper = params.get('paper');
-  if (!paper || !/^\d+$/.test(paper)) return null;
   const inDemo = window.location.pathname.includes('/demo/viewer');
-  if (inDemo && DEMO_PAPERS[paper]) return localSource(paper);
-  return apiSource(paper);
+  const pdf = (params.get('pdf') || '').toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
+  if (inDemo) return DEMO_PDFS[pdf] ? localSource(DEMO_PDFS[pdf]) : null;
+  return apiSource(pdf);
 }
 
-function apiSource(paperId) {
-  return {
-    backHref: appPath(`/paper/${paperId}`),
+function apiSource(pdfHash) {
+  let paperId = null;
+  const source = {
+    backHref: appPath('/'),
     requiresSignIn: true,
     async load() {
-      const paper = await getPaper(paperId);
+      const paper = await getPaperByPdf(pdfHash);
+      paperId = paper.id;
+      source.backHref = appPath(`/paper/${paper.doi || paper.id}`);
       return { doc: paper, notes: paper.comments || [] };
     },
     notes: {
@@ -48,6 +51,7 @@ function apiSource(paperId) {
       remove: (id) => eraseInk(id),
     },
   };
+  return source;
 }
 
 // The demo opens with a few anchors already in place, so a visitor meets
@@ -56,6 +60,7 @@ function apiSource(paperId) {
 // The demo world is shared with Papol's own demo, so a note written into
 // it appears on the paper page and in the viewer alike.
 const DEMO_PAPERS = Object.fromEntries(demoPapers.map((p) => [p.id, p]));
+const DEMO_PDFS = Object.fromEntries(demoPapers.map((p) => [p.sha256, p.id]));
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 

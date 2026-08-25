@@ -431,6 +431,7 @@ class EditionReferences(BaseModel):
 class PaperEditionOut(BaseModel):
     id: int
     file_path: str
+    sha256: Optional[str] = None
     created_at: datetime
     uploader: Optional[UserBase] = None
 
@@ -455,6 +456,7 @@ class PaperList(PaperBase):
     room_status: Optional[str] = None
     readers: List[ReaderEntry] = []
     edition_id: Optional[int] = None
+    edition_sha256: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -479,6 +481,7 @@ class Paper(PaperBase):
     viewer_has_entry: bool = False  # viewer has any copy
     # Editions: which one the viewer reads, and whether a newer one waits.
     edition_id: Optional[int] = None
+    edition_sha256: Optional[str] = None
     ignored_edition_id: Optional[int] = None
     editions: List[PaperEditionOut] = []
     latest_edition: Optional[PaperEditionOut] = None

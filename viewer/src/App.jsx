@@ -6,6 +6,7 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { pdfHref, getReferences, getReference, submitFeedback } from './api';
 import { resolveSource, getToken } from './source';
+import { appPath } from './base';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
@@ -1340,7 +1341,7 @@ export default function App() {
         <div className="shell">
           <div className="error">{error}</div>
           <p className="hint">
-            <a href={source.backHref} onClick={markReturnToPapol}>Back to Papol</a>
+            <a href={source?.backHref || appPath('/')} onClick={markReturnToPapol}>Back to Papol</a>
           </p>
         </div>
       </>
@@ -1380,7 +1381,7 @@ export default function App() {
             visit, and for opening in a new tab. */}
         <a
           className="back"
-          href={source.backHref}
+          href={source?.backHref || appPath('/')}
           onClick={(e) => {
             markReturnToPapol();
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;

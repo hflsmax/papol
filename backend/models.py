@@ -178,6 +178,10 @@ class Copy(Base):
     # The edition this reader reads. Only the reader moves it, by adopting
     # a newer one; nothing else may change the file under their notes.
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
+    # Durable identity of those exact PDF bytes. The integer remains an
+    # internal join key for edition-owned analysis; a reader's choice is the
+    # content hash, which survives row renumbering and names the viewer URL.
+    edition_sha256 = Column(String, nullable=True, index=True)
     # The newest edition this reader has already seen — waved away, or
     # simply present when they last chose a PDF. The offer of a newer PDF
     # stays hidden until one newer still arrives.
@@ -390,4 +394,3 @@ class Feedback(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")
-
