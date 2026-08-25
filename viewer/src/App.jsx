@@ -635,7 +635,13 @@ export default function App() {
       if (doc && inlineReference?.dest) {
         readNamedReference(doc, inlineReference.dest)
           .then(async (raw) => {
-            if (!raw) return;
+            if (!raw) {
+              setReference((current) => current?.id === referenceId
+                ? { ...current, resolved_status: 'error' }
+                : current);
+              setReferenceError('Could not read this reference from the PDF.');
+              return;
+            }
             setReference((current) => current?.id === referenceId
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);

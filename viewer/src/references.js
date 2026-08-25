@@ -268,7 +268,7 @@ export async function readNamedReference(doc, dest) {
   return gathered.join(' ').replace(marker, '').trim() || null;
 }
 
-function destinationY(target) {
+export function destinationY(target) {
   const kind = target[1]?.name;
   if (kind === 'XYZ') return typeof target[3] === 'number' ? target[3] : null;
   if (kind === 'FitH' || kind === 'FitBH') {
@@ -303,12 +303,12 @@ async function destinationSpot(doc, dest) {
   const page = await doc.getPage(index + 1);
   const viewport = page.getViewport({ scale: 1 });
 
-  // An explicit destination is [ref, {name}, left, top, zoom] for /XYZ and
-  // similar; the y is in PDF user space, measured from the bottom. A
-  // destination with no y at all (/Fit) points at a page, not a line, and
-  // is no use for telling references apart.
-  const y = target[3];
-  if (typeof y !== 'number') return null;
+  // Destination arrays are shaped by their fit mode. /XYZ stores top at
+  // index 3, while /FitH and /FitBH store it at index 2. A destination with
+  // no y at all (/Fit) points at a page, not a line, and is no use for
+  // telling references apart.
+  const y = destinationY(target);
+  if (y == null) return null;
   return { page: index + 1, y: (viewport.height - y) / viewport.height };
 }
 
