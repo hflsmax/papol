@@ -76,6 +76,10 @@ export function markPlace(id) {
   return jsonRequest(`/comments/${id}`, 'PUT', { current_place: true });
 }
 
+export function clearPlace(id) {
+  return jsonRequest(`/comments/${id}`, 'PUT', { current_place: false });
+}
+
 export function deleteNote(id) {
   return request(`/comments/${id}`, { method: 'DELETE' });
 }

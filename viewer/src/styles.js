@@ -602,6 +602,27 @@ button.link.danger { color: var(--red); }
 .textLayer { z-index: 2; }
 .textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
 
+.selection-brush {
+  position: fixed;
+  z-index: 30;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--loaded);
+  background: var(--card);
+  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.2);
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.selection-brush:hover { background: var(--accent-soft); }
+.selection-brush:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.selection-brush svg { width: 100%; height: 100%; }
+
 /* The PDF's own links. Invisible until pointed at, like the citations:
    a paper is not improved by underlining every cross-reference in it. */
 .link-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }

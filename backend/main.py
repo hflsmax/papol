@@ -47,7 +47,8 @@ from schemas import (
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate, NotificationList, NotificationOut, AdminSQL,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
-    CommentCreate, Comment as CommentSchema, ExtractedMetadata, NookStats,
+    CommentCreate, Comment as CommentSchema, ExtractedMetadata,
+    ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     FeedbackCreate, FeedbackOut, FeedbackUpdate,
     PaperEditionOut, EditionAdopt,
@@ -963,6 +964,40 @@ async def get_paper(
     return _paper_detail(db, paper, current_user)
 
 
+@app.post(
+    "/api/papers/{paper_ref:path}/extract-metadata",
+    response_model=ReextractedMetadata,
+)
+async def reextract_paper_metadata(
+    paper_ref: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-read a paper's selected PDF metadata for the edit form."""
+    paper = _resolve_paper_or_404(paper_ref, db)
+    _require_visible(paper, current_user)
+    edition = _edition_for(paper, _copy_of(paper, current_user)) or _latest_edition(paper)
+    path = _edition_pdf_path(edition) if edition else None
+    if path is None:
+        raise HTTPException(status_code=404, detail="PDF for this paper is missing")
+
+    try:
+        header = await grobid.extract_header(str(path))
+    except Exception as exc:
+        logger.exception("Required GROBID metadata re-extraction failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Paper metadata extraction is unavailable; GROBID failed",
+        ) from exc
+    return ReextractedMetadata(
+        doi=header.doi,
+        title=header.title,
+        authors=json.dumps(header.authors) if header.authors else None,
+        journal=header.journal,
+        year=header.year,
+    )
+
+
 @app.get("/api/viewer/{pdf_sha256}", response_model=PaperSchema)
 async def get_viewer_paper(
     pdf_sha256: str,
@@ -1595,6 +1630,7 @@ def _papol_papers_for(db: Session, references) -> dict[int, int]:
 def _stroke_out(stroke: InkStroke) -> InkStrokeOut:
     return InkStrokeOut(
         id=stroke.id,
+        group_id=stroke.group_id,
         page=stroke.page,
         points=json.loads(stroke.points),
         color=stroke.color,
@@ -1647,6 +1683,7 @@ async def add_ink(
     stroke is one mark, and half of one is not worth storing."""
     _readable_edition(edition_id, current_user, db)
     row = InkStroke(
+        group_id=stroke.group_id,
         edition_id=edition_id,
         user_id=current_user.id,
         page=stroke.page,

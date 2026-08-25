@@ -104,6 +104,7 @@ class InkPoint(BaseModel):
 
 
 class InkStrokeCreate(BaseModel):
+    group_id: Optional[str] = Field(default=None, max_length=64)
     page: int = Field(ge=1)
     # Two points is a dash and one is a dot; both are marks a reader meant
     # to make. The ceiling is what stops a stray gesture, or a script, from
@@ -125,6 +126,7 @@ class InkStrokeUpdate(BaseModel):
 
 class InkStrokeOut(BaseModel):
     id: int
+    group_id: Optional[str] = None
     page: int
     points: List[InkPoint]
     color: str
@@ -517,3 +519,12 @@ class ExtractedMetadata(BaseModel):
     journal: Optional[str] = None
     year: Optional[int] = None
     file_path: str
+
+
+class ReextractedMetadata(BaseModel):
+    """Metadata GROBID found in an already-stored PDF."""
+    doi: Optional[str] = None
+    title: Optional[str] = None
+    authors: Optional[str] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None

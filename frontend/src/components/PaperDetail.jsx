@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition,
-  addToNook, pdfHref,
+  addToNook, pdfHref, reextractPaperMetadata,
 } from '../api';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
@@ -20,6 +20,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
   const [isAddingEdition, setIsAddingEdition] = useState(false);
+  const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [pendingPdf, setPendingPdf] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
   // Set when Read is pressed on a paper the reader has not taken yet. Up
@@ -301,6 +302,28 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     }
   };
 
+  const handleMetadataExtract = async () => {
+    setError(null);
+    setIsExtractingMetadata(true);
+    try {
+      const extracted = await reextractPaperMetadata(paper.id);
+      setEditData((current) => ({
+        ...current,
+        ...(extracted.title != null && { title: extracted.title }),
+        ...(extracted.authors != null && {
+          authors: parseAuthors(extracted.authors).join(', '),
+        }),
+        ...(extracted.journal != null && { journal: extracted.journal }),
+        ...(extracted.year != null && { year: extracted.year }),
+        ...(extracted.doi != null && { doi: extracted.doi }),
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsExtractingMetadata(false);
+    }
+  };
+
   const saveSummary = async () => {
     setError(null);
     try {
@@ -359,6 +382,16 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
           <div className="warning">
             Metadata is shared. Your changes apply to this paper for every
             reader.
+          </div>
+
+          <div className="form-actions metadata-extract-action">
+            <button
+              type="button"
+              onClick={handleMetadataExtract}
+              disabled={isExtractingMetadata}
+            >
+              {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
+            </button>
           </div>
 
           <div className="form-group">

@@ -264,6 +264,10 @@ class InkStroke(Base):
     __tablename__ = "ink_strokes"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Several stored paths can be one logical mark. Text selected across
+    # lines must be rendered as separate paths, but it is still one brush
+    # action when the reader moves or erases it.
+    group_id = Column(String, nullable=True)
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     page = Column(Integer, nullable=False, index=True)

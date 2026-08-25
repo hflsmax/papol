@@ -404,6 +404,16 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers/extract') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
+  if ((m = path.match(/^\/papers\/(\d+)\/extract-metadata$/))) {
+    const paper = findPaper(m[1]);
+    return {
+      doi: paper.doi,
+      title: paper.title,
+      authors: paper.authors,
+      journal: paper.journal,
+      year: paper.year,
+    };
+  }
   if (path === '/papers' && method === 'POST') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }

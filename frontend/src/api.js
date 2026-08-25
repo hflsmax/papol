@@ -194,6 +194,10 @@ export function extractPaperMetadata(file) {
   return request('/papers/extract', { method: 'POST', body: formData });
 }
 
+export function reextractPaperMetadata(paperId) {
+  return request(`/papers/${paperId}/extract-metadata`, { method: 'POST' });
+}
+
 export function createPaper(paperData) {
   return jsonRequest('/papers', 'POST', paperData);
 }

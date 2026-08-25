@@ -85,12 +85,16 @@ export default function PdfPage({
   onMoveNote,
   tool,
   ink,
+  selectedInk,
+  hoveredInkObjects,
   inkColor,
   inkWidth,
   inkOpacity,
   inkShape,
   laserColor,
   onDrawStroke,
+  onSelectInk,
+  onHoverInkObjects,
   onEraseStroke,
   onEraseNote,
   onHover,
@@ -458,7 +462,10 @@ export default function PdfPage({
   // highlight is left behind on whatever happened to be under it, and
   // stays there — nothing else lights it, so nothing else turns it off.
   useEffect(() => {
-    if (tool !== 'eraser') setDoomed(EMPTY_DOOMED);
+    if (tool !== 'eraser') {
+      setDoomed(EMPTY_DOOMED);
+      onHoverInkObjects([]);
+    }
     // Reaching for the brush while the pointer is already over the page put
     // it in your hand and showed you nothing, because nothing had moved
     // since — so the mark you were about to make only appeared once you
@@ -527,8 +534,15 @@ export default function PdfPage({
   // what would go.
   const under = (at) => {
     const found = { ink: [], notes: [], animals: [] };
+    const inkObjects = new Set();
     for (const stroke of ink) {
-      if (nearStroke(stroke.points, at, ERASE_REACH)) found.ink.push(stroke.id);
+      if (nearStroke(stroke.points, at, ERASE_REACH)) {
+        inkObjects.add(stroke.group_id ? `group:${stroke.group_id}` : `stroke:${stroke.id}`);
+      }
+    }
+    for (const stroke of ink) {
+      const object = stroke.group_id ? `group:${stroke.group_id}` : `stroke:${stroke.id}`;
+      if (inkObjects.has(object)) found.ink.push(stroke.id);
     }
     for (const note of notes) {
       if (note.content || !note.anchor) continue;
@@ -537,7 +551,7 @@ export default function PdfPage({
     for (const animalRecord of animals) {
       if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) found.animals.push(animalRecord.id);
     }
-    return found;
+    return { ...found, inkObjects: [...inkObjects] };
   };
 
   const eraseUnder = (at) => {
@@ -630,6 +644,7 @@ export default function PdfPage({
     // knowing what would go is most useful before deciding to press.
     if (tool === 'eraser') {
       const found = under(at);
+      onHoverInkObjects(found.inkObjects);
       setDoomed((was) =>
         was.ink.join() === found.ink.join() &&
         was.notes.join() === found.notes.join() &&
@@ -764,15 +779,17 @@ export default function PdfPage({
   const startInkDrag = (e, stroke) => {
     if (tool !== 'arrow' || e.button !== 0) return;
     e.stopPropagation();
+    onSelectInk(stroke);
     e.currentTarget.setPointerCapture(e.pointerId);
     inkDragRef.current = {
       id: stroke.id,
+      groupId: stroke.group_id,
       points: stroke.points,
       from: anchorAt(e.clientX, e.clientY),
       by: { x: 0, y: 0 },
       moved: false,
     };
-    setInkDrag({ id: stroke.id, by: { x: 0, y: 0 } });
+    setInkDrag({ id: stroke.id, groupId: stroke.group_id, by: { x: 0, y: 0 } });
   };
 
   // No slop here, unlike the pin's drag. A pin needs one because a click on
@@ -790,7 +807,7 @@ export default function PdfPage({
     if (by.x === 0 && by.y === 0) return;
     d.moved = true;
     d.by = by;
-    setInkDrag({ id: d.id, by });
+    setInkDrag({ id: d.id, groupId: d.groupId, by });
   };
 
   const endInkDrag = (e) => {
@@ -809,7 +826,9 @@ export default function PdfPage({
   // Where a stroke is being drawn right now: its own points, plus however
   // far it has been carried.
   const shifted = (stroke) =>
-    inkDrag?.id === stroke.id
+    (inkDrag?.groupId
+      ? inkDrag.groupId === stroke.group_id
+      : inkDrag?.id === stroke.id)
       ? stroke.points.map((pt) => ({ x: pt.x + inkDrag.by.x, y: pt.y + inkDrag.by.y }))
       : stroke.points;
 
@@ -1121,6 +1140,7 @@ export default function PdfPage({
         overRef.current = false;
         onHover(null);
         setDoomed(EMPTY_DOOMED);
+        onHoverInkObjects([]);
         setBrushAt(null);
       }}
       data-page={pageNumber}
@@ -1152,6 +1172,15 @@ export default function PdfPage({
           >
             {ink.map((stroke) => {
               const going = doomed.ink.includes(stroke.id);
+              const object = stroke.group_id
+                ? `group:${stroke.group_id}`
+                : `stroke:${stroke.id}`;
+              const eraserSelected = hoveredInkObjects.includes(object);
+              const selected = selectedInk && (
+                selectedInk.groupId
+                  ? selectedInk.groupId === stroke.group_id
+                  : selectedInk.id === stroke.id
+              );
               const points = shifted(stroke);
               return (
                 <g
@@ -1160,11 +1189,16 @@ export default function PdfPage({
                   // been hard to catch precisely because there was no way
                   // to ask the page which stroke it was looking at.
                   data-ink={stroke.id}
-                  className={inkDrag?.id === stroke.id ? 'carrying' : undefined}
+                  className={[
+                    selected ? 'selected' : '',
+                    (inkDrag?.groupId
+                      ? inkDrag.groupId === stroke.group_id
+                      : inkDrag?.id === stroke.id) ? 'carrying' : '',
+                  ].filter(Boolean).join(' ') || undefined}
                 >
                   {/* Lit from behind in its own colour, so a stroke about
                       to go still looks like the stroke it is. */}
-                  {going &&
+                  {(going || eraserSelected || selected) &&
                     markFor(points, stroke.width * size.width + HALO_SPREAD * 2, stroke.shape, {
                       fill: stroke.color,
                       opacity: 0.3,
