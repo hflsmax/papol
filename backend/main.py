@@ -37,7 +37,7 @@ from models import (
     User, AuthToken, PresencePing, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
-    InkStroke,
+    InkStroke, Tag,
 )
 import account
 from schemas import (
@@ -54,7 +54,7 @@ from schemas import (
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut,
-    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut,
+    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -564,6 +564,8 @@ def _paper_list_entry(
         entry.rating_expertise = user_copy.rating_expertise
         entry.rating_reading = user_copy.rating_reading
         entry.rating_liking = user_copy.rating_liking
+        if not hide_private:
+            entry.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
     entry.room_status = room_map.get(_paper_key_for(paper))
     entry.readers = [_reader_entry(r) for r in _displayed_copies(paper)]
     return entry
@@ -605,6 +607,10 @@ async def get_user_space(
             _paper_list_entry(r.paper, r, hide_private, room_map) for r in copies
         ],
         stats=stats,
+        tags=(
+            [TagOut.model_validate(t) for t in sorted(user.tags, key=lambda t: t.name.lower())]
+            if not hide_private else []
+        ),
     )
 
 
@@ -811,6 +817,7 @@ def _paper_detail(
         detail.rating_expertise = user_copy.rating_expertise
         detail.rating_reading = user_copy.rating_reading
         detail.rating_liking = user_copy.rating_liking
+        detail.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
         detail.comments = [
             _comment_out(c)
             for c in sorted(paper.comments, key=lambda c: (c.created_at, c.id))
@@ -913,7 +920,14 @@ async def create_paper(
     # own, unless it is byte-identical to one the paper already has.
     edition = _add_edition(db, db_paper, paper.file_path, current_user)
 
-    db.add(Copy(
+    tag_ids = set(paper.tag_ids)
+    tags = db.query(Tag).filter(
+        Tag.user_id == current_user.id, Tag.id.in_(tag_ids)
+    ).all() if tag_ids else []
+    if len(tags) != len(tag_ids):
+        raise HTTPException(status_code=400, detail="One or more tags do not belong to you")
+
+    user_copy = Copy(
         paper_id=db_paper.id,
         user_id=current_user.id,
         edition_id=edition.id,
@@ -925,7 +939,9 @@ async def create_paper(
         rating_expertise=paper.rating_expertise,
         rating_reading=paper.rating_reading,
         rating_liking=paper.rating_liking,
-    ))
+    )
+    user_copy.tags = tags
+    db.add(user_copy)
 
     if paper.initial_comment and paper.initial_comment.strip():
         db.add(Comment(
@@ -1052,6 +1068,7 @@ async def update_paper(
     _require_visible(paper, current_user)
 
     update_data = paper_update.model_dump(exclude_unset=True)
+    tag_ids = update_data.pop("tag_ids", None)
     personal = {k: v for k, v in update_data.items() if k in _PERSONAL_FIELDS}
     metadata = {k: v for k, v in update_data.items() if k in _METADATA_FIELDS}
 
@@ -1068,12 +1085,47 @@ async def update_paper(
         for key, value in personal.items():
             setattr(user_copy, key, value)
 
+    if tag_ids is not None:
+        user_copy = _require_copy(paper, current_user)
+        unique_ids = set(tag_ids)
+        tags = db.query(Tag).filter(Tag.user_id == current_user.id, Tag.id.in_(unique_ids)).all() if unique_ids else []
+        if len(tags) != len(unique_ids):
+            raise HTTPException(status_code=400, detail="One or more tags do not belong to you")
+        user_copy.tags = tags
+
     for key, value in metadata.items():
         setattr(paper, key, value)
 
     db.commit()
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
+
+
+@app.post("/api/tags", response_model=TagOut)
+async def create_tag(
+    data: TagCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    name = " ".join(data.name.split())
+    existing = db.query(Tag).filter(
+        Tag.user_id == current_user.id, func.lower(Tag.name) == name.lower()
+    ).first()
+    if existing:
+        return existing
+    tag = Tag(user_id=current_user.id, name=name)
+    db.add(tag)
+    db.commit()
+    db.refresh(tag)
+    return tag
+
+
+@app.get("/api/tags", response_model=list[TagOut])
+async def list_tags(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return db.query(Tag).filter(Tag.user_id == current_user.id).order_by(func.lower(Tag.name)).all()
 
 
 @app.delete("/api/papers/{paper_id}")

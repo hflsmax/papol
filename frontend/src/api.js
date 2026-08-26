@@ -236,6 +236,14 @@ export function deletePaper(id) {
   return request(`/papers/${id}`, { method: 'DELETE' });
 }
 
+export function createTag(name) {
+  return jsonRequest('/tags', 'POST', { name });
+}
+
+export function listTags() {
+  return request('/tags');
+}
+
 // ---------- Comments ----------
 
 export function addComment(paperId, content) {

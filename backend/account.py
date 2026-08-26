@@ -37,7 +37,9 @@ from models import (
     RoomAvailability,
     RoomMessage,
     RoomParticipant,
+    Tag,
     User,
+    copy_tags,
 )
 
 
@@ -149,6 +151,7 @@ def gather(db: Session, user: User) -> dict:
                     "reading": c.rating_reading,
                     "liking": c.rating_liking,
                 },
+                "tags": [t.name for t in sorted(c.tags, key=lambda t: t.name.lower())],
                 "added": _when(c.created_at),
             }
             for c in copies
@@ -454,8 +457,14 @@ def tombstone(
             synchronize_session=False
         )
     )
+    copy_ids = [row[0] for row in db.query(Copy.id).filter(Copy.user_id == user_id).all()]
+    if copy_ids:
+        db.execute(copy_tags.delete().where(copy_tags.c.copy_id.in_(copy_ids)))
     removed["papers_in_nook"] = (
         db.query(Copy).filter(Copy.user_id == user_id).delete(synchronize_session=False)
+    )
+    removed["tags"] = (
+        db.query(Tag).filter(Tag.user_id == user_id).delete(synchronize_session=False)
     )
     removed["notifications"] = (
         db.query(Notification)

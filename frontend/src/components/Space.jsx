@@ -8,6 +8,8 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   const [space, setSpace] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedTag, setSelectedTag] = useState(null);
+  const [reviewingUpload, setReviewingUpload] = useState(false);
 
   const isOwn = currentUser != null && currentUser.id === userId;
 
@@ -44,7 +46,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   if (!space) return null;
 
   return (
-    <div className="space">
+    <div className={reviewingUpload ? 'space upload-review-mode' : 'space'}>
       {onBack && (
         <button className="back-btn" onClick={onBack}>
           &larr; Back
@@ -88,11 +90,19 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
         </div>
       </div>
 
-      {isOwn && <PaperUpload onPaperCreated={loadSpace} />}
+      {isOwn && (
+        <PaperUpload
+          onPaperCreated={loadSpace}
+          onReviewChange={setReviewingUpload}
+        />
+      )}
 
       <PaperList
         papers={space.papers}
         isOwn={isOwn}
+        tags={isOwn ? space.tags : []}
+        selectedTag={selectedTag}
+        onSelectTag={setSelectedTag}
         onSelectPaper={onSelectPaper}
         onChanged={loadSpace}
       />

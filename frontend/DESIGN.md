@@ -100,6 +100,13 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   for private ones (summary, notes). The tint matches the field's
   visibility badge, so a reader can tell at a glance who sees what
   without reading the badges.
+- **Visibility fields in forms** — tint the container, never the text box:
+  `--green-soft` surrounds public fields and `--accent-soft` surrounds
+  private fields. Inputs and tag editors remain `--card` inside that tint,
+  with a border from the matching semantic family. This keeps every input
+  recognizable as an editable white control while the surrounding colour
+  communicates who can see its value. Apply the matching ink colour to the
+  field label as a secondary cue.
 - **State pill** — small-caps/uppercase `--fs-2xs` UI-font text on a
   semantic fill (`--gold`/`--green`/`--grey`), `--radius-pill`.
 - **Visibility badge** — `public` (green-soft) / `private` (accent-soft)

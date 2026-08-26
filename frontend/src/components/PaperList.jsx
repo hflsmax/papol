@@ -6,7 +6,7 @@ import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
 
-export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
+export default function PaperList({ papers, isOwn, tags = [], selectedTag = null, onSelectTag, onSelectPaper, onChanged }) {
   const [search, setSearch] = useState('');
   const [toggleWarning, setToggleWarning] = useState(null); // { id, text }
 
@@ -22,7 +22,7 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
 
   const filteredPapers = papers.filter((paper) => {
     const searchLower = search.toLowerCase();
-    return (
+    return (selectedTag == null || (paper.tags || []).some((tag) => tag.id === selectedTag)) && (
       paper.title.toLowerCase().includes(searchLower) ||
       (paper.authors && paper.authors.toLowerCase().includes(searchLower)) ||
       (paper.journal && paper.journal.toLowerCase().includes(searchLower))
@@ -59,7 +59,17 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
 
   return (
     <div className="panel paper-list">
-      <div className="search-bar">
+      <div className="search-bar paper-search-tools">
+        {isOwn && tags.length > 0 && (
+          <div className="search-tag-filters" aria-label="Filter papers by tag">
+            <button className={selectedTag == null ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(null)}>All</button>
+            {tags.map((tag) => (
+              <button key={tag.id} className={selectedTag === tag.id ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(tag.id)}>
+                <span aria-hidden="true">#</span> {tag.name}
+              </button>
+            ))}
+          </div>
+        )}
         <input
           type="text"
           placeholder={
@@ -91,11 +101,8 @@ export default function PaperList({ papers, isOwn, onSelectPaper, onChanged }) {
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
             >
-              {/* The row's left edge already said whether a paper was on
-                  display — it went dashed when hidden. So the edge is the
-                  control: one thing that both shows the state and changes
-                  it, instead of a badge in one corner repeating what the
-                  border in the other was already saying. */}
+              {/* The bar alone shows and changes display state; the paper
+                  row itself stays visually unchanged. */}
               {isOwn && (
                 <span className="hint-anchor bar-anchor">
                   <button

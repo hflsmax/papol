@@ -666,7 +666,17 @@ select {
 /* A field's label and a trailing option on one line. */
 .field-label-row {
   display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+.field-label-row .checkbox-row.inline {
+  display: inline-flex;
   align-items: center;
+  flex: none;
+  margin-left: 0;
 }
 
 .market-status {
@@ -771,19 +781,6 @@ select {
 
 .market-toggle.off .switch.bare .switch-knob {
   left: 3px;
-}
-
-/* A hidden row still reads as set aside — the bar says it at the edge, and
-   the ground and the faded text say it across the whole row. The dashed
-   border it used to draw here is now the bar's job. */
-.paper-list li.unmarketed {
-  background: var(--paper-sunken);
-}
-
-.paper-list li.unmarketed .paper-item h4,
-.paper-list li.unmarketed .paper-meta,
-.paper-list li.unmarketed .rating-summary {
-  opacity: 0.65;
 }
 
 /* ---------- Auth ---------- */
@@ -923,6 +920,44 @@ select {
 
 /* ---------- Upload ---------- */
 
+.upload-review-mode > .back-btn:not(.upload-review-back),
+.upload-review-mode > .space-header,
+.upload-review-mode > .paper-list {
+  display: none;
+}
+
+.upload-review-mode .paper-form {
+  padding: 18px;
+}
+
+.upload-review-form .form-group {
+  margin-bottom: 12px;
+}
+
+.upload-review-form .form-group > label,
+.upload-review-form .field-label-row {
+  margin-bottom: 3px;
+}
+
+.upload-review-form .form-group input,
+.upload-review-form .form-group textarea {
+  padding: 7px 9px;
+}
+
+.upload-review-form .tag-editor-card,
+.upload-review-form .upload-private-card,
+.upload-review-form .upload-public-card {
+  padding: 6px;
+}
+
+.upload-review-form .tag-editor {
+  min-height: 32px;
+}
+
+.upload-review-form .form-actions {
+  margin-top: 12px;
+}
+
 .dropzone {
   border: 1px dashed var(--ink-faint);
   border-radius: var(--radius);
@@ -951,6 +986,39 @@ select {
 }
 
 /* ---------- Paper list ---------- */
+.tag-editor { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.tag-chip { border-radius: var(--radius-pill); padding: 4px 10px; box-shadow: none; }
+.tag-chip.selected { background: var(--accent); border-color: var(--accent); color: var(--ink-inverse); }
+.paper-search-tools { align-items: stretch; flex-direction: column; gap: 8px; font-family: var(--font-ui); }
+.search-tag-filters { display: flex; justify-content: flex-start; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
+.search-tag-filters .tag-chip { padding: 3px 9px; font-size: var(--fs-xs); }
+.paper-tags { margin: 0 0 14px; }
+.tag-editor-card,
+.upload-private-card { padding: 8px 12px; background: var(--accent-soft); border-radius: var(--radius); }
+.upload-private-field > label { color: var(--accent); }
+.upload-private-summary textarea { display: block; background: var(--card); border-color: var(--accent-line); }
+.upload-private-summary textarea:focus { border-color: var(--accent); }
+.upload-public-field > label { color: var(--green-ink); }
+.upload-public-card { padding: 8px 12px; background: var(--green-soft); border-radius: var(--radius); }
+.upload-public-thought input { background: var(--card); border-color: var(--green-line); }
+.upload-public-thought input:focus { border-color: var(--green); }
+.tag-picker { position: relative; font-family: var(--font-ui); }
+.tag-editor { min-height: 34px; padding: 2px 6px; gap: 5px; background: var(--card); border: 1px solid var(--accent-line); border-radius: var(--radius); }
+.tag-editor:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tag-editor .tag-chip { border: 1px solid var(--accent-line); background: var(--card); color: var(--accent-strong); padding: 2px 7px; font-family: var(--font-ui); font-size: var(--fs-sm); box-shadow: none; }
+.tag-editor .tag-chip:hover { border-color: var(--red); color: var(--red); }
+.tag-editor .tag-input { flex: 1 1 10rem; width: auto; min-width: 8rem; padding: 3px 2px; border: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
+.tag-editor .tag-input:focus { outline: 0; box-shadow: none; }
+.tag-dropdown { position: absolute; z-index: 20; top: calc(100% + 3px); left: 0; right: 0; overflow: hidden; padding: 3px; background: var(--card); border: 1px solid var(--accent-line); border-radius: var(--radius); box-shadow: 0 8px 18px rgba(34, 43, 54, .12); font-family: var(--font-ui); }
+.tag-dropdown-label { padding: 4px 8px 2px; color: var(--ink-faint); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.tag-dropdown button { display: flex; width: 100%; gap: 7px; align-items: center; border: 0; border-radius: var(--radius); background: transparent; text-align: left; padding: 6px 8px; font-size: var(--fs-sm); }
+.tag-dropdown button:hover, .tag-dropdown button:focus { background: var(--paper-sunken); }
+.tag-option-mark { color: var(--ink-faint); font-weight: 600; }
+.tag-option-hint { margin-left: auto; color: var(--ink-faint); font-size: var(--fs-xs); opacity: 0; }
+.tag-dropdown button:hover .tag-option-hint, .tag-dropdown button:focus .tag-option-hint { opacity: 1; }
+.tag-create-option { margin-top: 4px; border-top: 1px solid var(--line) !important; border-radius: 0 0 3px 3px !important; color: var(--accent-strong); }
+.tag-create-mark { display: grid; place-items: center; width: 19px; height: 19px; border: 1px solid currentColor; border-radius: 50%; font-weight: 600; line-height: 1; }
+.tag-empty { display: block; padding: 10px; color: var(--ink-faint); }
 
 .search-bar {
   margin-bottom: 12px;
@@ -1080,27 +1148,6 @@ select {
 }
 
 .paper-list li .display-bar:active:not(:disabled) {
-  background: var(--fill);
-}
-
-/* A hidden row is already sitting on --paper-sunken, which is the colour
-   the lane sinks to — so on those rows the whole escalation landed on the
-   ground it was drawn against and the strongest state disappeared
-   entirely. There the lane lifts instead. Sinking or lifting is not the
-   point; separating from the row is, and which direction does that depends
-   on what the row is sitting on. */
-.paper-list li.unmarketed:hover .display-bar {
-  background: var(--card);
-  box-shadow: inset -1px 0 0 var(--line);
-}
-
-.paper-list li.unmarketed .display-bar:hover:not(:disabled),
-.paper-list li.unmarketed .display-bar:focus-visible {
-  background: var(--card);
-  box-shadow: inset -1px 0 0 var(--line-strong);
-}
-
-.paper-list li.unmarketed .display-bar:active:not(:disabled) {
   background: var(--fill);
 }
 
@@ -3610,11 +3657,35 @@ a.btn:hover {
 /* Public, so it carries the same green tint as the ratings. */
 .inline-thought-text {
   margin: 0;
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: var(--green-soft);
   border-radius: var(--radius);
   font-size: var(--fs-md);
   white-space: pre-wrap;
+}
+
+.inline-thought > .inline-edit {
+  padding: 8px 12px;
+  background: var(--green-soft);
+  border-radius: var(--radius);
+}
+
+.inline-thought > .inline-edit .inline-edit-box {
+  border-color: var(--green-line);
+}
+
+.inline-thought > .link-btn,
+.summary-block > .link-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.inline-thought > .link-btn {
+  background: var(--green-soft);
+  color: var(--green-ink);
 }
 
 /* Summary sits beside Notes as an equal: same heading level, and its
@@ -3624,11 +3695,26 @@ a.btn:hover {
 }
 
 .summary-text {
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: var(--accent-soft);
   border-radius: var(--radius);
   font-size: var(--fs-md);
   white-space: pre-wrap;
+}
+
+.summary-block > .inline-edit {
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+
+.summary-block > .inline-edit .inline-edit-box {
+  border-color: var(--accent-line);
+}
+
+.summary-block > .link-btn {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .paper-notes h4 {

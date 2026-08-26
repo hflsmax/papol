@@ -329,6 +329,7 @@ class PaperCreate(PaperBase):
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
     rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
     initial_comment: Optional[str] = None
+    tag_ids: List[int] = []
 
 
 class EditionAdopt(BaseModel):
@@ -351,6 +352,19 @@ class PaperUpdate(BaseModel):
     rating_expertise: Optional[int] = Field(default=None, ge=1, le=5)
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
     rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
+    tag_ids: Optional[List[int]] = None
+
+
+class TagOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class TagCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
 
 
 class ReaderEntry(BaseModel):
@@ -465,6 +479,7 @@ class PaperList(PaperBase):
     readers: List[ReaderEntry] = []
     edition_id: Optional[int] = None
     edition_sha256: Optional[str] = None
+    tags: List[TagOut] = []
 
     class Config:
         from_attributes = True
@@ -493,6 +508,7 @@ class Paper(PaperBase):
     ignored_edition_id: Optional[int] = None
     editions: List[PaperEditionOut] = []
     latest_edition: Optional[PaperEditionOut] = None
+    tags: List[TagOut] = []
 
     class Config:
         from_attributes = True
@@ -510,6 +526,7 @@ class UserSpace(BaseModel):
     user: UserPublic
     papers: List[PaperList]
     stats: Optional[NookStats] = None  # own nook only
+    tags: List[TagOut] = []  # private: populated only for the owner
 
 
 class ExtractedMetadata(BaseModel):

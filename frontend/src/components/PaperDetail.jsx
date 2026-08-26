@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition,
+  getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags,
   addToNook, pdfHref, reextractPaperMetadata,
 } from '../api';
 import CommentSection from './CommentSection';
@@ -17,6 +17,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
+  const [tagDraft, setTagDraft] = useState('');
+  const [availableTags, setAvailableTags] = useState([]);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
   const [isAddingEdition, setIsAddingEdition] = useState(false);
@@ -365,6 +368,21 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
 
   const authors = parseAuthors(paper.authors);
   const hasEntry = currentUser != null && paper.viewer_has_entry;
+  const assignedTagIds = new Set((paper.tags || []).map((tag) => tag.id));
+  const tagQuery = tagDraft.trim().toLowerCase();
+  const tagSuggestions = availableTags.filter(
+    (tag) => !assignedTagIds.has(tag.id) && (!tagQuery || tag.name.toLowerCase().includes(tagQuery))
+  );
+  const tagExists = availableTags.some((tag) => tag.name.toLowerCase() === tagQuery);
+  const attachTag = async (tag) => {
+    await updatePaper(paper.id, {
+      tag_ids: [...assignedTagIds, tag.id],
+    });
+    setTagDraft('');
+    setTagMenuOpen(false);
+    setAvailableTags((current) => current.some((item) => item.id === tag.id) ? current : [...current, tag]);
+    loadPaper();
+  };
 
   return (
     <div className="paper-detail">
@@ -380,8 +398,8 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
       {editMode === 'metadata' ? (
         <div className="paper-form">
           <div className="warning">
-            Metadata is shared. Your changes apply to this paper for every
-            reader.
+            These paper details are shared. Changes you make here update them
+            for every reader.
           </div>
 
           <div className="form-actions metadata-extract-action">
@@ -808,7 +826,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
                     maxLength={200}
                     rows={2}
                     autoFocus
-                    placeholder="Your one-line take on this paper"
+                    placeholder="Your public one-line take on this paper"
                     onChange={(e) => setThoughtDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') setEditingThought(false);
@@ -901,6 +919,68 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
               </button>
             )}
           </div>
+
+          <section className="paper-tags private-tags-group" aria-labelledby="paper-tags-title">
+            <h4 id="paper-tags-title">
+              Tags
+              <span className="visibility-badge private">private</span>
+            </h4>
+            <div className="tag-editor-card">
+              <div className="tag-picker">
+                <div className="tag-editor">
+                  {(paper.tags || []).map((tag) => (
+                    <button
+                      type="button"
+                      className="tag-chip selected"
+                      key={tag.id}
+                      onClick={async () => {
+                        await updatePaper(paper.id, { tag_ids: paper.tags.filter((t) => t.id !== tag.id).map((t) => t.id) });
+                        loadPaper();
+                      }}
+                      title="Remove tag from this paper"
+                    >{tag.name} ×</button>
+                  ))}
+                  <input
+                    className="tag-input"
+                    value={tagDraft}
+                    placeholder="Add a private tag…"
+                    aria-label="Add a private tag"
+                    onFocus={() => { setTagMenuOpen(true); listTags().then(setAvailableTags).catch((err) => setError(err.message)); }}
+                    onBlur={() => setTagMenuOpen(false)}
+                    onChange={(e) => { setTagDraft(e.target.value); setTagMenuOpen(true); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setTagMenuOpen(false);
+                      if (e.key === 'Enter' && tagSuggestions.length === 1) {
+                        e.preventDefault();
+                        attachTag(tagSuggestions[0]).catch((err) => setError(err.message));
+                      }
+                    }}
+                  />
+                </div>
+                {tagMenuOpen && (
+                  <div className="tag-dropdown">
+                    {tagSuggestions.length > 0 && <div className="tag-dropdown-label">Your tags</div>}
+                    {tagSuggestions.map((tag) => (
+                      <button type="button" key={tag.id} onMouseDown={(e) => e.preventDefault()} onClick={() => attachTag(tag).catch((err) => setError(err.message))}>
+                        <span className="tag-option-mark">#</span>
+                        <span>{tag.name}</span>
+                        <span className="tag-option-hint">Add</span>
+                      </button>
+                    ))}
+                    {tagQuery && !tagExists && (
+                      <button type="button" className="tag-create-option" onMouseDown={(e) => e.preventDefault()} onClick={async () => {
+                        try { await attachTag(await createTag(tagDraft.trim())); } catch (err) { setError(err.message); }
+                      }}>
+                        <span className="tag-create-mark">+</span>
+                        <span>Create <strong>{tagDraft.trim()}</strong></span>
+                      </button>
+                    )}
+                    {!tagQuery && tagSuggestions.length === 0 && <span className="tag-empty">All of your tags are already on this paper.</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
 
           <CommentSection
             paperId={paper.id}

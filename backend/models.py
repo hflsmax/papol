@@ -1,7 +1,15 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
+
+
+copy_tags = Table(
+    "copy_tags",
+    Base.metadata,
+    Column("copy_id", Integer, ForeignKey("copies.id"), primary_key=True),
+    Column("tag_id", Integer, ForeignKey("tags.id"), primary_key=True),
+)
 
 
 class User(Base):
@@ -25,6 +33,7 @@ class User(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     copies = relationship("Copy", back_populates="user")
+    tags = relationship("Tag", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def is_deleted(self) -> bool:
@@ -211,6 +220,21 @@ class Copy(Base):
     paper = relationship("Paper", back_populates="copies")
     user = relationship("User", back_populates="copies")
     edition = relationship("PaperEdition", foreign_keys=[edition_id])
+    tags = relationship("Tag", secondary=copy_tags, back_populates="copies")
+
+
+class Tag(Base):
+    """A private label in one reader's nook."""
+    __tablename__ = "tags"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_tag_user_name"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(60), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="tags")
+    copies = relationship("Copy", secondary=copy_tags, back_populates="tags")
 
 
 class Comment(Base):

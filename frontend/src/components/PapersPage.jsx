@@ -68,6 +68,7 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('activity');
   const [error, setError] = useState(null);
+  const [reviewingUpload, setReviewingUpload] = useState(false);
 
   const load = () => {
     listPapers()
@@ -92,8 +93,13 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
   const shown = [...papers.filter(matches)].sort(SORTS[sortBy].cmp);
 
   return (
-    <div>
-      {currentUser && <PaperUpload onPaperCreated={load} />}
+    <div className={reviewingUpload ? 'library-page upload-review-mode' : 'library-page'}>
+      {currentUser && (
+        <PaperUpload
+          onPaperCreated={load}
+          onReviewChange={setReviewingUpload}
+        />
+      )}
 
       <div className="panel paper-list">
         <div className="search-bar">

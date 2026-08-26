@@ -134,8 +134,8 @@ function seed() {
 
   return {
     users, papers, copies, comments, rooms, participants, messages,
-    availabilities, notifications,
-    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100 },
+    availabilities, notifications, tags: [],
+    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 1 },
   };
 }
 
@@ -167,6 +167,8 @@ function persistWorld() {
 }
 
 const ensure = () => { if (!db) db = storedWorld() || seed(); return db; };
+const myTags = () => ensure().tags || (ensure().tags = []);
+const tagsOf = (copy) => myTags().filter((tag) => (copy?.tag_ids || []).includes(tag.id));
 
 // ---------- Helpers mirroring the backend ----------
 
@@ -243,6 +245,7 @@ function paperDetail(p) {
     rating_expertise: mine ? mine.rating_expertise : null,
     rating_reading: mine ? mine.rating_reading : null,
     rating_liking: mine ? mine.rating_liking : null,
+    tags: tagsOf(mine),
     comments: mine
       ? ensure().comments.filter((c) => c.paper_id === p.id && c.user_id === ME)
           .map((c) => ({ ...c, user: publicUser(userById(c.user_id)) }))
@@ -275,6 +278,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     rating_expertise: c ? c.rating_expertise : null,
     rating_reading: c ? c.rating_reading : null,
     rating_liking: c ? c.rating_liking : null,
+    tags: hidePrivate ? [] : tagsOf(c),
     room_status: statusMap[paperKey(p)] || null,
     readers: displayedCopies(p).map(readerEntry),
   };
@@ -373,6 +377,7 @@ async function routeDemoRequest(path, options = {}) {
       paper_count: d.copies.filter((c) => c.user_id === u.id && c.marketed).length,
     }));
   }
+  if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
   if ((m = path.match(/^\/users\/(\d+)\/space$/))) {
     const u = userById(parseInt(m[1]));
     if (!u) throw demoError('User not found', 404);
@@ -390,7 +395,16 @@ async function routeDemoRequest(path, options = {}) {
           seminars: d.participants.filter((x) => x.user_id === u.id).length,
         }
       : null;
-    return { user: publicUser(u), papers: list, stats };
+    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [] };
+  }
+
+  if (path === '/tags' && method === 'POST') {
+    const name = body.name.trim().replace(/\s+/g, ' ');
+    const existing = myTags().find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+    if (existing) return existing;
+    const tag = { id: d.nextId.tag++, name };
+    myTags().push(tag);
+    return tag;
   }
 
   // ----- papers -----
@@ -492,6 +506,11 @@ async function routeDemoRequest(path, options = {}) {
         throw demoError('You are in a seminar cohort for this paper. Leave the cohort before hiding the paper.');
       }
       for (const k of personal) if (k in body) mine[k] = body[k];
+    }
+    if ('tag_ids' in body) {
+      const mine = copyOf(paper, ME);
+      if (!mine) throw demoError('Add this paper to your nook first', 403);
+      mine.tag_ids = body.tag_ids;
     }
     for (const k of metadata) if (k in body) paper[k] = body[k];
     return paperDetail(paper);
