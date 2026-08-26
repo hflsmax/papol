@@ -3,7 +3,6 @@ import {
   getMe, getToken, setToken, logout, getNotifications, sendPresence,
 } from './api';
 import AuthPage from './components/AuthPage';
-import UserDirectory from './components/UserDirectory';
 import Space from './components/Space';
 import PaperDetail from './components/PaperDetail';
 import { demoActive, enterDemo, exitDemo } from './demo';
@@ -992,6 +991,19 @@ select {
 .paper-search-tools { align-items: stretch; flex-direction: column; gap: 8px; font-family: var(--font-ui); }
 .search-tag-filters { display: flex; justify-content: flex-start; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
 .search-tag-filters .tag-chip { padding: 3px 9px; font-size: var(--fs-xs); }
+.library-search-tools { align-items: stretch; flex-direction: column; gap: 8px; }
+.library-reader-filters { display: flex; justify-content: flex-start; align-self: flex-start; width: 100%; gap: 6px; overflow-x: auto; padding-bottom: 10px; text-align: left; }
+.library-reader-filters { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--line-strong) 45%, transparent) transparent; }
+.library-reader-filters::-webkit-scrollbar { height: 1px; }
+.library-reader-filters::-webkit-scrollbar-track { background: transparent; }
+.library-reader-filters::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--line-strong) 45%, transparent); border-radius: var(--radius-pill); }
+.reader-filter { display: inline-flex; align-items: center; justify-content: flex-start; flex: none; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); text-align: left; white-space: nowrap; }
+.reader-filter.selected { background: var(--accent); border-color: var(--accent); color: var(--ink-inverse); }
+.reader-filter-avatar { width: 20px; height: 20px; border-radius: 50%; }
+.avatar-initial.reader-filter-avatar { display: inline-flex; align-items: center; justify-content: center; color: var(--ink-inverse); font-size: var(--fs-2xs); line-height: 1; text-align: center; }
+.library-search-line { display: flex; align-items: center; gap: 12px; width: 100%; }
+.library-search-line > input { flex: 1 1 auto; min-width: 0; }
+.library-search-line .sort-control { flex: none; }
 .paper-tags { margin: 0 0 14px; }
 .tag-editor-card,
 .upload-private-card { padding: 8px 12px; background: var(--accent-soft); border-radius: var(--radius); }
@@ -4089,7 +4101,7 @@ function parseRoute() {
   if (path === '/about') return routed({ page: 'about' });
   if (path === '/signin') return routed({ page: 'signin' });
   if (path === '/library' || path === '/papers') return routed({ page: 'papers' });
-  if (path === '/village' || path === '/readers') return routed({ page: 'directory' });
+  if (path === '/village' || path === '/readers') return routed({ page: 'papers' });
   if (path === '/inbox') return routed({ page: 'inbox' });
   if (path === '/admin') return routed({ page: 'admin' });
   return routed({ page: 'home' });
@@ -4101,7 +4113,7 @@ const demoPath = (path) => {
 };
 
 const SIGN_IN_PAGES = new Set([
-  'directory', 'space', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'space', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
 function navigate(path) {
@@ -4429,9 +4441,6 @@ export default function App() {
                 Home
               </a>
             )}
-            <a href={appPath('/village')} className={route.page === 'directory' ? 'active' : ''}>
-              Village
-            </a>
             <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
               Library
             </a>
@@ -4502,12 +4511,6 @@ export default function App() {
                 onDemo={demoActive() ? undefined : handleDemo}
               />
             ))}
-          {route.page === 'directory' && (
-            <UserDirectory
-              currentUser={user}
-              onVisit={(id) => navigate(`/u/${id}`)}
-            />
-          )}
           {route.page === 'space' && (
             <Space
               userId={route.id}

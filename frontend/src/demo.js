@@ -56,14 +56,26 @@ function seed() {
   const copy = (paper_id, user_id, extra = {}) => ({
     id: cid++, paper_id, user_id, summary: null, thought: null, marketed: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
-    created_at: daysAgo(5), ...extra,
+    tag_ids: [], created_at: daysAgo(5), ...extra,
   });
 
+  // SpongeBob's private filing system. These never appear in another
+  // reader's nook or on their copy of the same paper.
+  const tags = [
+    { id: 1, name: 'foundations' },
+    { id: 2, name: 'transformers' },
+    { id: 3, name: 'to discuss' },
+    { id: 4, name: 'my work' },
+    // Deliberately unused: opening a paper's tag picker demonstrates that
+    // an existing tag can be attached without creating a new one.
+    { id: 5, name: 'reread' },
+  ];
+
   const copies = [
-    copy(1, ME, { summary: '## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, created_at: daysAgo(28) }),
+    copy(1, ME, { summary: '## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, tag_ids: [1, 3], created_at: daysAgo(28) }),
     copy(1, 2, { thought: 'The clearest impossibility argument I know.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
-    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, created_at: daysAgo(20) }),
+    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, tag_ids: [2, 3], created_at: daysAgo(20) }),
     copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(3, 3, { thought: 'GPUs go brrr and suddenly vision works.', rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
     copy(3, 6, { thought: 'Scale beats cleverness; I find that deeply unfair.', rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
@@ -79,12 +91,12 @@ function seed() {
     copy(8, 6, { thought: 'Seven primitives and you get a civilization.', rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
     copy(9, 2, { thought: 'Call-by-name and call-by-value finally on one clean footing.', rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
     copy(9, 5, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
-    copy(10, ME, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, created_at: daysAgo(1) }),
+    copy(10, ME, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, tag_ids: [3, 4], created_at: daysAgo(1) }),
     copy(10, 2, { is_author: true, thought: 'The karate chop lemma was the hard part.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
     // marketed: false — kept in SpongeBob's own nook, but not shown to
     // anyone browsing Papol. This is what a hidden entry looks like.
-    copy(9, ME, { marketed: false, thought: 'Reading this in secret.', created_at: daysAgo(0) }),
+    copy(9, ME, { marketed: false, thought: 'Reading this in secret.', tag_ids: [1], created_at: daysAgo(0) }),
   ];
 
   // SpongeBob's notes, as the API would return them. Bare anchors and his
@@ -134,8 +146,8 @@ function seed() {
 
   return {
     users, papers, copies, comments, rooms, participants, messages,
-    availabilities, notifications, tags: [],
-    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 1 },
+    availabilities, notifications, tags,
+    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 6 },
   };
 }
 

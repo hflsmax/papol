@@ -67,6 +67,7 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
   const [papers, setPapers] = useState(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('activity');
+  const [selectedUser, setSelectedUser] = useState(null);
   const [error, setError] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
 
@@ -83,12 +84,19 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
-    p.title.toLowerCase().includes(searchLower) ||
-    (p.authors && p.authors.toLowerCase().includes(searchLower)) ||
-    (p.journal && p.journal.toLowerCase().includes(searchLower)) ||
-    (p.readers || []).some((r) =>
-      r.user.display_name.toLowerCase().includes(searchLower)
-    );
+    (selectedUser == null || (p.readers || []).some((r) => r.user.id === selectedUser)) &&
+    (p.title.toLowerCase().includes(searchLower) ||
+      (p.authors && p.authors.toLowerCase().includes(searchLower)) ||
+      (p.journal && p.journal.toLowerCase().includes(searchLower)) ||
+      (p.readers || []).some((r) =>
+        r.user.display_name.toLowerCase().includes(searchLower)
+      ));
+
+  const readers = Array.from(
+    new Map(
+      papers.flatMap((paper) => paper.readers || []).map((entry) => [entry.user.id, entry.user])
+    ).values()
+  ).sort((a, b) => a.display_name.localeCompare(b.display_name));
 
   const shown = [...papers.filter(matches)].sort(SORTS[sortBy].cmp);
 
@@ -102,26 +110,34 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
       )}
 
       <div className="panel paper-list">
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder="Search papers and readers in the library…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <label className="sort-control">
-            Sort by
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              {Object.entries(SORTS).map(([key, s]) => (
-                <option key={key} value={key}>
-                  {s.label}
-                </option>
+        <div className="search-bar library-search-tools">
+          {readers.length > 0 && (
+            <div className="library-reader-filters" aria-label="Filter papers by reader">
+              <button className={selectedUser == null ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(null)}>All readers</button>
+              {readers.map((reader) => (
+                <button key={reader.id} className={selectedUser === reader.id ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(reader.id)}>
+                  <Avatar user={reader} className="reader-filter-avatar" />
+                  <span>{reader.display_name}</span>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          )}
+          <div className="library-search-line">
+            <input
+              type="text"
+              placeholder="Search papers and readers in the library…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <label className="sort-control">
+              Sort by
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                {Object.entries(SORTS).map(([key, s]) => (
+                  <option key={key} value={key}>{s.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         {shown.length === 0 ? (
