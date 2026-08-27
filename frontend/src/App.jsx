@@ -1049,6 +1049,7 @@ select {
 .shelf-manager-head p { margin-top: 2px; color: var(--ink-faint); font-size: var(--fs-xs); }
 .shelf-paper-count { color: var(--ink-faint); font-size: var(--fs-xs); }
 .shelf-manager-close { flex: 0 0 auto; }
+.shelf-manager .icon-btn svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .shelf-manager-list { display: grid; gap: 5px; }
 .shelf-manager-row { display: grid; grid-template-columns: 26px minmax(8rem, 1fr) minmax(7rem, auto) minmax(5.5rem, auto); align-items: center; gap: 7px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
 .shelf-color-control { display: grid; place-items: center; }
@@ -1061,6 +1062,19 @@ select {
 .shelf-default { display: inline-flex; justify-self: end; align-items: center; gap: 5px; color: var(--ink-soft); font-size: var(--fs-xs); white-space: nowrap; cursor: pointer; }
 .shelf-default input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
 .shelf-add { margin-top: 9px; font-size: var(--fs-xs); }
+.nook-manager-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.nook-manager-section-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 7px; }
+.nook-manager-section-head h4 { font-size: var(--fs-base); }
+.nook-manager-section-head p { color: var(--ink-faint); font-size: var(--fs-xs); }
+.manage-tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.manage-tag-row { display: inline-flex; align-items: center; gap: 1px; padding-right: 2px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--paper); }
+.manage-tag-row .tag-chip { border: 0; background: transparent; color: var(--ink-soft); font-size: var(--fs-xs); }
+.manage-tag-row .icon-btn { width: 24px; height: 24px; }
+.manage-tag-row .tag-delete-btn { color: var(--ink); }
+.manage-tag-add { display: flex; gap: 6px; margin-top: 8px; }
+.manage-tag-add input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); font-family: var(--font-ui); font-size: var(--fs-sm); }
+.manage-tag-add input:focus { outline: 0; border-color: var(--accent); }
+.manage-tag-add button { padding: 5px 9px; font-size: var(--fs-xs); box-shadow: none; }
 .shelf-bar { display: flex; align-items: stretch; padding: 7px 5px; }
 .shelf-current { width: 8px; padding: 0; border: 0; border-radius: var(--radius-pill); background: var(--shelf-color); box-shadow: none; opacity: .82; transition: width .12s ease, opacity .12s ease; }
 .shelf-current:hover, .shelf-current:focus-visible { width: 10px; opacity: 1; }

@@ -39,6 +39,7 @@ async function handleResponse(response) {
     err.status = response.status;
     throw err;
   }
+  if (response.status === 204) return null;
   return response.json();
 }
 
@@ -242,6 +243,10 @@ export function createTag(name) {
 
 export function listTags() {
   return request('/tags');
+}
+
+export function deleteTag(tagId) {
+  return request(`/tags/${tagId}`, { method: 'DELETE' });
 }
 
 export function listShelves() {

@@ -1166,7 +1166,7 @@ async def create_tag(
 ):
     name = " ".join(data.name.split())
     if not name:
-        raise HTTPException(status_code=400, detail="Shelf name cannot be empty")
+        raise HTTPException(status_code=400, detail="Tag name cannot be empty")
     existing = db.query(Tag).filter(
         Tag.user_id == current_user.id, func.lower(Tag.name) == name.lower()
     ).first()
@@ -1185,6 +1185,20 @@ async def list_tags(
     db: Session = Depends(get_db),
 ):
     return db.query(Tag).filter(Tag.user_id == current_user.id).order_by(func.lower(Tag.name)).all()
+
+
+@app.delete("/api/tags/{tag_id}", status_code=204)
+async def delete_tag(
+    tag_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    tag.copies.clear()
+    db.delete(tag)
+    db.commit()
 
 
 @app.get("/api/shelves", response_model=list[ShelfOut])

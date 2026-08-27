@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserSpace, createShelf, updateShelf } from '../api';
+import { getUserSpace, createShelf, updateShelf, createTag, deleteTag } from '../api';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
@@ -11,6 +11,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
   const [managingShelves, setManagingShelves] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
 
   const isOwn = currentUser != null && currentUser.id === userId;
 
@@ -102,7 +103,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 5v14M12 5v14M18 5v14" />
               </svg>
-              <span>Manage shelves</span>
+              <span>Manage nook</span>
             </button>
           )}
         </div>
@@ -113,10 +114,10 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
           <div className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="shelf-manager-head">
               <div>
-                <h3 id="shelf-manager-title">Manage shelves</h3>
+                <h3 id="shelf-manager-title">Manage nook</h3>
                 <p>You can create up to five shelves.</p>
               </div>
-              <button className="icon-btn shelf-manager-close" onClick={() => setManagingShelves(false)} title="Close" aria-label="Close shelf manager">
+              <button className="icon-btn shelf-manager-close" onClick={() => setManagingShelves(false)} title="Close" aria-label="Close nook manager">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
@@ -173,6 +174,46 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
                 loadSpace();
               }}>Add another shelf</button>
             )}
+            <section className="nook-manager-section" aria-labelledby="manage-tags-title">
+              <div className="nook-manager-section-head">
+                <div>
+                  <h4 id="manage-tags-title">Tags</h4>
+                  <p>Private labels you can add to any paper.</p>
+                </div>
+              </div>
+              {space.tags.length > 0 && (
+                <div className="manage-tag-list">
+                  {space.tags.map((tag) => (
+                    <div className="manage-tag-row" key={tag.id}>
+                      <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
+                      <button
+                        className="icon-btn tag-delete-btn"
+                        title={`Delete ${tag.name}`}
+                        aria-label={`Delete tag ${tag.name}`}
+                        onClick={async () => {
+                          if (!window.confirm(`Delete #${tag.name} from every paper?`)) return;
+                          await deleteTag(tag.id);
+                          if (selectedTag === tag.id) setSelectedTag(null);
+                          loadSpace();
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <form className="manage-tag-add" onSubmit={async (event) => {
+                event.preventDefault();
+                if (!newTagName.trim()) return;
+                await createTag(newTagName.trim());
+                setNewTagName('');
+                loadSpace();
+              }}>
+                <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="New private tag" aria-label="New private tag" maxLength="60" />
+                <button type="submit">Add tag</button>
+              </form>
+            </section>
           </div>
         </div>
       )}

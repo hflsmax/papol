@@ -168,13 +168,16 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   current-shelf swatch on an owned paper row opens a compact shelf palette;
   forms use the same shelf names and visibility wording in a compact select.
   Shelf configuration is secondary to reading, so the nook exposes it through
-  a `Manage shelves` button and keeps the full editor in a focused modal.
+  a `Manage nook` button and keeps the full editor in a focused modal.
   Visibility is a compact Public/Private switch. The default shelf is a radio
   group because exactly one shelf receives newly added papers; do not present
   either choice as an action button.
   Shelf selection itself is private configuration, including in upload forms,
   so its label and control border use the private accent family. Select options
   still state each shelf's paper visibility explicitly as `Public` or `Private`.
+  `Manage nook` also owns the private tag vocabulary: tags can be created or
+  deleted there, while assignment stays on individual papers. Deleting a tag
+  removes only that label from papers, never the papers themselves.
 
 ## Voice
 

@@ -451,6 +451,15 @@ async function routeDemoRequest(path, options = {}) {
     myTags().push(tag);
     return tag;
   }
+  if ((m = path.match(/^\/tags\/(\d+)$/)) && method === 'DELETE') {
+    const tagId = parseInt(m[1]);
+    if (!d.tags.some((tag) => tag.id === tagId)) throw demoError('Tag not found', 404);
+    d.tags = d.tags.filter((tag) => tag.id !== tagId);
+    for (const copy of d.copies.filter((item) => item.user_id === ME)) {
+      copy.tag_ids = copy.tag_ids.filter((id) => id !== tagId);
+    }
+    return null;
+  }
 
   // ----- papers -----
   if (path === '/papers' && method === 'GET') {
