@@ -113,6 +113,27 @@ def backfill_shelves():
             ), {"u": user_id, "pub": public_id or fallback, "priv": private_id or fallback})
 
 
+def backfill_favourite_tags():
+    """One-time seed for existing readers; a deleted starter stays deleted."""
+    with engine.begin() as conn:
+        if not all(_table_exists(conn, table) for table in ("users", "tags", "settings")):
+            return
+        marker = "migration_favourite_tag_seeded_v1"
+        if conn.execute(text("SELECT 1 FROM settings WHERE key=:key"), {"key": marker}).first():
+            return
+        conn.execute(text(
+            "INSERT INTO tags (user_id,name,created_at) "
+            "SELECT users.id,'favourite',CURRENT_TIMESTAMP FROM users "
+            "WHERE users.deleted_at IS NULL AND NOT EXISTS ("
+            "SELECT 1 FROM tags WHERE tags.user_id=users.id "
+            "AND lower(tags.name)='favourite')"
+        ))
+        conn.execute(
+            text("INSERT INTO settings (key,value) VALUES (:key,'complete')"),
+            {"key": marker},
+        )
+
+
 def normalize_papers():
     """One-time migration from the denormalized model (one papers row per
     nook entry) to the canonical model (one papers row per paper, per-user

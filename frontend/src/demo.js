@@ -69,6 +69,7 @@ function seed() {
     // Deliberately unused: opening a paper's tag picker demonstrates that
     // an existing tag can be attached without creating a new one.
     { id: 5, name: 'reread' },
+    { id: 6, name: 'favourite' },
   ];
   const shelves = [
     { id: 1, name: 'Display', color: '#7ba26c', is_public: true, is_default: true, position: 0 },
@@ -162,7 +163,7 @@ function seed() {
   return {
     users, papers, copies, comments, rooms, participants, messages,
     availabilities, notifications, tags, shelves,
-    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 6, shelf: 5 },
+    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 7, shelf: 5 },
   };
 }
 

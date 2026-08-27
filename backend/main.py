@@ -30,7 +30,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from database import (
-    engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes, backfill_shelves,
+    engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
+    backfill_shelves, backfill_favourite_tags,
     SessionLocal,
 )
 from models import (
@@ -107,6 +108,7 @@ for _stale in normalize_papers():
         _stale_path.unlink()
 backfill_copy_edition_hashes()
 backfill_shelves()
+backfill_favourite_tags()
 
 # Instrument after the startup migrations so the metrics reflect request
 # traffic, not one-time schema work.
@@ -208,6 +210,7 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
     db.add_all([
         Shelf(user_id=user.id, name="Display", color="#7ba26c", is_public=True, is_default=True, position=0),
         Shelf(user_id=user.id, name="Personal", color="#2b4a6f", is_public=False, position=1),
+        Tag(user_id=user.id, name="favourite"),
     ])
     db.commit()
     db.refresh(user)
