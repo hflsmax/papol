@@ -178,6 +178,8 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `Manage nook` also owns the private tag vocabulary: tags can be created or
   deleted there, while assignment stays on individual papers. Deleting a tag
   removes only that label from papers, never the papers themselves.
+  Shelves use the same compact black × removal affordance as tags. Removing a
+  shelf moves its papers to another shelf; the final shelf cannot be removed.
 
 ## Voice
 

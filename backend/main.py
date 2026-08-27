@@ -1269,6 +1269,38 @@ async def update_shelf(
     return _shelf_out(shelf)
 
 
+@app.delete("/api/shelves/{shelf_id}", status_code=204)
+async def delete_shelf(
+    shelf_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    shelf = db.query(Shelf).filter(Shelf.id == shelf_id, Shelf.user_id == current_user.id).first()
+    if not shelf:
+        raise HTTPException(status_code=404, detail="Shelf not found")
+    remaining = [item for item in current_user.shelves if item.id != shelf.id]
+    if not remaining:
+        raise HTTPException(status_code=400, detail="A nook must have at least one shelf")
+    destination = next((item for item in remaining if item.is_default), remaining[0])
+    if not destination.is_public:
+        blocked = [
+            copy for copy in shelf.copies
+            if copy.marketed and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
+        ]
+        if blocked:
+            raise HTTPException(
+                status_code=400,
+                detail="Some papers on this shelf are in active seminar cohorts and cannot move to a private shelf",
+            )
+    for copy in list(shelf.copies):
+        copy.shelf = destination
+        copy.marketed = bool(destination.is_public)
+    if shelf.is_default:
+        destination.is_default = True
+    db.delete(shelf)
+    db.commit()
+
+
 @app.delete("/api/papers/{paper_id}")
 async def delete_paper(
     paper_id: int,

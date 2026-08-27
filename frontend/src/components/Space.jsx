@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserSpace, createShelf, updateShelf, createTag, deleteTag } from '../api';
+import { getUserSpace, createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../api';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
@@ -12,6 +12,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   const [reviewingUpload, setReviewingUpload] = useState(false);
   const [managingShelves, setManagingShelves] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [nookManagerError, setNookManagerError] = useState(null);
 
   const isOwn = currentUser != null && currentUser.id === userId;
 
@@ -99,7 +100,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
             )}
           </div>
           {isOwn && (
-            <button className="manage-shelves-btn" onClick={() => setManagingShelves(true)}>
+            <button className="manage-shelves-btn" onClick={() => { setNookManagerError(null); setManagingShelves(true); }}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 5v14M12 5v14M18 5v14" />
               </svg>
@@ -121,6 +122,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
+            {nookManagerError && <p className="nook-manager-error" role="alert">{nookManagerError}</p>}
             <div className="shelf-manager-list">
               {space.shelves.map((shelf) => (
                 <div className="shelf-manager-row" key={shelf.id}>
@@ -164,6 +166,28 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
                     />
                     <span>Default</span>
                   </label>
+                  <button
+                    className="icon-btn shelf-delete-btn"
+                    title={`Delete ${shelf.name}`}
+                    aria-label={`Delete shelf ${shelf.name}`}
+                    onClick={async () => {
+                      setNookManagerError(null);
+                      if (space.shelves.length === 1) {
+                        setNookManagerError('A nook must have at least one shelf.');
+                        return;
+                      }
+                      const papers = shelf.paper_count === 1 ? '1 paper' : `${shelf.paper_count} papers`;
+                      if (!window.confirm(`Delete ${shelf.name}? Its ${papers} will move to another shelf.`)) return;
+                      try {
+                        await deleteShelf(shelf.id);
+                        loadSpace();
+                      } catch (err) {
+                        setNookManagerError(err.message);
+                      }
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
+                  </button>
                 </div>
               ))}
             </div>

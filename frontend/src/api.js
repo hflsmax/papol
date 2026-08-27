@@ -261,6 +261,10 @@ export function updateShelf(id, data) {
   return jsonRequest(`/shelves/${id}`, 'PUT', data);
 }
 
+export function deleteShelf(id) {
+  return request(`/shelves/${id}`, { method: 'DELETE' });
+}
+
 // ---------- Comments ----------
 
 export function addComment(paperId, content) {

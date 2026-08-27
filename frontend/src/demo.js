@@ -443,6 +443,20 @@ async function routeDemoRequest(path, options = {}) {
     if ('is_public' in body) for (const copy of d.copies.filter((item) => item.user_id === ME && item.shelf_id === shelf.id)) copy.marketed = !!body.is_public;
     return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === ME && copy.shelf_id === shelf.id).length };
   }
+  if ((m = path.match(/^\/shelves\/(\d+)$/)) && method === 'DELETE') {
+    const shelf = d.shelves.find((item) => item.id === parseInt(m[1]));
+    if (!shelf) throw demoError('Shelf not found', 404);
+    const remaining = d.shelves.filter((item) => item !== shelf);
+    if (!remaining.length) throw demoError('A nook must have at least one shelf');
+    const destination = remaining.find((item) => item.is_default) || remaining[0];
+    for (const copy of d.copies.filter((item) => item.user_id === ME && item.shelf_id === shelf.id)) {
+      copy.shelf_id = destination.id;
+      copy.marketed = destination.is_public;
+    }
+    if (shelf.is_default) destination.is_default = true;
+    d.shelves = remaining;
+    return null;
+  }
 
   if (path === '/tags' && method === 'POST') {
     const name = body.name.trim().replace(/\s+/g, ' ');
