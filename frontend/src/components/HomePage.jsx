@@ -53,6 +53,18 @@ export default function HomePage({ currentUser, onDemo }) {
         </a>
       </div>
 
+      <section className="panel home-organize" aria-labelledby="organize-papers-title">
+        <h6 className="mini-title" id="organize-papers-title">Organize your papers</h6>
+        <div className="home-organize-item">
+          <strong>Shelves</strong>
+          <p>Every paper belongs to one shelf. Each shelf has a name and a color, and can be either public or private. Papers on public shelves appear in your nook to others; papers on private shelves are visible only to you.</p>
+        </div>
+        <div className="home-organize-item">
+          <strong>Tags</strong>
+          <p>Add any number of tags to group papers by topic, project, or reading status. A paper can have several tags, and you can use them to filter your nook. Tags are always visible only to you.</p>
+        </div>
+      </section>
+
       <SeminarFlow />
 
     </div>

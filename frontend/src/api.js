@@ -244,6 +244,18 @@ export function listTags() {
   return request('/tags');
 }
 
+export function listShelves() {
+  return request('/shelves');
+}
+
+export function createShelf(data) {
+  return jsonRequest('/shelves', 'POST', data);
+}
+
+export function updateShelf(id, data) {
+  return jsonRequest(`/shelves/${id}`, 'PUT', data);
+}
+
 // ---------- Comments ----------
 
 export function addComment(paperId, content) {

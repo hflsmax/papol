@@ -30,14 +30,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from database import (
-    engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
+    engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes, backfill_shelves,
     SessionLocal,
 )
 from models import (
     User, AuthToken, PresencePing, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
-    InkStroke, Tag,
+    InkStroke, Tag, Shelf,
 )
 import account
 from schemas import (
@@ -55,6 +55,7 @@ from schemas import (
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
+    ShelfOut, ShelfCreate, ShelfUpdate,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -105,6 +106,7 @@ for _stale in normalize_papers():
     if _stale_path.exists():
         _stale_path.unlink()
 backfill_copy_edition_hashes()
+backfill_shelves()
 
 # Instrument after the startup migrations so the metrics reflect request
 # traffic, not one-time schema work.
@@ -177,9 +179,9 @@ DEFAULT_WELCOME = (
     "Welcome to Papol, {name}! Your nook is where you "
     "document your reading: upload the papers you read, rate them, "
     "keep private notes and a summary, and share a public "
-    "one-sentence thought. Visit the Village to see what other "
-    "readers keep in their nooks, and add papers from the Library "
-    "to your own. When a paper deserves a conversation, call a "
+    "one-sentence thought. Use the Library to find papers and see "
+    "what other readers keep in their nooks, then add papers to "
+    "your own. When a paper deserves a conversation, call a "
     "spontaneous seminar, and every reader of it will be invited. "
     "Each seminar is run by a host: a reader who volunteers to plan "
     "it and lead the discussion. Answer a call to host one yourself!"
@@ -202,6 +204,11 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
         password_hash=hash_password(data.password),
     )
     db.add(user)
+    db.flush()
+    db.add_all([
+        Shelf(user_id=user.id, name="Display", color="#7ba26c", is_public=True, is_default=True, position=0),
+        Shelf(user_id=user.id, name="Personal", color="#2b4a6f", is_public=False, position=1),
+    ])
     db.commit()
     db.refresh(user)
 
@@ -447,6 +454,19 @@ def _room_status_map(db: Session) -> dict:
     return status_map
 
 
+def _shelf_out(shelf: Shelf) -> ShelfOut:
+    return ShelfOut(
+        id=shelf.id, name=shelf.name, color=shelf.color,
+        is_public=bool(shelf.is_public), is_default=bool(shelf.is_default),
+        position=shelf.position, paper_count=len(shelf.copies),
+    )
+
+
+def _default_shelf(user: User) -> Shelf:
+    shelf = next((s for s in user.shelves if s.is_default), None)
+    return shelf or user.shelves[0]
+
+
 def _reader_entry(user_copy: Copy) -> ReaderEntry:
     return ReaderEntry(
         paper_id=user_copy.paper_id,
@@ -557,6 +577,7 @@ def _paper_list_entry(
     entry.edition_id = selected_edition.id if selected_edition else None
     entry.edition_sha256 = selected_edition.sha256 if selected_edition else None
     if user_copy:
+        entry.shelf_id = user_copy.shelf_id
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
         entry.marketed = user_copy.marketed
@@ -611,6 +632,10 @@ async def get_user_space(
             [TagOut.model_validate(t) for t in sorted(user.tags, key=lambda t: t.name.lower())]
             if not hide_private else []
         ),
+        shelves=[
+            _shelf_out(s) for s in user.shelves
+            if not hide_private or s.is_public
+        ],
     )
 
 
@@ -810,6 +835,7 @@ def _paper_detail(
     detail.edition_sha256 = selected_edition.sha256 if selected_edition else None
     detail.ignored_edition_id = user_copy.ignored_edition_id if user_copy else None
     if user_copy:
+        detail.shelf_id = user_copy.shelf_id
         detail.summary = user_copy.summary
         detail.thought = user_copy.thought
         detail.marketed = user_copy.marketed
@@ -927,6 +953,12 @@ async def create_paper(
     if len(tags) != len(tag_ids):
         raise HTTPException(status_code=400, detail="One or more tags do not belong to you")
 
+    shelf = (
+        db.query(Shelf).filter(Shelf.id == paper.shelf_id, Shelf.user_id == current_user.id).first()
+        if paper.shelf_id is not None else _default_shelf(current_user)
+    )
+    if shelf is None:
+        raise HTTPException(status_code=400, detail="Shelf does not belong to you")
     user_copy = Copy(
         paper_id=db_paper.id,
         user_id=current_user.id,
@@ -934,7 +966,8 @@ async def create_paper(
         edition_sha256=edition.sha256,
         summary=paper.summary,
         thought=paper.thought,
-        marketed=paper.marketed,
+        marketed=bool(shelf.is_public),
+        shelf_id=shelf.id,
         is_author=paper.is_author,
         rating_expertise=paper.rating_expertise,
         rating_reading=paper.rating_reading,
@@ -1069,12 +1102,14 @@ async def update_paper(
 
     update_data = paper_update.model_dump(exclude_unset=True)
     tag_ids = update_data.pop("tag_ids", None)
+    shelf_id = update_data.pop("shelf_id", None)
     personal = {k: v for k, v in update_data.items() if k in _PERSONAL_FIELDS}
     metadata = {k: v for k, v in update_data.items() if k in _METADATA_FIELDS}
 
     if personal:
         user_copy = _require_copy(paper, current_user)
-        if personal.get("marketed") is False and _in_active_cohort(
+        requested_visibility = personal.pop("marketed", None)
+        if requested_visibility is False and _in_active_cohort(
             db, current_user, _paper_key_for(paper)
         ):
             raise HTTPException(
@@ -1082,6 +1117,16 @@ async def update_paper(
                 detail="You are in a seminar cohort for this paper. "
                 "Leave the cohort before hiding the paper.",
             )
+        if requested_visibility is not None:
+            target_shelf = next(
+                (s for s in current_user.shelves if s.is_public == requested_visibility),
+                None,
+            )
+            if not target_shelf:
+                visibility = "public" if requested_visibility else "private"
+                raise HTTPException(status_code=400, detail=f"Create a {visibility} shelf first")
+            user_copy.shelf = target_shelf
+            user_copy.marketed = bool(target_shelf.is_public)
         for key, value in personal.items():
             setattr(user_copy, key, value)
 
@@ -1092,6 +1137,18 @@ async def update_paper(
         if len(tags) != len(unique_ids):
             raise HTTPException(status_code=400, detail="One or more tags do not belong to you")
         user_copy.tags = tags
+
+    if shelf_id is not None:
+        user_copy = _require_copy(paper, current_user)
+        shelf = db.query(Shelf).filter(Shelf.id == shelf_id, Shelf.user_id == current_user.id).first()
+        if not shelf:
+            raise HTTPException(status_code=400, detail="Shelf does not belong to you")
+        if not shelf.is_public and user_copy.marketed and _in_active_cohort(
+            db, current_user, _paper_key_for(paper)
+        ):
+            raise HTTPException(status_code=400, detail="Leave the active seminar cohort before moving this paper to a private shelf.")
+        user_copy.shelf = shelf
+        user_copy.marketed = bool(shelf.is_public)
 
     for key, value in metadata.items():
         setattr(paper, key, value)
@@ -1108,6 +1165,8 @@ async def create_tag(
     db: Session = Depends(get_db),
 ):
     name = " ".join(data.name.split())
+    if not name:
+        raise HTTPException(status_code=400, detail="Shelf name cannot be empty")
     existing = db.query(Tag).filter(
         Tag.user_id == current_user.id, func.lower(Tag.name) == name.lower()
     ).first()
@@ -1126,6 +1185,71 @@ async def list_tags(
     db: Session = Depends(get_db),
 ):
     return db.query(Tag).filter(Tag.user_id == current_user.id).order_by(func.lower(Tag.name)).all()
+
+
+@app.get("/api/shelves", response_model=list[ShelfOut])
+async def list_shelves(
+    current_user: User = Depends(get_current_user),
+):
+    return [_shelf_out(s) for s in current_user.shelves]
+
+
+@app.post("/api/shelves", response_model=ShelfOut)
+async def create_shelf(
+    data: ShelfCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if len(current_user.shelves) >= 5:
+        raise HTTPException(status_code=400, detail="A nook can have at most five shelves")
+    name = " ".join(data.name.split())
+    if any(s.name.lower() == name.lower() for s in current_user.shelves):
+        raise HTTPException(status_code=400, detail="You already have a shelf with that name")
+    shelf = Shelf(
+        user_id=current_user.id, name=name, color=data.color.lower(),
+        is_public=data.is_public, position=len(current_user.shelves),
+    )
+    db.add(shelf)
+    db.commit()
+    db.refresh(shelf)
+    return _shelf_out(shelf)
+
+
+@app.put("/api/shelves/{shelf_id}", response_model=ShelfOut)
+async def update_shelf(
+    shelf_id: int,
+    data: ShelfUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    shelf = db.query(Shelf).filter(Shelf.id == shelf_id, Shelf.user_id == current_user.id).first()
+    if not shelf:
+        raise HTTPException(status_code=404, detail="Shelf not found")
+    changes = data.model_dump(exclude_unset=True)
+    if "name" in changes:
+        name = " ".join(changes["name"].split())
+        if not name:
+            raise HTTPException(status_code=400, detail="Shelf name cannot be empty")
+        if any(s.id != shelf.id and s.name.lower() == name.lower() for s in current_user.shelves):
+            raise HTTPException(status_code=400, detail="You already have a shelf with that name")
+        shelf.name = name
+    if "color" in changes:
+        shelf.color = changes["color"].lower()
+    if "is_public" in changes and bool(changes["is_public"]) != bool(shelf.is_public):
+        becoming_public = bool(changes["is_public"])
+        if not becoming_public:
+            blocked = [c for c in shelf.copies if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
+            if blocked:
+                raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
+        shelf.is_public = becoming_public
+        for copy in shelf.copies:
+            copy.marketed = becoming_public
+    if changes.get("is_default"):
+        for other in current_user.shelves:
+            other.is_default = other.id == shelf.id
+    db.commit()
+    db.refresh(shelf)
+    return _shelf_out(shelf)
 
 
 @app.delete("/api/papers/{paper_id}")
@@ -1164,10 +1288,12 @@ async def add_to_nook(
         raise HTTPException(status_code=400, detail="This paper is already in your nook")
 
     latest = _latest_edition(paper)
+    shelf = _default_shelf(current_user)
     db.add(Copy(
         paper_id=paper.id,
         user_id=current_user.id,
-        marketed=True,
+        marketed=bool(shelf.is_public),
+        shelf_id=shelf.id,
         edition_id=latest.id if latest else None,
         edition_sha256=latest.sha256 if latest else None,
     ))

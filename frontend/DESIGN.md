@@ -161,6 +161,20 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `--ink-faint`). Never restyle the box itself — no bespoke sizes and no
   other accent colour. A checkbox is a control, so it takes the control
   colour; semantic hues label state, not inputs.
+- **Shelf** — every nook entry belongs to exactly one shelf. Shelf colour is
+  identity, not visibility: show it as a narrow vertical swatch on paper rows
+  and beside shelf selectors. Visibility is always stated in words (`Public`
+  / `Private`) because a user can rename and recolour any shelf. The
+  current-shelf swatch on an owned paper row opens a compact shelf palette;
+  forms use the same shelf names and visibility wording in a compact select.
+  Shelf configuration is secondary to reading, so the nook exposes it through
+  a `Manage shelves` button and keeps the full editor in a focused modal.
+  Visibility is a compact Public/Private switch. The default shelf is a radio
+  group because exactly one shelf receives newly added papers; do not present
+  either choice as an action button.
+  Shelf selection itself is private configuration, including in upload forms,
+  so its label and control border use the private accent family. Select options
+  still state each shelf's paper visibility explicitly as `Public` or `Private`.
 
 ## Voice
 

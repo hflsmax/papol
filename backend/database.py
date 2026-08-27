@@ -84,6 +84,35 @@ def backfill_copy_edition_hashes():
         ))
 
 
+def backfill_shelves():
+    """Create Display/Personal shelves and place every legacy copy."""
+    with engine.begin() as conn:
+        if not _table_exists(conn, "shelves") or not _table_exists(conn, "copies"):
+            return
+        users = conn.execute(text("SELECT id FROM users WHERE deleted_at IS NULL")).all()
+        for (user_id,) in users:
+            shelves = conn.execute(text(
+                "SELECT id, is_public FROM shelves WHERE user_id=:u ORDER BY position, id"
+            ), {"u": user_id}).all()
+            if not shelves:
+                conn.execute(text(
+                    "INSERT INTO shelves (user_id,name,color,is_public,is_default,position,created_at) "
+                    "VALUES (:u,'Display','#7ba26c',1,1,0,CURRENT_TIMESTAMP),"
+                    "(:u,'Personal','#2b4a6f',0,0,1,CURRENT_TIMESTAMP)"
+                ), {"u": user_id})
+            public_id = conn.execute(text(
+                "SELECT id FROM shelves WHERE user_id=:u AND is_public=1 ORDER BY position,id LIMIT 1"
+            ), {"u": user_id}).scalar()
+            private_id = conn.execute(text(
+                "SELECT id FROM shelves WHERE user_id=:u AND is_public=0 ORDER BY position,id LIMIT 1"
+            ), {"u": user_id}).scalar()
+            fallback = public_id or private_id
+            conn.execute(text(
+                "UPDATE copies SET shelf_id=CASE WHEN marketed=1 THEN :pub ELSE :priv END "
+                "WHERE user_id=:u AND shelf_id IS NULL"
+            ), {"u": user_id, "pub": public_id or fallback, "priv": private_id or fallback})
+
+
 def normalize_papers():
     """One-time migration from the denormalized model (one papers row per
     nook entry) to the canonical model (one papers row per paper, per-user

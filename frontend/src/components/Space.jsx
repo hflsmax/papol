@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserSpace } from '../api';
+import { getUserSpace, createShelf, updateShelf } from '../api';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
@@ -10,6 +10,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
+  const [managingShelves, setManagingShelves] = useState(false);
 
   const isOwn = currentUser != null && currentUser.id === userId;
 
@@ -40,6 +41,15 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
       active = false;
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!managingShelves) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setManagingShelves(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [managingShelves]);
 
   if (isLoading) return <div className="loading">Loading nook…</div>;
   if (error) return <div className="error">{error}</div>;
@@ -87,8 +97,85 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
               </p>
             )}
           </div>
+          {isOwn && (
+            <button className="manage-shelves-btn" onClick={() => setManagingShelves(true)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 5v14M12 5v14M18 5v14" />
+              </svg>
+              <span>Manage shelves</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {isOwn && managingShelves && (
+        <div className="modal-overlay shelf-manager-overlay" onMouseDown={() => setManagingShelves(false)}>
+          <div className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="shelf-manager-head">
+              <div>
+                <h3 id="shelf-manager-title">Manage shelves</h3>
+                <p>You can create up to five shelves.</p>
+              </div>
+              <button className="icon-btn shelf-manager-close" onClick={() => setManagingShelves(false)} title="Close" aria-label="Close shelf manager">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <div className="shelf-manager-list">
+              {space.shelves.map((shelf) => (
+                <div className="shelf-manager-row" key={shelf.id}>
+                  <label className="shelf-color-control" title="Shelf color">
+                    <input
+                      className="shelf-color-input"
+                      type="color"
+                      value={shelf.color}
+                      aria-label={`Color for ${shelf.name}`}
+                      onChange={async (e) => { await updateShelf(shelf.id, { color: e.target.value }); loadSpace(); }}
+                    />
+                  </label>
+                  <div className="shelf-name-block">
+                    <input
+                      className="shelf-name-input"
+                      value={shelf.name}
+                      aria-label="Shelf name"
+                      onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.id === shelf.id ? { ...item, name: e.target.value } : item) }))}
+                      onBlur={async (e) => { if (e.target.value.trim()) { await updateShelf(shelf.id, { name: e.target.value.trim() }); loadSpace(); } }}
+                    />
+                    <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}</span>
+                  </div>
+                  <button
+                    className={`market-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
+                    role="switch"
+                    aria-checked={shelf.is_public}
+                    aria-label={`${shelf.name} is ${shelf.is_public ? 'public' : 'private'}`}
+                    onClick={async () => { await updateShelf(shelf.id, { is_public: !shelf.is_public }); loadSpace(); }}
+                  >
+                    <span className="switch">
+                      <span className="switch-knob" />
+                      <span className="switch-text">{shelf.is_public ? 'Public' : 'Private'}</span>
+                    </span>
+                  </button>
+                  <label className="shelf-default">
+                    <input
+                      type="radio"
+                      name="default-shelf"
+                      checked={shelf.is_default}
+                      onChange={async () => { if (!shelf.is_default) { await updateShelf(shelf.id, { is_default: true }); loadSpace(); } }}
+                    />
+                    <span>Default</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+            {space.shelves.length < 5 && (
+              <button className="link-btn shelf-add" onClick={async () => {
+                const colors = ['#b3923d', '#6b3f5e', '#35606b'];
+                await createShelf({ name: `Shelf ${space.shelves.length + 1}`, color: colors[(space.shelves.length - 2) % colors.length], is_public: false });
+                loadSpace();
+              }}>Add another shelf</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {isOwn && (
         <PaperUpload
@@ -101,6 +188,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
         papers={space.papers}
         isOwn={isOwn}
         tags={isOwn ? space.tags : []}
+        shelves={space.shelves || []}
         selectedTag={selectedTag}
         onSelectTag={setSelectedTag}
         onSelectPaper={onSelectPaper}

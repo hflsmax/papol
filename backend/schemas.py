@@ -330,6 +330,7 @@ class PaperCreate(PaperBase):
     rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
     initial_comment: Optional[str] = None
     tag_ids: List[int] = []
+    shelf_id: Optional[int] = None
 
 
 class EditionAdopt(BaseModel):
@@ -353,6 +354,7 @@ class PaperUpdate(BaseModel):
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
     rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
     tag_ids: Optional[List[int]] = None
+    shelf_id: Optional[int] = None
 
 
 class TagOut(BaseModel):
@@ -365,6 +367,29 @@ class TagOut(BaseModel):
 
 class TagCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
+
+
+class ShelfOut(BaseModel):
+    id: int
+    name: str
+    color: str
+    is_public: bool
+    is_default: bool
+    position: int
+    paper_count: int = 0
+
+
+class ShelfCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    is_public: bool = False
+
+
+class ShelfUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=40)
+    color: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    is_public: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class ReaderEntry(BaseModel):
@@ -480,6 +505,7 @@ class PaperList(PaperBase):
     edition_id: Optional[int] = None
     edition_sha256: Optional[str] = None
     tags: List[TagOut] = []
+    shelf_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -509,6 +535,7 @@ class Paper(PaperBase):
     editions: List[PaperEditionOut] = []
     latest_edition: Optional[PaperEditionOut] = None
     tags: List[TagOut] = []
+    shelf_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -527,6 +554,7 @@ class UserSpace(BaseModel):
     papers: List[PaperList]
     stats: Optional[NookStats] = None  # own nook only
     tags: List[TagOut] = []  # private: populated only for the owner
+    shelves: List[ShelfOut] = []
 
 
 class ExtractedMetadata(BaseModel):

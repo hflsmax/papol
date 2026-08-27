@@ -6,14 +6,16 @@ import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
 
-export default function PaperList({ papers, isOwn, tags = [], selectedTag = null, onSelectTag, onSelectPaper, onChanged }) {
+export default function PaperList({ papers, isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onChanged }) {
   const [search, setSearch] = useState('');
   const [toggleWarning, setToggleWarning] = useState(null); // { id, text }
+  const [openShelfPicker, setOpenShelfPicker] = useState(null);
 
-  const handleMarketToggle = async (paper, checked) => {
+  const handleShelfMove = async (paper, shelfId) => {
     setToggleWarning(null);
     try {
-      await updatePaper(paper.id, { marketed: checked });
+      await updatePaper(paper.id, { shelf_id: shelfId });
+      setOpenShelfPicker(null);
       onChanged();
     } catch (err) {
       setToggleWarning({ id: paper.id, text: err.message });
@@ -101,32 +103,39 @@ export default function PaperList({ papers, isOwn, tags = [], selectedTag = null
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
             >
-              {/* The bar alone shows and changes display state; the paper
-                  row itself stays visually unchanged. */}
+              {/* Keep the row quiet: its edge shows the current shelf, and
+                  reveals the full shelf palette only on request. */}
               {isOwn && (
-                <span className="hint-anchor bar-anchor">
+                <span
+                  className="hint-anchor bar-anchor shelf-bar"
+                  onMouseEnter={() => setOpenShelfPicker(paper.id)}
+                  onMouseLeave={() => setOpenShelfPicker((current) => current === paper.id ? null : current)}
+                >
                   <button
-                    className={
-                      paper.marketed !== false
-                        ? 'display-bar on'
-                        : 'display-bar off'
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMarketToggle(paper, paper.marketed === false);
-                    }}
-                    title={
-                      paper.marketed !== false
-                        ? 'On display — other readers can see that you have this paper. Click to hide it.'
-                        : 'Hidden — only you can see this paper. Click to put it on display.'
-                    }
-                    aria-label={
-                      paper.marketed !== false
-                        ? 'On display; click to hide from your nook'
-                        : 'Hidden; click to put on display'
-                    }
-                    aria-pressed={paper.marketed !== false}
+                    className="shelf-current"
+                    style={{ '--shelf-color': shelves.find((shelf) => shelf.id === paper.shelf_id)?.color || 'var(--line-strong)' }}
+                    onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === paper.id ? null : paper.id); }}
+                    title="Move to another shelf"
+                    aria-label="Choose shelf"
+                    aria-expanded={openShelfPicker === paper.id}
                   />
+                  {openShelfPicker === paper.id && (
+                    <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
+                      {shelves.map((shelf) => (
+                        <button
+                          key={shelf.id}
+                          className={paper.shelf_id === shelf.id ? 'active' : ''}
+                          onClick={() => paper.shelf_id === shelf.id ? setOpenShelfPicker(null) : handleShelfMove(paper, shelf.id)}
+                          title={`${shelf.name} — ${shelf.is_public ? 'Public' : 'Private'}`}
+                          aria-label={`Move to ${shelf.name}`}
+                          aria-pressed={paper.shelf_id === shelf.id}
+                        >
+                          <span style={{ background: shelf.color }} />
+                          {shelf.name}
+                        </button>
+                      ))}
+                    </span>
+                  )}
                   {toggleWarning?.id === paper.id && (
                     <HintPop
                       text={toggleWarning.text}

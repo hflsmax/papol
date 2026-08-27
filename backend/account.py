@@ -37,6 +37,7 @@ from models import (
     RoomAvailability,
     RoomMessage,
     RoomParticipant,
+    Shelf,
     Tag,
     User,
     copy_tags,
@@ -145,6 +146,7 @@ def gather(db: Session, user: User) -> dict:
                 "summary": c.summary,
                 "thought": c.thought,
                 "on_display": c.marketed,
+                "shelf": c.shelf.name if c.shelf else None,
                 "i_am_an_author": c.is_author,
                 "ratings": {
                     "expertise": c.rating_expertise,
@@ -465,6 +467,9 @@ def tombstone(
     )
     removed["tags"] = (
         db.query(Tag).filter(Tag.user_id == user_id).delete(synchronize_session=False)
+    )
+    removed["shelves"] = (
+        db.query(Shelf).filter(Shelf.user_id == user_id).delete(synchronize_session=False)
     )
     removed["notifications"] = (
         db.query(Notification)

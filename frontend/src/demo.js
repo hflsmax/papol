@@ -70,6 +70,12 @@ function seed() {
     // an existing tag can be attached without creating a new one.
     { id: 5, name: 'reread' },
   ];
+  const shelves = [
+    { id: 1, name: 'Display', color: '#7ba26c', is_public: true, is_default: true, position: 0 },
+    { id: 2, name: 'Personal', color: '#2b4a6f', is_public: false, is_default: false, position: 1 },
+    { id: 3, name: 'Seminar picks', color: '#b3923d', is_public: true, is_default: false, position: 2 },
+    { id: 4, name: 'Deep dives', color: '#6b3f5e', is_public: false, is_default: false, position: 3 },
+  ];
 
   const copies = [
     copy(1, ME, { summary: '## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, tag_ids: [1, 3], created_at: daysAgo(28) }),
@@ -77,6 +83,7 @@ function seed() {
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
     copy(2, ME, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, tag_ids: [2, 3], created_at: daysAgo(20) }),
     copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
+    copy(3, ME, { marketed: false, summary: 'Working through how scale changes the few-shot regime before sharing a take.', tag_ids: [2], created_at: daysAgo(12) }),
     copy(3, 3, { thought: 'GPUs go brrr and suddenly vision works.', rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
     copy(3, 6, { thought: 'Scale beats cleverness; I find that deeply unfair.', rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
     copy(4, 4, { thought: 'Tables. It was always going to be tables.', rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
@@ -94,10 +101,18 @@ function seed() {
     copy(10, ME, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, tag_ids: [3, 4], created_at: daysAgo(1) }),
     copy(10, 2, { is_author: true, thought: 'The karate chop lemma was the hard part.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
-    // marketed: false — kept in SpongeBob's own nook, but not shown to
-    // anyone browsing Papol. This is what a hidden entry looks like.
+    // A private exploration: filed in Deep dives and absent from the
+    // public nook even though the public one-line thought stays attached.
     copy(9, ME, { marketed: false, thought: 'Reading this in secret.', tag_ids: [1], created_at: daysAgo(0) }),
   ];
+  for (const item of copies) item.shelf_id = item.marketed ? 1 : 2;
+  // Spread SpongeBob's papers across the shelves so every shelf demonstrates
+  // real membership, color, visibility, and counts.
+  for (const item of copies.filter((copyItem) => copyItem.user_id === ME)) {
+    if (item.paper_id === 1 || item.paper_id === 10) item.shelf_id = 3;
+    if (item.paper_id === 9) item.shelf_id = 4;
+    item.marketed = shelves.find((shelf) => shelf.id === item.shelf_id).is_public;
+  }
 
   // SpongeBob's notes, as the API would return them. Bare anchors and his
   // place marker are comments too, exactly as they are on the server.
@@ -146,13 +161,13 @@ function seed() {
 
   return {
     users, papers, copies, comments, rooms, participants, messages,
-    availabilities, notifications, tags,
-    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 6 },
+    availabilities, notifications, tags, shelves,
+    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 6, shelf: 5 },
   };
 }
 
 let db = null;
-const STORAGE_KEY = 'papol.demoWorld.v1';
+const STORAGE_KEY = 'papol.demoWorld.v2';
 const navigation = window.performance.getEntriesByType('navigation')[0];
 if (navigation?.type === 'reload') {
   window.sessionStorage.removeItem(STORAGE_KEY);
@@ -257,6 +272,7 @@ function paperDetail(p) {
     rating_expertise: mine ? mine.rating_expertise : null,
     rating_reading: mine ? mine.rating_reading : null,
     rating_liking: mine ? mine.rating_liking : null,
+    shelf_id: mine ? mine.shelf_id : null,
     tags: tagsOf(mine),
     comments: mine
       ? ensure().comments.filter((c) => c.paper_id === p.id && c.user_id === ME)
@@ -290,6 +306,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     rating_expertise: c ? c.rating_expertise : null,
     rating_reading: c ? c.rating_reading : null,
     rating_liking: c ? c.rating_liking : null,
+    shelf_id: c ? c.shelf_id : null,
     tags: hidePrivate ? [] : tagsOf(c),
     room_status: statusMap[paperKey(p)] || null,
     readers: displayedCopies(p).map(readerEntry),
@@ -390,6 +407,7 @@ async function routeDemoRequest(path, options = {}) {
     }));
   }
   if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
+  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === ME && copy.shelf_id === shelf.id).length }));
   if ((m = path.match(/^\/users\/(\d+)\/space$/))) {
     const u = userById(parseInt(m[1]));
     if (!u) throw demoError('User not found', 404);
@@ -407,7 +425,22 @@ async function routeDemoRequest(path, options = {}) {
           seminars: d.participants.filter((x) => x.user_id === u.id).length,
         }
       : null;
-    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [] };
+    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === u.id && copy.shelf_id === shelf.id).length })) };
+  }
+
+  if (path === '/shelves' && method === 'POST') {
+    if (d.shelves.length >= 5) throw demoError('A nook can have at most five shelves');
+    const shelf = { id: d.nextId.shelf++, name: body.name, color: body.color, is_public: !!body.is_public, is_default: false, position: d.shelves.length };
+    d.shelves.push(shelf);
+    return { ...shelf, paper_count: 0 };
+  }
+  if ((m = path.match(/^\/shelves\/(\d+)$/)) && method === 'PUT') {
+    const shelf = d.shelves.find((item) => item.id === parseInt(m[1]));
+    if (!shelf) throw demoError('Shelf not found', 404);
+    if (body.is_default) for (const item of d.shelves) item.is_default = item === shelf;
+    Object.assign(shelf, body);
+    if ('is_public' in body) for (const copy of d.copies.filter((item) => item.user_id === ME && item.shelf_id === shelf.id)) copy.marketed = !!body.is_public;
+    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === ME && copy.shelf_id === shelf.id).length };
   }
 
   if (path === '/tags' && method === 'POST') {
@@ -446,9 +479,12 @@ async function routeDemoRequest(path, options = {}) {
   if ((m = path.match(/^\/papers\/(\d+)\/add-to-nook$/))) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
+    const defaultShelf = d.shelves.find((shelf) => shelf.is_default) || d.shelves[0];
     d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
-      summary: null, thought: null, marketed: true, is_author: false, rating_expertise: null,
-      rating_reading: null, rating_liking: null, created_at: now() });
+      summary: null, thought: null, marketed: defaultShelf.is_public, is_author: false, rating_expertise: null,
+      rating_reading: null, rating_liking: null,
+      shelf_id: defaultShelf.id,
+      created_at: now() });
     return paperDetail(paper);
   }
   if ((m = path.match(/^\/papers\/(\d+)\/editions$/))) {
@@ -518,11 +554,24 @@ async function routeDemoRequest(path, options = {}) {
         throw demoError('You are in a seminar cohort for this paper. Leave the cohort before hiding the paper.');
       }
       for (const k of personal) if (k in body) mine[k] = body[k];
+      if ('marketed' in body) {
+        const shelf = d.shelves.find((item) => item.is_public === body.marketed);
+        if (!shelf) throw demoError(`Create a ${body.marketed ? 'public' : 'private'} shelf first`);
+        mine.shelf_id = shelf.id;
+        mine.marketed = shelf.is_public;
+      }
     }
     if ('tag_ids' in body) {
       const mine = copyOf(paper, ME);
       if (!mine) throw demoError('Add this paper to your nook first', 403);
       mine.tag_ids = body.tag_ids;
+    }
+    if ('shelf_id' in body) {
+      const mine = copyOf(paper, ME);
+      const shelf = d.shelves.find((item) => item.id === body.shelf_id);
+      if (!mine || !shelf) throw demoError('Shelf not found');
+      mine.shelf_id = shelf.id;
+      mine.marketed = shelf.is_public;
     }
     for (const k of metadata) if (k in body) paper[k] = body[k];
     return paperDetail(paper);

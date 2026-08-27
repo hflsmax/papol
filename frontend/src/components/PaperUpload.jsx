@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { extractPaperMetadata, createPaper, listTags, createTag } from '../api';
+import { extractPaperMetadata, createPaper, listTags, createTag, listShelves } from '../api';
 import { RatingInput } from './Rating';
 
 export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} }) {
@@ -9,6 +9,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
   const [extractedData, setExtractedData] = useState(null);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
+  const [shelves, setShelves] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   const [tagDraft, setTagDraft] = useState('');
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
@@ -50,6 +51,8 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
       const data = await extractPaperMetadata(file);
       setExtractedData(data);
       onReviewChange(true);
+      const [tags, shelfData] = await Promise.all([listTags(), listShelves()]);
+      setShelves(shelfData);
       setFormData({
         title: data.title || '',
         authors: data.authors ? JSON.parse(data.authors).join(', ') : '',
@@ -58,7 +61,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
         doi: data.doi || '',
         thought: '',
         summary: '',
-        marketed: true,
+        shelf_id: shelfData.find((shelf) => shelf.is_default)?.id || shelfData[0]?.id || '',
         is_author: false,
         rating_expertise: null,
         rating_reading: null,
@@ -66,7 +69,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
       });
       setSelectedTags([]);
       setTagDraft('');
-      setAvailableTags(await listTags());
+      setAvailableTags(tags);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -103,7 +106,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
         thought: formData.thought || null,
         summary: formData.summary || null,
         file_path: extractedData.file_path,
-        marketed: formData.marketed,
+        shelf_id: Number(formData.shelf_id),
         is_author: !!formData.is_author,
         rating_expertise: formData.rating_expertise,
         rating_reading: formData.rating_reading,
@@ -227,6 +230,18 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
             />
           </div>
 
+          <div className="form-group upload-private-field upload-shelf-field">
+            <label>Shelf</label>
+            <div className="upload-shelf-select">
+              <select name="shelf_id" value={formData.shelf_id} onChange={handleInputChange}>
+                {shelves.map((shelf) => (
+                  <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                ))}
+              </select>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg>
+            </div>
+          </div>
+
           <div className="form-group upload-private-field">
             <label>Private Tags</label>
             <div className="tag-editor-card upload-tag-editor">
@@ -300,19 +315,6 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
             <div className="upload-public-card">
               <RatingInput values={formData} onChange={handleRatingChange} />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={formData.marketed}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, marketed: e.target.checked }))
-                }
-              />
-              Display in my nook
-            </label>
           </div>
 
           <div className="form-actions">

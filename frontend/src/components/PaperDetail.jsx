@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags,
+  getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
   addToNook, pdfHref, reextractPaperMetadata,
 } from '../api';
 import CommentSection from './CommentSection';
@@ -19,6 +19,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
   const [tagDraft, setTagDraft] = useState('');
   const [availableTags, setAvailableTags] = useState([]);
+  const [shelves, setShelves] = useState([]);
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
@@ -138,6 +139,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     try {
       const data = await getPaper(paperId);
       setPaper(data);
+      if (currentUser && data.viewer_has_entry) setShelves(await listShelves());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -207,11 +209,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     }
   };
 
-  const handleMarketToggle = async () => {
+  const handleShelfChange = async (shelfId) => {
     setError(null);
     setToggleWarning(null);
     try {
-      await updatePaper(paper.id, { marketed: !paper.marketed });
+      await updatePaper(paper.id, { shelf_id: shelfId });
       loadPaper();
     } catch (err) {
       setToggleWarning(err.message);
@@ -540,30 +542,13 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             <h2>{paper.title}</h2>
             {hasEntry && (
               <div className="detail-toggle">
-                <span className="hint-anchor">
-                <button
-                  className={
-                    paper.marketed !== false ? 'market-toggle on' : 'market-toggle off'
-                  }
-                  onClick={handleMarketToggle}
-                  title={
-                    paper.marketed !== false
-                      ? 'On display — other readers can see that you have this paper.'
-                      : 'Hidden — only you can see this paper. Click to put it on display.'
-                  }
-                  aria-label={
-                    paper.marketed !== false
-                      ? 'On display; click to hide'
-                      : 'Hidden; click to put on display'
-                  }
-                >
-                  <span className="switch" aria-hidden="true">
-                    <span className="switch-knob" />
-                    <span className="switch-text">
-                      {paper.marketed !== false ? 'Display' : 'Hidden'}
-                    </span>
-                  </span>
-                </button>
+                <span className="hint-anchor paper-shelf-picker">
+                <span className="paper-shelf-dot" style={{ background: shelves.find((s) => s.id === paper.shelf_id)?.color }} />
+                <select value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(Number(e.target.value))} aria-label="Shelf">
+                  {shelves.map((shelf) => (
+                    <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                  ))}
+                </select>
                 {toggleWarning && (
                   <HintPop
                     text={toggleWarning}

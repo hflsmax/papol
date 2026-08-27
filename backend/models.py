@@ -34,6 +34,7 @@ class User(Base):
 
     copies = relationship("Copy", back_populates="user")
     tags = relationship("Tag", back_populates="user", cascade="all, delete-orphan")
+    shelves = relationship("Shelf", back_populates="user", cascade="all, delete-orphan", order_by="Shelf.position")
 
     @property
     def is_deleted(self) -> bool:
@@ -196,6 +197,7 @@ class Copy(Base):
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    shelf_id = Column(Integer, ForeignKey("shelves.id"), nullable=True, index=True)
     # The edition this reader reads. Only the reader moves it, by adopting
     # a newer one; nothing else may change the file under their notes.
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
@@ -221,6 +223,26 @@ class Copy(Base):
     user = relationship("User", back_populates="copies")
     edition = relationship("PaperEdition", foreign_keys=[edition_id])
     tags = relationship("Tag", secondary=copy_tags, back_populates="copies")
+    shelf = relationship("Shelf", back_populates="copies")
+
+
+class Shelf(Base):
+    """One of a reader's five homes for papers. Visibility belongs to the
+    shelf; Copy.marketed is kept in sync for compatibility with seminar rules."""
+    __tablename__ = "shelves"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_shelf_user_name"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(40), nullable=False)
+    color = Column(String(7), nullable=False)
+    is_public = Column(Boolean, nullable=False, default=False, server_default="0")
+    is_default = Column(Boolean, nullable=False, default=False, server_default="0")
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="shelves")
+    copies = relationship("Copy", back_populates="shelf")
 
 
 class Tag(Base):
