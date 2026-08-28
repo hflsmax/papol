@@ -282,10 +282,6 @@ class Comment(Base):
     # What the reader calls this anchor; the page number stands in when
     # they have not named it.
     name = Column(String, nullable=True)
-    # The reader's place in this paper: at most one per reader per paper,
-    # kept as a note so it moves, carries words and is deleted like any
-    # other anchor.
-    current_place = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     paper = relationship("Paper", back_populates="comments")

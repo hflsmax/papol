@@ -62,6 +62,7 @@ def page_html(css: str) -> str:
 <style>{css}</style></head><body><div id="root">
 <header class="viewer-bar">
   <a class="back" href="#">&larr; <span class="back-word">Back to </span>Papol</a>
+  <span class="link-navigation"><button class="history-arrow">&larr;</button><button class="history-arrow">&rarr;</button></span>
   <span class="spacer"></span>
   <a class="bar-link" href="#">Download</a>
   <span class="zoom"><button>&minus;</button

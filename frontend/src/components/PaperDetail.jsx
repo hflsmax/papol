@@ -543,18 +543,18 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
             {hasEntry && (
               <div className="detail-toggle">
                 <span className="hint-anchor paper-shelf-picker">
-                <span className="paper-shelf-dot" style={{ background: shelves.find((s) => s.id === paper.shelf_id)?.color }} />
-                <select value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(Number(e.target.value))} aria-label="Shelf">
-                  {shelves.map((shelf) => (
-                    <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
-                  ))}
-                </select>
-                {toggleWarning && (
-                  <HintPop
-                    text={toggleWarning}
-                    onClose={() => setToggleWarning(null)}
-                  />
-                )}
+                  <label htmlFor="paper-shelf">Shelf:</label>
+                  <select id="paper-shelf" value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(Number(e.target.value))}>
+                    {shelves.map((shelf) => (
+                      <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                    ))}
+                  </select>
+                  {toggleWarning && (
+                    <HintPop
+                      text={toggleWarning}
+                      onClose={() => setToggleWarning(null)}
+                    />
+                  )}
                 </span>
                 <button
                   className="icon-btn danger-icon"

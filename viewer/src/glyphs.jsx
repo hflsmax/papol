@@ -105,15 +105,9 @@ function LaserTool() {
   );
 }
 
-// The two anchors are the marks they drop, so each button wears the shape
-// the page will. They are the same shape: on the page the anchor that says
-// where you are is the same drawing in gold, and a button that said
-// otherwise would be describing a difference that is not there.
 function AnchorTool() {
   return <AnchorPath />;
 }
-
-const HereTool = AnchorTool;
 
 
 
@@ -334,6 +328,5 @@ const TOOL_GLYPHS = {
   eraser: EraserTool,
   laser: LaserTool,
   anchor: AnchorTool,
-  here: HereTool,
   cow: AnimalTool,
 };

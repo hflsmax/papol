@@ -168,7 +168,6 @@ def gather(db: Session, user: User) -> dict:
                 "page": n.page,
                 "anchor_type": n.anchor_type,
                 "anchor": json.loads(n.anchor) if n.anchor else None,
-                "is_my_place": n.current_place,
                 "written": _when(n.created_at),
             }
             for n in notes

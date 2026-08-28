@@ -65,7 +65,6 @@ const INK_COLORS = [
 ];
 
 // Fractions of the page width, so a stroke keeps its weight at any zoom.
-// Stepped with [ and ].
 //
 // Even steps apart. They used to double and then nearly treble — 2, 4, 8
 // and 22 pixels on an ordinary page — so the last was as big as the other
@@ -142,13 +141,12 @@ const TOOLS = [
   { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' , mnemonic: 'Clean' },
   { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'Vanishes' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
-  { id: 'here', key: 'A', badge: '\u21e7A', label: 'Here', hint: 'Click the page to mark where you are' , mnemonic: 'Anchor, shifted' },
   { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' , mnemonic: 'Menagerie' },
 ];
 
 // The two anchors are one-shot: they are a thing you are holding until you
 // put it down, and then you have what you were holding before back.
-const DROP_TOOLS = new Set(['anchor', 'here']);
+const DROP_TOOLS = new Set(['anchor']);
 
 // Keyed by the letter as typed, so a and A are two tools rather than one
 // tool and a modifier — which also means caps lock picks the capital's.
@@ -162,7 +160,6 @@ const HELP = {
   eraser: 'Remove paint and anchors.',
   laser: 'A laser pointer.',
   anchor: 'Click to drop an anchor. Anchors can optionally be named and carry a note.',
-  here: 'Click to drop a "here anchor" that marks where you have got to. Only one per paper.',
   cow: 'An animal that wonders.',
 };
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
@@ -170,6 +167,23 @@ const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 function numberParam(name) {
   const v = new URLSearchParams(window.location.search).get(name);
   return v && /^\d+$/.test(v) ? v : null;
+}
+
+function savedReadingView() {
+  const pdf = new URLSearchParams(window.location.search).get('pdf');
+  if (!pdf) return { key: null, view: null };
+  const key = `papol_viewer_position_${pdf.toLowerCase()}`;
+  try {
+    const view = JSON.parse(localStorage.getItem(key));
+    if (
+      Number.isInteger(view?.page) && view.page > 0 &&
+      Number.isFinite(view?.x) && Number.isFinite(view?.y) &&
+      Number.isFinite(view?.scale)
+    ) return { key, view };
+  } catch {
+    // A damaged preference is no reason not to open the paper.
+  }
+  return { key, view: null };
 }
 
 export default function App() {
@@ -208,9 +222,10 @@ export default function App() {
   // it has been asked for; `status` says whether it is worth waiting on.
   // What the reader is holding. Remembered, like the rail: someone marking
   // up a paper puts the brush down between sittings, not between pages.
-  const [tool, setTool] = useState(
-    () => localStorage.getItem('papol_viewer_tool') || 'arrow'
-  );
+  const [tool, setTool] = useState(() => {
+    const kept = localStorage.getItem('papol_viewer_tool');
+    return TOOLS.some((candidate) => candidate.id === kept) ? kept : 'arrow';
+  });
   // Which animal the menagerie is set to. Remembered like the tool and the
   // ink: whoever put a cat on one paper is putting a cat on the next one.
   const [animal, setAnimal] = useState(() => {
@@ -337,14 +352,20 @@ export default function App() {
   const [openCite, setOpenCite] = useState(null);
   const [reference, setReference] = useState(null);
   // Where the reader was before a link took them somewhere. Following a
-  // cross-reference is only useful if coming back is easy.
-  const [returnTo, setReturnTo] = useState(null);
+  // cross-reference is only useful if coming back is exact. The scroll
+  // offsets belong to the scale at which they were recorded, so keep that
+  // scale with them and restore the offsets after React has laid it out.
+  const linkHistory = useRef({ back: [], forward: [] });
+  const [, renderLinkHistory] = useState(0);
+  const restoringView = useRef(null);
   const [referenceError, setReferenceError] = useState(null);
   const [editing, setEditing] = useState(null); // note id being reworded
   const [naming, setNaming] = useState(null); // note id being renamed
   const [nameDraft, setNameDraft] = useState('');
   const [editText, setEditText] = useState('');
   const scrollerRef = useRef(null);
+  const readingView = useRef(savedReadingView());
+  const readingViewRestored = useRef(false);
   // Anchors placed but not yet acknowledged, keyed by their temporary id.
   const pending = useRef(new Map());
 
@@ -523,12 +544,19 @@ export default function App() {
       ) {
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'z') {
+      const isUndoKey = e.code === 'KeyZ' || e.key?.toLowerCase() === 'z';
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && isUndoKey) {
         e.preventDefault();
+        e.stopPropagation();
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '[' || e.key === ']') {
+        e.preventDefault();
+        moveThroughLinks(e.key === '[' ? 'back' : 'forward');
+        return;
+      }
       if (e.key === 'Escape') {
         e.preventDefault();
         setSheet(null);
@@ -555,20 +583,13 @@ export default function App() {
       // a and A are looked up as typed — they are two tools, not one tool
       // and a modifier — and everything else by its lower case, so a
       // shifted X is still the brush.
-      // Loading the brush, while the brush is what is in hand. Digits and
-      // brackets, so nothing here is a letter another tool wanted.
+      // Loading the brush, while the brush is what is in hand. Digits, so
+      // nothing here is a letter another tool wanted.
       if (tool === 'brush') {
         const slot = Number(e.key);
         if (slot >= 1 && slot <= INK_COLORS.length) {
           e.preventDefault();
           setInkColor(INK_COLORS[slot - 1].hex);
-          return;
-        }
-        if (e.key === '[' || e.key === ']') {
-          e.preventDefault();
-          const at = INK_WIDTHS.indexOf(inkWidth);
-          const to = e.key === '[' ? at - 1 : at + 1;
-          if (INK_WIDTHS[to] !== undefined) setInkWidth(INK_WIDTHS[to]);
           return;
         }
       }
@@ -581,8 +602,11 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => onKeyRef.current?.(e);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Capture before pdf.js's selectable text layer or the browser consumes
+    // editing shortcuts. onKeyRef still leaves actual form fields alone, so
+    // typing a note keeps its native undo history.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
   useEffect(() => {
@@ -692,6 +716,11 @@ export default function App() {
     const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
     if (!scroller || !pageEl) return;
     const from = scroller.scrollTop;
+    const viewBeforeJump = {
+      top: from,
+      left: scroller.scrollLeft,
+      scale,
+    };
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
     // A little above what was linked to, rather than flush against the top
@@ -705,15 +734,45 @@ export default function App() {
     // somewhere; a link to what is already on screen has not lost anyone.
     // A quarter of the window is enough to have lost it, though — the
     // paragraph being read rarely survives that much movement.
-    setReturnTo(Math.abs(top - from) > box.height * 0.25 ? from : null);
+    if (Math.abs(top - from) > box.height * 0.25) {
+      linkHistory.current.back.push(viewBeforeJump);
+      linkHistory.current.forward = [];
+      renderLinkHistory((version) => version + 1);
+    }
   };
 
-  const goBack = () => {
+  const currentView = () => {
     const scroller = scrollerRef.current;
-    if (scroller && returnTo != null) {
-      scroller.scrollTo({ top: returnTo, behavior: 'auto' });
+    return scroller
+      ? { top: scroller.scrollTop, left: scroller.scrollLeft, scale }
+      : null;
+  };
+
+  const restoreView = (view) => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !view) return;
+    if (view.scale !== scale) {
+      restoringView.current = view;
+      setScale(view.scale);
+    } else {
+      scroller.scrollTo({
+        top: view.top,
+        left: view.left,
+        behavior: 'auto',
+      });
     }
-    setReturnTo(null);
+  };
+
+  const moveThroughLinks = (direction) => {
+    const history = linkHistory.current;
+    const from = direction === 'back' ? history.back : history.forward;
+    const to = direction === 'back' ? history.forward : history.back;
+    if (from.length === 0) return;
+    const here = currentView();
+    const destination = from.pop();
+    if (here) to.push(here);
+    renderLinkHistory((version) => version + 1);
+    restoreView(destination);
   };
 
   const closeReference = () => {
@@ -732,11 +791,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [openCite]);
 
-  // Open at the width of the viewer, and stay there until the reader picks
-  // a zoom of their own. Rotating a phone, resizing a window and putting
-  // the rail away all change how much room a page has, and a document that
-  // opened fitted should still be fitted afterwards. Once the reader has
-  // zoomed, the scale is theirs and nothing touches it again.
+  // Open at the width of the viewer, and stay fitted through actual window
+  // resizes until the reader picks a zoom. Opening the rail is not a window
+  // resize and must not silently change the document's zoom.
   const chosenZoom = useRef(false);
 
   useEffect(() => {
@@ -763,13 +820,10 @@ export default function App() {
       fit();
     });
 
-    // The element's own width, not the window's: the rail opening takes
-    // room from the pages without the window changing at all.
-    const watch = new ResizeObserver(fit);
-    watch.observe(el);
+    window.addEventListener('resize', fit);
     return () => {
       gone = true;
-      watch.disconnect();
+      window.removeEventListener('resize', fit);
     };
   }, [doc]);
 
@@ -1307,10 +1361,9 @@ export default function App() {
   // drift.
   const focus = useRef(null);
 
-  const zoomBy = (factor, at) => {
+  const captureFocus = (at) => {
     const el = scrollerRef.current;
-    if (!el) return;
-    chosenZoom.current = true;
+    if (!el) return null;
     const box = el.getBoundingClientRect();
     const cx = at ? at.x : box.left + box.width / 2;
     const cy = at ? at.y : box.top + box.height / 2;
@@ -1322,34 +1375,49 @@ export default function App() {
       const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
       return !best || gap < best.gap ? { el: p, gap } : best;
     }, null)?.el;
-    if (!pageEl) return;
+    if (!pageEl) return null;
 
     const r = pageEl.getBoundingClientRect();
+    return {
+      page: pageEl.dataset.page,
+      fx: (cx - r.left) / r.width,
+      fy: (cy - r.top) / r.height,
+      cx,
+      cy,
+    };
+  };
+
+  const zoomBy = (factor, at) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    chosenZoom.current = true;
+    const captured = captureFocus(at);
+    if (!captured) return;
     setScale((prev) => {
       const next = clampScale(prev * factor);
       if (next === prev) return prev;
-      focus.current = {
-        page: pageEl.dataset.page,
-        fx: (cx - r.left) / r.width,
-        fy: (cy - r.top) / r.height,
-        cx,
-        cy,
-      };
+      focus.current = captured;
       return next;
     });
   };
 
   useLayoutEffect(() => {
+    const restore = restoringView.current;
     const f = focus.current;
     const el = scrollerRef.current;
+    restoringView.current = null;
     focus.current = null;
+    if (restore && el) {
+      el.scrollTo({ top: restore.top, left: restore.left, behavior: 'auto' });
+      return;
+    }
     if (!f || !el) return;
     const pageEl = el.querySelector(`[data-page="${f.page}"]`);
     if (!pageEl) return;
     const r = pageEl.getBoundingClientRect();
     el.scrollLeft += r.left + f.fx * r.width - f.cx;
     el.scrollTop += r.top + f.fy * r.height - f.cy;
-  }, [scale]);
+  }, [scale, railOpen]);
 
   // While a wheel or pinch gesture is moving, PdfPage stretches the current
   // bitmap with a compositor transform so zoom stays under the pointer. Once
@@ -1428,7 +1496,7 @@ export default function App() {
         remember({
           undo: () => removeNote(entry.id, false),
           redo: async () => {
-            const restored = await restoreNote(entry.snapshot, false);
+            const restored = await restoreNote(entry.snapshot);
             entry.id = restored.id;
           },
         });
@@ -1445,8 +1513,6 @@ export default function App() {
     return tempId;
   };
 
-  // Marking the reader's place in the paper: one per paper, so any earlier
-  // one steps down.
   // Picking up an anchor remembers what was put down for it, so that
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
@@ -1464,54 +1530,10 @@ export default function App() {
 
   // The drop itself: the anchor lands where it was clicked, and the hand
   // goes back to whatever it was holding.
-  const dropAnchor = (spot, asPlace) => {
-    const id = handlePlace(spot);
-    if (asPlace) markPlace(id);
+  const dropAnchor = (spot) => {
+    handlePlace(spot);
     setTool(toolBefore.current || 'arrow');
     toolBefore.current = null;
-  };
-
-  const markPlace = async (id) => {
-    const target = notesRef.current.find((note) => note.id === id);
-    const previous = notesRef.current.find((note) => note.current_place && note.id !== id);
-    try {
-      const real = await settledId(id);
-      if (real == null) return;
-      // The previous marker is gone, not merely demoted.
-      setNotes((prev) =>
-        prev
-          .filter((n) => !n.current_place || n.id === real)
-          .map((n) => ({ ...n, current_place: n.id === real }))
-      );
-      const saved = await source.notes.markPlace(real);
-      if (saved) setNotes((prev) => prev.map((n) => (n.id === real ? saved : n)));
-      const targetSnapshot = target || notesRef.current.find((note) => note.id === real);
-      if (saved && targetSnapshot) {
-        const entry = { target: { ...targetSnapshot, id: saved.id }, previous };
-        remember({
-          undo: async () => {
-            if (entry.previous) {
-              entry.previous = await restoreNote(entry.previous, true);
-              entry.target = await restoreNote(entry.target, false);
-            } else {
-              const cleared = await source.notes.clearPlace(entry.target.id);
-              setNotes((notes) => notes.map((note) =>
-                note.id === entry.target.id ? cleared : note
-              ));
-            }
-          },
-          redo: async () => {
-            const marked = await source.notes.markPlace(entry.target.id);
-            setNotes((notes) => notes
-              .filter((note) => !note.current_place || note.id === entry.target.id)
-              .map((note) => note.id === entry.target.id ? marked : note));
-            entry.target = marked;
-          },
-        });
-      }
-    } catch (e) {
-      setError(e.message);
-    }
   };
 
   // Editing, moving or deleting an anchor that is still in flight waits for
@@ -1598,6 +1620,12 @@ export default function App() {
   // up, scrolls into view, and fades back on its own.
   const flashTimer = useRef(null);
   const pointAtNote = (id) => {
+    if (id == null) {
+      setActiveNoteId(null);
+      setFlashId(null);
+      clearTimeout(flashTimer.current);
+      return;
+    }
     setActiveNoteId(id);
     setRailOpen(true);
     setFlashId(id);
@@ -1659,18 +1687,14 @@ export default function App() {
     }
   };
 
-  const restoreNote = async (snapshot, makeCurrent = snapshot.current_place) => {
+  const restoreNote = async (snapshot) => {
     let restored = await source.notes.create({
       page: snapshot.page,
       anchor: snapshot.anchor,
       content: snapshot.content || '',
     });
     if (snapshot.name) restored = await source.notes.rename(restored.id, snapshot.name);
-    if (makeCurrent) restored = await source.notes.markPlace(restored.id);
-    setNotes((prev) => [
-      ...prev.filter((note) => !makeCurrent || !note.current_place),
-      restored,
-    ]);
+    setNotes((prev) => [...prev, restored]);
     return restored;
   };
 
@@ -1702,15 +1726,88 @@ export default function App() {
     }
   };
 
-  // Opening a paper resumes where the reader left off, unless the link
-  // asked for a particular note. Runs once per document.
-  const resumed = useRef(false);
+  // Reading position is implicit: remember the point at the centre of the
+  // viewport, in page coordinates, together with its zoom. Page coordinates
+  // survive a different window size; raw scroll offsets do not.
+  useLayoutEffect(() => {
+    if (readingViewRestored.current || wantedNoteId || !doc || !scale) return;
+    const saved = readingView.current.view;
+    if (!saved) {
+      readingViewRestored.current = true;
+      return;
+    }
+    if (saved.page > doc.numPages) {
+      readingViewRestored.current = true;
+      return;
+    }
+    const savedScale = clampScale(saved.scale);
+    if (savedScale !== scale) {
+      chosenZoom.current = true;
+      setScale(savedScale);
+      return;
+    }
+    let frame = null;
+    let cancelled = false;
+    const restoreWhenLaidOut = () => {
+      if (cancelled || readingViewRestored.current) return;
+      const scroller = scrollerRef.current;
+      const pageEl = scroller?.querySelector(`[data-page="${saved.page}"]`);
+      const page = pageEl?.getBoundingClientRect();
+      if (!scroller || !page || page.height < 10) {
+        frame = requestAnimationFrame(restoreWhenLaidOut);
+        return;
+      }
+      const box = scroller.getBoundingClientRect();
+      scroller.scrollLeft += page.left + saved.x * page.width - (box.left + box.width / 2);
+      scroller.scrollTop += page.top + saved.y * page.height - (box.top + box.height / 2);
+      readingViewRestored.current = true;
+    };
+    restoreWhenLaidOut();
+    return () => {
+      cancelled = true;
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  }, [doc, scale, wantedNoteId]);
+
   useEffect(() => {
-    if (resumed.current || wantedNoteId || !doc || !scale || notes.length === 0) return;
-    const here = notes.find((n) => n.current_place && n.anchor);
-    resumed.current = true;
-    if (here) goToNoteWhenLaid(here);
-  }, [doc, scale, notes, wantedNoteId]);
+    const scroller = scrollerRef.current;
+    const key = readingView.current.key;
+    if (!scroller || !key || !doc || !scale) return undefined;
+    let timer = null;
+    const save = () => {
+      if (!readingViewRestored.current && !wantedNoteId) return;
+      const box = scroller.getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + box.height / 2;
+      const nearest = [...scroller.querySelectorAll('.pdf-page')].reduce((best, pageEl) => {
+        const rect = pageEl.getBoundingClientRect();
+        const dx = cx < rect.left ? rect.left - cx : Math.max(0, cx - rect.right);
+        const dy = cy < rect.top ? rect.top - cy : Math.max(0, cy - rect.bottom);
+        const distance = Math.hypot(dx, dy);
+        return !best || distance < best.distance ? { pageEl, rect, distance } : best;
+      }, null);
+      if (!nearest || nearest.rect.width < 10 || nearest.rect.height < 10) return;
+      const view = {
+        page: Number(nearest.pageEl.dataset.page),
+        x: Math.max(0, Math.min(1, (cx - nearest.rect.left) / nearest.rect.width)),
+        y: Math.max(0, Math.min(1, (cy - nearest.rect.top) / nearest.rect.height)),
+        scale,
+      };
+      readingView.current.view = view;
+      localStorage.setItem(key, JSON.stringify(view));
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(save, 250);
+    };
+    scroller.addEventListener('scroll', schedule, { passive: true });
+    schedule();
+    return () => {
+      scroller.removeEventListener('scroll', schedule);
+      window.clearTimeout(timer);
+      save();
+    };
+  }, [doc, scale, wantedNoteId]);
 
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
@@ -1839,6 +1936,34 @@ export default function App() {
         >
           ← <span className="back-word">Back to </span>Papol
         </a>
+        <span className="link-navigation" role="group" aria-label="Link navigation">
+          <button
+            type="button"
+            className="history-arrow"
+            disabled={linkHistory.current.back.length === 0}
+            onClick={() => moveThroughLinks('back')}
+            aria-label="Back through followed links"
+            title="Back through followed links ([)"
+          >
+            <svg className="history-arrow-glyph" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 12H4m6-6-6 6 6 6" />
+            </svg>
+            <span className="history-key" aria-hidden="true">[</span>
+          </button>
+          <button
+            type="button"
+            className="history-arrow"
+            disabled={linkHistory.current.forward.length === 0}
+            onClick={() => moveThroughLinks('forward')}
+            aria-label="Forward through followed links"
+            title="Forward through followed links (])"
+          >
+            <svg className="history-arrow-glyph" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12h16m-6-6 6 6-6 6" />
+            </svg>
+            <span className="history-key" aria-hidden="true">]</span>
+          </button>
+        </span>
         <span className="spacer" />
         <span className="tools" role="group" aria-label="Tool">
           {TOOLS.map((t) => (
@@ -2168,7 +2293,10 @@ export default function App() {
             open and to the window's edge when it is away. */}
         <button
           className="rail-handle"
-          onClick={() => setRailOpen((v) => !v)}
+          onClick={() => {
+            focus.current = captureFocus(null);
+            setRailOpen((v) => !v);
+          }}
           aria-pressed={railOpen}
           aria-label={railOpen ? 'Hide my anchors' : 'Show my anchors'}
           title={railOpen ? 'Hide my anchors' : 'Show my anchors'}
@@ -2397,12 +2525,6 @@ export default function App() {
           </div>
         )}
 
-        {returnTo != null && (
-          <button className="jump-back" onClick={goBack}>
-            ← Back to where you were
-          </button>
-        )}
-
         {openCite && (
           <ReferenceCard
             anchor={openCite.anchor}
@@ -2460,7 +2582,7 @@ export default function App() {
               <div
                 key={note.id}
                 data-note={note.id}
-                className={`anchor-row${note.current_place ? ' here' : ''}${
+                className={`anchor-row${
                   note.id === flashId ? ' flash' : ''
                 }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
@@ -2468,24 +2590,16 @@ export default function App() {
                 <span className="row-glyph">
                   <GlyphFor note={note} />
                 </span>
-                <span className="anchor-where">
-                  {note.current_place ? (
-                    <span className="here-tag">here</span>
-                  ) : (
-                    label(note)
-                  )}
-                </span>
-                {!note.current_place && (
-                  <button
-                    className="link anchor-write"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startWriting(note);
-                    }}
-                  >
-                    add a note
-                  </button>
-                )}
+                <span className="anchor-where">{label(note)}</span>
+                <button
+                  className="link anchor-write"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startWriting(note);
+                  }}
+                >
+                  add a note
+                </button>
                 <button
                   className="card-x"
                   title="Delete this anchor"
@@ -2502,7 +2616,7 @@ export default function App() {
               <div
                 key={note.id}
                 data-note={note.id}
-                className={`note-card${note.current_place ? ' here' : ''}${
+                className={`note-card${
                   note.id === flashId ? ' flash' : ''
                 }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
@@ -2522,11 +2636,7 @@ export default function App() {
                   <span className="row-glyph">
                     <GlyphFor note={note} />
                   </span>
-                  {note.current_place ? (
-                    <span className="here-tag">here</span>
-                  ) : (
-                    label(note)
-                  )}
+                  {label(note)}
                   {note.drifted && (
                     <span className="drift" title="Placed on a different PDF of this paper — it may not line up">
                       other PDF
@@ -2569,19 +2679,17 @@ export default function App() {
                 ) : (
                   <>
                     <p className="note-text">{note.content}</p>
-                    {!note.current_place && (
-                      <div className="note-actions">
-                        <button
-                          className="link"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startWriting(note);
-                          }}
-                        >
-                          edit
-                        </button>
-                      </div>
-                    )}
+                    <div className="note-actions">
+                      <button
+                        className="link"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startWriting(note);
+                        }}
+                      >
+                        edit
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

@@ -1,7 +1,7 @@
 import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld';
 import { appPath } from './base';
 import {
-  getPaperByPdf, createNote, updateNote, moveNote, renameNote, markPlace, clearPlace, deleteNote,
+  getPaperByPdf, createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getToken,
 } from './api';
@@ -41,8 +41,6 @@ function apiSource(pdfHash) {
       update: (id, content) => updateNote(id, content),
       move: (id, spot) => moveNote(id, spot),
       rename: (id, name) => renameNote(id, name),
-      markPlace: (id) => markPlace(id),
-      clearPlace: (id) => clearPlace(id),
       remove: (id) => deleteNote(id),
     },
     ink: {
@@ -74,7 +72,6 @@ function seedFor(paperId) {
       anchor: { type: 'point', x: n.x, y: n.y },
       anchor_type: 'point',
       content: n.content,
-      current_place: !!n.currentPlace,
       created_at: daysAgo(n.daysAgo),
     }));
 }
@@ -125,16 +122,6 @@ function localSource(paperId) {
       },
       async rename(id, name) {
         notes = notes.map((n) => (n.id === id ? { ...n, name } : n));
-        return notes.find((n) => n.id === id);
-      },
-      async markPlace(id) {
-        notes = notes
-          .filter((n) => !n.current_place || n.id === id)
-          .map((n) => ({ ...n, current_place: n.id === id }));
-        return notes.find((n) => n.id === id);
-      },
-      async clearPlace(id) {
-        notes = notes.map((n) => (n.id === id ? { ...n, current_place: false } : n));
         return notes.find((n) => n.id === id);
       },
       async remove(id) {

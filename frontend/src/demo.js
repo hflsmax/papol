@@ -116,7 +116,7 @@ function seed() {
   }
 
   // SpongeBob's notes, as the API would return them. Bare anchors and his
-  // place marker are comments too, exactly as they are on the server.
+  // Bare anchors are comments too, exactly as they are on the server.
   const comments = demoNotes.map((n) => noteAsComment(n, ME, daysAgo));
 
   const key = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());

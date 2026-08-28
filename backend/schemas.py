@@ -145,8 +145,6 @@ class CommentCreate(BaseModel):
     # A located note carries both; a plain note carries neither.
     page: Optional[int] = Field(default=None, ge=1)
     anchor: Optional[Anchor] = None
-    # Marks this as the reader's place in the paper, displacing any other.
-    current_place: bool = False
     name: Optional[str] = Field(default=None, max_length=120)
 
     @model_validator(mode="after")
@@ -165,7 +163,6 @@ class CommentUpdate(BaseModel):
     content: Optional[str] = Field(default=None, max_length=4000)
     page: Optional[int] = Field(default=None, ge=1)
     anchor: Optional[Anchor] = None
-    current_place: Optional[bool] = None
     name: Optional[str] = Field(default=None, max_length=120)
 
     @model_validator(mode="after")
@@ -186,7 +183,6 @@ class Comment(BaseModel):
     anchor_type: Optional[str] = None
     anchor: Optional[Anchor] = None
     edition_id: Optional[int] = None
-    current_place: bool = False
     name: Optional[str] = None
 
     class Config:

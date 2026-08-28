@@ -20,7 +20,6 @@ export const styles = `
   --accent-strong: #1e3752;
   --accent-soft: #eaeff5;
   --gold-ink: #7a5b1e;
-  /* Orange is the reader's place: one thing, one hue, used nowhere else. */
   --gold: #b3923d;
   --orange: #d2691e;
   --orange-soft: #fbeee2;
@@ -161,6 +160,70 @@ button.link.danger { color: var(--red); }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.link-navigation {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.history-arrow {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.history-arrow-glyph {
+  display: block;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.history-key {
+  position: absolute;
+  left: 3px;
+  bottom: 1px;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.history-arrow:not(:disabled) { border-color: var(--accent-line); }
+.history-arrow:hover:not(:disabled),
+.history-arrow:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--ink-inverse);
+  outline: none;
+}
+.history-arrow:hover:not(:disabled) .history-key,
+.history-arrow:focus-visible:not(:disabled) .history-key { color: var(--ink-inverse); }
+.history-arrow:focus-visible:not(:disabled) { box-shadow: 0 0 0 2px var(--accent-soft); }
+.history-arrow:active:not(:disabled) { transform: translateY(1px); }
+.history-arrow:disabled {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--muted);
+  opacity: 0.38;
+  cursor: default;
 }
 
 .viewer-bar .spacer { flex: 1; }
@@ -402,8 +465,6 @@ button.link.danger { color: var(--red); }
 .viewer-bar .tool-key[data-wide] { left: 0; letter-spacing: -0.02em; }
 .viewer-bar .tool:hover { border-color: var(--line-strong); color: var(--ink); }
 
-.viewer-bar .tool[aria-label='Here'] { color: var(--gold); }
-.viewer-bar .tool[aria-label='Here']:hover { color: var(--gold); }
 
 /* The held tool, said with fill rather than only with a border: at this
    size a border alone is easy to miss, and which tool is in your hand is
@@ -646,25 +707,6 @@ button.link.danger { color: var(--red); }
   outline: none;
 }
 
-/* Offered after a jump, and only when the jump actually moved the page. */
-.jump-back {
-  position: absolute;
-  left: 18px;
-  bottom: 18px;
-  z-index: 12;
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  padding: 7px 13px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
-  background: var(--card);
-  color: var(--accent);
-  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
-  cursor: pointer;
-}
-
-.jump-back:hover { background: var(--accent-soft); }
-
 /* A citation marker in the text. Nothing is drawn over the page until the
    reader is near it: the PDF already shows "[12]", and a box around every
    one of them would be a rash across the paper. */
@@ -677,8 +719,10 @@ button.link.danger { color: var(--red); }
   border-radius: 2px;
   background: transparent;
   box-shadow: none;
-  cursor: pointer;
-  pointer-events: auto;
+  /* Pointer clicks are delegated from the page by coordinates so this box
+     never breaks a text selection dragged across a citation. It remains a
+     real button for keyboard focus and activation. */
+  pointer-events: none;
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -1153,23 +1197,11 @@ button.link.danger { color: var(--red); }
    marked, never moved. */
 .pin.drifted { color: var(--ink-soft); }
 
-/* Where the reader is in this paper: one per paper, told apart by colour
-   alone — every anchor is the same size. */
-/* Where you have got to, in Papol's gold: the one anchor that is not
-   about a place in the argument but about you, and the only one worth
-   picking out of a page of them at a glance. */
-.pin.here, .pin.bare.here { color: var(--gold); }
-
 .pin.dragging { cursor: grabbing; opacity: 0.85; }
 
 /* Pointed at from the page: the row lights up, then fades back. */
 @keyframes railFlash {
   0%, 55% { box-shadow: 0 0 0 2px var(--accent); }
-  100% { box-shadow: 0 0 0 2px transparent; }
-}
-
-@keyframes railFlashHere {
-  0%, 55% { box-shadow: 0 0 0 2px var(--orange); }
   100% { box-shadow: 0 0 0 2px transparent; }
 }
 
@@ -1183,7 +1215,6 @@ button.link.danger { color: var(--red); }
 }
 
 .anchor-row.flash, .note-card.flash { animation: railFlash 5s ease-out; }
-.anchor-row.here.flash, .note-card.here.flash { animation: railFlashHere 5s ease-out; }
 
 /* ---------- Rail ---------- */
 
@@ -1296,11 +1327,6 @@ button.link.danger { color: var(--red); }
   cursor: pointer;
 }
 
-.anchor-row.here, .note-card.here {
-  background: var(--orange-soft);
-  border-color: var(--orange-line);
-}
-
 /* The anchor's label: its name, or the page until it has one. It says it
    can be edited by looking like a field on hover, not by adding an icon. */
 .name {
@@ -1332,15 +1358,6 @@ button.link.danger { color: var(--red); }
   color: var(--ink);
 }
 
-.here-tag {
-  margin-right: 6px;
-  padding: 1px 7px;
-  border-radius: var(--radius-pill);
-  background: var(--orange);
-  color: var(--ink-inverse);
-  font-size: var(--fs-2xs);
-}
-
 /* The rail's bullet is the same mark the page carries. */
 .row-glyph {
   flex: none;
@@ -1353,7 +1370,6 @@ button.link.danger { color: var(--red); }
 .row-glyph svg { display: block; width: 100%; height: 100%; }
 
 .anchor-row .row-glyph { color: var(--accent); }
-.anchor-row.here .row-glyph, .note-card.here .row-glyph { color: var(--orange); }
 
 .anchor-where { flex: 1; }
 
@@ -1405,7 +1421,6 @@ button.link.danger { color: var(--red); }
   .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .back-word { display: none; }
   .viewer-bar .bar-link { padding: 6px 9px; }
-  .jump-back { left: 12px; bottom: 12px; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one

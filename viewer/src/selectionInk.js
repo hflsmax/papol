@@ -1,4 +1,4 @@
-import { STRIP_RATIO } from './ink';
+import { STRIP_RATIO } from './ink.js';
 
 // Turn a browser text selection into one band per visual line fragment.
 // Client rectangles are intentionally kept separate across lines and pages;
@@ -24,21 +24,36 @@ export function selectionStrokes(clientRects, pageBoxes) {
       };
     })
     .filter(Boolean)
-    .sort((a, b) => a.page - b.page || a.top - b.top || a.left - b.left);
+    // getClientRects follows the range's document order. Preserve that
+    // order within a page: a raised citation belongs between the body-text
+    // fragments on either side even though its visual top is higher.
+    .sort((a, b) => a.page - b.page);
 
   const lines = [];
   for (const fragment of fragments) {
     const previous = lines[lines.length - 1];
     const height = fragment.bottom - fragment.top;
+    const previousHeight = previous ? previous.bottom - previous.top : 0;
+    const center = (fragment.top + fragment.bottom) / 2;
+    const previousCenter = previous ? (previous.top + previous.bottom) / 2 : 0;
     const sameLine =
       previous &&
       previous.page === fragment.page &&
-      Math.abs(previous.top - fragment.top) <= Math.max(2, height * 0.25) &&
-      fragment.left - previous.right <= Math.max(3, height * 0.4);
+      // Citations are commonly about 60% of the body-text height and raised
+      // several pixels. Compare centres generously enough to join them, but
+      // not enough to reach the next actual line.
+      Math.abs(previousCenter - center) <=
+        Math.max(2, Math.max(previousHeight, height) * 0.75) &&
+      fragment.left - previous.right <= Math.max(3, Math.max(previousHeight, height) * 0.8);
     if (sameLine) {
       previous.right = Math.max(previous.right, fragment.right);
-      previous.top = Math.min(previous.top, fragment.top);
-      previous.bottom = Math.max(previous.bottom, fragment.bottom);
+      previous.left = Math.min(previous.left, fragment.left);
+      // Keep the body fragment's band rather than making the painted line
+      // jump upward and thinner around a superscript citation.
+      if (height > previousHeight) {
+        previous.top = fragment.top;
+        previous.bottom = fragment.bottom;
+      }
     } else {
       lines.push({ ...fragment });
     }

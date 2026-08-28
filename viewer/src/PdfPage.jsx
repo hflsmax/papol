@@ -284,11 +284,8 @@ export default function PdfPage({
     };
   }, [doc, pageNumber, visible, analysis]);
 
-  // There was a double-click here that dropped an anchor and a triple-click
-  // that marked a place. The A and shift-A tools do both now, at a spot the
-  // reader can see before committing to it, and a page where an ordinary
-  // double-click on a word did something other than select the word was a
-  // page that argued with the reader about what a double-click is for.
+  // Anchors are placed with the explicit tool, at a spot the reader can see
+  // before committing to it. An ordinary double-click remains text selection.
 
   // A pin is dragged with the pointer captured, so the gesture survives
   // leaving the pin. A small movement is a click, not a drag — otherwise
@@ -355,7 +352,10 @@ export default function PdfPage({
     setDrag(null);
     if (!d) return;
     draggedRef.current = d.moved;
-    if (d.moved) onMoveNote(note.id, { page: pageNumber, anchor: d.anchor });
+    if (d.moved) {
+      onMoveNote(note.id, { page: pageNumber, anchor: d.anchor });
+      onSelectNote(null);
+    }
     // A click that did not drag opens the menu — and it is left to the
     // click event, so pressing Enter on a focused pin works too.
   };
@@ -558,9 +558,8 @@ export default function PdfPage({
     for (const stroke of ink) {
       if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.id);
     }
-    // An anchor is a mark on the page, so the eraser takes it — including
-    // the one that says where you are, which is as easy to put back as any
-    // other. What it does not take is a note with words in it: that is
+    // An anchor is a mark on the page, so the eraser takes it. What it does
+    // not take is a note with words in it: that is
     // writing, there is no undo here, and a swipe of the hand is no way to
     // lose it. Those are still deleted from the pin's own menu.
     for (const note of notes) {
@@ -589,8 +588,8 @@ export default function PdfPage({
       });
       return;
     }
-    if (tool === 'anchor' || tool === 'here') {
-      onDropAnchor({ page: pageNumber, anchor: { type: 'point', ...at } }, tool === 'here');
+    if (tool === 'anchor') {
+      onDropAnchor({ page: pageNumber, anchor: { type: 'point', ...at } });
       return;
     }
     if (tool === 'brush') {
@@ -821,6 +820,7 @@ export default function PdfPage({
       d.id,
       d.points.map((pt) => ({ x: clamp(pt.x + d.by.x), y: clamp(pt.y + d.by.y) }))
     );
+    onSelectInk(null);
   };
 
   // Where a stroke is being drawn right now: its own points, plus however
@@ -1143,6 +1143,25 @@ export default function PdfPage({
         onHoverInkObjects([]);
         setBrushAt(null);
       }}
+      onClick={(e) => {
+        if (tool !== 'arrow' || e.button !== 0 || !e.target.closest?.('.textLayer')) return;
+        // Citation boxes must not sit between the pointer and selectable PDF
+        // text. Resolve a genuine click by coordinates instead; a completed
+        // drag has a non-collapsed selection and remains purely a selection.
+        if (!window.getSelection()?.isCollapsed) return;
+        const box = holderRef.current?.getBoundingClientRect();
+        if (!box?.width || !box.height) return;
+        const x = (e.clientX - box.left) / box.width;
+        const y = (e.clientY - box.top) / box.height;
+        const index = citations.findIndex((cite) => (
+          x >= cite.x && x <= cite.x + cite.w && y >= cite.y && y <= cite.y + cite.h
+        ));
+        if (index < 0) return;
+        const cite = citations[index];
+        const anchor = holderRef.current.querySelector(`[data-citation-index="${index}"]`);
+        if (!anchor) return;
+        onOpenReference(cite.referenceId, anchor, cite.reference || null);
+      }}
       data-page={pageNumber}
     >
       {/* Drawn at renderScale and stretched to the scale being looked at:
@@ -1340,8 +1359,8 @@ export default function PdfPage({
             style={
               tool === 'brush'
                 ? undefined
-                : tool === 'anchor' || tool === 'here'
-                  ? { cursor: anchorCursor(tool === 'here') }
+                : tool === 'anchor'
+                  ? { cursor: anchorCursor(false) }
                   : tool === 'cow'
                     ? { cursor: cowCursor() }
                     : undefined
@@ -1391,6 +1410,7 @@ export default function PdfPage({
             <button
               key={`${cite.referenceId}-${i}`}
               type="button"
+              data-citation-index={i}
               data-reference-id={cite.referenceId}
               className={`cite${cite.referenceId === openReferenceId ? ' open' : ''}${
                 cite.exact ? '' : ' guessed'
@@ -1424,19 +1444,15 @@ export default function PdfPage({
               }${
                 note.drifted ? ' drifted' : ''
               }${note.content ? '' : ' bare'}${
-                note.current_place ? ' here' : ''
-              }${drag?.id === note.id && drag.moved ? ' dragging' : ''}`}
+                drag?.id === note.id && drag.moved ? ' dragging' : ''
+              }`}
               style={{
                 // The y fraction is measured from the bottom in PDF space and
                 // drawn from the top in CSS.
                 left: `${(drag?.id === note.id ? drag.anchor : note.anchor).x * 100}%`,
                 top: `${(1 - (drag?.id === note.id ? drag.anchor : note.anchor).y) * 100}%`,
               }}
-              title={
-                note.current_place
-                  ? `Where you are${note.content ? `: ${note.content}` : ''}`
-                  : note.content || 'An anchor with no note yet'
-              }
+              title={note.content || 'An anchor with no note yet'}
               onPointerDown={(e) => startDrag(e, note)}
               onPointerMove={onDragMove}
               onPointerUp={(e) => endDrag(e, note)}

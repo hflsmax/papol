@@ -764,21 +764,6 @@ def _room_summary(room: Room) -> RoomSummary:
     )
 
 
-def _clear_other_places(db: Session, paper_id: int, user_id: int, keep_id: int | None):
-    """A reader has one place in a paper. Marking a new one removes the old
-    marker entirely — it was a note of where they were, and they are no
-    longer there."""
-    q = db.query(Comment).filter(
-        Comment.paper_id == paper_id,
-        Comment.user_id == user_id,
-        Comment.current_place.is_(True),
-    )
-    if keep_id is not None:
-        q = q.filter(Comment.id != keep_id)
-    for other in q.all():
-        db.delete(other)
-
-
 def _comment_out(c: Comment) -> CommentSchema:
     """A note on the wire. The anchor is stored as JSON text and its kind in
     its own column; together they become the typed anchor the reader's apps
@@ -798,7 +783,6 @@ def _comment_out(c: Comment) -> CommentSchema:
         anchor_type=c.anchor_type,
         anchor=anchor,
         edition_id=c.edition_id,
-        current_place=bool(c.current_place),
         name=c.name,
     )
 
@@ -1993,11 +1977,8 @@ async def add_comment(
         anchor_type=anchor_type,
         anchor=anchor_json,
         edition_id=edition_id,
-        current_place=comment.current_place,
         name=(comment.name or "").strip() or None,
     )
-    if comment.current_place:
-        _clear_other_places(db, paper_id, current_user.id, None)
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
@@ -2031,12 +2012,6 @@ async def edit_comment(
         db_comment.edition_id = edition.id if edition else None
     if comment.name is not None:
         db_comment.name = comment.name.strip() or None
-    if comment.current_place is not None:
-        db_comment.current_place = comment.current_place
-        if comment.current_place:
-            _clear_other_places(
-                db, db_comment.paper_id, current_user.id, db_comment.id
-            )
     db.commit()
     db.refresh(db_comment)
     return _comment_out(db_comment)

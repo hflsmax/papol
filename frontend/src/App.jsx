@@ -1086,8 +1086,8 @@ select {
 .shelf-palette button.active { color: var(--ink); font-weight: 600; }
 .shelf-palette button > span { width: 6px; height: 18px; border-radius: var(--radius-pill); }
 .paper-shelf-picker { display: inline-flex; align-items: center; gap: 6px; }
+.paper-shelf-picker label { color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-xs); }
 .paper-shelf-picker select { max-width: 12rem; padding: 5px 24px 5px 7px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-xs); }
-.paper-shelf-dot { width: 8px; height: 18px; border-radius: var(--radius); flex: 0 0 auto; }
 
 .search-bar {
   margin-bottom: 12px;

@@ -135,8 +135,7 @@ export const demoPapers = [
  * what he could not follow, rather than a summary of the paper. Every one
  * is located: a page and a point on it, as
  * fractions of the page in PDF user space. A note with no `content` is a
- * bare anchor — a mark he has not written on yet — and `currentPlace`
- * marks where he stopped reading.
+ * bare anchor — a mark he has not written on yet.
  *
  * Only papers he keeps appear here: a visitor can open no others.
  */
@@ -191,7 +190,6 @@ export const demoNotes = [
     y: 0.52,
     daysAgo: 20,
     content: '',
-    currentPlace: true,
   },
   {
     id: 6,
@@ -222,7 +220,6 @@ export const demoNotes = [
     y: 0.5,
     daysAgo: 16,
     content: '',
-    currentPlace: true,
   },
   {
     id: 10,
@@ -245,7 +242,6 @@ export function noteAsComment(note, userId, daysAgoToDate) {
     page: note.page,
     anchor_type: 'point',
     anchor: { type: 'point', x: note.x, y: note.y },
-    current_place: !!note.currentPlace,
     created_at: daysAgoToDate(note.daysAgo),
   };
 }
