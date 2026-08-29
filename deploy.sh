@@ -2,12 +2,13 @@
 # Papol's deployment, all of it.
 #
 #   ./deploy.sh dev            run development here, rebuilding as you save
-#   ./deploy.sh prod [ref]     promote a ref (default: main) to production
+#   ./deploy.sh prod [ref]     promote a ref, then sync data (default: main)
+#                  [--no-sync] deploy code without the usual data sync
 #   ./deploy.sh sync           publish admin dev data, then refresh from prod
 #   ./deploy.sh status         what is running where
 #
-# Code goes up with `prod`. `sync` sends the admins' development data up,
-# then brings the resulting production data back down for everyone.
+# Code goes up with `prod`, then admin development data goes up and the
+# resulting production data comes back down. `sync` runs that data step alone.
 #
 # Production is deployed and stays up; development is a server that runs for
 # as long as you leave this command running. Production is a checkout of its
@@ -28,9 +29,10 @@ note() { printf '    %s\n' "$*"; }
 die()  { printf '\n\033[1;31mdeploy: %s\033[0m\n' "$*" >&2; exit 1; }
 
 confirm_deploy() {
-  local answer
+  local sync=${1:-yes} answer action="Deploy this revision to production"
+  [ "$sync" = yes ] && action="$action, then synchronize data"
   [ -t 0 ] || die "production deployment requires confirmation from a terminal"
-  printf '\nDeploy this revision to production? [y/N] '
+  printf '\n%s? [y/N] ' "$action"
   IFS= read -r answer || die "deployment confirmation was not received"
   case "$answer" in
     y|Y|yes|YES|Yes) ;;
@@ -39,7 +41,7 @@ confirm_deploy() {
 }
 
 usage() {
-  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -352,11 +354,25 @@ MSG
 }
 
 deploy_prod() {
-  local ref=${1:-main}
+  local ref=main sync=yes ref_set=no arg
+  for arg in "$@"; do
+    case "$arg" in
+      --no-sync) sync=no ;;
+      -*) die "unknown prod option: $arg (only --no-sync)" ;;
+      *)
+        [ "$ref_set" = no ] || die "prod takes one ref (default: main)"
+        ref=$arg
+        ref_set=yes
+        ;;
+    esac
+  done
   [ "$DEV_DIR" = "$PROD_DIR" ] && die "run this from your working tree, not from production"
 
   init_prod "$ref"
   check_system_config
+  if [ "$sync" = yes ] && dev_is_up; then
+    die "the development server is answering on $DEV_PORT — stop it before the default production deploy, or use --no-sync"
+  fi
 
   [ -n "$(git -C "$PROD_DIR" status --porcelain)" ] \
     && die "$PROD_DIR has uncommitted changes; production is a checkout, not a workspace"
@@ -385,7 +401,7 @@ deploy_prod() {
     note "note: $ref is ahead of origin/main — these commits are not pushed anywhere"
   fi
 
-  confirm_deploy
+  confirm_deploy "$sync"
 
   git -C "$PROD_DIR" reset --hard "$rev" --quiet
   note "production is at $(git -C "$PROD_DIR" log -1 --oneline)"
@@ -448,6 +464,7 @@ deploy_prod() {
   fi
 
   health_check
+  [ "$sync" = yes ] && sync_data
 }
 
 # The service is up when it serves the page — which also says the build
@@ -713,7 +730,7 @@ status() {
 
 case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
-  prod)   deploy_prod "${2:-main}" ;;
+  prod)   shift; deploy_prod "$@" ;;
   sync)   sync_data "${2:-}" ;;
   status) status ;;
   ""|-h|--help) usage ;;
