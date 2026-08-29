@@ -3,8 +3,10 @@ import { getUserSpace, createShelf, updateShelf, deleteShelf, createTag, deleteT
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
+import BoardsSection from './BoardsSection';
+import ExperimentalBadge from './ExperimentalBadge';
 
-export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
+export default function Space({ userId, currentUser, onSelectPaper, onSelectBoard, onBack, initialSection = null }) {
   const [space, setSpace] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,8 +15,30 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
   const [managingShelves, setManagingShelves] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [nookManagerError, setNookManagerError] = useState(null);
+  const [section, setSection] = useState(() => {
+    if (initialSection) return initialSection;
+    try { return sessionStorage.getItem(`papol_nook_section_${userId}`) || 'papers'; }
+    catch { return 'papers'; }
+  });
 
   const isOwn = currentUser != null && currentUser.id === userId;
+  const selectSection = (next) => {
+    setSection(next);
+    try { sessionStorage.setItem(`papol_nook_section_${userId}`, next); }
+    catch { /* session storage may be disabled */ }
+  };
+
+  useEffect(() => {
+    const next = initialSection || (() => {
+      try { return sessionStorage.getItem(`papol_nook_section_${userId}`); }
+      catch { return null; }
+    })() || 'papers';
+    setSection(next);
+    if (initialSection) {
+      try { sessionStorage.setItem(`papol_nook_section_${userId}`, initialSection); }
+      catch { /* session storage may be disabled */ }
+    }
+  }, [userId, initialSection]);
 
   const loadSpace = useCallback(() => {
     setError(null);
@@ -237,16 +261,26 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
         </div>
       )}
 
-      <PaperList
-        papers={space.papers}
-        isOwn={isOwn}
-        tags={isOwn ? space.tags : []}
-        shelves={space.shelves || []}
-        selectedTag={selectedTag}
-        onSelectTag={setSelectedTag}
-        onSelectPaper={onSelectPaper}
-        onChanged={loadSpace}
-      />
+      {isOwn && (
+        <div className="nook-tabs" role="tablist" aria-label="Nook sections">
+          <button className={section === 'papers' ? 'active' : ''} role="tab" aria-selected={section === 'papers'} onClick={() => selectSection('papers')}>Papers</button>
+          <button className={section === 'boards' ? 'active' : ''} role="tab" aria-selected={section === 'boards'} onClick={() => selectSection('boards')}>Boards <ExperimentalBadge compact /></button>
+        </div>
+      )}
+      {section === 'papers' || !isOwn ? (
+        <PaperList
+          papers={space.papers}
+          isOwn={isOwn}
+          tags={isOwn ? space.tags : []}
+          shelves={space.shelves || []}
+          selectedTag={selectedTag}
+          onSelectTag={setSelectedTag}
+          onSelectPaper={onSelectPaper}
+          onChanged={loadSpace}
+        />
+      ) : (
+        <BoardsSection onSelectBoard={onSelectBoard} />
+      )}
     </div>
   );
 }

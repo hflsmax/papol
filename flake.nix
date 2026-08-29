@@ -30,6 +30,7 @@
       pymupdf          # imported as `fitz`
       httpx
       python-multipart
+      yt-dlp
     ];
 
     # Only for working on Papol. Playwright drives a real browser over the
@@ -69,6 +70,7 @@
       ripgrep              # fast repository-wide source search
       ruff
       chromium
+      ffmpeg
       # Playwright will not download browsers here and should not try; these
       # are the ones Nix built, wired up by PLAYWRIGHT_BROWSERS_PATH below.
       playwright-driver.browsers

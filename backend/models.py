@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import uuid
 from database import Base
 
 
@@ -35,6 +36,7 @@ class User(Base):
     copies = relationship("Copy", back_populates="user")
     tags = relationship("Tag", back_populates="user", cascade="all, delete-orphan")
     shelves = relationship("Shelf", back_populates="user", cascade="all, delete-orphan", order_by="Shelf.position")
+    boards = relationship("Board", back_populates="owner", cascade="all, delete-orphan")
 
     @property
     def is_deleted(self) -> bool:
@@ -287,6 +289,48 @@ class Comment(Base):
     paper = relationship("Paper", back_populates="comments")
     user = relationship("User")
     edition = relationship("PaperEdition")
+
+
+class Board(Base):
+    """A private ideation space inside one reader's nook."""
+    __tablename__ = "boards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    guid = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User", back_populates="boards")
+    items = relationship(
+        "BoardItem", back_populates="board", cascade="all, delete-orphan",
+        order_by="BoardItem.created_at",
+    )
+
+
+class BoardItem(Base):
+    """A note or uploaded file collected on a board."""
+    __tablename__ = "board_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
+    kind = Column(String(20), nullable=False)  # comment | image | file
+    content = Column(Text, nullable=True)
+    file_path = Column(Text, nullable=True)
+    original_filename = Column(Text, nullable=True)
+    mime_type = Column(String(255), nullable=True)
+    source_url = Column(Text, nullable=True)
+    text_align = Column(String(10), nullable=False, default="left", server_default="left")
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+    x = Column(Float, nullable=False, default=0, server_default="0")
+    y = Column(Float, nullable=False, default=0, server_default="0")
+    width = Column(Float, nullable=False, default=300, server_default="300")
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    board = relationship("Board", back_populates="items")
 
 
 class InkStroke(Base):

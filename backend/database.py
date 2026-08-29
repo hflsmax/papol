@@ -4,6 +4,7 @@ from sqlalchemy.schema import CreateColumn
 import os
 from pathlib import Path
 import hashlib
+import uuid
 
 # Use absolute path for database in backend directory
 DB_PATH = Path(__file__).parent / "papol.db"
@@ -54,6 +55,22 @@ def _table_exists(conn, name: str) -> bool:
         text("SELECT name FROM sqlite_master WHERE type='table' AND name=:n"),
         {"n": name},
     ).fetchone() is not None
+
+
+def backfill_board_guids():
+    """Give legacy boards their permanent public route identifier."""
+    with engine.begin() as conn:
+        if not _table_exists(conn, "boards"):
+            return
+        rows = conn.execute(text("SELECT id FROM boards WHERE guid IS NULL OR guid = ''")).all()
+        for (board_id,) in rows:
+            conn.execute(
+                text("UPDATE boards SET guid=:guid WHERE id=:id"),
+                {"guid": str(uuid.uuid4()), "id": board_id},
+            )
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_boards_guid ON boards (guid)"
+        ))
 
 
 def backfill_copy_edition_hashes():

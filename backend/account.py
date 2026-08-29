@@ -39,6 +39,8 @@ from models import (
     RoomParticipant,
     Shelf,
     Tag,
+    Board,
+    BoardItem,
     User,
     copy_tags,
 )
@@ -127,6 +129,12 @@ def gather(db: Session, user: User) -> dict:
         db.query(InkStroke)
         .filter(InkStroke.user_id == user.id)
         .order_by(InkStroke.id)
+        .all()
+    )
+    boards = (
+        db.query(Board)
+        .filter(Board.user_id == user.id)
+        .order_by(Board.created_at)
         .all()
     )
 
@@ -218,6 +226,34 @@ def gather(db: Session, user: User) -> dict:
             }
             for e in uploads
         ],
+        "boards": [
+            {
+                "guid": board.guid,
+                "name": board.name,
+                "description": board.description,
+                "created": _when(board.created_at),
+                "updated": _when(board.updated_at),
+                "items": [
+                    {
+                        "id": item.id,
+                        "kind": item.kind,
+                        "content": item.content,
+                        "file": item.file_path,
+                        "original_filename": item.original_filename,
+                        "mime_type": item.mime_type,
+                        "source_url": item.source_url,
+                        "text_align": item.text_align,
+                        "x": item.x,
+                        "y": item.y,
+                        "width": item.width,
+                        "created": _when(item.created_at),
+                    }
+                    for item in board.items
+                    if item.deleted_at is None
+                ],
+            }
+            for board in boards
+        ],
     }
 
 
@@ -268,6 +304,8 @@ Everything Papol holds about you, as of {date}.
   seminars.json       The seminar cohorts you joined, and what you said in them.
   notifications.json  What Papol has told you.
   uploads.json        The PDFs you contributed.
+  boards.json         Your private boards and the position of every item.
+  board-files/        Files and images attached to your boards.
   pdfs/               The PDF of every paper in your nook, named after the
                       paper rather than after the upload.
 {avatar}
@@ -280,7 +318,13 @@ This export does not include your password, which Papol cannot read either
 """
 
 
-def write_zip(db: Session, user: User, uploads_dir: Path, out_path: Path) -> Path:
+def write_zip(
+    db: Session,
+    user: User,
+    uploads_dir: Path,
+    boards_dir: Path,
+    out_path: Path,
+) -> Path:
     """Write the reader's whole export to `out_path`.
 
     Written to a file rather than built in memory: a nook of a hundred
@@ -314,6 +358,7 @@ def write_zip(db: Session, user: User, uploads_dir: Path, out_path: Path) -> Pat
             ("seminars", data["seminars"]),
             ("notifications", data["notifications"]),
             ("uploads", data["pdfs_i_uploaded"]),
+            ("boards", data["boards"]),
         ):
             zf.writestr(
                 f"{root}/{name}.json",
@@ -341,6 +386,16 @@ def write_zip(db: Session, user: User, uploads_dir: Path, out_path: Path) -> Pat
                 candidate, n = f"{name}-{n}.pdf", n + 1
             seen.add(candidate)
             zf.write(source, f"{root}/pdfs/{candidate}")
+
+        for board in data["boards"]:
+            for item in board["items"]:
+                if not item["file"]:
+                    continue
+                source = boards_dir / item["file"]
+                if not source.is_file():
+                    continue
+                filename = Path(item["original_filename"] or source.name).name
+                zf.write(source, f"{root}/board-files/{board['guid']}/{item['id']}-{filename}")
 
     return out_path
 
@@ -470,6 +525,16 @@ def tombstone(
     removed["shelves"] = (
         db.query(Shelf).filter(Shelf.user_id == user_id).delete(synchronize_session=False)
     )
+    board_ids = [row[0] for row in db.query(Board.id).filter(Board.user_id == user_id).all()]
+    if board_ids:
+        removed["board_items"] = db.query(BoardItem).filter(
+            BoardItem.board_id.in_(board_ids)
+        ).delete(synchronize_session=False)
+    else:
+        removed["board_items"] = 0
+    removed["boards"] = db.query(Board).filter(
+        Board.user_id == user_id
+    ).delete(synchronize_session=False)
     removed["notifications"] = (
         db.query(Notification)
         .filter(Notification.user_id == user_id)

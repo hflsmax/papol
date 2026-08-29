@@ -3,6 +3,7 @@ backend/papol.db
 backend/papol.db.bak-*
 papol.db
 uploads/
+board_uploads/
 
 # Build artifacts
 frontend/dist/

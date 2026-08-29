@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { appPath } from './base';
+import ExperimentalBadge from './ExperimentalBadge';
 
 /**
  * What a citation turns out to be, shown beside the marker that was
@@ -112,13 +113,9 @@ export default function ReferenceCard({ anchor, reference, error, onClose }) {
         ×
       </button>
 
-      {/* Said plainly, on every card. What a reference is matched against
-          is a printed line and two public indexes, and the answer is
-          sometimes the wrong paper — a reader deserves to know that before
-          trusting one. */}
-      <p className="ref-flag" title="Citations are matched automatically and are sometimes wrong">
-        experimental feature
-      </p>
+      <div className="ref-experimental">
+        <ExperimentalBadge />
+      </div>
 
       {waiting && <p className="ref-looking">{waitingMessage}</p>}
 

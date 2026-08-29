@@ -20,6 +20,7 @@ let
     pymupdf
     httpx
     python-multipart
+    yt-dlp
   ]));
 
   # The one proxy location, twice: the service's own vhost and the LAN
@@ -271,6 +272,7 @@ in {
         Restart = "on-failure";
         RestartSec = 5;
       };
+      path = [ pkgs.ffmpeg ];
     };
 
     systemd.services.papol-health-check = lib.mkIf cfg.health.enable {

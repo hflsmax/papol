@@ -189,6 +189,71 @@ class Comment(BaseModel):
         from_attributes = True
 
 
+# ---------- Boards (private nook ideation spaces) ----------
+
+class BoardCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=4000)
+
+
+class BoardUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=4000)
+
+
+class BoardItemCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=10000)
+
+
+class BoardItemUpdate(BaseModel):
+    x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
+    y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
+    width: Optional[float] = Field(default=None, ge=120, le=1200)
+    content: Optional[str] = Field(default=None, max_length=10000)
+    text_align: Optional[Literal["left", "center", "right"]] = None
+
+
+class BoardYouTubeCreate(BaseModel):
+    url: str = Field(min_length=1, max_length=2000)
+    x: float = Field(ge=-1000000, le=1000000)
+    y: float = Field(ge=-1000000, le=1000000)
+
+
+class BoardItemOut(BaseModel):
+    id: int
+    kind: Literal["comment", "image", "file", "youtube"]
+    content: Optional[str] = None
+    file_path: Optional[str] = None
+    original_filename: Optional[str] = None
+    mime_type: Optional[str] = None
+    source_url: Optional[str] = None
+    text_align: Literal["left", "center", "right"] = "left"
+    position: int
+    x: float
+    y: float
+    width: float
+    deleted_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BoardOut(BaseModel):
+    id: int
+    guid: str
+    user_id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    item_count: int = 0
+    items: List[BoardItemOut] = []
+
+    class Config:
+        from_attributes = True
+
+
 # ---------- Rooms ----------
 
 class RoomSummary(BaseModel):

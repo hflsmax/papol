@@ -189,6 +189,72 @@ export function listPapers() {
   return request('/papers');
 }
 
+// ---------- Boards (private spaces inside the reader's nook) ----------
+
+export function listBoards() {
+  return request('/boards');
+}
+
+export function createBoard(data) {
+  return jsonRequest('/boards', 'POST', data);
+}
+
+export function getBoard(id) {
+  return request(`/boards/${id}`);
+}
+
+export function updateBoard(id, data) {
+  return jsonRequest(`/boards/${id}`, 'PUT', data);
+}
+
+export function addBoardFile(id, file, caption = '', position = null) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('caption', caption);
+  if (position) {
+    formData.append('x', String(position.x));
+    formData.append('y', String(position.y));
+  }
+  return request(`/boards/${id}/files`, { method: 'POST', body: formData });
+}
+
+export function deleteBoardItem(id) {
+  return request(`/board-items/${id}`, { method: 'DELETE' });
+}
+
+export function restoreBoardItem(id) {
+  return request(`/board-items/${id}/restore`, { method: 'POST' });
+}
+
+export function moveBoardItem(id, x, y) {
+  return jsonRequest(`/board-items/${id}`, 'PUT', { x, y });
+}
+
+export function updateBoardItem(id, data) {
+  return jsonRequest(`/board-items/${id}`, 'PUT', data);
+}
+
+export function addBoardYouTube(id, url, x, y) {
+  return jsonRequest(`/boards/${id}/youtube`, 'POST', { url, x, y });
+}
+
+export async function boardFileBlob(item) {
+  const response = await fetch(`${API_BASE}/board-items/${item.id}/file`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) await handleResponse(response);
+  return URL.createObjectURL(await response.blob());
+}
+
+export async function downloadBoardFile(item) {
+  const href = await boardFileBlob(item);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = item.original_filename || 'board-file';
+  anchor.click();
+  URL.revokeObjectURL(href);
+}
+
 export function extractPaperMetadata(file) {
   const formData = new FormData();
   formData.append('file', file);

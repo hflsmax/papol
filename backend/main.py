@@ -3,7 +3,7 @@ import os
 from datetime import timedelta
 
 from fastapi import (
-    FastAPI, Depends, HTTPException, UploadFile, File, Request, BackgroundTasks
+    FastAPI, Depends, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,7 +22,11 @@ import re
 import uuid
 import logging
 import shutil
+import subprocess
+import sys
 import traceback
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 # Configure logging
@@ -32,13 +36,14 @@ logger = logging.getLogger(__name__)
 from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
     backfill_shelves, backfill_favourite_tags,
+    backfill_board_guids,
     SessionLocal,
 )
 from models import (
     User, AuthToken, PresencePing, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
-    InkStroke, Tag, Shelf,
+    InkStroke, Tag, Shelf, Board, BoardItem,
 )
 import account
 from schemas import (
@@ -56,7 +61,8 @@ from schemas import (
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
-    ShelfOut, ShelfCreate, ShelfUpdate,
+    ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
+    BoardItemCreate, BoardItemUpdate, BoardYouTubeCreate, BoardItemOut, BoardOut,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -75,12 +81,15 @@ import dbmetrics
 # Create database tables and apply column migrations
 migrate()
 Base.metadata.create_all(bind=engine)
+backfill_board_guids()
 
 # Uploads directory
 UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 AVATARS_DIR.mkdir(exist_ok=True)
+BOARDS_DIR = Path(__file__).parent.parent / "board_uploads"
+BOARDS_DIR.mkdir(exist_ok=True)
 
 
 def _install_demo_pdfs() -> set[str]:
@@ -359,7 +368,7 @@ async def export_my_data(
     handle.close()
     path = Path(handle.name)
     try:
-        account.write_zip(db, current_user, UPLOADS_DIR, path)
+        account.write_zip(db, current_user, UPLOADS_DIR, BOARDS_DIR, path)
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -410,6 +419,9 @@ async def delete_my_account(
                 ),
             )
 
+    board_ids = [row[0] for row in db.query(Board.id).filter(
+        Board.user_id == current_user.id
+    ).all()]
     removed = account.tombstone(
         db,
         current_user,
@@ -420,10 +432,430 @@ async def delete_my_account(
         eligible_hosts=lambda room: _reader_ids(db, room.paper_key, public_only=True),
         notify=lambda room, user_ids, content: _notify(db, user_ids, room, content),
     )
+    for board_id in board_ids:
+        directory = BOARDS_DIR / str(board_id)
+        if directory.is_dir():
+            shutil.rmtree(directory)
     return {"message": "Your account has been closed.", "removed": removed}
 
 
+# ---------------- Boards ----------------
+
+BOARD_FILE_LIMIT = 25 * 1024 * 1024
+
+
+def _owned_board(board_guid: str, user: User, db: Session) -> Board:
+    board = db.query(Board).filter(
+        Board.guid == board_guid, Board.user_id == user.id
+    ).first()
+    if not board:
+        # Do not reveal whether another reader's private board exists.
+        raise HTTPException(status_code=404, detail="Board not found")
+    return board
+
+
+def _board_out(board: Board, include_items: bool = False) -> BoardOut:
+    active_items = [item for item in board.items if item.deleted_at is None]
+    return BoardOut(
+        id=board.id,
+        guid=board.guid,
+        user_id=board.user_id,
+        name=board.name,
+        description=board.description,
+        created_at=board.created_at,
+        updated_at=board.updated_at,
+        item_count=len(active_items),
+        items=(active_items if include_items else []),
+    )
+
+
+@app.get("/api/boards", response_model=list[BoardOut])
+async def list_boards(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    boards = db.query(Board).filter(Board.user_id == user.id).order_by(
+        Board.updated_at.desc(), Board.id.desc()
+    ).all()
+    return [_board_out(board) for board in boards]
+
+
+@app.post("/api/boards", response_model=BoardOut)
+async def create_board(
+    data: BoardCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = Board(
+        user_id=user.id,
+        name=data.name.strip(),
+        description=data.description.strip() if data.description else None,
+    )
+    db.add(board)
+    db.commit()
+    db.refresh(board)
+    return _board_out(board)
+
+
+@app.get("/api/boards/{board_guid}", response_model=BoardOut)
+async def get_board(
+    board_guid: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _board_out(_owned_board(board_guid, user, db), include_items=True)
+
+
+@app.put("/api/boards/{board_guid}", response_model=BoardOut)
+async def update_board(
+    board_guid: str,
+    data: BoardUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    if data.name is not None:
+        board.name = data.name.strip()
+    if data.description is not None:
+        board.description = data.description.strip() or None
+    board.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(board)
+    return _board_out(board, include_items=True)
+
+
+@app.delete("/api/boards/{board_guid}", status_code=204)
+async def delete_board(
+    board_guid: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    directory = BOARDS_DIR / str(board.id)
+    db.delete(board)
+    db.commit()
+    if directory.is_dir():
+        shutil.rmtree(directory)
+
+
+@app.post("/api/boards/{board_guid}/comments", response_model=BoardItemOut)
+async def add_board_comment(
+    board_guid: str,
+    data: BoardItemCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    count = len(board.items)
+    item = BoardItem(
+        board_id=board.id, kind="comment", content=data.content.strip(),
+        x=(count % 4) * 340, y=(count // 4) * 260,
+    )
+    board.updated_at = datetime.utcnow()
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.post("/api/boards/{board_guid}/files", response_model=BoardItemOut)
+async def add_board_file(
+    board_guid: str,
+    file: UploadFile = File(...),
+    caption: str = Form(default=""),
+    x: float | None = Form(default=None),
+    y: float | None = Form(default=None),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    if len(caption) > 10000:
+        raise HTTPException(status_code=422, detail="Caption is too long")
+    original = Path(file.filename or "file").name[:255]
+    suffix = Path(original).suffix[:20]
+    relative = Path(str(board.id)) / f"{uuid.uuid4().hex}{suffix}"
+    destination = BOARDS_DIR / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    size = 0
+    try:
+        with destination.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > BOARD_FILE_LIMIT:
+                    raise HTTPException(status_code=413, detail="Board files may be at most 25 MB")
+                output.write(chunk)
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    mime = (file.content_type or "application/octet-stream")[:255]
+    item = BoardItem(
+        board_id=board.id,
+        kind="image" if mime.startswith("image/") else "file",
+        content=caption.strip() or None,
+        file_path=str(relative),
+        original_filename=original,
+        mime_type=mime,
+        x=x if x is not None else (len(board.items) % 4) * 340,
+        y=y if y is not None else (len(board.items) // 4) * 260,
+    )
+    board.updated_at = datetime.utcnow()
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def _youtube_id(url: str) -> str | None:
+    try:
+        parsed = urllib.parse.urlparse(url.strip())
+    except ValueError:
+        return None
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    candidate = None
+    if host == "youtu.be":
+        candidate = parsed.path.strip("/").split("/")[0]
+    elif host in {"youtube.com", "m.youtube.com"}:
+        if parsed.path == "/watch":
+            candidate = urllib.parse.parse_qs(parsed.query).get("v", [None])[0]
+        else:
+            parts = parsed.path.strip("/").split("/")
+            if len(parts) == 2 and parts[0] in {"shorts", "embed", "live"}:
+                candidate = parts[1]
+    return candidate if candidate and re.fullmatch(r"[A-Za-z0-9_-]{11}", candidate) else None
+
+
+def _youtube_time(url: str) -> float | None:
+    parsed = urllib.parse.urlparse(url.strip())
+    values = urllib.parse.parse_qs(parsed.query)
+    raw = (values.get("t") or values.get("start") or [None])[0]
+    if raw is None and parsed.fragment.startswith("t="):
+        raw = parsed.fragment[2:]
+    if not raw:
+        return None
+    if re.fullmatch(r"\d+(?:\.\d+)?", raw):
+        return float(raw)
+    match = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?", raw)
+    if not match or not any(match.groups()):
+        raise ValueError("Invalid YouTube timestamp")
+    hours, minutes, seconds = match.groups()
+    return int(hours or 0) * 3600 + int(minutes or 0) * 60 + float(seconds or 0)
+
+
+def _fetch_youtube_thumbnail(url: str, video_id: str) -> tuple[bytes, str]:
+    endpoint = "https://www.youtube.com/oembed?" + urllib.parse.urlencode(
+        {"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}
+    )
+    request = urllib.request.Request(endpoint, headers={"User-Agent": "Papol/1.0"})
+    with urllib.request.urlopen(request, timeout=8) as response:
+        metadata = json.loads(response.read(256 * 1024))
+    thumbnail = str(metadata.get("thumbnail_url") or "")
+    host = (urllib.parse.urlparse(thumbnail).hostname or "").lower()
+    if host != "i.ytimg.com" and not host.endswith(".ytimg.com"):
+        raise ValueError("YouTube returned an invalid thumbnail location")
+    image_request = urllib.request.Request(thumbnail, headers={"User-Agent": "Papol/1.0"})
+    with urllib.request.urlopen(image_request, timeout=10) as response:
+        image = response.read(BOARD_FILE_LIMIT + 1)
+    if not image or len(image) > BOARD_FILE_LIMIT:
+        raise ValueError("YouTube thumbnail is empty or too large")
+    return image, str(metadata.get("title") or url)[:10000]
+
+
+def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
+    """Resolve a constrained YouTube stream and decode the exact requested frame."""
+    with tempfile.TemporaryDirectory(prefix="papol-youtube-") as directory:
+        template = str(Path(directory) / "source.%(ext)s")
+        extractor_args = "youtube:player_client=mweb"
+        po_token = os.environ.get("PAPOL_YOUTUBE_PO_TOKEN", "").strip()
+        if po_token:
+            extractor_args += f";po_token=mweb.gvs+{po_token}"
+        cookies = os.environ.get("PAPOL_YOUTUBE_COOKIES", "").strip()
+        download_command = [
+            sys.executable, "-m", "yt_dlp",
+            "--no-playlist", "--no-warnings", "--quiet",
+            # mweb with a GVS PO token exposes native adaptive formats. With
+            # no token it still provides the public fallback used below.
+            "--extractor-args", extractor_args,
+        ]
+        if cookies:
+            if not Path(cookies).is_file():
+                raise ValueError("PAPOL_YOUTUBE_COOKIES does not name a readable file")
+            download_command += ["--cookies", cookies]
+        download_command += [
+            "--max-filesize", "200M",
+            "--write-info-json",
+            "-f", "bestvideo[height<=1080]/bestvideo/best[height<=1080]/best",
+            "-o", template,
+            url,
+        ]
+        download_process = subprocess.run(
+            download_command,
+            capture_output=True,
+            text=True,
+            timeout=90,
+            check=False,
+        )
+        if download_process.returncode != 0:
+            raise ValueError(download_process.stderr.strip() or "YouTube video could not be downloaded")
+        metadata_files = list(Path(directory).glob("source.info.json"))
+        media_files = [
+            path for path in Path(directory).glob("source.*")
+            if path.name != "source.info.json" and path.is_file()
+        ]
+        if not metadata_files or not media_files:
+            raise ValueError("YouTube did not provide a playable video stream")
+        metadata = json.loads(metadata_files[0].read_text())
+        duration = metadata.get("duration")
+        if duration is not None and timestamp > float(duration):
+            raise ValueError("The timestamp is beyond the end of this video")
+
+        with tempfile.NamedTemporaryFile(suffix=".png") as output:
+            frame_process = subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error",
+                    "-ss", f"{timestamp:.3f}",
+                    "-i", str(media_files[0]),
+                    "-frames:v", "1",
+                    "-vf", "scale=1280:-2:flags=lanczos",
+                    "-compression_level", "3",
+                    "-y", output.name,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            if frame_process.returncode != 0:
+                raise ValueError(frame_process.stderr.strip() or "Video frame could not be decoded")
+            image = output.read(BOARD_FILE_LIMIT + 1)
+    if not image or len(image) > BOARD_FILE_LIMIT:
+        raise ValueError("Captured frame is empty or too large")
+    return image, str(metadata.get("title") or url)[:10000]
+
+
+@app.post("/api/boards/{board_guid}/youtube", response_model=BoardItemOut)
+async def add_youtube_to_board(
+    board_guid: str,
+    data: BoardYouTubeCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    video_id = _youtube_id(data.url)
+    if not video_id:
+        raise HTTPException(status_code=422, detail="Paste a valid YouTube video URL")
+    try:
+        timestamp = _youtube_time(data.url)
+        if timestamp is None:
+            image, title = await asyncio.to_thread(
+                _fetch_youtube_thumbnail, data.url, video_id
+            )
+            suffix, mime = ".jpg", "image/jpeg"
+        else:
+            image, title = await asyncio.to_thread(
+                _capture_youtube_frame, data.url, timestamp
+            )
+            suffix, mime = ".png", "image/png"
+    except Exception as exc:
+        logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
+        raise HTTPException(status_code=502, detail=f"Could not capture the YouTube frame: {exc}")
+    relative = Path(str(board.id)) / f"{uuid.uuid4().hex}{suffix}"
+    destination = BOARDS_DIR / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(image)
+    item = BoardItem(
+        board_id=board.id,
+        kind="youtube",
+        content=title,
+        file_path=str(relative),
+        original_filename=f"youtube-{video_id}{suffix}",
+        mime_type=mime,
+        source_url=data.url.strip(),
+        x=data.x,
+        y=data.y,
+    )
+    board.updated_at = datetime.utcnow()
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete("/api/board-items/{item_id}", status_code=204)
+async def delete_board_item(
+    item_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
+    if not item or item.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board item not found")
+    item.board.updated_at = datetime.utcnow()
+    item.deleted_at = datetime.utcnow()
+    db.commit()
+
+
+@app.post("/api/board-items/{item_id}/restore", response_model=BoardItemOut)
+async def restore_board_item(
+    item_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
+    if not item or item.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board item not found")
+    item.deleted_at = None
+    item.board.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.put("/api/board-items/{item_id}", response_model=BoardItemOut)
+async def move_board_item(
+    item_id: int,
+    data: BoardItemUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
+    if not item or item.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board item not found")
+    if data.x is not None:
+        item.x = data.x
+    if data.y is not None:
+        item.y = data.y
+    if data.width is not None:
+        item.width = data.width
+    if data.content is not None:
+        item.content = data.content.strip() or None
+    if data.text_align is not None:
+        item.text_align = data.text_align
+    item.board.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.get("/api/board-items/{item_id}/file")
+async def get_board_item_file(
+    item_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
+    if not item or item.board.user_id != user.id or not item.file_path:
+        raise HTTPException(status_code=404, detail="Board file not found")
+    stored = BOARDS_DIR / item.file_path
+    if not stored.is_file():
+        raise HTTPException(status_code=404, detail="Board file not found")
+    return FileResponse(
+        stored,
+        media_type=item.mime_type or "application/octet-stream",
+        filename=item.original_filename,
+    )
+
+
 # ---------------- Users / spaces ----------------
+
 
 @app.get("/api/users", response_model=list[UserDirectoryEntry])
 async def list_users(

@@ -307,6 +307,10 @@ init_prod() {
     cp -a "$DEV_DIR/uploads" "$PROD_DIR/uploads"
     note "copied uploads/"
   fi
+  if [ -d "$DEV_DIR/board_uploads" ] && [ ! -d "$PROD_DIR/board_uploads" ]; then
+    cp -a "$DEV_DIR/board_uploads" "$PROD_DIR/board_uploads"
+    note "copied board_uploads/"
+  fi
   chmod 600 "$PROD_DIR/.env" 2>/dev/null || true
 
   cat <<MSG
@@ -518,7 +522,7 @@ sync_data() {
   # not have yet. Deploy it first; SELECT * must never shuffle unlike rows.
   local table dev_cols prod_cols
   for table in users papers paper_editions edition_references edition_citations \
-      shelves tags copies copy_tags comments ink_strokes; do
+      shelves tags copies copy_tags comments ink_strokes boards board_items; do
     dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
     prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
     [ -n "$dev_cols" ] && [ "$dev_cols" = "$prod_cols" ] \
@@ -556,6 +560,11 @@ INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
     WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
   UNION ALL SELECT 1 FROM dev.ink_strokes d JOIN ink_strokes p ON p.id=d.id
     WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.boards d JOIN boards p ON p.id=d.id
+    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.board_items d JOIN board_items p ON p.id=d.id
+    JOIN dev.boards db ON db.id=d.board_id JOIN boards pb ON pb.id=p.board_id
+    WHERE db.user_id IN sync_admins AND pb.user_id NOT IN sync_admins
 );
 
 -- Bring across shared paper/edition records needed by the admin's nook. A
@@ -591,6 +600,8 @@ DELETE FROM copy_tags WHERE copy_id IN (SELECT id FROM copies WHERE user_id IN s
   OR tag_id IN (SELECT id FROM tags WHERE user_id IN sync_admins);
 DELETE FROM comments WHERE user_id IN sync_admins;
 DELETE FROM ink_strokes WHERE user_id IN sync_admins;
+DELETE FROM board_items WHERE board_id IN (SELECT id FROM boards WHERE user_id IN sync_admins);
+DELETE FROM boards WHERE user_id IN sync_admins;
 DELETE FROM copies WHERE user_id IN sync_admins;
 DELETE FROM tags WHERE user_id IN sync_admins;
 DELETE FROM shelves WHERE user_id IN sync_admins;
@@ -601,6 +612,9 @@ INSERT INTO tags SELECT d.* FROM dev.tags d JOIN sync_admins a ON a.id=d.user_id
 INSERT INTO copies SELECT d.* FROM dev.copies d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO comments SELECT d.* FROM dev.comments d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO ink_strokes SELECT d.* FROM dev.ink_strokes d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO boards SELECT d.* FROM dev.boards d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO board_items SELECT d.* FROM dev.board_items d
+  JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
 INSERT INTO copy_tags SELECT d.* FROM dev.copy_tags d
   JOIN dev.copies c ON c.id=d.copy_id JOIN sync_admins a ON a.id=c.user_id;
 
@@ -612,6 +626,7 @@ SQL
   if [ "$uploads" = yes ]; then
     say "Publishing development uploads"
     rsync -a "$DEV_DIR/uploads/" "$PROD_DIR/uploads/"
+    rsync -a "$DEV_DIR/board_uploads/" "$PROD_DIR/board_uploads/"
   fi
 
   # .backup takes a consistent snapshot while production continues serving.
@@ -639,6 +654,7 @@ SQL
   if [ "$uploads" = yes ]; then
     say "Refreshing uploads from production"
     rsync -a --delete "$PROD_DIR/uploads/" "$DEV_DIR/uploads/"
+    rsync -a --delete "$PROD_DIR/board_uploads/" "$DEV_DIR/board_uploads/"
     note "$(du -sh "$DEV_DIR/uploads" | cut -f1)"
   else
     note "uploads left alone — papers whose PDF is only in production will 404"

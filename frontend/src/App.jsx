@@ -14,6 +14,7 @@ import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
+import BoardPage from './components/BoardPage';
 import { appPath, stripAppBase } from './base';
 
 const styles = `
@@ -4059,7 +4060,90 @@ a.btn:hover {
 
 /* ---------- Responsive ---------- */
 
+/* ---------- Boards inside My nook ---------- */
+
+.nook-tabs {
+  display: flex;
+  gap: 20px;
+  margin: 0 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.nook-tabs button {
+  padding: 8px 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nook-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.experimental-title { display: flex; align-items: center; gap: 9px; }
+.experimental-badge { display: inline-flex; align-items: center; gap: 4px; width: max-content; padding: 2px 7px; border: 1px solid var(--gold-line); border-radius: var(--radius-pill); background: var(--gold-soft); color: var(--gold-ink); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .03em; text-transform: uppercase; vertical-align: middle; white-space: nowrap; }
+.experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.experimental-badge.compact { margin-left: 4px; padding: 2px 4px; }
+.experimental-badge.compact svg { width: 11px; height: 11px; }
+.boards-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.boards-heading { margin-bottom: 18px; }
+.boards-heading h3 { font-size: var(--fs-xl); }
+.board-create { margin-top: 12px; }
+.board-list { display: grid; gap: 10px; }
+.board-list-card { display: grid; gap: 4px; width: 100%; padding: 18px; text-align: left; background: var(--card); }
+.board-list-title { font-size: var(--fs-lg); font-weight: 600; }
+.board-list-description { color: var(--ink-soft); white-space: pre-wrap; }
+.board-list-meta { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); }
+body.board-workspace-open { overflow: hidden; }
+body.board-workspace-open .app { max-width: none; padding: 0; }
+body.board-workspace-open .app > .topnav,
+body.board-workspace-open .feedback-fab { display: none; }
+body.board-workspace-open .main-content { display: block; padding: 0; }
+.infinite-board { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: var(--paper-sunken); font-family: var(--font-serif); }
+.board-toolbar { position: absolute; z-index: 38; inset: 0 0 auto; min-height: 55px; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--card); font-family: var(--font-ui); }
+.board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
+.board-toolbar .board-back { min-width: 0; overflow: hidden; border: 0; padding-left: 0; background: transparent; color: var(--accent); font-family: var(--font-serif); font-size: var(--fs-base); text-overflow: ellipsis; white-space: nowrap; }
+.board-toolbar-title { min-width: 100px; max-width: 360px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
+.board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
+.board-toolbar-spacer { flex: 1; }
+.board-viewport { position: absolute; inset: 55px 0 0; overflow: hidden; touch-action: none; cursor: default; background-color: var(--paper-sunken); background-image: radial-gradient(circle, var(--line-strong) var(--board-grid-dot), transparent var(--board-grid-dot)); background-position: var(--board-grid-x) var(--board-grid-y); background-size: var(--board-grid-size) var(--board-grid-size); }
+.board-viewport:active { cursor: default; }
+.board-viewport.file-dragging { background-color: var(--accent-soft); }
+.board-marquee { position: absolute; z-index: 3; border: 1px solid var(--accent); background: rgba(43,74,111,.1); pointer-events: none; }
+.board-drop-target { position: fixed; z-index: 4; inset: 75px 20px 20px; display: grid; place-items: center; border: 2px dashed var(--accent-line); border-radius: var(--radius); background: rgba(234,239,245,.72); color: var(--accent); font: var(--fs-base) var(--font-ui); pointer-events: none; }
+.board-stage { position: absolute; left: 0; top: 0; width: 1px; height: 1px; transform-origin: 0 0; will-change: transform; }
+.board-canvas-card { position: absolute; left: 0; top: 0; width: 300px; max-height: 520px; overflow: visible; border: 0; background: transparent; cursor: default; user-select: none; contain: layout style; will-change: transform; }
+.board-canvas-card:hover { outline: 2px solid var(--accent-line); outline-offset: 4px; border-radius: var(--radius); filter: drop-shadow(0 3px 7px rgba(29,55,82,.12)); }
+.board-canvas-card.selected { z-index: 2; outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius); }
+.board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
+.board-canvas-card p { padding: 12px 2px; white-space: pre-wrap; user-select: text; cursor: text; }
+.board-canvas-file { width: calc(100% - 24px); margin: 12px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow-wrap: anywhere; text-align: left; color: var(--accent); background: var(--card); font: var(--fs-sm) var(--font-ui); }
+.board-item-menu { position: absolute; z-index: 3; left: calc(100% + 8px); top: 0; display: grid; min-width: 96px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: 0 6px 18px rgba(29,33,41,.18); cursor: default; }
+.board-item-menu button { border: 0; padding: 6px 9px; background: transparent; box-shadow: none; text-align: left; font: var(--fs-xs) var(--font-ui); white-space: nowrap; }
+.board-item-menu button:hover { background: var(--accent-soft); }
+.board-item-menu button.remove { color: var(--red); }
+.board-resize-handle { position: absolute; z-index: 3; right: -7px; bottom: -7px; width: 14px; height: 14px; padding: 0; border: 1px solid var(--accent); border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px rgba(29,33,41,.2); cursor: nwse-resize; }
+.board-youtube-description { margin: 0; padding: 10px 2px 2px; cursor: text; }
+.board-editable-text { cursor: text; }
+.board-youtube-description.empty { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-style: italic; }
+.board-inline-text-editor { width: 100%; margin-top: 8px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--card); overflow: hidden; }
+.board-inline-description { display: block; width: 100%; margin: 0; padding: 7px; resize: vertical; border: 0; border-radius: 0; background: var(--card); color: var(--ink); font: var(--fs-sm) var(--font-serif); user-select: text; }
+.board-inline-description:focus { outline: 2px solid var(--accent-soft); }
+.board-inline-format { display: flex; gap: 2px; padding: 3px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.board-inline-format button { width: 27px; min-width: 27px; padding: 3px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-soft); font-size: var(--fs-base); line-height: 1; }
+.board-inline-format button:nth-child(1) { text-align: left; }
+.board-inline-format button:nth-child(2) { text-align: center; }
+.board-inline-format button:nth-child(3) { text-align: right; }
+.board-inline-format button.active { background: var(--accent-soft); color: var(--accent); }
+.board-align-glyph { display: block; width: 18px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.board-youtube-loading { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; gap: 10px; width: 300px; min-height: 170px; border: 1px solid var(--line); border-radius: 2px; background: var(--card); color: var(--ink-soft); box-shadow: 0 1px 6px rgba(25,35,50,.18); font: var(--fs-sm) var(--font-ui); }
+.board-loading-spinner { width: 17px; height: 17px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: board-spin .8s linear infinite; }
+@keyframes board-spin { to { transform: rotate(360deg); } }
+.board-canvas-error { position: fixed; z-index: 120; top: 68px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
+
 @media (max-width: 560px) {
+  .board-toolbar { overflow-x: auto; }
+  .board-toolbar .board-back span { display: none; }
+  .board-toolbar-title { max-width: 150px; }
   .shelf-manager-row {
     grid-template-columns: 30px minmax(0, 1fr);
   }
@@ -4193,7 +4277,11 @@ function parseRoute() {
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
     : rawPath;
   const routed = (route) => (demo ? { ...route, demo: true } : route);
-  let match = path.match(/^\/u\/(\d+)\/?$/);
+  let match = path.match(/^\/boards\/([^/]+)\/?$/);
+  if (match) return routed({ page: 'board', guid: match[1] });
+  match = path.match(/^\/u\/(\d+)\/boards\/?$/);
+  if (match) return routed({ page: 'space', id: parseInt(match[1]), section: 'boards' });
+  match = path.match(/^\/u\/(\d+)\/?$/);
   if (match) return routed({ page: 'space', id: parseInt(match[1]) });
   // Papers are addressed by DOI when they have one (DOIs contain slashes),
   // falling back to the numeric id.
@@ -4218,7 +4306,7 @@ const demoPath = (path) => {
 };
 
 const SIGN_IN_PAGES = new Set([
-  'space', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'space', 'board', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
 function navigate(path) {
@@ -4350,7 +4438,11 @@ export default function App() {
 
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
-    const returnTo = requestedPage?.startsWith('/paper/') ? requestedPage : '/';
+    const currentPath = stripAppBase(window.location.pathname || '/');
+    const candidate = requestedPage || currentPath;
+    const returnTo = candidate.startsWith('/paper/') || candidate.startsWith('/boards/')
+      ? candidate
+      : '/';
     exitDemo();
     setToken(token);
     setUser(user);
@@ -4533,7 +4625,7 @@ export default function App() {
               <a
                 href={appPath('/')}
                 className={
-                  route.page === 'home' ||
+                  route.page === 'home' || route.page === 'board' ||
                   (route.page === 'space' && route.id === user.id)
                     ? 'active'
                     : ''
@@ -4609,6 +4701,7 @@ export default function App() {
                 userId={user.id}
                 currentUser={user}
                 onSelectPaper={(id) => navigate(`/paper/${id}`)}
+                onSelectBoard={(guid) => navigate(`/boards/${guid}`)}
               />
             ) : (
               <HomePage
@@ -4621,6 +4714,14 @@ export default function App() {
               userId={route.id}
               currentUser={user}
               onSelectPaper={(id) => navigate(`/paper/${id}`)}
+              onSelectBoard={(guid) => navigate(`/boards/${guid}`)}
+              initialSection={route.section}
+              onBack={goBack}
+            />
+          )}
+          {route.page === 'board' && user && (
+            <BoardPage
+              boardId={route.guid}
               onBack={goBack}
             />
           )}

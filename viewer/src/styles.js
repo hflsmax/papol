@@ -810,18 +810,9 @@ button.link.danger { color: var(--red); }
   font-size: var(--fs-sm);
 }
 
-/* On every card, and meant to be read rather than merely present. Plain
-   words, not a badge: the card already carries a chip for the citation
-   count, and a second one would read as another piece of the record
-   rather than as a caveat about it. */
-.ref-flag {
-  margin: 0 0 7px;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--gold-ink);
-}
+.ref-experimental { margin: 0 0 8px; }
+.experimental-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border: 1px solid var(--gold-line); border-radius: var(--radius-pill); background: var(--gold-soft); color: var(--gold-ink); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .03em; line-height: 1.5; text-transform: uppercase; white-space: nowrap; }
+.experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 
 .ref-looking { margin: 2px 0; color: var(--ink-faint); font-style: italic; }
 

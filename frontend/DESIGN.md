@@ -215,6 +215,10 @@ Two traps worth naming, both hit in practice:
 
 ## Rules of thumb
 
+- Experimental features carry the shared `ExperimentalBadge`: a gold flask
+  with an explicit label where space permits, and the same flask alone in
+  compact navigation. Its tooltip always says that the feature may change.
+
 - Public content sits above a panel's separator and is tinted green;
   private content (summary, notes) sits below it, tinted blue, badged
   `private`.
