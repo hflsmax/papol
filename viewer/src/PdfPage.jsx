@@ -108,6 +108,8 @@ export default function PdfPage({
   onDropAnimal,
   onMoveAnimal,
   onEraseAnimal,
+  searchMatches,
+  activeSearchId,
 }) {
   const canvasRef = useRef(null);
   const holderRef = useRef(null);
@@ -256,6 +258,40 @@ export default function PdfPage({
       textTaskRef.current = task;
       try {
         await task.render();
+        if (cancelled) return;
+        const spans = [...container.querySelectorAll(':scope > span')];
+        const containerBox = container.getBoundingClientRect();
+        const visualScale = scale / renderScale;
+        let activeHighlight = null;
+        for (const match of searchMatches) {
+          for (const part of match.parts) {
+            const textNode = spans[part.spanIndex]?.firstChild;
+            if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
+            const range = document.createRange();
+            range.setStart(textNode, Math.min(part.start, textNode.length));
+            range.setEnd(textNode, Math.min(part.end, textNode.length));
+            for (const box of range.getClientRects()) {
+              const highlight = document.createElement('span');
+              const active = match.id === activeSearchId;
+              highlight.className = `search-highlight${active ? ' search-highlight-active' : ''}`;
+              highlight.style.left = `${(box.left - containerBox.left) / visualScale}px`;
+              highlight.style.top = `${(box.top - containerBox.top) / visualScale}px`;
+              highlight.style.width = `${box.width / visualScale}px`;
+              highlight.style.height = `${box.height / visualScale}px`;
+              container.appendChild(highlight);
+              if (active && !activeHighlight) activeHighlight = highlight;
+            }
+            range.detach();
+          }
+        }
+        // Follow the result only when it has left the viewport. `nearest`
+        // asks the scroller for the shortest possible movement instead of
+        // pulling every result to the middle of the screen.
+        activeHighlight?.scrollIntoView({
+          block: 'nearest',
+          inline: 'nearest',
+          behavior: 'smooth',
+        });
       } catch (err) {
         if (err?.name !== 'AbortException') throw err;
       }
@@ -265,7 +301,7 @@ export default function PdfPage({
       cancelled = true;
       textTaskRef.current?.cancel();
     };
-  }, [doc, pageNumber, renderScale, visible]);
+  }, [doc, pageNumber, scale, renderScale, visible, searchMatches, activeSearchId]);
 
   // Only that the page is on screen — not that the references are ready.
   // The PDF's own links are in the file itself: they need no analyzer, and

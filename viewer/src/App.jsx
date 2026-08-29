@@ -19,6 +19,7 @@ import { styles } from './styles';
 import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
+import { findTextMatches, indexTextItems } from './pdfSearch';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -192,6 +193,12 @@ export default function App() {
   const wantedNoteId = numberParam('note');
   const [paper, setPaper] = useState(null);
   const [doc, setDoc] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState([]);
+  const [searchIndexing, setSearchIndexing] = useState(false);
+  const [activeSearchResult, setActiveSearchResult] = useState(0);
+  const searchInputRef = useRef(null);
   // How much of the PDF has arrived, while it has not: null until the
   // first progress event, since a bar at 0% before the request has even
   // answered reads as stalled rather than as "not yet known".
@@ -413,6 +420,73 @@ export default function App() {
     };
   }, [paper]);
 
+  // Index once per document. Searching then stays immediate, and does not
+  // depend on whether a page's lazy text layer happens to be on screen.
+  useEffect(() => {
+    if (!doc) {
+      setSearchIndex([]);
+      return undefined;
+    }
+    let cancelled = false;
+    setSearchIndexing(true);
+    Promise.all(Array.from({ length: doc.numPages }, async (_, i) => {
+      const page = await doc.getPage(i + 1);
+      const content = await page.getTextContent();
+      return indexTextItems(content.items);
+    })).then((indexed) => {
+      if (!cancelled) setSearchIndex(indexed);
+    }).catch((e) => {
+      if (!cancelled) setError(`Could not search this PDF: ${e.message}`);
+    }).finally(() => {
+      if (!cancelled) setSearchIndexing(false);
+    });
+    return () => { cancelled = true; };
+  }, [doc]);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return searchIndex.flatMap((pageIndex, page) => (
+      findTextMatches(pageIndex, searchQuery).map((match, occurrence) => ({
+        ...match,
+        page: page + 1,
+        id: `${page + 1}-${occurrence}`,
+      }))
+    ));
+  }, [searchIndex, searchQuery]);
+  const searchResultsByPage = useMemo(() => {
+    const byPage = new Map();
+    for (const result of searchResults) {
+      const matches = byPage.get(result.page) || [];
+      matches.push(result);
+      byPage.set(result.page, matches);
+    }
+    return byPage;
+  }, [searchResults]);
+
+  useEffect(() => setActiveSearchResult(0), [searchQuery]);
+
+  const moveThroughSearch = (direction) => {
+    if (!searchResults.length) return;
+    setActiveSearchResult((current) => (
+      (current + direction + searchResults.length) % searchResults.length
+    ));
+  };
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  useEffect(() => {
+    const result = searchResults[activeSearchResult];
+    if (!result) return;
+    scrollerRef.current
+      ?.querySelector(`.pdf-page[data-page="${result.page}"]`)
+      // Bring a lazy page close enough to render, but do not center it: the
+      // text layer will make the smaller, exact adjustment to the match.
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [searchResults, activeSearchResult]);
+
   // The references, fetched once the paper is known and then waited on.
   // Reading a PDF's bibliography takes a pass over the whole document, so
   // the first reader of an edition starts that pass and everyone after
@@ -515,6 +589,12 @@ export default function App() {
 
   // Not while the reader is writing a note: in a textarea, x is an x.
   onKeyRef.current = (e) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key?.toLowerCase() === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        window.requestAnimationFrame(() => searchInputRef.current?.select());
+        return;
+      }
       // Escape closes the help sheet first, before anything else looks at
       // the key: while it is up it is the thing in front of the reader.
       if (e.key === 'Escape' && helpOpen) {
@@ -528,6 +608,12 @@ export default function App() {
         setFeedbackContent('');
         setFeedbackError(null);
         setFeedbackSent(false);
+        return;
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        e.preventDefault();
+        setSearchOpen(false);
+        setSearchQuery('');
         return;
       }
       if (e.key === 'Escape' && selectedInk) {
@@ -1965,6 +2051,39 @@ export default function App() {
           </button>
         </span>
         <span className="spacer" />
+        <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
+          <button type="button" className="search-button" onClick={() => setSearchOpen((open) => !open)} title="Search PDF (Ctrl/Command+F)" aria-label="Search PDF" aria-expanded={searchOpen}>
+            <span aria-hidden="true">⌕</span> Search
+          </button>
+          {searchOpen && (
+            <div className="search-pop" role="search">
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    moveThroughSearch(e.shiftKey ? -1 : 1);
+                  }
+                }}
+                placeholder="Search PDF"
+                aria-label="Search PDF"
+              />
+              <span className="search-count" role="status">
+                {searchIndexing ? 'Indexing…' : searchQuery.trim()
+                  ? searchResults.length
+                    ? `${activeSearchResult + 1} / ${searchResults.length}`
+                    : 'No results'
+                  : ''}
+              </span>
+              <button type="button" onClick={() => moveThroughSearch(-1)} disabled={!searchResults.length} aria-label="Previous result">↑</button>
+              <button type="button" onClick={() => moveThroughSearch(1)} disabled={!searchResults.length} aria-label="Next result">↓</button>
+              <button type="button" onClick={() => { setSearchOpen(false); setSearchQuery(''); }} aria-label="Close search">×</button>
+            </div>
+          )}
+        </div>
         <span className="tools" role="group" aria-label="Tool">
           {TOOLS.map((t) => (
             <span className="tool-slot" key={t.id}>
@@ -2405,6 +2524,8 @@ export default function App() {
               onDropAnimal={dropAnimal}
               onMoveAnimal={moveAnimal}
               onEraseAnimal={eraseAnimal}
+              searchMatches={searchResultsByPage.get(n) || EMPTY_INK}
+              activeSearchId={searchResults[activeSearchResult]?.id ?? null}
               />
             </React.Fragment>
           ))}

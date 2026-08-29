@@ -228,6 +228,37 @@ button.link.danger { color: var(--red); }
 
 .viewer-bar .spacer { flex: 1; }
 
+.pdf-search { position: relative; flex: none; font-family: var(--font-ui); }
+.search-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 9px);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: max-content;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 6px 18px rgba(29, 33, 41, 0.18);
+}
+.pdf-search input {
+  width: 190px;
+  min-width: 90px;
+  padding: 4px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--ink);
+  background: var(--card);
+}
+.pdf-search input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.search-pop button { min-width: 28px; height: 28px; padding: 2px 7px; }
+.pdf-search .search-button { height: auto; padding: 5px 9px; }
+.search-count { min-width: 58px; color: var(--ink-faint); font-size: var(--fs-2xs); text-align: center; white-space: nowrap; }
+
 /* A bar action that navigates rather than acts on the page. */
 .viewer-bar .bar-link {
   font-family: var(--font-ui);
@@ -662,6 +693,20 @@ button.link.danger { color: var(--red); }
    the library's stylesheet. */
 .textLayer { z-index: 2; }
 .textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
+.textLayer .search-highlight {
+  position: absolute;
+  z-index: -1;
+  margin: 0;
+  padding: 0;
+  border-radius: 1px;
+  background: rgba(246, 203, 65, 0.52);
+  pointer-events: none;
+}
+.textLayer .search-highlight-active {
+  background: rgba(255, 145, 32, 0.72);
+  /* Keep a small reading margin when search navigation has to follow it. */
+  scroll-margin: 72px 28px;
+}
 
 .selection-brush {
   position: fixed;
@@ -1413,6 +1458,10 @@ button.link.danger { color: var(--red); }
   }
 
   .pages { padding: 12px; }
+  .search-pop { position: fixed; left: 12px; right: 12px; top: 58px; width: auto; }
+  .search-pop input { flex: 1; width: auto; }
+  .pdf-search .search-button { font-size: 0; padding-inline: 7px; }
+  .pdf-search .search-button span { font-size: 1rem; }
 }
 
 /* A phone. The bar has to hold a way back, the file and the zoom in about
@@ -1421,6 +1470,7 @@ button.link.danger { color: var(--red); }
   .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .back-word { display: none; }
   .viewer-bar .bar-link { padding: 6px 9px; }
+  .search-pop { left: 8px; right: 8px; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one
