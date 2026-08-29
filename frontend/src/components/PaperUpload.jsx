@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { extractPaperMetadata, createPaper, listTags, createTag, listShelves } from '../api';
 import { RatingInput } from './Rating';
 
-export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} }) {
+export default function PaperUpload({ onPaperCreated, onReviewChange = () => {}, compact = false }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -332,7 +332,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
   }
 
   return (
-    <div className="upload-section">
+    <div className={`upload-section${compact ? ' compact' : ''}`}>
       <div
         className={`dropzone ${isDragging ? 'dragging' : ''}`}
         onDragOver={handleDragOver}
@@ -352,7 +352,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {} 
         ) : (
           <>
             <p>Drop a PDF here or click to upload</p>
-            <p className="hint">DOI will be extracted automatically</p>
+            {!compact && <p className="hint">DOI will be extracted automatically</p>}
           </>
         )}
       </div>

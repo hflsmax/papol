@@ -67,8 +67,22 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
       <div className="space-header">
         <div className="space-header-row">
           <Avatar user={space.user} className="space-avatar" />
-          <div>
-            <h2>{isOwn ? 'My nook' : `${space.user.display_name}'s nook`}</h2>
+          <div className="space-profile-copy">
+            {isOwn ? (
+              <h2 className="nook-title-row">
+                <span>My nook</span>
+                <button
+                  className="manage-nook-gear"
+                  onClick={() => { setNookManagerError(null); setManagingShelves(true); }}
+                  title="Manage nook"
+                  aria-label="Manage nook"
+                >
+                  <span className="gear-symbol" aria-hidden="true">⚙</span>
+                </button>
+              </h2>
+            ) : (
+              <h2>{space.user.display_name}'s nook</h2>
+            )}
             {space.user.affiliation && (
               <p className="space-subtitle">{space.user.affiliation}</p>
             )}
@@ -78,34 +92,15 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
                 <a href={`mailto:${space.user.email}`}>{space.user.email}</a>
               </p>
             )}
-            {space.stats && (
-              <p className="nook-stats">
-                {[
-                  `${space.stats.papers} ${space.stats.papers === 1 ? 'paper' : 'papers'}`,
-                  `${space.stats.displayed} on display`,
-                  `${space.stats.notes} ${space.stats.notes === 1 ? 'note' : 'notes'}`,
-                  `${space.stats.seminars} seminar ${space.stats.seminars === 1 ? 'cohort' : 'cohorts'}`,
-                ].map((stat, i, all) => (
-                  <React.Fragment key={stat}>
-                    {i > 0 && ' '}
-                    {/* each metric is an unbreakable unit; the separator
-                        stays glued to the metric before it */}
-                    <span className="stat">
-                      {stat}
-                      {i < all.length - 1 && ' ·'}
-                    </span>
-                  </React.Fragment>
-                ))}
-              </p>
-            )}
           </div>
           {isOwn && (
-            <button className="manage-shelves-btn" onClick={() => { setNookManagerError(null); setManagingShelves(true); }}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 5v14M12 5v14M18 5v14" />
-              </svg>
-              <span>Manage nook</span>
-            </button>
+            <div className="space-header-actions">
+              <PaperUpload
+                compact
+                onPaperCreated={loadSpace}
+                onReviewChange={setReviewingUpload}
+              />
+            </div>
           )}
         </div>
       </div>
@@ -240,13 +235,6 @@ export default function Space({ userId, currentUser, onSelectPaper, onBack }) {
             </section>
           </div>
         </div>
-      )}
-
-      {isOwn && (
-        <PaperUpload
-          onPaperCreated={loadSpace}
-          onReviewChange={setReviewingUpload}
-        />
       )}
 
       <PaperList

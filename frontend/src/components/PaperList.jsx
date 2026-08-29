@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { updatePaper, paperHref } from '../api';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
@@ -8,8 +8,16 @@ import { appPath } from '../base';
 
 export default function PaperList({ papers, isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onChanged }) {
   const [search, setSearch] = useState('');
+  const [selectedShelf, setSelectedShelf] = useState(null);
+  const [browserOpen, setBrowserOpen] = useState(
+    () => window.sessionStorage.getItem('papol.paperBrowserOpen') === 'true'
+  );
   const [toggleWarning, setToggleWarning] = useState(null); // { id, text }
   const [openShelfPicker, setOpenShelfPicker] = useState(null);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('papol.paperBrowserOpen', String(browserOpen));
+  }, [browserOpen]);
 
   const handleShelfMove = async (paper, shelfId) => {
     setToggleWarning(null);
@@ -24,7 +32,8 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
 
   const filteredPapers = papers.filter((paper) => {
     const searchLower = search.toLowerCase();
-    return (selectedTag == null || (paper.tags || []).some((tag) => tag.id === selectedTag)) && (
+    return (selectedShelf == null || paper.shelf_id === selectedShelf) &&
+      (selectedTag == null || (paper.tags || []).some((tag) => tag.id === selectedTag)) && (
       paper.title.toLowerCase().includes(searchLower) ||
       (paper.authors && paper.authors.toLowerCase().includes(searchLower)) ||
       (paper.journal && paper.journal.toLowerCase().includes(searchLower))
@@ -45,9 +54,6 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
       : rank(a) - rank(b) || new Date(b.created_at) - new Date(a.created_at)
   );
 
-  const monthOf = (d) =>
-    new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
   const parseAuthors = (authorsJson) => {
     if (!authorsJson) return '';
     try {
@@ -59,9 +65,82 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
     }
   };
 
+  const activeShelf = shelves.find((shelf) => shelf.id === selectedShelf);
+  const activeTag = tags.find((tag) => tag.id === selectedTag);
+  const filterSummary = [
+    activeShelf?.name,
+    activeTag ? `#${activeTag.name}` : null,
+    search.trim() ? `“${search.trim()}”` : null,
+  ].filter(Boolean).join(' · ');
+
   return (
-    <div className="panel paper-list">
-      <div className="search-bar paper-search-tools">
+    <div
+      className={`panel paper-list${activeShelf ? ' shelf-view' : ''}`}
+      style={activeShelf ? { '--active-shelf-color': activeShelf.color } : undefined}
+    >
+      <div className={`paper-browser${browserOpen ? ' open' : ''}`}>
+        <button
+          type="button"
+          className="paper-browser-toggle"
+          onClick={() => setBrowserOpen((open) => !open)}
+          aria-expanded={browserOpen}
+        >
+          <span className="paper-browser-title">
+            {activeShelf && <span className="paper-browser-dot" style={{ background: activeShelf.color }} aria-hidden="true" />}
+            Browse
+          </span>
+          <span className="paper-browser-summary">{filterSummary}</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>
+        {browserOpen && <div className="search-bar paper-search-tools">
+        {shelves.length > 1 && (
+          <div className="shelf-filter" aria-label="Filter papers by shelf">
+            <div className="shelf-filter-case">
+              {shelves.map((shelf) => (
+                <button
+                  key={shelf.id}
+                  className={selectedShelf === shelf.id ? 'shelf-filter-cubby selected' : 'shelf-filter-cubby'}
+                  style={{ '--shelf-color': shelf.color }}
+                  onClick={() => setSelectedShelf(selectedShelf === shelf.id ? null : shelf.id)}
+                  aria-pressed={selectedShelf === shelf.id}
+                  title={selectedShelf === shelf.id
+                    ? `Clear ${shelf.name} shelf filter`
+                    : `${shelf.name}: ${shelf.paper_count} ${shelf.paper_count === 1 ? 'paper' : 'papers'}`}
+                >
+                  <span className="shelf-filter-spine" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="shelf-filter-copy">
+                    <span className="shelf-filter-name">{shelf.name}</span>
+                    <span className="shelf-filter-meta">
+                      {shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}
+                      <span aria-hidden="true">·</span>
+                      <span className="shelf-filter-visibility">
+                        {shelf.is_public ? (
+                          <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <circle cx="8" cy="8" r="5.5" />
+                            <path d="M2.8 8h10.4M8 2.5c1.4 1.5 2.1 3.3 2.1 5.5S9.4 12 8 13.5C6.6 12 5.9 10.2 5.9 8S6.6 4 8 2.5Z" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+                            <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />
+                          </svg>
+                        )}
+                        {shelf.is_public ? 'Public' : 'Private'}
+                      </span>
+                    </span>
+                  </span>
+                  {selectedShelf === shelf.id && (
+                    <span className="shelf-filter-x" aria-hidden="true" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {isOwn && tags.length > 0 && (
           <div className="search-tag-filters" aria-label="Filter papers by tag">
             <button className={selectedTag == null ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(null)}>All</button>
@@ -80,6 +159,7 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        </div>}
       </div>
 
       {filteredPapers.length === 0 ? (
@@ -88,18 +168,14 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
             ? isOwn
               ? 'No papers yet. Upload your first paper!'
               : 'No papers in this nook yet.'
-            : 'No papers match your search.'}
+            : selectedShelf != null || selectedTag != null
+              ? 'Nothing tucked away here matches those filters.'
+              : 'No papers match your search.'}
         </p>
       ) : (
         <ul>
-          {filteredPapers.map((paper, i) => (
+          {filteredPapers.map((paper) => (
             <React.Fragment key={paper.id}>
-            {isOwn &&
-              (i === 0 ||
-                monthOf(paper.created_at) !==
-                  monthOf(filteredPapers[i - 1].created_at)) && (
-                <li className="month-header">{monthOf(paper.created_at)}</li>
-              )}
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
             >
