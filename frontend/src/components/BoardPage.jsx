@@ -1,8 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { addBoardFile, addBoardYouTube, boardFileBlob, downloadBoardFile, deleteBoardItem, getBoard, moveBoardItem, restoreBoardItem, updateBoard, updateBoardItem } from '../api';
+import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, downloadBoardFile, deleteBoardItem, getBoard, moveBoardItem, restoreBoardItem, updateBoard, updateBoardItem } from '../api';
 import ExperimentalBadge from './ExperimentalBadge';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
+const mergeSelection = (base, hits, mode) => {
+  if (mode === 'replace') return hits;
+  const next = new Set(base);
+  hits.forEach((id) => {
+    if (mode === 'toggle' && next.has(id)) next.delete(id);
+    else next.add(id);
+  });
+  return [...next];
+};
 
 const defaultBoardView = () => ({ x: window.innerWidth / 2 - 150, y: 150, zoom: 1 });
 const savedBoardView = (boardId) => {
@@ -21,6 +31,22 @@ function AlignGlyph({ align }) {
   return <svg className="board-align-glyph" viewBox="0 0 20 16" aria-hidden="true">{starts.map((x, index) => <line key={index} x1={x} x2={x + widths[index]} y1={3 + index * 5} y2={3 + index * 5} />)}</svg>;
 }
 
+const itemTypeLabels = {
+  comment: 'Thought', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
+};
+
+function ItemTypeIcon({ kind }) {
+  return <span className={`board-item-type ${kind}`} title={itemTypeLabels[kind] || 'Board item'} aria-label={itemTypeLabels[kind] || 'Board item'}>
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      {kind === 'comment' && <path d="M4 4.5h12v8H9l-3.5 3v-3H4z" />}
+      {kind === 'image' && <><rect x="3.5" y="4" width="13" height="12" rx="1" /><circle cx="7.5" cy="8" r="1.25" /><path d="m5 14 3.5-3.5 2.25 2 1.75-1.75L15 14" /></>}
+      {kind === 'file' && <><path d="M5 2.75h6l4 4V17H5z" /><path d="M11 2.75V7h4" /></>}
+      {kind === 'youtube' && <><rect x="2.5" y="5" width="15" height="10" rx="3" /><path className="fill" d="m8.5 8 4 2-4 2z" /></>}
+      {kind === 'webpage' && <><circle cx="10" cy="10" r="7" /><path d="M3 10h14M10 3c2 2 3 4.3 3 7s-1 5-3 7M10 3C8 5 7 7.3 7 10s1 5 3 7" /></>}
+    </svg>
+  </span>;
+}
+
 export default function BoardPage({ boardId, onBack }) {
   const [board, setBoard] = useState(null);
   const [view] = useState(() => savedBoardView(boardId));
@@ -28,9 +54,9 @@ export default function BoardPage({ boardId, onBack }) {
   const [busy, setBusy] = useState(false);
   const [imageUrls, setImageUrls] = useState({});
   const [draggingFiles, setDraggingFiles] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
   const [marquee, setMarquee] = useState(null);
-  const [youtubeLoading, setYoutubeLoading] = useState([]);
+  const [urlLoading, setUrlLoading] = useState([]);
   const [editingDescription, setEditingDescription] = useState(null);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [editingText, setEditingText] = useState(null);
@@ -64,11 +90,11 @@ export default function BoardPage({ boardId, onBack }) {
     load();
   }, [boardId]);
   useEffect(() => { document.body.classList.add('board-workspace-open'); return () => document.body.classList.remove('board-workspace-open'); }, []);
-  const imageIds = board?.items.filter((item) => ['image', 'youtube'].includes(item.kind)).map((item) => item.id).join(',') || '';
+  const imageIds = board?.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).map((item) => item.id).join(',') || '';
   useEffect(() => {
     if (!board) return undefined;
     let active = true; const urls = [];
-    Promise.all(board.items.filter((item) => ['image', 'youtube'].includes(item.kind)).map(async (item) => {
+    Promise.all(board.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).map(async (item) => {
       const url = await boardFileBlob(item); urls.push(url); return [item.id, url];
     })).then((entries) => { if (active) setImageUrls(Object.fromEntries(entries)); }).catch(() => {});
     return () => { active = false; urls.forEach((url) => URL.revokeObjectURL(url)); };
@@ -150,8 +176,9 @@ export default function BoardPage({ boardId, onBack }) {
       if (!text) return;
       let parsed;
       try { parsed = new URL(text); } catch { return; }
+      if (!['http:', 'https:'].includes(parsed.protocol)) return;
       const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
-      if (host !== 'youtu.be' && host !== 'youtube.com' && host !== 'm.youtube.com') return;
+      const isYouTube = host === 'youtu.be' || host === 'youtube.com' || host === 'm.youtube.com';
       event.preventDefault();
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
@@ -159,16 +186,18 @@ export default function BoardPage({ boardId, onBack }) {
       const x = (bounds.width / 2 - current.x) / current.zoom - 150;
       const y = (bounds.height / 2 - current.y) / current.zoom - 100;
       const loadingId = `${Date.now()}-${Math.random()}`;
-      setYoutubeLoading((items) => [...items, { id: loadingId, x, y }]);
+      setUrlLoading((items) => [...items, { id: loadingId, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' }]);
       setBusy(true); setError(null);
       try {
-        const item = await addBoardYouTube(board.guid, text, x, y);
+        const item = isYouTube
+          ? await addBoardYouTube(board.guid, text, x, y)
+          : await addBoardWebpage(board.guid, text, x, y);
         undoStack.current.push({ type: 'add', id: item.id });
         redoStack.current = [];
         await load();
-        setSelectedItem(item.id);
+        setSelectedItems([item.id]);
       } catch (err) { setError(err.message); } finally {
-        setYoutubeLoading((items) => items.filter((item) => item.id !== loadingId));
+        setUrlLoading((items) => items.filter((item) => item.id !== loadingId));
         setBusy(false);
       }
     };
@@ -177,7 +206,6 @@ export default function BoardPage({ boardId, onBack }) {
   }, [board?.id]);
   const startPan = (event) => {
     if (event.button !== 0 || event.target.closest('.board-canvas-card')) return;
-    setSelectedItem(null);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (event.pointerType === 'touch') {
       touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -194,7 +222,10 @@ export default function BoardPage({ boardId, onBack }) {
     if (event.pointerType === 'mouse') {
       const bounds = event.currentTarget.getBoundingClientRect();
       const point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-      gesture.current = { type: 'select', sx: event.clientX, sy: event.clientY, point };
+      const mode = selectionMode(event);
+      const baseSelected = [...selectedItems];
+      if (mode === 'replace') setSelectedItems([]);
+      gesture.current = { type: 'select', sx: event.clientX, sy: event.clientY, point, mode, baseSelected };
       setMarquee({ x: point.x, y: point.y, width: 0, height: 0 });
       return;
     }
@@ -203,7 +234,7 @@ export default function BoardPage({ boardId, onBack }) {
   const startDrag = (event, item) => {
     if (event.button !== 0 || event.target.closest('button,a')) return;
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
-    gesture.current = { type: 'item', id: item.id, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget };
+    gesture.current = { type: 'item', id: item.id, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems] };
   };
   const startResize = (event, item) => {
     event.preventDefault(); event.stopPropagation();
@@ -231,6 +262,15 @@ export default function BoardPage({ boardId, onBack }) {
       const dx = event.clientX - g.sx; const dy = event.clientY - g.sy;
       g.current = { clientX: event.clientX, clientY: event.clientY };
       setMarquee({ x: g.point.x + Math.min(0, dx), y: g.point.y + Math.min(0, dy), width: Math.abs(dx), height: Math.abs(dy) });
+      const x1 = Math.min(g.sx, event.clientX); const y1 = Math.min(g.sy, event.clientY);
+      const x2 = Math.max(g.sx, event.clientX); const y2 = Math.max(g.sy, event.clientY);
+      const hitIds = [...viewportRef.current.querySelectorAll('.board-canvas-card')]
+        .filter((card) => {
+          const rect = card.getBoundingClientRect();
+          return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
+        })
+        .map((card) => Number(card.dataset.itemId));
+      setSelectedItems(mergeSelection(g.baseSelected, hitIds, g.mode));
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
     else if (g.type === 'item') {
       const zoom = viewRef.current.zoom;
@@ -259,7 +299,7 @@ export default function BoardPage({ boardId, onBack }) {
           setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? { ...candidate, ...point } : candidate) }));
           moveBoardItem(item.id, point.x, point.y).catch((err) => setError(err.message));
         }
-        else setSelectedItem((current) => current === item.id ? null : item.id);
+        else setSelectedItems(mergeSelection(g.baseSelected, [item.id], g.mode));
       }
     }
     if (g?.type === 'resize') {
@@ -278,11 +318,13 @@ export default function BoardPage({ boardId, onBack }) {
       const y2 = Math.max(g.sy, g.current?.clientY ?? g.sy);
       if (x2 - x1 > 3 || y2 - y1 > 3) {
         const cards = [...viewportRef.current.querySelectorAll('.board-canvas-card')];
-        const hit = cards.reverse().find((card) => {
+        const hits = cards.filter((card) => {
           const rect = card.getBoundingClientRect();
-          return rect.left < x2 && rect.right > x1 && rect.top < y2 && rect.bottom > y1;
+          return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
         });
-        setSelectedItem(hit ? Number(hit.dataset.itemId) : null);
+        setSelectedItems(mergeSelection(g.baseSelected, hits.map((card) => Number(card.dataset.itemId)), g.mode));
+      } else if (g.mode === 'replace') {
+        setSelectedItems([]);
       }
       setMarquee(null);
     }
@@ -294,7 +336,7 @@ export default function BoardPage({ boardId, onBack }) {
       await deleteBoardItem(item.id);
       undoStack.current.push({ type: 'delete', id: item.id });
       redoStack.current = [];
-      setSelectedItem(null);
+      setSelectedItems([]);
       setBoard((current) => ({
         ...current,
         item_count: Math.max(0, current.item_count - 1),
@@ -309,6 +351,22 @@ export default function BoardPage({ boardId, onBack }) {
       setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? updated : candidate) }));
       setEditingDescription(null);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  const removeSelectedItems = async () => {
+    if (!selectedItems.length) return;
+    const ids = [...selectedItems];
+    setBusy(true); setError(null);
+    try {
+      await Promise.all(ids.map(deleteBoardItem));
+      undoStack.current.push({ type: 'delete-many', ids });
+      redoStack.current = [];
+      setSelectedItems([]);
+      setBoard((current) => ({
+        ...current,
+        item_count: Math.max(0, current.item_count - ids.length),
+        items: current.items.filter((item) => !ids.includes(item.id)),
+      }));
+    } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
   const saveText = async (item) => {
     setBusy(true); setError(null);
@@ -339,12 +397,14 @@ export default function BoardPage({ boardId, onBack }) {
       } else if (action.type === 'delete') {
         if (direction === 'undo') await restoreBoardItem(action.id);
         else await deleteBoardItem(action.id);
+      } else if (action.type === 'delete-many') {
+        await Promise.all(action.ids.map((id) => direction === 'undo' ? restoreBoardItem(id) : deleteBoardItem(id)));
       } else {
         if (direction === 'undo') await deleteBoardItem(action.id);
         else await restoreBoardItem(action.id);
       }
       destination.push(action);
-      setSelectedItem(null);
+      setSelectedItems([]);
       await load();
     } catch (err) {
       source.push(action);
@@ -354,7 +414,7 @@ export default function BoardPage({ boardId, onBack }) {
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
-        setSelectedItem(null);
+        setSelectedItems([]);
         setMarquee(null);
         setEditingDescription(null);
         setEditingText(null);
@@ -368,17 +428,15 @@ export default function BoardPage({ boardId, onBack }) {
         applyHistory(event.shiftKey ? 'redo' : 'undo');
         return;
       }
-      if (!['Delete', 'Backspace'].includes(event.key) || selectedItem == null || busy) return;
+      if (!['Delete', 'Backspace'].includes(event.key) || !selectedItems.length || busy) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
-      const item = board?.items.find((candidate) => candidate.id === selectedItem);
-      if (!item) return;
       event.preventDefault();
-      removeItem(item, false);
+      removeSelectedItems();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, busy, board]);
+  }, [selectedItems, busy, board]);
   const dropFiles = async (event) => {
     event.preventDefault(); setDraggingFiles(false);
     const files = [...event.dataTransfer.files]; if (!files.length) return;
@@ -407,22 +465,23 @@ export default function BoardPage({ boardId, onBack }) {
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {youtubeLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }}><span className="board-loading-spinner" aria-hidden="true" /><span>Loading video frame…</span></div>)}
-        {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItem === item.id ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
-          {['image', 'youtube'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
+        {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
+        {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
+          <ItemTypeIcon kind={item.kind} />
+          {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {item.kind === 'file' && <div className="board-canvas-file">↧ {item.original_filename}</div>}
           {!item.source_url && item.content && (editingText === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
-            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItem(item.id); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
+            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
           {item.source_url && (editingDescription === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
-            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItem(item.id); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
-          {selectedItem === item.id && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
-            {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>Open video</button>}
+            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
+          {selectedItems.length === 1 && selectedItems[0] === item.id && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
+            {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
             {item.kind !== 'comment' && <button onClick={() => downloadBoardFile(item)}>Download</button>}
             <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove</button>
           </div>}
-          {selectedItem === item.id && <button className="board-resize-handle" aria-label="Resize item" onPointerDown={(event) => startResize(event, item)} />}
+          {selectedItems.length === 1 && selectedItems[0] === item.id && <button className="board-resize-handle" aria-label="Resize item" onPointerDown={(event) => startResize(event, item)} />}
         </article>)}
       </div>
     </main>

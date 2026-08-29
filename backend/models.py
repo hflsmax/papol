@@ -316,7 +316,7 @@ class BoardItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
-    kind = Column(String(20), nullable=False)  # comment | image | file
+    kind = Column(String(20), nullable=False)  # comment | image | file | youtube | webpage
     content = Column(Text, nullable=True)
     file_path = Column(Text, nullable=True)
     original_filename = Column(Text, nullable=True)

@@ -219,9 +219,13 @@ class BoardYouTubeCreate(BaseModel):
     y: float = Field(ge=-1000000, le=1000000)
 
 
+class BoardWebpageCreate(BoardYouTubeCreate):
+    pass
+
+
 class BoardItemOut(BaseModel):
     id: int
-    kind: Literal["comment", "image", "file", "youtube"]
+    kind: Literal["comment", "image", "file", "youtube", "webpage"]
     content: Optional[str] = None
     file_path: Optional[str] = None
     original_filename: Optional[str] = None

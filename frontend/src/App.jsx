@@ -4112,10 +4112,17 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-drop-target { position: fixed; z-index: 4; inset: 75px 20px 20px; display: grid; place-items: center; border: 2px dashed var(--accent-line); border-radius: var(--radius); background: rgba(234,239,245,.72); color: var(--accent); font: var(--fs-base) var(--font-ui); pointer-events: none; }
 .board-stage { position: absolute; left: 0; top: 0; width: 1px; height: 1px; transform-origin: 0 0; will-change: transform; }
 .board-canvas-card { position: absolute; left: 0; top: 0; width: 300px; max-height: 520px; overflow: visible; border: 0; background: transparent; cursor: default; user-select: none; contain: layout style; will-change: transform; }
-.board-canvas-card:hover { outline: 2px solid var(--accent-line); outline-offset: 4px; border-radius: var(--radius); filter: drop-shadow(0 3px 7px rgba(29,55,82,.12)); }
+.board-canvas-card:hover .board-item-type { border-color: var(--accent-line); color: var(--accent); }
 .board-canvas-card.selected { z-index: 2; outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius); }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
+.board-canvas-card.webpage img,
+.board-canvas-card.youtube img { height: auto; max-height: none; object-fit: initial; background: transparent; }
 .board-canvas-card p { padding: 12px 2px; white-space: pre-wrap; user-select: text; cursor: text; }
+.board-item-type { position: absolute; z-index: 2; top: -9px; left: -9px; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--card); color: var(--ink-soft); box-shadow: 0 1px 4px rgba(29,33,41,.16); pointer-events: none; }
+.board-item-type svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.board-item-type svg .fill { fill: currentColor; stroke: none; }
+.board-item-type.youtube { color: var(--red); }
+.board-item-type.webpage { color: var(--accent); }
 .board-canvas-file { width: calc(100% - 24px); margin: 12px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow-wrap: anywhere; text-align: left; color: var(--accent); background: var(--card); font: var(--fs-sm) var(--font-ui); }
 .board-item-menu { position: absolute; z-index: 3; left: calc(100% + 8px); top: 0; display: grid; min-width: 96px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: 0 6px 18px rgba(29,33,41,.18); cursor: default; }
 .board-item-menu button { border: 0; padding: 6px 9px; background: transparent; box-shadow: none; text-align: left; font: var(--fs-xs) var(--font-ui); white-space: nowrap; }

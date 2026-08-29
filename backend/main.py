@@ -17,11 +17,13 @@ from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import hashlib
+import ipaddress
 import json
 import re
 import uuid
 import logging
 import shutil
+import socket
 import subprocess
 import traceback
 import urllib.parse
@@ -61,7 +63,8 @@ from schemas import (
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
-    BoardItemCreate, BoardItemUpdate, BoardYouTubeCreate, BoardItemOut, BoardOut,
+    BoardItemCreate, BoardItemUpdate, BoardYouTubeCreate, BoardWebpageCreate,
+    BoardItemOut, BoardOut,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -730,6 +733,55 @@ def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
     return image, str(metadata.get("title") or url)[:10000]
 
 
+def _public_web_url(value: str) -> str:
+    """Accept a browser URL without giving the capture process LAN access."""
+    url = value.strip()
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Paste a valid http or https URL")
+    if parsed.username or parsed.password:
+        raise ValueError("URLs with embedded credentials are not supported")
+    try:
+        addresses = {
+            ipaddress.ip_address(row[4][0])
+            for row in socket.getaddrinfo(parsed.hostname, parsed.port or 443)
+        }
+    except (OSError, ValueError) as exc:
+        raise ValueError("The website address could not be resolved") from exc
+    if not addresses or any(not address.is_global for address in addresses):
+        raise ValueError("Local and private network addresses cannot be captured")
+    return url
+
+
+def _capture_webpage(url: str) -> bytes:
+    """Render the visible part of a medium desktop viewport as a PNG."""
+    safe_url = _public_web_url(url)
+    with tempfile.NamedTemporaryFile(suffix=".png") as output:
+        process = subprocess.run(
+            [
+                "chromium", "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                "--no-first-run", "--disable-extensions", "--disable-background-networking",
+                "--window-size=1280,800", "--force-device-scale-factor=1",
+                "--virtual-time-budget=5000", f"--screenshot={output.name}",
+                # Defense in depth after the DNS check above, including pages
+                # that try to redirect the browser into Papol's own network.
+                "--host-resolver-rules=MAP localhost ~NOTFOUND, MAP *.localhost ~NOTFOUND, MAP 127.* ~NOTFOUND, MAP 10.* ~NOTFOUND, MAP 192.168.* ~NOTFOUND, MAP 169.254.* ~NOTFOUND",
+                safe_url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if process.returncode != 0:
+            raise ValueError(process.stderr.strip() or "The website could not be rendered")
+        output.seek(0)
+        image = output.read(BOARD_FILE_LIMIT + 1)
+    if not image or len(image) > BOARD_FILE_LIMIT:
+        raise ValueError("The website screenshot is empty or too large")
+    return image
+
+
 @app.post("/api/boards/{board_guid}/youtube", response_model=BoardItemOut)
 async def add_youtube_to_board(
     board_guid: str,
@@ -770,6 +822,44 @@ async def add_youtube_to_board(
         source_url=data.url.strip(),
         x=data.x,
         y=data.y,
+    )
+    board.updated_at = datetime.utcnow()
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.post("/api/boards/{board_guid}/webpage", response_model=BoardItemOut)
+async def add_webpage_to_board(
+    board_guid: str,
+    data: BoardWebpageCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    try:
+        url = _public_web_url(data.url)
+        image = await asyncio.to_thread(_capture_webpage, url)
+    except Exception as exc:
+        logger.warning("Could not capture webpage %s: %s", data.url, exc)
+        raise HTTPException(status_code=502, detail=f"Could not capture the webpage: {exc}")
+    relative = Path(str(board.id)) / f"{uuid.uuid4().hex}.png"
+    destination = BOARDS_DIR / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(image)
+    hostname = urllib.parse.urlparse(url).hostname or url
+    item = BoardItem(
+        board_id=board.id,
+        kind="webpage",
+        content=hostname,
+        file_path=str(relative),
+        original_filename=f"webpage-{hostname[:80]}.png",
+        mime_type="image/png",
+        source_url=url,
+        x=data.x,
+        y=data.y,
+        width=480,
     )
     board.updated_at = datetime.utcnow()
     db.add(item)

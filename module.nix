@@ -272,7 +272,7 @@ in {
         Restart = "on-failure";
         RestartSec = 5;
       };
-      path = [ pkgs.ffmpeg pkgs.yt-dlp ];
+      path = [ pkgs.ffmpeg pkgs.yt-dlp pkgs.chromium ];
     };
 
     systemd.services.papol-health-check = lib.mkIf cfg.health.enable {
