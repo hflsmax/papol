@@ -23,7 +23,6 @@ import uuid
 import logging
 import shutil
 import subprocess
-import sys
 import traceback
 import urllib.parse
 import urllib.request
@@ -669,7 +668,7 @@ def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
             extractor_args += f";po_token=mweb.gvs+{po_token}"
         cookies = os.environ.get("PAPOL_YOUTUBE_COOKIES", "").strip()
         download_command = [
-            sys.executable, "-m", "yt_dlp",
+            "yt-dlp",
             "--no-playlist", "--no-warnings", "--quiet",
             # mweb with a GVS PO token exposes native adaptive formats. With
             # no token it still provides the public fallback used below.
