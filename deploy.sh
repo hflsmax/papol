@@ -3,11 +3,11 @@
 #
 #   ./deploy.sh dev            run development here, rebuilding as you save
 #   ./deploy.sh prod [ref]     promote a ref (default: main) to production
-#   ./deploy.sh pull           copy production's data down to development
+#   ./deploy.sh sync           publish admin dev data, then refresh from prod
 #   ./deploy.sh status         what is running where
 #
-# Code goes up with `prod`, data comes down with `pull`, and neither ever
-# runs the other way.
+# Code goes up with `prod`. `sync` sends the admins' development data up,
+# then brings the resulting production data back down for everyone.
 #
 # Production is deployed and stays up; development is a server that runs for
 # as long as you leave this command running. Production is a checkout of its
@@ -467,7 +467,7 @@ health_check() {
   die "production did not come up — the log is above, and the database backup is beside it"
 }
 
-# --- pulling production's data down ------------------------------------------
+# --- synchronizing development and production data ---------------------------
 
 dev_is_up() {
   curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
@@ -482,12 +482,13 @@ sqlite() {
   fi
 }
 
-# Development gets production's database and PDFs so that a change can be
-# tried against the real thing — the paper that renders oddly, the nook with
-# a hundred entries. It is also how a schema change is rehearsed: the copy
-# is at production's schema, and development's `migrate()` runs over it on
-# the next start, which is exactly what the next deploy will do for real.
-pull_prod() {
+# An admin is the one person whose development nook is intentional data rather
+# than a disposable copy of production. Publish each admin's profile and nook
+# first, while retaining every production reader, then copy that combined
+# database back to development. IDs deliberately have to agree: development
+# begins as a production snapshot, and silently guessing after both sides have
+# reused an ID could attach a private note to the wrong reader or paper.
+sync_data() {
   local uploads=yes
   case "${1:-}" in
     --no-uploads) uploads=no ;;
@@ -504,14 +505,117 @@ pull_prod() {
   dev_is_up && die "the development server is answering on $DEV_PORT — stop it first"
 
   if [ -e "$DEV_DIR/backend/papol.db" ]; then
-    local bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-pull"
+    local bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
     cp -p "$DEV_DIR/backend/papol.db" "$bak"
     say "Kept development's database as $(basename "$bak")"
   fi
 
-  # .backup rather than cp: production is serving readers while this runs,
-  # and the backup API takes a consistent snapshot of a live database.
-  say "Copying production's database"
+  local prod_bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
+  sqlite "$PROD_DIR/backend/papol.db" ".backup '$prod_bak'"
+  say "Kept production's database as $(basename "$prod_bak")"
+
+  # A column mismatch means development has code/schema that production does
+  # not have yet. Deploy it first; SELECT * must never shuffle unlike rows.
+  local table dev_cols prod_cols
+  for table in users papers paper_editions edition_references edition_citations \
+      shelves tags copies copy_tags comments ink_strokes; do
+    dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
+    prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
+    [ -n "$dev_cols" ] && [ "$dev_cols" = "$prod_cols" ] \
+      || die "$table differs between development and production — deploy the schema first"
+  done
+
+  say "Publishing admin development data"
+  sqlite "$PROD_DIR/backend/papol.db" <<SQL
+.bail on
+ATTACH DATABASE '$DEV_DIR/backend/papol.db' AS dev;
+PRAGMA foreign_keys = OFF;
+BEGIN IMMEDIATE;
+
+CREATE TEMP TABLE sync_admins (id INTEGER PRIMARY KEY);
+INSERT INTO sync_admins SELECT id FROM dev.users WHERE is_admin = 1 AND deleted_at IS NULL;
+CREATE TEMP TABLE sync_assert (ok INTEGER CHECK (ok = 1));
+INSERT INTO sync_assert SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM sync_admins);
+INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
+  SELECT 1 FROM sync_admins a
+  LEFT JOIN users p ON p.id = a.id
+  JOIN dev.users d ON d.id = a.id
+  WHERE p.id IS NULL OR p.email <> d.email OR p.is_admin <> 1
+);
+
+-- Refuse an integer ID reused by somebody else while the two databases were
+-- apart. User-owned foreign keys make overwriting such a row unrecoverable.
+INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
+  SELECT 1 FROM dev.shelves d JOIN shelves p ON p.id=d.id
+    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.tags d JOIN tags p ON p.id=d.id
+    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.copies d JOIN copies p ON p.id=d.id
+    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.comments d JOIN comments p ON p.id=d.id
+    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.ink_strokes d JOIN ink_strokes p ON p.id=d.id
+    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
+);
+
+-- Bring across shared paper/edition records needed by the admin's nook. A
+-- matching ID must describe the same object; new ones can then retain all of
+-- their reference-analysis rows and stable foreign keys.
+CREATE TEMP TABLE sync_papers AS
+  SELECT DISTINCT paper_id AS id FROM dev.copies WHERE user_id IN sync_admins;
+CREATE TEMP TABLE sync_editions AS
+  SELECT DISTINCT edition_id AS id FROM dev.copies
+    WHERE user_id IN sync_admins AND edition_id IS NOT NULL
+  UNION SELECT DISTINCT ignored_edition_id FROM dev.copies
+    WHERE user_id IN sync_admins AND ignored_edition_id IS NOT NULL;
+INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
+  SELECT 1 FROM sync_papers n JOIN dev.papers d ON d.id=n.id JOIN papers p ON p.id=n.id
+  WHERE lower(coalesce(p.doi,'')) <> lower(coalesce(d.doi,'')) OR p.title <> d.title
+);
+INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
+  SELECT 1 FROM sync_editions n JOIN dev.paper_editions d ON d.id=n.id
+    JOIN paper_editions p ON p.id=n.id
+  WHERE coalesce(p.sha256,'') <> coalesce(d.sha256,'')
+);
+
+INSERT INTO papers SELECT d.* FROM dev.papers d JOIN sync_papers n ON n.id=d.id
+  WHERE NOT EXISTS (SELECT 1 FROM papers p WHERE p.id=d.id);
+INSERT INTO paper_editions SELECT d.* FROM dev.paper_editions d JOIN sync_editions n ON n.id=d.id
+  WHERE NOT EXISTS (SELECT 1 FROM paper_editions p WHERE p.id=d.id);
+INSERT INTO edition_references SELECT d.* FROM dev.edition_references d JOIN sync_editions n ON n.id=d.edition_id
+  WHERE NOT EXISTS (SELECT 1 FROM edition_references p WHERE p.id=d.id);
+INSERT INTO edition_citations SELECT d.* FROM dev.edition_citations d JOIN sync_editions n ON n.id=d.edition_id
+  WHERE NOT EXISTS (SELECT 1 FROM edition_citations p WHERE p.id=d.id);
+
+DELETE FROM copy_tags WHERE copy_id IN (SELECT id FROM copies WHERE user_id IN sync_admins)
+  OR tag_id IN (SELECT id FROM tags WHERE user_id IN sync_admins);
+DELETE FROM comments WHERE user_id IN sync_admins;
+DELETE FROM ink_strokes WHERE user_id IN sync_admins;
+DELETE FROM copies WHERE user_id IN sync_admins;
+DELETE FROM tags WHERE user_id IN sync_admins;
+DELETE FROM shelves WHERE user_id IN sync_admins;
+
+INSERT OR REPLACE INTO users SELECT d.* FROM dev.users d JOIN sync_admins a ON a.id=d.id;
+INSERT INTO shelves SELECT d.* FROM dev.shelves d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO tags SELECT d.* FROM dev.tags d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO copies SELECT d.* FROM dev.copies d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO comments SELECT d.* FROM dev.comments d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO ink_strokes SELECT d.* FROM dev.ink_strokes d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO copy_tags SELECT d.* FROM dev.copy_tags d
+  JOIN dev.copies c ON c.id=d.copy_id JOIN sync_admins a ON a.id=c.user_id;
+
+COMMIT;
+DETACH DATABASE dev;
+SQL
+  note "admin profiles and nooks are now in production"
+
+  if [ "$uploads" = yes ]; then
+    say "Publishing development uploads"
+    rsync -a "$DEV_DIR/uploads/" "$PROD_DIR/uploads/"
+  fi
+
+  # .backup takes a consistent snapshot while production continues serving.
+  say "Refreshing development from production"
   rm -f "$DEV_DIR/backend/papol.db"
   sqlite "$PROD_DIR/backend/papol.db" ".backup '$DEV_DIR/backend/papol.db'"
   note "$(du -h "$DEV_DIR/backend/papol.db" | cut -f1)"
@@ -533,14 +637,14 @@ SQL
   note "SMTP credentials dropped; site_url now points at development"
 
   if [ "$uploads" = yes ]; then
-    say "Syncing uploads"
+    say "Refreshing uploads from production"
     rsync -a --delete "$PROD_DIR/uploads/" "$DEV_DIR/uploads/"
     note "$(du -sh "$DEV_DIR/uploads" | cut -f1)"
   else
     note "uploads left alone — papers whose PDF is only in production will 404"
   fi
 
-  say "Done. Start development and it will migrate the copy to this tree's schema."
+  say "Done. Admin data is in production; everyone is now current in development."
 }
 
 # --- status -----------------------------------------------------------------
@@ -569,8 +673,8 @@ status() {
 case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
   prod)   deploy_prod "${2:-main}" ;;
-  pull)   pull_prod "${2:-}" ;;
+  sync)   sync_data "${2:-}" ;;
   status) status ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, pull, status)" ;;
+  *)      die "unknown target: $1 (try dev, prod, sync, status)" ;;
 esac
