@@ -522,11 +522,25 @@ sync_data() {
   # not have yet. Deploy it first; SELECT * must never shuffle unlike rows.
   local table dev_cols prod_cols
   for table in users papers paper_editions edition_references edition_citations \
-      shelves tags copies copy_tags comments ink_strokes boards board_items; do
+      tags copies copy_tags comments ink_strokes; do
     dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
     prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
     [ -n "$dev_cols" ] && [ "$dev_cols" = "$prod_cols" ] \
       || die "$table differs between development and production — deploy the schema first"
+  done
+  local required column
+  for table in shelves boards board_items; do
+    case "$table" in
+      shelves) required="id user_id name color is_public is_default position created_at" ;;
+      boards) required="id guid user_id name description created_at updated_at" ;;
+      board_items) required="id board_id kind content file_path original_filename mime_type source_url text_align position x y width deleted_at created_at" ;;
+    esac
+    for column in $required; do
+      dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "SELECT 1 FROM pragma_table_info('$table') WHERE name='$column'")
+      prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "SELECT 1 FROM pragma_table_info('$table') WHERE name='$column'")
+      [ "$dev_cols" = 1 ] && [ "$prod_cols" = 1 ] \
+        || die "$table.$column is missing — deploy the schema first"
+    done
   done
 
   say "Publishing admin development data"
@@ -607,13 +621,24 @@ DELETE FROM tags WHERE user_id IN sync_admins;
 DELETE FROM shelves WHERE user_id IN sync_admins;
 
 INSERT OR REPLACE INTO users SELECT d.* FROM dev.users d JOIN sync_admins a ON a.id=d.id;
-INSERT INTO shelves SELECT d.* FROM dev.shelves d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO shelves (id,user_id,name,color,is_public,is_default,position,created_at)
+  SELECT d.id,d.user_id,d.name,d.color,d.is_public,d.is_default,d.position,d.created_at
+  FROM dev.shelves d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO tags SELECT d.* FROM dev.tags d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO copies SELECT d.* FROM dev.copies d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO comments SELECT d.* FROM dev.comments d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO ink_strokes SELECT d.* FROM dev.ink_strokes d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO boards SELECT d.* FROM dev.boards d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO board_items SELECT d.* FROM dev.board_items d
+INSERT INTO boards (id,guid,user_id,name,description,created_at,updated_at)
+  SELECT d.id,d.guid,d.user_id,d.name,d.description,d.created_at,d.updated_at
+  FROM dev.boards d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO board_items (
+  id,board_id,kind,content,file_path,original_filename,mime_type,source_url,
+  text_align,position,x,y,width,deleted_at,created_at
+)
+  SELECT d.id,d.board_id,d.kind,d.content,d.file_path,d.original_filename,
+    d.mime_type,d.source_url,d.text_align,d.position,d.x,d.y,d.width,
+    d.deleted_at,d.created_at
+  FROM dev.board_items d
   JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
 INSERT INTO copy_tags SELECT d.* FROM dev.copy_tags d
   JOIN dev.copies c ON c.id=d.copy_id JOIN sync_admins a ON a.id=c.user_id;
