@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { createBoard, listBoards } from '../api';
 import ExperimentalBadge from './ExperimentalBadge';
 
+const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
+  month: 'short', day: 'numeric', year: new Date(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  hour: 'numeric', minute: '2-digit',
+}).format(new Date(value));
+
 export default function BoardsSection({ onSelectBoard }) {
   const [boards, setBoards] = useState([]);
   const [name, setName] = useState('');
@@ -57,7 +62,7 @@ export default function BoardsSection({ onSelectBoard }) {
           <button className="board-list-card" key={board.guid} onClick={() => onSelectBoard(board.guid)}>
             <span className="board-list-title">{board.name}</span>
             {board.description && <span className="board-list-description">{board.description}</span>}
-            <span className="board-list-meta">{board.item_count} {board.item_count === 1 ? 'item' : 'items'}</span>
+            <span className="board-list-meta"><span>{board.item_count} {board.item_count === 1 ? 'item' : 'items'}</span><time dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time></span>
           </button>
         ))}
       </div>

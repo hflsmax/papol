@@ -34,6 +34,10 @@ function AlignGlyph({ align }) {
 const itemTypeLabels = {
   comment: 'Thought', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
 };
+const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
+  month: 'short', day: 'numeric', year: new Date(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  hour: 'numeric', minute: '2-digit',
+}).format(new Date(value));
 
 export default function BoardPage({ boardId, onBack }) {
   const [board, setBoard] = useState(null);
@@ -405,16 +409,22 @@ export default function BoardPage({ boardId, onBack }) {
       g.element.style.width = `${g.current}px`;
     } else if (g.type === 'chapter-reorder') {
       const deltaY = (event.clientY - g.sy) / viewRef.current.zoom;
-      const draggedCenter = g.dragged.y + deltaY + g.dragged.height / 2;
+      const draggedTop = g.dragged.y + deltaY;
+      // Cross a neighbor as soon as half of that neighbor is covered. This
+      // feels earlier and more intentional than waiting for both card
+      // centers to cross, especially when adjacent cards differ in height.
+      const reorderProbe = deltaY >= 0 ? draggedTop + g.dragged.height : draggedTop;
       const others = g.members.filter((member) => member.id !== g.dragged.id);
-      let insertAt = others.findIndex((member) => draggedCenter < member.y + member.height / 2);
+      let insertAt = others.findIndex((member) => reorderProbe < member.y + member.height / 2);
       if (insertAt < 0) insertAt = others.length;
       const order = [...others]; order.splice(insertAt, 0, g.dragged);
       const x = Math.min(...g.members.map((member) => member.x));
       let y = Math.min(...g.members.map((member) => member.y));
       g.current = order.map((member) => {
         const position = { id: member.id, group_id: g.groupId, x, y };
-        member.element.style.transform = `translate(${x}px, ${y}px)`;
+        member.element.style.transform = member.id === g.dragged.id
+          ? `translate(${x}px, ${g.dragged.y + deltaY}px)`
+          : `translate(${x}px, ${y}px)`;
         y += member.height + 18;
         return position;
       });
@@ -473,10 +483,16 @@ export default function BoardPage({ boardId, onBack }) {
     }
     if (g?.type === 'chapter-reorder') {
       g.dragged.element.classList.remove('chapter-reordering');
-      g.members.forEach((member) => member.element.classList.remove('chapter-reorder-peer'));
       const afterPositions = g.current || g.beforePositions;
       const changed = afterPositions.some((position, index) => position.id !== g.beforePositions[index].id);
       if (changed) {
+        const final = afterPositions.find((position) => position.id === g.dragged.id);
+        // Removing the lift state restores the shared easing curve; changing
+        // the transform on the next layout tick makes the release visibly
+        // settle into its exact spine slot.
+        void g.dragged.element.offsetWidth;
+        g.dragged.element.style.transform = `translate(${final.x}px, ${final.y}px)`;
+        setTimeout(() => g.members.forEach((member) => member.element.classList.remove('chapter-reorder-peer')), 190);
         undoStack.current.push({ type: 'layout', id: g.groupId, before: g.beforePositions, after: afterPositions });
         redoStack.current = [];
         const positions = new Map(afterPositions.map((position) => [position.id, position]));
@@ -484,6 +500,7 @@ export default function BoardPage({ boardId, onBack }) {
         layoutBoardGroup(g.groupId, afterPositions).catch((err) => { setError(err.message); load(); });
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
+        setTimeout(() => g.members.forEach((member) => member.element.classList.remove('chapter-reorder-peer')), 190);
       }
     }
     if (g?.type === 'select') {
@@ -722,6 +739,7 @@ export default function BoardPage({ boardId, onBack }) {
     <header className="board-toolbar">
       <button className="board-back" onClick={onBack}>← <span>Back</span></button>
       <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
+      <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       <span className="board-toolbar-spacer" />
       <div className="board-type-legend" aria-label="Board item types">
         {Object.entries(itemTypeLabels).map(([kind, label]) => <span key={kind} className={`board-type-legend-item ${kind}`}><i aria-hidden="true" />{label}</span>)}
