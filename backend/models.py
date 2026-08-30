@@ -245,6 +245,7 @@ class Shelf(Base):
 
     user = relationship("User", back_populates="shelves")
     copies = relationship("Copy", back_populates="shelf")
+    boards = relationship("Board", back_populates="shelf")
 
 
 class Tag(Base):
@@ -298,12 +299,14 @@ class Board(Base):
     id = Column(Integer, primary_key=True, index=True)
     guid = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    shelf_id = Column(Integer, ForeignKey("shelves.id"), nullable=True, index=True)
     name = Column(String(120), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     owner = relationship("User", back_populates="boards")
+    shelf = relationship("Shelf", back_populates="boards")
     items = relationship(
         "BoardItem", back_populates="board", cascade="all, delete-orphan",
         order_by="BoardItem.created_at",

@@ -194,11 +194,13 @@ class Comment(BaseModel):
 class BoardCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=4000)
+    shelf_id: Optional[int] = None
 
 
 class BoardUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=4000)
+    shelf_id: Optional[int] = None
 
 
 class BoardItemCreate(BaseModel):
@@ -291,6 +293,9 @@ class BoardOut(BaseModel):
     id: int
     guid: str
     user_id: int
+    owner: Optional[UserPublic] = None
+    shelf_id: Optional[int] = None
+    can_edit: bool = False
     name: str
     description: Optional[str] = None
     created_at: datetime
@@ -487,6 +492,7 @@ class ShelfOut(BaseModel):
     is_default: bool
     position: int
     paper_count: int = 0
+    board_count: int = 0
 
 
 class ShelfCreate(BaseModel):
@@ -662,6 +668,7 @@ class NookStats(BaseModel):
 class UserSpace(BaseModel):
     user: UserPublic
     papers: List[PaperList]
+    boards: List[BoardOut] = []
     stats: Optional[NookStats] = None  # own nook only
     tags: List[TagOut] = []  # private: populated only for the owner
     shelves: List[ShelfOut] = []

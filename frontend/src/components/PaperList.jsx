@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { updatePaper, paperHref } from '../api';
+import { updateBoard, updatePaper, paperHref } from '../api';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
 
-export default function PaperList({ papers, isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onChanged }) {
+export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
   const [selectedShelf, setSelectedShelf] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(
@@ -29,6 +29,16 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
       setToggleWarning({ id: paper.id, text: err.message });
     }
   };
+  const handleBoardShelfMove = async (board, shelfId) => {
+    const pickerId = `board:${board.guid}`;
+    try {
+      await updateBoard(board.guid, { shelf_id: shelfId });
+      setOpenShelfPicker(null);
+      onChanged();
+    } catch (err) {
+      setToggleWarning({ id: pickerId, text: err.message });
+    }
+  };
 
   const filteredPapers = papers.filter((paper) => {
     const searchLower = search.toLowerCase();
@@ -38,6 +48,12 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
       (paper.authors && paper.authors.toLowerCase().includes(searchLower)) ||
       (paper.journal && paper.journal.toLowerCase().includes(searchLower))
     );
+  });
+  const filteredBoards = boards.filter((board) => {
+    const searchLower = search.toLowerCase();
+    return selectedTag == null &&
+      (selectedShelf == null || board.shelf_id === selectedShelf) &&
+      (board.name.toLowerCase().includes(searchLower) || (board.description || '').toLowerCase().includes(searchLower));
   });
 
   // Your own nook reads as a journal: newest first, grouped by month.
@@ -53,6 +69,10 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
       ? new Date(b.created_at) - new Date(a.created_at)
       : rank(a) - rank(b) || new Date(b.created_at) - new Date(a.created_at)
   );
+  const entries = [
+    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: rank(paper) })),
+    ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
+  ].sort((a, b) => (isOwn ? 0 : a.rank - b.rank) || new Date(b.at) - new Date(a.at));
 
   const parseAuthors = (authorsJson) => {
     if (!authorsJson) return '';
@@ -94,7 +114,7 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
         </button>
         {browserOpen && <div className="search-bar paper-search-tools">
         {shelves.length > 1 && (
-          <div className="shelf-filter" aria-label="Filter papers by shelf">
+          <div className="shelf-filter" aria-label="Filter nook items by shelf">
             <div className="shelf-filter-case">
               {shelves.map((shelf) => (
                 <button
@@ -105,7 +125,7 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
                   aria-pressed={selectedShelf === shelf.id}
                   title={selectedShelf === shelf.id
                     ? `Clear ${shelf.name} shelf filter`
-                    : `${shelf.name}: ${shelf.paper_count} ${shelf.paper_count === 1 ? 'paper' : 'papers'}`}
+                    : `${shelf.name}: ${shelf.paper_count + (shelf.board_count || 0)} items`}
                 >
                   <span className="shelf-filter-spine" aria-hidden="true">
                     <span />
@@ -115,7 +135,7 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
                   <span className="shelf-filter-copy">
                     <span className="shelf-filter-name">{shelf.name}</span>
                     <span className="shelf-filter-meta">
-                      {shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}
+                      {shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}, {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}
                       <span aria-hidden="true">·</span>
                       <span className="shelf-filter-visibility">
                         {shelf.is_public ? (
@@ -154,7 +174,7 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
         <input
           type="text"
           placeholder={
-            isOwn ? 'Search papers in your nook…' : 'Search papers in this nook…'
+            isOwn ? 'Search papers and boards in your nook…' : 'Search papers and boards in this nook…'
           }
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -162,20 +182,35 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
         </div>}
       </div>
 
-      {filteredPapers.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="no-papers">
-          {papers.length === 0
+          {papers.length === 0 && boards.length === 0
             ? isOwn
-              ? 'No papers yet. Upload your first paper!'
-              : 'No papers in this nook yet.'
+              ? 'No papers or boards yet.'
+              : 'Nothing in this nook yet.'
             : selectedShelf != null || selectedTag != null
               ? 'Nothing tucked away here matches those filters.'
-              : 'No papers match your search.'}
+              : 'Nothing matches your search.'}
         </p>
       ) : (
         <ul>
-          {filteredPapers.map((paper) => (
-            <React.Fragment key={paper.id}>
+          {entries.map((entry) => {
+            if (entry.kind === 'board') {
+              const board = entry.value;
+              const pickerId = `board:${board.guid}`;
+              return <li key={pickerId} className="nook-board-row">
+                {isOwn && <span className="hint-anchor bar-anchor shelf-bar" onMouseEnter={() => setOpenShelfPicker(pickerId)} onMouseLeave={() => setOpenShelfPicker((current) => current === pickerId ? null : current)}>
+                  <button className="shelf-current" style={{ '--shelf-color': shelves.find((shelf) => shelf.id === board.shelf_id)?.color || 'var(--line-strong)' }} onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === pickerId ? null : pickerId); }} title="Move to another shelf" aria-label="Choose shelf" aria-expanded={openShelfPicker === pickerId} />
+                  {openShelfPicker === pickerId && <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
+                    {shelves.map((shelf) => <button key={shelf.id} className={board.shelf_id === shelf.id ? 'active' : ''} onClick={() => board.shelf_id === shelf.id ? setOpenShelfPicker(null) : handleBoardShelfMove(board, shelf.id)} title={`${shelf.name} — ${shelf.is_public ? 'Public' : 'Private'}`} aria-label={`Move to ${shelf.name}`} aria-pressed={board.shelf_id === shelf.id}><span style={{ background: shelf.color }} />{shelf.name}</button>)}
+                  </span>}
+                  {toggleWarning?.id === pickerId && <HintPop text={toggleWarning.text} onClose={() => setToggleWarning(null)} />}
+                </span>}
+                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/boards/${board.guid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.guid); }}>{board.name}</a></h4></div></div>
+              </li>;
+            }
+            const paper = entry.value;
+            return <React.Fragment key={`paper-${paper.id}`}>
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
             >
@@ -284,8 +319,8 @@ export default function PaperList({ papers, isOwn, tags = [], shelves = [], sele
                   </div>
                 )}
             </li>
-            </React.Fragment>
-          ))}
+            </React.Fragment>;
+          })}
         </ul>
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listPapers, paperHref } from '../api';
+import { listLibraryBoards, listPapers, paperHref } from '../api';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
@@ -63,8 +63,9 @@ const SORTS = {
   },
 };
 
-export default function PapersPage({ currentUser, onSelectPaper }) {
+export default function PapersPage({ currentUser, onSelectPaper, onSelectBoard }) {
   const [papers, setPapers] = useState(null);
+  const [boards, setBoards] = useState(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('activity');
   const [selectedUser, setSelectedUser] = useState(null);
@@ -72,15 +73,15 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
   const [reviewingUpload, setReviewingUpload] = useState(false);
 
   const load = () => {
-    listPapers()
-      .then(setPapers)
+    Promise.all([listPapers(), listLibraryBoards()])
+      .then(([nextPapers, nextBoards]) => { setPapers(nextPapers); setBoards(nextBoards); })
       .catch((err) => setError(err.message));
   };
 
   useEffect(load, []);
 
   if (error) return <div className="error">{error}</div>;
-  if (papers === null) return <div className="loading">Loading the library…</div>;
+  if (papers === null || boards === null) return <div className="loading">Loading the library…</div>;
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
@@ -94,11 +95,19 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
 
   const readers = Array.from(
     new Map(
-      papers.flatMap((paper) => paper.readers || []).map((entry) => [entry.user.id, entry.user])
+      [
+        ...papers.flatMap((paper) => paper.readers || []).map((entry) => entry.user),
+        ...boards.map((board) => board.owner).filter(Boolean),
+      ].map((reader) => [reader.id, reader])
     ).values()
   ).sort((a, b) => a.display_name.localeCompare(b.display_name));
 
   const shown = [...papers.filter(matches)].sort(SORTS[sortBy].cmp);
+  const shownBoards = boards.filter((board) =>
+    (selectedUser == null || board.user_id === selectedUser) &&
+    (board.name.toLowerCase().includes(searchLower) ||
+      (board.owner?.display_name || '').toLowerCase().includes(searchLower))
+  ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
   return (
     <div className={reviewingUpload ? 'library-page upload-review-mode' : 'library-page'}>
@@ -125,7 +134,7 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
           <div className="library-search-line">
             <input
               type="text"
-              placeholder="Search papers and readers in the library…"
+              placeholder="Search papers, boards, and readers in the library…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -140,12 +149,20 @@ export default function PapersPage({ currentUser, onSelectPaper }) {
           </div>
         </div>
 
-        {shown.length === 0 ? (
+        {shown.length === 0 && shownBoards.length === 0 ? (
           <p className="no-papers">
-            {papers.length === 0 ? 'No papers yet.' : 'No papers match your search.'}
+            {papers.length === 0 && boards.length === 0 ? 'The library is empty.' : 'Nothing matches your search.'}
           </p>
         ) : (
           <ul className="grouped-papers">
+            {shownBoards.map((board) => (
+              <li key={`board-${board.guid}`} className="paper-group nook-board-row library-board-row">
+                <div className="paper-group-head">
+                  <div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/boards/${board.guid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.guid); }}>{board.name}</a></h4></div>
+                </div>
+                {board.owner && <a className="avatar-chip has-pop" href={appPath(`/u/${board.owner.id}`)}><Avatar user={board.owner} className="nook-chip-avatar" /><span className="chip-pop"><span className="chip-pop-name">{board.owner.display_name}</span>{board.owner.affiliation && <span className="chip-pop-aff">{board.owner.affiliation}</span>}</span></a>}
+              </li>
+            ))}
             {shown.map((paper) => (
               <li key={paper.id} className="paper-group">
                 <div className="paper-group-head">

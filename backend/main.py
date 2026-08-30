@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
     backfill_shelves, backfill_favourite_tags,
-    backfill_board_guids,
+    backfill_board_guids, backfill_board_shelves,
     SessionLocal,
 )
 from models import (
@@ -120,6 +120,7 @@ for _stale in normalize_papers():
         _stale_path.unlink()
 backfill_copy_edition_hashes()
 backfill_shelves()
+backfill_board_shelves()
 backfill_favourite_tags()
 
 # Instrument after the startup migrations so the metrics reflect request
@@ -457,12 +458,15 @@ def _owned_board(board_guid: str, user: User, db: Session) -> Board:
     return board
 
 
-def _board_out(board: Board, include_items: bool = False) -> BoardOut:
+def _board_out(board: Board, include_items: bool = False, can_edit: bool = False) -> BoardOut:
     active_items = [item for item in board.items if item.deleted_at is None]
     return BoardOut(
         id=board.id,
         guid=board.guid,
         user_id=board.user_id,
+        owner=board.owner,
+        shelf_id=board.shelf_id,
+        can_edit=can_edit,
         name=board.name,
         description=board.description,
         created_at=board.created_at,
@@ -483,7 +487,21 @@ async def list_boards(
     boards = db.query(Board).filter(Board.user_id == user.id).order_by(
         Board.updated_at.desc(), Board.id.desc()
     ).all()
-    return [_board_out(board) for board in boards]
+    return [_board_out(board, can_edit=True) for board in boards]
+
+
+@app.get("/api/library/boards", response_model=list[BoardOut])
+async def list_library_boards(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Boards whose shelves are public, for the shared Library."""
+    boards = db.query(Board).join(Shelf, Board.shelf_id == Shelf.id).filter(
+        Shelf.is_public.is_(True)
+    ).order_by(Board.updated_at.desc(), Board.id.desc()).all()
+    return [
+        _board_out(board, can_edit=board.user_id == current_user.id)
+        for board in boards
+    ]
 
 
 @app.post("/api/boards", response_model=BoardOut)
@@ -492,15 +510,19 @@ async def create_board(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    shelf = db.query(Shelf).filter(Shelf.id == data.shelf_id, Shelf.user_id == user.id).first() if data.shelf_id else _default_shelf(user)
+    if not shelf:
+        raise HTTPException(status_code=400, detail="Choose one of your shelves")
     board = Board(
         user_id=user.id,
+        shelf_id=shelf.id,
         name=data.name.strip(),
         description=data.description.strip() if data.description else None,
     )
     db.add(board)
     db.commit()
     db.refresh(board)
-    return _board_out(board)
+    return _board_out(board, can_edit=True)
 
 
 @app.get("/api/boards/{board_guid}", response_model=BoardOut)
@@ -509,7 +531,13 @@ async def get_board(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _board_out(_owned_board(board_guid, user, db), include_items=True)
+    board = db.query(Board).filter(Board.guid == board_guid).first()
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+    can_edit = board.user_id == user.id
+    if not can_edit and (not board.shelf or not board.shelf.is_public):
+        raise HTTPException(status_code=404, detail="Board not found")
+    return _board_out(board, include_items=True, can_edit=can_edit)
 
 
 @app.put("/api/boards/{board_guid}", response_model=BoardOut)
@@ -524,10 +552,15 @@ async def update_board(
         board.name = data.name.strip()
     if data.description is not None:
         board.description = data.description.strip() or None
+    if data.shelf_id is not None:
+        shelf = db.query(Shelf).filter(Shelf.id == data.shelf_id, Shelf.user_id == user.id).first()
+        if not shelf:
+            raise HTTPException(status_code=400, detail="Choose one of your shelves")
+        board.shelf_id = shelf.id
     board.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(board)
-    return _board_out(board, include_items=True)
+    return _board_out(board, include_items=True, can_edit=True)
 
 
 @app.delete("/api/boards/{board_guid}", status_code=204)
@@ -1070,7 +1103,10 @@ async def get_board_item_file(
     db: Session = Depends(get_db),
 ):
     item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
-    if not item or item.board.user_id != user.id or not item.file_path:
+    if not item or not item.file_path:
+        raise HTTPException(status_code=404, detail="Board file not found")
+    can_view = item.board.user_id == user.id or bool(item.board.shelf and item.board.shelf.is_public)
+    if not can_view:
         raise HTTPException(status_code=404, detail="Board file not found")
     stored = BOARDS_DIR / item.file_path
     if not stored.is_file():
@@ -1121,7 +1157,7 @@ def _shelf_out(shelf: Shelf) -> ShelfOut:
     return ShelfOut(
         id=shelf.id, name=shelf.name, color=shelf.color,
         is_public=bool(shelf.is_public), is_default=bool(shelf.is_default),
-        position=shelf.position, paper_count=len(shelf.copies),
+        position=shelf.position, paper_count=len(shelf.copies), board_count=len(shelf.boards),
     )
 
 
@@ -1274,6 +1310,10 @@ async def get_user_space(
     if hide_private:
         query = query.filter(Copy.marketed.is_(True))
     copies = query.order_by(Copy.created_at.desc()).all()
+    board_query = db.query(Board).filter(Board.user_id == user_id)
+    if hide_private:
+        board_query = board_query.join(Shelf).filter(Shelf.is_public.is_(True))
+    boards = board_query.order_by(Board.updated_at.desc(), Board.id.desc()).all()
     room_map = _room_status_map(db)
     stats = None
     if not hide_private:
@@ -1290,6 +1330,7 @@ async def get_user_space(
         papers=[
             _paper_list_entry(r.paper, r, hide_private, room_map) for r in copies
         ],
+        boards=[_board_out(board, can_edit=not hide_private) for board in boards],
         stats=stats,
         tags=(
             [TagOut.model_validate(t) for t in sorted(user.tags, key=lambda t: t.name.lower())]
@@ -1939,6 +1980,8 @@ async def delete_shelf(
     for copy in list(shelf.copies):
         copy.shelf = destination
         copy.marketed = bool(destination.is_public)
+    for board in list(shelf.boards):
+        board.shelf = destination
     if shelf.is_default:
         destination.is_default = True
     db.delete(shelf)

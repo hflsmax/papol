@@ -34,10 +34,11 @@ function AlignGlyph({ align }) {
 const itemTypeLabels = {
   comment: 'Thought', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
 };
+const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric', year: new Date(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
   hour: 'numeric', minute: '2-digit',
-}).format(new Date(value));
+}).format(browserDate(value));
 
 export default function BoardPage({ boardId, onBack }) {
   const [board, setBoard] = useState(null);
@@ -50,6 +51,7 @@ export default function BoardPage({ boardId, onBack }) {
   const [menuItem, setMenuItem] = useState(null);
   const [marquee, setMarquee] = useState(null);
   const [urlLoading, setUrlLoading] = useState([]);
+  const urlLoadingRef = useRef([]);
   const [chapterLayouts, setChapterLayouts] = useState([]);
   const [editingChapter, setEditingChapter] = useState(null);
   const [chapterTitleDraft, setChapterTitleDraft] = useState('');
@@ -102,6 +104,7 @@ export default function BoardPage({ boardId, onBack }) {
     if (!board?.groups?.length || !stageRef.current) { setChapterLayouts([]); return undefined; }
     let reflowTimer = null;
     const compact = () => {
+      if (!board.can_edit) return;
       if (['item', 'resize', 'chapter-reorder'].includes(gesture.current?.type)) return;
       const layouts = board.groups.map((group) => {
         const members = group.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean).sort((a, b) => a.y - b.y);
@@ -224,7 +227,7 @@ export default function BoardPage({ boardId, onBack }) {
     return () => viewport.removeEventListener('wheel', handleWheel);
   }, [Boolean(board), boardId]);
   useEffect(() => {
-    if (!board) return undefined;
+    if (!board?.can_edit) return undefined;
     const handlePaste = async (event) => {
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
@@ -267,18 +270,29 @@ export default function BoardPage({ boardId, onBack }) {
       const x = (bounds.width / 2 - current.x) / current.zoom - 150;
       const y = (bounds.height / 2 - current.y) / current.zoom - 100;
       const loadingId = `${Date.now()}-${Math.random()}`;
-      setUrlLoading((items) => [...items, { id: loadingId, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' }]);
+      const loadingItem = { id: loadingId, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' };
+      urlLoadingRef.current = [...urlLoadingRef.current, loadingItem];
+      setUrlLoading(urlLoadingRef.current);
       setBusy(true); setError(null);
       try {
         const item = isYouTube
           ? await addBoardYouTube(board.guid, text, x, y)
           : await addBoardWebpage(board.guid, text, x, y);
+        const finalPosition = urlLoadingRef.current.find((candidate) => candidate.id === loadingId);
+        if (finalPosition && (finalPosition.x !== x || finalPosition.y !== y)) {
+          try {
+            await moveBoardItem(item.id, finalPosition.x, finalPosition.y);
+          } catch (moveError) {
+            setError(moveError.message);
+          }
+        }
         undoStack.current.push({ type: 'add', id: item.id });
         redoStack.current = [];
         await load();
         setSelectedItems([item.id]);
       } catch (err) { setError(err.message); } finally {
-        setUrlLoading((items) => items.filter((item) => item.id !== loadingId));
+        urlLoadingRef.current = urlLoadingRef.current.filter((item) => item.id !== loadingId);
+        setUrlLoading(urlLoadingRef.current);
         setBusy(false);
       }
     };
@@ -286,7 +300,7 @@ export default function BoardPage({ boardId, onBack }) {
     return () => window.removeEventListener('paste', handlePaste);
   }, [board?.id]);
   const startPan = (event) => {
-    if (event.button !== 0 || event.target.closest('.board-canvas-card')) return;
+    if (event.button !== 0 || event.target.closest('.board-canvas-card, .board-youtube-loading')) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     if (event.pointerType === 'touch') {
       touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -316,6 +330,10 @@ export default function BoardPage({ boardId, onBack }) {
   const startDrag = (event, item) => {
     if (event.button !== 0 || event.target.closest('button,a')) return;
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
+    if (!board.can_edit) {
+      setSelectedItems([item.id]); setMenuItem(item.id);
+      return;
+    }
     const group = item.group_id ? board.groups?.find((candidate) => candidate.id === item.group_id) : null;
     const members = group?.item_ids.map((id) => {
       const member = board.items.find((candidate) => candidate.id === id);
@@ -325,6 +343,11 @@ export default function BoardPage({ boardId, onBack }) {
     const chapter = group ? chapterLayouts.find((candidate) => candidate.id === group.id) : null;
     const chapterElement = group ? stageRef.current?.querySelector(`[data-group-id="${group.id}"]`) : null;
     gesture.current = { type: 'item', id: item.id, groupId: group?.id, members, chapter, chapterElement, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems] };
+  };
+  const startLoadingDrag = (event, item) => {
+    if (event.button !== 0) return;
+    event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
+    gesture.current = { type: 'loading-item', id: item.id, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget };
   };
   const startResize = (event, item) => {
     event.preventDefault(); event.stopPropagation();
@@ -396,7 +419,7 @@ export default function BoardPage({ boardId, onBack }) {
         .map((card) => Number(card.dataset.itemId));
       setSelectedItems(mergeSelection(g.baseSelected, hitIds, g.mode));
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
-    else if (g.type === 'item') {
+    else if (g.type === 'item' || g.type === 'loading-item') {
       const zoom = viewRef.current.zoom;
       g.current = { x: g.x + (event.clientX - g.sx) / zoom, y: g.y + (event.clientY - g.sy) / zoom };
       if (g.groupId) {
@@ -404,6 +427,9 @@ export default function BoardPage({ boardId, onBack }) {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
         if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
       } else g.element.style.transform = `translate(${g.current.x}px, ${g.current.y}px)`;
+      if (g.type === 'loading-item') {
+        urlLoadingRef.current = urlLoadingRef.current.map((item) => item.id === g.id ? { ...item, ...g.current } : item);
+      }
     } else if (g.type === 'resize') {
       g.current = clamp(g.width + (event.clientX - g.sx) / viewRef.current.zoom, 120, 1200);
       g.element.style.width = `${g.current}px`;
@@ -462,6 +488,11 @@ export default function BoardPage({ boardId, onBack }) {
           setMenuItem(item.id);
         }
       }
+    }
+    if (g?.type === 'loading-item') {
+      const point = g.current || { x: g.x, y: g.y };
+      urlLoadingRef.current = urlLoadingRef.current.map((item) => item.id === g.id ? { ...item, ...point } : item);
+      setUrlLoading(urlLoadingRef.current);
     }
     if (g?.type === 'resize') {
       const width = g.current ?? g.width;
@@ -699,7 +730,7 @@ export default function BoardPage({ boardId, onBack }) {
         const target = event.target;
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
         event.preventDefault();
-        applyHistory(event.shiftKey ? 'redo' : 'undo');
+        if (board.can_edit) applyHistory(event.shiftKey ? 'redo' : 'undo');
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
@@ -710,7 +741,7 @@ export default function BoardPage({ boardId, onBack }) {
         setSelectedItems(board.items.map((item) => item.id));
         return;
       }
-      if (!['Delete', 'Backspace'].includes(event.key) || !selectedItems.length || busy) return;
+      if (!board.can_edit || !['Delete', 'Backspace'].includes(event.key) || !selectedItems.length || busy) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
       event.preventDefault();
@@ -721,6 +752,7 @@ export default function BoardPage({ boardId, onBack }) {
   }, [selectedItems, busy, board]);
   const dropFiles = async (event) => {
     event.preventDefault(); setDraggingFiles(false);
+    if (!board.can_edit) return;
     const files = [...event.dataTransfer.files]; if (!files.length) return;
     const currentView = viewRef.current;
     const origin = { x: (event.clientX - currentView.x) / currentView.zoom, y: (event.clientY - 55 - currentView.y) / currentView.zoom };
@@ -738,8 +770,9 @@ export default function BoardPage({ boardId, onBack }) {
   return <div className="infinite-board">
     <header className="board-toolbar">
       <button className="board-back" onClick={onBack}>← <span>Back</span></button>
-      <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
+      <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
+      {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
       <div className="board-type-legend" aria-label="Board item types">
         {Object.entries(itemTypeLabels).map(([kind, label]) => <span key={kind} className={`board-type-legend-item ${kind}`}><i aria-hidden="true" />{label}</span>)}
@@ -747,7 +780,7 @@ export default function BoardPage({ boardId, onBack }) {
       <ExperimentalBadge />
     </header>
     {error && <div className="board-canvas-error">{error}</div>}
-    {selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button><button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button></div>}
+    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button><button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={endGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
@@ -756,31 +789,31 @@ export default function BoardPage({ boardId, onBack }) {
           <div className="board-chapter-heading" style={{ width: chapter.width }}>
             {editingChapter === chapter.id
               ? <input className="board-chapter-title" aria-label="Chapter title" placeholder="Chapter title" autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
-              : <button type="button" className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || 'Chapter title'}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || (board.can_edit ? 'Chapter title' : '')}</button>}
           </div>
           <div className="board-chapter-header" style={{ width: chapter.width }}>
             {editingChapterHeader === chapter.id
               ? <textarea className="board-chapter-header-text" aria-label="Chapter header text" placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
-              : <button type="button" className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || 'Add header text…'}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || (board.can_edit ? 'Add header text…' : '')}</button>}
           </div>
-          {chapter.branches.map((branch) => <span key={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}><button type="button" className="board-chapter-reorder-handle" aria-label="Reorder chapter item" title="Drag to reorder" onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button></span>)}
+          {chapter.branches.map((branch) => <span key={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}>{board.can_edit && <button type="button" className="board-chapter-reorder-handle" aria-label="Reorder chapter item" title="Drag to reorder" onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button>}</span>)}
         </div>)}
-        {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
+        {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
         {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
           {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {item.kind === 'file' && <div className="board-canvas-file">↧ {item.original_filename}</div>}
-          {!item.source_url && item.kind !== 'image' && item.content && (editingText === item.id
+          {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
-            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
-          {(item.source_url || item.kind === 'image') && (editingDescription === item.id
+            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
+          {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
-            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
-          {selectedItems.length === 1 && selectedItems[0] === item.id && menuItem === item.id && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
+            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
+          {selectedItems.length === 1 && selectedItems[0] === item.id && menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
             {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
             {item.kind !== 'comment' && <button onClick={() => downloadBoardFile(item)}>Download</button>}
-            <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove</button>
+            {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove</button>}
           </div>}
-          {selectedItems.length === 1 && selectedItems[0] === item.id && <button className="board-resize-handle" aria-label="Resize item" onPointerDown={(event) => startResize(event, item)} />}
+          {board.can_edit && selectedItems.length === 1 && selectedItems[0] === item.id && <button className="board-resize-handle" aria-label="Resize item" onPointerDown={(event) => startResize(event, item)} />}
         </article>)}
       </div>
     </main>

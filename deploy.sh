@@ -549,7 +549,7 @@ sync_data() {
   for table in shelves boards board_groups board_items; do
     case "$table" in
       shelves) required="id user_id name color is_public is_default position created_at" ;;
-      boards) required="id guid user_id name description created_at updated_at" ;;
+      boards) required="id guid user_id shelf_id name description created_at updated_at" ;;
       board_groups) required="id board_id kind title header created_at" ;;
       board_items) required="id board_id group_id kind content file_path original_filename mime_type source_url text_align position x y width deleted_at created_at" ;;
     esac
@@ -650,8 +650,8 @@ INSERT INTO tags SELECT d.* FROM dev.tags d JOIN sync_admins a ON a.id=d.user_id
 INSERT INTO copies SELECT d.* FROM dev.copies d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO comments SELECT d.* FROM dev.comments d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO ink_strokes SELECT d.* FROM dev.ink_strokes d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO boards (id,guid,user_id,name,description,created_at,updated_at)
-  SELECT d.id,d.guid,d.user_id,d.name,d.description,d.created_at,d.updated_at
+INSERT INTO boards (id,guid,user_id,shelf_id,name,description,created_at,updated_at)
+  SELECT d.id,d.guid,d.user_id,d.shelf_id,d.name,d.description,d.created_at,d.updated_at
   FROM dev.boards d JOIN sync_admins a ON a.id=d.user_id;
 INSERT INTO board_groups (id,board_id,kind,title,header,created_at)
   SELECT d.id,d.board_id,d.kind,d.title,d.header,d.created_at

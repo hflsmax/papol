@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserSpace, createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../api';
+import { getUserSpace, createBoard, createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../api';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
-import BoardsSection from './BoardsSection';
-import ExperimentalBadge from './ExperimentalBadge';
 
 export default function Space({ userId, currentUser, onSelectPaper, onSelectBoard, onBack, initialSection = null }) {
   const [space, setSpace] = useState(null);
@@ -14,6 +12,9 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
   const [reviewingUpload, setReviewingUpload] = useState(false);
   const [managingShelves, setManagingShelves] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [creatingBoard, setCreatingBoard] = useState(false);
+  const [boardName, setBoardName] = useState('');
+  const [boardShelfId, setBoardShelfId] = useState('');
   const [nookManagerError, setNookManagerError] = useState(null);
   const [section, setSection] = useState(() => {
     if (initialSection) return initialSection;
@@ -119,6 +120,10 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
           </div>
           {isOwn && (
             <div className="space-header-actions">
+              <button className="new-board-btn" type="button" onClick={() => { setBoardShelfId(space.shelves.find((shelf) => shelf.is_default)?.id || space.shelves[0]?.id || ''); setCreatingBoard(true); }}>
+                <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
+                <span>New board</span>
+              </button>
               <PaperUpload
                 compact
                 onPaperCreated={loadSpace}
@@ -128,6 +133,12 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
           )}
         </div>
       </div>
+
+      {isOwn && creatingBoard && <form className="panel board-create nook-inline-board-create" onSubmit={async (event) => { event.preventDefault(); if (!boardName.trim()) return; const board = await createBoard({ name: boardName.trim(), shelf_id: Number(boardShelfId) }); setCreatingBoard(false); setBoardName(''); onSelectBoard(board.guid); }}>
+        <div className="form-group"><label htmlFor="inline-board-name">Board name</label><input id="inline-board-name" value={boardName} onChange={(event) => setBoardName(event.target.value)} autoFocus required maxLength="120" /></div>
+        <div className="form-group"><label htmlFor="inline-board-shelf">Shelf</label><select id="inline-board-shelf" value={boardShelfId} onChange={(event) => setBoardShelfId(event.target.value)} required>{space.shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}</select></div>
+        <div className="form-actions"><button className="primary" type="submit">Create board</button><button type="button" onClick={() => setCreatingBoard(false)}>Cancel</button></div>
+      </form>}
 
       {isOwn && managingShelves && (
         <div className="modal-overlay shelf-manager-overlay" onMouseDown={() => setManagingShelves(false)}>
@@ -162,7 +173,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
                       onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.id === shelf.id ? { ...item, name: e.target.value } : item) }))}
                       onBlur={async (e) => { if (e.target.value.trim()) { await updateShelf(shelf.id, { name: e.target.value.trim() }); loadSpace(); } }}
                     />
-                    <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}</span>
+                    <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
                   </div>
                   <button
                     className={`market-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
@@ -261,26 +272,18 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
         </div>
       )}
 
-      {isOwn && (
-        <div className="nook-tabs" role="tablist" aria-label="Nook sections">
-          <button className={section === 'papers' ? 'active' : ''} role="tab" aria-selected={section === 'papers'} onClick={() => selectSection('papers')}>Papers</button>
-          <button className={section === 'boards' ? 'active' : ''} role="tab" aria-selected={section === 'boards'} onClick={() => selectSection('boards')}>Boards <ExperimentalBadge compact /></button>
-        </div>
-      )}
-      {section === 'papers' || !isOwn ? (
-        <PaperList
+      <PaperList
           papers={space.papers}
+          boards={space.boards || []}
           isOwn={isOwn}
           tags={isOwn ? space.tags : []}
           shelves={space.shelves || []}
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
           onSelectPaper={onSelectPaper}
+          onSelectBoard={onSelectBoard}
           onChanged={loadSpace}
         />
-      ) : (
-        <BoardsSection onSelectBoard={onSelectBoard} />
-      )}
     </div>
   );
 }

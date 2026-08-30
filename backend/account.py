@@ -230,6 +230,7 @@ def gather(db: Session, user: User) -> dict:
         "boards": [
             {
                 "guid": board.guid,
+                "shelf_id": board.shelf_id,
                 "name": board.name,
                 "description": board.description,
                 "created": _when(board.created_at),
@@ -534,9 +535,6 @@ def tombstone(
     removed["tags"] = (
         db.query(Tag).filter(Tag.user_id == user_id).delete(synchronize_session=False)
     )
-    removed["shelves"] = (
-        db.query(Shelf).filter(Shelf.user_id == user_id).delete(synchronize_session=False)
-    )
     board_ids = [row[0] for row in db.query(Board.id).filter(Board.user_id == user_id).all()]
     if board_ids:
         removed["board_items"] = db.query(BoardItem).filter(
@@ -551,6 +549,9 @@ def tombstone(
     removed["boards"] = db.query(Board).filter(
         Board.user_id == user_id
     ).delete(synchronize_session=False)
+    removed["shelves"] = (
+        db.query(Shelf).filter(Shelf.user_id == user_id).delete(synchronize_session=False)
+    )
     removed["notifications"] = (
         db.query(Notification)
         .filter(Notification.user_id == user_id)

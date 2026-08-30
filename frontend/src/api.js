@@ -195,6 +195,10 @@ export function listBoards() {
   return request('/boards');
 }
 
+export function listLibraryBoards() {
+  return request('/library/boards');
+}
+
 export function createBoard(data) {
   return jsonRequest('/boards', 'POST', data);
 }

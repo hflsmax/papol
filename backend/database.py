@@ -73,6 +73,19 @@ def backfill_board_guids():
         ))
 
 
+def backfill_board_shelves():
+    """Place legacy boards on their owner's default shelf."""
+    with engine.begin() as conn:
+        if not _table_exists(conn, "boards") or not _table_exists(conn, "shelves"):
+            return
+        conn.execute(text(
+            "UPDATE boards SET shelf_id=(SELECT id FROM shelves "
+            "WHERE shelves.user_id=boards.user_id "
+            "ORDER BY is_default DESC, position, id LIMIT 1) "
+            "WHERE shelf_id IS NULL"
+        ))
+
+
 def backfill_copy_edition_hashes():
     """Give every edition and pinned nook copy a durable PDF identity."""
     with engine.begin() as conn:
