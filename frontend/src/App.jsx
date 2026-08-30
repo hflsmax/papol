@@ -4225,11 +4225,33 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 @keyframes board-spin { to { transform: rotate(360deg); } }
 .board-canvas-error { position: fixed; z-index: 120; top: 68px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
 
-@media (max-width: 560px) {
-  .board-toolbar { overflow-x: auto; }
+@media (max-width: 700px) {
+  .board-toolbar { gap: 6px; min-height: 55px; padding: 7px 10px; overflow: visible; }
+  .board-toolbar .board-back { display: grid; flex: none; width: 40px; height: 40px; padding: 0; place-items: center; font-size: var(--fs-lg); }
   .board-toolbar .board-back span { display: none; }
-  .board-toolbar-title { max-width: 150px; }
+  .board-toolbar-title { flex: 1; width: 0; min-width: 0; max-width: none; padding-inline: 5px; overflow: hidden; text-overflow: ellipsis; }
+  .board-toolbar-edited,
+  .board-toolbar > .experimental-badge { display: none; }
   .board-type-legend { display: none; }
+  .board-toolbar-spacer { display: none; }
+  .board-actions-menu summary { width: 40px; height: 40px; }
+  .board-actions-popover { top: calc(100% + 3px); min-width: 170px; }
+  .board-toolbar .board-actions-popover button { min-height: 42px; }
+  .board-selection-menu { top: 63px; width: max-content; max-width: calc(100vw - 20px); justify-content: center; flex-wrap: wrap; gap: 6px; padding: 6px 7px 6px 10px; border-radius: 12px; }
+  .board-selection-menu button { min-height: 36px; padding: 7px 11px; }
+  .board-new-hint { top: 63px; width: calc(100vw - 20px); font-size: var(--fs-xs); }
+  .board-new-hint button { width: 32px; height: 32px; }
+  .board-item-menu { left: 0; top: calc(100% + 8px); min-width: 112px; width: 112px; scale: var(--board-ui-scale); transform-origin: top left; }
+  .board-item-menu button { min-height: 40px; padding: 8px 12px; }
+  .board-resize-handle { right: -14px; bottom: -14px; width: 28px; height: 28px; scale: var(--board-ui-scale); }
+  .board-chapter-spine { left: calc(-16px * var(--board-ui-scale)); width: calc(32px * var(--board-ui-scale)); }
+  .board-chapter-reorder-handle { left: -16px; top: -12px; width: 28px; height: 28px; scale: var(--board-ui-scale); }
+  .board-inline-format button { width: 36px; min-width: 36px; min-height: 34px; }
+  .board-inline-description { font-size: 16px; }
+  .board-canvas-error { top: 63px; width: calc(100vw - 20px); }
+}
+
+@media (max-width: 560px) {
   .shelf-manager-row {
     grid-template-columns: 30px minmax(0, 1fr);
   }

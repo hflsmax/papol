@@ -104,6 +104,7 @@ build_tree() {
 port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 WATCH_PIDS=()
+BACKEND_PID=
 
 # Killing the group is the polite way and usually enough. It is not
 # guaranteed, though: npm and nix each get a say in how the processes below
@@ -120,6 +121,15 @@ stop_watchers() {
   WATCH_PIDS=()
   sleep 1
   kill -TERM $(pgrep -f 'vite build --watch' || true) 2>/dev/null || true
+}
+
+stop_dev() {
+  if [ -n "$BACKEND_PID" ]; then
+    kill -TERM "$BACKEND_PID" 2>/dev/null || true
+    wait "$BACKEND_PID" 2>/dev/null || true
+    BACKEND_PID=
+  fi
+  stop_watchers
 }
 
 # Anything left rebuilding into dist from a run that is already over. Two
@@ -154,8 +164,12 @@ watch_app() {
     # killed the watcher, and set -e would otherwise take this whole
     # function down right here — silently, before the restart below ever
     # runs. That is the failure mode this loop exists to avoid.
+    # A watch process performs a full build as soon as it starts. Preserve
+    # the synchronous build already being served while that first pass runs;
+    # otherwise Vite briefly removes dist/assets and a simultaneous backend
+    # reload cannot import its StaticFiles mounts.
     nix develop "$DEV_DIR" --command bash -c \
-      "cd '$DEV_DIR/$app' && npm run build -- --watch" 2>&1 | sed -u "s/^/[$app] /" || true
+      "cd '$DEV_DIR/$app' && npm run build -- --watch --emptyOutDir false" 2>&1 | sed -u "s/^/[$app] /" || true
     [ "$stop" = yes ] && break
     note "[$app] watcher stopped on its own — restarting"
     sleep 2
@@ -190,7 +204,46 @@ start_watchers() {
     WATCH_PIDS+=($!)
   done
   set +m
-  trap stop_watchers EXIT INT TERM
+  trap stop_dev EXIT INT TERM
+}
+
+# Uvicorn's reload parent does not exit when a newly spawned application
+# process fails to import. Keep checking the listening socket so that such a
+# failure ends this command, instead of leaving a healthy-looking reloader and
+# three frontend watchers running forever.
+run_backend() {
+  local missed=0 backend_pid status
+
+  cd "$DEV_DIR/backend"
+  nix develop "$DEV_DIR" --command \
+    uvicorn main:app --reload --host 127.0.0.1 --port "$DEV_PORT" &
+  backend_pid=$!
+  BACKEND_PID=$backend_pid
+
+  while kill -0 "$backend_pid" 2>/dev/null; do
+    # The reload parent owns the listening socket, so probing the port cannot
+    # distinguish it from a live application. Its spawn child is the process
+    # that actually imported and serves main:app.
+    if pgrep -P "$backend_pid" -f 'multiprocessing.spawn' >/dev/null; then
+      missed=0
+    else
+      missed=$((missed + 1))
+      # Normal reloads briefly replace the worker. Ten half-second misses leave
+      # room for that while still turning a dead worker into a failed deploy.
+      if [ "$missed" -ge 10 ]; then
+        note "backend stopped answering during startup or reload"
+        kill -TERM "$backend_pid" 2>/dev/null || true
+        wait "$backend_pid" 2>/dev/null || true
+        BACKEND_PID=
+        return 1
+      fi
+    fi
+    sleep 0.5
+  done
+
+  if wait "$backend_pid"; then status=0; else status=$?; fi
+  BACKEND_PID=
+  return "$status"
 }
 
 # Development, in the foreground, for as long as this command runs. Nothing
@@ -248,6 +301,9 @@ run_dev() {
   (cd "$DEV_DIR/backend" && nix develop "$DEV_DIR" --command python -c 'import main')
 
   [ "$watch" = yes ] && start_watchers
+  # start_watchers installs this too, but --no-watch still needs Ctrl-C and
+  # shell exit to reap the now-supervised background server.
+  trap stop_dev EXIT INT TERM
 
   say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
   if [ "$watch" = yes ]; then
@@ -260,11 +316,9 @@ run_dev() {
   note "Ctrl-C stops everything."
   echo
 
-  # Not exec: this shell has to outlive the server to take the watchers with
-  # it on the way out.
-  cd "$DEV_DIR/backend"
-  nix develop "$DEV_DIR" --command \
-    uvicorn main:app --reload --host 127.0.0.1 --port "$DEV_PORT"
+  # This shell outlives the server so it can detect a dead reload worker and
+  # take the asset watchers with it on the way out.
+  run_backend
 }
 
 # --- production -------------------------------------------------------------

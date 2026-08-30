@@ -24,7 +24,9 @@ const savedBoardView = (boardId) => {
   } catch { /* a damaged local preference should not stop the board opening */ }
   return null;
 };
-const initialBoardView = (boardId) => savedBoardView(boardId) || defaultBoardView();
+const initialBoardView = (boardId) => window.innerWidth > 700
+  ? savedBoardView(boardId) || defaultBoardView()
+  : defaultBoardView();
 
 function AlignGlyph({ align }) {
   const starts = align === 'left' ? [2, 2, 2] : align === 'center' ? [2, 5, 3] : [2, 8, 4];
@@ -74,7 +76,7 @@ export default function BoardPage({ boardId, onBack }) {
   const pendingView = useRef(view);
   const viewSaveTimer = useRef(null);
   const activeBoardId = useRef(boardId);
-  const centerInitialView = useRef(savedBoardView(boardId) == null);
+  const centerInitialView = useRef(window.innerWidth <= 700 || savedBoardView(boardId) == null);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
@@ -118,7 +120,7 @@ export default function BoardPage({ boardId, onBack }) {
       } catch { /* best effort while switching boards */ }
     }
     activeBoardId.current = boardId;
-    const saved = savedBoardView(boardId);
+    const saved = window.innerWidth > 700 ? savedBoardView(boardId) : null;
     centerInitialView.current = saved == null;
     const restored = saved || defaultBoardView();
     viewRef.current = restored;
@@ -135,14 +137,24 @@ export default function BoardPage({ boardId, onBack }) {
         const element = stageRef.current.querySelector(`[data-item-id="${item.id}"]`);
         const width = element?.offsetWidth || item.width || 300;
         const height = element?.offsetHeight || 1;
-        return { x: item.x + width / 2, y: item.y + height / 2, weight: width * height };
+        return { x: item.x + width / 2, y: item.y + height / 2, width, height, weight: width * height };
       });
       const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
       if (!totalWeight) return;
       const centerX = weighted.reduce((sum, item) => sum + item.x * item.weight, 0) / totalWeight;
       const centerY = weighted.reduce((sum, item) => sum + item.y * item.weight, 0) / totalWeight;
       const bounds = viewportRef.current.getBoundingClientRect();
-      const zoom = viewRef.current.zoom;
+      const minX = Math.min(...weighted.map((item) => item.x - item.width / 2));
+      const maxX = Math.max(...weighted.map((item) => item.x + item.width / 2));
+      const minY = Math.min(...weighted.map((item) => item.y - item.height / 2));
+      const maxY = Math.max(...weighted.map((item) => item.y + item.height / 2));
+      const reachX = Math.max(centerX - minX, maxX - centerX);
+      const reachY = Math.max(centerY - minY, maxY - centerY);
+      const zoom = clamp(Math.min(
+        viewRef.current.zoom,
+        reachX ? (bounds.width - 32) / (reachX * 2) : 1,
+        reachY ? (bounds.height - 32) / (reachY * 2) : 1,
+      ), 0.25, 3);
       centerInitialView.current = false;
       paintView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
     });
@@ -224,7 +236,10 @@ export default function BoardPage({ boardId, onBack }) {
   }, [chapterKey, imageIds, board?.items]);
 
   const paintView = (next) => {
-    if (stageRef.current) stageRef.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
+    if (stageRef.current) {
+      stageRef.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
+      stageRef.current.style.setProperty('--board-ui-scale', 1 / next.zoom);
+    }
     if (viewportRef.current) {
       viewportRef.current.style.setProperty('--board-grid-size', `${24 * next.zoom}px`);
       viewportRef.current.style.setProperty('--board-grid-dot', `${Math.max(.55, .75 * next.zoom)}px`);
@@ -900,7 +915,7 @@ export default function BoardPage({ boardId, onBack }) {
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={endGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
-      <div ref={stageRef} className="board-stage" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
+      <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter${selectedChapter === chapter.id ? ' selected' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
           {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Select chapter${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
           <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
