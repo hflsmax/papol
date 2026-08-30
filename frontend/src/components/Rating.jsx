@@ -11,13 +11,16 @@ export function RatingDots({ value }) {
     return <span className="rating-none" title="The reader chose not to rate this">unrated</span>;
   }
   return (
-    <span className="rating-dots" aria-label={`${value} out of 5`}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <span key={i} className={i <= value ? 'dot filled' : 'dot'}>
-          {i <= value ? '●' : '○'}
-        </span>
-      ))}
-    </span>
+    <>
+      <span className="rating-dots" aria-label={`${value} out of 5`}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <span key={i} className={i <= value ? 'dot filled' : 'dot'}>
+            {i <= value ? '●' : '○'}
+          </span>
+        ))}
+      </span>
+      <span className="rating-number">{value}/5</span>
+    </>
   );
 }
 

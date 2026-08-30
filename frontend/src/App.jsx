@@ -1341,7 +1341,7 @@ select {
 .paper-list li.nook-board-row { min-height: 66px; isolation: isolate; }
 .paper-list li.nook-board-row::before { content: ''; position: absolute; z-index: -1; inset: 0 0 0 18px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Ccircle cx='2' cy='2' r='1.05' fill='%237e8794' fill-opacity='.42'/%3E%3C/svg%3E"); background-repeat: repeat; pointer-events: none; }
 .board-item-row { display: flex; align-items: center; }
-.nook-board-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -.018em; line-height: 1.15; }
+.nook-board-title { font: inherit; letter-spacing: inherit; line-height: inherit; }
 .nook-inline-board-create { margin-bottom: 18px; font-family: var(--font-ui); }
 .board-create-heading { margin-bottom: 16px; }
 .board-create-heading h3 { font-size: var(--fs-xl); }
@@ -1627,6 +1627,8 @@ select {
 .rating-dots .dot:not(.filled) {
   color: var(--ink-faint);
 }
+
+.rating-number { display: none; color: var(--accent); font: 600 var(--fs-xs) var(--font-ui); }
 
 .rating-none {
   color: var(--ink-faint);
@@ -4303,14 +4305,27 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     padding: 16px;
   }
 
-  .space-header-row { flex-wrap: wrap; }
-  .space-header-actions { flex-basis: 100%; margin-left: 62px; }
-  .upload-section.compact { min-width: 0; }
+  .space-header { margin-bottom: 14px; }
+  .space-header-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px 14px; }
+  .space-header-actions { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: stretch; width: 100%; margin-left: 0; }
+  .space-header-actions .new-board-btn { width: 100%; min-width: 0; justify-content: center; padding-right: 10px; }
+  .space-header-actions .upload-section.compact { width: 100%; min-width: 0; }
+  .space-header-actions .upload-section.compact .dropzone { height: 100%; }
   .board-create-fields { grid-template-columns: 1fr; }
 
-  .paper-browser { margin: -16px -16px 0; }
-  .paper-browser-toggle { padding: 9px 16px; }
-  .paper-search-tools { padding: 3px 16px 12px; }
+  .space > .paper-list { padding: 12px 10px; }
+  .space .paper-browser { margin: -12px -10px 0; }
+  .space .paper-browser-toggle { min-height: 44px; padding: 9px 12px; }
+  .space .paper-search-tools { padding: 3px 12px 12px; }
+  .space .paper-list li { gap: 8px; padding: 12px 8px 12px 24px; }
+  .space .paper-item h4 { font-size: var(--fs-md); line-height: 1.28; }
+  .space .paper-meta { margin-top: 3px; font-size: var(--fs-xs); line-height: 1.45; }
+  .space .row-readers { max-width: 74px; gap: 4px; padding-top: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .space .row-readers .mini-avatar { width: 32px; height: 32px; }
+  .space .rating-summary.compact { flex-wrap: nowrap; gap: 10px; margin-top: 8px; white-space: nowrap; }
+  .space .rating-summary.compact .rating-item { gap: 4px; }
+  .space .rating-summary.compact .rating-dots { display: none; }
+  .space .rating-summary.compact .rating-number { display: inline; }
 
   /* Back button gets its own row above the auth card instead of being
      squeezed into the sliver beside it */
@@ -4331,10 +4346,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .library-reader-filters { margin-inline: -2px; padding-inline: 2px; padding-bottom: 7px; }
   .reader-filter { min-height: 38px; padding: 5px 10px; }
   .reader-filter-avatar { width: 24px; height: 24px; }
-  .library-search-line { flex-direction: column; align-items: stretch; gap: 8px; }
-  .library-search-line > input { flex: none; width: 100%; min-height: 42px; }
-  .library-search-line .sort-control { width: 100%; justify-content: space-between; }
-  .library-search-line .sort-control select { flex: 1; min-width: 0; min-height: 42px; }
+  .library-search-line { flex-direction: row; align-items: center; gap: 8px; }
+  .library-search-line > input { flex: 1 1 0; width: 0; min-height: 42px; }
+  .library-search-line .sort-control { flex: none; width: auto; gap: 4px; font-size: var(--fs-xs); }
+  .library-search-line .sort-control select { width: 130px; min-width: 0; min-height: 42px; }
   .library-page .grouped-papers { margin-top: 2px; }
   .library-page .paper-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; padding: 13px 8px; }
   .library-page .paper-group-head { min-width: 0; }
