@@ -121,7 +121,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
           {isOwn && (
             <div className="space-header-actions">
               <button className="new-board-btn" type="button" onClick={() => { setBoardShelfId(space.shelves.find((shelf) => shelf.is_default)?.id || space.shelves[0]?.id || ''); setCreatingBoard(true); }}>
-                <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
+                <span className="new-board-mark" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <i key={index} />)}</span>
                 <span>New board</span>
               </button>
               <PaperUpload

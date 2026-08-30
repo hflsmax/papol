@@ -199,8 +199,10 @@ export function listLibraryBoards() {
   return request('/library/boards');
 }
 
-export function createBoard(data) {
-  return jsonRequest('/boards', 'POST', data);
+export async function createBoard(data) {
+  const board = await jsonRequest('/boards', 'POST', data);
+  try { window.sessionStorage.setItem('papol.newBoardHint', board.guid); } catch { /* best effort */ }
+  return board;
 }
 
 export function getBoard(id) {
@@ -209,6 +211,10 @@ export function getBoard(id) {
 
 export function updateBoard(id, data) {
   return jsonRequest(`/boards/${id}`, 'PUT', data);
+}
+
+export function deleteBoard(id) {
+  return request(`/boards/${id}`, { method: 'DELETE' });
 }
 
 export function createBoardGroup(id, data) {

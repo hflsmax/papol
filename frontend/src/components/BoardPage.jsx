@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../api';
+import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../api';
 import ExperimentalBadge from './ExperimentalBadge';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -51,6 +51,7 @@ export default function BoardPage({ boardId, onBack }) {
   const [menuItem, setMenuItem] = useState(null);
   const [marquee, setMarquee] = useState(null);
   const [urlLoading, setUrlLoading] = useState([]);
+  const [showNewBoardHint, setShowNewBoardHint] = useState(false);
   const urlLoadingRef = useRef([]);
   const [chapterLayouts, setChapterLayouts] = useState([]);
   const [editingChapter, setEditingChapter] = useState(null);
@@ -73,6 +74,18 @@ export default function BoardPage({ boardId, onBack }) {
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
+
+  useEffect(() => {
+    let isNewBoard = false;
+    try {
+      isNewBoard = sessionStorage.getItem('papol.newBoardHint') === boardId;
+      if (isNewBoard) sessionStorage.removeItem('papol.newBoardHint');
+    } catch { /* best effort */ }
+    setShowNewBoardHint(isNewBoard);
+    if (!isNewBoard) return undefined;
+    const timer = window.setTimeout(() => setShowNewBoardHint(false), 7000);
+    return () => window.clearTimeout(timer);
+  }, [boardId]);
 
   useEffect(() => {
     if (viewSaveTimer.current != null) {
@@ -764,6 +777,15 @@ export default function BoardPage({ boardId, onBack }) {
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
+  const removeBoard = async () => {
+    if (!window.confirm(`Delete “${board.name}”? This cannot be undone.`)) return;
+    setBusy(true); setError(null);
+    try {
+      await deleteBoard(board.guid);
+      try { localStorage.removeItem(`papol_board_view_${board.guid}`); } catch { /* best effort */ }
+      onBack();
+    } catch (err) { setError(err.message); setBusy(false); }
+  };
 
   if (error && !board) return <div className="error">{error}</div>;
   if (!board) return <div className="loading">Loading board…</div>;
@@ -778,7 +800,9 @@ export default function BoardPage({ boardId, onBack }) {
         {Object.entries(itemTypeLabels).map(([kind, label]) => <span key={kind} className={`board-type-legend-item ${kind}`}><i aria-hidden="true" />{label}</span>)}
       </div>
       <ExperimentalBadge />
+      {board.can_edit && <details className="board-actions-menu"><summary aria-label="Board actions" title="Board actions"><i /><i /><i /></summary><div className="board-actions-popover"><button type="button" className="remove" disabled={busy} onClick={removeBoard}>Delete board</button></div></details>}
     </header>
+    {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button><button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={endGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
