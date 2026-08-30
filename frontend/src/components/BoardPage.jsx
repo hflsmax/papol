@@ -786,12 +786,12 @@ export default function BoardPage({ boardId, onBack }) {
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className="board-chapter" style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
-          <div className="board-chapter-heading" style={{ width: chapter.width }}>
+          <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapter === chapter.id
               ? <input className="board-chapter-title" aria-label="Chapter title" placeholder="Chapter title" autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
               : <button type="button" disabled={!board.can_edit} className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || (board.can_edit ? 'Chapter title' : '')}</button>}
           </div>
-          <div className="board-chapter-header" style={{ width: chapter.width }}>
+          <div className="board-chapter-header" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapterHeader === chapter.id
               ? <textarea className="board-chapter-header-text" aria-label="Chapter header text" placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
               : <button type="button" disabled={!board.can_edit} className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || (board.can_edit ? 'Add header text…' : '')}</button>}
