@@ -66,6 +66,22 @@ export async function pageOverlays(doc, pageNumber, analysis) {
       exact: !c.inferred,
     }));
 
+  const analyzedLinks = (analysis?.links || [])
+    .filter((link) => link.page === pageNumber)
+    .map((link) => ({
+      kind: link.kind,
+      label: link.label,
+      x: link.x,
+      y: link.y,
+      w: link.w,
+      h: link.h,
+      spot: { page: link.target_page, y: link.target_y },
+    }))
+    .filter((candidate) => ![
+      ...annotated.citations,
+      ...annotated.links,
+    ].some((known) => overlaps(known, candidate)));
+
   let citations = annotated.citations.length ? annotated.citations : fromAnalyzer;
   if (references.length) {
     try {
@@ -81,7 +97,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
 
   return {
     citations,
-    links: annotated.links,
+    links: [...annotated.links, ...analyzedLinks],
   };
 }
 

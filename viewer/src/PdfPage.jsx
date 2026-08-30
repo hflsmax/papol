@@ -122,6 +122,7 @@ export default function PdfPage({
   // comes into view, because finding them means resolving the PDF's own
   // links, and a page nobody has reached should not cost that.
   const [citations, setCitations] = useState([]);
+  const [hoveredCitation, setHoveredCitation] = useState(-1);
   // The PDF's own links: "see Section 3", "Figure 4", a URL in a footnote.
   const [links, setLinks] = useState([]);
   // The drag lives in a ref, because pointermove fires faster than React
@@ -1165,15 +1166,31 @@ export default function PdfPage({
       style={{
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
+        cursor: hoveredCitation >= 0 ? 'pointer' : undefined,
       }}
       onPointerMove={(e) => {
         const at = anchorAt(e.clientX, e.clientY);
         overRef.current = true;
         lastAtRef.current = at;
         onHover({ page: pageNumber, anchor: at });
+        if (tool !== 'arrow' || !e.target.closest?.('.textLayer')) {
+          setHoveredCitation(-1);
+          return;
+        }
+        const box = holderRef.current?.getBoundingClientRect();
+        if (!box?.width || !box.height) {
+          setHoveredCitation(-1);
+          return;
+        }
+        const x = (e.clientX - box.left) / box.width;
+        const y = (e.clientY - box.top) / box.height;
+        setHoveredCitation(citations.findIndex((cite) => (
+          x >= cite.x && x <= cite.x + cite.w && y >= cite.y && y <= cite.y + cite.h
+        )));
       }}
       onPointerLeave={() => {
         overRef.current = false;
+        setHoveredCitation(-1);
         onHover(null);
         setDoomed(EMPTY_DOOMED);
         onHoverInkObjects([]);
@@ -1427,8 +1444,12 @@ export default function PdfPage({
                 key={`d${i}`}
                 type="button"
                 className="pdf-link"
-                title={`Go to page ${link.spot.page}`}
-                aria-label={`Go to page ${link.spot.page}`}
+                title={link.kind === 'figure'
+                  ? `Go to Figure ${link.label}`
+                  : `Go to page ${link.spot.page}`}
+                aria-label={link.kind === 'figure'
+                  ? `Go to Figure ${link.label}`
+                  : `Go to page ${link.spot.page}`}
                 style={boxStyle(link)}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1448,7 +1469,7 @@ export default function PdfPage({
               type="button"
               data-citation-index={i}
               data-reference-id={cite.referenceId}
-              className={`cite${cite.referenceId === openReferenceId ? ' open' : ''}${
+              className={`cite${i === hoveredCitation ? ' hovered' : ''}${cite.referenceId === openReferenceId ? ' open' : ''}${
                 cite.exact ? '' : ' guessed'
               }`}
               style={{

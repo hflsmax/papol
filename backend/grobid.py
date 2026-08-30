@@ -25,6 +25,11 @@ import httpx
 from pdf_parser import extract_arxiv_id
 
 TEI = "{http://www.tei-c.org/ns/1.0}"
+XML_ID = "{http://www.w3.org/XML/1998/namespace}id"
+
+# GROBID's figure-reference tag contains only the label: ``Figure `` is
+# outside the tag. In the source font that prefix occupies about three ems.
+FIGURE_PREFIX_EMS = 3.0
 
 # Where the required analyzer lives. Production always sets this; keeping the
 # empty default makes a misconfigured development process fail explicitly.
@@ -76,9 +81,25 @@ class Citation:
 
 
 @dataclass
+class DocumentLink:
+    """An in-text cross-reference and the document position it names."""
+
+    kind: str
+    label: str
+    page: int
+    x: float
+    y: float
+    w: float
+    h: float
+    target_page: int
+    target_y: float
+
+
+@dataclass
 class Analysis:
     references: list[Reference]
     citations: list[Citation]
+    links: list[DocumentLink] = field(default_factory=list)
 
 
 @dataclass
@@ -232,7 +253,7 @@ async def analyze(pdf_path: str) -> Analysis:
         # A list is how httpx spells a repeated form field. It has to be a
         # dict: given a list of pairs, httpx reads `data` as a raw request
         # body instead of a form, and an async client cannot send one.
-        "teiCoordinates": ["ref", "biblStruct"],
+        "teiCoordinates": ["ref", "biblStruct", "figure"],
         "includeRawCitations": "1",
         # Consolidation would have GROBID call CrossRef itself, one
         # reference at a time, inside this request. Papol does its own
@@ -274,7 +295,7 @@ def parse_tei(xml: str) -> Analysis:
     references: list[Reference] = []
     by_key: dict[str, Reference] = {}
     for bibl in root.iter(f"{TEI}biblStruct"):
-        key = bibl.get(f"{{http://www.w3.org/XML/1998/namespace}}id")
+        key = bibl.get(XML_ID)
         if not key:
             continue  # the header's own biblStruct, describing this paper
         # Counted over the entries themselves, so the first reference is 0
@@ -306,7 +327,36 @@ def parse_tei(xml: str) -> Analysis:
                 Citation(key=target, label=label, inferred=inferred, **box)
             )
 
-    return Analysis(references=references, citations=citations)
+    figures = {}
+    for figure in root.iter(f"{TEI}figure"):
+        key = figure.get(XML_ID)
+        boxes = _boxes(figure.get("coords"), pages)
+        if key and boxes:
+            figures[key] = boxes[0]
+
+    links: list[DocumentLink] = []
+    for marker in root.iter(f"{TEI}ref"):
+        if marker.get("type") != "figure":
+            continue
+        target = figures.get((marker.get("target") or "").lstrip("#"))
+        if target is None:
+            continue
+        label = "".join(marker.itertext()).strip()
+        for box in _boxes(marker.get("coords"), pages):
+            # Extend left over the prefix so the complete phrase is one
+            # pointer target rather than making only the numeral clickable.
+            page_width, page_height = pages[box["page"]]
+            prefix = min(
+                box["x"],
+                box["h"] * page_height / page_width * FIGURE_PREFIX_EMS,
+            )
+            box = {**box, "x": box["x"] - prefix, "w": box["w"] + prefix}
+            links.append(DocumentLink(
+                kind="figure", label=label, **box,
+                target_page=target["page"], target_y=target["y"],
+            ))
+
+    return Analysis(references=references, citations=citations, links=links)
 
 
 # A citation marker's number, as printed: "[8]", "(3)", "[9," or the "[2]"

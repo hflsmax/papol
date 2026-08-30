@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { destinationY, referenceAt } from './references.js';
+import { destinationY, pageOverlays, referenceAt } from './references.js';
 
 test('reads the vertical position from each PDF destination shape', () => {
   const page = { num: 275, gen: 0 };
@@ -26,4 +26,26 @@ test('distinguishes tightly spaced references using the raised-link offset', () 
     referenceAt(references, { page: 15, y: 0.5553472222222222 }).id,
     398,
   );
+});
+
+test('turns an analyzed figure reference into an internal PDF link', async () => {
+  const doc = {
+    getPage: async () => ({ getAnnotations: async () => [] }),
+  };
+  const analysis = {
+    references: [],
+    citations: [],
+    links: [{
+      kind: 'figure', label: '2', page: 2,
+      x: 0.28, y: 0.41, w: 0.01, h: 0.02,
+      target_page: 2, target_y: 0.55,
+    }],
+  };
+
+  const overlays = await pageOverlays(doc, 2, analysis);
+  assert.deepEqual(overlays.links, [{
+    kind: 'figure', label: '2',
+    x: 0.28, y: 0.41, w: 0.01, h: 0.02,
+    spot: { page: 2, y: 0.55 },
+  }]);
 });

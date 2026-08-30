@@ -578,6 +578,19 @@ class CitationOut(BaseModel):
     inferred: bool = False
 
 
+class DocumentLinkOut(BaseModel):
+    """One clickable cross-reference to a position in the same PDF."""
+    kind: str
+    label: Optional[str] = None
+    page: int
+    x: float
+    y: float
+    w: float
+    h: float
+    target_page: int
+    target_y: float
+
+
 class EditionReferences(BaseModel):
     """The state of one edition's reference analysis.
 
@@ -589,6 +602,7 @@ class EditionReferences(BaseModel):
     detail: Optional[str] = None
     references: List[ReferenceOut] = []
     citations: List[CitationOut] = []
+    links: List[DocumentLinkOut] = []
 
 
 class PaperEditionOut(BaseModel):

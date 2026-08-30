@@ -13,6 +13,14 @@ GROBID_HEADER = """<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
 <idno type="arXiv">arXiv:1705.07354v3</idno>
 </biblStruct></sourceDesc></fileDesc></teiHeader></TEI>"""
 
+GROBID_FIGURE_LINK = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<facsimile><surface n="2" lrx="600" lry="800"/></facsimile>
+<text><body><p>See Figure <ref type="figure" target="#fig_0"
+coords="2,120,160,12,10">2</ref>.</p></body>
+<back><figure xml:id="fig_0" coords="2,100,400,300,20">
+<head>Figure 2:</head><label>2</label></figure></back></text>
+</TEI>"""
+
 
 class MetadataExtractionTests(unittest.TestCase):
     def test_finds_versioned_arxiv_id_in_pdf_text(self):
@@ -37,6 +45,16 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertEqual(header.journal, "LNCS")
         self.assertEqual(header.year, 2018)
         self.assertEqual(header.arxiv_id, "arXiv:1705.07354v3")
+
+    def test_parses_figure_reference_as_document_link(self):
+        analysis = grobid.parse_tei(GROBID_FIGURE_LINK)
+        self.assertEqual(len(analysis.links), 1)
+        link = analysis.links[0]
+        self.assertEqual((link.kind, link.label), ("figure", "2"))
+        self.assertEqual((link.page, link.y), (2, 0.2))
+        self.assertAlmostEqual(link.x, 0.15)
+        self.assertAlmostEqual(link.w, 0.07)
+        self.assertEqual((link.target_page, link.target_y), (2, 0.5))
 
     def test_normalizes_display_only_all_caps_title(self):
         self.assertEqual(

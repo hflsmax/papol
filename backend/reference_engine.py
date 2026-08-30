@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import biblio
 import grobid
 from pdf_parser import extract_arxiv_id
-from schemas import CitationOut, EditionReferences, ReferenceOut, ResolvedWork
+from schemas import CitationOut, DocumentLinkOut, EditionReferences, ReferenceOut, ResolvedWork
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,7 @@ class EphemeralReferenceEngine:
         if digest in self._analyses:
             return False
         self._analyses[digest] = {
-            "status": "pending", "references": [], "citations": [],
+            "status": "pending", "references": [], "citations": [], "links": [],
         }
         return True
 
@@ -176,6 +176,7 @@ class EphemeralReferenceEngine:
             detail=state.get("detail"),
             references=state.get("references", []),
             citations=state.get("citations", []),
+            links=state.get("links", []),
         )
 
     async def analyze(self, digest: str, path: Path):
@@ -202,18 +203,27 @@ class EphemeralReferenceEngine:
                 )
                 for cite in result.citations if cite.key in ids
             ]
+            links = [
+                DocumentLinkOut(
+                    kind=link.kind, label=link.label,
+                    page=link.page, x=link.x, y=link.y, w=link.w, h=link.h,
+                    target_page=link.target_page, target_y=link.target_y,
+                )
+                for link in result.links
+            ]
             self._analyses[digest] = {
-                "status": "ready", "references": references, "citations": citations,
+                "status": "ready", "references": references,
+                "citations": citations, "links": links,
             }
             logger.info(
-                "Demo PDF %s: %d references, %d citation markers",
-                digest[:12], len(references), len(citations),
+                "Demo PDF %s: %d references, %d citation markers, %d document links",
+                digest[:12], len(references), len(citations), len(links),
             )
         except Exception as exc:
             logger.warning("GROBID failed on demo PDF %s: %s", digest[:12], exc)
             self._analyses[digest] = {
                 "status": "failed", "detail": str(exc)[:500],
-                "references": [], "citations": [],
+                "references": [], "citations": [], "links": [],
             }
 
     async def open(self, reference_id_value: int) -> ReferenceOut | None:

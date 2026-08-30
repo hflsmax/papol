@@ -538,7 +538,7 @@ sync_data() {
   # A column mismatch means development has code/schema that production does
   # not have yet. Deploy it first; SELECT * must never shuffle unlike rows.
   local table dev_cols prod_cols
-  for table in users papers paper_editions edition_references edition_citations \
+  for table in users papers paper_editions edition_references edition_citations edition_links \
       tags copies copy_tags comments ink_strokes; do
     dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
     prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
@@ -630,6 +630,8 @@ INSERT INTO edition_references SELECT d.* FROM dev.edition_references d JOIN syn
   WHERE NOT EXISTS (SELECT 1 FROM edition_references p WHERE p.id=d.id);
 INSERT INTO edition_citations SELECT d.* FROM dev.edition_citations d JOIN sync_editions n ON n.id=d.edition_id
   WHERE NOT EXISTS (SELECT 1 FROM edition_citations p WHERE p.id=d.id);
+INSERT INTO edition_links SELECT d.* FROM dev.edition_links d JOIN sync_editions n ON n.id=d.edition_id
+  WHERE NOT EXISTS (SELECT 1 FROM edition_links p WHERE p.id=d.id);
 
 DELETE FROM copy_tags WHERE copy_id IN (SELECT id FROM copies WHERE user_id IN sync_admins)
   OR tag_id IN (SELECT id FROM tags WHERE user_id IN sync_admins);

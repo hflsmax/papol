@@ -774,7 +774,7 @@ button.link.danger { color: var(--red); }
 /* The highlight has to be translucent, not merely pale: this layer is
    drawn over the page, so an opaque wash — however light — would hide the
    very "[12]" the reader is pointing at. */
-.cite:hover,
+.cite.hovered,
 .cite:focus-visible {
   background: rgba(43, 74, 111, 0.14);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);

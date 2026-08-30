@@ -127,6 +127,9 @@ class PaperEdition(Base):
     citations = relationship(
         "EditionCitation", back_populates="edition", cascade="all, delete-orphan"
     )
+    links = relationship(
+        "EditionLink", back_populates="edition", cascade="all, delete-orphan"
+    )
 
 
 class EditionReference(Base):
@@ -189,6 +192,25 @@ class EditionCitation(Base):
 
     edition = relationship("PaperEdition", back_populates="citations")
     reference = relationship("EditionReference")
+
+
+class EditionLink(Base):
+    """One analyzed cross-reference to another position in the PDF."""
+    __tablename__ = "edition_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    kind = Column(String, nullable=False)
+    label = Column(Text, nullable=True)
+    page = Column(Integer, nullable=False, index=True)
+    x = Column(Float, nullable=False)
+    y = Column(Float, nullable=False)
+    w = Column(Float, nullable=False)
+    h = Column(Float, nullable=False)
+    target_page = Column(Integer, nullable=False)
+    target_y = Column(Float, nullable=False)
+
+    edition = relationship("PaperEdition", back_populates="links")
 
 
 class Copy(Base):

@@ -43,7 +43,7 @@ from database import (
 from models import (
     User, AuthToken, PresencePing, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
-    Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
+    Setting, Feedback, PaperEdition, EditionReference, EditionCitation, EditionLink,
     InkStroke, Tag, Shelf, Board, BoardGroup, BoardItem,
 )
 import account
@@ -60,7 +60,7 @@ from schemas import (
     FeedbackCreate, FeedbackOut, FeedbackUpdate,
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
-    EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut,
+    EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardYouTubeCreate, BoardWebpageCreate,
@@ -2218,6 +2218,9 @@ async def _analyze_edition(edition_id: int):
         db.query(EditionCitation).filter(
             EditionCitation.edition_id == edition_id
         ).delete()
+        db.query(EditionLink).filter(
+            EditionLink.edition_id == edition_id
+        ).delete()
         db.query(EditionReference).filter(
             EditionReference.edition_id == edition_id
         ).delete()
@@ -2255,10 +2258,22 @@ async def _analyze_edition(edition_id: int):
                 inferred=cite.inferred,
             ))
 
+        for link in analysis.links:
+            db.add(EditionLink(
+                edition_id=edition_id,
+                kind=link.kind,
+                label=link.label,
+                page=link.page,
+                x=link.x, y=link.y, w=link.w, h=link.h,
+                target_page=link.target_page,
+                target_y=link.target_y,
+            ))
+
         _finish_analysis(db, edition, "ready", None)
         logger.info(
             f"Edition {edition_id}: {len(analysis.references)} references, "
-            f"{len(analysis.citations)} citation markers"
+            f"{len(analysis.citations)} citation markers, "
+            f"{len(analysis.links)} document links"
         )
     except Exception as e:
         # Whatever went wrong, the edition must not be left saying
@@ -2380,6 +2395,17 @@ async def edition_references(
             )
             for c in edition.citations
             if c.reference_id is not None
+        ],
+        links=[
+            DocumentLinkOut(
+                kind=link.kind,
+                label=link.label,
+                page=link.page,
+                x=link.x, y=link.y, w=link.w, h=link.h,
+                target_page=link.target_page,
+                target_y=link.target_y,
+            )
+            for link in edition.links
         ],
     )
 
