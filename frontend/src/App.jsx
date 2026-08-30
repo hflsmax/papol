@@ -1403,6 +1403,17 @@ select {
   min-width: 240px;
 }
 
+.library-board-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.library-board-link:hover h4 {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .paper-group:last-child {
   border-bottom: none;
 }
@@ -4155,6 +4166,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-drop-target { position: fixed; z-index: 4; inset: 75px 20px 20px; display: grid; place-items: center; border: 2px dashed var(--accent-line); border-radius: var(--radius); background: rgba(234,239,245,.72); color: var(--accent); font: var(--fs-base) var(--font-ui); pointer-events: none; }
 .board-stage { position: absolute; left: 0; top: 0; width: 1px; height: 1px; transform-origin: 0 0; will-change: transform; }
 .board-chapter { position: absolute; z-index: 0; left: 0; top: 0; width: 22px; border-left: 7px solid var(--accent); pointer-events: none; }
+.board-chapter-spine { position: absolute; z-index: 3; top: 0; bottom: 0; left: -12px; width: 17px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; pointer-events: auto; cursor: pointer; }
+.board-chapter-spine:hover:not(:disabled) { border: 0; background: transparent; box-shadow: none; }
+.board-chapter:has(.board-chapter-spine:hover), .board-chapter.selected { border-left-color: var(--red); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--red) 75%, transparent)); }
+.board-chapter:has(.board-chapter-spine:hover) .board-chapter-heading, .board-chapter.selected .board-chapter-heading { border-bottom-color: var(--red); }
+.board-chapter:has(.board-chapter-spine:hover) .board-chapter-branch, .board-chapter.selected .board-chapter-branch { background: var(--red); }
 .board-chapter-heading { position: absolute; top: 0; left: 14px; height: 34px; border-bottom: 2px solid var(--accent); background: linear-gradient(90deg, var(--accent-soft), transparent 75%); pointer-events: none; }
 .board-chapter-header { position: absolute; top: 36px; left: 14px; height: 46px; border-bottom: 1px solid var(--accent-line); background: linear-gradient(90deg, var(--paper), transparent 85%); pointer-events: none; }
 .board-chapter-title { display: block; width: 100%; height: 32px; margin: 0; padding: 4px 8px; overflow: hidden; border: 1px solid transparent; border-radius: var(--radius) var(--radius) 0 0; background: transparent; box-shadow: none; color: var(--accent); font: 600 var(--fs-lg) var(--font-serif); text-align: left; text-overflow: ellipsis; white-space: nowrap; pointer-events: auto; }

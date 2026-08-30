@@ -214,7 +214,7 @@ run_dev() {
   fi
 
   # papol.local reaches this server, and this server hands out whatever is
-  # in the two dist directories. Building first is what makes the name show
+  # in the three dist directories. Building first is what makes the name show
   # the code you are working on.
   [ "$build" = yes ] && build_tree "$DEV_DIR"
 
@@ -239,6 +239,13 @@ run_dev() {
     export GROBID_URL=http://127.0.0.1:8070
     note "using the shared GROBID analyzer on 127.0.0.1:8070"
   fi
+
+  # Uvicorn's reload supervisor deliberately stays alive when its worker
+  # cannot import the application. That is useful after a bad edit, but at
+  # startup it makes a failed deployment look healthy. Import once in the
+  # foreground so missing builds and every other startup error end this run
+  # before watchers or the reload supervisor are launched.
+  (cd "$DEV_DIR/backend" && nix develop "$DEV_DIR" --command python -c 'import main')
 
   [ "$watch" = yes ] && start_watchers
 

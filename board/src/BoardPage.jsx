@@ -48,6 +48,7 @@ export default function BoardPage({ boardId, onBack }) {
   const [imageUrls, setImageUrls] = useState({});
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedChapter, setSelectedChapter] = useState(null);
   const [menuItem, setMenuItem] = useState(null);
   const [marquee, setMarquee] = useState(null);
   const [urlLoading, setUrlLoading] = useState([]);
@@ -323,6 +324,7 @@ export default function BoardPage({ boardId, onBack }) {
   }, [board?.id]);
   const startPan = (event) => {
     if (event.button !== 0 || event.target.closest('.board-canvas-card, .board-youtube-loading')) return;
+    setSelectedChapter(null);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (event.pointerType === 'touch') {
       touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -351,6 +353,7 @@ export default function BoardPage({ boardId, onBack }) {
   };
   const startDrag = (event, item) => {
     if (event.button !== 0 || event.target.closest('button,a')) return;
+    setSelectedChapter(null);
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     if (!board.can_edit) {
       setSelectedItems([item.id]); setMenuItem(item.id);
@@ -629,6 +632,7 @@ export default function BoardPage({ boardId, onBack }) {
     } catch (err) { setError(err.message); }
   };
   const groupAsChapter = async () => {
+    if (selectedItems.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
     setBusy(true); setError(null);
     try {
       const previous = selectedItems.map((id) => {
@@ -642,6 +646,23 @@ export default function BoardPage({ boardId, onBack }) {
       await load();
       setChapterTitleDraft('');
       setEditingChapter(group.id);
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  const ungroupChapter = async (chapter) => {
+    const items = chapter.item_ids.map((id) => {
+      const item = board.items.find((candidate) => candidate.id === id);
+      return { id, group_id: null, x: item.x, y: item.y };
+    });
+    setBusy(true); setError(null);
+    try {
+      await ungroupBoardGroup(chapter.id, items);
+      undoStack.current.push({
+        type: 'ungroup', id: chapter.id, boardGuid: board.guid,
+        title: chapter.title, header: chapter.header, itemIds: [...chapter.item_ids], items,
+      });
+      redoStack.current = [];
+      setSelectedChapter(null);
+      await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const tidySelectedItems = async () => {
@@ -706,6 +727,15 @@ export default function BoardPage({ boardId, onBack }) {
             if (pending.type === 'group-move' && pending.id === previousId) pending.id = group.id;
           });
         }
+      } else if (action.type === 'ungroup') {
+        if (direction === 'undo') {
+          const group = await createBoardGroup(action.boardGuid, {
+            kind: 'chapter', title: action.title, header: action.header, item_ids: action.itemIds,
+          });
+          action.id = group.id;
+        } else {
+          await ungroupBoardGroup(action.id, action.items);
+        }
       } else if (action.type === 'resize') {
         await updateBoardItem(action.id, { width: direction === 'undo' ? action.from : action.to });
         if (action.groupId) await layoutBoardGroup(
@@ -737,8 +767,14 @@ export default function BoardPage({ boardId, onBack }) {
   };
   useEffect(() => {
     const handleKeyDown = (event) => {
+      if (event.metaKey && !event.ctrlKey && !event.altKey && event.key === '[') {
+        event.preventDefault();
+        window.history.back();
+        return;
+      }
       if (event.key === 'Escape') {
         setSelectedItems([]);
+        setSelectedChapter(null);
         setMenuItem(null);
         setMarquee(null);
         setEditingDescription(null);
@@ -798,6 +834,10 @@ export default function BoardPage({ boardId, onBack }) {
 
   if (error && !board) return <div className="error">{error}</div>;
   if (!board) return <div className="loading">Loading board…</div>;
+  const canGroupSelection = selectedItems.every((id) =>
+    board.items.find((item) => item.id === id)?.group_id == null
+  );
+  const activeChapter = board.groups?.find((chapter) => chapter.id === selectedChapter);
   return <div className="infinite-board">
     <header className="board-toolbar">
       <button className="board-back" onClick={onBack}>← <span>Back</span></button>
@@ -813,12 +853,14 @@ export default function BoardPage({ boardId, onBack }) {
     </header>
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
-    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button><button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button></div>}
+    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button>}</div>}
+    {board.can_edit && activeChapter && <div className="board-selection-menu"><span>Chapter selected</span><button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={endGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className="board-chapter" style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
+        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter${selectedChapter === chapter.id ? ' selected' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
+          {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Select chapter${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
           <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapter === chapter.id
               ? <input className="board-chapter-title" aria-label="Chapter title" placeholder="Chapter title" autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />

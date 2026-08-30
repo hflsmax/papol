@@ -157,9 +157,14 @@ export default function PapersPage({ currentUser, onSelectPaper, onSelectBoard }
           <ul className="grouped-papers">
             {shownBoards.map((board) => (
               <li key={`board-${board.guid}`} className="paper-group nook-board-row library-board-row">
-                <div className="paper-group-head">
-                  <div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/boards/${board.guid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.guid); }}>{board.name}</a></h4></div>
-                </div>
+                <a
+                  className="paper-group-head library-board-link"
+                  href={appPath(`/boards/${board.guid}`)}
+                  data-document
+                  onClick={(event) => { event.preventDefault(); onSelectBoard(board.guid); }}
+                >
+                  <div className="paper-title-row"><h4>{board.name}</h4></div>
+                </a>
                 {board.owner && <a className="avatar-chip has-pop" href={appPath(`/u/${board.owner.id}`)}><Avatar user={board.owner} className="nook-chip-avatar" /><span className="chip-pop"><span className="chip-pop-name">{board.owner.display_name}</span>{board.owner.affiliation && <span className="chip-pop-aff">{board.owner.affiliation}</span>}</span></a>}
               </li>
             ))}
