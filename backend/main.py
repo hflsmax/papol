@@ -44,7 +44,7 @@ from models import (
     User, AuthToken, PresencePing, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation,
-    InkStroke, Tag, Shelf, Board, BoardItem,
+    InkStroke, Tag, Shelf, Board, BoardGroup, BoardItem,
 )
 import account
 from schemas import (
@@ -64,7 +64,8 @@ from schemas import (
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardYouTubeCreate, BoardWebpageCreate,
-    BoardItemOut, BoardOut,
+    BoardItemOut, BoardOut, BoardGroupCreate, BoardGroupUpdate, BoardGroupMove,
+    BoardGroupUngroup, BoardGroupLayout, BoardGroupOut,
 )
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -468,6 +469,10 @@ def _board_out(board: Board, include_items: bool = False) -> BoardOut:
         updated_at=board.updated_at,
         item_count=len(active_items),
         items=(active_items if include_items else []),
+        groups=([BoardGroupOut(
+            id=group.id, kind=group.kind, title=group.title, header=group.header or "",
+            item_ids=[item.id for item in group.items if item.deleted_at is None],
+        ) for group in board.groups] if include_items else []),
     )
 
 
@@ -922,6 +927,140 @@ async def move_board_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@app.post("/api/boards/{board_guid}/groups", response_model=BoardGroupOut)
+async def create_board_group(
+    board_guid: str,
+    data: BoardGroupCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    board = _owned_board(board_guid, user, db)
+    item_ids = list(dict.fromkeys(data.item_ids))
+    if len(item_ids) < 2:
+        raise HTTPException(status_code=400, detail="Select at least two items")
+    items = db.query(BoardItem).filter(
+        BoardItem.board_id == board.id,
+        BoardItem.id.in_(item_ids),
+        BoardItem.deleted_at.is_(None),
+    ).all()
+    if len(items) != len(item_ids):
+        raise HTTPException(status_code=400, detail="Some selected items are unavailable")
+    group = BoardGroup(board_id=board.id, kind=data.kind, title=data.title.strip(), header=data.header.strip() or None)
+    db.add(group)
+    db.flush()
+    anchor_x = min(item.x for item in items)
+    for item in items:
+        item.group_id = group.id
+        item.x = anchor_x
+    board.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(group)
+    return BoardGroupOut(id=group.id, kind=group.kind, title=group.title, header=group.header or "", item_ids=item_ids)
+
+
+@app.put("/api/board-groups/{group_id}/move", response_model=list[BoardItemOut])
+async def move_board_group(
+    group_id: int,
+    data: BoardGroupMove,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
+    if not group or group.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board group not found")
+    active_items = [item for item in group.items if item.deleted_at is None]
+    for item in active_items:
+        item.x += data.dx
+        item.y += data.dy
+    group.board.updated_at = datetime.utcnow()
+    db.commit()
+    for item in active_items:
+        db.refresh(item)
+    return active_items
+
+
+@app.put("/api/board-groups/{group_id}", response_model=BoardGroupOut)
+async def update_board_group(
+    group_id: int,
+    data: BoardGroupUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
+    if not group or group.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board group not found")
+    if data.title is not None:
+        group.title = data.title.strip()
+    if data.header is not None:
+        group.header = data.header.strip() or None
+    group.board.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(group)
+    return BoardGroupOut(
+        id=group.id, kind=group.kind, title=group.title, header=group.header or "",
+        item_ids=[item.id for item in group.items if item.deleted_at is None],
+    )
+
+
+@app.post("/api/board-groups/{group_id}/ungroup", status_code=204)
+async def ungroup_board_group(
+    group_id: int,
+    data: BoardGroupUngroup,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
+    if not group or group.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board group not found")
+    current_ids = {item.id for item in group.items if item.deleted_at is None}
+    restore_ids = {entry.id for entry in data.items}
+    if current_ids != restore_ids:
+        raise HTTPException(status_code=400, detail="Chapter membership changed")
+    target_ids = {entry.group_id for entry in data.items if entry.group_id is not None}
+    if target_ids:
+        valid_targets = db.query(BoardGroup.id).filter(
+            BoardGroup.board_id == group.board_id, BoardGroup.id.in_(target_ids)
+        ).count()
+        if valid_targets != len(target_ids):
+            raise HTTPException(status_code=400, detail="A previous chapter no longer exists")
+    items = {item.id: item for item in group.items}
+    board = group.board
+    db.delete(group)
+    db.flush()
+    for entry in data.items:
+        item = items[entry.id]
+        item.group_id = entry.group_id
+        item.x = entry.x
+        item.y = entry.y
+    board.updated_at = datetime.utcnow()
+    db.commit()
+
+
+@app.put("/api/board-groups/{group_id}/layout", response_model=list[BoardItemOut])
+async def layout_board_group(
+    group_id: int,
+    data: BoardGroupLayout,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
+    if not group or group.board.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Board group not found")
+    active_items = {item.id: item for item in group.items if item.deleted_at is None}
+    if set(active_items) != {entry.id for entry in data.items}:
+        raise HTTPException(status_code=400, detail="Chapter membership changed")
+    for entry in data.items:
+        item = active_items[entry.id]
+        item.x = entry.x
+        item.y = entry.y
+    group.board.updated_at = datetime.utcnow()
+    db.commit()
+    result = list(active_items.values())
+    for item in result:
+        db.refresh(item)
+    return result
 
 
 @app.get("/api/board-items/{item_id}/file")

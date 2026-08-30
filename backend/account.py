@@ -40,6 +40,7 @@ from models import (
     Shelf,
     Tag,
     Board,
+    BoardGroup,
     BoardItem,
     User,
     copy_tags,
@@ -233,9 +234,20 @@ def gather(db: Session, user: User) -> dict:
                 "description": board.description,
                 "created": _when(board.created_at),
                 "updated": _when(board.updated_at),
+                "groups": [
+                    {
+                        "id": group.id,
+                        "kind": group.kind,
+                        "title": group.title,
+                        "header": group.header,
+                        "item_ids": [item.id for item in group.items if item.deleted_at is None],
+                    }
+                    for group in board.groups
+                ],
                 "items": [
                     {
                         "id": item.id,
+                        "group_id": item.group_id,
                         "kind": item.kind,
                         "content": item.content,
                         "file": item.file_path,
@@ -530,8 +542,12 @@ def tombstone(
         removed["board_items"] = db.query(BoardItem).filter(
             BoardItem.board_id.in_(board_ids)
         ).delete(synchronize_session=False)
+        removed["board_groups"] = db.query(BoardGroup).filter(
+            BoardGroup.board_id.in_(board_ids)
+        ).delete(synchronize_session=False)
     else:
         removed["board_items"] = 0
+        removed["board_groups"] = 0
     removed["boards"] = db.query(Board).filter(
         Board.user_id == user_id
     ).delete(synchronize_session=False)

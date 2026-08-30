@@ -207,6 +207,26 @@ export function updateBoard(id, data) {
   return jsonRequest(`/boards/${id}`, 'PUT', data);
 }
 
+export function createBoardGroup(id, data) {
+  return jsonRequest(`/boards/${id}/groups`, 'POST', data);
+}
+
+export function moveBoardGroup(id, dx, dy) {
+  return jsonRequest(`/board-groups/${id}/move`, 'PUT', { dx, dy });
+}
+
+export function updateBoardGroup(id, data) {
+  return jsonRequest(`/board-groups/${id}`, 'PUT', data);
+}
+
+export function ungroupBoardGroup(id, items) {
+  return jsonRequest(`/board-groups/${id}/ungroup`, 'POST', { items });
+}
+
+export function layoutBoardGroup(id, items) {
+  return jsonRequest(`/board-groups/${id}/layout`, 'PUT', { items });
+}
+
 export function addBoardFile(id, file, caption = '', position = null) {
   const formData = new FormData();
   formData.append('file', file);

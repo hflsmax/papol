@@ -213,6 +213,49 @@ class BoardItemUpdate(BaseModel):
     text_align: Optional[Literal["left", "center", "right"]] = None
 
 
+class BoardGroupCreate(BaseModel):
+    kind: Literal["chapter"] = "chapter"
+    title: str = Field(default="", max_length=240)
+    header: str = Field(default="", max_length=4000)
+    item_ids: List[int] = Field(min_length=2, max_length=100)
+
+
+class BoardGroupUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=240)
+    header: Optional[str] = Field(default=None, max_length=4000)
+
+
+class BoardGroupMove(BaseModel):
+    dx: float = Field(ge=-1000000, le=1000000)
+    dy: float = Field(ge=-1000000, le=1000000)
+
+
+class BoardGroupRestoreItem(BaseModel):
+    id: int
+    group_id: Optional[int] = None
+    x: float = Field(ge=-1000000, le=1000000)
+    y: float = Field(ge=-1000000, le=1000000)
+
+
+class BoardGroupUngroup(BaseModel):
+    items: List[BoardGroupRestoreItem] = Field(min_length=2, max_length=100)
+
+
+class BoardGroupLayout(BaseModel):
+    items: List[BoardGroupRestoreItem] = Field(min_length=2, max_length=100)
+
+
+class BoardGroupOut(BaseModel):
+    id: int
+    kind: Literal["chapter"]
+    title: str
+    header: str = ""
+    item_ids: List[int] = []
+
+    class Config:
+        from_attributes = True
+
+
 class BoardYouTubeCreate(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
     x: float = Field(ge=-1000000, le=1000000)
@@ -225,6 +268,7 @@ class BoardWebpageCreate(BoardYouTubeCreate):
 
 class BoardItemOut(BaseModel):
     id: int
+    group_id: Optional[int] = None
     kind: Literal["comment", "image", "file", "youtube", "webpage"]
     content: Optional[str] = None
     file_path: Optional[str] = None
@@ -253,6 +297,7 @@ class BoardOut(BaseModel):
     updated_at: datetime
     item_count: int = 0
     items: List[BoardItemOut] = []
+    groups: List[BoardGroupOut] = []
 
     class Config:
         from_attributes = True

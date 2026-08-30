@@ -308,6 +308,25 @@ class Board(Base):
         "BoardItem", back_populates="board", cascade="all, delete-orphan",
         order_by="BoardItem.created_at",
     )
+    groups = relationship(
+        "BoardGroup", back_populates="board", cascade="all, delete-orphan",
+        order_by="BoardGroup.created_at",
+    )
+
+
+class BoardGroup(Base):
+    """A visual and behavioral grouping of items on a board."""
+    __tablename__ = "board_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
+    kind = Column(String(20), nullable=False, default="chapter", server_default="chapter")
+    title = Column(String(240), nullable=False)
+    header = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    board = relationship("Board", back_populates="groups")
+    items = relationship("BoardItem", back_populates="group")
 
 
 class BoardItem(Base):
@@ -316,6 +335,7 @@ class BoardItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
+    group_id = Column(Integer, ForeignKey("board_groups.id"), nullable=True, index=True)
     kind = Column(String(20), nullable=False)  # comment | image | file | youtube | webpage
     content = Column(Text, nullable=True)
     file_path = Column(Text, nullable=True)
@@ -331,6 +351,7 @@ class BoardItem(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     board = relationship("Board", back_populates="items")
+    group = relationship("BoardGroup", back_populates="items")
 
 
 class InkStroke(Base):

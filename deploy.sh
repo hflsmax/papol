@@ -546,11 +546,12 @@ sync_data() {
       || die "$table differs between development and production — deploy the schema first"
   done
   local required column
-  for table in shelves boards board_items; do
+  for table in shelves boards board_groups board_items; do
     case "$table" in
       shelves) required="id user_id name color is_public is_default position created_at" ;;
       boards) required="id guid user_id name description created_at updated_at" ;;
-      board_items) required="id board_id kind content file_path original_filename mime_type source_url text_align position x y width deleted_at created_at" ;;
+      board_groups) required="id board_id kind title header created_at" ;;
+      board_items) required="id board_id group_id kind content file_path original_filename mime_type source_url text_align position x y width deleted_at created_at" ;;
     esac
     for column in $required; do
       dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "SELECT 1 FROM pragma_table_info('$table') WHERE name='$column'")
@@ -596,6 +597,9 @@ INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
   UNION ALL SELECT 1 FROM dev.board_items d JOIN board_items p ON p.id=d.id
     JOIN dev.boards db ON db.id=d.board_id JOIN boards pb ON pb.id=p.board_id
     WHERE db.user_id IN sync_admins AND pb.user_id NOT IN sync_admins
+  UNION ALL SELECT 1 FROM dev.board_groups d JOIN board_groups p ON p.id=d.id
+    JOIN dev.boards db ON db.id=d.board_id JOIN boards pb ON pb.id=p.board_id
+    WHERE db.user_id IN sync_admins AND pb.user_id NOT IN sync_admins
 );
 
 -- Bring across shared paper/edition records needed by the admin's nook. A
@@ -632,6 +636,7 @@ DELETE FROM copy_tags WHERE copy_id IN (SELECT id FROM copies WHERE user_id IN s
 DELETE FROM comments WHERE user_id IN sync_admins;
 DELETE FROM ink_strokes WHERE user_id IN sync_admins;
 DELETE FROM board_items WHERE board_id IN (SELECT id FROM boards WHERE user_id IN sync_admins);
+DELETE FROM board_groups WHERE board_id IN (SELECT id FROM boards WHERE user_id IN sync_admins);
 DELETE FROM boards WHERE user_id IN sync_admins;
 DELETE FROM copies WHERE user_id IN sync_admins;
 DELETE FROM tags WHERE user_id IN sync_admins;
@@ -648,11 +653,15 @@ INSERT INTO ink_strokes SELECT d.* FROM dev.ink_strokes d JOIN sync_admins a ON 
 INSERT INTO boards (id,guid,user_id,name,description,created_at,updated_at)
   SELECT d.id,d.guid,d.user_id,d.name,d.description,d.created_at,d.updated_at
   FROM dev.boards d JOIN sync_admins a ON a.id=d.user_id;
+INSERT INTO board_groups (id,board_id,kind,title,header,created_at)
+  SELECT d.id,d.board_id,d.kind,d.title,d.header,d.created_at
+  FROM dev.board_groups d
+  JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
 INSERT INTO board_items (
-  id,board_id,kind,content,file_path,original_filename,mime_type,source_url,
+  id,board_id,group_id,kind,content,file_path,original_filename,mime_type,source_url,
   text_align,position,x,y,width,deleted_at,created_at
 )
-  SELECT d.id,d.board_id,d.kind,d.content,d.file_path,d.original_filename,
+  SELECT d.id,d.board_id,d.group_id,d.kind,d.content,d.file_path,d.original_filename,
     d.mime_type,d.source_url,d.text_align,d.position,d.x,d.y,d.width,
     d.deleted_at,d.created_at
   FROM dev.board_items d
