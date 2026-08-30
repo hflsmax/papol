@@ -67,6 +67,7 @@ export default function BoardPage({ boardId, onBack }) {
   const touches = useRef(new Map());
   const viewportRef = useRef(null);
   const stageRef = useRef(null);
+  const boardActionsRef = useRef(null);
   const viewRef = useRef(view);
   const viewFrame = useRef(null);
   const pendingView = useRef(view);
@@ -84,6 +85,15 @@ export default function BoardPage({ boardId, onBack }) {
     document.addEventListener('pointerdown', closeMenu, true);
     return () => document.removeEventListener('pointerdown', closeMenu, true);
   }, [menuItem]);
+
+  useEffect(() => {
+    const closeBoardActions = (event) => {
+      const menu = boardActionsRef.current;
+      if (menu?.open && !menu.contains(event.target)) menu.removeAttribute('open');
+    };
+    document.addEventListener('pointerdown', closeBoardActions, true);
+    return () => document.removeEventListener('pointerdown', closeBoardActions, true);
+  }, []);
 
   useEffect(() => {
     let isNewBoard = false;
@@ -773,6 +783,7 @@ export default function BoardPage({ boardId, onBack }) {
         return;
       }
       if (event.key === 'Escape') {
+        boardActionsRef.current?.removeAttribute('open');
         setSelectedItems([]);
         setSelectedChapter(null);
         setMenuItem(null);
@@ -849,7 +860,7 @@ export default function BoardPage({ boardId, onBack }) {
         {Object.entries(itemTypeLabels).map(([kind, label]) => <span key={kind} className={`board-type-legend-item ${kind}`}><i aria-hidden="true" />{label}</span>)}
       </div>
       <ExperimentalBadge />
-      {board.can_edit && <details className="board-actions-menu"><summary aria-label="Board actions" title="Board actions"><i /><i /><i /></summary><div className="board-actions-popover"><button type="button" className="remove" disabled={busy} onClick={removeBoard}>Delete board</button></div></details>}
+      {board.can_edit && <details ref={boardActionsRef} className="board-actions-menu"><summary aria-label="Board actions" title="Board actions"><i /><i /><i /></summary><div className="board-actions-popover"><button type="button" className="remove" disabled={busy} onClick={removeBoard}>Delete board</button></div></details>}
     </header>
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
