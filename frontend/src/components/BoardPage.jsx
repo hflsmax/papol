@@ -172,6 +172,31 @@ export default function BoardPage({ boardId, onBack }) {
     const handlePaste = async (event) => {
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
+      const images = [...(event.clipboardData?.items || [])]
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      if (images.length) {
+        event.preventDefault();
+        const bounds = viewportRef.current?.getBoundingClientRect();
+        if (!bounds) return;
+        const current = viewRef.current;
+        const origin = {
+          x: (bounds.width / 2 - current.x) / current.zoom - 150,
+          y: (bounds.height / 2 - current.y) / current.zoom - 100,
+        };
+        setBusy(true); setError(null);
+        try {
+          const items = await Promise.all(images.map((image, index) => addBoardFile(board.guid, image, '', {
+            x: origin.x + index * 28, y: origin.y + index * 28,
+          })));
+          items.forEach((item) => undoStack.current.push({ type: 'add', id: item.id }));
+          redoStack.current = [];
+          await load();
+          setSelectedItems(items.map((item) => item.id));
+        } catch (err) { setError(err.message); } finally { setBusy(false); }
+        return;
+      }
       const text = event.clipboardData?.getData('text/plain')?.trim();
       if (!text) return;
       let parsed;
@@ -470,10 +495,10 @@ export default function BoardPage({ boardId, onBack }) {
           <ItemTypeIcon kind={item.kind} />
           {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {item.kind === 'file' && <div className="board-canvas-file">↧ {item.original_filename}</div>}
-          {!item.source_url && item.content && (editingText === item.id
+          {!item.source_url && item.kind !== 'image' && item.content && (editingText === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
             : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
-          {item.source_url && (editingDescription === item.id
+          {(item.source_url || item.kind === 'image') && (editingDescription === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
             : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
           {selectedItems.length === 1 && selectedItems[0] === item.id && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
