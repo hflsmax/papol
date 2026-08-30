@@ -22,8 +22,9 @@ const savedBoardView = (boardId) => {
       return { x: value.x, y: value.y, zoom: clamp(value.zoom, 0.25, 3) };
     }
   } catch { /* a damaged local preference should not stop the board opening */ }
-  return defaultBoardView();
+  return null;
 };
+const initialBoardView = (boardId) => savedBoardView(boardId) || defaultBoardView();
 
 function AlignGlyph({ align }) {
   const starts = align === 'left' ? [2, 2, 2] : align === 'center' ? [2, 5, 3] : [2, 8, 4];
@@ -42,7 +43,7 @@ const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
 
 export default function BoardPage({ boardId, onBack }) {
   const [board, setBoard] = useState(null);
-  const [view] = useState(() => savedBoardView(boardId));
+  const [view] = useState(() => initialBoardView(boardId));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [imageUrls, setImageUrls] = useState({});
@@ -73,6 +74,7 @@ export default function BoardPage({ boardId, onBack }) {
   const pendingView = useRef(view);
   const viewSaveTimer = useRef(null);
   const activeBoardId = useRef(boardId);
+  const centerInitialView = useRef(savedBoardView(boardId) == null);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
@@ -116,13 +118,36 @@ export default function BoardPage({ boardId, onBack }) {
       } catch { /* best effort while switching boards */ }
     }
     activeBoardId.current = boardId;
-    const restored = savedBoardView(boardId);
+    const saved = savedBoardView(boardId);
+    centerInitialView.current = saved == null;
+    const restored = saved || defaultBoardView();
     viewRef.current = restored;
     pendingView.current = restored;
     paintView(restored);
     load();
   }, [boardId]);
   useEffect(() => { document.body.classList.add('board-workspace-open'); return () => document.body.classList.remove('board-workspace-open'); }, []);
+  useEffect(() => {
+    if (!board?.items.length || !centerInitialView.current) return undefined;
+    const frame = requestAnimationFrame(() => {
+      if (!centerInitialView.current || !viewportRef.current || !stageRef.current) return;
+      const weighted = board.items.map((item) => {
+        const element = stageRef.current.querySelector(`[data-item-id="${item.id}"]`);
+        const width = element?.offsetWidth || item.width || 300;
+        const height = element?.offsetHeight || 1;
+        return { x: item.x + width / 2, y: item.y + height / 2, weight: width * height };
+      });
+      const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+      if (!totalWeight) return;
+      const centerX = weighted.reduce((sum, item) => sum + item.x * item.weight, 0) / totalWeight;
+      const centerY = weighted.reduce((sum, item) => sum + item.y * item.weight, 0) / totalWeight;
+      const bounds = viewportRef.current.getBoundingClientRect();
+      const zoom = viewRef.current.zoom;
+      centerInitialView.current = false;
+      paintView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [board?.id]);
   const imageIds = board?.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).map((item) => item.id).join(',') || '';
   useEffect(() => {
     if (!board) return undefined;

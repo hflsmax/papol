@@ -4540,6 +4540,10 @@ export default function App() {
     exitDemo();
     setToken(token);
     setUser(user);
+    if (returnTo.startsWith('/boards/')) {
+      window.location.replace(appPath(returnTo));
+      return;
+    }
     navigate(returnTo);
   };
 
