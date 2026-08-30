@@ -4196,6 +4196,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.webpage, .board-type-legend-item.webpage { --board-kind-color: #3f78a8; }
 .board-canvas-card.selected { z-index: 2; outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius); }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
+.board-image-loading { display: grid; width: 100%; aspect-ratio: 4 / 3; place-items: center; background: var(--paper); }
+.board-canvas-card.youtube .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
 .board-canvas-card.webpage img,
 .board-canvas-card.youtube img { height: auto; max-height: none; object-fit: initial; background: transparent; }
 .board-canvas-card p { padding: 12px 2px; white-space: pre-wrap; user-select: text; cursor: text; }

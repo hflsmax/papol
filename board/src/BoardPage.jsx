@@ -127,9 +127,15 @@ export default function BoardPage({ boardId, onBack }) {
   useEffect(() => {
     if (!board) return undefined;
     let active = true; const urls = [];
-    Promise.all(board.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).map(async (item) => {
-      const url = await boardFileBlob(item); urls.push(url); return [item.id, url];
-    })).then((entries) => { if (active) setImageUrls(Object.fromEntries(entries)); }).catch(() => {});
+    setImageUrls({});
+    board.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).forEach(async (item) => {
+      try {
+        const url = await boardFileBlob(item);
+        if (!active) { URL.revokeObjectURL(url); return; }
+        urls.push(url);
+        setImageUrls((current) => ({ ...current, [item.id]: url }));
+      } catch { /* the card remains as its visible loading box */ }
+    });
     return () => { active = false; urls.forEach((url) => URL.revokeObjectURL(url)); };
   }, [imageIds]);
   const chapterKey = board?.groups?.map((group) => `${group.id}:${group.title}:${group.header}:${group.item_ids.join(',')}`).join('|') || '';
@@ -886,6 +892,7 @@ export default function BoardPage({ boardId, onBack }) {
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
         {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
+          {['image', 'youtube', 'webpage'].includes(item.kind) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
           {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {item.kind === 'file' && <div className="board-canvas-file">↧ {item.original_filename}</div>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
