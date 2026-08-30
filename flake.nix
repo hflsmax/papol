@@ -65,7 +65,7 @@
 
     devPackages = pkgs: with pkgs; [
       (python312.withPackages devPython)
-      nodejs_22            # frontend/ and viewer/ are both Vite apps
+      nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       sqlite               # papol.db is read and edited by hand often enough
       ripgrep              # fast repository-wide source search
       ruff
@@ -130,6 +130,7 @@
           echo "  Backend:  cd backend && uvicorn main:app --reload"
           echo "  Frontend: cd frontend && npm install && npm run dev"
           echo "  Viewer:   cd viewer   && npm install && npm run dev"
+          echo "  Board:    cd board    && npm install && npm run dev"
         '';
       } // playwrightEnv pkgs);
     });

@@ -14,10 +14,9 @@ import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
-import BoardPage from './components/BoardPage';
 import { appPath, stripAppBase } from './base';
 
-const styles = `
+export const styles = `
 * {
   box-sizing: border-box;
   margin: 0;
@@ -4347,9 +4346,7 @@ function parseRoute() {
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
     : rawPath;
   const routed = (route) => (demo ? { ...route, demo: true } : route);
-  let match = path.match(/^\/boards\/([^/]+)\/?$/);
-  if (match) return routed({ page: 'board', guid: match[1] });
-  match = path.match(/^\/u\/(\d+)\/boards\/?$/);
+  let match = path.match(/^\/u\/(\d+)\/boards\/?$/);
   if (match) return routed({ page: 'space', id: parseInt(match[1]), section: 'boards' });
   match = path.match(/^\/u\/(\d+)\/?$/);
   if (match) return routed({ page: 'space', id: parseInt(match[1]) });
@@ -4376,7 +4373,7 @@ const demoPath = (path) => {
 };
 
 const SIGN_IN_PAGES = new Set([
-  'space', 'board', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'space', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
 function navigate(path) {
@@ -4394,6 +4391,15 @@ function navigate(path) {
     mountedDestination,
   );
   window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+function openBoard(guid) {
+  const path = demoActive() ? `/demo/boards/${guid}` : `/boards/${guid}`;
+  window.sessionStorage.setItem(
+    'papol.boardReturn',
+    `${window.location.pathname}${window.location.search}`,
+  );
+  window.location.assign(appPath(path));
 }
 
 export default function App() {
@@ -4771,7 +4777,7 @@ export default function App() {
                 userId={user.id}
                 currentUser={user}
                 onSelectPaper={(id) => navigate(`/paper/${id}`)}
-                onSelectBoard={(guid) => navigate(`/boards/${guid}`)}
+                onSelectBoard={openBoard}
               />
             ) : (
               <HomePage
@@ -4784,14 +4790,8 @@ export default function App() {
               userId={route.id}
               currentUser={user}
               onSelectPaper={(id) => navigate(`/paper/${id}`)}
-              onSelectBoard={(guid) => navigate(`/boards/${guid}`)}
+              onSelectBoard={openBoard}
               initialSection={route.section}
-              onBack={goBack}
-            />
-          )}
-          {route.page === 'board' && user && (
-            <BoardPage
-              boardId={route.guid}
               onBack={goBack}
             />
           )}
@@ -4811,7 +4811,7 @@ export default function App() {
             <PapersPage
               currentUser={user}
               onSelectPaper={(id) => navigate(`/paper/${id}`)}
-              onSelectBoard={(guid) => navigate(`/boards/${guid}`)}
+              onSelectBoard={openBoard}
             />
           )}
           {route.page === 'room' && (

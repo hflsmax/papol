@@ -187,6 +187,22 @@ if VIEWER_DIR.exists():
     app.mount("/demo/viewer", StaticFiles(directory=str(VIEWER_DIR), html=True), name="demo-viewer")
     app.mount("/viewer", StaticFiles(directory=str(VIEWER_DIR), html=True), name="viewer")
 
+# Boards are another full-screen workspace with an independent Vite build.
+# Explicit routes provide the SPA document while /assets remains owned by
+# the main frontend; board asset names are mounted below /boards instead.
+BOARD_DIR = Path(__file__).parent.parent / "board" / "dist"
+if BOARD_DIR.exists():
+    app.mount("/boards/assets", StaticFiles(directory=str(BOARD_DIR / "assets")), name="board-assets")
+    app.mount("/demo/boards/assets", StaticFiles(directory=str(BOARD_DIR / "assets")), name="demo-board-assets")
+
+    @app.get("/boards/{board_guid}")
+    async def serve_board(board_guid: str):
+        return FileResponse(BOARD_DIR / "index.html", headers={"Cache-Control": "public, max-age=0, must-revalidate"})
+
+    @app.get("/demo/boards/{board_guid}")
+    async def serve_demo_board(board_guid: str):
+        return FileResponse(BOARD_DIR / "index.html", headers={"Cache-Control": "public, max-age=0, must-revalidate"})
+
 
 # The {name} placeholder is filled with the new reader's display name.
 # Override via the settings table key "welcome_message".

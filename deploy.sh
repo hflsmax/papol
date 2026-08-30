@@ -78,11 +78,11 @@ as_root() {
 
 # --- building ---------------------------------------------------------------
 
-# The two Vite apps. `npm ci` only when the lockfile has moved on: a deploy
+# The three Vite apps. `npm ci` only when the lockfile has moved on: a deploy
 # that changes no dependency should not spend a minute proving it.
 build_tree() {
   local dir=$1 app
-  for app in frontend viewer; do
+  for app in frontend viewer board; do
     say "Building $app ($dir)"
     if [ ! -d "$dir/$app/node_modules" ] \
        || [ "$dir/$app/package-lock.json" -nt "$dir/$app/node_modules" ]; then
@@ -185,7 +185,7 @@ start_watchers() {
   local app
   kill_stray_watchers
   set -m
-  for app in frontend viewer; do
+  for app in frontend viewer board; do
     watch_app "$app" &
     WATCH_PIDS+=($!)
   done
@@ -244,12 +244,12 @@ run_dev() {
 
   say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
   if [ "$watch" = yes ]; then
-    note "saving a file rebuilds it: backend reloads itself, frontend and"
-    note "viewer rebuild into dist — reload the page to see them"
+    note "saving a file rebuilds it: backend reloads itself; frontend, viewer,"
+    note "and board rebuild into dist — reload the page to see them"
   else
     note "not watching; backend still reloads itself"
   fi
-  note "For hot reload without a page refresh, npm run dev gives you 5173/5174."
+  note "For hot reload without a page refresh, npm run dev gives you 5173–5175."
   note "Ctrl-C stops everything."
   echo
 

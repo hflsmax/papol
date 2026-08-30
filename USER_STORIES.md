@@ -60,6 +60,10 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-5.5** The **leader announces** the seminar by picking a time and a platform; the cohort switches to "scheduled", the paper page shows the result, and participants and readers are notified.
 - **US-5.6** The paper page always reflects the cohort: none called, waiting for a leader, planning, or scheduled — with a "Join the cohort" door for signed-in readers.
 
+## 5b. Boards
+
+- **US-5.7** As a reader, I can open a board in a dedicated full-screen app served at `/boards/<guid>`, on the same origin as Papol so my session carries over without a second sign-in. Board discovery and creation remain in my nook.
+
 ## 6. Feedback
 
 - **US-6.1** As anyone using Papol — reader, demo visitor, or someone who cannot even sign in — I can report a bug or ask for a feature from a **Feedback** button floating in the bottom-right corner of every page — one box, free text, no form to fill in — without leaving the page I am on. A visitor may leave an email so the admins can reply.

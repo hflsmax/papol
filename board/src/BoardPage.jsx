@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../api';
-import ExperimentalBadge from './ExperimentalBadge';
+import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
+import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
@@ -74,6 +74,15 @@ export default function BoardPage({ boardId, onBack }) {
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
+
+  useEffect(() => {
+    if (menuItem == null) return undefined;
+    const closeMenu = (event) => {
+      if (!event.target.closest('.board-item-menu')) setMenuItem(null);
+    };
+    document.addEventListener('pointerdown', closeMenu, true);
+    return () => document.removeEventListener('pointerdown', closeMenu, true);
+  }, [menuItem]);
 
   useEffect(() => {
     let isNewBoard = false;
