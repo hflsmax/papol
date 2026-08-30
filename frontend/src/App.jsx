@@ -929,6 +929,7 @@ select {
 .upload-review-mode .space-header-row { display: block; }
 .upload-review-mode .space-header-row > .space-avatar,
 .upload-review-mode .space-header-row > .space-profile-copy,
+.upload-review-mode .space-header-actions > .new-board-btn { display: none; }
 .upload-review-mode .space-header-actions { display: block; width: 100%; margin: 0; }
 
 .upload-review-mode .paper-form {
