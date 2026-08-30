@@ -4327,6 +4327,23 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     flex-basis: 100%;
   }
 
+  .library-page .panel.paper-list { padding: 12px 10px 8px; }
+  .library-reader-filters { margin-inline: -2px; padding-inline: 2px; padding-bottom: 7px; }
+  .reader-filter { min-height: 38px; padding: 5px 10px; }
+  .reader-filter-avatar { width: 24px; height: 24px; }
+  .library-search-line { flex-direction: column; align-items: stretch; gap: 8px; }
+  .library-search-line > input { flex: none; width: 100%; min-height: 42px; }
+  .library-search-line .sort-control { width: 100%; justify-content: space-between; }
+  .library-search-line .sort-control select { flex: 1; min-width: 0; min-height: 42px; }
+  .library-page .grouped-papers { margin-top: 2px; }
+  .library-page .paper-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; padding: 13px 8px; }
+  .library-page .paper-group-head { min-width: 0; }
+  .library-page .paper-title-row h4 { font-size: var(--fs-md); line-height: 1.28; }
+  .library-page .paper-meta { margin-top: 3px; font-size: var(--fs-xs); line-height: 1.45; }
+  .library-page .entry-chips { max-width: 76px; align-content: center; gap: 5px; }
+  .library-page .avatar-chip { align-self: center; }
+  .library-page .paper-list li.nook-board-row::before { inset: 0; }
+
   .paper-actions {
     flex-wrap: wrap;
   }

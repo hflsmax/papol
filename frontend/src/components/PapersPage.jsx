@@ -134,7 +134,7 @@ export default function PapersPage({ currentUser, onSelectPaper, onSelectBoard }
           <div className="library-search-line">
             <input
               type="text"
-              placeholder="Search papers, boards, and readers in the library…"
+              placeholder="Search the library…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
