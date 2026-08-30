@@ -81,6 +81,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
   if (isLoading) return <div className="loading">Loading nook…</div>;
   if (error) return <div className="error">{error}</div>;
   if (!space) return null;
+  const selectedBoardShelf = space.shelves.find((shelf) => shelf.id === Number(boardShelfId));
 
   return (
     <div className={reviewingUpload ? 'space upload-review-mode' : 'space'}>
@@ -121,7 +122,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
           {isOwn && (
             <div className="space-header-actions">
               <button className="new-board-btn" type="button" onClick={() => { setBoardShelfId(space.shelves.find((shelf) => shelf.is_default)?.id || space.shelves[0]?.id || ''); setCreatingBoard(true); }}>
-                <span className="new-board-mark" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <i key={index} />)}</span>
+                <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
                 <span>New board</span>
               </button>
               <PaperUpload
@@ -135,8 +136,11 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
       </div>
 
       {isOwn && creatingBoard && <form className="panel board-create nook-inline-board-create" onSubmit={async (event) => { event.preventDefault(); if (!boardName.trim()) return; const board = await createBoard({ name: boardName.trim(), shelf_id: Number(boardShelfId) }); setCreatingBoard(false); setBoardName(''); onSelectBoard(board.guid); }}>
-        <div className="form-group"><label htmlFor="inline-board-name">Board name</label><input id="inline-board-name" value={boardName} onChange={(event) => setBoardName(event.target.value)} autoFocus required maxLength="120" /></div>
-        <div className="form-group"><label htmlFor="inline-board-shelf">Shelf</label><select id="inline-board-shelf" value={boardShelfId} onChange={(event) => setBoardShelfId(event.target.value)} required>{space.shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}</select></div>
+        <div className="board-create-heading"><h3>New board</h3><p>Name it and choose who can find it through its shelf.</p></div>
+        <div className="board-create-fields">
+          <div className="form-group"><label htmlFor="inline-board-name">Board name</label><input id="inline-board-name" value={boardName} onChange={(event) => setBoardName(event.target.value)} autoFocus required maxLength="120" placeholder="Untitled board" /></div>
+          <div className="form-group board-create-shelf-field"><label htmlFor="inline-board-shelf">Shelf</label><div className="board-create-shelf-select"><select id="inline-board-shelf" value={boardShelfId} onChange={(event) => setBoardShelfId(event.target.value)} required>{space.shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}</select><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></div><p className="board-create-shelf-hint">{selectedBoardShelf?.is_public ? 'Anyone can view this board.' : 'Only you can view this board.'}</p></div>
+        </div>
         <div className="form-actions"><button className="primary" type="submit">Create board</button><button type="button" onClick={() => setCreatingBoard(false)}>Cancel</button></div>
       </form>}
 
