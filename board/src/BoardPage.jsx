@@ -1493,7 +1493,7 @@ export default function BoardPage({ boardId, onBack }) {
             {item.kind !== 'comment' && <button onClick={() => downloadBoardFile(item)}>Download</button>}
             {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove card</button>}
           </div>}
-          {board.can_edit && selectedItems.length === 1 && selectedItems[0] === item.id && <button className="board-resize-handle" aria-label="Resize card" onPointerDown={(event) => startResize(event, item)} />}
+          {board.can_edit && <button className="board-resize-handle" aria-label="Resize card" title="Resize card" onPointerDown={(event) => startResize(event, item)} />}
         </article>)}
       </div>
     </main>

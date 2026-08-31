@@ -4277,8 +4277,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.selected { z-index: 2; outline: 2px solid var(--accent); outline-offset: 3px; border-color: var(--accent-line); border-radius: 10px; box-shadow: 0 6px 20px rgba(43,74,111,.16); }
 .board-canvas-card.selected > .board-card-header,
 .board-canvas-card.selected > .board-card-content,
-.board-canvas-card.selected > .board-item-menu,
-.board-canvas-card.selected > .board-resize-handle { pointer-events: none; }
+.board-canvas-card.selected > .board-item-menu { pointer-events: none; }
 .board-card-header { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .board-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .board-card-kind i { display: grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 10px; line-height: 1; }
