@@ -245,10 +245,10 @@ export default function BoardPage({ boardId, onBack }) {
         const maxRight = Math.max(...members.map((item) => item.x + item.width));
         const maxBottom = Math.max(...members.map((item) => item.y + item.height));
         const isCollection = group.kind === 'collection';
-        const x = minX - (isCollection ? 24 : 34); const y = minY - (isCollection ? 54 : 86);
+        const x = minX - (isCollection ? 24 : 34); const y = minY - 86;
         return {
           ...group, x, y, width: maxRight - minX + (isCollection ? 48 : 34),
-          height: maxBottom - minY + (isCollection ? 78 : 86),
+          height: maxBottom - minY + (isCollection ? 110 : 86),
           branches: isCollection ? [] : members.map((item) => ({ id: item.id, top: item.y - y + 18, width: item.x - x - 10 })),
         };
       }).filter(Boolean));
@@ -1216,11 +1216,11 @@ export default function BoardPage({ boardId, onBack }) {
               ? <input className="board-chapter-title" aria-label={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title`} placeholder={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title`} autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
               : <button type="button" disabled={!board.can_edit} className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || (board.can_edit ? `${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title` : '')}</button>}
           </div>
-          {chapter.kind === 'chapter' && <div className="board-chapter-header" style={{ width: Math.max(0, chapter.width - 14) }}>
+          <div className="board-chapter-header" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapterHeader === chapter.id
-              ? <textarea className="board-chapter-header-text" aria-label="Chapter header text" placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
+              ? <textarea className="board-chapter-header-text" aria-label={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} header text`} placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
               : <button type="button" disabled={!board.can_edit} className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || (board.can_edit ? 'Add header text…' : '')}</button>}
-          </div>}
+          </div>
           {chapter.kind === 'chapter' && chapter.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}>{board.can_edit && <button type="button" className={`board-chapter-reorder-handle${hoveredCard === branch.id ? ' card-hovered' : ''}${selectedItems.includes(branch.id) ? ' card-selected' : ''}`} aria-label="Move card within or out of chapter" title="Drag card" onPointerEnter={() => showCardHandle(branch.id)} onPointerLeave={() => hideCardHandleSoon(branch.id)} onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button>}</span>)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
