@@ -4262,11 +4262,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-chapter-reorder-handle:hover { transform: scale(1.08); border-color: var(--accent); box-shadow: 0 3px 9px rgba(43,74,111,.2); }
 .board-chapter-reorder-handle:active { cursor: grabbing; }
 .board-chapter-reorder-handle i { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
-.board-card-drag-handle { position: absolute; z-index: 4; top: 4px; left: -28px; display: grid; grid-template-columns: repeat(2, 3px); place-content: center; gap: 4px; width: 30px; height: 30px; padding: 0; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); box-shadow: 0 2px 6px rgba(29,33,41,.17); opacity: 0; pointer-events: none; cursor: grab; transition: opacity .14s ease, transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
-.board-canvas-card:hover .board-card-drag-handle, .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible, .board-card-drag-handle:active { opacity: 1; pointer-events: auto; }
+.board-card-drag-handle { position: absolute; z-index: 4; top: 3px; right: -28px; display: block; width: 30px; height: 32px; padding: 0; border: 3px solid var(--ink-faint); border-left-width: 2px; border-radius: 0 9px 9px 0; background-color: var(--card); background-image: radial-gradient(circle, var(--ink-faint) 1.4px, transparent 1.6px); background-position: center; background-size: 6px 6px; box-shadow: 2px 3px 7px rgba(29,33,41,.2); opacity: 0; pointer-events: none; cursor: grab; transition: opacity .14s ease, transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.board-canvas-card:hover > .board-card-drag-handle, .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible, .board-card-drag-handle:active { opacity: 1; pointer-events: auto; }
 .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible { border-color: var(--accent); outline: none; transform: scale(1.08); box-shadow: 0 3px 9px rgba(43,74,111,.2); }
 .board-card-drag-handle:active { cursor: grabbing; }
-.board-card-drag-handle i { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
+.board-card-drag-handle i { display: none; }
 .board-canvas-card.chapter-reorder-peer { z-index: 3; transition: transform 180ms cubic-bezier(.22,.9,.3,1), box-shadow 180ms ease, scale 180ms ease; }
 .board-canvas-card.chapter-reordering { z-index: 5; scale: 1.025; transition: none; box-shadow: 0 16px 36px rgba(29,33,41,.22); cursor: grabbing; }
 .board-canvas-card { position: absolute; left: 0; top: 0; width: 300px; max-height: 520px; overflow: visible; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: 0 2px 5px rgba(29,33,41,.09), 0 9px 24px rgba(29,33,41,.08); cursor: default; user-select: none; contain: layout style; will-change: transform; }
