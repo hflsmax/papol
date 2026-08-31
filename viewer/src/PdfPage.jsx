@@ -1454,6 +1454,7 @@ export default function PdfPage({
                 onClick={(e) => {
                   e.stopPropagation();
                   onFollowLink(link.spot);
+                  e.currentTarget.blur();
                 }}
               />
             )

@@ -798,6 +798,11 @@ export default function App() {
   // A link in the PDF: "see Section 3.2", "Figure 4". The destination is a
   // fraction down a page, so it survives any zoom.
   const followLink = ({ page, y }) => {
+    // A link can be activated while text remains selected in the PDF. Once
+    // the document jumps, that old highlight no longer describes the place
+    // the reader is looking at and its paint action should not follow them.
+    window.getSelection()?.removeAllRanges();
+    setSelectionPaint(null);
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
     if (!scroller || !pageEl) return;
