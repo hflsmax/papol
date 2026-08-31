@@ -650,7 +650,6 @@ export default function BoardPage({ boardId, onBack }) {
     drag.membershipChapterPreview = null;
   };
   const showMembershipChapterPreview = (drag, group, point) => {
-    clearMembershipChapterPreview(drag);
     const layout = chapterLayouts.find((candidate) => candidate.id === group.id);
     if (!layout) return;
     const members = group.item_ids.filter((id) => id !== drag.id).map((id) => {
@@ -662,6 +661,9 @@ export default function BoardPage({ boardId, onBack }) {
     const after = stackWithInsertion(members, {
       id: drag.id, x: point.x, y: point.y, height, centerY: point.y + height / 2,
     }, group.id).positions;
+    const signature = `${group.id}:${after.map((position) => position.id).join(',')}`;
+    if (drag.membershipChapterPreview?.signature === signature) return;
+    clearMembershipChapterPreview(drag);
     const positions = new Map(after.map((position) => [position.id, position]));
     members.forEach((member) => {
       const position = positions.get(member.id);
@@ -671,7 +673,7 @@ export default function BoardPage({ boardId, onBack }) {
     const chapterElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
     const heights = new Map([...members.map((member) => [member.id, member.height]), [drag.id, height]]);
     if (chapterElement) chapterElement.style.height = `${previewChapterHeight(layout.y, after, heights)}px`;
-    drag.membershipChapterPreview = { groupId: group.id, members, after, chapterElement, originalHeight: layout.height };
+    drag.membershipChapterPreview = { groupId: group.id, members, after, chapterElement, originalHeight: layout.height, signature };
   };
   const move = (event) => {
     const g = gesture.current; if (!g) return;
@@ -1445,7 +1447,7 @@ export default function BoardPage({ boardId, onBack }) {
       )}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter ${chapter.kind}${selectedChapter === chapter.id ? ' selected' : ''}${dropChapter === chapter.id ? ' drop-active' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, width: chapter.kind === 'collection' ? chapter.width : undefined, height: chapter.height }}>
+        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter ${chapter.kind}${selectedChapter === chapter.id ? ' selected' : ''}${dropChapter === chapter.id ? ' drop-active' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, width: chapter.kind === 'collection' ? chapter.width : undefined, height: chapter.height }} onPointerDown={(event) => { if (chapter.kind === 'collection' && event.target === event.currentTarget) startChapterMove(event, chapter); }}>
           {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Move or select ${chapter.kind}${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
           <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapter === chapter.id
