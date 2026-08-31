@@ -163,9 +163,78 @@ button.link.danger { color: var(--red); }
 }
 
 .link-navigation {
+  position: relative;
   flex: none;
   display: flex;
   gap: 2px;
+}
+
+.link-navigation.learning .history-arrow {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.learn-papol {
+  position: absolute;
+  z-index: 42;
+  top: calc(100% + 14px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: min(290px, calc(100vw - 24px));
+  padding: 14px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(29, 33, 41, 0.2);
+}
+
+.learn-papol::before {
+  content: '';
+  position: absolute;
+  left: 22px;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+  background: var(--card);
+  transform: rotate(45deg);
+}
+
+.learn-papol strong { color: var(--ink); font-size: var(--fs-md); }
+.learn-papol-kicker {
+  color: var(--accent);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.learn-papol kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 var(--fs-xs) var(--font-ui);
+  text-align: center;
+}
+.learn-papol .learn-papol-close {
+  align-self: flex-end;
+  margin-top: 2px;
+  padding: 4px 9px;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--ink-inverse);
 }
 
 .history-arrow {

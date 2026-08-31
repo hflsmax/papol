@@ -26,6 +26,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
+const LEARN_LINK_NAVIGATION_KEY = 'papol_learn_link_navigation';
 const markReturnToPapol = () => {
   // This is a one-shot navigation handoff, not demo-mode state. Papol
   // consumes it on arrival so returning from the viewer does not greet the
@@ -258,6 +259,7 @@ export default function App() {
   const [selectedInk, setSelectedInk] = useState(null);
   const [hoveredInkObjects, setHoveredInkObjects] = useState([]);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
@@ -595,6 +597,11 @@ export default function App() {
         window.requestAnimationFrame(() => searchInputRef.current?.select());
         return;
       }
+      if (e.key === 'Escape' && learnLinkNavigation) {
+        e.preventDefault();
+        setLearnLinkNavigation(false);
+        return;
+      }
       // Escape closes the help sheet first, before anything else looks at
       // the key: while it is up it is the thing in front of the reader.
       if (e.key === 'Escape' && helpOpen) {
@@ -803,6 +810,16 @@ export default function App() {
     // the reader is looking at and its paint action should not follow them.
     window.getSelection()?.removeAllRanges();
     setSelectionPaint(null);
+    try {
+      if (localStorage.getItem(LEARN_LINK_NAVIGATION_KEY) !== 'seen') {
+        localStorage.setItem(LEARN_LINK_NAVIGATION_KEY, 'seen');
+        setLearnLinkNavigation(true);
+      }
+    } catch {
+      // Storage can be unavailable in a locked-down browser. The lesson is
+      // still useful for this visit, even if it cannot be remembered.
+      setLearnLinkNavigation(true);
+    }
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
     if (!scroller || !pageEl) return;
@@ -2027,7 +2044,11 @@ export default function App() {
         >
           ← <span className="back-word">Back to </span>Papol
         </a>
-        <span className="link-navigation" role="group" aria-label="Link navigation">
+        <span
+          className={`link-navigation${learnLinkNavigation ? ' learning' : ''}`}
+          role="group"
+          aria-label="Link navigation"
+        >
           <button
             type="button"
             className="history-arrow"
@@ -2054,6 +2075,24 @@ export default function App() {
             </svg>
             <span className="history-key" aria-hidden="true">]</span>
           </button>
+          {learnLinkNavigation && (
+            <span className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
+              <span className="learn-papol-kicker">Learn Papol</span>
+              <strong id="learn-link-title">Jump back to where you were</strong>
+              <span>
+                Use these buttons after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>
+                {' '}to move back and forward.
+              </span>
+              <button
+                type="button"
+                className="learn-papol-close"
+                onClick={() => setLearnLinkNavigation(false)}
+                aria-label="Dismiss this tip"
+              >
+                Got it
+              </button>
+            </span>
+          )}
         </span>
         <span className="spacer" />
         <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
