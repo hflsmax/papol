@@ -442,12 +442,24 @@ export default function BoardPage({ boardId, onBack }) {
       return;
     }
     if (selectedItems.length > 1 && selectedItems.includes(item.id)) {
-      const members = selectedItems.map((id) => {
+      const memberIds = new Set(selectedItems);
+      selectedItems.forEach((id) => {
+        const selected = board.items.find((candidate) => candidate.id === id);
+        const group = board.groups.find((candidate) => candidate.id === selected?.group_id);
+        group?.item_ids.forEach((memberId) => memberIds.add(memberId));
+      });
+      const members = [...memberIds].map((id) => {
         const member = board.items.find((candidate) => candidate.id === id);
         const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
         return member && element ? { id, x: member.x, y: member.y, element } : null;
       }).filter(Boolean);
-      gesture.current = { type: 'multi-item', members, sx: event.clientX, sy: event.clientY };
+      const groupIds = new Set(members.map((member) => board.items.find((candidate) => candidate.id === member.id)?.group_id).filter((id) => id != null));
+      const groups = [...groupIds].map((id) => {
+        const layout = chapterLayouts.find((candidate) => candidate.id === id);
+        const element = stageRef.current?.querySelector(`[data-group-id="${id}"]`);
+        return layout && element ? { id, x: layout.x, y: layout.y, element } : null;
+      }).filter(Boolean);
+      gesture.current = { type: 'multi-item', members, groups, sx: event.clientX, sy: event.clientY };
       return;
     }
     if (item.group_id != null) {
@@ -607,6 +619,7 @@ export default function BoardPage({ boardId, onBack }) {
       g.current = { dx, dy };
       g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
+      g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x + dx}px, ${group.y + dy}px)`; });
       if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
     }
     else if (g.type === 'multi-item') {
@@ -728,6 +741,7 @@ export default function BoardPage({ boardId, onBack }) {
       if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
     } else if (g.type === 'multi-item') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
+      g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
     } else if (g.type === 'resize') {
       g.element.style.width = `${g.width}px`;
     }
@@ -830,6 +844,7 @@ export default function BoardPage({ boardId, onBack }) {
         Promise.all(moves.map((move) => moveBoardItem(move.id, move.to.x, move.to.y))).catch((err) => { setError(err.message); load(); });
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
+        g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
       }
     }
     if (event?.pointerType === 'touch') {
