@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCenter, chapterDropTarget, chapterInsertionIndex, collectionContainsCard, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, chapterInsertionIndex, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const chapter = { id: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -27,14 +27,6 @@ test('external cards must be inside both chapter axes', () => {
 test('attached cards stay attached vertically but leave horizontally', () => {
   assert.equal(chapterDropTarget([chapter], { x: 200, y: -500 }, 7)?.id, 7);
   assert.equal(chapterDropTarget([chapter], { x: 401, y: 200 }, 7), null);
-});
-
-test('collection joining requires the complete card inside the outline', () => {
-  const collection = { x: 100, y: 20, width: 500, height: 400 };
-  assert.equal(collectionContainsCard(collection, { x: 100, y: 96 }, 300, 100), true);
-  assert.equal(collectionContainsCard(collection, { x: 99, y: 96 }, 300, 100), false);
-  assert.equal(collectionContainsCard(collection, { x: 100, y: 95 }, 300, 100), false);
-  assert.equal(collectionContainsCard(collection, { x: 301, y: 96 }, 300, 100), false);
 });
 
 test('insertion opens first, middle, and last slots with mixed heights', () => {

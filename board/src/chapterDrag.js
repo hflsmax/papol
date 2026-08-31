@@ -20,13 +20,6 @@ export function chapterDropTarget(chapters, center, originGroupId = null) {
   }) || null;
 }
 
-export function collectionContainsCard(collection, position, width, height, headerHeight = 76) {
-  return position.x >= collection.x
-    && position.x + width <= collection.x + collection.width
-    && position.y >= collection.y + headerHeight
-    && position.y + height <= collection.y + collection.height;
-}
-
 export function chapterInsertionIndex(members, draggedCenterY) {
   const sorted = [...members].sort((a, b) => a.y - b.y);
   const index = sorted.findIndex((member) => draggedCenterY <= member.y + member.height / 2);

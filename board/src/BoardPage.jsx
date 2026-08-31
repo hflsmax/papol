@@ -736,7 +736,6 @@ export default function BoardPage({ boardId, onBack }) {
         const cardWidth = g.element.offsetWidth || 300;
         const cardHeight = g.element.offsetHeight || 1;
         const center = cardCenter(g.current, cardWidth, cardHeight);
-        const cardRect = g.element.getBoundingClientRect();
         const viewportRect = viewportRef.current.getBoundingClientRect();
         g.insertionY = (event.clientY - viewportRect.top - viewRef.current.y) / zoom;
         const collectionTarget = chapterLayouts.find((group) => {
@@ -744,9 +743,8 @@ export default function BoardPage({ boardId, onBack }) {
           const rect = g.collectionBounds.get(group.id);
           if (!rect) return false;
           const outlineTop = rect.top + 76 * zoom;
-          const tolerance = 1;
-          return cardRect.left >= rect.left - tolerance && cardRect.right <= rect.right + tolerance
-            && cardRect.top >= outlineTop - tolerance && cardRect.bottom <= rect.bottom + tolerance;
+          return event.clientX >= rect.left && event.clientX <= rect.right
+            && event.clientY >= outlineTop && event.clientY <= rect.bottom;
         });
         const chapterTarget = chapterLayouts.find((group) => group.kind === 'chapter'
           && center.x >= group.x && center.x <= group.x + group.width
