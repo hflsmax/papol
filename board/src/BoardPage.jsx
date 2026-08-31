@@ -729,7 +729,17 @@ export default function BoardPage({ boardId, onBack }) {
       }
       if (g.type === 'membership-item') {
         const center = cardCenter(g.current, g.element.offsetWidth || 300, g.element.offsetHeight || 1);
-        g.dropGroupId = chapterLayouts.find((group) => center.x >= group.x && center.x <= group.x + group.width && center.y >= group.y && center.y <= group.y + group.height)?.id || null;
+        const handle = {
+          x: (event.clientX - viewRef.current.x) / zoom,
+          y: (event.clientY - viewRef.current.y) / zoom,
+        };
+        const collectionTarget = chapterLayouts.find((group) => group.kind === 'collection'
+          && handle.x >= group.x && handle.x <= group.x + group.width
+          && handle.y >= group.y + 76 && handle.y <= group.y + group.height);
+        const chapterTarget = chapterLayouts.find((group) => group.kind === 'chapter'
+          && center.x >= group.x && center.x <= group.x + group.width
+          && center.y >= group.y && center.y <= group.y + group.height);
+        g.dropGroupId = collectionTarget?.id || chapterTarget?.id || null;
         setDropChapter(g.dropGroupId);
         const target = board.groups.find((group) => group.id === g.dropGroupId);
         if (target?.kind === 'collection') {
