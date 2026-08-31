@@ -464,6 +464,14 @@ export default function BoardPage({ boardId, onBack }) {
     }
     if (item.group_id != null) {
       const group = board.groups?.find((candidate) => candidate.id === item.group_id);
+      if (group?.kind === 'collection') {
+        gesture.current = {
+          type: 'free-item', id: item.id,
+          sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
+          element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems],
+        };
+        return;
+      }
       const members = group?.item_ids.map((id) => {
         const member = board.items.find((candidate) => candidate.id === id);
         const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
