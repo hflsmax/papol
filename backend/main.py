@@ -1070,7 +1070,8 @@ async def create_board_group(
     anchor_x = min(item.x for item in items)
     for item in items:
         item.group_id = group.id
-        item.x = anchor_x
+        if data.kind == "chapter":
+            item.x = anchor_x
     board.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(group)
@@ -1134,14 +1135,14 @@ async def ungroup_board_group(
     current_ids = {item.id for item in group.items if item.deleted_at is None}
     restore_ids = {entry.id for entry in data.items}
     if current_ids != restore_ids:
-        raise HTTPException(status_code=400, detail="Chapter membership changed")
+        raise HTTPException(status_code=400, detail="Group membership changed")
     target_ids = {entry.group_id for entry in data.items if entry.group_id is not None}
     if target_ids:
         valid_targets = db.query(BoardGroup.id).filter(
             BoardGroup.board_id == group.board_id, BoardGroup.id.in_(target_ids)
         ).count()
         if valid_targets != len(target_ids):
-            raise HTTPException(status_code=400, detail="A previous chapter no longer exists")
+                raise HTTPException(status_code=400, detail="A previous group no longer exists")
     items = {item.id: item for item in group.items}
     board = group.board
     db.delete(group)
@@ -1167,7 +1168,7 @@ async def layout_board_group(
         raise HTTPException(status_code=404, detail="Board group not found")
     active_items = {item.id: item for item in group.items if item.deleted_at is None}
     if set(active_items) != {entry.id for entry in data.items}:
-        raise HTTPException(status_code=400, detail="Chapter membership changed")
+        raise HTTPException(status_code=400, detail="Group membership changed")
     for entry in data.items:
         item = active_items[entry.id]
         item.x = entry.x

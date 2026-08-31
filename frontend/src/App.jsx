@@ -4237,6 +4237,12 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-chapter.drop-active .board-chapter-heading { border-bottom-color: var(--accent); }
 .board-chapter.drop-active .board-chapter-title { color: var(--accent); }
 .board-chapter.selected::before { width: 3px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
+.board-chapter.collection { box-sizing: border-box; border: 1px dashed var(--line-strong); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 28%, transparent); }
+.board-chapter.collection::before, .board-chapter.collection::after { display: none; }
+.board-chapter.collection.selected { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
+.board-chapter.collection .board-chapter-spine { inset: 0; width: auto; border-radius: 14px; cursor: grab; }
+.board-chapter.collection .board-chapter-heading { top: 8px; left: 12px; width: calc(100% - 24px) !important; height: 34px; }
+.board-chapter.collection .board-chapter-title { color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-sm); }
 .board-chapter-heading { position: absolute; top: 0; left: 0; box-sizing: border-box; max-width: 420px; height: 36px; border-bottom: 1px solid var(--line-strong); pointer-events: none; }
 .board-chapter-header { position: absolute; top: 36px; left: 0; box-sizing: border-box; max-width: 420px; height: 34px; pointer-events: none; }
 .board-chapter-title { display: block; width: 100%; height: 35px; margin: 0; padding: 3px 5px; overflow: hidden; border: 1px solid transparent; border-radius: 6px 6px 0 0; background: transparent; box-shadow: none; color: var(--ink); font: 650 var(--fs-lg) var(--font-serif); text-align: left; text-overflow: ellipsis; white-space: nowrap; pointer-events: auto; }

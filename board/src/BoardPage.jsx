@@ -199,14 +199,14 @@ export default function BoardPage({ boardId, onBack }) {
     });
     return () => { active = false; urls.forEach((url) => URL.revokeObjectURL(url)); };
   }, [imageIds]);
-  const chapterKey = board?.groups?.map((group) => `${group.id}:${group.title}:${group.header}:${group.item_ids.join(',')}`).join('|') || '';
+  const chapterKey = board?.groups?.map((group) => `${group.id}:${group.kind}:${group.title}:${group.header}:${group.item_ids.join(',')}`).join('|') || '';
   useEffect(() => {
     if (!board?.groups?.length || !stageRef.current) { setChapterLayouts([]); return undefined; }
     let reflowTimer = null;
     const compact = () => {
       if (!board.can_edit) return;
       if (['item', 'resize'].includes(gesture.current?.type)) return;
-      const layouts = board.groups.map((group) => {
+      const layouts = board.groups.filter((group) => group.kind === 'chapter').map((group) => {
         const members = group.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean).sort((a, b) => a.y - b.y);
         if (members.length < 2) return null;
         const x = Math.min(...members.map((item) => item.x));
@@ -244,11 +244,12 @@ export default function BoardPage({ boardId, onBack }) {
         const minY = Math.min(...members.map((item) => item.y));
         const maxRight = Math.max(...members.map((item) => item.x + item.width));
         const maxBottom = Math.max(...members.map((item) => item.y + item.height));
-        const x = minX - 34; const y = minY - 86;
+        const isCollection = group.kind === 'collection';
+        const x = minX - (isCollection ? 24 : 34); const y = minY - (isCollection ? 54 : 86);
         return {
-          ...group, x, y, width: maxRight - minX + 34,
-          height: maxBottom - minY + 86,
-          branches: members.map((item) => ({ id: item.id, top: item.y - y + 18, width: item.x - x - 10 })),
+          ...group, x, y, width: maxRight - minX + (isCollection ? 48 : 34),
+          height: maxBottom - minY + (isCollection ? 78 : 86),
+          branches: isCollection ? [] : members.map((item) => ({ id: item.id, top: item.y - y + 18, width: item.x - x - 10 })),
         };
       }).filter(Boolean));
       scheduleCompact();
@@ -442,6 +443,14 @@ export default function BoardPage({ boardId, onBack }) {
     }
     if (item.group_id != null) {
       const group = board.groups?.find((candidate) => candidate.id === item.group_id);
+      if (group?.kind === 'collection') {
+        gesture.current = {
+          type: 'item', id: item.id, originGroupId: null, members: null, originalBefore: null,
+          chapter: null, chapterElement: null, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
+          element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems],
+        };
+        return;
+      }
       const members = group?.item_ids.map((id) => {
         const member = board.items.find((candidate) => candidate.id === id);
         const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
@@ -472,14 +481,15 @@ export default function BoardPage({ boardId, onBack }) {
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     const group = item.group_id ? board.groups?.find((candidate) => candidate.id === item.group_id) : null;
-    const beforePositions = group?.item_ids.map((id) => {
+    const chapter = group?.kind === 'chapter' ? group : null;
+    const beforePositions = chapter?.item_ids.map((id) => {
       const member = board.items.find((candidate) => candidate.id === id);
-      return { id, group_id: group.id, x: member.x, y: member.y };
+      return { id, group_id: chapter.id, x: member.x, y: member.y };
     });
     gesture.current = {
       type: 'resize', id: item.id, sx: event.clientX,
       width: item.width || 300, element: event.currentTarget.closest('.board-canvas-card'),
-      groupId: group?.id, beforePositions,
+      groupId: chapter?.id, beforePositions,
     };
   };
   const compactChapterPositions = (groupId) => {
@@ -597,7 +607,7 @@ export default function BoardPage({ boardId, onBack }) {
         const width = g.element.offsetWidth || 300;
         const height = g.element.offsetHeight || 1;
         const center = cardCenter(g.current, width, height);
-        const target = chapterDropTarget(chapterLayouts, center, g.originGroupId);
+        const target = chapterDropTarget(chapterLayouts.filter((group) => group.kind === 'chapter'), center, g.originGroupId);
         g.dropGroupId = target?.id || null;
         setDropChapter(g.dropGroupId);
         if (!target) {
@@ -901,7 +911,24 @@ export default function BoardPage({ boardId, onBack }) {
         return { id, group_id: item.group_id || null, x: item.x, y: item.y };
       });
       const group = await createBoardGroup(board.guid, { kind: 'chapter', title: '', item_ids: selectedItems });
-      undoStack.current.push({ type: 'group', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
+      undoStack.current.push({ type: 'group', kind: 'chapter', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
+      redoStack.current = [];
+      setSelectedItems([]);
+      await load();
+      setChapterTitleDraft('');
+      setEditingChapter(group.id);
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  const groupAsCollection = async () => {
+    if (selectedItems.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
+    setBusy(true); setError(null);
+    try {
+      const previous = selectedItems.map((id) => {
+        const item = board.items.find((candidate) => candidate.id === id);
+        return { id, group_id: null, x: item.x, y: item.y };
+      });
+      const group = await createBoardGroup(board.guid, { kind: 'collection', title: '', item_ids: selectedItems });
+      undoStack.current.push({ type: 'group', kind: 'collection', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
       redoStack.current = [];
       setSelectedItems([]);
       await load();
@@ -918,7 +945,7 @@ export default function BoardPage({ boardId, onBack }) {
     try {
       await ungroupBoardGroup(chapter.id, items);
       undoStack.current.push({
-        type: 'ungroup', id: chapter.id, boardGuid: board.guid,
+        type: 'ungroup', kind: chapter.kind, id: chapter.id, boardGuid: board.guid,
         title: chapter.title, header: chapter.header, itemIds: [...chapter.item_ids], items,
       });
       redoStack.current = [];
@@ -1002,7 +1029,7 @@ export default function BoardPage({ boardId, onBack }) {
         } else {
           const previousId = action.id;
           const group = await createBoardGroup(action.boardGuid, {
-            kind: 'chapter', title: action.title, header: action.header, item_ids: action.itemIds,
+            kind: action.kind || 'chapter', title: action.title, header: action.header, item_ids: action.itemIds,
           });
           action.id = group.id;
           source.forEach((pending) => {
@@ -1012,7 +1039,7 @@ export default function BoardPage({ boardId, onBack }) {
       } else if (action.type === 'ungroup') {
         if (direction === 'undo') {
           const group = await createBoardGroup(action.boardGuid, {
-            kind: 'chapter', title: action.title, header: action.header, item_ids: action.itemIds,
+            kind: action.kind || 'chapter', title: action.title, header: action.header, item_ids: action.itemIds,
           });
           action.id = group.id;
         } else {
@@ -1151,8 +1178,8 @@ export default function BoardPage({ boardId, onBack }) {
     </header>
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
-    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button>}</div>}
-    {board.can_edit && activeChapter && <div className="board-selection-menu"><span>Chapter selected</span><button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
+    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={groupAsCollection}>Make collection</button><button type="button" disabled={busy} onClick={groupAsChapter}>Make chapter</button></>}</div>}
+    {board.can_edit && activeChapter && <div className="board-selection-menu"><span>{activeChapter.kind === 'collection' ? 'Collection' : 'Chapter'} selected</span><button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
@@ -1182,22 +1209,22 @@ export default function BoardPage({ boardId, onBack }) {
       )}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter${selectedChapter === chapter.id ? ' selected' : ''}${dropChapter === chapter.id ? ' drop-active' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
-          {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Move or select chapter${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
+        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter ${chapter.kind}${selectedChapter === chapter.id ? ' selected' : ''}${dropChapter === chapter.id ? ' drop-active' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, width: chapter.kind === 'collection' ? chapter.width : undefined, height: chapter.height }}>
+          {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Move or select ${chapter.kind}${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
           <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapter === chapter.id
-              ? <input className="board-chapter-title" aria-label="Chapter title" placeholder="Chapter title" autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || (board.can_edit ? 'Chapter title' : '')}</button>}
+              ? <input className="board-chapter-title" aria-label={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title`} placeholder={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title`} autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
+              : <button type="button" disabled={!board.can_edit} className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || (board.can_edit ? `${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title` : '')}</button>}
           </div>
-          <div className="board-chapter-header" style={{ width: Math.max(0, chapter.width - 14) }}>
+          {chapter.kind === 'chapter' && <div className="board-chapter-header" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapterHeader === chapter.id
               ? <textarea className="board-chapter-header-text" aria-label="Chapter header text" placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
               : <button type="button" disabled={!board.can_edit} className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || (board.can_edit ? 'Add header text…' : '')}</button>}
-          </div>
-          {chapter.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}>{board.can_edit && <button type="button" className={`board-chapter-reorder-handle${hoveredCard === branch.id ? ' card-hovered' : ''}${selectedItems.includes(branch.id) ? ' card-selected' : ''}`} aria-label="Move card within or out of chapter" title="Drag card" onPointerEnter={() => showCardHandle(branch.id)} onPointerLeave={() => hideCardHandleSoon(branch.id)} onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button>}</span>)}
+          </div>}
+          {chapter.kind === 'chapter' && chapter.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}>{board.can_edit && <button type="button" className={`board-chapter-reorder-handle${hoveredCard === branch.id ? ' card-hovered' : ''}${selectedItems.includes(branch.id) ? ' card-selected' : ''}`} aria-label="Move card within or out of chapter" title="Drag card" onPointerEnter={() => showCardHandle(branch.id)} onPointerLeave={() => hideCardHandleSoon(branch.id)} onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button>}</span>)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerEnter={() => item.group_id != null && showCardHandle(item.id)} onPointerLeave={() => item.group_id != null && hideCardHandleSoon(item.id)} onPointerDown={(e) => startDrag(e, item)}>
+        {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerEnter={() => board.groups.find((group) => group.id === item.group_id)?.kind === 'chapter' && showCardHandle(item.id)} onPointerLeave={() => board.groups.find((group) => group.id === item.group_id)?.kind === 'chapter' && hideCardHandleSoon(item.id)} onPointerDown={(e) => startDrag(e, item)}>
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
             {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([item.id]); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}

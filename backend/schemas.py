@@ -229,7 +229,7 @@ class BoardItemUpdate(BaseModel):
 
 
 class BoardGroupCreate(BaseModel):
-    kind: Literal["chapter"] = "chapter"
+    kind: Literal["chapter", "collection"] = "chapter"
     title: str = Field(default="", max_length=240)
     header: str = Field(default="", max_length=4000)
     item_ids: List[int] = Field(min_length=2, max_length=100)
@@ -262,7 +262,7 @@ class BoardGroupLayout(BaseModel):
 
 class BoardGroupOut(BaseModel):
     id: int
-    kind: Literal["chapter"]
+    kind: Literal["chapter", "collection"]
     title: str
     header: str = ""
     item_ids: List[int] = []
