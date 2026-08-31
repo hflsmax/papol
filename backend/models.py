@@ -361,12 +361,15 @@ class BoardItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
     group_id = Column(Integer, ForeignKey("board_groups.id"), nullable=True, index=True)
-    kind = Column(String(20), nullable=False)  # comment | image | file | youtube | webpage
+    kind = Column(String(20), nullable=False)  # comment | excerpt | image | file | youtube | webpage
     content = Column(Text, nullable=True)
+    excerpt_text = Column(Text, nullable=True)
     file_path = Column(Text, nullable=True)
     original_filename = Column(Text, nullable=True)
     mime_type = Column(String(255), nullable=True)
     source_url = Column(Text, nullable=True)
+    source_label = Column(Text, nullable=True)
+    staged = Column(Boolean, nullable=False, default=False, server_default="0")
     text_align = Column(String(10), nullable=False, default="left", server_default="left")
     position = Column(Integer, nullable=False, default=0, server_default="0")
     x = Column(Float, nullable=False, default=0, server_default="0")

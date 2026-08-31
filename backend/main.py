@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
     backfill_shelves, backfill_favourite_tags,
-    backfill_board_guids, backfill_board_shelves,
+    backfill_board_guids, backfill_board_shelves, backfill_board_excerpts,
     SessionLocal,
 )
 from models import (
@@ -63,7 +63,8 @@ from schemas import (
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
-    BoardItemCreate, BoardItemUpdate, BoardYouTubeCreate, BoardWebpageCreate,
+    BoardItemCreate, BoardItemUpdate, BoardStagingCreate, BoardStagingPlace,
+    BoardYouTubeCreate, BoardWebpageCreate,
     BoardItemOut, BoardOut, BoardGroupCreate, BoardGroupUpdate, BoardGroupMove,
     BoardGroupUngroup, BoardGroupLayout, BoardGroupOut,
 )
@@ -85,6 +86,7 @@ import dbmetrics
 migrate()
 Base.metadata.create_all(bind=engine)
 backfill_board_guids()
+backfill_board_excerpts()
 
 # Uploads directory
 UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
@@ -475,7 +477,12 @@ def _owned_board(board_guid: str, user: User, db: Session) -> Board:
 
 
 def _board_out(board: Board, include_items: bool = False, can_edit: bool = False) -> BoardOut:
-    active_items = [item for item in board.items if item.deleted_at is None]
+    active_items = [
+        item for item in board.items if item.deleted_at is None and not item.staged
+    ]
+    staged_items = [
+        item for item in board.items if item.deleted_at is None and item.staged
+    ]
     return BoardOut(
         id=board.id,
         guid=board.guid,
@@ -489,6 +496,7 @@ def _board_out(board: Board, include_items: bool = False, can_edit: bool = False
         updated_at=board.updated_at,
         item_count=len(active_items),
         items=(active_items if include_items else []),
+        staged_items=(staged_items if include_items and can_edit else []),
         groups=([BoardGroupOut(
             id=group.id, kind=group.kind, title=group.title, header=group.header or "",
             item_ids=[item.id for item in group.items if item.deleted_at is None],
@@ -608,6 +616,55 @@ async def add_board_comment(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.post("/api/boards/{board_guid}/staging", response_model=BoardItemOut)
+async def stage_board_excerpt(
+    board_guid: str,
+    data: BoardStagingCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Send a quoted passage to an owned board without placing it yet."""
+    board = _owned_board(board_guid, user, db)
+    item = BoardItem(
+        board_id=board.id,
+        kind="excerpt",
+        excerpt_text=data.excerpt_text.strip(),
+        content=data.content.strip() if data.content and data.content.strip() else None,
+        source_url=data.source_url.strip(),
+        source_label=data.source_label.strip(),
+        staged=True,
+    )
+    board.updated_at = datetime.utcnow()
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.post("/api/board-items/{item_id}/place", response_model=BoardItemOut)
+async def place_staged_board_item(
+    item_id: int,
+    data: BoardStagingPlace,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(BoardItem).join(Board).filter(
+        BoardItem.id == item_id,
+        Board.user_id == user.id,
+        BoardItem.deleted_at.is_(None),
+        BoardItem.staged.is_(True),
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Staged item not found")
+    item.x = data.x
+    item.y = data.y
+    item.staged = False
+    item.board.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(item)
     return item

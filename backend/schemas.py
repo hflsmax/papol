@@ -207,6 +207,18 @@ class BoardItemCreate(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
 
 
+class BoardStagingCreate(BaseModel):
+    excerpt_text: str = Field(min_length=1, max_length=10000)
+    content: Optional[str] = Field(default=None, max_length=10000)
+    source_url: str = Field(min_length=1, max_length=4000, pattern=r"^https?://")
+    source_label: str = Field(min_length=1, max_length=500)
+
+
+class BoardStagingPlace(BaseModel):
+    x: float = Field(ge=-1000000, le=1000000)
+    y: float = Field(ge=-1000000, le=1000000)
+
+
 class BoardItemUpdate(BaseModel):
     x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
@@ -271,12 +283,15 @@ class BoardWebpageCreate(BoardYouTubeCreate):
 class BoardItemOut(BaseModel):
     id: int
     group_id: Optional[int] = None
-    kind: Literal["comment", "image", "file", "youtube", "webpage"]
+    kind: Literal["comment", "excerpt", "image", "file", "youtube", "webpage"]
     content: Optional[str] = None
+    excerpt_text: Optional[str] = None
     file_path: Optional[str] = None
     original_filename: Optional[str] = None
     mime_type: Optional[str] = None
     source_url: Optional[str] = None
+    source_label: Optional[str] = None
+    staged: bool = False
     text_align: Literal["left", "center", "right"] = "left"
     position: int
     x: float
@@ -302,6 +317,7 @@ class BoardOut(BaseModel):
     updated_at: datetime
     item_count: int = 0
     items: List[BoardItemOut] = []
+    staged_items: List[BoardItemOut] = []
     groups: List[BoardGroupOut] = []
 
     class Config:

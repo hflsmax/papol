@@ -85,6 +85,7 @@ export default function PdfPage({
   onMoveNote,
   tool,
   ink,
+  provenanceHighlights = [],
   selectedInk,
   hoveredInkObjects,
   inkColor,
@@ -1242,6 +1243,18 @@ export default function PdfPage({
             preserveAspectRatio="none"
             aria-hidden="true"
           >
+            {provenanceHighlights.length > 0 && (
+              <g className="provenance-highlight">
+                {provenanceHighlights.map((stroke, index) => (
+                  <React.Fragment key={`${stroke.page}-${index}`}>
+                    {markFor(stroke.points, stroke.width * size.width, 'flat', {
+                      fill: '#f6cb41',
+                      opacity: 0.7,
+                    })}
+                  </React.Fragment>
+                ))}
+              </g>
+            )}
             {ink.map((stroke) => {
               const going = doomed.ink.includes(stroke.id);
               const object = stroke.group_id

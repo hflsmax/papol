@@ -214,10 +214,28 @@ input[type='checkbox'] {
   box-shadow: 0 3px 12px rgba(25, 35, 50, 0.16);
 }
 
+.feedback-fab::after {
+  content: '×';
+  display: inline-block;
+  width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(4px);
+  transition: width 0.15s ease, margin-left 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+
 .feedback-fab:hover {
   color: var(--accent);
   border-color: var(--accent);
   box-shadow: 0 4px 16px rgba(25, 35, 50, 0.22);
+}
+
+.feedback-fab:hover::after {
+  width: 0.7em;
+  margin-left: 6px;
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* The offer of a newer PDF: informational, never alarming, and never
@@ -4230,6 +4248,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.chapter-reordering { z-index: 5; scale: 1.025; transition: none; box-shadow: 0 14px 34px color-mix(in srgb, var(--board-kind-color) 34%, transparent), 0 5px 12px rgba(29,33,41,.2); cursor: grabbing; }
 .board-canvas-card { position: absolute; left: 0; top: 0; width: 300px; max-height: 520px; overflow: visible; border: 2px solid color-mix(in srgb, var(--board-kind-color) 86%, var(--ink) 14%); border-radius: 3px; background: transparent; box-shadow: 0 0 0 1px color-mix(in srgb, var(--board-kind-color) 28%, transparent), 0 0 10px color-mix(in srgb, var(--board-kind-color) 64%, transparent), 0 0 28px color-mix(in srgb, var(--board-kind-color) 34%, transparent), 0 0 52px color-mix(in srgb, var(--board-kind-color) 18%, transparent); cursor: default; user-select: none; contain: layout style; will-change: transform; }
 .board-canvas-card.comment, .board-type-legend-item.comment { --board-kind-color: #b07a32; }
+.board-canvas-card.excerpt, .board-type-legend-item.excerpt { --board-kind-color: #7a5b9e; }
 .board-canvas-card.image, .board-type-legend-item.image { --board-kind-color: #477f66; }
 .board-canvas-card.file, .board-type-legend-item.file { --board-kind-color: #7663a5; }
 .board-canvas-card.youtube, .board-type-legend-item.youtube { --board-kind-color: #c45151; }
@@ -4250,6 +4269,21 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-youtube-description { margin: 0; padding: 10px 2px 2px; cursor: text; }
 .board-editable-text { cursor: text; }
 .board-youtube-description.empty { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-style: italic; }
+.board-excerpt-source { display: block; margin: 0 2px 10px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--accent); font: var(--fs-xs) var(--font-ui); text-decoration: none; }
+.board-excerpt-source:hover { text-decoration: underline; text-underline-offset: 2px; }
+.board-excerpt-text { margin: 0; padding: 14px 14px 12px; border: 0; color: var(--ink); font: var(--fs-sm) var(--font-serif); line-height: 1.55; white-space: pre-wrap; user-select: text; }
+.board-staging { position: absolute; z-index: 20; top: 18px; right: 18px; display: flex; flex-direction: column; width: min(310px, calc(100vw - 36px)); max-height: calc(100% - 36px); border: 1px solid var(--line-strong); border-radius: 8px; background: color-mix(in srgb, var(--card) 94%, transparent); box-shadow: 0 10px 30px rgba(29,33,41,.2); font-family: var(--font-ui); touch-action: auto; }
+.board-staging > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.board-staging > header strong { color: var(--ink); font-size: var(--fs-sm); }
+.board-staging > header span { color: var(--ink-faint); font-size: var(--fs-2xs); }
+.board-staging-list { display: grid; gap: 8px; padding: 9px; overflow: auto; }
+.board-staging-card { padding: 10px; border: 1px solid #a991c2; border-radius: var(--radius); background: var(--card); box-shadow: 0 2px 7px rgba(29,33,41,.1); cursor: grab; user-select: none; }
+.board-staging-card:active { cursor: grabbing; }
+.board-staging-card p { display: -webkit-box; margin: 0 0 8px; overflow: hidden; color: var(--ink); font: var(--fs-sm) var(--font-serif); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+.board-staging-card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.board-staging-card a { min-width: 0; overflow: hidden; color: var(--accent); font-size: var(--fs-2xs); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.board-staging-card a:hover { text-decoration: underline; }
+.board-staging-card button { flex: none; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font-size: var(--fs-lg); line-height: 1; }
 .board-inline-text-editor { width: 100%; margin-top: 8px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--card); overflow: hidden; }
 .board-inline-description { display: block; width: 100%; margin: 0; padding: 7px; resize: vertical; border: 0; border-radius: 0; background: var(--card); color: var(--ink); font: var(--fs-sm) var(--font-serif); user-select: text; }
 .board-inline-description:focus { outline: 2px solid var(--accent-soft); }
@@ -4288,6 +4322,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-chapter-reorder-handle { left: -16px; top: -12px; width: 28px; height: 28px; scale: var(--board-ui-scale); }
   .board-inline-format button { width: 36px; min-width: 36px; min-height: 34px; }
   .board-inline-description { font-size: 16px; }
+  .board-staging { top: 10px; right: 10px; width: min(290px, calc(100vw - 20px)); max-height: 48%; }
   .board-canvas-error { top: 63px; width: calc(100vw - 20px); }
 }
 

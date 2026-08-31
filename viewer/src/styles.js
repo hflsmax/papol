@@ -777,9 +777,15 @@ button.link.danger { color: var(--red); }
   scroll-margin: 72px 28px;
 }
 
-.selection-brush {
+.selection-actions {
   position: fixed;
   z-index: 30;
+  display: flex;
+  gap: 5px;
+  transform: translateX(-50%);
+}
+
+.selection-action {
   width: 32px;
   height: 32px;
   display: grid;
@@ -791,12 +797,62 @@ button.link.danger { color: var(--red); }
   background: var(--card);
   box-shadow: 0 3px 12px rgba(29, 33, 41, 0.2);
   cursor: pointer;
-  transform: translateX(-50%);
 }
 
-.selection-brush:hover { background: var(--accent-soft); }
-.selection-brush:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.selection-action:hover { background: var(--accent-soft); }
+.selection-action:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .selection-brush svg { width: 100%; height: 100%; }
+.selection-send { color: var(--accent); }
+.selection-send svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.provenance-highlight {
+  pointer-events: none;
+  animation: provenance-highlight-fade 6s 0.8s ease-out forwards;
+}
+
+@keyframes provenance-highlight-fade {
+  0%, 18% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.send-selection-sheet { width: min(520px, 100%); }
+.send-selection-field {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 14px;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.send-selection-field textarea,
+.send-selection-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  font: var(--fs-sm) var(--font-ui);
+}
+.send-selection-field textarea { resize: vertical; line-height: 1.5; }
+.send-selection-field small { color: var(--ink-faint); font-size: inherit; font-weight: 400; }
+.send-selection-field textarea:focus,
+.send-selection-field select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.send-selection-source {
+  margin: 0 0 14px;
+  color: var(--ink-faint);
+  font: var(--fs-xs) var(--font-ui);
+}
 
 /* The PDF's own links. Invisible until pointed at, like the citations:
    a paper is not improved by underlining every cross-reference in it. */
@@ -1121,10 +1177,28 @@ button.link.danger { color: var(--red); }
   box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
 }
 
+.feedback-fab::after {
+  content: '×';
+  display: inline-block;
+  width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(4px);
+  transition: width 0.15s ease, margin-left 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+
 .feedback-fab:hover {
   color: var(--accent);
   border-color: var(--accent);
   box-shadow: 0 4px 16px rgba(29, 33, 41, 0.22);
+}
+
+.feedback-fab:hover::after {
+  width: 0.7em;
+  margin-left: 6px;
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .feedback-sheet { width: min(420px, 100%); }

@@ -86,6 +86,23 @@ def backfill_board_shelves():
         ))
 
 
+def backfill_board_excerpts():
+    """Move excerpts created by the initial staging implementation out of
+    the editable comment field and into their immutable quote field."""
+    with engine.begin() as conn:
+        if not _table_exists(conn, "board_items"):
+            return
+        columns = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(board_items)"))
+        }
+        if "excerpt_text" not in columns:
+            return
+        conn.execute(text(
+            "UPDATE board_items SET excerpt_text=content, content=NULL "
+            "WHERE kind='excerpt' AND excerpt_text IS NULL AND content IS NOT NULL"
+        ))
+
+
 def backfill_copy_edition_hashes():
     """Give every edition and pinned nook copy a durable PDF identity."""
     with engine.begin() as conn:

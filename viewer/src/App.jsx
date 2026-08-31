@@ -6,7 +6,7 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   pdfHref, getViewerReferences, getViewerReference, resolveViewerReference,
-  submitFeedback,
+  submitFeedback, listBoards, stageBoardExcerpt,
 } from './api';
 import { resolveSource, getToken } from './source';
 import { appPath } from './base';
@@ -20,6 +20,7 @@ import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { findTextMatches, indexTextItems } from './pdfSearch';
+import { cleanExcerptText } from './excerptText';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -171,6 +172,84 @@ function numberParam(name) {
   return v && /^\d+$/.test(v) ? v : null;
 }
 
+function fractionParam(name) {
+  const value = Number(new URLSearchParams(window.location.search).get(name));
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
+}
+
+function selectionParam() {
+  const encoded = new URLSearchParams(window.location.search).get('mark');
+  if (!encoded) return [];
+  try {
+    const rows = JSON.parse(atob(encoded));
+    if (!Array.isArray(rows) || rows.length > 100) return [];
+    return rows.map(([page, x1, x2, y, width]) => ({
+      page, width, shape: 'flat', points: [{ x: x1, y }, { x: x2, y }],
+    })).filter((stroke) => (
+      Number.isInteger(stroke.page) && stroke.page > 0 &&
+      Number.isFinite(stroke.width) && stroke.width > 0 &&
+      stroke.points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function selectedTextWithoutPdfCitations(selection, scroller) {
+  if (!selection?.rangeCount || selection.isCollapsed || !scroller) return '';
+  const range = selection.getRangeAt(0);
+  const citationBoxes = [...scroller.querySelectorAll('.cite')]
+    .map((citation) => citation.getBoundingClientRect())
+    .filter((box) => box.width > 0 && box.height > 0);
+  const pieces = [];
+
+  for (const span of scroller.querySelectorAll('.textLayer > span')) {
+    const node = span.firstChild;
+    if (!node || node.nodeType !== Node.TEXT_NODE) continue;
+    try {
+      if (!range.intersectsNode(node)) continue;
+    } catch {
+      continue;
+    }
+    const start = node === range.startContainer ? range.startOffset : 0;
+    const end = node === range.endContainer ? range.endOffset : node.length;
+    if (end <= start) continue;
+    let text = '';
+    const selectedRange = document.createRange();
+    selectedRange.setStart(node, start);
+    selectedRange.setEnd(node, end);
+    const pieceBox = selectedRange.getBoundingClientRect();
+    selectedRange.detach();
+    for (let offset = start; offset < end; offset += 1) {
+      const characterRange = document.createRange();
+      characterRange.setStart(node, offset);
+      characterRange.setEnd(node, offset + 1);
+      const boxes = [...characterRange.getClientRects()];
+      characterRange.detach();
+      const isCitation = boxes.some((box) => citationBoxes.some((citation) => {
+        const cx = box.left + box.width / 2;
+        const cy = box.top + box.height / 2;
+        return cx >= citation.left - 1 && cx <= citation.right + 1 &&
+          cy >= citation.top - 1 && cy <= citation.bottom + 1;
+      }));
+      if (!isCitation) text += node.data[offset];
+    }
+    if (text) pieces.push({ text, box: pieceBox });
+  }
+
+  return pieces.map((piece, index) => {
+    if (index === 0) return piece.text;
+    const previous = pieces[index - 1];
+    const newLine = piece.box.top > previous.box.top + previous.box.height * 0.55;
+    const paragraphBreak = piece.box.top - previous.box.bottom >
+      Math.max(piece.box.height, previous.box.height) * 0.8;
+    const separated = piece.box.left - previous.box.right > 1;
+    const needsSpace = !/\s$/.test(previous.text) && !/^\s/.test(piece.text);
+    const separator = paragraphBreak ? '\n\n' : newLine ? '\n' : separated ? ' ' : '';
+    return `${needsSpace ? separator : ''}${piece.text}`;
+  }).join('');
+}
+
 function savedReadingView() {
   const pdf = new URLSearchParams(window.location.search).get('pdf');
   if (!pdf) return { key: null, view: null };
@@ -192,6 +271,16 @@ export default function App() {
   const source = useMemo(resolveSource, []);
   // Papol's Notes list links straight to one note: ?paper=9&note=42.
   const wantedNoteId = numberParam('note');
+  const wantedPage = numberParam('page');
+  const wantedY = fractionParam('y');
+  const wantedSelection = useMemo(selectionParam, []);
+  const wantedSelectionByPage = useMemo(() => {
+    const byPage = new Map();
+    wantedSelection.forEach((stroke) => {
+      byPage.set(stroke.page, [...(byPage.get(stroke.page) || []), stroke]);
+    });
+    return byPage;
+  }, [wantedSelection]);
   const [paper, setPaper] = useState(null);
   const [doc, setDoc] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -214,6 +303,12 @@ export default function App() {
   // re-render of every visible page.
   const [renderScale, setRenderScale] = useState(null);
   const [selectionPaint, setSelectionPaint] = useState(null);
+  const [sendSelection, setSendSelection] = useState(null);
+  const [sendBoards, setSendBoards] = useState([]);
+  const [sendBoardGuid, setSendBoardGuid] = useState('');
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendError, setSendError] = useState(null);
+  const [sendComplete, setSendComplete] = useState(false);
   const [activeNoteId, setActiveNoteId] = useState(null);
   // The anchor just pointed at: its entry in the rail lights up briefly.
   const [flashId, setFlashId] = useState(null);
@@ -600,6 +695,11 @@ export default function App() {
       if (e.key === 'Escape' && learnLinkNavigation) {
         e.preventDefault();
         setLearnLinkNavigation(false);
+        return;
+      }
+      if (e.key === 'Escape' && sendSelection) {
+        e.preventDefault();
+        closeSendSelection();
         return;
       }
       // Escape closes the help sheet first, before anything else looks at
@@ -1049,6 +1149,7 @@ export default function App() {
       const above = last.top - 38;
       setSelectionPaint({
         strokes,
+        text: selectedTextWithoutPdfCitations(selection, scroller).trim(),
         left: Math.max(22, Math.min(window.innerWidth - 22, last.right)),
         top: above >= 8 ? above : Math.min(window.innerHeight - 44, last.bottom + 8),
       });
@@ -1111,6 +1212,68 @@ export default function App() {
         restored.forEach((stroke, index) => { entries[index].id = stroke.id; });
       },
     });
+  };
+
+  const closeSendSelection = () => {
+    setSendSelection(null);
+    setSendBoards([]);
+    setSendBoardGuid('');
+    setSendError(null);
+    setSendComplete(false);
+  };
+
+  const openSendSelection = async () => {
+    if (!selectionPaint?.text) return;
+    const first = selectionPaint.strokes[0];
+    setSendSelection({
+      text: cleanExcerptText(selectionPaint.text),
+      comment: '',
+      page: first.page,
+      y: first.points[0]?.y ?? 0.5,
+      strokes: selectionPaint.strokes,
+    });
+    setSendError(null);
+    setSendComplete(false);
+    window.getSelection()?.removeAllRanges();
+    setSelectionPaint(null);
+    try {
+      const boards = await listBoards();
+      setSendBoards(boards);
+      setSendBoardGuid(boards[0]?.guid || '');
+    } catch (e) {
+      setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
+    }
+  };
+
+  const sendSelectionToBoard = async () => {
+    if (!sendSelection?.text.trim() || !sendBoardGuid) return;
+    setSendBusy(true);
+    setSendError(null);
+    const backlink = new URL(window.location.href);
+    backlink.searchParams.delete('note');
+    backlink.searchParams.set('page', String(sendSelection.page));
+    backlink.searchParams.set('y', String(sendSelection.y));
+    const compactSelection = sendSelection.strokes.map((stroke) => [
+      stroke.page,
+      Number(stroke.points[0].x.toFixed(5)),
+      Number(stroke.points[1].x.toFixed(5)),
+      Number(stroke.points[0].y.toFixed(5)),
+      Number(stroke.width.toFixed(5)),
+    ]);
+    backlink.searchParams.set('mark', btoa(JSON.stringify(compactSelection)));
+    try {
+      await stageBoardExcerpt(sendBoardGuid, {
+        excerpt_text: sendSelection.text.trim(),
+        content: sendSelection.comment.trim() || null,
+        source_url: backlink.href,
+        source_label: `${paper?.title || 'Paper'}, page ${sendSelection.page}`,
+      });
+      setSendComplete(true);
+    } catch (e) {
+      setSendError(e.message);
+    } finally {
+      setSendBusy(false);
+    }
   };
 
   // The id the server knows this stroke by, waiting for it if the stroke is
@@ -1838,7 +2001,7 @@ export default function App() {
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
   useLayoutEffect(() => {
-    if (readingViewRestored.current || wantedNoteId || !doc || !scale) return;
+    if (readingViewRestored.current || wantedNoteId || wantedPage || !doc || !scale) return;
     const saved = readingView.current.view;
     if (!saved) {
       readingViewRestored.current = true;
@@ -1875,7 +2038,36 @@ export default function App() {
       cancelled = true;
       if (frame != null) cancelAnimationFrame(frame);
     };
-  }, [doc, scale, wantedNoteId]);
+  }, [doc, scale, wantedNoteId, wantedPage]);
+
+  // Excerpts sent to a board link back to the selected line, without
+  // needing to create a permanent anchor merely to preserve provenance.
+  useEffect(() => {
+    const pageNumber = Number(wantedPage);
+    if (!pageNumber || !doc || !scale || pageNumber > doc.numPages) return undefined;
+    let frame = null;
+    let cancelled = false;
+    const reveal = () => {
+      const scroller = scrollerRef.current;
+      const pageEl = scroller?.querySelector(`[data-page="${pageNumber}"]`);
+      const pageBox = pageEl?.getBoundingClientRect();
+      if (!scroller || !pageBox || pageBox.height < 10) {
+        if (!cancelled) frame = requestAnimationFrame(reveal);
+        return;
+      }
+      const box = scroller.getBoundingClientRect();
+      const y = wantedY ?? 0.5;
+      const target = scroller.scrollTop + pageBox.top + (1 - y) * pageBox.height
+        - box.top - box.height / 2;
+      scroller.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
+      readingViewRestored.current = true;
+    };
+    reveal();
+    return () => {
+      cancelled = true;
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  }, [doc, scale, wantedPage, wantedY]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -2540,6 +2732,7 @@ export default function App() {
               onMoveNote={moveNote}
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
+              provenanceHighlights={wantedSelectionByPage.get(n) || EMPTY_INK}
               selectedInk={selectedInk}
               hoveredInkObjects={hoveredInkObjects}
               inkColor={inkColor}
@@ -2700,21 +2893,110 @@ export default function App() {
         )}
 
         {selectionPaint && (
-          <button
-            type="button"
-            className="selection-brush"
+          <span
+            className="selection-actions"
             style={{
               left: selectionPaint.left,
               top: selectionPaint.top,
-              '--loaded': inkColor,
             }}
-            aria-label="Paint selected text"
-            title="Paint selected text"
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={paintSelection}
           >
-            <ToolGlyph id="brush" />
-          </button>
+            <button
+              type="button"
+              className="selection-action selection-brush"
+              style={{ '--loaded': inkColor }}
+              aria-label="Paint selected text"
+              title="Paint selected text"
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={paintSelection}
+            >
+              <ToolGlyph id="brush" />
+            </button>
+            <button
+              type="button"
+              className="selection-action selection-send"
+              aria-label="Send selected text to a board"
+              title="Send selected text to a board"
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={openSendSelection}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M9 7h8v8" />
+              </svg>
+            </button>
+          </span>
+        )}
+
+        {sendSelection && (
+          <div
+            className="help-back"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Send selected text to a board"
+            onClick={closeSendSelection}
+          >
+            <div className="help-sheet send-selection-sheet" onClick={(event) => event.stopPropagation()}>
+              <h3>{sendComplete ? 'Sent to staging' : 'Send to a board'}</h3>
+              {sendComplete ? (
+                <>
+                  <p>The excerpt is waiting in the board’s staging area.</p>
+                  <div className="feedback-actions">
+                    <button type="button" className="primary" onClick={closeSendSelection}>Done</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label className="send-selection-field">
+                    <span>Text</span>
+                    <textarea
+                      rows="7"
+                      maxLength="10000"
+                      value={sendSelection.text}
+                      onChange={(event) => setSendSelection({ ...sendSelection, text: event.target.value })}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="send-selection-field">
+                    <span>Board</span>
+                    <select
+                      value={sendBoardGuid}
+                      onChange={(event) => setSendBoardGuid(event.target.value)}
+                      disabled={!sendBoards.length}
+                    >
+                      {!sendBoards.length && <option value="">No boards available</option>}
+                      {sendBoards.map((candidate) => (
+                        <option key={candidate.guid} value={candidate.guid}>{candidate.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="send-selection-field">
+                    <span>Comment <small>optional</small></span>
+                    <textarea
+                      rows="3"
+                      maxLength="10000"
+                      value={sendSelection.comment}
+                      onChange={(event) => setSendSelection({ ...sendSelection, comment: event.target.value })}
+                      placeholder="Why are you saving this?"
+                    />
+                  </label>
+                  <p className="send-selection-source">
+                    Source: {paper?.title || 'Paper'}, page {sendSelection.page}. A backlink is included.
+                  </p>
+                  {sendError && <p className="feedback-error">{sendError}</p>}
+                  <div className="feedback-actions">
+                    <button type="button" onClick={closeSendSelection} disabled={sendBusy}>Cancel</button>
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={sendBusy || !sendBoardGuid || !sendSelection.text.trim()}
+                      onClick={sendSelectionToBoard}
+                    >
+                      {sendBusy ? 'Sending…' : 'Send to board'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         )}
 
         {railOpen && (

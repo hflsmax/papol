@@ -54,6 +54,14 @@ export function pdfHref(paper) {
   return `${ROOT}/uploads/${paper.file_path}`;
 }
 
+export function listBoards() {
+  return request('/boards');
+}
+
+export function stageBoardExcerpt(boardGuid, data) {
+  return jsonRequest(`/boards/${boardGuid}/staging`, 'POST', data);
+}
+
 // A located note is a note: the same endpoints Papol's own notes use, with
 // a page and an anchor attached.
 export function createNote(paperId, { page, anchor, content }) {

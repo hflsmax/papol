@@ -272,6 +272,10 @@ export function addBoardWebpage(id, url, x, y) {
   return jsonRequest(`/boards/${id}/webpage`, 'POST', { url, x, y });
 }
 
+export function placeStagedBoardItem(id, x, y) {
+  return jsonRequest(`/board-items/${id}/place`, 'POST', { x, y });
+}
+
 export async function boardFileBlob(item) {
   const response = await fetch(`${API_BASE}/board-items/${item.id}/file`, {
     headers: authHeaders(),
