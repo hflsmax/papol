@@ -4283,7 +4283,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-card-kind i { display: grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 10px; line-height: 1; }
 .board-card-more { width: 27px; height: 25px; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: var(--ink-faint); font: 600 10px var(--font-ui); letter-spacing: 1px; line-height: 1; }
 .board-card-more:hover, .board-card-more:focus-visible, .board-card-more[aria-expanded="true"] { border: 0; outline: none; background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-.board-card-content { overflow: hidden; border-radius: 0 0 9px 9px; }
+.board-card-content { position: relative; z-index: 1; overflow: hidden; border-radius: 0 0 9px 9px; background: var(--card); }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
 .board-image-loading { display: grid; width: 100%; aspect-ratio: 4 / 3; place-items: center; background: var(--paper); }
 .board-canvas-card.youtube .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
