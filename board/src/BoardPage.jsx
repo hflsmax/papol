@@ -137,24 +137,23 @@ export default function BoardPage({ boardId, onBack }) {
         const element = stageRef.current.querySelector(`[data-item-id="${item.id}"]`);
         const width = element?.offsetWidth || item.width || 300;
         const height = element?.offsetHeight || 1;
-        return { x: item.x + width / 2, y: item.y + height / 2, width, height, weight: width * height };
+        return { x: item.x + width / 2, y: item.y + height / 2, width, height };
       });
-      const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
-      if (!totalWeight) return;
-      const centerX = weighted.reduce((sum, item) => sum + item.x * item.weight, 0) / totalWeight;
-      const centerY = weighted.reduce((sum, item) => sum + item.y * item.weight, 0) / totalWeight;
+      if (!weighted.length) return;
       const bounds = viewportRef.current.getBoundingClientRect();
       const minX = Math.min(...weighted.map((item) => item.x - item.width / 2));
       const maxX = Math.max(...weighted.map((item) => item.x + item.width / 2));
       const minY = Math.min(...weighted.map((item) => item.y - item.height / 2));
       const maxY = Math.max(...weighted.map((item) => item.y + item.height / 2));
-      const reachX = Math.max(centerX - minX, maxX - centerX);
-      const reachY = Math.max(centerY - minY, maxY - centerY);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const contentWidth = maxX - minX;
+      const contentHeight = maxY - minY;
       const zoom = clamp(Math.min(
         viewRef.current.zoom,
-        reachX ? (bounds.width - 32) / (reachX * 2) : 1,
-        reachY ? (bounds.height - 32) / (reachY * 2) : 1,
-      ), 0.25, 3);
+        contentWidth ? (bounds.width - 32) / contentWidth : 1,
+        contentHeight ? (bounds.height - 32) / contentHeight : 1,
+      ), 0.05, 3);
       centerInitialView.current = false;
       paintView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
     });
