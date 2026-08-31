@@ -38,6 +38,7 @@
     # here has — reading the CSS is not the same as laying it out.
     devPython = ps: backendPython ps ++ (with ps; [
       playwright
+      pytest
     ]);
 
     pythonFor = pkgs: pkgs.python312.withPackages backendPython;

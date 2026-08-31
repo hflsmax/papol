@@ -220,6 +220,7 @@ class BoardStagingPlace(BaseModel):
 
 
 class BoardItemUpdate(BaseModel):
+    group_id: Optional[int] = None
     x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     width: Optional[float] = Field(default=None, ge=120, le=1200)
@@ -256,7 +257,7 @@ class BoardGroupUngroup(BaseModel):
 
 
 class BoardGroupLayout(BaseModel):
-    items: List[BoardGroupRestoreItem] = Field(min_length=2, max_length=100)
+    items: List[BoardGroupRestoreItem] = Field(min_length=1, max_length=100)
 
 
 class BoardGroupOut(BaseModel):

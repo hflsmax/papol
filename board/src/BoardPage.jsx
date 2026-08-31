@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
+import { cardCenter, chapterDropTarget, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout } from './chapterDrag.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
@@ -34,9 +35,14 @@ function AlignGlyph({ align }) {
   return <svg className="board-align-glyph" viewBox="0 0 20 16" aria-hidden="true">{starts.map((x, index) => <line key={index} x1={x} x2={x + widths[index]} y1={3 + index * 5} y2={3 + index * 5} />)}</svg>;
 }
 
+function TidyGlyph() {
+  return <svg className="board-tidy-glyph" viewBox="0 0 18 16" aria-hidden="true"><rect x="2" y="2" width="14" height="4" rx="1" /><rect x="2" y="10" width="14" height="4" rx="1" /></svg>;
+}
+
 const itemTypeLabels = {
   comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
 };
+const itemTypeIcons = { comment: '✦', excerpt: '“', image: '▧', file: '↧', youtube: '▶', webpage: '↗' };
 const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
@@ -58,6 +64,8 @@ export default function BoardPage({ boardId, onBack }) {
   const [showNewBoardHint, setShowNewBoardHint] = useState(false);
   const urlLoadingRef = useRef([]);
   const [chapterLayouts, setChapterLayouts] = useState([]);
+  const [dropChapter, setDropChapter] = useState(null);
+  const [hoveredCard, setHoveredCard] = useState(null);
   const [editingChapter, setEditingChapter] = useState(null);
   const [chapterTitleDraft, setChapterTitleDraft] = useState('');
   const [editingChapterHeader, setEditingChapterHeader] = useState(null);
@@ -79,6 +87,23 @@ export default function BoardPage({ boardId, onBack }) {
   const centerInitialView = useRef(window.innerWidth <= 700 || savedBoardView(boardId) == null);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
+  const suppressChapterClick = useRef(null);
+  const cardHoverTimer = useRef(null);
+  const showCardHandle = (itemId) => {
+    if (cardHoverTimer.current != null) clearTimeout(cardHoverTimer.current);
+    cardHoverTimer.current = null;
+    setHoveredCard(itemId);
+  };
+  const hideCardHandleSoon = (itemId) => {
+    if (cardHoverTimer.current != null) clearTimeout(cardHoverTimer.current);
+    cardHoverTimer.current = setTimeout(() => {
+      setHoveredCard((current) => current === itemId ? null : current);
+      cardHoverTimer.current = null;
+    }, 220);
+  };
+  useEffect(() => () => {
+    if (cardHoverTimer.current != null) clearTimeout(cardHoverTimer.current);
+  }, []);
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
 
   useEffect(() => {
@@ -180,7 +205,7 @@ export default function BoardPage({ boardId, onBack }) {
     let reflowTimer = null;
     const compact = () => {
       if (!board.can_edit) return;
-      if (['item', 'resize', 'chapter-reorder'].includes(gesture.current?.type)) return;
+      if (['item', 'resize'].includes(gesture.current?.type)) return;
       const layouts = board.groups.map((group) => {
         const members = group.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean).sort((a, b) => a.y - b.y);
         if (members.length < 2) return null;
@@ -219,11 +244,11 @@ export default function BoardPage({ boardId, onBack }) {
         const minY = Math.min(...members.map((item) => item.y));
         const maxRight = Math.max(...members.map((item) => item.x + item.width));
         const maxBottom = Math.max(...members.map((item) => item.y + item.height));
-        const x = minX - 30; const y = minY - 92;
+        const x = minX - 34; const y = minY - 86;
         return {
-          ...group, x, y, width: maxRight - minX + 30,
-          height: maxBottom - minY + 92,
-          branches: members.map((item) => ({ id: item.id, top: item.y - y + 2, width: item.x - x })),
+          ...group, x, y, width: maxRight - minX + 34,
+          height: maxBottom - minY + 86,
+          branches: members.map((item) => ({ id: item.id, top: item.y - y + 18, width: item.x - x - 10 })),
         };
       }).filter(Boolean));
       scheduleCompact();
@@ -409,20 +434,34 @@ export default function BoardPage({ boardId, onBack }) {
   const startDrag = (event, item) => {
     if (event.button !== 0 || event.target.closest('button,a')) return;
     setSelectedChapter(null);
+    setMenuItem(null);
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     if (!board.can_edit) {
-      setSelectedItems([item.id]); setMenuItem(item.id);
+      setSelectedItems([item.id]);
       return;
     }
-    const group = item.group_id ? board.groups?.find((candidate) => candidate.id === item.group_id) : null;
-    const members = group?.item_ids.map((id) => {
-      const member = board.items.find((candidate) => candidate.id === id);
-      const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-      return member && element ? { id, x: member.x, y: member.y, element } : null;
-    }).filter(Boolean);
-    const chapter = group ? chapterLayouts.find((candidate) => candidate.id === group.id) : null;
-    const chapterElement = group ? stageRef.current?.querySelector(`[data-group-id="${group.id}"]`) : null;
-    gesture.current = { type: 'item', id: item.id, groupId: group?.id, members, chapter, chapterElement, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems] };
+    if (item.group_id != null) {
+      const group = board.groups?.find((candidate) => candidate.id === item.group_id);
+      const members = group?.item_ids.map((id) => {
+        const member = board.items.find((candidate) => candidate.id === id);
+        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+        return member && element ? { id, x: member.x, y: member.y, element } : null;
+      }).filter(Boolean);
+      const chapter = chapterLayouts.find((candidate) => candidate.id === group?.id);
+      const chapterElement = stageRef.current?.querySelector(`[data-group-id="${group?.id}"]`);
+      if (group && members?.length) {
+        gesture.current = {
+          type: 'chapter-move', groupId: group.id, members, chapter, chapterElement,
+          clickedId: item.id, sx: event.clientX, sy: event.clientY,
+        };
+      }
+      return;
+    }
+    gesture.current = {
+      type: 'item', id: item.id, originGroupId: null, members: null, originalBefore: null,
+      chapter: null, chapterElement: null, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
+      element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems],
+    };
   };
   const startLoadingDrag = (event, item) => {
     if (event.button !== 0) return;
@@ -459,17 +498,56 @@ export default function BoardPage({ boardId, onBack }) {
     if (event.button !== 0) return;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    setSelectedChapter(null);
+    setMenuItem(null);
     const members = chapter.item_ids.map((id) => {
       const item = board.items.find((candidate) => candidate.id === id);
       const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-      return item && element ? { id, x: item.x, y: item.y, height: element.offsetHeight, element } : null;
-    }).filter(Boolean).sort((a, b) => a.y - b.y);
+      const branchElement = stageRef.current?.querySelector(`[data-branch-id="${id}"]`);
+      return item && element ? { id, x: item.x, y: item.y, height: element.offsetHeight, element, branchElement } : null;
+    }).filter(Boolean);
+    const item = board.items.find((candidate) => candidate.id === itemId);
     const dragged = members.find((member) => member.id === itemId);
-    if (!dragged) return;
-    const beforePositions = members.map((member) => ({ id: member.id, group_id: chapter.id, x: member.x, y: member.y }));
+    if (!item || !dragged) return;
     members.forEach((member) => member.element.classList.add('chapter-reorder-peer'));
     dragged.element.classList.add('chapter-reordering');
-    gesture.current = { type: 'chapter-reorder', groupId: chapter.id, sy: event.clientY, dragged, members, beforePositions };
+    setSelectedItems([item.id]);
+    gesture.current = {
+      type: 'item', id: item.id, originGroupId: chapter.id, members,
+      originalBefore: members.map((member) => ({ id: member.id, group_id: chapter.id, x: member.x, y: member.y })),
+      chapter, chapterElement: stageRef.current?.querySelector(`[data-group-id="${chapter.id}"]`),
+      sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
+      element: dragged.element, mode: 'replace', baseSelected: [item.id],
+      draggedMember: dragged,
+    };
+  };
+  const startChapterMove = (event, chapter) => {
+    if (event.button !== 0 || !board.can_edit) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const members = chapter.item_ids.map((id) => {
+      const item = board.items.find((candidate) => candidate.id === id);
+      const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+      return item && element ? { id, x: item.x, y: item.y, element } : null;
+    }).filter(Boolean);
+    if (!members.length) return;
+    setSelectedItems([]);
+    setSelectedChapter(null);
+    setMenuItem(null);
+    gesture.current = {
+      type: 'chapter-move', groupId: chapter.id, members, chapter,
+      chapterElement: stageRef.current?.querySelector(`[data-group-id="${chapter.id}"]`),
+      sx: event.clientX, sy: event.clientY,
+    };
+  };
+  const clearJoinPreview = (drag) => {
+    drag?.joinPreview?.members.forEach((member) => {
+      member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
+    });
+    if (drag?.joinPreview?.chapterElement) {
+      drag.joinPreview.chapterElement.style.height = `${drag.joinPreview.originalHeight}px`;
+    }
+    if (drag) drag.joinPreview = null;
   };
   const move = (event) => {
     const g = gesture.current; if (!g) return;
@@ -499,45 +577,162 @@ export default function BoardPage({ boardId, onBack }) {
         .map((card) => Number(card.dataset.itemId));
       setSelectedItems(mergeSelection(g.baseSelected, hitIds, g.mode));
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
+    else if (g.type === 'chapter-move') {
+      const dx = (event.clientX - g.sx) / viewRef.current.zoom;
+      const dy = (event.clientY - g.sy) / viewRef.current.zoom;
+      g.current = { dx, dy };
+      g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
+      g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
+      if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
+    }
     else if (g.type === 'item' || g.type === 'loading-item') {
       const zoom = viewRef.current.zoom;
       g.current = { x: g.x + (event.clientX - g.sx) / zoom, y: g.y + (event.clientY - g.sy) / zoom };
-      if (g.groupId) {
-        const dx = g.current.x - g.x; const dy = g.current.y - g.y;
-        g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
-        if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
-      } else g.element.style.transform = `translate(${g.current.x}px, ${g.current.y}px)`;
+      g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
+      g.element.style.transform = `translate(${g.current.x}px, ${g.current.y}px)`;
+      if (g.draggedMember?.branchElement) {
+        g.draggedMember.branchElement.style.transform = `translate(${g.current.x - g.x}px, ${g.current.y - g.y}px)`;
+      }
+      if (g.type === 'item') {
+        const width = g.element.offsetWidth || 300;
+        const height = g.element.offsetHeight || 1;
+        const center = cardCenter(g.current, width, height);
+        const target = chapterDropTarget(chapterLayouts, center, g.originGroupId);
+        g.dropGroupId = target?.id || null;
+        setDropChapter(g.dropGroupId);
+        if (!target) {
+          clearJoinPreview(g);
+          if (g.originGroupId) {
+            const remaining = g.members.filter((member) => member.id !== g.id);
+            const after = stackWithout(g.members, g.id, g.originGroupId);
+            const positions = new Map(after.map((position) => [position.id, position]));
+            remaining.forEach((member) => {
+              const position = positions.get(member.id);
+              member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
+              if (member.branchElement) member.branchElement.style.transform = `translate(${position.x - member.x}px, ${position.y - member.y}px)`;
+            });
+            const heights = new Map(remaining.map((member) => [member.id, member.height]));
+            if (g.chapterElement) g.chapterElement.style.height = `${previewChapterHeight(g.chapter.y, after, heights)}px`;
+            g.leavePreview = { groupId: g.originGroupId, members: remaining, after, chapterElement: g.chapterElement };
+          }
+        }
+        else {
+          const group = board.groups.find((candidate) => candidate.id === target.id);
+          const members = group.item_ids.filter((id) => id !== g.id).map((id) => {
+            const member = board.items.find((candidate) => candidate.id === id);
+            const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+            const branchElement = stageRef.current?.querySelector(`[data-branch-id="${id}"]`);
+            return member && element ? { id, x: member.x, y: member.y, height: element.offsetHeight, element, branchElement } : null;
+          }).filter(Boolean).sort((a, b) => a.y - b.y);
+          members.forEach((member) => member.element.classList.add('chapter-reorder-peer'));
+          g.element.classList.add('chapter-reordering');
+          if (g.joinPreview?.groupId !== target.id) clearJoinPreview(g);
+          const dragged = { id: g.id, x: g.x, y: g.y, height, centerY: center.y };
+          const anchor = target.id === g.originGroupId && g.members?.length
+            ? {
+                x: Math.min(...g.members.map((member) => member.x)),
+                y: Math.min(...g.members.map((member) => member.y)),
+              }
+            : null;
+          const { positions: after } = stackWithInsertion(members, dragged, target.id, anchor);
+          const chapterElement = stageRef.current?.querySelector(`[data-group-id="${target.id}"]`);
+          const heights = new Map([...members.map((member) => [member.id, member.height]), [g.id, height]]);
+          if (chapterElement) chapterElement.style.height = `${previewChapterHeight(target.y, after, heights)}px`;
+          const positions = new Map(after.map((position) => [position.id, position]));
+          members.forEach((member) => {
+            const position = positions.get(member.id);
+            member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
+            if (member.branchElement) member.branchElement.style.transform = `translate(${position.x - member.x}px, ${position.y - member.y}px)`;
+          });
+          g.joinPreview = {
+            groupId: target.id,
+            members,
+            before: target.id === g.originGroupId
+              ? g.originalBefore
+              : members.map((member) => ({ id: member.id, group_id: target.id, x: member.x, y: member.y })),
+            after,
+            chapterElement,
+            originalHeight: target.height,
+          };
+          g.leavePreview = null;
+        }
+      }
       if (g.type === 'loading-item') {
         urlLoadingRef.current = urlLoadingRef.current.map((item) => item.id === g.id ? { ...item, ...g.current } : item);
       }
     } else if (g.type === 'resize') {
       g.current = clamp(g.width + (event.clientX - g.sx) / viewRef.current.zoom, 120, 1200);
       g.element.style.width = `${g.current}px`;
-    } else if (g.type === 'chapter-reorder') {
-      const deltaY = (event.clientY - g.sy) / viewRef.current.zoom;
-      const draggedTop = g.dragged.y + deltaY;
-      // Cross a neighbor as soon as half of that neighbor is covered. This
-      // feels earlier and more intentional than waiting for both card
-      // centers to cross, especially when adjacent cards differ in height.
-      const reorderProbe = deltaY >= 0 ? draggedTop + g.dragged.height : draggedTop;
-      const others = g.members.filter((member) => member.id !== g.dragged.id);
-      let insertAt = others.findIndex((member) => reorderProbe < member.y + member.height / 2);
-      if (insertAt < 0) insertAt = others.length;
-      const order = [...others]; order.splice(insertAt, 0, g.dragged);
-      const x = Math.min(...g.members.map((member) => member.x));
-      let y = Math.min(...g.members.map((member) => member.y));
-      g.current = order.map((member) => {
-        const position = { id: member.id, group_id: g.groupId, x, y };
-        member.element.style.transform = member.id === g.dragged.id
-          ? `translate(${x}px, ${g.dragged.y + deltaY}px)`
-          : `translate(${x}px, ${y}px)`;
-        y += member.height + 18;
-        return position;
+    }
+  };
+  const cancelGesture = () => {
+    const g = gesture.current;
+    gesture.current = null;
+    setDropChapter(null);
+    setMarquee(null);
+    touches.current.clear();
+    if (!g) return;
+    if (g.type === 'item' || g.type === 'loading-item') {
+      g.element.style.transform = `translate(${g.x}px, ${g.y}px)`;
+      g.element.classList.remove('chapter-reordering');
+      const members = new Map([
+        ...(g.members || []).map((member) => [member.id, member]),
+        ...(g.joinPreview?.members || []).map((member) => [member.id, member]),
+      ]);
+      members.forEach((member) => {
+        member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
+        member.element.classList.remove('chapter-reorder-peer');
+        if (member.branchElement) member.branchElement.style.transform = '';
       });
+      if (g.draggedMember?.branchElement) g.draggedMember.branchElement.style.transform = '';
+      const chapterElement = g.joinPreview?.chapterElement || g.leavePreview?.chapterElement;
+      const originalHeight = g.joinPreview?.originalHeight ?? g.chapter?.height;
+      if (chapterElement && originalHeight != null) chapterElement.style.height = `${originalHeight}px`;
+    } else if (g.type === 'chapter-move') {
+      g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
+      if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+    } else if (g.type === 'resize') {
+      g.element.style.width = `${g.width}px`;
     }
   };
   const endGesture = (event) => {
     const g = gesture.current; gesture.current = null;
+    setDropChapter(null);
+    if (g?.type === 'item') {
+      g.element.classList.remove('chapter-reordering');
+      const previewElements = new Set([
+        ...(g.members || []).map((member) => member.element),
+        ...(g.joinPreview?.members || []).map((member) => member.element),
+      ]);
+      setTimeout(() => previewElements.forEach((element) => element.classList.remove('chapter-reorder-peer')), 190);
+      const previewBranches = new Set([
+        ...(g.members || []).map((member) => member.branchElement),
+        ...(g.joinPreview?.members || []).map((member) => member.branchElement),
+      ].filter(Boolean));
+      setTimeout(() => previewBranches.forEach((branch) => { branch.style.transform = ''; }), 190);
+    }
+    if (g?.type === 'chapter-move') {
+      const { dx = 0, dy = 0 } = g.current || {};
+      if (g.moved) {
+        suppressChapterClick.current = g.groupId;
+        setSelectedItems([]);
+        setSelectedChapter(null);
+        setMenuItem(null);
+        undoStack.current.push({ type: 'group-move', id: g.groupId, dx, dy });
+        redoStack.current = [];
+        const ids = new Set(g.members.map((member) => member.id));
+        setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.id) ? { ...item, x: item.x + dx, y: item.y + dy } : item) }));
+        moveBoardGroup(g.groupId, dx, dy).catch((err) => { setError(err.message); load(); });
+      } else {
+        g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
+        if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+        if (g.clickedId != null) {
+          setSelectedItems([g.clickedId]);
+          setSelectedChapter(null);
+          setMenuItem(null);
+        }
+      }
+    }
     if (event?.pointerType === 'touch') {
       touches.current.delete(event.pointerId);
       const remaining = [...touches.current.values()][0];
@@ -547,25 +742,58 @@ export default function BoardPage({ boardId, onBack }) {
       const item = board.items.find((candidate) => candidate.id === g.id);
       if (item) {
         const point = g.current || { x: g.x, y: g.y };
-        const moved = Math.hypot(point.x - g.x, point.y - g.y) > 2;
+        const moved = Boolean(g.moved);
         if (moved) {
-          const dx = point.x - g.x; const dy = point.y - g.y;
-          undoStack.current.push(g.groupId
-            ? { type: 'group-move', id: g.groupId, dx, dy }
-            : { type: 'move', id: item.id, from: { x: g.x, y: g.y }, to: point });
+          undoStack.current.push(g.joinPreview
+            ? g.originGroupId
+              ? { type: 'layout', id: g.originGroupId, before: g.originalBefore, after: g.joinPreview.after }
+              : { type: 'chapter-join', id: item.id, groupId: g.joinPreview.groupId, from: { x: g.x, y: g.y }, before: g.joinPreview.before, after: g.joinPreview.after }
+            : g.leavePreview
+              ? { type: 'chapter-leave', id: item.id, groupId: g.originGroupId, from: { x: g.x, y: g.y }, to: point, before: g.originalBefore, after: g.leavePreview.after }
+              : { type: 'move', id: item.id, from: { x: g.x, y: g.y }, to: point });
           redoStack.current = [];
-          if (g.groupId) {
-            const ids = new Set(g.members.map((member) => member.id));
-            setBoard((current) => ({ ...current, items: current.items.map((candidate) => ids.has(candidate.id) ? { ...candidate, x: candidate.x + dx, y: candidate.y + dy } : candidate) }));
-            moveBoardGroup(g.groupId, dx, dy).catch((err) => { setError(err.message); load(); });
+          if (g.joinPreview && g.originGroupId) {
+            const positions = new Map(g.joinPreview.after.map((position) => [position.id, position]));
+            const final = positions.get(item.id);
+            void g.element.offsetWidth;
+            g.element.style.transform = `translate(${final.x}px, ${final.y}px)`;
+            if (g.draggedMember?.branchElement) {
+              g.draggedMember.branchElement.style.transform = `translate(${final.x - g.x}px, ${final.y - g.y}px)`;
+            }
+            setBoard((current) => ({ ...current, items: current.items.map((candidate) => positions.has(candidate.id) ? { ...candidate, ...positions.get(candidate.id) } : candidate) }));
+            layoutBoardGroup(g.originGroupId, g.joinPreview.after).catch((err) => { setError(err.message); load(); });
+          } else if (g.joinPreview) {
+            const positions = new Map(g.joinPreview.after.map((position) => [position.id, position]));
+            const joined = positions.get(item.id);
+            setBoard((current) => ({
+              ...current,
+              groups: current.groups.map((group) => group.id === g.joinPreview.groupId ? { ...group, item_ids: [...group.item_ids, item.id] } : group),
+              items: current.items.map((candidate) => positions.has(candidate.id) ? { ...candidate, ...positions.get(candidate.id) } : candidate),
+            }));
+            updateBoardItem(item.id, { x: joined.x, y: joined.y, group_id: g.joinPreview.groupId })
+              .then(() => layoutBoardGroup(g.joinPreview.groupId, g.joinPreview.after))
+              .catch((err) => { setError(err.message); load(); });
+          } else if (g.leavePreview) {
+            const positions = new Map(g.leavePreview.after.map((position) => [position.id, position]));
+            setBoard((current) => ({
+              ...current,
+              groups: current.groups.map((group) => group.id === g.originGroupId ? { ...group, item_ids: group.item_ids.filter((id) => id !== item.id) } : group),
+              items: current.items.map((candidate) => candidate.id === item.id
+                ? { ...candidate, ...point, group_id: null }
+                : positions.has(candidate.id) ? { ...candidate, ...positions.get(candidate.id) } : candidate),
+            }));
+            updateBoardItem(item.id, { ...point, group_id: null })
+              .then(() => g.leavePreview.after.length ? layoutBoardGroup(g.originGroupId, g.leavePreview.after) : null)
+              .catch((err) => { setError(err.message); load(); });
           } else {
+            clearJoinPreview(g);
             setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? { ...candidate, ...point } : candidate) }));
             moveBoardItem(item.id, point.x, point.y).catch((err) => setError(err.message));
           }
         }
         else {
+          clearJoinPreview(g);
           setSelectedItems(mergeSelection(g.baseSelected, [item.id], g.mode));
-          setMenuItem(item.id);
         }
       }
     }
@@ -592,28 +820,6 @@ export default function BoardPage({ boardId, onBack }) {
         ]).catch((err) => { setError(err.message); load(); });
       }
     }
-    if (g?.type === 'chapter-reorder') {
-      g.dragged.element.classList.remove('chapter-reordering');
-      const afterPositions = g.current || g.beforePositions;
-      const changed = afterPositions.some((position, index) => position.id !== g.beforePositions[index].id);
-      if (changed) {
-        const final = afterPositions.find((position) => position.id === g.dragged.id);
-        // Removing the lift state restores the shared easing curve; changing
-        // the transform on the next layout tick makes the release visibly
-        // settle into its exact spine slot.
-        void g.dragged.element.offsetWidth;
-        g.dragged.element.style.transform = `translate(${final.x}px, ${final.y}px)`;
-        setTimeout(() => g.members.forEach((member) => member.element.classList.remove('chapter-reorder-peer')), 190);
-        undoStack.current.push({ type: 'layout', id: g.groupId, before: g.beforePositions, after: afterPositions });
-        redoStack.current = [];
-        const positions = new Map(afterPositions.map((position) => [position.id, position]));
-        setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, ...positions.get(item.id) } : item) }));
-        layoutBoardGroup(g.groupId, afterPositions).catch((err) => { setError(err.message); load(); });
-      } else {
-        g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
-        setTimeout(() => g.members.forEach((member) => member.element.classList.remove('chapter-reorder-peer')), 190);
-      }
-    }
     if (g?.type === 'select') {
       const x1 = Math.min(g.sx, g.current?.clientX ?? g.sx);
       const y1 = Math.min(g.sy, g.current?.clientY ?? g.sy);
@@ -633,7 +839,7 @@ export default function BoardPage({ boardId, onBack }) {
     }
   };
   const removeItem = async (item, ask = true) => {
-    if (ask && !window.confirm('Remove this item?')) return;
+    if (ask && !window.confirm('Remove this card?')) return;
     setBusy(true); setError(null);
     try {
       await deleteBoardItem(item.id);
@@ -720,8 +926,9 @@ export default function BoardPage({ boardId, onBack }) {
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const tidySelectedItems = async () => {
-    const items = selectedItems.map((id) => board.items.find((item) => item.id === id)).filter(Boolean);
+  const tidyItems = async (itemIds) => {
+    const ids = new Set(itemIds);
+    const items = board.items.filter((item) => ids.has(item.id));
     if (items.length < 2) return;
     const width = Math.max(...items.map((item) => item.width || 300));
     const changes = items.map((item) => ({ id: item.id, from: item.width || 300, to: width }));
@@ -731,9 +938,11 @@ export default function BoardPage({ boardId, onBack }) {
       await Promise.all(changes.map((change) => updateBoardItem(change.id, { width: change.to })));
       undoStack.current.push({ type: 'resize-many', changes });
       redoStack.current = [];
-      setBoard((current) => ({ ...current, items: current.items.map((item) => selectedItems.includes(item.id) ? { ...item, width } : item) }));
+      setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.id) ? { ...item, width } : item) }));
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
+  const tidySelectedItems = () => tidyItems(selectedItems);
+  const tidyBoard = () => tidyItems(board.items.map((item) => item.id));
   const saveChapterTitle = async (chapter) => {
     setEditingChapter(null);
     try {
@@ -766,6 +975,24 @@ export default function BoardPage({ boardId, onBack }) {
       if (action.type === 'move') {
         const point = direction === 'undo' ? action.from : action.to;
         await moveBoardItem(action.id, point.x, point.y);
+      } else if (action.type === 'chapter-join') {
+        const joined = action.after.find((position) => position.id === action.id);
+        if (direction === 'undo') {
+          await updateBoardItem(action.id, { group_id: null, ...action.from });
+          if (action.before.length) await layoutBoardGroup(action.groupId, action.before);
+        } else {
+          await updateBoardItem(action.id, { group_id: action.groupId, x: joined.x, y: joined.y });
+          await layoutBoardGroup(action.groupId, action.after);
+        }
+      } else if (action.type === 'chapter-leave') {
+        const original = action.before.find((position) => position.id === action.id);
+        if (direction === 'undo') {
+          await updateBoardItem(action.id, { group_id: action.groupId, x: original.x, y: original.y });
+          await layoutBoardGroup(action.groupId, action.before);
+        } else {
+          await updateBoardItem(action.id, { group_id: null, ...action.to });
+          if (action.after.length) await layoutBoardGroup(action.groupId, action.after);
+        }
       } else if (action.type === 'group-move') {
         const factor = direction === 'undo' ? -1 : 1;
         await moveBoardGroup(action.id, action.dx * factor, action.dy * factor);
@@ -832,12 +1059,11 @@ export default function BoardPage({ boardId, onBack }) {
         setSelectedItems([]);
         setSelectedChapter(null);
         setMenuItem(null);
-        setMarquee(null);
+        cancelGesture();
         setEditingDescription(null);
         setEditingText(null);
         setEditingChapter(null);
         setEditingChapterHeader(null);
-        gesture.current = null;
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
@@ -918,9 +1144,8 @@ export default function BoardPage({ boardId, onBack }) {
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
-      <div className="board-type-legend" aria-label="Board item types">
-        {Object.entries(itemTypeLabels).map(([kind, label]) => <span key={kind} className={`board-type-legend-item ${kind}`}><i aria-hidden="true" />{label}</span>)}
-      </div>
+      {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || board.items.length < 2} onClick={tidyBoard} title="Make every card the same width"><TidyGlyph /><span>Tidy</span></button>}
+      <div className="board-card-count" aria-label={`${board.item_count} cards`}><strong>{board.item_count}</strong> {board.item_count === 1 ? 'card' : 'cards'}</div>
       <ExperimentalBadge />
       {board.can_edit && <details ref={boardActionsRef} className="board-actions-menu"><summary aria-label="Board actions" title="Board actions"><i /><i /><i /></summary><div className="board-actions-popover"><button type="button" className="remove" disabled={busy} onClick={removeBoard}>Delete board</button></div></details>}
     </header>
@@ -928,7 +1153,7 @@ export default function BoardPage({ boardId, onBack }) {
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <button type="button" disabled={busy} onClick={groupAsChapter}>Group as chapter</button>}</div>}
     {board.can_edit && activeChapter && <div className="board-selection-menu"><span>Chapter selected</span><button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
-    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={endGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
+    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={move} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
         <aside className="board-staging" aria-label="Staging area">
@@ -957,8 +1182,8 @@ export default function BoardPage({ boardId, onBack }) {
       )}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter${selectedChapter === chapter.id ? ' selected' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
-          {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Select chapter${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
+        {chapterLayouts.map((chapter) => <div key={chapter.id} data-group-id={chapter.id} className={`board-chapter${selectedChapter === chapter.id ? ' selected' : ''}${dropChapter === chapter.id ? ' drop-active' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, height: chapter.height }}>
+          {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Move or select chapter${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
           <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
             {editingChapter === chapter.id
               ? <input className="board-chapter-title" aria-label="Chapter title" placeholder="Chapter title" autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
@@ -969,13 +1194,18 @@ export default function BoardPage({ boardId, onBack }) {
               ? <textarea className="board-chapter-header-text" aria-label="Chapter header text" placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
               : <button type="button" disabled={!board.can_edit} className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || (board.can_edit ? 'Add header text…' : '')}</button>}
           </div>
-          {chapter.branches.map((branch) => <span key={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}>{board.can_edit && <button type="button" className="board-chapter-reorder-handle" aria-label="Reorder chapter item" title="Drag to reorder" onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button>}</span>)}
+          {chapter.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }}>{board.can_edit && <button type="button" className={`board-chapter-reorder-handle${hoveredCard === branch.id ? ' card-hovered' : ''}${selectedItems.includes(branch.id) ? ' card-selected' : ''}`} aria-label="Move card within or out of chapter" title="Drag card" onPointerEnter={() => showCardHandle(branch.id)} onPointerLeave={() => hideCardHandleSoon(branch.id)} onPointerDown={(event) => startChapterReorder(event, chapter, branch.id)}><i /><i /><i /></button>}</span>)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
+        {board.items.map((item) => <article key={item.id} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerEnter={() => item.group_id != null && showCardHandle(item.id)} onPointerLeave={() => item.group_id != null && hideCardHandleSoon(item.id)} onPointerDown={(e) => startDrag(e, item)}>
+          <header className="board-card-header">
+            <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
+            {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([item.id]); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
+          </header>
+          <div className="board-card-content">
           {['image', 'youtube', 'webpage'].includes(item.kind) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
           {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
-          {item.kind === 'file' && <div className="board-canvas-file">↧ {item.original_filename}</div>}
+          {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
@@ -984,12 +1214,13 @@ export default function BoardPage({ boardId, onBack }) {
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
             : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
           {item.kind === 'excerpt' && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>}
+          </div>
           {selectedItems.length === 1 && selectedItems[0] === item.id && menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
             {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
             {item.kind !== 'comment' && <button onClick={() => downloadBoardFile(item)}>Download</button>}
-            {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove</button>}
+            {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove card</button>}
           </div>}
-          {board.can_edit && selectedItems.length === 1 && selectedItems[0] === item.id && <button className="board-resize-handle" aria-label="Resize item" onPointerDown={(event) => startResize(event, item)} />}
+          {board.can_edit && selectedItems.length === 1 && selectedItems[0] === item.id && <button className="board-resize-handle" aria-label="Resize card" onPointerDown={(event) => startResize(event, item)} />}
         </article>)}
       </div>
     </main>

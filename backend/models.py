@@ -355,7 +355,7 @@ class BoardGroup(Base):
 
 
 class BoardItem(Base):
-    """A note or uploaded file collected on a board."""
+    """A card on a board; ``kind`` describes the card's payload."""
     __tablename__ = "board_items"
 
     id = Column(Integer, primary_key=True, index=True)

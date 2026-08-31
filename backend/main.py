@@ -1019,6 +1019,17 @@ async def move_board_item(
     item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
     if not item or item.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board item not found")
+    if "group_id" in data.model_fields_set:
+        if data.group_id is None:
+            item.group_id = None
+        else:
+            group = db.query(BoardGroup).filter(
+                BoardGroup.id == data.group_id,
+                BoardGroup.board_id == item.board_id,
+            ).first()
+            if not group:
+                raise HTTPException(status_code=400, detail="Chapter not found on this board")
+            item.group_id = group.id
     if data.x is not None:
         item.x = data.x
     if data.y is not None:
