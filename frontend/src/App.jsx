@@ -3697,6 +3697,44 @@ a.btn:hover {
   vector-effect: non-scaling-stroke;
 }
 
+.concurrency-chart:focus {
+  outline: 2px solid var(--green-ink);
+  outline-offset: 2px;
+}
+
+.concurrency-inspector {
+  pointer-events: none;
+}
+
+.concurrency-inspector .concurrency-guide {
+  stroke: var(--green-ink);
+  stroke-dasharray: 3 3;
+}
+
+.concurrency-inspector circle {
+  fill: var(--paper);
+  stroke: var(--green-ink);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.concurrency-inspector rect {
+  fill: var(--paper);
+  stroke: var(--line-dark);
+  stroke-width: 1;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.14));
+}
+
+.concurrency-inspector text {
+  fill: var(--ink-soft);
+  font-size: 12px;
+}
+
+.concurrency-inspector .concurrency-tooltip-time {
+  fill: var(--ink);
+  font-weight: 700;
+}
+
 .admin-tabs {
   display: flex;
   flex-wrap: wrap;

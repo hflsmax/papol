@@ -3572,10 +3572,17 @@ async def admin_concurrency_series(
     start = end - timedelta(hours=24)
     pings = (
         db.query(PresencePing)
+        .join(User, PresencePing.user_id == User.id)
         .filter(PresencePing.bucket_at >= start - ACTIVE_USER_WINDOW)
+        .filter(User.deleted_at.is_(None))
         .order_by(PresencePing.bucket_at)
         .all()
     )
+
+    user_ids = {ping.user_id for ping in pings}
+    reader_names = dict(
+        db.query(User.id, User.display_name).filter(User.id.in_(user_ids)).all()
+    ) if user_ids else {}
 
     points = []
     ping_index = 0
@@ -3588,7 +3595,11 @@ async def admin_concurrency_series(
             ping_index += 1
         recent = [ping for ping in recent if ping.bucket_at > lower]
         active = {ping.user_id for ping in recent}
-        points.append({"at": cursor, "count": len(active)})
+        readers = sorted(
+            (reader_names[user_id] for user_id in active if user_id in reader_names),
+            key=str.casefold,
+        )
+        points.append({"at": cursor, "count": len(readers), "readers": readers})
         cursor += timedelta(minutes=5)
     return {"from": start, "to": end, "interval_seconds": 300, "points": points}
 

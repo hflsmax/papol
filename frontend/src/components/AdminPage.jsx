@@ -14,6 +14,7 @@ import {
 } from '../api';
 
 function ConcurrencyChart({ points }) {
+  const [activeIndex, setActiveIndex] = useState(null);
   const width = 900;
   const height = 220;
   const pad = { top: 14, right: 12, bottom: 30, left: 34 };
@@ -29,6 +30,37 @@ function ConcurrencyChart({ points }) {
       hour: 'numeric', minute: '2-digit',
     }) };
   });
+  const activePoint = activeIndex === null ? null : points[activeIndex];
+  const activeReaders = activePoint?.readers || [];
+  const visibleReaders = activeReaders.slice(0, 7);
+  const tooltipWidth = 220;
+  const tooltipHeight = 52 + visibleReaders.length * 17
+    + (activeReaders.length > visibleReaders.length ? 17 : 0);
+  const tooltipX = activeIndex === null
+    ? 0
+    : Math.min(width - pad.right - tooltipWidth, Math.max(pad.left, x(activeIndex) + 12));
+  const tooltipY = activePoint
+    ? Math.max(pad.top, Math.min(height - pad.bottom - tooltipHeight, y(activePoint.count) - tooltipHeight / 2))
+    : 0;
+
+  const selectNearestPoint = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
+    const index = Math.round(((svgX - pad.left) / plotWidth) * (points.length - 1));
+    setActiveIndex(Math.max(0, Math.min(points.length - 1, index)));
+  };
+
+  const inspectWithKeyboard = (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Home') return setActiveIndex(0);
+    if (event.key === 'End') return setActiveIndex(points.length - 1);
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    setActiveIndex((current) => Math.max(0, Math.min(
+      points.length - 1,
+      (current ?? points.length - 1) + direction,
+    )));
+  };
 
   return (
     <div className="concurrency-chart-wrap">
@@ -37,6 +69,12 @@ function ConcurrencyChart({ points }) {
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Concurrent readers over the last 24 hours"
+        tabIndex="0"
+        onPointerMove={selectNearestPoint}
+        onPointerLeave={() => setActiveIndex(null)}
+        onFocus={() => setActiveIndex((current) => current ?? points.length - 1)}
+        onBlur={() => setActiveIndex(null)}
+        onKeyDown={inspectWithKeyboard}
       >
         {[0, maximum].map((value) => (
           <g key={value}>
@@ -49,6 +87,33 @@ function ConcurrencyChart({ points }) {
           points={`${pad.left},${y(0)} ${line} ${width - pad.right},${y(0)}`}
         />
         <polyline className="concurrency-line" points={line} />
+        {activePoint && (
+          <g className="concurrency-inspector" aria-live="polite">
+            <line
+              className="concurrency-guide"
+              x1={x(activeIndex)} x2={x(activeIndex)}
+              y1={pad.top} y2={y(0)}
+            />
+            <circle cx={x(activeIndex)} cy={y(activePoint.count)} r="4" />
+            <rect x={tooltipX} y={tooltipY} width={tooltipWidth} height={tooltipHeight} rx="6" />
+            <text className="concurrency-tooltip-time" x={tooltipX + 12} y={tooltipY + 19}>
+              {new Date(`${activePoint.at}Z`).toLocaleString([], {
+                hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric',
+              })}
+            </text>
+            <text x={tooltipX + 12} y={tooltipY + 38}>
+              {activePoint.count} {activePoint.count === 1 ? 'reader' : 'readers'} online
+            </text>
+            {visibleReaders.map((reader, index) => (
+              <text key={`${reader}-${index}`} x={tooltipX + 12} y={tooltipY + 57 + index * 17}>• {reader}</text>
+            ))}
+            {activeReaders.length > visibleReaders.length && (
+              <text x={tooltipX + 12} y={tooltipY + 57 + visibleReaders.length * 17}>
+                +{activeReaders.length - visibleReaders.length} more
+              </text>
+            )}
+          </g>
+        )}
         {ticks.map((tick) => (
           <text
             key={tick.index}
