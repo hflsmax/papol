@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCenter, chapterDropTarget, chapterInsertionIndex, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, chapterInsertionIndex, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const chapter = { id: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -81,6 +81,41 @@ test('preview spine height follows content and respects its minimum', () => {
   const positions = [{ id: 1, y: 100 }, { id: 2, y: 198 }];
   assert.equal(previewChapterHeight(14, positions, new Map([[1, 80], [2, 140]])), 324);
   assert.equal(previewChapterHeight(14, [], new Map()), 74);
+});
+
+test('membership history captures a chapter leave and its closed gap', () => {
+  const items = [
+    { id: 1, group_id: 7, x: 100, y: 100 },
+    { id: 2, group_id: 7, x: 100, y: 198 },
+  ];
+  assert.deepEqual(membershipHistorySnapshots(
+    items, 1, null, { x: 500, y: 240 }, [{ id: 2, group_id: 7, x: 100, y: 100 }], [],
+  ), {
+    before: items,
+    after: [
+      { id: 1, group_id: null, x: 500, y: 240 },
+      { id: 2, group_id: 7, x: 100, y: 100 },
+    ],
+  });
+});
+
+test('membership history captures both sides of a cross-group move', () => {
+  const items = [
+    { id: 1, group_id: 7, x: 100, y: 100 },
+    { id: 2, group_id: 7, x: 100, y: 198 },
+    { id: 3, group_id: 9, x: 600, y: 100 },
+  ];
+  const result = membershipHistorySnapshots(
+    items, 1, 9, { x: 600, y: 198 },
+    [{ id: 2, group_id: 7, x: 100, y: 100 }],
+    [{ id: 3, group_id: 9, x: 600, y: 100 }, { id: 1, group_id: 9, x: 600, y: 198 }],
+  );
+  assert.deepEqual(result.before, items);
+  assert.deepEqual(result.after, [
+    { id: 1, group_id: 9, x: 600, y: 198 },
+    { id: 2, group_id: 7, x: 100, y: 100 },
+    { id: 3, group_id: 9, x: 600, y: 100 },
+  ]);
 });
 
 test('collection tidy pulls distant cards closer', () => {

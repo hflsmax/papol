@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import { cardCenter, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const COLLECTION_INSET_X = 28;
@@ -941,9 +941,14 @@ export default function BoardPage({ boardId, onBack }) {
           originLayout = stackWithout(members, item.id, origin.id);
         }
         const destination = targetLayout?.find((position) => position.id === item.id) || point;
+        const history = membershipHistorySnapshots(
+          board.items, item.id, target?.id, destination, originLayout || [], targetLayout || [],
+        );
         await updateBoardItem(item.id, { group_id: target?.id || null, x: destination.x, y: destination.y });
         if (originLayout?.length) await layoutBoardGroup(origin.id, originLayout);
         if (targetLayout) await layoutBoardGroup(target.id, targetLayout);
+        undoStack.current.push({ type: 'membership', ...history });
+        redoStack.current = [];
         await load();
         redrawChapters([
           origin?.kind === 'chapter' ? origin.id : null,
@@ -953,7 +958,10 @@ export default function BoardPage({ boardId, onBack }) {
       if (item && g.moved) {
         g.collectionPreview?.element.classList.remove('moving-active');
         g.originCollectionPreview?.element.classList.remove('moving-active');
-        saveMembership().catch((err) => { setError(err.message); load(); });
+        setBusy(true);
+        saveMembership()
+          .catch((err) => { setError(err.message); load(); })
+          .finally(() => setBusy(false));
       } else {
         clearCollectionPreview(g);
         clearOriginCollectionPreview(g);
@@ -1233,6 +1241,13 @@ export default function BoardPage({ boardId, onBack }) {
           const point = direction === 'undo' ? move.from : move.to;
           return moveBoardItem(move.id, point.x, point.y);
         }));
+      } else if (action.type === 'membership') {
+        const snapshot = direction === 'undo' ? action.before : action.after;
+        await Promise.all(snapshot.map((item) => updateBoardItem(item.id, {
+          group_id: item.group_id,
+          x: item.x,
+          y: item.y,
+        })));
       } else if (action.type === 'chapter-join') {
         const joined = action.after.find((position) => position.id === action.id);
         if (direction === 'undo') {
@@ -1330,7 +1345,7 @@ export default function BoardPage({ boardId, onBack }) {
         const target = event.target;
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
         event.preventDefault();
-        if (board.can_edit) applyHistory(event.shiftKey ? 'redo' : 'undo');
+        if (board.can_edit && !busy) applyHistory(event.shiftKey ? 'redo' : 'undo');
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {

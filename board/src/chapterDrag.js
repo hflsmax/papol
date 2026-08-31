@@ -60,6 +60,22 @@ export function previewChapterHeight(chapterY, positions, heights) {
   return Math.max(CHAPTER_MIN_HEIGHT, bottom - chapterY);
 }
 
+export function membershipHistorySnapshots(items, draggedId, targetGroupId, destination, originLayout = [], targetLayout = []) {
+  const affectedIds = new Set([
+    draggedId,
+    ...originLayout.map((position) => position.id),
+    ...targetLayout.map((position) => position.id),
+  ]);
+  const before = items
+    .filter((item) => affectedIds.has(item.id))
+    .map((item) => ({ id: item.id, group_id: item.group_id || null, x: item.x, y: item.y }));
+  const afterById = new Map(before.map((item) => [item.id, { ...item }]));
+  originLayout.forEach((position) => afterById.set(position.id, { ...position }));
+  targetLayout.forEach((position) => afterById.set(position.id, { ...position }));
+  afterById.set(draggedId, { id: draggedId, group_id: targetGroupId || null, x: destination.x, y: destination.y });
+  return { before, after: [...afterById.values()] };
+}
+
 export function tidyCollectionPositions(cards, maxGap = COLLECTION_TIDY_GAP) {
   const placed = [];
   return cards.map((card) => {
