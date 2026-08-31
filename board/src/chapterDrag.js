@@ -1,6 +1,8 @@
 export const CHAPTER_GAP = 18;
 export const CHAPTER_MIN_HEIGHT = 74;
 export const DRAG_THRESHOLD_PX = 4;
+export const DEFAULT_CARD_WIDTH = 300;
+export const COLLECTION_TIDY_GAP = 80;
 
 export function exceedsDragThreshold(startX, startY, clientX, clientY) {
   return Math.hypot(clientX - startX, clientY - startY) > DRAG_THRESHOLD_PX;
@@ -51,4 +53,31 @@ export function previewChapterHeight(chapterY, positions, heights) {
   if (!positions.length) return CHAPTER_MIN_HEIGHT;
   const bottom = Math.max(...positions.map((position) => position.y + heights.get(position.id)));
   return Math.max(CHAPTER_MIN_HEIGHT, bottom - chapterY);
+}
+
+export function tidyCollectionPositions(cards, maxGap = COLLECTION_TIDY_GAP) {
+  const placed = [];
+  return cards.map((card) => {
+    const current = { ...card };
+    const overlaps = placed.some((other) => !(
+      current.x + current.width <= other.x || other.x + other.width <= current.x
+      || current.y + current.height <= other.y || other.y + other.height <= current.y
+    ));
+    if (!placed.length || overlaps) { placed.push(current); return { id: current.id, x: current.x, y: current.y }; }
+    const nearest = placed.map((other) => {
+      const dx = Math.max(0, other.x - (current.x + current.width), current.x - (other.x + other.width));
+      const dy = Math.max(0, other.y - (current.y + current.height), current.y - (other.y + other.height));
+      return { other, gap: Math.hypot(dx, dy) };
+    }).sort((a, b) => a.gap - b.gap)[0];
+    if (nearest.gap > maxGap) {
+      const fromX = current.x + current.width / 2; const fromY = current.y + current.height / 2;
+      const toX = nearest.other.x + nearest.other.width / 2; const toY = nearest.other.y + nearest.other.height / 2;
+      const distance = Math.hypot(toX - fromX, toY - fromY) || 1;
+      const amount = nearest.gap - maxGap;
+      current.x += (toX - fromX) / distance * amount;
+      current.y += (toY - fromY) / distance * amount;
+    }
+    placed.push(current);
+    return { id: current.id, x: current.x, y: current.y };
+  });
 }

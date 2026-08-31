@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCenter, chapterDropTarget, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const chapter = { id: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -72,4 +72,20 @@ test('preview spine height follows content and respects its minimum', () => {
   const positions = [{ id: 1, y: 100 }, { id: 2, y: 198 }];
   assert.equal(previewChapterHeight(14, positions, new Map([[1, 80], [2, 140]])), 324);
   assert.equal(previewChapterHeight(14, [], new Map()), 74);
+});
+
+test('collection tidy pulls distant cards closer', () => {
+  const result = tidyCollectionPositions([
+    { id: 1, x: 0, y: 0, width: 300, height: 100 },
+    { id: 2, x: 1000, y: 0, width: 300, height: 100 },
+  ]);
+  assert.ok(result[1].x < 1000);
+});
+
+test('collection tidy leaves overlapping cards in place', () => {
+  const result = tidyCollectionPositions([
+    { id: 1, x: 0, y: 0, width: 300, height: 100 },
+    { id: 2, x: 200, y: 20, width: 300, height: 100 },
+  ]);
+  assert.deepEqual(result[1], { id: 2, x: 200, y: 20 });
 });
