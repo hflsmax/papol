@@ -70,8 +70,10 @@ test('an only card and an empty target produce finite positions', () => {
   assert.deepEqual(result.positions, [{ id: 9, group_id: 7, x: 120, y: 240 }]);
 });
 
-test('leaving closes the exact removed gap', () => {
+test('leaving any chapter slot closes exactly that gap', () => {
+  assert.deepEqual(stackWithout(members, 1, 7).map((p) => [p.id, p.y]), [[2, 100], [3, 258]]);
   assert.deepEqual(stackWithout(members, 2, 7).map((p) => [p.id, p.y]), [[1, 100], [3, 198]]);
+  assert.deepEqual(stackWithout(members, 3, 7).map((p) => [p.id, p.y]), [[1, 100], [2, 198]]);
   assert.deepEqual(stackWithout([members[0]], 1, 7), []);
 });
 
