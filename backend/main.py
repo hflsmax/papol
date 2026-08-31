@@ -1036,6 +1036,8 @@ async def move_board_item(
         item.y = data.y
     if data.width is not None:
         item.width = data.width
+    if data.position is not None:
+        item.position = data.position
     if data.content is not None:
         item.content = data.content.strip() or None
     if data.text_align is not None:

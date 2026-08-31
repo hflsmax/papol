@@ -224,6 +224,7 @@ class BoardItemUpdate(BaseModel):
     x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     width: Optional[float] = Field(default=None, ge=120, le=1200)
+    position: Optional[int] = Field(default=None, ge=0, le=1000000000)
     content: Optional[str] = Field(default=None, max_length=10000)
     text_align: Optional[Literal["left", "center", "right"]] = None
 
