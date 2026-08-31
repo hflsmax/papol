@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import { cardCenter, chapterDropTarget, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const COLLECTION_INSET_X = 28;
@@ -591,7 +591,12 @@ export default function BoardPage({ boardId, onBack }) {
   };
   const compactChapterPositions = (groupId) => {
     const group = board.groups.find((candidate) => candidate.id === groupId);
-    const members = group.item_ids.map((id) => board.items.find((item) => item.id === id)).sort((a, b) => a.y - b.y);
+    if (!group) return null;
+    const members = group.item_ids
+      .map((id) => board.items.find((item) => item.id === id))
+      .filter(Boolean)
+      .sort((a, b) => a.y - b.y);
+    if (!members.length) return [];
     const x = Math.min(...members.map((item) => item.x));
     let y = members[0].y;
     return members.map((item) => {
@@ -619,15 +624,6 @@ export default function BoardPage({ boardId, onBack }) {
       chapterElement: stageRef.current?.querySelector(`[data-group-id="${chapter.id}"]`),
       sx: event.clientX, sy: event.clientY,
     };
-  };
-  const clearJoinPreview = (drag) => {
-    drag?.joinPreview?.members.forEach((member) => {
-      member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
-    });
-    if (drag?.joinPreview?.chapterElement) {
-      drag.joinPreview.chapterElement.style.height = `${drag.joinPreview.originalHeight}px`;
-    }
-    if (drag) drag.joinPreview = null;
   };
   const clearCollectionPreview = (drag) => {
     const preview = drag?.collectionPreview;
@@ -824,14 +820,11 @@ export default function BoardPage({ boardId, onBack }) {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
       g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x + dx}px, ${group.y + dy}px)`; });
     }
-    else if (g.type === 'item' || g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
+    else if (g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
       const zoom = viewRef.current.zoom;
       g.current = { x: g.x + (event.clientX - g.sx) / zoom, y: g.y + (event.clientY - g.sy) / zoom };
       registerDragMovement();
       g.element.style.transform = `translate(${g.current.x}px, ${g.current.y}px)`;
-      if (g.draggedMember?.branchElement) {
-        g.draggedMember.branchElement.style.transform = `translate(${g.current.x - g.x}px, ${g.current.y - g.y}px)`;
-      }
       if (g.type === 'membership-item') {
         const cardWidth = g.element.offsetWidth || 300;
         const cardHeight = g.element.offsetHeight || 1;
@@ -873,69 +866,6 @@ export default function BoardPage({ boardId, onBack }) {
       } else if (g.type === 'free-item' && g.originGroupId) {
         const group = board.groups.find((candidate) => candidate.id === g.originGroupId);
         if (group?.kind === 'collection') showCollectionPreview(g, group, g.current);
-      } else if (g.type === 'item') {
-        const width = g.element.offsetWidth || 300;
-        const height = g.element.offsetHeight || 1;
-        const center = cardCenter(g.current, width, height);
-        const target = chapterDropTarget(chapterLayouts.filter((group) => group.kind === 'chapter'), center, g.originGroupId);
-        g.dropGroupId = target?.id || null;
-        setDropChapter(g.dropGroupId);
-        if (!target) {
-          clearJoinPreview(g);
-          if (g.originGroupId) {
-            const remaining = g.members.filter((member) => member.id !== g.id);
-            const after = stackWithout(g.members, g.id, g.originGroupId);
-            const positions = new Map(after.map((position) => [position.id, position]));
-            remaining.forEach((member) => {
-              const position = positions.get(member.id);
-              member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
-              if (member.branchElement) member.branchElement.style.transform = `translate(${position.x - member.x}px, ${position.y - member.y}px)`;
-            });
-            const heights = new Map(remaining.map((member) => [member.id, member.height]));
-            if (g.chapterElement) g.chapterElement.style.height = `${previewChapterHeight(g.chapter.y, after, heights)}px`;
-            g.leavePreview = { groupId: g.originGroupId, members: remaining, after, chapterElement: g.chapterElement };
-          }
-        }
-        else {
-          const group = board.groups.find((candidate) => candidate.id === target.id);
-          const members = group.item_ids.filter((id) => id !== g.id).map((id) => {
-            const member = board.items.find((candidate) => candidate.id === id);
-            const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-            const branchElement = stageRef.current?.querySelector(`[data-branch-id="${id}"]`);
-            return member && element ? { id, x: member.x, y: member.y, height: element.offsetHeight, element, branchElement } : null;
-          }).filter(Boolean).sort((a, b) => a.y - b.y);
-          members.forEach((member) => member.element.classList.add('chapter-reorder-peer'));
-          g.element.classList.add('chapter-reordering');
-          if (g.joinPreview?.groupId !== target.id) clearJoinPreview(g);
-          const dragged = { id: g.id, x: g.x, y: g.y, height, centerY: center.y };
-          const anchor = target.id === g.originGroupId && g.members?.length
-            ? {
-                x: Math.min(...g.members.map((member) => member.x)),
-                y: Math.min(...g.members.map((member) => member.y)),
-              }
-            : null;
-          const { positions: after } = stackWithInsertion(members, dragged, target.id, anchor);
-          const chapterElement = stageRef.current?.querySelector(`[data-group-id="${target.id}"]`);
-          const heights = new Map([...members.map((member) => [member.id, member.height]), [g.id, height]]);
-          if (chapterElement) chapterElement.style.height = `${previewChapterHeight(target.y, after, heights)}px`;
-          const positions = new Map(after.map((position) => [position.id, position]));
-          members.forEach((member) => {
-            const position = positions.get(member.id);
-            member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
-            if (member.branchElement) member.branchElement.style.transform = `translate(${position.x - member.x}px, ${position.y - member.y}px)`;
-          });
-          g.joinPreview = {
-            groupId: target.id,
-            members,
-            before: target.id === g.originGroupId
-              ? g.originalBefore
-              : members.map((member) => ({ id: member.id, group_id: target.id, x: member.x, y: member.y })),
-            after,
-            chapterElement,
-            originalHeight: target.height,
-          };
-          g.leavePreview = null;
-        }
       }
       if (g.type === 'loading-item') {
         urlLoadingRef.current = urlLoadingRef.current.map((item) => item.id === g.id ? { ...item, ...g.current } : item);
@@ -952,26 +882,13 @@ export default function BoardPage({ boardId, onBack }) {
     setMarquee(null);
     touches.current.clear();
     if (!g) return;
-    if (g.type === 'item' || g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
+    if (g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
       clearCollectionPreview(g);
       clearOriginCollectionPreview(g);
       clearMembershipChapterPreview(g);
       clearOriginChapterPreview(g);
       g.element.style.transform = `translate(${g.x}px, ${g.y}px)`;
       g.element.classList.remove('chapter-reordering');
-      const members = new Map([
-        ...(g.members || []).map((member) => [member.id, member]),
-        ...(g.joinPreview?.members || []).map((member) => [member.id, member]),
-      ]);
-      members.forEach((member) => {
-        member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
-        member.element.classList.remove('chapter-reorder-peer');
-        if (member.branchElement) member.branchElement.style.transform = '';
-      });
-      if (g.draggedMember?.branchElement) g.draggedMember.branchElement.style.transform = '';
-      const chapterElement = g.joinPreview?.chapterElement || g.leavePreview?.chapterElement;
-      const originalHeight = g.joinPreview?.originalHeight ?? g.chapter?.height;
-      if (chapterElement && originalHeight != null) chapterElement.style.height = `${originalHeight}px`;
     } else if (g.type === 'chapter-move') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
       if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
@@ -1058,19 +975,6 @@ export default function BoardPage({ boardId, onBack }) {
         setSelectedItems(mergeSelection(g.baseSelected, [g.id], g.mode));
       }
     }
-    if (g?.type === 'item') {
-      g.element.classList.remove('chapter-reordering');
-      const previewElements = new Set([
-        ...(g.members || []).map((member) => member.element),
-        ...(g.joinPreview?.members || []).map((member) => member.element),
-      ]);
-      setTimeout(() => previewElements.forEach((element) => element.classList.remove('chapter-reorder-peer')), 190);
-      const previewBranches = new Set([
-        ...(g.members || []).map((member) => member.branchElement),
-        ...(g.joinPreview?.members || []).map((member) => member.branchElement),
-      ].filter(Boolean));
-      setTimeout(() => previewBranches.forEach((branch) => { branch.style.transform = ''; }), 190);
-    }
     if (g?.type === 'chapter-move') {
       const { dx = 0, dy = 0 } = g.current || {};
       if (g.moved) {
@@ -1111,65 +1015,6 @@ export default function BoardPage({ boardId, onBack }) {
       touches.current.delete(event.pointerId);
       const remaining = [...touches.current.values()][0];
       if (remaining) gesture.current = { type: 'pan', sx: remaining.x, sy: remaining.y, origin: viewRef.current };
-    }
-    if (g?.type === 'item') {
-      const item = board.items.find((candidate) => candidate.id === g.id);
-      if (item) {
-        const point = g.current || { x: g.x, y: g.y };
-        const moved = Boolean(g.moved);
-        if (moved) {
-          undoStack.current.push(g.joinPreview
-            ? g.originGroupId
-              ? { type: 'layout', id: g.originGroupId, before: g.originalBefore, after: g.joinPreview.after }
-              : { type: 'chapter-join', id: item.id, groupId: g.joinPreview.groupId, from: { x: g.x, y: g.y }, before: g.joinPreview.before, after: g.joinPreview.after }
-            : g.leavePreview
-              ? { type: 'chapter-leave', id: item.id, groupId: g.originGroupId, from: { x: g.x, y: g.y }, to: point, before: g.originalBefore, after: g.leavePreview.after }
-              : { type: 'move', id: item.id, from: { x: g.x, y: g.y }, to: point });
-          redoStack.current = [];
-          if (g.joinPreview && g.originGroupId) {
-            const positions = new Map(g.joinPreview.after.map((position) => [position.id, position]));
-            const final = positions.get(item.id);
-            void g.element.offsetWidth;
-            g.element.style.transform = `translate(${final.x}px, ${final.y}px)`;
-            if (g.draggedMember?.branchElement) {
-              g.draggedMember.branchElement.style.transform = `translate(${final.x - g.x}px, ${final.y - g.y}px)`;
-            }
-            setBoard((current) => ({ ...current, items: current.items.map((candidate) => positions.has(candidate.id) ? { ...candidate, ...positions.get(candidate.id) } : candidate) }));
-            layoutBoardGroup(g.originGroupId, g.joinPreview.after).catch((err) => { setError(err.message); load(); });
-          } else if (g.joinPreview) {
-            const positions = new Map(g.joinPreview.after.map((position) => [position.id, position]));
-            const joined = positions.get(item.id);
-            setBoard((current) => ({
-              ...current,
-              groups: current.groups.map((group) => group.id === g.joinPreview.groupId ? { ...group, item_ids: [...group.item_ids, item.id] } : group),
-              items: current.items.map((candidate) => positions.has(candidate.id) ? { ...candidate, ...positions.get(candidate.id) } : candidate),
-            }));
-            updateBoardItem(item.id, { x: joined.x, y: joined.y, group_id: g.joinPreview.groupId })
-              .then(() => layoutBoardGroup(g.joinPreview.groupId, g.joinPreview.after))
-              .catch((err) => { setError(err.message); load(); });
-          } else if (g.leavePreview) {
-            const positions = new Map(g.leavePreview.after.map((position) => [position.id, position]));
-            setBoard((current) => ({
-              ...current,
-              groups: current.groups.map((group) => group.id === g.originGroupId ? { ...group, item_ids: group.item_ids.filter((id) => id !== item.id) } : group),
-              items: current.items.map((candidate) => candidate.id === item.id
-                ? { ...candidate, ...point, group_id: null }
-                : positions.has(candidate.id) ? { ...candidate, ...positions.get(candidate.id) } : candidate),
-            }));
-            updateBoardItem(item.id, { ...point, group_id: null })
-              .then(() => g.leavePreview.after.length ? layoutBoardGroup(g.originGroupId, g.leavePreview.after) : null)
-              .catch((err) => { setError(err.message); load(); });
-          } else {
-            clearJoinPreview(g);
-            setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? { ...candidate, ...point } : candidate) }));
-            moveBoardItem(item.id, point.x, point.y).catch((err) => setError(err.message));
-          }
-        }
-        else {
-          clearJoinPreview(g);
-          setSelectedItems(mergeSelection(g.baseSelected, [item.id], g.mode));
-        }
-      }
     }
     if (g?.type === 'loading-item') {
       const point = g.current || { x: g.x, y: g.y };
