@@ -710,7 +710,7 @@ export default function BoardPage({ boardId, onBack }) {
       g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
       g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x + dx}px, ${group.y + dy}px)`; });
-      if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
+      if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
     }
     else if (g.type === 'multi-item') {
       const dx = (event.clientX - g.sx) / viewRef.current.zoom;
@@ -729,9 +729,10 @@ export default function BoardPage({ boardId, onBack }) {
       }
       if (g.type === 'membership-item') {
         const center = cardCenter(g.current, g.element.offsetWidth || 300, g.element.offsetHeight || 1);
+        const viewportBounds = viewportRef.current.getBoundingClientRect();
         const handle = {
-          x: (event.clientX - viewRef.current.x) / zoom,
-          y: (event.clientY - viewRef.current.y) / zoom,
+          x: (event.clientX - viewportBounds.left - viewRef.current.x) / zoom,
+          y: (event.clientY - viewportBounds.top - viewRef.current.y) / zoom,
         };
         const collectionTarget = chapterLayouts.find((group) => group.kind === 'collection'
           && handle.x >= group.x && handle.x <= group.x + group.width
@@ -854,7 +855,7 @@ export default function BoardPage({ boardId, onBack }) {
       if (chapterElement && originalHeight != null) chapterElement.style.height = `${originalHeight}px`;
     } else if (g.type === 'chapter-move') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
-      if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+      if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
     } else if (g.type === 'multi-item') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
       g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
@@ -945,7 +946,7 @@ export default function BoardPage({ boardId, onBack }) {
         moveBoardGroup(g.groupId, dx, dy).catch((err) => { setError(err.message); load(); });
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
-        if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+        if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
         if (g.clickedId != null) {
           setSelectedItems([g.clickedId]);
           setSelectedChapter(null);

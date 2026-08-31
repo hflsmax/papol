@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCenter, chapterDropTarget, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, chapterInsertionIndex, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const chapter = { id: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -37,6 +37,13 @@ test('insertion opens first, middle, and last slots with mixed heights', () => {
   assert.deepEqual(middle.positions.map((p) => p.id), [1, 9, 2, 3]);
   const last = stackWithInsertion(members, { id: 9, x: 100, y: 500, height: 50, centerY: 525 }, 7);
   assert.deepEqual(last.positions.map((p) => p.id), [1, 2, 3, 9]);
+});
+
+test('chapter insertion changes only after crossing a card midpoint', () => {
+  assert.equal(chapterInsertionIndex(members, 140), 0);
+  assert.equal(chapterInsertionIndex(members, 140.01), 1);
+  assert.equal(chapterInsertionIndex(members, 268), 1);
+  assert.equal(chapterInsertionIndex(members, 268.01), 2);
 });
 
 test('reordering the first card keeps the stack anchored until it crosses the next slot', () => {

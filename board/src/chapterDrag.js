@@ -20,10 +20,15 @@ export function chapterDropTarget(chapters, center, originGroupId = null) {
   }) || null;
 }
 
+export function chapterInsertionIndex(members, draggedCenterY) {
+  const sorted = [...members].sort((a, b) => a.y - b.y);
+  const index = sorted.findIndex((member) => draggedCenterY <= member.y + member.height / 2);
+  return index < 0 ? sorted.length : index;
+}
+
 export function stackWithInsertion(members, dragged, groupId, anchor = null) {
   const sorted = [...members].sort((a, b) => a.y - b.y);
-  let insertAt = sorted.findIndex((member) => dragged.centerY < member.y + member.height / 2);
-  if (insertAt < 0) insertAt = sorted.length;
+  const insertAt = chapterInsertionIndex(sorted, dragged.centerY);
   const x = anchor?.x ?? (sorted.length ? Math.min(...sorted.map((member) => member.x)) : dragged.x);
   let y = anchor?.y ?? (sorted.length ? Math.min(...sorted.map((member) => member.y)) : dragged.y);
   const order = [...sorted];
