@@ -441,6 +441,15 @@ export default function BoardPage({ boardId, onBack }) {
       setSelectedItems([item.id]);
       return;
     }
+    if (selectedItems.length > 1 && selectedItems.includes(item.id)) {
+      const members = selectedItems.map((id) => {
+        const member = board.items.find((candidate) => candidate.id === id);
+        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+        return member && element ? { id, x: member.x, y: member.y, element } : null;
+      }).filter(Boolean);
+      gesture.current = { type: 'multi-item', members, sx: event.clientX, sy: event.clientY };
+      return;
+    }
     if (item.group_id != null) {
       const group = board.groups?.find((candidate) => candidate.id === item.group_id);
       const members = group?.item_ids.map((id) => {
@@ -600,6 +609,13 @@ export default function BoardPage({ boardId, onBack }) {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
       if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
     }
+    else if (g.type === 'multi-item') {
+      const dx = (event.clientX - g.sx) / viewRef.current.zoom;
+      const dy = (event.clientY - g.sy) / viewRef.current.zoom;
+      g.current = { dx, dy };
+      g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
+      g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
+    }
     else if (g.type === 'item' || g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
       const zoom = viewRef.current.zoom;
       g.current = { x: g.x + (event.clientX - g.sx) / zoom, y: g.y + (event.clientY - g.sy) / zoom };
@@ -710,6 +726,8 @@ export default function BoardPage({ boardId, onBack }) {
     } else if (g.type === 'chapter-move') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
       if (g.chapter && g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+    } else if (g.type === 'multi-item') {
+      g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
     } else if (g.type === 'resize') {
       g.element.style.width = `${g.width}px`;
     }
@@ -799,6 +817,19 @@ export default function BoardPage({ boardId, onBack }) {
           setSelectedChapter(null);
           setMenuItem(null);
         }
+      }
+    }
+    if (g?.type === 'multi-item') {
+      const { dx = 0, dy = 0 } = g.current || {};
+      if (g.moved) {
+        const moves = g.members.map((member) => ({ id: member.id, from: { x: member.x, y: member.y }, to: { x: member.x + dx, y: member.y + dy } }));
+        undoStack.current.push({ type: 'move-many', moves });
+        redoStack.current = [];
+        const positions = new Map(moves.map((move) => [move.id, move.to]));
+        setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, ...positions.get(item.id) } : item) }));
+        Promise.all(moves.map((move) => moveBoardItem(move.id, move.to.x, move.to.y))).catch((err) => { setError(err.message); load(); });
+      } else {
+        g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
       }
     }
     if (event?.pointerType === 'touch') {
@@ -1077,6 +1108,11 @@ export default function BoardPage({ boardId, onBack }) {
       if (action.type === 'move') {
         const point = direction === 'undo' ? action.from : action.to;
         await moveBoardItem(action.id, point.x, point.y);
+      } else if (action.type === 'move-many') {
+        await Promise.all(action.moves.map((move) => {
+          const point = direction === 'undo' ? move.from : move.to;
+          return moveBoardItem(move.id, point.x, point.y);
+        }));
       } else if (action.type === 'chapter-join') {
         const joined = action.after.find((position) => position.id === action.id);
         if (direction === 'undo') {
