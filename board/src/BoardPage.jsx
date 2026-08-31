@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import { cardCenter, chapterDropTarget, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, collectionContainsCard, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
@@ -728,15 +728,11 @@ export default function BoardPage({ boardId, onBack }) {
         g.draggedMember.branchElement.style.transform = `translate(${g.current.x - g.x}px, ${g.current.y - g.y}px)`;
       }
       if (g.type === 'membership-item') {
-        const center = cardCenter(g.current, g.element.offsetWidth || 300, g.element.offsetHeight || 1);
-        const viewportBounds = viewportRef.current.getBoundingClientRect();
-        const handle = {
-          x: (event.clientX - viewportBounds.left - viewRef.current.x) / zoom,
-          y: (event.clientY - viewportBounds.top - viewRef.current.y) / zoom,
-        };
+        const cardWidth = g.element.offsetWidth || 300;
+        const cardHeight = g.element.offsetHeight || 1;
+        const center = cardCenter(g.current, cardWidth, cardHeight);
         const collectionTarget = chapterLayouts.find((group) => group.kind === 'collection'
-          && handle.x >= group.x && handle.x <= group.x + group.width
-          && handle.y >= group.y + 76 && handle.y <= group.y + group.height);
+          && collectionContainsCard(group, g.current, cardWidth, cardHeight));
         const chapterTarget = chapterLayouts.find((group) => group.kind === 'chapter'
           && center.x >= group.x && center.x <= group.x + group.width
           && center.y >= group.y && center.y <= group.y + group.height);
