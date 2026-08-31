@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import { cardCenter, chapterDropTarget, collectionContainsCard, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, DEFAULT_CARD_WIDTH, exceedsDragThreshold, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
@@ -518,6 +518,10 @@ export default function BoardPage({ boardId, onBack }) {
     gesture.current = {
       type: 'membership-item', id: item.id, originGroupId: item.group_id || null,
       sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element,
+      collectionBounds: new Map(chapterLayouts.filter((group) => group.kind === 'collection').map((group) => {
+        const collection = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
+        return [group.id, collection?.getBoundingClientRect() || null];
+      })),
     };
   };
   const startLoadingDrag = (event, item) => {
@@ -649,7 +653,7 @@ export default function BoardPage({ boardId, onBack }) {
     if (preview.chapterElement) preview.chapterElement.style.height = `${preview.originalHeight}px`;
     drag.membershipChapterPreview = null;
   };
-  const showMembershipChapterPreview = (drag, group, point) => {
+  const showMembershipChapterPreview = (drag, group, point, insertionY) => {
     const layout = chapterLayouts.find((candidate) => candidate.id === group.id);
     if (!layout) return;
     const members = group.item_ids.filter((id) => id !== drag.id).map((id) => {
@@ -659,7 +663,7 @@ export default function BoardPage({ boardId, onBack }) {
     }).filter(Boolean);
     const height = drag.element.offsetHeight || 1;
     const after = stackWithInsertion(members, {
-      id: drag.id, x: point.x, y: point.y, height, centerY: point.y + height / 2,
+      id: drag.id, x: point.x, y: point.y, height, centerY: insertionY,
     }, group.id).positions;
     const signature = `${group.id}:${after.map((position) => position.id).join(',')}`;
     if (drag.membershipChapterPreview?.signature === signature) return;
@@ -709,7 +713,6 @@ export default function BoardPage({ boardId, onBack }) {
       g.current = { dx, dy };
       g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
-      g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x + dx}px, ${group.y + dy}px)`; });
       if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
     }
     else if (g.type === 'multi-item') {
@@ -718,6 +721,7 @@ export default function BoardPage({ boardId, onBack }) {
       g.current = { dx, dy };
       g.moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
+      g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x + dx}px, ${group.y + dy}px)`; });
     }
     else if (g.type === 'item' || g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
       const zoom = viewRef.current.zoom;
@@ -731,8 +735,18 @@ export default function BoardPage({ boardId, onBack }) {
         const cardWidth = g.element.offsetWidth || 300;
         const cardHeight = g.element.offsetHeight || 1;
         const center = cardCenter(g.current, cardWidth, cardHeight);
-        const collectionTarget = chapterLayouts.find((group) => group.kind === 'collection'
-          && collectionContainsCard(group, g.current, cardWidth, cardHeight));
+        const cardRect = g.element.getBoundingClientRect();
+        const viewportRect = viewportRef.current.getBoundingClientRect();
+        g.insertionY = (event.clientY - viewportRect.top - viewRef.current.y) / zoom;
+        const collectionTarget = chapterLayouts.find((group) => {
+          if (group.kind !== 'collection') return false;
+          const rect = g.collectionBounds.get(group.id);
+          if (!rect) return false;
+          const outlineTop = rect.top + 76 * zoom;
+          const tolerance = 1;
+          return cardRect.left >= rect.left - tolerance && cardRect.right <= rect.right + tolerance
+            && cardRect.top >= outlineTop - tolerance && cardRect.bottom <= rect.bottom + tolerance;
+        });
         const chapterTarget = chapterLayouts.find((group) => group.kind === 'chapter'
           && center.x >= group.x && center.x <= group.x + group.width
           && center.y >= group.y && center.y <= group.y + group.height);
@@ -744,7 +758,7 @@ export default function BoardPage({ boardId, onBack }) {
           showCollectionPreview(g, target, g.current);
         } else if (target?.kind === 'chapter') {
           clearCollectionPreview(g);
-          showMembershipChapterPreview(g, target, g.current);
+          showMembershipChapterPreview(g, target, g.current, g.insertionY);
         } else {
           clearCollectionPreview(g);
           clearMembershipChapterPreview(g);
@@ -881,7 +895,7 @@ export default function BoardPage({ boardId, onBack }) {
           }).filter(Boolean);
           targetLayout = stackWithInsertion(members, {
             id: item.id, x: point.x, y: point.y, height: g.element.offsetHeight || 1,
-            centerY: point.y + (g.element.offsetHeight || 1) / 2,
+            centerY: g.insertionY ?? point.y + (g.element.offsetHeight || 1) / 2,
           }, target.id).positions;
         }
         let originLayout = null;

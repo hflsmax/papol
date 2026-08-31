@@ -4296,7 +4296,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-item-menu button { border: 0; padding: 6px 9px; background: transparent; box-shadow: none; text-align: left; font: var(--fs-xs) var(--font-ui); white-space: nowrap; }
 .board-item-menu button:hover { background: var(--accent-soft); }
 .board-item-menu button.remove { color: var(--red); }
-.board-resize-handle { position: absolute; z-index: 3; right: -7px; bottom: -7px; width: 14px; height: 14px; padding: 0; border: 1px solid var(--accent); border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px rgba(29,33,41,.2); cursor: nwse-resize; }
+.board-resize-handle { position: absolute; z-index: 3; right: -7px; bottom: -7px; width: 14px; height: 14px; padding: 0; border: 1px solid var(--accent); border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px rgba(29,33,41,.2); opacity: 0; pointer-events: none; cursor: nwse-resize; transition: opacity .14s ease, transform .14s ease; }
+.board-canvas-card:hover > .board-resize-handle,
+.board-canvas-card.selected > .board-resize-handle,
+.board-resize-handle:focus-visible,
+.board-resize-handle:active { opacity: 1; pointer-events: auto; }
 .board-youtube-description { margin: 0; padding: 12px 14px; border-top: 1px solid var(--line); cursor: text; }
 .board-editable-text { cursor: text; }
 .board-youtube-description.empty { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-style: italic; }
