@@ -4242,7 +4242,9 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-chapter.collection::after { display: block; z-index: -1; top: 76px; right: 0; bottom: 0; left: 0; box-sizing: border-box; width: auto; height: auto; border: 1px dashed var(--line-strong); border-radius: 14px; background: transparent; }
 .board-chapter.collection.moving-active::after, .board-chapter.collection.drop-active::after { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
 .board-chapter.collection.selected::after { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
-.board-chapter.collection .board-chapter-spine { inset: 76px 0 0; width: auto; border-radius: 14px; cursor: grab; }
+.board-chapter.collection .board-chapter-spine { z-index: 1; inset: 76px 0 0; width: auto; border-radius: 14px; cursor: grab; touch-action: none; }
+.board-chapter.collection:has(.board-chapter-spine:hover)::after { border-color: var(--accent-line); }
+.board-chapter.collection:has(.board-chapter-spine:active)::after { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
 .board-chapter.collection .board-chapter-heading { top: 0; left: 12px; width: calc(100% - 24px) !important; height: 36px; }
 .board-chapter.collection .board-chapter-header { top: 36px; left: 12px; width: calc(100% - 24px) !important; }
 .board-chapter.collection .board-chapter-title { color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-sm); }
