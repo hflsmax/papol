@@ -254,10 +254,10 @@ export default function BoardPage({ boardId, onBack }) {
         const maxRight = Math.max(...members.map((item) => item.x + item.width));
         const maxBottom = Math.max(...members.map((item) => item.y + item.height));
         const isCollection = group.kind === 'collection';
-        const x = minX - (isCollection ? 24 : 34); const y = minY - 86;
+        const x = minX - (isCollection ? 48 : 34); const y = minY - (isCollection ? 108 : 86);
         return {
-          ...group, x, y, width: maxRight - minX + (isCollection ? 48 : 34),
-          height: maxBottom - minY + (isCollection ? 110 : 86),
+          ...group, x, y, width: maxRight - minX + (isCollection ? 96 : 34),
+          height: maxBottom - minY + (isCollection ? 140 : 86),
           branches: isCollection ? [] : members.map((item) => ({ id: item.id, top: item.y - y + 18, width: item.x - x - 10 })),
         };
       }).filter(Boolean));
@@ -445,6 +445,7 @@ export default function BoardPage({ boardId, onBack }) {
     if (event.button !== 0 || event.target.closest('button,a')) return;
     setSelectedChapter(null);
     setMenuItem(null);
+    if (selectedItems.length && !selectedItems.includes(item.id)) setSelectedItems([]);
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     if (!board.can_edit) {
       setSelectedItems([item.id]);
@@ -636,7 +637,7 @@ export default function BoardPage({ boardId, onBack }) {
     const minY = Math.min(...members.map((member) => member.y));
     const maxRight = Math.max(...members.map((member) => member.x + member.width));
     const maxBottom = Math.max(...members.map((member) => member.y + member.height));
-    const next = { x: minX - 24, y: minY - 86, width: maxRight - minX + 48, height: maxBottom - minY + 110 };
+    const next = { x: minX - 48, y: minY - 108, width: maxRight - minX + 96, height: maxBottom - minY + 140 };
     if (!drag.collectionPreview) drag.collectionPreview = { id: group.id, element, original: layout };
     element.style.transform = `translate(${next.x}px, ${next.y}px)`;
     element.style.width = `${next.width}px`;
