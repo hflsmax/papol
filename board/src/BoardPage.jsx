@@ -8,6 +8,13 @@ const COLLECTION_INSET_X = 28;
 const COLLECTION_CARD_OFFSET_Y = 96;
 const COLLECTION_INSET_BOTTOM = 20;
 const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
+const preventModifiedTextSelection = (event) => {
+  if (event.shiftKey || event.metaKey || event.ctrlKey) event.preventDefault();
+};
+const prepareCardTextPointerDown = (event) => {
+  event.stopPropagation();
+  preventModifiedTextSelection(event);
+};
 const mergeSelection = (base, hits, mode) => {
   if (mode === 'replace') return hits;
   const next = new Set(base);
@@ -71,6 +78,7 @@ export default function BoardPage({ boardId, onBack }) {
   const [dropChapter, setDropChapter] = useState(null);
   const [visibleGrip, setVisibleGrip] = useState(null);
   const [foregroundGrip, setForegroundGrip] = useState(null);
+  const [draggingGrip, setDraggingGrip] = useState(null);
   const [editingChapter, setEditingChapter] = useState(null);
   const [chapterTitleDraft, setChapterTitleDraft] = useState('');
   const [editingChapterHeader, setEditingChapterHeader] = useState(null);
@@ -489,7 +497,6 @@ export default function BoardPage({ boardId, onBack }) {
     if (event.button !== 0 || event.target.closest('button,a')) return;
     setSelectedChapter(null);
     setMenuItem(null);
-    if (selectedItems.length && !selectedItems.includes(item.id)) setSelectedItems([]);
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     if (!board.can_edit) {
       setSelectedItems([item.id]);
@@ -514,7 +521,7 @@ export default function BoardPage({ boardId, onBack }) {
         return layout && element ? { id, x: layout.x, y: layout.y, element } : null;
       }).filter(Boolean);
       raiseCards(members.map((member) => member.id));
-      gesture.current = { type: 'multi-item', members, groups, sx: event.clientX, sy: event.clientY };
+      gesture.current = { type: 'multi-item', primaryId: item.id, members, groups, sx: event.clientX, sy: event.clientY };
       return;
     }
     if (item.group_id != null) {
@@ -555,7 +562,7 @@ export default function BoardPage({ boardId, onBack }) {
     if (event.button !== 0 || !board.can_edit) return;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setSelectedItems([]); setSelectedChapter(null); setMenuItem(null);
+    setSelectedChapter(null); setMenuItem(null);
     const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
     if (!element) return;
     element.classList.add('chapter-reordering');
@@ -577,6 +584,28 @@ export default function BoardPage({ boardId, onBack }) {
   const startResize = (event, item) => {
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const resizeIds = selectedItems.length > 1 && selectedItems.includes(item.id) ? selectedItems : [item.id];
+    if (resizeIds.length > 1) {
+      const entries = resizeIds.map((id) => {
+        const candidate = board.items.find((boardItem) => boardItem.id === id);
+        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+        return candidate && element ? { id, width: candidate.width || 300, element } : null;
+      }).filter(Boolean);
+      const groupIds = [...new Set(entries.map((entry) => {
+        const candidate = board.items.find((boardItem) => boardItem.id === entry.id);
+        const group = board.groups.find((boardGroup) => boardGroup.id === candidate?.group_id);
+        return group?.kind === 'chapter' ? group.id : null;
+      }).filter((id) => id != null))];
+      const beforeLayouts = new Map(groupIds.map((groupId) => {
+        const group = board.groups.find((candidate) => candidate.id === groupId);
+        return [groupId, group.item_ids.map((id) => {
+          const member = board.items.find((candidate) => candidate.id === id);
+          return { id, group_id: groupId, x: member.x, y: member.y };
+        })];
+      }));
+      gesture.current = { type: 'resize-many', sx: event.clientX, entries, groupIds, beforeLayouts };
+      return;
+    }
     const group = item.group_id ? board.groups?.find((candidate) => candidate.id === item.group_id) : null;
     const chapter = group?.kind === 'chapter' ? group : null;
     const beforePositions = chapter?.item_ids.map((id) => {
@@ -616,7 +645,6 @@ export default function BoardPage({ boardId, onBack }) {
       return item && element ? { id, x: item.x, y: item.y, element } : null;
     }).filter(Boolean);
     if (!members.length) return;
-    setSelectedItems([]);
     setSelectedChapter(null);
     setMenuItem(null);
     gesture.current = {
@@ -770,11 +798,10 @@ export default function BoardPage({ boardId, onBack }) {
     const registerDragMovement = () => {
       const moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
       if (moved && !g.moved) {
-        setSelectedItems([]);
+        const draggedId = g.id ?? g.clickedId ?? g.primaryId;
+        if (draggedId != null) setDraggingGrip(draggedId);
         setSelectedChapter(null);
         setMenuItem(null);
-        setVisibleGrip(null);
-        setForegroundGrip(null);
       }
       g.moved = g.moved || moved;
     };
@@ -873,11 +900,16 @@ export default function BoardPage({ boardId, onBack }) {
     } else if (g.type === 'resize') {
       g.current = clamp(g.width + (event.clientX - g.sx) / viewRef.current.zoom, 120, 1200);
       g.element.style.width = `${g.current}px`;
+    } else if (g.type === 'resize-many') {
+      const delta = (event.clientX - g.sx) / viewRef.current.zoom;
+      g.current = g.entries.map((entry) => ({ ...entry, nextWidth: clamp(entry.width + delta, 120, 1200) }));
+      g.current.forEach((entry) => { entry.element.style.width = `${entry.nextWidth}px`; });
     }
   };
   const cancelGesture = () => {
     const g = gesture.current;
     gesture.current = null;
+    setDraggingGrip(null);
     setDropChapter(null);
     setMarquee(null);
     touches.current.clear();
@@ -897,10 +929,13 @@ export default function BoardPage({ boardId, onBack }) {
       g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
     } else if (g.type === 'resize') {
       g.element.style.width = `${g.width}px`;
+    } else if (g.type === 'resize-many') {
+      g.entries.forEach((entry) => { entry.element.style.width = `${entry.width}px`; });
     }
   };
   const endGesture = (event) => {
     const g = gesture.current; gesture.current = null;
+    setDraggingGrip(null);
     setDropChapter(null);
     if (g?.type === 'membership-item') {
       const membershipPeers = g.membershipChapterPreview?.members || [];
@@ -987,7 +1022,6 @@ export default function BoardPage({ boardId, onBack }) {
       const { dx = 0, dy = 0 } = g.current || {};
       if (g.moved) {
         suppressChapterClick.current = g.groupId;
-        setSelectedItems([]);
         setSelectedChapter(null);
         setMenuItem(null);
         undoStack.current.push({ type: 'group-move', id: g.groupId, dx, dy });
@@ -1044,6 +1078,32 @@ export default function BoardPage({ boardId, onBack }) {
         Promise.all([
           updateBoardItem(g.id, { width }),
           ...(g.groupId ? [layoutBoardGroup(g.groupId, afterPositions)] : []),
+        ]).catch((err) => { setError(err.message); load(); });
+      }
+    }
+    if (g?.type === 'resize-many') {
+      const resized = g.current || g.entries.map((entry) => ({ ...entry, nextWidth: entry.width }));
+      const changes = resized
+        .filter((entry) => Math.abs(entry.nextWidth - entry.width) > 1)
+        .map((entry) => ({ id: entry.id, from: entry.width, to: entry.nextWidth }));
+      if (changes.length) {
+        const layouts = g.groupIds.map((groupId) => ({
+          id: groupId,
+          before: g.beforeLayouts.get(groupId),
+          after: compactChapterPositions(groupId),
+        }));
+        const positions = new Map(layouts.flatMap((layout) => layout.after).map((position) => [position.id, position]));
+        undoStack.current.push({ type: 'resize-selection', changes, layouts });
+        redoStack.current = [];
+        const widths = new Map(changes.map((change) => [change.id, change.to]));
+        setBoard((current) => ({ ...current, items: current.items.map((candidate) => ({
+          ...candidate,
+          ...(widths.has(candidate.id) ? { width: widths.get(candidate.id) } : {}),
+          ...(positions.get(candidate.id) || {}),
+        })) }));
+        Promise.all([
+          ...changes.map((change) => updateBoardItem(change.id, { width: change.to })),
+          ...layouts.map((layout) => layoutBoardGroup(layout.id, layout.after)),
         ]).catch((err) => { setError(err.message); load(); });
       }
     }
@@ -1303,6 +1363,15 @@ export default function BoardPage({ boardId, onBack }) {
             ? { width: change.from, ...(change.fromX == null ? {} : { x: change.fromX, y: change.fromY }) }
             : { width: change.to, ...(change.toX == null ? {} : { x: change.toX, y: change.toY }) },
         )));
+      } else if (action.type === 'resize-selection') {
+        await Promise.all([
+          ...action.changes.map((change) => updateBoardItem(change.id, {
+            width: direction === 'undo' ? change.from : change.to,
+          })),
+          ...action.layouts.map((layout) => layoutBoardGroup(
+            layout.id, direction === 'undo' ? layout.before : layout.after,
+          )),
+        ]);
       } else if (action.type === 'layout') {
         await layoutBoardGroup(action.id, direction === 'undo' ? action.before : action.after);
       } else if (action.type === 'delete') {
@@ -1412,7 +1481,25 @@ export default function BoardPage({ boardId, onBack }) {
     board.items.find((item) => item.id === id)?.group_id == null
   );
   const activeChapter = board.groups?.find((chapter) => chapter.id === selectedChapter);
-  return <div className="infinite-board">
+  const handleBoardPointerDownCapture = (event) => {
+    const editing = editingText != null || editingDescription != null || editingChapter != null || editingChapterHeader != null;
+    if (editing && !event.target.closest?.('.board-inline-text-editor, input.board-chapter-title, textarea.board-chapter-header-text')) {
+      const editor = document.querySelector('.board-inline-text-editor textarea, input.board-chapter-title, textarea.board-chapter-header-text');
+      if (editor instanceof HTMLInputElement || editor instanceof HTMLTextAreaElement) editor.blur();
+      else {
+        setEditingText(null);
+        setEditingDescription(null);
+        setEditingChapter(null);
+        setEditingChapterHeader(null);
+      }
+    }
+    if (!selectedItems.length || event.shiftKey || event.metaKey || event.ctrlKey) return;
+    if (event.target.closest?.('.board-selection-menu')) return;
+    const card = event.target.closest?.('[data-item-id]');
+    if (card && selectedItems.includes(Number(card.dataset.itemId))) return;
+    setSelectedItems([]);
+  };
+  return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
     <header className="board-toolbar">
       <button className="board-back" onClick={onBack}>← <span>Back</span></button>
       <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
@@ -1473,22 +1560,22 @@ export default function BoardPage({ boardId, onBack }) {
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
         {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${chapterRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
-          {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
+          {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
             {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([item.id]); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
           </header>
-          <div className="board-card-content">
+          <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
           {['image', 'youtube', 'webpage'].includes(item.kind) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
           {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
-            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
+            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedChapter(null); setMenuItem(null); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
           {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
-            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([item.id]); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
+            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedChapter(null); setMenuItem(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
           {item.kind === 'excerpt' && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>}
           </div>
           {selectedItems.length === 1 && selectedItems[0] === item.id && menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
