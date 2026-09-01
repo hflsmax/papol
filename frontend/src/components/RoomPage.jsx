@@ -3,8 +3,9 @@ import { getRoom } from '../api';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
 import { appPath } from '../base';
+import BackLink from './BackLink';
 
-export default function RoomPage({ roomId, currentUser, onBack }) {
+export default function RoomPage({ roomId, currentUser, onBack, backHref }) {
   const [room, setRoom] = useState(null);
   const [error, setError] = useState(null);
 
@@ -24,7 +25,7 @@ export default function RoomPage({ roomId, currentUser, onBack }) {
     return (
       <div className="panel">
         <div className="error">{error}</div>
-        <button onClick={onBack}>Back</button>
+        <BackLink href={backHref} onBack={onBack}>Back</BackLink>
       </div>
     );
   }
@@ -32,9 +33,7 @@ export default function RoomPage({ roomId, currentUser, onBack }) {
 
   return (
     <div className="room-page">
-      <button className="back-btn" onClick={onBack}>
-        &larr; Back
-      </button>
+      <BackLink className="back-btn" href={backHref} onBack={onBack} />
 
       <div className="panel">
         <div className="room-kicker-row">

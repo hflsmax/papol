@@ -12,8 +12,9 @@ import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
 import { demoActive } from '../demo';
 import { appPath } from '../base';
+import BackLink from './BackLink';
 
-export default function PaperDetail({ paperId, currentUser, onBack, onSelectPaper, hideBack = false }) {
+export default function PaperDetail({ paperId, currentUser, onBack, backHref, onSelectPaper, hideBack = false }) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
@@ -359,7 +360,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
     return (
       <div className="panel paper-detail">
         <div className="error">{error}</div>
-        {!hideBack && <button onClick={onBack}>Back</button>}
+        {!hideBack && <BackLink href={backHref} onBack={onBack}>Back</BackLink>}
       </div>
     );
   }
@@ -389,9 +390,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, onSelectPape
   return (
     <div className="paper-detail">
       {!hideBack && (
-        <button className="back-btn" onClick={onBack}>
-          &larr; Back
-        </button>
+        <BackLink className="back-btn" href={backHref} onBack={onBack} />
       )}
 
       {error && <div className="error">{error}</div>}

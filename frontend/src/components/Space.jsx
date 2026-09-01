@@ -3,8 +3,9 @@ import { getUserSpace, createBoard, createShelf, updateShelf, deleteShelf, creat
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
+import BackLink from './BackLink';
 
-export default function Space({ userId, currentUser, onSelectPaper, onSelectBoard, onBack, initialSection = null }) {
+export default function Space({ userId, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
   const [space, setSpace] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -86,9 +87,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
   return (
     <div className={reviewingUpload ? 'space upload-review-mode' : 'space'}>
       {onBack && (
-        <button className="back-btn" onClick={onBack}>
-          &larr; Back
-        </button>
+        <BackLink className="back-btn" href={backHref} onBack={onBack} />
       )}
       <div className="space-header">
         <div className="space-header-row">

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { extractPaperMetadata, createPaper, listTags, createTag, listShelves } from '../api';
 import { RatingInput } from './Rating';
+import BackLink from './BackLink';
 
 export default function PaperUpload({ onPaperCreated, onReviewChange = () => {}, compact = false }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -151,9 +152,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
 
     return (
       <>
-      <button type="button" className="back-btn upload-review-back" onClick={handleCancel} disabled={isLoading}>
-        &larr; Back
-      </button>
+      <BackLink className={`back-btn upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
         <h3>Review Paper Metadata</h3>
         {error && <div className="error">{error}</div>}

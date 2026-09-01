@@ -8,16 +8,20 @@ function route() {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function returnToPapol() {
+function boardReturnPath() {
   const pathname = window.location.pathname;
   const marker = pathname.includes('/demo/boards/') ? '/demo/boards/' : '/boards/';
   const base = pathname.slice(0, pathname.indexOf(marker));
   const home = pathname.includes('/demo/boards/') ? `${base}/demo` : `${base}/`;
   const saved = window.sessionStorage.getItem('papol.boardReturn');
-  window.sessionStorage.removeItem('papol.boardReturn');
-  const returnPath = saved?.startsWith(`${base}/`) && !saved.includes('/boards/')
+  return saved?.startsWith(`${base}/`) && !saved.includes('/boards/')
     ? saved
     : home;
+}
+
+function returnToPapol() {
+  const returnPath = boardReturnPath();
+  window.sessionStorage.removeItem('papol.boardReturn');
   window.location.assign(returnPath);
 }
 
@@ -34,7 +38,7 @@ export default function App() {
   return <>
     <style>{styles}</style>
     {boardId
-      ? <BoardPage boardId={boardId} onBack={returnToPapol} />
+      ? <BoardPage boardId={boardId} onBack={returnToPapol} backHref={boardReturnPath()} />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;
 }

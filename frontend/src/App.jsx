@@ -339,6 +339,8 @@ input[type='checkbox'] {
   padding: 3px 14px;
   font-size: var(--fs-sm);
   box-shadow: none;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .demo-banner-btn:hover {
@@ -1818,7 +1820,10 @@ select {
   padding: 0;
   font-size: var(--fs-md);
   box-shadow: none;
+  text-decoration: none;
+  cursor: pointer;
 }
+.back-btn.disabled { pointer-events: none; opacity: .55; }
 
 .back-btn:hover {
   text-decoration: underline;
@@ -4192,7 +4197,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .infinite-board { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: var(--paper-sunken); font-family: var(--font-serif); }
 .board-toolbar { position: absolute; z-index: 38; inset: 0 0 auto; min-height: 55px; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--card); font-family: var(--font-ui); }
 .board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
-.board-toolbar .board-back { min-width: 0; overflow: hidden; border: 0; padding-left: 0; background: transparent; color: var(--accent); font-family: var(--font-serif); font-size: var(--fs-base); text-overflow: ellipsis; white-space: nowrap; }
+.board-toolbar .board-back { min-width: 0; overflow: hidden; border: 0; padding-left: 0; background: transparent; color: var(--accent); font-family: var(--font-serif); font-size: var(--fs-base); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .board-toolbar-title { min-width: 100px; max-width: 360px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
@@ -4580,7 +4585,7 @@ function navigate(path) {
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
   window.history.pushState(
-    { ...(window.history.state || {}), papolNavigation: true },
+    { ...(window.history.state || {}), papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
     '',
     mountedDestination,
   );
@@ -4782,6 +4787,7 @@ export default function App() {
       navigate('/');
     }
   };
+  const backHref = window.history.state?.papolBackHref || appPath('/');
 
   const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
 
@@ -4837,9 +4843,13 @@ export default function App() {
             browser. Nothing is saved.
           </span>
           {getToken() ? (
-            <button className="demo-banner-btn" onClick={handleBackToAccount}>
+            <a className="demo-banner-btn" href={appPath('/')} onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+              event.preventDefault();
+              handleBackToAccount();
+            }}>
               Back to my account
-            </button>
+            </a>
           ) : (
             <span className="demo-banner-actions">
               <button
@@ -4991,6 +5001,7 @@ export default function App() {
               onSelectBoard={openBoard}
               initialSection={route.section}
               onBack={goBack}
+              backHref={backHref}
             />
           )}
           {route.page === 'paper' && (
@@ -4998,6 +5009,7 @@ export default function App() {
               paperId={route.id}
               currentUser={user}
               onBack={goBack}
+              backHref={backHref}
               hideBack={
                 mode !== 'demo' &&
                 !window.history.state?.papolNavigation
@@ -5013,7 +5025,7 @@ export default function App() {
             />
           )}
           {route.page === 'room' && (
-            <RoomPage roomId={route.id} currentUser={user} onBack={goBack} />
+            <RoomPage roomId={route.id} currentUser={user} onBack={goBack} backHref={backHref} />
           )}
           {route.page === 'inbox' && (
             <InboxPage
