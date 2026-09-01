@@ -586,10 +586,11 @@ sync_data() {
   # one that is being read is how you get half of each.
   dev_is_up && die "the development server is answering on $DEV_PORT — stop it first"
 
+  local dev_bak=""
   if [ -e "$DEV_DIR/backend/papol.db" ]; then
-    local bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
-    cp -p "$DEV_DIR/backend/papol.db" "$bak"
-    say "Kept development's database as $(basename "$bak")"
+    dev_bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
+    cp -p "$DEV_DIR/backend/papol.db" "$dev_bak"
+    say "Kept development's database as $(basename "$dev_bak")"
   fi
 
   local prod_bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
@@ -749,7 +750,28 @@ SQL
   sqlite "$PROD_DIR/backend/papol.db" ".backup '$DEV_DIR/backend/papol.db'"
   note "$(du -h "$DEV_DIR/backend/papol.db" | cut -f1)"
 
-  # The two things that must not make the trip. Development's .env already
+  # Production sessions must not work in development. Keep development's
+  # existing sessions for users whose ID and email still match the refreshed
+  # database, so a routine deploy does not sign the developer out.
+  if [ -n "$dev_bak" ]; then
+    sqlite "$DEV_DIR/backend/papol.db" <<SQL
+ATTACH DATABASE '$dev_bak' AS olddev;
+BEGIN IMMEDIATE;
+DELETE FROM auth_tokens;
+INSERT INTO auth_tokens
+  SELECT sessions.* FROM olddev.auth_tokens sessions
+  JOIN olddev.users old_user ON old_user.id = sessions.user_id
+  JOIN users current_user
+    ON current_user.id = old_user.id AND current_user.email = old_user.email;
+COMMIT;
+DETACH DATABASE olddev;
+SQL
+    note "development sessions preserved"
+  else
+    sqlite "$DEV_DIR/backend/papol.db" "DELETE FROM auth_tokens"
+  fi
+
+  # The other two things that must not make the trip. Development's .env already
   # points SMTP at a dead port, but that only holds in a shell that loaded
   # it; the credentials are gone from the copy either way. site_url would
   # otherwise put production's address in links generated here.
@@ -763,7 +785,7 @@ DELETE FROM settings WHERE key LIKE 'smtp_%';
 INSERT INTO settings (key, value) VALUES ('site_url', 'http://papol.local/')
   ON CONFLICT(key) DO UPDATE SET value = excluded.value;
 SQL
-  note "SMTP credentials dropped; site_url now points at development"
+  note "production sessions and SMTP credentials dropped; site_url now points at development"
 
   if [ "$uploads" = yes ]; then
     say "Refreshing uploads from production"
