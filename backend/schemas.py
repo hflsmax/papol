@@ -205,6 +205,8 @@ class BoardUpdate(BaseModel):
 
 class BoardItemCreate(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
+    x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
+    y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
 
 
 class BoardStagingCreate(BaseModel):

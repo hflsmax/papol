@@ -616,7 +616,8 @@ async def add_board_comment(
     count = len(board.items)
     item = BoardItem(
         board_id=board.id, kind="comment", content=data.content.strip(),
-        x=(count % 4) * 340, y=(count // 4) * 260,
+        x=data.x if data.x is not None else (count % 4) * 340,
+        y=data.y if data.y is not None else (count // 4) * 260,
     )
     board.updated_at = datetime.utcnow()
     db.add(item)

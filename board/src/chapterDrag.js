@@ -3,7 +3,7 @@ export const CHAPTER_MIN_HEIGHT = 74;
 export const DRAG_THRESHOLD_PX = 4;
 export const DEFAULT_CARD_WIDTH = 300;
 export const COLLECTION_TIDY_GAP = 80;
-export const COLLECTION_GRID_GAP = 18;
+export const COLLECTION_MASONRY_GAP = 18;
 
 export function exceedsDragThreshold(startX, startY, clientX, clientY) {
   return Math.hypot(clientX - startX, clientY - startY) > DRAG_THRESHOLD_PX;
@@ -104,7 +104,7 @@ export function tidyCollectionPositions(cards, maxGap = COLLECTION_TIDY_GAP) {
   });
 }
 
-function collectionGridLayoutInOrder(ordered, width, gap) {
+function collectionMasonryLayoutInOrder(ordered, width, gap) {
   if (!ordered.length) return { columns: 0, rows: 0, positions: [] };
   const columns = Math.ceil(Math.sqrt(ordered.length));
   const rows = Math.ceil(ordered.length / columns);
@@ -126,17 +126,17 @@ function collectionGridLayoutInOrder(ordered, width, gap) {
   };
 }
 
-export function collectionGridLayout(cards, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_GRID_GAP) {
+export function collectionMasonryLayout(cards, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_MASONRY_GAP) {
   const ordered = [...cards].sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
-  return collectionGridLayoutInOrder(ordered, width, gap);
+  return collectionMasonryLayoutInOrder(ordered, width, gap);
 }
 
-export function collectionReorderLayout(cards, draggedId, point, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_GRID_GAP) {
+export function collectionReorderLayout(cards, draggedId, point, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_MASONRY_GAP) {
   if (!cards.length) return { columns: 0, rows: 0, positions: [] };
   const dragged = cards.find((card) => card.id === draggedId);
-  if (!dragged) return collectionGridLayout(cards, width, gap);
+  if (!dragged) return collectionMasonryLayout(cards, width, gap);
   const ordered = [...cards].sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
-  const initial = collectionGridLayoutInOrder(ordered, width, gap);
+  const initial = collectionMasonryLayoutInOrder(ordered, width, gap);
   const byId = new Map(cards.map((card) => [card.id, card]));
   const center = { x: point.x + dragged.width / 2, y: point.y + dragged.height / 2 };
   const targetIndex = initial.positions.map((position, index) => {
@@ -151,5 +151,12 @@ export function collectionReorderLayout(cards, draggedId, point, width = DEFAULT
   }).sort((a, b) => a.distance - b.distance || a.index - b.index)[0].index;
   const withoutDragged = ordered.filter((card) => card.id !== draggedId);
   withoutDragged.splice(targetIndex, 0, dragged);
-  return collectionGridLayoutInOrder(withoutDragged, width, gap);
+  return collectionMasonryLayoutInOrder(withoutDragged, width, gap);
+}
+
+export function boardPointFromClient(clientX, clientY, bounds, view, offset = {}) {
+  return {
+    x: (clientX - bounds.left - view.x) / view.zoom - (offset.x || 0),
+    y: (clientY - bounds.top - view.y) / view.zoom - (offset.y || 0),
+  };
 }

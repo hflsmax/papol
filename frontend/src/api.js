@@ -237,6 +237,10 @@ export function layoutBoardGroup(id, items) {
   return jsonRequest(`/board-groups/${id}/layout`, 'PUT', { items });
 }
 
+export function addBoardComment(id, content, x, y) {
+  return jsonRequest(`/boards/${id}/comments`, 'POST', { content, x, y });
+}
+
 export function addBoardFile(id, file, caption = '', position = null) {
   const formData = new FormData();
   formData.append('file', file);

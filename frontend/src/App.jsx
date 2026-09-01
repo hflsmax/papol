@@ -4084,7 +4084,7 @@ a.btn:hover {
   gap: 6px;
 }
 
-.comment {
+.comments-list > .comment {
   padding: 6px 12px;
   background: var(--accent-soft);
   border-radius: var(--radius);
@@ -4290,7 +4290,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.selected > .board-card-content * { user-select: none; }
 .board-card-header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .board-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.board-card-kind i { display: grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 10px; line-height: 1; }
+.board-card-kind i { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 15px; font-weight: 700; line-height: 1; text-align: center; }
+.board-canvas-card.youtube .board-card-kind i { padding-left: 1px; font-size: 11px; }
+.board-canvas-card.excerpt .board-card-kind i svg { display: block; width: 14px; height: 14px; fill: currentColor; }
+.board-canvas-card.webpage .board-card-kind i { font-weight: 900; -webkit-text-stroke: .7px currentColor; }
 .board-card-more { width: 27px; height: 25px; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: var(--ink-faint); font: 600 10px var(--font-ui); letter-spacing: 1px; line-height: 1; }
 .board-card-more:hover, .board-card-more:focus-visible, .board-card-more[aria-expanded="true"] { border: 0; outline: none; background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 .board-card-content { position: relative; z-index: 1; overflow: hidden; border-radius: 0 0 9px 9px; background: var(--card); }

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
+import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import { cardCenter, collectionGridLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import BackLink from '../../frontend/src/components/BackLink.jsx';
+import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -43,7 +44,11 @@ function TidyGlyph() {
 const itemTypeLabels = {
   comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
 };
-const itemTypeIcons = { comment: '✦', excerpt: '“', image: '▧', file: '↧', youtube: '▶', webpage: '↗' };
+const itemTypeIcons = {
+  comment: '✦',
+  excerpt: <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8c0-2.8 1.4-4.8 4-6v2.2C4.9 4.9 4.3 5.8 4.1 7H6v6H2V8Zm8 0c0-2.8 1.4-4.8 4-6v2.2c-1.1.7-1.7 1.6-1.9 2.8H14v6h-4V8Z" /></svg>,
+  image: '▧', file: '↧', youtube: '▶', webpage: '↗',
+};
 const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
@@ -91,6 +96,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const centerInitialView = useRef(window.innerWidth <= 700 || savedBoardView(boardId) == null);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
+  const newNoteToSelect = useRef(null);
   const suppressChapterClick = useRef(null);
   const showGrip = (itemId) => {
     setVisibleGrip(itemId);
@@ -395,11 +401,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         event.preventDefault();
         const bounds = viewportRef.current?.getBoundingClientRect();
         if (!bounds) return;
-        const current = viewRef.current;
-        const origin = {
-          x: (bounds.width / 2 - current.x) / current.zoom - 150,
-          y: (bounds.height / 2 - current.y) / current.zoom - 100,
-        };
+        const origin = boardPointFromClient(
+          bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
+          bounds, viewRef.current, { x: 150, y: 100 },
+        );
         setBusy(true); setError(null);
         try {
           const items = await Promise.all(images.map((image, index) => addBoardFile(board.guid, image, '', {
@@ -422,9 +427,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       event.preventDefault();
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
-      const current = viewRef.current;
-      const x = (bounds.width / 2 - current.x) / current.zoom - 150;
-      const y = (bounds.height / 2 - current.y) / current.zoom - 100;
+      const { x, y } = boardPointFromClient(
+        bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
+        bounds, viewRef.current, { x: 150, y: 100 },
+      );
       const loadingId = `${Date.now()}-${Math.random()}`;
       const loadingItem = { id: loadingId, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' };
       urlLoadingRef.current = [...urlLoadingRef.current, loadingItem];
@@ -655,7 +661,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const columnWidth = Math.max(DEFAULT_CARD_WIDTH, ...cards.map((card) => card.width));
     const layout = draggedId != null && draggedPoint
       ? collectionReorderLayout(cards, draggedId, draggedPoint, columnWidth)
-      : collectionGridLayout(cards, columnWidth);
+      : collectionMasonryLayout(cards, columnWidth);
     return layout.positions.map((position) => ({ ...position, group_id: group.id }));
   };
   const settleDraggedCard = (element, position) => {
@@ -780,7 +786,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     let displayMembers = members;
     if (group.auto_arrange) {
       const columnWidth = Math.max(DEFAULT_CARD_WIDTH, ...members.map((member) => member.width));
-      const positions = new Map(collectionGridLayout(members, columnWidth).positions.map((position) => [position.id, position]));
+      const positions = new Map(collectionMasonryLayout(members, columnWidth).positions.map((position) => [position.id, position]));
       displayMembers = members.map((member) => ({ ...member, ...positions.get(member.id) }));
       previewMembers.forEach((member) => {
         const position = positions.get(member.id);
@@ -933,8 +939,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         const cardHeight = g.element.offsetHeight || 1;
         const center = cardCenter(g.current, cardWidth, cardHeight);
         const viewportRect = viewportRef.current.getBoundingClientRect();
-        const pointerX = (event.clientX - viewportRect.left - viewRef.current.x) / zoom;
-        g.insertionY = (event.clientY - viewportRect.top - viewRef.current.y) / zoom;
+        const pointer = boardPointFromClient(event.clientX, event.clientY, viewportRect, viewRef.current);
+        const pointerX = pointer.x;
+        g.insertionY = pointer.y;
         const collectionTarget = chapterLayouts.find((group) => {
           if (group.kind !== 'collection') return false;
           const rect = g.collectionBounds.get(group.id);
@@ -1380,7 +1387,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
       return { id: item.id, x: item.x, y: item.y, height: element?.offsetHeight || 1 };
     });
-    const { positions } = collectionGridLayout(cards);
+    const { positions } = collectionMasonryLayout(cards);
     const positionsById = new Map(positions.map((position) => [position.id, position]));
     changes.forEach((change) => {
       const position = positionsById.get(change.id);
@@ -1591,9 +1598,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (Number.isInteger(stagedId) && stagedId > 0) {
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
-      const currentView = viewRef.current;
-      const x = (event.clientX - bounds.left - currentView.x) / currentView.zoom - 150;
-      const y = (event.clientY - bounds.top - currentView.y) / currentView.zoom - 50;
+      const { x, y } = boardPointFromClient(
+        event.clientX, event.clientY, bounds, viewRef.current, { x: 150, y: 50 },
+      );
       setBusy(true); setError(null);
       try {
         const item = await placeStagedBoardItem(stagedId, x, y);
@@ -1605,14 +1612,40 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       return;
     }
     const files = [...event.dataTransfer.files]; if (!files.length) return;
-    const currentView = viewRef.current;
-    const origin = { x: (event.clientX - currentView.x) / currentView.zoom, y: (event.clientY - 55 - currentView.y) / currentView.zoom };
+    const bounds = viewportRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const origin = boardPointFromClient(event.clientX, event.clientY, bounds, viewRef.current);
     setBusy(true); setError(null);
     try {
       await Promise.all(files.map((file, index) => addBoardFile(board.guid, file, '', {
         x: origin.x + index * 28, y: origin.y + index * 28,
       })));
       await load();
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  const createNoteAt = async (event) => {
+    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-chapter, .board-staging')) return;
+    const bounds = viewportRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const { x, y } = boardPointFromClient(
+      event.clientX, event.clientY, bounds, viewRef.current,
+      { x: DEFAULT_CARD_WIDTH / 2, y: 40 },
+    );
+    setBusy(true); setError(null);
+    try {
+      const item = await addBoardComment(board.guid, 'New note', x, y);
+      undoStack.current.push({ type: 'add', id: item.id });
+      redoStack.current = [];
+      setBoard((currentBoard) => ({
+        ...currentBoard,
+        item_count: currentBoard.item_count + 1,
+        items: [...currentBoard.items, item],
+      }));
+      setSelectedItems([]);
+      setSelectedChapter(null);
+      setTextDraft(item.content);
+      newNoteToSelect.current = item.id;
+      setEditingText(item.id);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const removeBoard = async () => {
@@ -1651,7 +1684,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
     <header className="board-toolbar">
-      <a className="board-back" href={backHref} onClick={(event) => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return; event.preventDefault(); onBack(); }}>← <span>Back</span></a>
+      <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
       <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
@@ -1665,7 +1698,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={groupAsCollection}>Make collection</button><button type="button" disabled={busy} onClick={groupAsChapter}>Make chapter</button></>}</div>}
     {board.can_edit && activeChapter && <div className="board-selection-menu"><span>{activeChapter.kind === 'collection' ? 'Collection' : 'Chapter'} selected</span>{activeChapter.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeChapter.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeChapter)}>{activeChapter.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeChapter)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
-    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
+    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
         <aside className="board-staging" aria-label="Staging area">
@@ -1721,7 +1754,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
-            ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
+            ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onFocus={(event) => { if (newNoteToSelect.current === item.id) { event.currentTarget.select(); newNoteToSelect.current = null; } }} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
             : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedChapter(null); setMenuItem(null); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
           {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
