@@ -162,8 +162,12 @@ function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCom
     if (gesture.kind === 'move') {
       const frame = {
         ...gesture.frame,
-        x: Math.min(1 - gesture.frame.w, Math.max(0, gesture.frame.x + dx)),
-        y: Math.min(1 - gesture.frame.h, Math.max(0, gesture.frame.y + dy)),
+        x: clip.floating
+          ? Math.min(1 - gesture.frame.w, Math.max(0, gesture.frame.x + dx))
+          : gesture.frame.x + dx,
+        y: clip.floating
+          ? Math.min(1 - gesture.frame.h, Math.max(0, gesture.frame.y + dy))
+          : gesture.frame.y + dy,
       };
       gesture.lastFrame = frame;
       // Moving does not change the clip's contents or dimensions. Let the
@@ -183,11 +187,11 @@ function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCom
       w = h * aspect;
     }
     const frame = {
-        ...gesture.frame,
-        x: Math.min(1 - w, gesture.frame.x),
-        y: Math.min(1 - h, gesture.frame.y),
-        w,
-        h,
+      ...gesture.frame,
+      x: clip.floating ? Math.min(1 - w, gesture.frame.x) : gesture.frame.x,
+      y: clip.floating ? Math.min(1 - h, gesture.frame.y) : gesture.frame.y,
+      w,
+      h,
     };
     gesture.lastFrame = frame;
     setLiveFrame(frame);
@@ -210,6 +214,7 @@ function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCom
 
   const toggleFloating = (event) => {
     event.stopPropagation();
+    const floating = !clip.floating;
     const element = rootRef.current.getBoundingClientRect();
     const destination = clip.floating
       ? rootRef.current.closest('.pdf-page').getBoundingClientRect()
@@ -217,12 +222,15 @@ function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCom
     const w = Math.min(0.9, element.width / destination.width);
     const h = Math.min(0.9, element.height / destination.height);
     const frame = {
-      x: Math.min(1 - w, Math.max(0, (element.left - destination.left) / destination.width)),
-      y: Math.min(1 - h, Math.max(0, (element.top - destination.top) / destination.height)),
+      x: floating
+        ? Math.min(1 - w, Math.max(0, (element.left - destination.left) / destination.width))
+        : (element.left - destination.left) / destination.width,
+      y: floating
+        ? Math.min(1 - h, Math.max(0, (element.top - destination.top) / destination.height))
+        : (element.top - destination.top) / destination.height,
       w,
       h,
     };
-    const floating = !clip.floating;
     setLiveFrame(frame);
     onChange({ frame, floating });
     onCommit({ frame, floating });

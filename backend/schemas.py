@@ -139,6 +139,7 @@ class InkStrokeOut(BaseModel):
 
 
 class ClipRect(BaseModel):
+    """The source rectangle, which must be wholly inside one PDF page."""
     x: float = Field(ge=0, le=1)
     y: float = Field(ge=0, le=1)
     w: float = Field(gt=0, le=1)
@@ -151,15 +152,28 @@ class ClipRect(BaseModel):
         return self
 
 
+class ClipFrame(BaseModel):
+    """Displayed placement relative to a page or viewport.
+
+    Page-relative frames may extend beyond either edge so a clip can sit in
+    a gutter or span neighboring pages. The generous finite bounds reject
+    corrupt coordinates without imposing a visual boundary.
+    """
+    x: float = Field(ge=-10, le=10)
+    y: float = Field(ge=-10, le=10)
+    w: float = Field(gt=0, le=10)
+    h: float = Field(gt=0, le=10)
+
+
 class PaperClipCreate(BaseModel):
     page: int = Field(ge=1)
     source: ClipRect
-    frame: ClipRect
+    frame: ClipFrame
     floating: bool = False
 
 
 class PaperClipUpdate(BaseModel):
-    frame: ClipRect
+    frame: ClipFrame
     floating: bool
 
 
