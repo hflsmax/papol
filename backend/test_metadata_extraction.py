@@ -21,6 +21,14 @@ coords="2,120,160,12,10">2</ref>.</p></body>
 <head>Figure 2:</head><label>2</label></figure></back></text>
 </TEI>"""
 
+GROBID_JOURNAL_ONLY_REFERENCE = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<text><back><listBibl><biblStruct xml:id="b7">
+<analytic><author><persName><forename>M.</forename><surname>Schenk</surname></persName></author></analytic>
+<monogr><title level="j">Proceedings of the National Academy of Sciences</title>
+<imprint><date when="2013"/></imprint></monogr>
+<note type="raw_reference">M. Schenk, Proceedings of the National Academy of Sciences 110, 3276 (2013).</note>
+</biblStruct></listBibl></back></text></TEI>"""
+
 
 class MetadataExtractionTests(unittest.TestCase):
     def test_finds_versioned_arxiv_id_in_pdf_text(self):
@@ -55,6 +63,14 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertAlmostEqual(link.x, 0.15)
         self.assertAlmostEqual(link.w, 0.07)
         self.assertEqual((link.target_page, link.target_y), (2, 0.5))
+
+    def test_does_not_use_journal_as_missing_article_title(self):
+        reference = grobid.parse_tei(GROBID_JOURNAL_ONLY_REFERENCE).references[0]
+        self.assertIsNone(reference.title)
+        self.assertEqual(
+            reference.journal,
+            "Proceedings of the National Academy of Sciences",
+        )
 
     def test_normalizes_display_only_all_caps_title(self):
         self.assertEqual(

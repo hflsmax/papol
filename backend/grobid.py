@@ -386,12 +386,13 @@ def _reference_from(bibl, key: str, index: int, pages) -> Reference:
     raw = _text(bibl.find(f'{TEI}note[@type="raw_reference"]'))
 
     # The title lives under <analytic> for a paper in a journal and under
-    # <monogr> for anything standalone; prefer the former.
+    # a level="m" <monogr> title for anything standalone. Do not fall back
+    # to an unqualified monograph title: GROBID commonly emits a journal
+    # title there (sometimes as well as level="j"), and a venue is not the
+    # cited work's title.
     title = _text(bibl.find(f'{TEI}analytic/{TEI}title[@level="a"]'))
     if not title:
         title = _text(bibl.find(f'{TEI}monogr/{TEI}title[@level="m"]'))
-    if not title:
-        title = _text(bibl.find(f"{TEI}monogr/{TEI}title"))
 
     journal = _text(bibl.find(f'{TEI}monogr/{TEI}title[@level="j"]'))
 

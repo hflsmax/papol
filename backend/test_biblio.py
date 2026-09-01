@@ -19,6 +19,67 @@ def reference(**overrides):
 
 
 class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
+    def test_old_journal_as_title_is_repaired_when_served(self):
+        raw = (
+            "M. Schenk and S. D. Guest, Proceedings of the National Academy "
+            "of Sciences 110, 3276 (2013)."
+        )
+        ref = reference(
+            raw=raw,
+            title="Proceedings of the National Academy of Sciences",
+            journal="Proceedings of the National Academy of Sciences",
+            authors=None,
+            resolved_status="bibliography",
+            resolution='{"title":"Proceedings of the National Academy of Sciences",'
+            '"venue":"Proceedings of the National Academy of Sciences",'
+            '"source":"bibliography"}',
+            id=8,
+            key="b7",
+            index=7,
+            page=None,
+            y=None,
+        )
+        answer = reference_engine.reference_out(ref)
+        self.assertIsNone(answer.title)
+        self.assertEqual(answer.resolution.title, raw)
+        self.assertEqual(
+            answer.resolution.venue,
+            "Proceedings of the National Academy of Sciences",
+        )
+
+    def test_untitled_reference_accepts_exact_crossref_metadata(self):
+        context = biblio.ReferenceContext(
+            raw="M. Schenk and S. D. Guest, PNAS 110, 3276 (2013).",
+            title=None,
+            year=2013,
+            authors=("M Schenk", "S D Guest"),
+            journal="Proceedings of the National Academy of Sciences",
+        )
+        exact = {
+            "title": "Geometry of Miura-folded metamaterials",
+            "authors": ["Mark Schenk", "Simon D. Guest"],
+            "year": 2013,
+            "venue": "Proceedings of the National Academy of Sciences",
+        }
+        candidates = biblio._candidates([exact], "crossref", context)
+        self.assertEqual([candidate.summary for candidate in candidates], [exact])
+
+    def test_untitled_reference_rejects_weak_metadata_match(self):
+        context = biblio.ReferenceContext(
+            raw="M. Schenk and S. D. Guest, PNAS 110, 3276 (2013).",
+            title=None,
+            year=2013,
+            authors=("M Schenk", "S D Guest"),
+            journal="Proceedings of the National Academy of Sciences",
+        )
+        wrong = {
+            "title": "A different paper",
+            "authors": ["Rita Guest", "Another Author"],
+            "year": 2013,
+            "venue": "Proceedings of the National Academy of Sciences",
+        }
+        self.assertEqual(biblio._candidates([wrong], "crossref", context), [])
+
     async def test_identifier_match_short_circuits_searches(self):
         summary = {"title": "Attention Is All You Need", "year": 2017}
         with (

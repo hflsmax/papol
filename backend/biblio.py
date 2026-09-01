@@ -12,9 +12,9 @@ bibliographic search always returns *something*: it has no way to say
 "that paper is not in my index". Two tests decide, and a candidate must
 pass both.
 
-**Its title must be in the printed reference.** The reference contains the
-title of the work it names, so a candidate whose title is not there is not
-that work.
+**Its title normally must be in the printed reference.** When a compact
+bibliography deliberately omits article titles, an exact Crossref match on
+the structured authors, venue and year can identify the work instead.
 
 **Its year should be the printed year.** This one matters more than it
 looks. Titles are not unique across time: a conference paper often gets a
@@ -48,8 +48,10 @@ CrossRef match enriched from OpenAlex is only worth showing while the
 enrichment is still describing the same work.
 """
 
+import json
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
@@ -102,13 +104,22 @@ class ReferenceContext:
     raw: str
     title: Optional[str]
     year: Optional[int]
+    authors: tuple[str, ...] = ()
+    journal: Optional[str] = None
 
     @classmethod
     def from_reference(cls, reference):
+        try:
+            encoded_authors = getattr(reference, "authors", None)
+            authors = tuple(json.loads(encoded_authors)) if encoded_authors else ()
+        except (TypeError, ValueError):
+            authors = ()
         return cls(
             raw=(reference.raw or "").strip(),
             title=getattr(reference, "title", None),
             year=getattr(reference, "year", None),
+            authors=authors,
+            journal=getattr(reference, "journal", None),
         )
 
     def accepts(self, summary: dict) -> bool:
@@ -207,7 +218,20 @@ async def _openalex_candidates(context: ReferenceContext) -> list[Candidate]:
 def _candidates(summaries, provider: str, context: ReferenceContext) -> list[Candidate]:
     candidates = []
     for rank, summary in enumerate(summaries):
-        if not _title_matches(summary.get("title"), context.raw, context.title):
+        title_match = _title_matches(summary.get("title"), context.raw, context.title)
+        # Some compact bibliography styles omit article titles entirely.
+        # Crossref's bibliographic search can still identify them from the
+        # authors, venue, year, volume and page/article number in the raw
+        # entry. Accept only its top result, and only when the structured
+        # authors, venue and year all agree exactly enough to make that
+        # inference unambiguous.
+        metadata_match = (
+            provider == "crossref"
+            and rank == 0
+            and not context.title
+            and _metadata_matches_untitled(summary, context)
+        )
+        if not title_match and not metadata_match:
             continue
         candidates.append(Candidate(
             summary=summary,
@@ -216,6 +240,32 @@ def _candidates(summaries, provider: str, context: ReferenceContext) -> list[Can
             year_distance=_year_distance(summary.get("year"), context.year),
         ))
     return candidates
+
+
+def _metadata_matches_untitled(summary: dict, context: ReferenceContext) -> bool:
+    if (
+        context.year is None
+        or summary.get("year") != context.year
+        or not context.journal
+        or not context.authors
+    ):
+        return False
+    venue_words = _content_words(context.journal)
+    if not venue_words or not venue_words.issubset(_content_words(summary.get("venue") or "")):
+        return False
+
+    candidate_names = _name_words(" ".join(summary.get("authors") or []))
+    surnames = {
+        _name_words(parts[-1]).pop()
+        for author in context.authors
+        if (parts := re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ]+", author))
+    }
+    return len(surnames) >= 2 and surnames.issubset(candidate_names)
+
+
+def _name_words(text: str) -> set[str]:
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return {word.lower() for word in re.findall(r"[A-Za-z]+", ascii_text) if len(word) > 1}
 
 
 def _confident(candidates: list[Candidate]) -> bool:

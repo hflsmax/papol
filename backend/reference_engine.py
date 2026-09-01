@@ -34,12 +34,25 @@ def reference_out(reference) -> ReferenceOut:
             resolution = ResolvedWork(**json.loads(reference.resolution))
         except Exception:
             pass
+    title = reference.title
+    journal = getattr(reference, "journal", None)
+    # Analyses made before the parser distinguished an absent article title
+    # from a journal title have the same value in both columns. Keep those
+    # stored editions honest without forcing every PDF to be re-analyzed.
+    if title and journal and title.strip().casefold() == journal.strip().casefold():
+        title = None
+        if (
+            resolution
+            and resolution.source == "bibliography"
+            and resolution.title.strip().casefold() == journal.strip().casefold()
+        ):
+            resolution.title = reference.raw or "Cited reference"
     return ReferenceOut(
         id=reference.id,
         key=reference.key,
         index=reference.index,
         raw=reference.raw,
-        title=reference.title,
+        title=title,
         year=reference.year,
         page=getattr(reference, "page", None),
         y=getattr(reference, "y", None),
@@ -50,6 +63,20 @@ def reference_out(reference) -> ReferenceOut:
 
 async def resolve(reference) -> ReferenceOut:
     """Resolve and cache metadata on a database row or ephemeral row."""
+    journal = getattr(reference, "journal", None)
+    legacy_venue_title = bool(
+        reference.title
+        and journal
+        and reference.title.strip().casefold() == journal.strip().casefold()
+    )
+    if legacy_venue_title:
+        # Retry analyses produced before journal-only entries were represented
+        # with a missing title. Crossref can identify these from the remaining
+        # bibliographic coordinates.
+        reference.title = None
+        if reference.resolved_status == "bibliography":
+            reference.resolved_status = None
+            reference.resolution = None
     if reference.resolved_status == "ok" and reference.resolution:
         try:
             cached = json.loads(reference.resolution)
