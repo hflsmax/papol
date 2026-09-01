@@ -1397,13 +1397,36 @@ button.link.danger { color: var(--red); }
 .ink-surface.tool-brush { cursor: none; }
 .ink-surface.tool-clipper { cursor: crosshair; }
 
-.clip-draft {
+.clipper-overlay {
   position: absolute;
-  border: 2px solid var(--accent);
-  background: rgba(43, 74, 111, 0.12);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+  inset: 0;
+  overflow: hidden;
+  background: rgba(40, 45, 52, .48);
   pointer-events: none;
 }
+.clipper-overlay.selecting { background: transparent; }
+.clip-window {
+  position: absolute;
+  display: none;
+  border: 2px solid var(--accent);
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+}
+.clipper-overlay.selecting .clip-window {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset,
+    0 0 0 9999px rgba(40, 45, 52, .48);
+}
+.clip-guide {
+  position: absolute;
+  z-index: 1;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 0 0 1px rgba(43, 74, 111, .48);
+}
+.clip-guide.vertical { top: 0; bottom: 0; width: 1px; display: none; }
+.clip-guide.horizontal { left: 0; right: 0; height: 1px; display: none; }
+.clip-window,
+.clip-guide { pointer-events: none; }
 
 .paper-clip {
   position: absolute;

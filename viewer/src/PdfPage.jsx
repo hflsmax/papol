@@ -378,7 +378,10 @@ export default function PdfPage({
   const wetRef = useRef(null);
   const [wet, setWet] = useState(null);
   const clipRef = useRef(null);
-  const [clipDraft, setClipDraft] = useState(null);
+  const clipOverlayRef = useRef(null);
+  const clipWindowRef = useRef(null);
+  const clipVerticalRef = useRef(null);
+  const clipHorizontalRef = useRef(null);
   // Set once a stroke has snapped straight: from then on the pointer moves
   // the far end of the line rather than adding to a freehand path.
   const straightRef = useRef(false);
@@ -766,7 +769,39 @@ export default function PdfPage({
     // jogged the mouse. It is drawn where the pointer already is.
     if (tool !== 'brush') setBrushAt(null);
     else if (overRef.current) setBrushAt(lastAtRef.current);
+    if (tool !== 'clipper') {
+      clipRef.current = null;
+    }
   }, [tool]);
+
+  const paintClipper = (at, draft = clipRef.current) => {
+    const vertical = clipVerticalRef.current;
+    const horizontal = clipHorizontalRef.current;
+    if (vertical && horizontal) {
+      vertical.style.display = at ? 'block' : 'none';
+      horizontal.style.display = at ? 'block' : 'none';
+      if (at) {
+        vertical.style.left = `${at.x * 100}%`;
+        horizontal.style.top = `${(1 - at.y) * 100}%`;
+      }
+    }
+    const overlay = clipOverlayRef.current;
+    const windowEl = clipWindowRef.current;
+    if (!overlay || !windowEl) return;
+    if (!draft) {
+      overlay.classList.remove('selecting');
+      windowEl.style.display = 'none';
+      return;
+    }
+    const x = Math.min(draft.from.x, draft.to.x);
+    const y = Math.min(1 - draft.from.y, 1 - draft.to.y);
+    overlay.classList.add('selecting');
+    windowEl.style.display = 'block';
+    windowEl.style.left = `${x * 100}%`;
+    windowEl.style.top = `${y * 100}%`;
+    windowEl.style.width = `${Math.abs(draft.to.x - draft.from.x) * 100}%`;
+    windowEl.style.height = `${Math.abs(draft.to.y - draft.from.y) * 100}%`;
+  };
 
   // Square to the page, along whichever axis the stroke went furthest —
   // recomputed as the pointer moves, so a line that snapped level can be
@@ -871,7 +906,7 @@ export default function PdfPage({
     const at = anchorAt(e.clientX, e.clientY);
     if (tool === 'clipper') {
       clipRef.current = { from: at, to: at };
-      setClipDraft(clipRef.current);
+      paintClipper(at);
       return;
     }
     if (tool === 'cow') {
@@ -906,9 +941,11 @@ export default function PdfPage({
 
   const inkMove = (e) => {
     const at = anchorAt(e.clientX, e.clientY);
-    if (tool === 'clipper' && clipRef.current && e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-      clipRef.current = { ...clipRef.current, to: at };
-      setClipDraft(clipRef.current);
+    if (tool === 'clipper') {
+      if (clipRef.current && e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        clipRef.current = { ...clipRef.current, to: at };
+      }
+      paintClipper(at);
       return;
     }
     if (tool === 'brush') setBrushAt(at);
@@ -985,7 +1022,7 @@ export default function PdfPage({
     if (tool === 'clipper') {
       const draft = clipRef.current;
       clipRef.current = null;
-      setClipDraft(null);
+      paintClipper(null, null);
       if (!draft) return;
       const x = Math.min(draft.from.x, draft.to.x);
       const y = Math.min(1 - draft.from.y, 1 - draft.to.y);
@@ -1490,6 +1527,7 @@ export default function PdfPage({
         setDoomed(EMPTY_DOOMED);
         onHoverInkObjects([]);
         setBrushAt(null);
+        if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
       }}
       onClick={(e) => {
         if (tool !== 'arrow' || e.button !== 0 || !e.target.closest?.('.textLayer')) return;
@@ -1731,16 +1769,12 @@ export default function PdfPage({
             onPointerUp={inkUp}
             onPointerCancel={inkUp}
           >
-            {tool === 'clipper' && clipDraft && (
-              <span
-                className="clip-draft"
-                style={boxStyle({
-                  x: Math.min(clipDraft.from.x, clipDraft.to.x),
-                  y: Math.min(1 - clipDraft.from.y, 1 - clipDraft.to.y),
-                  w: Math.abs(clipDraft.to.x - clipDraft.from.x),
-                  h: Math.abs(clipDraft.to.y - clipDraft.from.y),
-                })}
-              />
+            {tool === 'clipper' && (
+              <span className="clipper-overlay" ref={clipOverlayRef}>
+                <i className="clip-window" ref={clipWindowRef} />
+                <i className="clip-guide vertical" ref={clipVerticalRef} />
+                <i className="clip-guide horizontal" ref={clipHorizontalRef} />
+              </span>
             )}
           </div>
         )}
