@@ -2,12 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
 import { cardCenter, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { mergeSelection, selectionMode } from './selection.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const COLLECTION_INSET_X = 28;
 const COLLECTION_CARD_OFFSET_Y = 96;
 const COLLECTION_INSET_BOTTOM = 20;
-const selectionMode = (event) => event.metaKey || event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
 const preventModifiedTextSelection = (event) => {
   if (event.shiftKey || event.metaKey || event.ctrlKey) event.preventDefault();
 };
@@ -15,16 +15,6 @@ const prepareCardTextPointerDown = (event) => {
   event.stopPropagation();
   preventModifiedTextSelection(event);
 };
-const mergeSelection = (base, hits, mode) => {
-  if (mode === 'replace') return hits;
-  const next = new Set(base);
-  hits.forEach((id) => {
-    if (mode === 'toggle' && next.has(id)) next.delete(id);
-    else next.add(id);
-  });
-  return [...next];
-};
-
 const defaultBoardView = () => ({ x: window.innerWidth / 2 - 150, y: 150, zoom: 1 });
 const savedBoardView = (boardId) => {
   try {
@@ -521,7 +511,11 @@ export default function BoardPage({ boardId, onBack }) {
         return layout && element ? { id, x: layout.x, y: layout.y, element } : null;
       }).filter(Boolean);
       raiseCards(members.map((member) => member.id));
-      gesture.current = { type: 'multi-item', primaryId: item.id, members, groups, sx: event.clientX, sy: event.clientY };
+      gesture.current = {
+        type: 'multi-item', primaryId: item.id, members, groups,
+        sx: event.clientX, sy: event.clientY,
+        mode: selectionMode(event), baseSelected: [...selectedItems],
+      };
       return;
     }
     if (item.group_id != null) {
@@ -547,6 +541,7 @@ export default function BoardPage({ boardId, onBack }) {
         gesture.current = {
           type: 'chapter-move', groupId: group.id, members, chapter, chapterElement,
           clickedId: item.id, sx: event.clientX, sy: event.clientY,
+          mode: selectionMode(event), baseSelected: [...selectedItems],
         };
       }
       return;
@@ -1033,7 +1028,7 @@ export default function BoardPage({ boardId, onBack }) {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
         if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
         if (g.clickedId != null) {
-          setSelectedItems([g.clickedId]);
+          setSelectedItems(mergeSelection(g.baseSelected, [g.clickedId], g.mode));
           setSelectedChapter(null);
           setMenuItem(null);
         }
@@ -1051,6 +1046,7 @@ export default function BoardPage({ boardId, onBack }) {
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
         g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
+        if (g.mode === 'toggle') setSelectedItems(mergeSelection(g.baseSelected, [g.primaryId], g.mode));
       }
     }
     if (event?.pointerType === 'touch') {
