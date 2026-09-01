@@ -496,11 +496,11 @@ export default function App() {
 
   useEffect(() => {
     if (!source) {
-      setError('No paper given. Open this viewer from a paper in your nook.');
+      setError('Open a paper from your nook.');
       return;
     }
     if (source.requiresSignIn && !getToken()) {
-      setError('Sign in to Papol first — this viewer reads your own notes.');
+      setError('Sign in to view your notes.');
       return;
     }
     source
@@ -531,7 +531,7 @@ export default function App() {
     };
     task.promise
       .then((d) => !cancelled && setDoc(d))
-      .catch((e) => !cancelled && setError(`Could not open the PDF: ${e.message}`));
+      .catch((e) => !cancelled && setError(`PDF failed to open: ${e.message}`));
     return () => {
       cancelled = true;
       task.destroy();
@@ -581,7 +581,7 @@ export default function App() {
     })).then((indexed) => {
       if (!cancelled) setSearchIndex(indexed);
     }).catch((e) => {
-      if (!cancelled) setError(`Could not search this PDF: ${e.message}`);
+      if (!cancelled) setError(`PDF search failed: ${e.message}`);
     }).finally(() => {
       if (!cancelled) setSearchIndexing(false);
     });
@@ -915,7 +915,7 @@ export default function App() {
               setReference((current) => current?.id === referenceId
                 ? { ...current, resolved_status: 'error' }
                 : current);
-              setReferenceError('Could not read this reference from the PDF.');
+              setReferenceError('Reference unreadable.');
               return;
             }
             setReference((current) => current?.id === referenceId
@@ -1161,7 +1161,7 @@ export default function App() {
       return saved;
     } catch (err) {
       setInk((all) => all.filter((s) => s.id !== provisional));
-      setError(err.message || 'That stroke could not be saved.');
+      setError(err.message || 'Stroke not saved.');
     } finally {
       inkSaving.current.delete(provisional);
     }
@@ -1408,7 +1408,7 @@ export default function App() {
           ? { ...stroke, points: beforeById.get(stroke.id) }
           : stroke
       )));
-      setError(err.message || 'That stroke could not be moved.');
+      setError(err.message || 'Stroke not moved.');
     }
   };
 
@@ -1469,7 +1469,7 @@ export default function App() {
       // is what was wanted; anything else is a failure worth undoing.
       if (err.status === 404) return;
       setInk((all) => [...all, ...gone]);
-      setError(err.message || 'That stroke could not be erased.');
+      setError(err.message || 'Stroke not erased.');
     } finally {
       gone.forEach((stroke) => erasing.current.delete(stroke.id));
     }
@@ -2719,7 +2719,7 @@ export default function App() {
                   </p>
                 )}
                 {!paperInfo && !paperInfoError && <p className="ref-looking">Looking up paper details…</p>}
-                {paperInfoError && <p className="ref-unmatched">Could not load additional details just now.</p>}
+                {paperInfoError && <p className="ref-unmatched">Details unavailable.</p>}
                 {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
                 <div className="ref-links">
                   <a className="ref-link here" href={appPath(`/paper/${paper.id}`)}>In Papol</a>

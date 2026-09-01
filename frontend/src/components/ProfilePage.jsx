@@ -57,7 +57,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
     // The typed email and the password are checked on the server too; this
     // only saves a round trip and says which one is wrong.
     if (closeEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
-      setCloseError('That is not the email address of this account.');
+      setCloseError("Email doesn't match this account.");
       return;
     }
     if (

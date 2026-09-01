@@ -33,7 +33,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
     if (file && file.type === 'application/pdf') {
       handleFile(file);
     } else {
-      setError('Please drop a PDF file');
+      setError('Drop a PDF file');
     }
   };
 

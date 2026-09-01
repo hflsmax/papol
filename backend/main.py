@@ -1499,7 +1499,7 @@ async def extract_paper_metadata(
         logger.exception("Required GROBID header extraction failed")
         raise HTTPException(
             status_code=503,
-            detail="Paper metadata extraction is unavailable; GROBID failed",
+            detail="Metadata extraction failed",
         ) from exc
 
     metadata.update({
@@ -1825,7 +1825,7 @@ async def reextract_paper_metadata(
         logger.exception("Required GROBID metadata re-extraction failed")
         raise HTTPException(
             status_code=503,
-            detail="Paper metadata extraction is unavailable; GROBID failed",
+            detail="Metadata extraction failed",
         ) from exc
     return ReextractedMetadata(
         doi=header.doi,
@@ -1938,8 +1938,7 @@ async def update_paper(
         ):
             raise HTTPException(
                 status_code=400,
-                detail="You are in a seminar cohort for this paper. "
-                "Leave the cohort before hiding the paper.",
+                detail="Leave the seminar before hiding this paper",
             )
         if requested_visibility is not None:
             target_shelf = next(
@@ -1970,7 +1969,7 @@ async def update_paper(
         if not shelf.is_public and user_copy.marketed and _in_active_cohort(
             db, current_user, _paper_key_for(paper)
         ):
-            raise HTTPException(status_code=400, detail="Leave the active seminar cohort before moving this paper to a private shelf.")
+            raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
         user_copy.marketed = bool(shelf.is_public)
 
@@ -2111,7 +2110,7 @@ async def delete_shelf(
         if blocked:
             raise HTTPException(
                 status_code=400,
-                detail="Some papers on this shelf are in active seminar cohorts and cannot move to a private shelf",
+                detail="Seminar papers cannot move to a private shelf",
             )
     for copy in list(shelf.copies):
         copy.shelf = destination
@@ -2445,7 +2444,7 @@ async def _bundled_edition_references(
     if not grobid.configured():
         return EditionReferences(
             edition_id=0, status="unavailable",
-            detail="This Papol has no reference analyzer configured.",
+            detail="Reference analysis unavailable",
         )
     if _bundled_references.begin(digest):
         background.add_task(_bundled_references.analyze, digest, path)
@@ -2481,7 +2480,7 @@ async def edition_references(
         return EditionReferences(
             edition_id=edition_id,
             status="unavailable",
-            detail="This Papol has no reference analyzer configured.",
+            detail="Reference analysis unavailable",
         )
 
     if grobid.configured():
@@ -2923,8 +2922,7 @@ def _require_reader(db: Session, room: Room, user: User):
     if user.id not in _reader_ids(db, room.paper_key, public_only=True):
         raise HTTPException(
             status_code=403,
-            detail="Add this paper to your nook, and keep it on display, "
-            "to take part in the cohort",
+            detail="Display this paper to join the cohort",
         )
 
 
@@ -2973,7 +2971,7 @@ async def call_seminar(
     if current_user.id not in _reader_ids(db, key, public_only=True):
         raise HTTPException(
             status_code=403,
-            detail="Only readers who display this paper in their nook can call a seminar",
+            detail="Display this paper to call a seminar",
         )
     active = (
         db.query(Room)
@@ -2982,7 +2980,7 @@ async def call_seminar(
     )
     if active:
         raise HTTPException(
-            status_code=400, detail="A seminar is already being organized for this paper"
+            status_code=400, detail="A seminar is already being organized"
         )
 
     room = Room(paper_key=key, paper_title=paper.title, created_by=current_user.id)
@@ -3023,7 +3021,7 @@ async def lead_room(
     if current_user.id not in _reader_ids(db, room.paper_key, public_only=True):
         raise HTTPException(
             status_code=403,
-            detail="Only a reader with a displayed entry of this paper can host",
+            detail="Display this paper to host",
         )
     if not any(p.user_id == current_user.id for p in room.participants):
         raise HTTPException(
@@ -3112,12 +3110,12 @@ async def leave_room(
             p.user_id == successor_id for p in room.participants
         ):
             raise HTTPException(
-                status_code=400, detail="The new host must be another cohort member"
+                status_code=400, detail="Choose another cohort member"
             )
         if successor_id not in _reader_ids(db, room.paper_key, public_only=True):
             raise HTTPException(
                 status_code=400,
-                detail="Only a reader with a displayed entry of this paper can host",
+                detail="Display this paper to host",
             )
         room.leader_id = successor_id
         successor = db.query(User).filter(User.id == successor_id).first()
@@ -3236,9 +3234,9 @@ async def finish_room(
     """Mark the seminar as held (host only)."""
     room = _get_room_or_404(room_id, db)
     if room.leader_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the host can mark the seminar finished")
+        raise HTTPException(status_code=403, detail="Only the host can finish the seminar")
     if room.status != "scheduled":
-        raise HTTPException(status_code=400, detail="Only a scheduled seminar can be finished")
+        raise HTTPException(status_code=400, detail="Schedule the seminar first")
     room.status = "finished"
     db.commit()
     db.refresh(room)

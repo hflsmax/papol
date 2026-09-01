@@ -206,7 +206,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
                     onClick={async () => {
                       setNookManagerError(null);
                       if (space.shelves.length === 1) {
-                        setNookManagerError('A nook must have at least one shelf.');
+                        setNookManagerError('Keep at least one shelf.');
                         return;
                       }
                       const papers = shelf.paper_count === 1 ? '1 paper' : `${shelf.paper_count} papers`;

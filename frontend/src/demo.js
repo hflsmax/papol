@@ -554,7 +554,7 @@ async function routeDemoRequest(path, options = {}) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine || !mine.marketed) {
-      throw demoError('Only readers who display this paper in their nook can call a seminar', 403);
+      throw demoError('Display this paper to call a seminar', 403);
     }
     const k = paperKey(paper);
     if (d.rooms.some((r) => r.paper_key === k && (r.status === 'open' || r.status === 'planning'))) {
@@ -651,7 +651,7 @@ async function routeDemoRequest(path, options = {}) {
         const successor = body && body.successor_id;
         if (!successor) throw demoError('Appoint a cohort member to host before leaving');
         if (successor === ME || !roomParts(room).some((x) => x.user_id === successor)) {
-          throw demoError('The new host must be another cohort member');
+          throw demoError('Choose another cohort member');
         }
         room.leader_id = successor;
       }
@@ -693,8 +693,8 @@ async function routeDemoRequest(path, options = {}) {
       return roomDetail(room);
     }
     if (action === 'finish') {
-      if (room.leader_id !== ME) throw demoError('Only the host can mark the seminar finished', 403);
-      if (room.status !== 'scheduled') throw demoError('Only a scheduled seminar can be finished');
+      if (room.leader_id !== ME) throw demoError('Only the host can finish the seminar', 403);
+      if (room.status !== 'scheduled') throw demoError('Schedule the seminar first');
       room.status = 'finished';
       return roomDetail(room);
     }
