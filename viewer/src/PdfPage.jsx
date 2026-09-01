@@ -70,9 +70,10 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
-function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCommit, onRemove, onSelect, onSend }) {
+function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, onSend }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
+  const renderRef = useRef(null);
   const gestureRef = useRef(null);
   const draggedRef = useRef(false);
   const [floatViewport, setFloatViewport] = useState(null);
@@ -104,32 +105,49 @@ function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCom
 
   useLayoutEffect(() => {
     const output = canvasRef.current;
-    if (!output || !sourceCanvas?.width || !sourceCanvas?.height) return undefined;
-    const paint = () => {
+    if (!output || !doc) return undefined;
+    let cancelled = false;
+    const paint = async () => {
       const bounds = output.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
       const ratio = window.devicePixelRatio || 1;
-      output.width = Math.max(1, Math.round(bounds.width * ratio));
-      output.height = Math.max(1, Math.round(bounds.height * ratio));
+      const width = Math.max(1, Math.round(bounds.width * ratio));
+      const height = Math.max(1, Math.round(bounds.height * ratio));
+      if (output.width !== width) output.width = width;
+      if (output.height !== height) output.height = height;
+      const page = await doc.getPage(clip.page);
+      if (cancelled) return;
+      const viewport = page.getViewport({ scale: 1 });
+      const sx = width / (clip.source.w * viewport.width);
+      const sy = height / (clip.source.h * viewport.height);
       const context = output.getContext('2d');
-      context.imageSmoothingEnabled = true;
-      context.drawImage(
-        sourceCanvas,
-        clip.source.x * sourceCanvas.width,
-        clip.source.y * sourceCanvas.height,
-        clip.source.w * sourceCanvas.width,
-        clip.source.h * sourceCanvas.height,
-        0,
-        0,
-        output.width,
-        output.height
-      );
+      context.clearRect(0, 0, width, height);
+      renderRef.current?.cancel();
+      const task = page.render({
+        canvasContext: context,
+        viewport,
+        transform: [
+          sx, 0, 0, sy,
+          -clip.source.x * viewport.width * sx,
+          -clip.source.y * viewport.height * sy,
+        ],
+      });
+      renderRef.current = task;
+      try {
+        await task.promise;
+      } catch (error) {
+        if (error?.name !== 'RenderingCancelledException') throw error;
+      }
     };
-    paint();
+    paint().catch(() => {});
     const observer = new ResizeObserver(paint);
     observer.observe(output);
-    observer.observe(sourceCanvas);
-    return () => observer.disconnect();
-  }, [sourceCanvas, sourceRevision, clip.source, clip.frame.w, clip.frame.h]);
+    return () => {
+      cancelled = true;
+      renderRef.current?.cancel();
+      observer.disconnect();
+    };
+  }, [doc, clip.page, clip.source, clip.frame.w, clip.frame.h]);
 
   const begin = (event, kind) => {
     event.preventDefault();
@@ -361,10 +379,6 @@ export default function PdfPage({
   const textTaskRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [visible, setVisible] = useState(false);
-  // A canvas ref becoming non-null does not itself render React. Clips need
-  // an explicit signal after pdf.js has actually painted its pixels, or a
-  // restored clip snapshots the canvas while it is still blank.
-  const [canvasRevision, setCanvasRevision] = useState(0);
   // The citation markers on this page. Worked out when the page first
   // comes into view, because finding them means resolving the PDF's own
   // links, and a page nobody has reached should not cost that.
@@ -474,13 +488,9 @@ export default function PdfPage({
         transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0],
       });
       renderTaskRef.current = task;
-      task.promise
-        .then(() => {
-          if (!cancelled) setCanvasRevision((revision) => revision + 1);
-        })
-        .catch((err) => {
+      task.promise.catch((err) => {
           if (err?.name !== 'RenderingCancelledException') throw err;
-        });
+      });
     });
 
     return () => {
@@ -1889,8 +1899,7 @@ export default function PdfPage({
         <ClipBox
           key={clip.id}
           clip={clip}
-          sourceCanvas={canvasRef.current}
-          sourceRevision={canvasRevision}
+          doc={doc}
           selected={selectedClipId === clip.id}
           onChange={(change) => onUpdateClip(clip.id, change)}
           onCommit={(frame) => onCommitClip(clip.id, frame)}
