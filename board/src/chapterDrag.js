@@ -3,6 +3,7 @@ export const CHAPTER_MIN_HEIGHT = 74;
 export const DRAG_THRESHOLD_PX = 4;
 export const DEFAULT_CARD_WIDTH = 300;
 export const COLLECTION_TIDY_GAP = 80;
+export const COLLECTION_GRID_GAP = 18;
 
 export function exceedsDragThreshold(startX, startY, clientX, clientY) {
   return Math.hypot(clientX - startX, clientY - startY) > DRAG_THRESHOLD_PX;
@@ -101,4 +102,28 @@ export function tidyCollectionPositions(cards, maxGap = COLLECTION_TIDY_GAP) {
     placed.push(current);
     return { id: current.id, x: current.x, y: current.y };
   });
+}
+
+export function collectionGridLayout(cards, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_GRID_GAP) {
+  if (!cards.length) return { columns: 0, rows: 0, positions: [] };
+  const ordered = [...cards].sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
+  const columns = Math.ceil(Math.sqrt(ordered.length));
+  const rows = Math.ceil(ordered.length / columns);
+  const anchorX = Math.min(...ordered.map((card) => card.x));
+  const anchorY = Math.min(...ordered.map((card) => card.y));
+  const rowHeights = Array.from({ length: rows }, (_, row) => Math.max(
+    ...ordered.slice(row * columns, (row + 1) * columns).map((card) => card.height),
+  ));
+  const rowTops = rowHeights.reduce((tops, height, row) => (
+    [...tops, (tops[row] ?? anchorY) + height + gap]
+  ), [anchorY]);
+  return {
+    columns,
+    rows,
+    positions: ordered.map((card, index) => ({
+      id: card.id,
+      x: anchorX + (index % columns) * (width + gap),
+      y: rowTops[Math.floor(index / columns)],
+    })),
+  };
 }

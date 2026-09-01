@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCenter, chapterDropTarget, chapterInsertionIndex, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, chapterInsertionIndex, collectionGridLayout, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const chapter = { id: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -132,4 +132,22 @@ test('collection tidy leaves overlapping cards in place', () => {
     { id: 2, x: 200, y: 20, width: 300, height: 100 },
   ]);
   assert.deepEqual(result[1], { id: 2, x: 200, y: 20 });
+});
+
+test('collection grid chooses near-square dimensions and normalizes columns', () => {
+  const result = collectionGridLayout([
+    { id: 1, x: 40, y: 20, height: 100 },
+    { id: 2, x: 500, y: 30, height: 160 },
+    { id: 3, x: 20, y: 400, height: 80 },
+    { id: 4, x: 700, y: 420, height: 120 },
+    { id: 5, x: 900, y: 440, height: 90 },
+  ]);
+  assert.deepEqual([result.columns, result.rows], [3, 2]);
+  assert.deepEqual(result.positions, [
+    { id: 1, x: 20, y: 20 },
+    { id: 2, x: 338, y: 20 },
+    { id: 3, x: 656, y: 20 },
+    { id: 4, x: 20, y: 198 },
+    { id: 5, x: 338, y: 198 },
+  ]);
 });

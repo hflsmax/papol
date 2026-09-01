@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import { cardCenter, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, collectionGridLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -1260,6 +1260,40 @@ export default function BoardPage({ boardId, onBack }) {
   };
   const tidySelectedItems = () => tidyItems(selectedItems);
   const tidyBoard = () => tidyItems(board.items.map((item) => item.id));
+  const tidyCollection = async (collection) => {
+    const members = collection.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean);
+    if (!members.length) return;
+    const changes = members.map((item) => ({
+      id: item.id, from: item.width || DEFAULT_CARD_WIDTH, to: DEFAULT_CARD_WIDTH,
+      fromX: item.x, fromY: item.y,
+    }));
+    members.forEach((item) => {
+      const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
+      if (element) element.style.width = `${DEFAULT_CARD_WIDTH}px`;
+    });
+    const cards = members.map((item) => {
+      const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
+      return { id: item.id, x: item.x, y: item.y, height: element?.offsetHeight || 1 };
+    });
+    const { positions } = collectionGridLayout(cards);
+    const positionsById = new Map(positions.map((position) => [position.id, position]));
+    changes.forEach((change) => {
+      const position = positionsById.get(change.id);
+      change.toX = position.x; change.toY = position.y;
+    });
+    setBusy(true); setError(null);
+    try {
+      await Promise.all(changes.map((change) => updateBoardItem(change.id, {
+        width: change.to, x: change.toX, y: change.toY,
+      })));
+      undoStack.current.push({ type: 'resize-many', changes });
+      redoStack.current = [];
+      setBoard((current) => ({ ...current, items: current.items.map((item) => {
+        const position = positionsById.get(item.id);
+        return position ? { ...item, width: DEFAULT_CARD_WIDTH, ...position } : item;
+      }) }));
+    } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
+  };
   const saveChapterTitle = async (chapter) => {
     setEditingChapter(null);
     try {
@@ -1510,7 +1544,7 @@ export default function BoardPage({ boardId, onBack }) {
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={groupAsCollection}>Make collection</button><button type="button" disabled={busy} onClick={groupAsChapter}>Make chapter</button></>}</div>}
-    {board.can_edit && activeChapter && <div className="board-selection-menu"><span>{activeChapter.kind === 'collection' ? 'Collection' : 'Chapter'} selected</span><button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
+    {board.can_edit && activeChapter && <div className="board-selection-menu"><span>{activeChapter.kind === 'collection' ? 'Collection' : 'Chapter'} selected</span>{activeChapter.kind === 'collection' && <button type="button" disabled={busy} onClick={() => tidyCollection(activeChapter)}>Tidy up</button>}<button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
