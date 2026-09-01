@@ -13,7 +13,8 @@ const preventModifiedTextSelection = (event) => {
 };
 const prepareCardTextPointerDown = (event) => {
   event.stopPropagation();
-  preventModifiedTextSelection(event);
+  if (event.currentTarget.closest('.board-canvas-card.comment')) event.preventDefault();
+  else preventModifiedTextSelection(event);
 };
 const defaultBoardView = () => ({ x: window.innerWidth / 2 - 150, y: 150, zoom: 1 });
 const savedBoardView = (boardId) => {

@@ -4308,10 +4308,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-resize-handle:active { opacity: 1; pointer-events: auto; }
 .board-youtube-description { margin: 0; padding: 12px 14px; border-top: 1px solid var(--line); cursor: text; }
 .board-editable-text { cursor: text; }
+.board-canvas-card.comment .board-editable-text { -webkit-user-select: none; user-select: none; }
 .board-youtube-description.empty { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-style: italic; }
 .board-excerpt-source { display: block; margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--accent); background: var(--paper); font: var(--fs-xs) var(--font-ui); text-decoration: none; }
 .board-excerpt-source:hover { text-decoration: underline; text-underline-offset: 2px; }
-.board-excerpt-text { margin: 0; padding: 16px 16px 14px; border: 0; color: var(--ink); font: var(--fs-sm) var(--font-serif); line-height: 1.55; white-space: pre-wrap; user-select: text; }
+.board-excerpt-text { margin: 0; padding: 16px 16px 14px; border: 0; color: var(--ink); font: var(--fs-sm) var(--font-serif); line-height: 1.55; white-space: pre-wrap; -webkit-user-select: none; user-select: none; }
 .board-staging { position: absolute; z-index: 20; top: 18px; right: 18px; display: flex; flex-direction: column; width: min(310px, calc(100vw - 36px)); max-height: calc(100% - 36px); border: 1px solid var(--line-strong); border-radius: 8px; background: color-mix(in srgb, var(--card) 94%, transparent); box-shadow: 0 10px 30px rgba(29,33,41,.2); font-family: var(--font-ui); touch-action: auto; }
 .board-staging > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .board-staging > header strong { color: var(--ink); font-size: var(--fs-sm); }
