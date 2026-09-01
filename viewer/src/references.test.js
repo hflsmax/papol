@@ -1,7 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { destinationY, pageOverlays, referenceAt } from './references.js';
+import { citationNumbers, destinationY, pageOverlays, referenceAt } from './references.js';
+
+test('expands every reference in numeric citation ranges', () => {
+  assert.deepEqual(citationNumbers('1–7'), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(citationNumbers('2, 4-6; 9'), [2, 4, 5, 6, 9]);
+});
+
+test('consolidates linked range endpoints into one navigable citation', async () => {
+  const page = {
+    getViewport: () => ({ width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0] }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: 'first', rect: [10, 10, 12, 12] },
+      { subtype: 'Link', dest: 'last', rect: [18, 10, 20, 12] },
+    ],
+    getTextContent: async () => ({ items: [{ str: '[1–7]', width: 10, transform: [1, 0, 0, 2, 10, 12] }] }),
+  };
+  const doc = {
+    getPage: async () => page,
+    getDestination: async (dest) => [{ dest }, { name: 'XYZ' }, 0, dest === 'first' ? 99 : 93],
+    getPageIndex: async () => 0,
+  };
+  const references = Array.from({ length: 7 }, (_, index) => ({
+    id: index + 100, index, page: 1, y: index === 0 ? 0.01 : index === 6 ? 0.07 : 0.04,
+  }));
+
+  const overlays = await pageOverlays(doc, 1, { references, citations: [], links: [] });
+  assert.equal(overlays.citations.length, 1);
+  assert.deepEqual(overlays.citations[0].referenceIds, [100, 101, 102, 103, 104, 105, 106]);
+});
 
 test('reads the vertical position from each PDF destination shape', () => {
   const page = { num: 275, gen: 0 };

@@ -29,6 +29,7 @@ import traceback
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +62,7 @@ from schemas import (
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
+    ResolvedWork,
     InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardStagingCreate, BoardStagingPlace,
@@ -77,6 +79,7 @@ from pdf_parser import (
     arxiv_doi, extract_arxiv_id, extract_doi_from_pdf, get_title_from_filename,
 )
 import grobid
+import biblio
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
 )
@@ -1831,6 +1834,41 @@ async def get_viewer_paper(
     """Resolve the exact PDF edition named by a viewer URL."""
     edition = _viewer_edition_or_404(pdf_sha256, current_user, db)
     return _paper_detail(db, edition.paper, current_user, edition_override=edition)
+
+
+@app.get("/api/viewer/{pdf_sha256}/info", response_model=ResolvedWork)
+async def get_viewer_paper_info(
+    pdf_sha256: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Enriched bibliographic information for the paper being viewed."""
+    edition = _viewer_edition_or_404(pdf_sha256, current_user, db)
+    paper = edition.paper
+    reference = SimpleNamespace(
+        doi=paper.doi,
+        arxiv_id=None,
+        title=paper.title,
+        year=paper.year,
+        raw=" ".join(str(value) for value in (
+            paper.title, paper.journal, paper.year, paper.doi
+        ) if value),
+    )
+    status, resolved = await biblio.resolve(reference)
+    if status == "ok" and resolved:
+        return resolved
+    try:
+        authors = json.loads(paper.authors) if paper.authors else []
+    except (TypeError, ValueError):
+        authors = [paper.authors] if paper.authors else []
+    return ResolvedWork(
+        title=paper.title,
+        authors=authors,
+        year=paper.year,
+        venue=paper.journal,
+        doi=paper.doi,
+        url=f"https://doi.org/{paper.doi}" if paper.doi else None,
+    )
 
 
 def _viewer_edition_or_404(

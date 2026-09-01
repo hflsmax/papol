@@ -15,7 +15,9 @@ import ExperimentalBadge from './ExperimentalBadge';
 const WIDTH = 400;
 const MARGIN = 12;
 
-export default function ReferenceCard({ anchor, reference, error, onClose }) {
+export default function ReferenceCard({
+  anchor, reference, error, onClose, position = 0, count = 1, onPrevious, onNext,
+}) {
   const cardRef = useRef(null);
   const [placement, setPlacement] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -113,8 +115,21 @@ export default function ReferenceCard({ anchor, reference, error, onClose }) {
         ×
       </button>
 
-      <div className="ref-experimental">
-        <ExperimentalBadge />
+      <div className="ref-card-header">
+        <div className="ref-experimental">
+          <ExperimentalBadge />
+        </div>
+        {count > 1 && (
+          <nav className="ref-range-nav" aria-label="References in citation range">
+            <button type="button" onClick={onPrevious} disabled={!onPrevious} aria-label="Previous reference">
+              ←
+            </button>
+            <span>{position + 1}/{count}</span>
+            <button type="button" onClick={onNext} disabled={!onNext} aria-label="Next reference">
+              →
+            </button>
+          </nav>
+        )}
       </div>
 
       {waiting && <p className="ref-looking">{waitingMessage}</p>}

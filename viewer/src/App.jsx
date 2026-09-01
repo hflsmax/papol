@@ -5,7 +5,7 @@ import * as pdfjs from 'pdfjs-dist';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
-  pdfHref, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt,
 } from './api';
 import { resolveSource, getToken } from './source';
@@ -250,6 +250,21 @@ function selectedTextWithoutPdfCitations(selection, scroller) {
   }).join('');
 }
 
+function paperAuthors(authors) {
+  if (!authors) return [];
+  try {
+    const parsed = JSON.parse(authors);
+    return Array.isArray(parsed) ? parsed : [String(parsed)];
+  } catch {
+    return [authors];
+  }
+}
+
+function paperDoiHref(doi) {
+  const value = String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
+  return `https://doi.org/${value}`;
+}
+
 function savedReadingView() {
   const pdf = new URLSearchParams(window.location.search).get('pdf');
   if (!pdf) return { key: null, view: null };
@@ -291,6 +306,7 @@ export default function App() {
   const [searchWrap, setSearchWrap] = useState(null);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
+  const paperMenuRef = useRef(null);
   // How much of the PDF has arrived, while it has not: null until the
   // first progress event, since a bar at 0% before the request has even
   // answered reads as stalled rather than as "not yet known".
@@ -356,6 +372,9 @@ export default function App() {
   const [selectedInk, setSelectedInk] = useState(null);
   const [hoveredInkObjects, setHoveredInkObjects] = useState([]);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [paperInfoOpen, setPaperInfoOpen] = useState(false);
+  const [paperInfo, setPaperInfo] = useState(null);
+  const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
@@ -518,6 +537,33 @@ export default function App() {
       task.destroy();
     };
   }, [paper]);
+
+  useEffect(() => {
+    if (!paperInfoOpen || paperInfo) return undefined;
+    const pdfHash = paper?.edition_sha256 || paper?.sha256;
+    if (!pdfHash) return undefined;
+    let cancelled = false;
+    setPaperInfoError(null);
+    getViewerPaperInfo(pdfHash)
+      .then((info) => {
+        if (!cancelled) setPaperInfo(info);
+      })
+      .catch((e) => {
+        if (!cancelled) setPaperInfoError(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [paper, paperInfo, paperInfoOpen]);
+
+  useEffect(() => {
+    if (!paperInfoOpen) return undefined;
+    const closeAway = (event) => {
+      if (!paperMenuRef.current?.contains(event.target)) setPaperInfoOpen(false);
+    };
+    document.addEventListener('pointerdown', closeAway, true);
+    return () => document.removeEventListener('pointerdown', closeAway, true);
+  }, [paperInfoOpen]);
 
   // Index once per document. Searching then stays immediate, and does not
   // depend on whether a page's lazy text layer happens to be on screen.
@@ -704,6 +750,11 @@ export default function App() {
         setLearnLinkNavigation(false);
         return;
       }
+      if (e.key === 'Escape' && paperInfoOpen) {
+        e.preventDefault();
+        setPaperInfoOpen(false);
+        return;
+      }
       if (e.key === 'Escape' && sendSelection) {
         e.preventDefault();
         closeSendSelection();
@@ -846,9 +897,10 @@ export default function App() {
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
   // reference before — and the lookup fills the rest in.
-  const openReference = (referenceId, anchor, inlineReference = null) => {
+  const openReference = (referenceId, anchor, inlineReference = null, referenceIds = null) => {
     const known = referencesById.get(referenceId) || inlineReference || null;
-    setOpenCite({ referenceId, anchor });
+    const ids = referenceIds?.length ? referenceIds : [referenceId];
+    setOpenCite({ referenceId, referenceIds: ids, index: Math.max(0, ids.indexOf(referenceId)), anchor });
     setReference(known);
     setReferenceError(null);
     // A PDF-native `cite.*` destination is recognizable before server-side
@@ -2630,13 +2682,62 @@ export default function App() {
             the bar, because everything before it acts on the page in front
             of you and this one leaves with a copy of it. */}
         {paper && (
-          <a
-            className="bar-link"
-            href={pdfHref(paper)}
-            download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
-          >
-            Download
-          </a>
+          <span className="paper-menu" ref={paperMenuRef}>
+            <button
+              type="button"
+              className="bar-link paper-info-button"
+              onClick={() => setPaperInfoOpen((open) => !open)}
+              aria-expanded={paperInfoOpen}
+              aria-haspopup="dialog"
+            >
+              <span className="info-glyph" aria-hidden="true">i</span> Info
+            </button>
+            <a
+              className="bar-link"
+              href={pdfHref(paper)}
+              download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
+            >
+              Download
+            </a>
+            {paperInfoOpen && (
+              <div className="paper-info-pop" role="dialog" aria-label="Current paper information">
+                <button type="button" className="card-x" onClick={() => setPaperInfoOpen(false)} aria-label="Close" title="Close">
+                  ×
+                </button>
+                <h3 className="ref-title">{paperInfo?.title || paper.title}</h3>
+                {(paperInfo?.authors || paperAuthors(paper.authors)).length > 0 && (
+                  <p className="ref-authors">
+                    {(paperInfo?.authors || paperAuthors(paper.authors)).join(', ')}
+                  </p>
+                )}
+                {(paperInfo?.venue || paper.journal || paperInfo?.year || paper.year) && (
+                  <p className="ref-where">
+                    {[paperInfo?.venue || paper.journal, paperInfo?.year || paper.year].filter(Boolean).join(' · ')}
+                    {typeof paperInfo?.citations === 'number' && (
+                      <span className="ref-cited">Cited by {paperInfo.citations.toLocaleString()}</span>
+                    )}
+                  </p>
+                )}
+                {!paperInfo && !paperInfoError && <p className="ref-looking">Looking up paper details…</p>}
+                {paperInfoError && <p className="ref-unmatched">Could not load additional details just now.</p>}
+                {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
+                <div className="ref-links">
+                  <a className="ref-link here" href={appPath(`/paper/${paper.id}`)}>In Papol</a>
+                  {paperInfo?.pdf_url && (
+                    <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
+                  )}
+                  {(paperInfo?.url || paper.doi) && (
+                    <a
+                      className="ref-link"
+                      href={paperInfo?.url || paperDoiHref(paper.doi)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >{paperInfo?.doi || paper.doi ? 'DOI' : 'Page'}</a>
+                  )}
+                </div>
+              </div>
+            )}
+          </span>
         )}
       </header>
 
@@ -2896,6 +2997,20 @@ export default function App() {
             reference={reference}
             error={referenceError}
             onClose={closeReference}
+            position={openCite.index}
+            count={openCite.referenceIds.length}
+            onPrevious={openCite.index > 0 ? () => openReference(
+              openCite.referenceIds[openCite.index - 1],
+              openCite.anchor,
+              null,
+              openCite.referenceIds
+            ) : null}
+            onNext={openCite.index < openCite.referenceIds.length - 1 ? () => openReference(
+              openCite.referenceIds[openCite.index + 1],
+              openCite.anchor,
+              null,
+              openCite.referenceIds
+            ) : null}
           />
         )}
 

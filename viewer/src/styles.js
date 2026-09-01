@@ -368,6 +368,33 @@ button.link.danger { color: var(--red); }
 }
 
 .viewer-bar .bar-link:hover { border-color: var(--accent); color: var(--accent); }
+.paper-menu { position: relative; display: flex; align-items: center; gap: 6px; }
+.paper-info-button { cursor: pointer; background: var(--card); }
+.info-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-right: 3px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font: 600 10px/1 var(--font-ui);
+}
+.paper-info-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 9px);
+  right: 0;
+  width: min(400px, calc(100vw - 24px));
+  padding: 14px 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 8px 28px rgba(29, 33, 41, 0.18);
+  text-align: left;
+  font-family: var(--font-ui);
+}
 /* What the reader is holding. Icon buttons rather than a menu: the choice
    changes often enough while marking a paper up that it should cost one
    click and no reading. */
@@ -962,7 +989,34 @@ button.link.danger { color: var(--red); }
   font-size: var(--fs-sm);
 }
 
-.ref-experimental { margin: 0 0 8px; }
+.ref-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+  margin: -2px 24px 8px 0;
+}
+.ref-experimental { margin: 0; }
+.ref-range-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+}
+.ref-range-nav button {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+.ref-range-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.ref-range-nav button:disabled { opacity: .35; cursor: default; }
 .experimental-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border: 1px solid var(--gold-line); border-radius: var(--radius-pill); background: var(--gold-soft); color: var(--gold-ink); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .03em; line-height: 1.5; text-transform: uppercase; white-space: nowrap; }
 .experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 

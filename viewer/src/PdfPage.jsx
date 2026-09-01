@@ -1226,7 +1226,7 @@ export default function PdfPage({
         const cite = citations[index];
         const anchor = holderRef.current.querySelector(`[data-citation-index="${index}"]`);
         if (!anchor) return;
-        onOpenReference(cite.referenceId, anchor, cite.reference || null);
+        onOpenReference(cite.referenceId, anchor, cite.reference || null, cite.referenceIds);
       }}
       data-page={pageNumber}
     >
@@ -1495,7 +1495,8 @@ export default function PdfPage({
               type="button"
               data-citation-index={i}
               data-reference-id={cite.referenceId}
-              className={`cite${i === hoveredCitation ? ' hovered' : ''}${cite.referenceId === openReferenceId ? ' open' : ''}${
+              className={`cite${i === hoveredCitation ? ' hovered' : ''}${
+                (cite.referenceIds || [cite.referenceId]).includes(openReferenceId) ? ' open' : ''}${
                 cite.exact ? '' : ' guessed'
               }`}
               style={{
@@ -1511,7 +1512,8 @@ export default function PdfPage({
                 onOpenReference(
                   cite.referenceId,
                   e.currentTarget,
-                  cite.reference || null
+                  cite.reference || null,
+                  cite.referenceIds
                 );
               }}
             />

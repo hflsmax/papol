@@ -86,9 +86,18 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   if (references.length) {
     try {
       const inferred = await numberedCitations(doc, pageNumber, references);
-      citations = [...citations, ...inferred.filter(
-        (candidate) => !citations.some((known) => overlaps(known, candidate))
-      )];
+      for (const candidate of inferred) {
+        const covered = citations.filter((known) => overlaps(known, candidate));
+        // PDFs commonly link only the two endpoint digits in "[1–7]".
+        // Selectable text is the only place where the range itself survives,
+        // so let that complete group replace those incomplete native boxes.
+        if (candidate.referenceIds.length > 1 && covered.length) {
+          citations = citations.filter((known) => !overlaps(known, candidate));
+          citations.push(candidate);
+        } else if (!covered.length) {
+          citations.push(candidate);
+        }
+      }
     } catch {
       // Selectable text is a fallback, never a reason to lose PDF-native or
       // GROBID-provided citation markers.
@@ -111,14 +120,14 @@ async function numberedCitations(doc, pageNumber, references) {
   // Require a closing bracket. OCR fragments such as "[9," are too
   // ambiguous; GROBID can still supply them when its structural model is
   // confident, but this deliberately conservative fallback cannot.
-  const marker = /\[\s*(\d{1,3}(?:\s*[,;]\s*\d{1,3})*)\s*\]/g;
+  const marker = /\[\s*(\d{1,3}(?:(?:\s*[,;]\s*|\s*[–—-]\s*)\d{1,3})*)\s*\]/g;
 
   for (const item of content.items || []) {
     if (!item?.str || !Array.isArray(item.transform) || !item.str.includes('[')) continue;
     marker.lastIndex = 0;
     let match;
     while ((match = marker.exec(item.str))) {
-      const ids = match[1].split(/[,;]/).map((part) => Number(part.trim()));
+      const ids = citationNumbers(match[1]);
       const targets = ids.map((n) => byNumber.get(n));
       if (!targets.length || targets.some((ref) => !ref)) continue;
 
@@ -133,17 +142,34 @@ async function numberedCitations(doc, pageNumber, references) {
         w: Math.max(3, fullWidth * share) / viewport.width,
         h: height / viewport.height,
       };
-      for (const reference of targets) {
-        found.push({
-          referenceId: reference.id,
-          label: match[0],
-          ...box,
-          exact: false,
-        });
-      }
+      found.push({
+        referenceId: targets[0].id,
+        referenceIds: targets.map((reference) => reference.id),
+        label: match[0],
+        ...box,
+        exact: false,
+      });
     }
   }
   return found;
+}
+
+/** Expand a printed numeric citation list, including inclusive ranges. */
+export function citationNumbers(text) {
+  const numbers = [];
+  for (const part of String(text).split(/[,;]/)) {
+    const range = part.trim().match(/^(\d{1,3})\s*[–—-]\s*(\d{1,3})$/);
+    if (!range) {
+      const value = Number(part.trim());
+      if (Number.isInteger(value)) numbers.push(value);
+      continue;
+    }
+    const start = Number(range[1]);
+    const end = Number(range[2]);
+    if (end < start || end - start > 100) continue;
+    for (let value = start; value <= end; value += 1) numbers.push(value);
+  }
+  return [...new Set(numbers)];
 }
 
 function multiply(a, b) {

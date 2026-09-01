@@ -46,6 +46,10 @@ export function getPaperByPdf(hash) {
   return request(`/viewer/${hash}`);
 }
 
+export function getViewerPaperInfo(hash) {
+  return request(`/viewer/${hash}/info`);
+}
+
 export function pdfHref(paper) {
   if (!paper?.file_path) return null;
   if (paper.file_path.startsWith('http')) return paper.file_path;
