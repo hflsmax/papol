@@ -612,7 +612,7 @@ sync_data() {
       shelves) required="id user_id name color is_public is_default position created_at" ;;
       boards) required="id guid user_id shelf_id name description created_at updated_at" ;;
       board_groups) required="id board_id kind title header created_at" ;;
-      board_items) required="id board_id group_id kind content file_path original_filename mime_type source_url text_align position x y width deleted_at created_at" ;;
+      board_items) required="id board_id group_id kind content excerpt_text file_path original_filename mime_type source_url source_label staged text_align position x y width deleted_at created_at" ;;
     esac
     for column in $required; do
       dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "SELECT 1 FROM pragma_table_info('$table') WHERE name='$column'")
@@ -722,11 +722,11 @@ INSERT INTO board_groups (id,board_id,kind,title,header,created_at)
   JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
 INSERT INTO board_items (
   id,board_id,group_id,kind,content,file_path,original_filename,mime_type,source_url,
-  text_align,position,x,y,width,deleted_at,created_at
+  text_align,position,x,y,width,deleted_at,created_at,source_label,staged,excerpt_text
 )
   SELECT d.id,d.board_id,d.group_id,d.kind,d.content,d.file_path,d.original_filename,
     d.mime_type,d.source_url,d.text_align,d.position,d.x,d.y,d.width,
-    d.deleted_at,d.created_at
+    d.deleted_at,d.created_at,d.source_label,d.staged,d.excerpt_text
   FROM dev.board_items d
   JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
 INSERT INTO copy_tags SELECT d.* FROM dev.copy_tags d
