@@ -6,7 +6,7 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   pdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
-  submitFeedback, listBoards, stageBoardExcerpt,
+  submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
 import { resolveSource, getToken } from './source';
 import { appPath } from './base';
@@ -140,6 +140,7 @@ const EMPTY_INK = [];
 // and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
   { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools' },
+  { id: 'clipper', key: 'Z', badge: '⇧Z', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper', mnemonic: 'Zoom a clipping' },
   { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks' },
   { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' , mnemonic: 'Clean' },
   { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'Vanishes' },
@@ -147,9 +148,9 @@ const TOOLS = [
   { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' , mnemonic: 'Menagerie' },
 ];
 
-// The two anchors are one-shot: they are a thing you are holding until you
-// put it down, and then you have what you were holding before back.
-const DROP_TOOLS = new Set(['anchor']);
+// Drop tools are one-shot: they are a thing you are holding until you put
+// it down, and then the ordinary reading cursor comes back.
+const DROP_TOOLS = new Set(['anchor', 'clipper']);
 
 // Keyed by the letter as typed, so a and A are two tools rather than one
 // tool and a modifier — which also means caps lock picks the capital's.
@@ -159,6 +160,7 @@ const TOOL_KEYS = Object.fromEntries(TOOLS.map((t) => [t.key, t.id]));
 // not to read about it.
 const HELP = {
   arrow: 'A regular cursor.',
+  clipper: 'Draw a rectangle to make a movable, resizable view of that part of the paper.',
   brush: 'Hold the brush mid-stroke and the line snaps straight.',
   eraser: 'Remove paint and anchors.',
   laser: 'A laser pointer.',
@@ -192,6 +194,19 @@ function selectionParam() {
     ));
   } catch {
     return [];
+  }
+}
+
+function boundingBoxParam() {
+  const encoded = new URLSearchParams(window.location.search).get('box');
+  if (!encoded) return null;
+  try {
+    const [page, x, y, w, h] = JSON.parse(atob(encoded));
+    if (!Number.isInteger(page) || page < 1 || [x, y, w, h].some((value) => !Number.isFinite(value)) ||
+        x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > 1.001 || y + h > 1.001) return null;
+    return { page, x, y, w, h };
+  } catch {
+    return null;
   }
 }
 
@@ -289,6 +304,7 @@ export default function App() {
   const wantedPage = numberParam('page');
   const wantedY = fractionParam('y');
   const wantedSelection = useMemo(selectionParam, []);
+  const wantedBox = useMemo(boundingBoxParam, []);
   const wantedSelectionByPage = useMemo(() => {
     const byPage = new Map();
     wantedSelection.forEach((stroke) => {
@@ -371,6 +387,11 @@ export default function App() {
   const [ink, setInk] = useState([]);
   const [selectedInk, setSelectedInk] = useState(null);
   const [hoveredInkObjects, setHoveredInkObjects] = useState([]);
+  // Private views cut from this edition. Their source and placement use
+  // page fractions, so they survive zoom and are restored with the paper.
+  const [clips, setClips] = useState([]);
+  const [selectedClipId, setSelectedClipId] = useState(null);
+  const clipSaving = useRef(new Map());
   const [helpOpen, setHelpOpen] = useState(false);
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
   const [paperInfo, setPaperInfo] = useState(null);
@@ -760,6 +781,11 @@ export default function App() {
         closeSendSelection();
         return;
       }
+      if (e.key === 'Escape' && selectedClipId != null) {
+        e.preventDefault();
+        setSelectedClipId(null);
+        return;
+      }
       // Escape closes the help sheet first, before anything else looks at
       // the key: while it is up it is the thing in front of the reader.
       if (e.key === 'Escape' && helpOpen) {
@@ -814,6 +840,11 @@ export default function App() {
         takeTool('arrow');
         return;
       }
+      if (selectedClipId != null && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        removeClip(selectedClipId);
+        return;
+      }
       if (selectedInk && (
         e.key.toLowerCase() === 'd' ||
         e.key === 'Delete' ||
@@ -863,10 +894,20 @@ export default function App() {
   useEffect(() => {
     const clearInkSelection = (event) => {
       if (!event.target.closest?.('.ink-grab')) setSelectedInk(null);
+      if (!event.target.closest?.('.paper-clip') && !event.target.closest?.('.clip-actions')) setSelectedClipId(null);
     };
     document.addEventListener('pointerdown', clearInkSelection, true);
     return () => document.removeEventListener('pointerdown', clearInkSelection, true);
   }, []);
+
+  useEffect(() => {
+    if (!paper?.edition_id || !source?.clips) return undefined;
+    let cancelled = false;
+    source.clips.list(paper.edition_id)
+      .then((loaded) => { if (!cancelled) setClips(loaded); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
+  }, [paper?.edition_id, source]);
 
   // The ink already on this edition. Like the references, it belongs to
   // the file rather than to the paper, so it is asked for once the paper
@@ -1305,28 +1346,48 @@ export default function App() {
   };
 
   const sendSelectionToBoard = async () => {
-    if (!sendSelection?.text.trim() || !sendBoardGuid) return;
+    if (!sendSelection || !sendBoardGuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
     setSendBusy(true);
     setSendError(null);
     const backlink = new URL(window.location.href);
     backlink.searchParams.delete('note');
     backlink.searchParams.set('page', String(sendSelection.page));
     backlink.searchParams.set('y', String(sendSelection.y));
-    const compactSelection = sendSelection.strokes.map((stroke) => [
-      stroke.page,
-      Number(stroke.points[0].x.toFixed(5)),
-      Number(stroke.points[1].x.toFixed(5)),
-      Number(stroke.points[0].y.toFixed(5)),
-      Number(stroke.width.toFixed(5)),
-    ]);
-    backlink.searchParams.set('mark', btoa(JSON.stringify(compactSelection)));
+    if (sendSelection.kind === 'clip') {
+      const box = sendSelection.box;
+      backlink.searchParams.delete('mark');
+      backlink.searchParams.set('box', btoa(JSON.stringify([
+        sendSelection.page, box.x, box.y, box.w, box.h,
+      ].map((value) => Number(value.toFixed(5))))));
+    } else {
+      const compactSelection = sendSelection.strokes.map((stroke) => [
+        stroke.page,
+        Number(stroke.points[0].x.toFixed(5)),
+        Number(stroke.points[1].x.toFixed(5)),
+        Number(stroke.points[0].y.toFixed(5)),
+        Number(stroke.width.toFixed(5)),
+      ]);
+      backlink.searchParams.set('mark', btoa(JSON.stringify(compactSelection)));
+    }
     try {
-      await stageBoardExcerpt(sendBoardGuid, {
-        excerpt_text: sendSelection.text.trim(),
-        content: sendSelection.comment.trim() || null,
-        source_url: backlink.href,
-        source_label: `${paper?.title || 'Paper'}, page ${sendSelection.page}`,
-      });
+      const sourceLabel = sendSelection.kind === 'clip'
+        ? 'Open source'
+        : `${paper?.title || 'Paper'}, page ${sendSelection.page}`;
+      if (sendSelection.kind === 'clip') {
+        await stageBoardClip(sendBoardGuid, {
+          blob: sendSelection.blob,
+          comment: sendSelection.comment.trim(),
+          sourceUrl: backlink.href,
+          sourceLabel,
+        });
+      } else {
+        await stageBoardExcerpt(sendBoardGuid, {
+          excerpt_text: sendSelection.text.trim(),
+          content: sendSelection.comment.trim() || null,
+          source_url: backlink.href,
+          source_label: sourceLabel,
+        });
+      }
       setSendComplete(true);
     } catch (e) {
       setSendError(e.message);
@@ -1864,6 +1925,85 @@ export default function App() {
     handlePlace(spot);
     setTool(toolBefore.current || 'arrow');
     toolBefore.current = null;
+  };
+
+  const createClip = async (clip) => {
+    const provisional = `clip-${Date.now()}`;
+    setClips((all) => [...all, { ...clip, id: provisional }]);
+    // A clipper is a one-shot form of the reading cursor. Put it down as
+    // soon as the rectangle lands; persistence must not keep it in hand.
+    setTool('arrow');
+    toolBefore.current = null;
+    try {
+      const saving = source.clips.create(paper.edition_id, clip);
+      clipSaving.current.set(provisional, saving);
+      const saved = await saving;
+      setClips((all) => all.map((candidate) => (
+        candidate.id === provisional ? { ...saved, frame: candidate.frame } : candidate
+      )));
+      setSelectedClipId((selected) => (selected === provisional ? saved.id : selected));
+    } catch (e) {
+      setClips((all) => all.filter((candidate) => candidate.id !== provisional));
+      setError(e.message);
+    } finally {
+      clipSaving.current.delete(provisional);
+    }
+  };
+
+  const settledClipId = async (id) => {
+    const saving = clipSaving.current.get(id);
+    return saving ? (await saving).id : id;
+  };
+
+  const updateClip = (id, change) => {
+    setClips((all) => all.map((clip) => (clip.id === id ? { ...clip, ...change } : clip)));
+  };
+
+  const commitClip = async (id, change) => {
+    try {
+      const realId = await settledClipId(id);
+      const current = clips.find((clip) => clip.id === id || clip.id === realId);
+      const frame = change.frame || current?.frame;
+      const floating = change.floating ?? current?.floating ?? false;
+      const saved = await source.clips.move(realId, frame, floating);
+      setClips((all) => all.map((clip) => (
+        clip.id === id || clip.id === realId ? saved : clip
+      )));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const removeClip = async (id) => {
+    setSelectedClipId((selected) => (selected === id ? null : selected));
+    setClips((all) => all.filter((clip) => clip.id !== id));
+    try {
+      await source.clips.remove(await settledClipId(id));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const openSendClip = async (clip, blob) => {
+    setSendSelection({
+      kind: 'clip',
+      text: '',
+      comment: '',
+      page: clip.page,
+      y: 1 - clip.source.y - clip.source.h / 2,
+      strokes: [],
+      box: clip.source,
+      blob,
+    });
+    setSendError(null);
+    setSendComplete(false);
+    try {
+      const boards = await listBoards();
+      setSendBoards(boards);
+      setSendBoardGuid(boards[0]?.guid || '');
+    } catch (e) {
+      setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
+    }
   };
 
   // Editing, moving or deleting an anchor that is still in flight waits for
@@ -2841,6 +2981,7 @@ export default function App() {
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
               provenanceHighlights={wantedSelectionByPage.get(n) || EMPTY_INK}
+              provenanceBox={wantedBox?.page === n ? wantedBox : null}
               selectedInk={selectedInk}
               hoveredInkObjects={hoveredInkObjects}
               inkColor={inkColor}
@@ -2860,6 +3001,14 @@ export default function App() {
                 hoverRef.current = spot;
               }}
               onDropAnchor={dropAnchor}
+              clips={clips.filter((clip) => clip.page === n)}
+              onCreateClip={createClip}
+              onUpdateClip={updateClip}
+              onCommitClip={commitClip}
+              onRemoveClip={removeClip}
+              selectedClipId={selectedClipId}
+              onSelectClip={setSelectedClipId}
+              onSendClip={openSendClip}
               onMoveStroke={moveStroke}
               onDragNote={setDraggingNoteId}
               animal={animal}
@@ -3064,21 +3213,21 @@ export default function App() {
             className="help-back"
             role="dialog"
             aria-modal="true"
-            aria-label="Send selected text to a board"
+            aria-label={sendSelection.kind === 'clip' ? 'Send clipped area to a board' : 'Send selected text to a board'}
             onClick={closeSendSelection}
           >
             <div className="help-sheet send-selection-sheet" onClick={(event) => event.stopPropagation()}>
               <h3>{sendComplete ? 'Sent to staging' : 'Send to a board'}</h3>
               {sendComplete ? (
                 <>
-                  <p>The excerpt is waiting in the board’s staging area.</p>
+                  <p>{sendSelection.kind === 'clip' ? 'The clip' : 'The excerpt'} is waiting in the board’s staging area.</p>
                   <div className="feedback-actions">
                     <button type="button" className="primary" onClick={closeSendSelection}>Done</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <label className="send-selection-field">
+                  {sendSelection.kind !== 'clip' && <label className="send-selection-field">
                     <span>Text</span>
                     <textarea
                       rows="7"
@@ -3087,7 +3236,7 @@ export default function App() {
                       onChange={(event) => setSendSelection({ ...sendSelection, text: event.target.value })}
                       autoFocus
                     />
-                  </label>
+                  </label>}
                   <label className="send-selection-field">
                     <span>Board</span>
                     <select
@@ -3112,7 +3261,9 @@ export default function App() {
                     />
                   </label>
                   <p className="send-selection-source">
-                    Source: {paper?.title || 'Paper'}, page {sendSelection.page}. A backlink is included.
+                    {sendSelection.kind === 'clip'
+                      ? `Source: Page ${sendSelection.page}`
+                      : <>Source: {paper?.title || 'Paper'}, page {sendSelection.page}. A backlink is included.</>}
                   </p>
                   {sendError && <p className="feedback-error">{sendError}</p>}
                   <div className="feedback-actions">
@@ -3120,7 +3271,7 @@ export default function App() {
                     <button
                       type="button"
                       className="primary"
-                      disabled={sendBusy || !sendBoardGuid || !sendSelection.text.trim()}
+                      disabled={sendBusy || !sendBoardGuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())}
                       onClick={sendSelectionToBoard}
                     >
                       {sendBusy ? 'Sending…' : 'Send to board'}

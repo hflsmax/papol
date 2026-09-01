@@ -430,6 +430,25 @@ class InkStroke(Base):
     user = relationship("User")
 
 
+class PaperClip(Base):
+    """A reader's movable view of one rectangular part of an edition."""
+    __tablename__ = "paper_clips"
+
+    id = Column(Integer, primary_key=True, index=True)
+    edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    page = Column(Integer, nullable=False, index=True)
+    source = Column(Text, nullable=False)
+    frame = Column(Text, nullable=False)
+    # Locked clips use page-relative frame coordinates. Floating clips use
+    # the viewer viewport, so scrolling the paper leaves them in place.
+    floating = Column(Boolean, nullable=False, default=False, server_default="0")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    edition = relationship("PaperEdition")
+    user = relationship("User")
+
+
 class Room(Base):
     """A seminar cohort for a paper (keyed like the paper)."""
     __tablename__ = "rooms"

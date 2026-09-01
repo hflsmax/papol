@@ -45,7 +45,7 @@ from models import (
     User, AuthToken, PresencePing, Paper, Copy, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation, EditionLink,
-    InkStroke, Tag, Shelf, Board, BoardGroup, BoardItem,
+    InkStroke, PaperClip, Tag, Shelf, Board, BoardGroup, BoardItem,
 )
 import account
 from schemas import (
@@ -63,7 +63,8 @@ from schemas import (
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
     ResolvedWork,
-    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut, TagOut, TagCreate,
+    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut,
+    PaperClipCreate, PaperClipUpdate, PaperClipOut, TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardStagingCreate, BoardStagingPlace,
     BoardYouTubeCreate, BoardWebpageCreate,
@@ -642,6 +643,54 @@ async def stage_board_excerpt(
         content=data.content.strip() if data.content and data.content.strip() else None,
         source_url=data.source_url.strip(),
         source_label=data.source_label.strip(),
+        staged=True,
+    )
+    board.updated_at = datetime.utcnow()
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.post("/api/boards/{board_guid}/staging/clip", response_model=BoardItemOut)
+async def stage_board_clip(
+    board_guid: str,
+    file: UploadFile = File(...),
+    caption: str = Form(default=""),
+    source_url: str = Form(...),
+    source_label: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Stage a clipped PDF rectangle as an image, with its bounding-box backlink."""
+    board = _owned_board(board_guid, user, db)
+    if len(caption) > 10000 or len(source_url) > 4000 or len(source_label) > 500:
+        raise HTTPException(status_code=422, detail="Clip metadata is too long")
+    if not source_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="Invalid source URL")
+    relative = Path(str(board.id)) / f"{uuid.uuid4().hex}.png"
+    destination = BOARDS_DIR / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    size = 0
+    try:
+        with destination.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > BOARD_FILE_LIMIT:
+                    raise HTTPException(status_code=413, detail="Board files may be at most 25 MB")
+                output.write(chunk)
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    item = BoardItem(
+        board_id=board.id,
+        kind="image",
+        content=caption.strip() or None,
+        file_path=str(relative),
+        original_filename="paper-clip.png",
+        mime_type="image/png",
+        source_url=source_url.strip(),
+        source_label=source_label.strip(),
         staged=True,
     )
     board.updated_at = datetime.utcnow()
@@ -2811,6 +2860,89 @@ async def delete_ink(
     db.delete(row)
     db.commit()
     return {"message": "Stroke erased"}
+
+
+def _clip_out(clip: PaperClip) -> PaperClipOut:
+    return PaperClipOut(
+        id=clip.id,
+        page=clip.page,
+        source=json.loads(clip.source),
+        frame=json.loads(clip.frame),
+        floating=clip.floating,
+    )
+
+
+@app.get("/api/editions/{edition_id}/clips", response_model=list[PaperClipOut])
+async def list_clips(
+    edition_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _readable_edition(edition_id, current_user, db)
+    rows = (
+        db.query(PaperClip)
+        .filter(PaperClip.edition_id == edition_id, PaperClip.user_id == current_user.id)
+        .order_by(PaperClip.id)
+        .all()
+    )
+    return [_clip_out(row) for row in rows]
+
+
+@app.post("/api/editions/{edition_id}/clips", response_model=PaperClipOut)
+async def add_clip(
+    edition_id: int,
+    clip: PaperClipCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _readable_edition(edition_id, current_user, db)
+    row = PaperClip(
+        edition_id=edition_id,
+        user_id=current_user.id,
+        page=clip.page,
+        source=json.dumps(clip.source.model_dump()),
+        frame=json.dumps(clip.frame.model_dump()),
+        floating=clip.floating,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _clip_out(row)
+
+
+@app.put("/api/clips/{clip_id}", response_model=PaperClipOut)
+async def move_clip(
+    clip_id: int,
+    change: PaperClipUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = db.query(PaperClip).filter(PaperClip.id == clip_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No such clip")
+    if row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only move your own clips")
+    row.frame = json.dumps(change.frame.model_dump())
+    row.floating = change.floating
+    db.commit()
+    db.refresh(row)
+    return _clip_out(row)
+
+
+@app.delete("/api/clips/{clip_id}")
+async def delete_clip(
+    clip_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = db.query(PaperClip).filter(PaperClip.id == clip_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No such clip")
+    if row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only remove your own clips")
+    db.delete(row)
+    db.commit()
+    return {"message": "Clip removed"}
 
 
 @app.post("/api/papers/{paper_id}/comments", response_model=CommentSchema)

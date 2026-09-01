@@ -138,6 +138,35 @@ class InkStrokeOut(BaseModel):
         from_attributes = True
 
 
+class ClipRect(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def stays_on_page(self):
+        if self.x + self.w > 1.000001 or self.y + self.h > 1.000001:
+            raise ValueError("rectangle must stay on its page")
+        return self
+
+
+class PaperClipCreate(BaseModel):
+    page: int = Field(ge=1)
+    source: ClipRect
+    frame: ClipRect
+    floating: bool = False
+
+
+class PaperClipUpdate(BaseModel):
+    frame: ClipRect
+    floating: bool
+
+
+class PaperClipOut(PaperClipCreate):
+    id: int
+
+
 class CommentCreate(BaseModel):
     # A bare anchor is allowed: the reader marks a place first and writes
     # about it later. A note with no place must say something.

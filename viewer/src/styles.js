@@ -816,6 +816,20 @@ button.link.danger { color: var(--red); }
    the library's stylesheet. */
 .textLayer { z-index: 2; }
 .textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
+.provenance-box {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  border: 3px solid #f0b822;
+  background: rgba(246, 203, 65, .12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .9) inset;
+  animation: provenanceBoxFade 3.2s ease-out forwards;
+}
+
+@keyframes provenanceBoxFade {
+  0%, 42% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .textLayer .search-highlight {
   position: absolute;
   z-index: -1;
@@ -1381,6 +1395,109 @@ button.link.danger { color: var(--red); }
 /* The brush has no cursor image: its mark is drawn on the page itself, at
    the ink's own size, which a cursor cannot be past about 128px. */
 .ink-surface.tool-brush { cursor: none; }
+.ink-surface.tool-clipper { cursor: crosshair; }
+
+.clip-draft {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: rgba(43, 74, 111, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+  pointer-events: none;
+}
+
+.paper-clip {
+  position: absolute;
+  z-index: 12;
+  min-width: 54px;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  box-shadow: 0 5px 18px rgba(25, 35, 50, 0.28);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.paper-clip:active { cursor: grabbing; }
+.paper-clip.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(25, 35, 50, 0.28);
+}
+.clip-actions {
+  position: absolute;
+  z-index: 2;
+  right: -1px;
+  top: -31px;
+  display: flex;
+  gap: 4px;
+  cursor: default;
+}
+.clip-float {
+  width: 27px;
+  height: 24px;
+  padding: 3px;
+  border: 1px solid rgba(43, 74, 111, .28);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, .92);
+  cursor: pointer;
+}
+.clip-float:hover,
+.clip-float.floating { color: var(--accent); border-color: var(--accent); background: var(--paper); }
+.clip-float svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.clip-remove {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(43, 74, 111, .28);
+  border-radius: 50%;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, .9);
+  font: 17px/1 var(--font-ui);
+  cursor: pointer;
+}
+.clip-remove:hover { color: var(--danger, #b42318); background: rgba(180, 35, 24, .08); }
+.clip-send {
+  width: 26px;
+  height: 24px;
+  padding: 3px;
+  border: 1px solid rgba(43, 74, 111, .28);
+  border-radius: 12px;
+  color: var(--accent);
+  background: rgba(255, 255, 255, .92);
+  cursor: pointer;
+}
+.clip-send:hover { background: var(--paper); border-color: var(--accent); }
+.clip-send svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; }
+.clip-canvas {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  border-radius: 4px;
+}
+.clip-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 52%, rgba(43, 74, 111, .65) 54%, rgba(43, 74, 111, .65) 62%, transparent 64%, transparent 72%, rgba(43, 74, 111, .65) 74%, rgba(43, 74, 111, .65) 82%, transparent 84%);
+}
 
 /* The other cursors are drawn rather than named, so the pointer is the
    tool: each has its hotspot at the end that touches the page. The brush's is not here —

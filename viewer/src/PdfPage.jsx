@@ -70,6 +70,231 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
+function ClipBox({ clip, sourceCanvas, sourceRevision, selected, onChange, onCommit, onRemove, onSelect, onSend }) {
+  const rootRef = useRef(null);
+  const canvasRef = useRef(null);
+  const gestureRef = useRef(null);
+  const draggedRef = useRef(false);
+  const [floatViewport, setFloatViewport] = useState(null);
+  // Pointer movement is local to this one clip. Sending every pixel through
+  // App rerendered every PDF page; the shared state only needs the result
+  // once the clip is put down.
+  const [liveFrame, setLiveFrame] = useState(clip.frame);
+
+  useEffect(() => {
+    if (!gestureRef.current) setLiveFrame(clip.frame);
+  }, [clip.frame]);
+
+  useLayoutEffect(() => {
+    if (!clip.floating) return undefined;
+    const viewport = rootRef.current?.closest('.pages');
+    const update = () => {
+      const box = viewport?.getBoundingClientRect();
+      if (box) setFloatViewport({ left: box.left, top: box.top, width: box.width, height: box.height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    if (viewport) observer.observe(viewport);
+    window.addEventListener('resize', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [clip.floating]);
+
+  useLayoutEffect(() => {
+    const output = canvasRef.current;
+    if (!output || !sourceCanvas?.width || !sourceCanvas?.height) return undefined;
+    const paint = () => {
+      const bounds = output.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      output.width = Math.max(1, Math.round(bounds.width * ratio));
+      output.height = Math.max(1, Math.round(bounds.height * ratio));
+      const context = output.getContext('2d');
+      context.imageSmoothingEnabled = true;
+      context.drawImage(
+        sourceCanvas,
+        clip.source.x * sourceCanvas.width,
+        clip.source.y * sourceCanvas.height,
+        clip.source.w * sourceCanvas.width,
+        clip.source.h * sourceCanvas.height,
+        0,
+        0,
+        output.width,
+        output.height
+      );
+    };
+    paint();
+    const observer = new ResizeObserver(paint);
+    observer.observe(output);
+    observer.observe(sourceCanvas);
+    return () => observer.disconnect();
+  }, [sourceCanvas, sourceRevision, clip.source, clip.frame.w, clip.frame.h]);
+
+  const begin = (event, kind) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const container = clip.floating
+      ? event.currentTarget.closest('.pages').getBoundingClientRect()
+      : event.currentTarget.closest('.pdf-page').getBoundingClientRect();
+    gestureRef.current = {
+      kind,
+      x: event.clientX,
+      y: event.clientY,
+      page: container,
+      frame: liveFrame,
+      lastFrame: liveFrame,
+    };
+    if (kind === 'move' && rootRef.current) rootRef.current.style.willChange = 'transform';
+    draggedRef.current = false;
+  };
+
+  const move = (event) => {
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    event.stopPropagation();
+    const dx = (event.clientX - gesture.x) / gesture.page.width;
+    const dy = (event.clientY - gesture.y) / gesture.page.height;
+    if (Math.abs(event.clientX - gesture.x) + Math.abs(event.clientY - gesture.y) > 5) {
+      draggedRef.current = true;
+    }
+    if (gesture.kind === 'move') {
+      const frame = {
+        ...gesture.frame,
+        x: Math.min(1 - gesture.frame.w, Math.max(0, gesture.frame.x + dx)),
+        y: Math.min(1 - gesture.frame.h, Math.max(0, gesture.frame.y + dy)),
+      };
+      gesture.lastFrame = frame;
+      // Moving does not change the clip's contents or dimensions. Let the
+      // compositor carry the already-painted layer instead of asking React
+      // and layout to reposition it for every pointer sample.
+      if (rootRef.current) {
+        rootRef.current.style.transform =
+          `translate(${event.clientX - gesture.x}px, ${event.clientY - gesture.y}px)`;
+      }
+      return;
+    }
+    const aspect = clip.source.w / clip.source.h;
+    let w = Math.min(0.9, Math.max(0.08, gesture.frame.w + dx));
+    let h = w / aspect;
+    if (h > 0.9) {
+      h = 0.9;
+      w = h * aspect;
+    }
+    const frame = {
+        ...gesture.frame,
+        x: Math.min(1 - w, gesture.frame.x),
+        y: Math.min(1 - h, gesture.frame.y),
+        w,
+        h,
+    };
+    gesture.lastFrame = frame;
+    setLiveFrame(frame);
+  };
+
+  const finish = (event) => {
+    event.stopPropagation();
+    const gesture = gestureRef.current;
+    gestureRef.current = null;
+    if (gesture?.kind === 'move' && rootRef.current) {
+      setLiveFrame(draggedRef.current ? gesture.lastFrame : gesture.frame);
+      rootRef.current.style.transform = '';
+      rootRef.current.style.willChange = '';
+    }
+    if (gesture && draggedRef.current) {
+      onChange({ frame: gesture.lastFrame });
+      onCommit({ frame: gesture.lastFrame });
+    }
+  };
+
+  const toggleFloating = (event) => {
+    event.stopPropagation();
+    const element = rootRef.current.getBoundingClientRect();
+    const destination = clip.floating
+      ? rootRef.current.closest('.pdf-page').getBoundingClientRect()
+      : rootRef.current.closest('.pages').getBoundingClientRect();
+    const w = Math.min(0.9, element.width / destination.width);
+    const h = Math.min(0.9, element.height / destination.height);
+    const frame = {
+      x: Math.min(1 - w, Math.max(0, (element.left - destination.left) / destination.width)),
+      y: Math.min(1 - h, Math.max(0, (element.top - destination.top) / destination.height)),
+      w,
+      h,
+    };
+    const floating = !clip.floating;
+    setLiveFrame(frame);
+    onChange({ frame, floating });
+    onCommit({ frame, floating });
+  };
+
+  const positionStyle = clip.floating && floatViewport
+    ? {
+        position: 'fixed',
+        left: floatViewport.left + liveFrame.x * floatViewport.width,
+        top: floatViewport.top + liveFrame.y * floatViewport.height,
+        width: liveFrame.w * floatViewport.width,
+        height: liveFrame.h * floatViewport.height,
+      }
+    : boxStyle(liveFrame);
+
+  const actions = selected && (
+    <span className="clip-actions" onPointerDown={(event) => event.stopPropagation()}>
+      <button
+        type="button"
+        className={`clip-float${clip.floating ? ' floating' : ''}`}
+        aria-label={clip.floating ? 'Lock clip to paper' : 'Let clip float with the viewport'}
+        title={clip.floating ? 'Lock to paper' : 'Free float'}
+        aria-pressed={clip.floating}
+        onClick={toggleFloating}
+      >
+        {clip.floating ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="10" width="11" height="9" rx="2" /><path d="M10 10V7.5a4 4 0 0 1 7.2-2.4M4 12h1.5M3 16h2.5" /><circle cx="12.5" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="10" width="13" height="9" rx="2" /><path d="M8.5 10V7.2a3.5 3.5 0 0 1 7 0V10" /><circle cx="12" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>
+        )}
+      </button>
+      <button type="button" className="clip-send" aria-label="Send clipped content to a board" title="Send clipped content to a board" onClick={() => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" /></svg>
+      </button>
+      <button type="button" className="clip-remove" aria-label="Remove clipped view" title="Remove" onClick={onRemove}>×</button>
+    </span>
+  );
+
+  return (<>
+    <aside
+      ref={rootRef}
+      className={`paper-clip${selected ? ' selected' : ''}`}
+      style={positionStyle}
+      aria-label="Clipped paper content"
+      title="Drag clipped view"
+      onPointerDown={(event) => begin(event, 'move')}
+      onPointerMove={move}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!draggedRef.current) onSelect();
+        draggedRef.current = false;
+      }}
+    >
+      <canvas ref={canvasRef} className="clip-canvas" />
+      {actions}
+      <span
+        className="clip-resize"
+        role="button"
+        tabIndex="0"
+        aria-label="Resize clipped view"
+        title="Resize"
+        onPointerDown={(event) => begin(event, 'resize')}
+        onPointerMove={move}
+        onPointerUp={finish}
+        onPointerCancel={finish}
+      />
+    </aside>
+  </>);
+}
+
 export default function PdfPage({
   doc,
   pageNumber,
@@ -86,6 +311,7 @@ export default function PdfPage({
   tool,
   ink,
   provenanceHighlights = [],
+  provenanceBox = null,
   selectedInk,
   hoveredInkObjects,
   inkColor,
@@ -100,6 +326,14 @@ export default function PdfPage({
   onEraseNote,
   onHover,
   onDropAnchor,
+  clips = [],
+  onCreateClip,
+  onUpdateClip,
+  onCommitClip,
+  onRemoveClip,
+  selectedClipId,
+  onSelectClip,
+  onSendClip,
   onMoveStroke,
   onDragNote,
   animal,
@@ -119,6 +353,10 @@ export default function PdfPage({
   const textTaskRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [visible, setVisible] = useState(false);
+  // A canvas ref becoming non-null does not itself render React. Clips need
+  // an explicit signal after pdf.js has actually painted its pixels, or a
+  // restored clip snapshots the canvas while it is still blank.
+  const [canvasRevision, setCanvasRevision] = useState(0);
   // The citation markers on this page. Worked out when the page first
   // comes into view, because finding them means resolving the PDF's own
   // links, and a page nobody has reached should not cost that.
@@ -139,6 +377,8 @@ export default function PdfPage({
   // the wet stroke on screen while it is being made.
   const wetRef = useRef(null);
   const [wet, setWet] = useState(null);
+  const clipRef = useRef(null);
+  const [clipDraft, setClipDraft] = useState(null);
   // Set once a stroke has snapped straight: from then on the pointer moves
   // the far end of the line rather than adding to a freehand path.
   const straightRef = useRef(false);
@@ -223,9 +463,13 @@ export default function PdfPage({
         transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0],
       });
       renderTaskRef.current = task;
-      task.promise.catch((err) => {
-        if (err?.name !== 'RenderingCancelledException') throw err;
-      });
+      task.promise
+        .then(() => {
+          if (!cancelled) setCanvasRevision((revision) => revision + 1);
+        })
+        .catch((err) => {
+          if (err?.name !== 'RenderingCancelledException') throw err;
+        });
     });
 
     return () => {
@@ -625,6 +869,11 @@ export default function PdfPage({
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const at = anchorAt(e.clientX, e.clientY);
+    if (tool === 'clipper') {
+      clipRef.current = { from: at, to: at };
+      setClipDraft(clipRef.current);
+      return;
+    }
     if (tool === 'cow') {
       // Under its feet, not under its middle. The cursor is a cow standing
       // on the pointer, so that is where the cow has to end up standing —
@@ -657,6 +906,11 @@ export default function PdfPage({
 
   const inkMove = (e) => {
     const at = anchorAt(e.clientX, e.clientY);
+    if (tool === 'clipper' && clipRef.current && e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      clipRef.current = { ...clipRef.current, to: at };
+      setClipDraft(clipRef.current);
+      return;
+    }
     if (tool === 'brush') setBrushAt(at);
     // The laser follows a pointer that is only passing over, not just one
     // that is pressed: pointing at a figure while you talk about it is the
@@ -728,6 +982,34 @@ export default function PdfPage({
   // Kept when the pointer lifts, not as it moves: a stroke is one mark,
   // and half of one is not worth storing.
   const inkUp = () => {
+    if (tool === 'clipper') {
+      const draft = clipRef.current;
+      clipRef.current = null;
+      setClipDraft(null);
+      if (!draft) return;
+      const x = Math.min(draft.from.x, draft.to.x);
+      const y = Math.min(1 - draft.from.y, 1 - draft.to.y);
+      const w = Math.abs(draft.to.x - draft.from.x);
+      const h = Math.abs(draft.to.y - draft.from.y);
+      if (w < 0.01 || h < 0.01) return;
+      let frameW = Math.min(0.7, Math.max(w, 0.18));
+      let frameH = frameW * (h / w);
+      if (frameH > 0.7) {
+        frameH = 0.7;
+        frameW = frameH * (w / h);
+      }
+      onCreateClip({
+        page: pageNumber,
+        source: { x, y, w, h },
+        frame: {
+          x: Math.min(0.98 - frameW, Math.max(0.02, x + w + 0.025)),
+          y: Math.min(0.98 - frameH, Math.max(0.02, y)),
+          w: frameW,
+          h: frameH,
+        },
+      });
+      return;
+    }
     if (tool === 'laser') {
       releaseLaser();
       return;
@@ -1245,6 +1527,7 @@ export default function PdfPage({
         {/* Selectable text sits above the drawing; a double-click passes
             through it to the page, so both reading and marking work. */}
         <div className="textLayer" ref={textRef} />
+        {provenanceBox && <div className="provenance-box" style={boxStyle(provenanceBox)} />}
         {/* Ink: over the page and under the pins, because a mark belongs to
             the paper and a pin is a control sitting on top of it. Drawn in
             page units so a stroke keeps its weight at every zoom. */}
@@ -1447,7 +1730,19 @@ export default function PdfPage({
             onPointerMove={inkMove}
             onPointerUp={inkUp}
             onPointerCancel={inkUp}
-          />
+          >
+            {tool === 'clipper' && clipDraft && (
+              <span
+                className="clip-draft"
+                style={boxStyle({
+                  x: Math.min(clipDraft.from.x, clipDraft.to.x),
+                  y: Math.min(1 - clipDraft.from.y, 1 - clipDraft.to.y),
+                  w: Math.abs(clipDraft.to.x - clipDraft.from.x),
+                  h: Math.abs(clipDraft.to.y - clipDraft.from.y),
+                })}
+              />
+            )}
+          </div>
         )}
         {/* What the author linked: a place in the paper, or a page on the
             web. Under the citation layer, so where a link is both, the
@@ -1548,6 +1843,20 @@ export default function PdfPage({
           ))}
         </div>
       </div>
+      {clips.map((clip) => (
+        <ClipBox
+          key={clip.id}
+          clip={clip}
+          sourceCanvas={canvasRef.current}
+          sourceRevision={canvasRevision}
+          selected={selectedClipId === clip.id}
+          onChange={(change) => onUpdateClip(clip.id, change)}
+          onCommit={(frame) => onCommitClip(clip.id, frame)}
+          onRemove={() => onRemoveClip(clip.id)}
+          onSelect={() => onSelectClip(clip.id)}
+          onSend={(blob) => onSendClip(clip, blob)}
+        />
+      ))}
       <span className="page-number">{pageNumber}</span>
     </div>
   );

@@ -3,6 +3,7 @@ import { appPath } from './base';
 import {
   getPaperByPdf, createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
+  getClips, addClip, moveClip, eraseClip,
   getToken,
 } from './api';
 
@@ -14,7 +15,7 @@ import {
  * Demo PDFs use the same hash identity; only their storage is local.
  *
  * Both return the same shape, so the viewer only ever calls load(),
- * notes.{create,update,remove} and ink.{list,create,remove}.
+ * notes, ink and clips through the same small persistence interfaces.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
@@ -48,6 +49,12 @@ function apiSource(pdfHash) {
       create: (editionId, stroke) => addInk(editionId, stroke),
       move: (id, points) => moveInk(id, points),
       remove: (id) => eraseInk(id),
+    },
+    clips: {
+      list: (editionId) => getClips(editionId),
+      create: (editionId, clip) => addClip(editionId, clip),
+      move: (id, frame, floating) => moveClip(id, frame, floating),
+      remove: (id) => eraseClip(id),
     },
   };
   return source;
@@ -83,6 +90,8 @@ function localSource(paperId) {
   let notes = seedFor(paperId);
   let strokes = [];
   let nextInkId = 1;
+  let clips = [];
+  let nextClipId = 1;
 
   return {
     backHref: appPath(`/demo/paper/${paperId}`),
@@ -147,6 +156,19 @@ function localSource(paperId) {
       async remove(id) {
         strokes = strokes.filter((s) => s.id !== id);
       },
+    },
+    clips: {
+      async list() { return clips; },
+      async create(_editionId, clip) {
+        const made = { ...clip, id: nextClipId++ };
+        clips = [...clips, made];
+        return made;
+      },
+      async move(id, frame, floating) {
+        clips = clips.map((clip) => (clip.id === id ? { ...clip, frame, floating } : clip));
+        return clips.find((clip) => clip.id === id);
+      },
+      async remove(id) { clips = clips.filter((clip) => clip.id !== id); },
     },
   };
 }

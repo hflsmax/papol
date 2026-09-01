@@ -66,6 +66,15 @@ export function stageBoardExcerpt(boardGuid, data) {
   return jsonRequest(`/boards/${boardGuid}/staging`, 'POST', data);
 }
 
+export function stageBoardClip(boardGuid, { blob, comment, sourceUrl, sourceLabel }) {
+  const body = new FormData();
+  body.append('file', blob, 'paper-clip.png');
+  body.append('caption', comment || '');
+  body.append('source_url', sourceUrl);
+  body.append('source_label', sourceLabel);
+  return request(`/boards/${boardGuid}/staging/clip`, { method: 'POST', body });
+}
+
 // A located note is a note: the same endpoints Papol's own notes use, with
 // a page and an anchor attached.
 export function createNote(paperId, { page, anchor, content }) {
@@ -124,6 +133,24 @@ export function moveInk(strokeId, points) {
 
 export function eraseInk(strokeId) {
   return request(`/ink/${strokeId}`, { method: 'DELETE' });
+}
+
+// ---- Clips ----
+
+export function getClips(editionId) {
+  return request(`/editions/${editionId}/clips`);
+}
+
+export function addClip(editionId, clip) {
+  return jsonRequest(`/editions/${editionId}/clips`, 'POST', clip);
+}
+
+export function moveClip(clipId, frame, floating) {
+  return jsonRequest(`/clips/${clipId}`, 'PUT', { frame, floating });
+}
+
+export function eraseClip(clipId) {
+  return request(`/clips/${clipId}`, { method: 'DELETE' });
 }
 
 // ---- Feedback ----

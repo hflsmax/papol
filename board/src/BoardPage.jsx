@@ -54,6 +54,14 @@ const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
   hour: 'numeric', minute: '2-digit',
 }).format(browserDate(value));
+const stagedSourceLabel = (item) => {
+  try {
+    const page = new URL(item.source_url).searchParams.get('page');
+    return page ? `Page ${page}` : 'Open source';
+  } catch {
+    return 'Open source';
+  }
+};
 
 export default function BoardPage({ boardId, onBack, backHref }) {
   const [board, setBoard] = useState(null);
@@ -242,12 +250,14 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     });
     return () => cancelAnimationFrame(frame);
   }, [board?.id]);
-  const imageIds = board?.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).map((item) => item.id).join(',') || '';
+  const imageItems = board ? [...board.items, ...(board.staged_items || [])]
+    .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)) : [];
+  const imageIds = imageItems.map((item) => item.id).join(',');
   useEffect(() => {
     if (!board) return undefined;
     let active = true; const urls = [];
     setImageUrls({});
-    board.items.filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)).forEach(async (item) => {
+    imageItems.forEach(async (item) => {
       try {
         const url = await boardFileBlob(item);
         if (!active) { URL.revokeObjectURL(url); return; }
@@ -1715,10 +1725,19 @@ export default function BoardPage({ boardId, onBack, backHref }) {
                   event.dataTransfer.setData('application/x-papol-staged-item', String(item.id));
                 }}
               >
-                <p>{item.excerpt_text}</p>
+                <div className="board-staging-card-head">
+                  <span className={`board-staging-kind ${item.kind}`}>{item.kind === 'image' ? 'Clip' : 'Excerpt'}</span>
+                  <span className="board-staging-drag" aria-hidden="true">Drag to place</span>
+                </div>
+                {item.kind === 'image' && imageUrls[item.id]
+                  ? <img src={imageUrls[item.id]} alt="Clipped paper content" draggable="false" />
+                  : item.kind === 'image'
+                    ? <div className="board-staging-image-loading"><span className="board-loading-spinner" /></div>
+                    : <blockquote>{item.excerpt_text}</blockquote>}
+                {item.content && <p className="board-staging-comment">{item.content}</p>}
                 <footer>
-                  <a href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>
-                  <button type="button" aria-label="Remove staged excerpt" title="Remove" onPointerDown={(event) => event.stopPropagation()} onClick={async () => { await deleteBoardItem(item.id); load(); }}>×</button>
+                  <a href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{stagedSourceLabel(item)}</a>
+                  <button type="button" aria-label="Remove staged item" title="Remove" onPointerDown={(event) => event.stopPropagation()} onClick={async () => { await deleteBoardItem(item.id); load(); }}>×</button>
                 </footer>
               </article>
             ))}
