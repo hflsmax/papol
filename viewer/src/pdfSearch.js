@@ -21,6 +21,28 @@ export function indexTextItems(items) {
   return { text, ranges };
 }
 
+// Extract text a page at a time so opening a large document does not launch
+// work for every page at once. Periodic yields keep scrolling and controls
+// responsive while an explicit search is being prepared.
+export async function indexPdfDocument(doc, {
+  cancelled = () => false,
+  yieldEvery = 4,
+  yieldToMain = () => new Promise((resolve) => requestAnimationFrame(resolve)),
+} = {}) {
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+    const page = await doc.getPage(pageNumber);
+    const content = await page.getTextContent();
+    if (cancelled()) return null;
+    pages.push(indexTextItems(content.items));
+    if (pageNumber < doc.numPages && pageNumber % yieldEvery === 0) {
+      await yieldToMain();
+      if (cancelled()) return null;
+    }
+  }
+  return pages;
+}
+
 export function findTextMatches(pageIndex, query) {
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return [];

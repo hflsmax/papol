@@ -321,7 +321,7 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
   </>);
 }
 
-export default function PdfPage({
+function PdfPage({
   doc,
   pageNumber,
   scale,
@@ -466,6 +466,23 @@ export default function PdfPage({
     };
   }, [doc, pageNumber]);
 
+  // A page can finish its first measurement during an active zoom after a
+  // scale-only parent update was memoized away. Bring that newly measured
+  // shell directly to the scroller's current scale before it is painted.
+  useLayoutEffect(() => {
+    const holder = holderRef.current;
+    if (!holder || !size.width || !size.height || !renderScale) return;
+    const currentScale = Number(holder.closest('.pages')?.dataset.scale) || scale;
+    holder.style.width = `${size.width * currentScale}px`;
+    holder.style.height = `${size.height * currentScale}px`;
+    const inner = holder.querySelector(':scope > .page-inner');
+    if (inner) {
+      inner.style.transform = currentScale === renderScale
+        ? ''
+        : `scale(${currentScale / renderScale})`;
+    }
+  }, [size.width, size.height, renderScale, scale]);
+
   useEffect(() => {
     if (!visible || !canvasRef.current) return undefined;
     let cancelled = false;
@@ -580,7 +597,7 @@ export default function PdfPage({
       cancelled = true;
       textTaskRef.current?.cancel();
     };
-  }, [doc, pageNumber, scale, renderScale, visible, searchMatches, activeSearchId]);
+  }, [doc, pageNumber, renderScale, visible, searchMatches, activeSearchId]);
 
   // Only that the page is on screen — not that the references are ready.
   // The PDF's own links are in the file itself: they need no analyzer, and
@@ -779,7 +796,7 @@ export default function PdfPage({
   useEffect(() => {
     if (tool !== 'eraser') {
       setDoomed(EMPTY_DOOMED);
-      onHoverInkObjects([]);
+      onHoverInkObjects(pageNumber, []);
     }
     // Reaching for the brush while the pointer is already over the page put
     // it in your hand and showed you nothing, because nothing had moved
@@ -1002,7 +1019,7 @@ export default function PdfPage({
     // knowing what would go is most useful before deciding to press.
     if (tool === 'eraser') {
       const found = under(at);
-      onHoverInkObjects(found.inkObjects);
+      onHoverInkObjects(pageNumber, found.inkObjects);
       setDoomed((was) =>
         was.ink.join() === found.ink.join() &&
         was.notes.join() === found.notes.join() &&
@@ -1430,7 +1447,10 @@ export default function PdfPage({
   const CURSOR_PEN = 1.8;
   const cowCursor = () => {
     const held = animalFor(animal);
-    const w = Math.min(96, Math.max(28, held.size * size.width * scale));
+    const currentScale = holderRef.current && size.width
+      ? holderRef.current.getBoundingClientRect().width / size.width
+      : scale;
+    const w = Math.min(96, Math.max(28, held.size * size.width * currentScale));
     const h = (w * held.box.h) / held.box.w;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
@@ -1543,7 +1563,7 @@ export default function PdfPage({
         setHoveredCitation(-1);
         onHover(null);
         setDoomed(EMPTY_DOOMED);
-        onHoverInkObjects([]);
+        onHoverInkObjects(pageNumber, []);
         setBrushAt(null);
         if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
       }}
@@ -1567,6 +1587,9 @@ export default function PdfPage({
         onOpenReference(cite.referenceId, anchor, cite.reference || null, cite.referenceIds);
       }}
       data-page={pageNumber}
+      data-page-width={size.width || undefined}
+      data-page-height={size.height || undefined}
+      data-render-scale={renderScale}
     >
       {/* Drawn at renderScale and stretched to the scale being looked at:
           during a pinch this is a compositor transform, and the sharp
@@ -1912,3 +1935,14 @@ export default function PdfPage({
     </div>
   );
 }
+
+// Scale-only updates are applied to the page shell in App's layout phase.
+// Everything else remains a normal shallow comparison: changing ink, tools,
+// selection or renderScale must still update this page immediately.
+function samePageProps(previous, next) {
+  const keys = Object.keys(next);
+  if (keys.length !== Object.keys(previous).length) return false;
+  return keys.every((key) => key === 'scale' || Object.is(previous[key], next[key]));
+}
+
+export default React.memo(PdfPage, samePageProps);

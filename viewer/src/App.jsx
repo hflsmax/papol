@@ -19,7 +19,7 @@ import { styles } from './styles';
 import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
-import { findTextMatches, indexTextItems } from './pdfSearch';
+import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -168,6 +168,15 @@ const HELP = {
   cow: 'An animal that wonders.',
 };
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
+
+// A page should not rerender merely because App produced a fresh closure.
+// The wrapper stays stable while always invoking the newest implementation,
+// which lets memoized PdfPages respond only to data that actually changed.
+function useEvent(handler) {
+  const ref = useRef(handler);
+  ref.current = handler;
+  return useMemo(() => (...args) => ref.current(...args), []);
+}
 
 function numberParam(name) {
   const v = new URLSearchParams(window.location.search).get(name);
@@ -386,7 +395,7 @@ export default function App() {
   // nothing, which is the point of it.
   const [ink, setInk] = useState([]);
   const [selectedInk, setSelectedInk] = useState(null);
-  const [hoveredInkObjects, setHoveredInkObjects] = useState([]);
+  const [hoveredInk, setHoveredInk] = useState({ pages: new Set(), objects: EMPTY_INK });
   // Private views cut from this edition. Their source and placement use
   // page fractions, so they survive zoom and are restored with the paper.
   const [clips, setClips] = useState([]);
@@ -586,28 +595,33 @@ export default function App() {
     return () => document.removeEventListener('pointerdown', closeAway, true);
   }, [paperInfoOpen]);
 
-  // Index once per document. Searching then stays immediate, and does not
-  // depend on whether a page's lazy text layer happens to be on screen.
+  useEffect(() => {
+    setSearchIndex([]);
+  }, [doc]);
+
+  // Search is optional and indexing a long document is not. Defer the pass
+  // over every PDF page until search is actually opened, then retain it for
+  // the rest of this document's session.
   useEffect(() => {
     if (!doc) {
-      setSearchIndex([]);
       return undefined;
     }
+    if (!searchOpen || searchIndex.length === doc.numPages) return undefined;
     let cancelled = false;
     setSearchIndexing(true);
-    Promise.all(Array.from({ length: doc.numPages }, async (_, i) => {
-      const page = await doc.getPage(i + 1);
-      const content = await page.getTextContent();
-      return indexTextItems(content.items);
-    })).then((indexed) => {
-      if (!cancelled) setSearchIndex(indexed);
-    }).catch((e) => {
-      if (!cancelled) setError(`PDF search failed: ${e.message}`);
-    }).finally(() => {
-      if (!cancelled) setSearchIndexing(false);
-    });
+    (async () => {
+      try {
+        const indexed = await indexPdfDocument(doc, { cancelled: () => cancelled });
+        if (!indexed) return;
+        setSearchIndex(indexed);
+      } catch (e) {
+        if (!cancelled) setError(`PDF search failed: ${e.message}`);
+      } finally {
+        if (!cancelled) setSearchIndexing(false);
+      }
+    })();
     return () => { cancelled = true; };
-  }, [doc]);
+  }, [doc, searchOpen, searchIndex.length]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -1175,6 +1189,24 @@ export default function App() {
     }
     return map;
   }, [ink]);
+
+  const clipsByPage = useMemo(() => {
+    const map = new Map();
+    for (const clip of clips) {
+      if (!map.has(clip.page)) map.set(clip.page, []);
+      map.get(clip.page).push(clip);
+    }
+    return map;
+  }, [clips]);
+
+  const selectedInkPages = useMemo(() => {
+    if (!selectedInk) return new Set();
+    return new Set(ink.filter((stroke) => (
+      selectedInk.groupId
+        ? stroke.group_id === selectedInk.groupId
+        : stroke.id === selectedInk.id
+    )).map((stroke) => stroke.page));
+  }, [ink, selectedInk]);
 
   // A stroke appears the instant the pointer lifts and is saved behind it.
   // Waiting for the server first would make the brush feel like it was
@@ -1751,6 +1783,7 @@ export default function App() {
   // scrolls each apply a stale correction, which is what made zooming
   // drift.
   const focus = useRef(null);
+  const pendingZoom = useRef({ factor: 1, at: null, frame: null });
 
   const captureFocus = (at) => {
     const el = scrollerRef.current;
@@ -1759,13 +1792,40 @@ export default function App() {
     const cx = at ? at.x : box.left + box.width / 2;
     const cy = at ? at.y : box.top + box.height / 2;
 
-    // The page nearest the cursor, not merely the one under it: the cursor
-    // may sit in the gap between two pages.
-    const pageEl = [...el.querySelectorAll('.pdf-page')].reduce((best, p) => {
-      const r = p.getBoundingClientRect();
-      const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
-      return !best || gap < best.gap ? { el: p, gap } : best;
-    }, null)?.el;
+    // Usually the pointer is directly over a page, which the browser can
+    // answer without us measuring document layout at all. In an inter-page
+    // gap, binary-search the vertically ordered sheets. The old linear scan
+    // forced a rectangle read for every page on every trackpad event.
+    const hit = document.elementFromPoint(cx, cy)?.closest?.('.pdf-page');
+    let pageEl = hit && el.contains(hit) ? hit : null;
+    if (!pageEl) {
+      const pages = el.querySelectorAll('.pdf-page');
+      const boxes = new Map();
+      const boxFor = (index) => {
+        if (!boxes.has(index)) boxes.set(index, pages[index].getBoundingClientRect());
+        return boxes.get(index);
+      };
+      let low = 0;
+      let high = pages.length - 1;
+      while (low <= high) {
+        const middle = (low + high) >> 1;
+        const r = boxFor(middle);
+        if (cy < r.top) high = middle - 1;
+        else if (cy > r.bottom) low = middle + 1;
+        else {
+          pageEl = pages[middle];
+          break;
+        }
+      }
+      if (!pageEl && pages.length) {
+        const candidates = [low - 1, low].filter((index) => index >= 0 && index < pages.length);
+        pageEl = candidates.reduce((nearest, index) => {
+          const r = boxFor(index);
+          const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
+          return !nearest || gap < nearest.gap ? { el: pages[index], gap } : nearest;
+        }, null)?.el;
+      }
+    }
     if (!pageEl) return null;
 
     const r = pageEl.getBoundingClientRect();
@@ -1782,15 +1842,48 @@ export default function App() {
     const el = scrollerRef.current;
     if (!el) return;
     chosenZoom.current = true;
-    const captured = captureFocus(at);
-    if (!captured) return;
-    setScale((prev) => {
-      const next = clampScale(prev * factor);
-      if (next === prev) return prev;
-      focus.current = captured;
-      return next;
+    const pending = pendingZoom.current;
+    pending.factor *= factor;
+    pending.at = at;
+    if (pending.frame != null) return;
+    // Browsers can deliver several wheel events inside one display frame.
+    // Accumulate them and commit one layout/React update for that frame.
+    pending.frame = requestAnimationFrame(() => {
+      pending.frame = null;
+      const combinedFactor = pending.factor;
+      const latestAt = pending.at;
+      pending.factor = 1;
+      pending.at = null;
+      const captured = captureFocus(latestAt);
+      if (!captured) return;
+      setScale((prev) => {
+        const next = clampScale(prev * combinedFactor);
+        if (next === prev) return prev;
+        focus.current = captured;
+        return next;
+      });
     });
   };
+
+  // A transient zoom changes only page geometry. Apply those three style
+  // values directly before paint so React does not have to reconcile every
+  // stroke, pin, clip and link on every visible sheet for a scale-only
+  // update. PdfPage's memo comparator deliberately mirrors this boundary.
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || scale == null) return;
+    el.dataset.scale = String(scale);
+    for (const pageEl of el.querySelectorAll('.pdf-page')) {
+      const width = Number(pageEl.dataset.pageWidth);
+      const height = Number(pageEl.dataset.pageHeight);
+      const drawnAt = Number(pageEl.dataset.renderScale);
+      if (!width || !height || !drawnAt) continue;
+      pageEl.style.width = `${width * scale}px`;
+      pageEl.style.height = `${height * scale}px`;
+      const inner = pageEl.querySelector(':scope > .page-inner');
+      if (inner) inner.style.transform = scale === drawnAt ? '' : `scale(${scale / drawnAt})`;
+    }
+  }, [scale]);
 
   useLayoutEffect(() => {
     const restore = restoringView.current;
@@ -1850,6 +1943,12 @@ export default function App() {
     el.addEventListener('gesturestart', onGestureStart, { passive: false });
     el.addEventListener('gesturechange', onGestureChange, { passive: false });
     return () => {
+      if (pendingZoom.current.frame != null) {
+        cancelAnimationFrame(pendingZoom.current.frame);
+        pendingZoom.current.frame = null;
+        pendingZoom.current.factor = 1;
+        pendingZoom.current.at = null;
+      }
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('gesturestart', onGestureStart);
       el.removeEventListener('gesturechange', onGestureChange);
@@ -2376,6 +2475,38 @@ export default function App() {
     }
   };
 
+  const pageOpenReference = useEvent(openReference);
+  const pageFollowLink = useEvent(followLink);
+  const pageSelectNote = useEvent(pointAtNote);
+  const pageMoveNote = useEvent(moveNote);
+  const pageDrawStroke = useEvent(drawStroke);
+  const pageSelectInk = useEvent((stroke) => setSelectedInk(stroke ? {
+    id: stroke.id,
+    groupId: stroke.group_id || null,
+  } : null));
+  const pageHoverInk = useEvent((_page, objects) => {
+    const wanted = new Set(objects);
+    const pages = new Set();
+    for (const stroke of inkRef.current) {
+      const object = stroke.group_id ? `group:${stroke.group_id}` : `stroke:${stroke.id}`;
+      if (wanted.has(object)) pages.add(stroke.page);
+    }
+    setHoveredInk({ pages, objects });
+  });
+  const pageEraseStroke = useEvent(eraseStroke);
+  const pageEraseNote = useEvent(removeNote);
+  const pageHover = useEvent((spot) => { hoverRef.current = spot; });
+  const pageDropAnchor = useEvent(dropAnchor);
+  const pageCreateClip = useEvent(createClip);
+  const pageUpdateClip = useEvent(updateClip);
+  const pageCommitClip = useEvent(commitClip);
+  const pageRemoveClip = useEvent(removeClip);
+  const pageSendClip = useEvent(openSendClip);
+  const pageMoveStroke = useEvent(moveStroke);
+  const pageDropAnimal = useEvent(dropAnimal);
+  const pageMoveAnimal = useEvent(moveAnimal);
+  const pageEraseAnimal = useEvent(eraseAnimal);
+
   if (error && !doc) {
     return (
       <>
@@ -2399,6 +2530,7 @@ export default function App() {
     pdfProgress && pdfProgress.total > 0
       ? Math.min(100, Math.round((pdfProgress.loaded / pdfProgress.total) * 100))
       : null;
+  const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page) || null;
 
   return (
     <>
@@ -2970,56 +3102,55 @@ export default function App() {
               pageNumber={n}
               scale={scale}
               renderScale={renderScale}
-              notes={notesByPage.get(n) || []}
-              activeNoteId={activeNoteId}
+              notes={notesByPage.get(n) || EMPTY_INK}
+              activeNoteId={notesByPage.get(n)?.some((note) => note.id === activeNoteId) ? activeNoteId : null}
               analysis={analysis}
-              openReferenceId={openCite?.referenceId ?? null}
-              onOpenReference={openReference}
-              onFollowLink={followLink}
-              onSelectNote={pointAtNote}
-              onMoveNote={moveNote}
+              openReferenceId={openReferencePage === n ? openCite?.referenceId ?? null : null}
+              onOpenReference={pageOpenReference}
+              onFollowLink={pageFollowLink}
+              onSelectNote={pageSelectNote}
+              onMoveNote={pageMoveNote}
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
               provenanceHighlights={wantedSelectionByPage.get(n) || EMPTY_INK}
               provenanceBox={wantedBox?.page === n ? wantedBox : null}
-              selectedInk={selectedInk}
-              hoveredInkObjects={hoveredInkObjects}
+              selectedInk={selectedInkPages.has(n) ? selectedInk : null}
+              hoveredInkObjects={hoveredInk.pages.has(n) ? hoveredInk.objects : EMPTY_INK}
               inkColor={inkColor}
               inkWidth={inkWidth}
               inkOpacity={inkOpacity}
               inkShape={inkShape}
               laserColor={laserColor}
-              onDrawStroke={drawStroke}
-              onSelectInk={(stroke) => setSelectedInk(stroke ? {
-                id: stroke.id,
-                groupId: stroke.group_id || null,
-              } : null)}
-              onHoverInkObjects={setHoveredInkObjects}
-              onEraseStroke={eraseStroke}
-              onEraseNote={removeNote}
-              onHover={(spot) => {
-                hoverRef.current = spot;
-              }}
-              onDropAnchor={dropAnchor}
-              clips={clips.filter((clip) => clip.page === n)}
-              onCreateClip={createClip}
-              onUpdateClip={updateClip}
-              onCommitClip={commitClip}
-              onRemoveClip={removeClip}
-              selectedClipId={selectedClipId}
+              onDrawStroke={pageDrawStroke}
+              onSelectInk={pageSelectInk}
+              onHoverInkObjects={pageHoverInk}
+              onEraseStroke={pageEraseStroke}
+              onEraseNote={pageEraseNote}
+              onHover={pageHover}
+              onDropAnchor={pageDropAnchor}
+              clips={clipsByPage.get(n) || EMPTY_INK}
+              onCreateClip={pageCreateClip}
+              onUpdateClip={pageUpdateClip}
+              onCommitClip={pageCommitClip}
+              onRemoveClip={pageRemoveClip}
+              selectedClipId={clipsByPage.get(n)?.some((clip) => clip.id === selectedClipId)
+                ? selectedClipId
+                : null}
               onSelectClip={setSelectedClipId}
-              onSendClip={openSendClip}
-              onMoveStroke={moveStroke}
+              onSendClip={pageSendClip}
+              onMoveStroke={pageMoveStroke}
               onDragNote={setDraggingNoteId}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}
               animals={animalsByPage.get(n) || EMPTY_INK}
-              onDropAnimal={dropAnimal}
-              onMoveAnimal={moveAnimal}
-              onEraseAnimal={eraseAnimal}
+              onDropAnimal={pageDropAnimal}
+              onMoveAnimal={pageMoveAnimal}
+              onEraseAnimal={pageEraseAnimal}
               searchMatches={searchResultsByPage.get(n) || EMPTY_INK}
-              activeSearchId={searchResults[activeSearchResult]?.id ?? null}
+              activeSearchId={searchResults[activeSearchResult]?.page === n
+                ? searchResults[activeSearchResult].id
+                : null}
               />
             </React.Fragment>
           ))}
