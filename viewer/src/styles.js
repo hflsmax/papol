@@ -328,6 +328,33 @@ button.link.danger { color: var(--red); }
 .pdf-search .search-button { height: auto; padding: 5px 9px; }
 .search-count { min-width: 58px; color: var(--ink-faint); font-size: var(--fs-2xs); text-align: center; white-space: nowrap; }
 
+.search-wrap-sign {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 50%;
+  background: rgba(30, 55, 82, 0.88);
+  color: var(--ink-inverse);
+  font: 74px/1 var(--font-ui);
+  box-shadow: 0 8px 30px rgba(25, 35, 50, 0.3);
+  pointer-events: none;
+  animation: search-wrap-fade 1.15s ease-out forwards;
+}
+
+@keyframes search-wrap-fade {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.78); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  58% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.06); }
+}
+
 /* A bar action that navigates rather than acts on the page. */
 .viewer-bar .bar-link {
   font-family: var(--font-ui);

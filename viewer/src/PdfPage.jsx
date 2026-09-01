@@ -252,8 +252,20 @@ export default function PdfPage({
       // it every span collapses and selection lands on the wrong words.
       container.style.setProperty('--total-scale-factor', String(renderScale));
       textTaskRef.current?.cancel();
+      // Use the same text-content shape as the document-wide search index.
+      // In particular, do not introduce marked-content wrapper items here:
+      // they change rendered span indexes and make a correct match point at
+      // an unrelated line.
+      const textContent = await page.getTextContent();
+      // Canvas rendering has already registered pdf.js's converted embedded
+      // fonts under these internal names. Measure and lay out selectable text
+      // with those same faces instead of generic serif/sans-serif fallbacks.
+      // That keeps browser Range boxes on the glyph advances in the PDF.
+      for (const [fontName, style] of Object.entries(textContent.styles)) {
+        style.fontFamily = `"${fontName}", ${style.fontFamily}`;
+      }
       const task = new pdfjs.TextLayer({
-        textContentSource: page.streamTextContent(),
+        textContentSource: textContent,
         container,
         viewport,
       });

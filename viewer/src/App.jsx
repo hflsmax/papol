@@ -288,6 +288,8 @@ export default function App() {
   const [searchIndex, setSearchIndex] = useState([]);
   const [searchIndexing, setSearchIndexing] = useState(false);
   const [activeSearchResult, setActiveSearchResult] = useState(0);
+  const [searchWrap, setSearchWrap] = useState(null);
+  const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   // How much of the PDF has arrived, while it has not: null until the
   // first progress event, since a bar at 0% before the request has even
@@ -560,13 +562,18 @@ export default function App() {
     return byPage;
   }, [searchResults]);
 
-  useEffect(() => setActiveSearchResult(0), [searchQuery]);
+  useEffect(() => {
+    setActiveSearchResult(0);
+    setSearchWrap(null);
+  }, [searchQuery]);
 
   const moveThroughSearch = (direction) => {
     if (!searchResults.length) return;
-    setActiveSearchResult((current) => (
-      (current + direction + searchResults.length) % searchResults.length
-    ));
+    const next = activeSearchResult + direction;
+    if (next < 0 || next >= searchResults.length) {
+      setSearchWrap({ id: ++searchWrapId.current, direction });
+    }
+    setActiveSearchResult((next + searchResults.length) % searchResults.length);
   };
 
   useEffect(() => {
@@ -2890,6 +2897,17 @@ export default function App() {
             error={referenceError}
             onClose={closeReference}
           />
+        )}
+
+        {searchWrap && (
+          <div
+            key={searchWrap.id}
+            className="search-wrap-sign"
+            role="status"
+            aria-label={searchWrap.direction > 0 ? 'Wrapped to first result' : 'Wrapped to last result'}
+          >
+            <span aria-hidden="true">{searchWrap.direction > 0 ? '↻' : '↺'}</span>
+          </div>
         )}
 
         {selectionPaint && (
