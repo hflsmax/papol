@@ -241,6 +241,7 @@ def gather(db: Session, user: User) -> dict:
                         "kind": group.kind,
                         "title": group.title,
                         "header": group.header,
+                        "auto_arrange": group.auto_arrange,
                         "item_ids": [item.id for item in group.items if item.deleted_at is None],
                     }
                     for group in board.groups

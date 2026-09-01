@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCenter, chapterDropTarget, chapterInsertionIndex, collectionGridLayout, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { cardCenter, chapterDropTarget, chapterInsertionIndex, collectionGridLayout, collectionReorderLayout, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
 
 const chapter = { id: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -134,7 +134,7 @@ test('collection tidy leaves overlapping cards in place', () => {
   assert.deepEqual(result[1], { id: 2, x: 200, y: 20 });
 });
 
-test('collection grid chooses near-square dimensions and normalizes columns', () => {
+test('collection layout chooses near-square dimensions and fills the shortest column', () => {
   const result = collectionGridLayout([
     { id: 1, x: 40, y: 20, height: 100 },
     { id: 2, x: 500, y: 30, height: 160 },
@@ -147,7 +147,59 @@ test('collection grid chooses near-square dimensions and normalizes columns', ()
     { id: 1, x: 20, y: 20 },
     { id: 2, x: 338, y: 20 },
     { id: 3, x: 656, y: 20 },
-    { id: 4, x: 20, y: 198 },
-    { id: 5, x: 338, y: 198 },
+    { id: 4, x: 656, y: 118 },
+    { id: 5, x: 20, y: 138 },
   ]);
+});
+
+test('short cards make their remaining column space available immediately', () => {
+  const result = collectionGridLayout([
+    { id: 1, x: 0, y: 0, height: 240 },
+    { id: 2, x: 318, y: 0, height: 60 },
+    { id: 3, x: 0, y: 300, height: 80 },
+    { id: 4, x: 318, y: 300, height: 90 },
+  ]);
+  assert.deepEqual(result.positions.map(({ id, x, y }) => ({ id, x, y })), [
+    { id: 1, x: 0, y: 0 },
+    { id: 2, x: 318, y: 0 },
+    { id: 3, x: 318, y: 78 },
+    { id: 4, x: 318, y: 176 },
+  ]);
+});
+
+const gridCards = [
+  { id: 1, x: 0, y: 0, width: 300, height: 100 },
+  { id: 2, x: 318, y: 0, width: 300, height: 140 },
+  { id: 3, x: 0, y: 158, width: 300, height: 80 },
+  { id: 4, x: 318, y: 158, width: 300, height: 120 },
+];
+
+test('auto-arrange keeps the order while a drag remains nearest its current slot', () => {
+  const result = collectionReorderLayout(gridCards, 1, { x: 40, y: 30 });
+  assert.deepEqual(result.positions.map((position) => position.id), [1, 2, 3, 4]);
+});
+
+test('auto-arrange reorders horizontally in the same row', () => {
+  const result = collectionReorderLayout(gridCards, 1, { x: 340, y: 10 });
+  assert.deepEqual(result.positions.map((position) => position.id), [2, 1, 3, 4]);
+});
+
+test('auto-arrange moves later cards back into the first slot', () => {
+  const result = collectionReorderLayout(gridCards, 4, { x: -10, y: -10 });
+  assert.deepEqual(result.positions.map((position) => position.id), [4, 1, 2, 3]);
+});
+
+test('auto-arrange reorders across rows and into the final slot', () => {
+  const middle = collectionReorderLayout(gridCards, 1, { x: 10, y: 180 });
+  assert.deepEqual(middle.positions.map((position) => position.id), [2, 3, 1, 4]);
+  const last = collectionReorderLayout(gridCards, 1, { x: 350, y: 190 });
+  assert.deepEqual(last.positions.map((position) => position.id), [2, 3, 4, 1]);
+});
+
+test('auto-arrange lays out a card joining a collection using the hovered slot', () => {
+  const joining = [...gridCards, { id: 9, x: 0, y: 0, width: 300, height: 90 }];
+  const result = collectionReorderLayout(joining, 9, { x: 330, y: 170 });
+  assert.equal(result.positions.length, 5);
+  assert.equal(result.positions.findIndex((position) => position.id === 9), 3);
+  assert.ok(result.positions.every((position) => Number.isFinite(position.x) && Number.isFinite(position.y)));
 });

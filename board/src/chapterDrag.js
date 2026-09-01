@@ -104,26 +104,52 @@ export function tidyCollectionPositions(cards, maxGap = COLLECTION_TIDY_GAP) {
   });
 }
 
-export function collectionGridLayout(cards, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_GRID_GAP) {
-  if (!cards.length) return { columns: 0, rows: 0, positions: [] };
-  const ordered = [...cards].sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
+function collectionGridLayoutInOrder(ordered, width, gap) {
+  if (!ordered.length) return { columns: 0, rows: 0, positions: [] };
   const columns = Math.ceil(Math.sqrt(ordered.length));
   const rows = Math.ceil(ordered.length / columns);
   const anchorX = Math.min(...ordered.map((card) => card.x));
   const anchorY = Math.min(...ordered.map((card) => card.y));
-  const rowHeights = Array.from({ length: rows }, (_, row) => Math.max(
-    ...ordered.slice(row * columns, (row + 1) * columns).map((card) => card.height),
-  ));
-  const rowTops = rowHeights.reduce((tops, height, row) => (
-    [...tops, (tops[row] ?? anchorY) + height + gap]
-  ), [anchorY]);
+  const columnBottoms = Array(columns).fill(anchorY);
   return {
     columns,
     rows,
-    positions: ordered.map((card, index) => ({
-      id: card.id,
-      x: anchorX + (index % columns) * (width + gap),
-      y: rowTops[Math.floor(index / columns)],
-    })),
+    positions: ordered.map((card) => {
+      const column = columnBottoms.reduce(
+        (shortest, bottom, index) => bottom < columnBottoms[shortest] ? index : shortest,
+        0,
+      );
+      const position = { id: card.id, x: anchorX + column * (width + gap), y: columnBottoms[column] };
+      columnBottoms[column] += card.height + gap;
+      return position;
+    }),
   };
+}
+
+export function collectionGridLayout(cards, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_GRID_GAP) {
+  const ordered = [...cards].sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
+  return collectionGridLayoutInOrder(ordered, width, gap);
+}
+
+export function collectionReorderLayout(cards, draggedId, point, width = DEFAULT_CARD_WIDTH, gap = COLLECTION_GRID_GAP) {
+  if (!cards.length) return { columns: 0, rows: 0, positions: [] };
+  const dragged = cards.find((card) => card.id === draggedId);
+  if (!dragged) return collectionGridLayout(cards, width, gap);
+  const ordered = [...cards].sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
+  const initial = collectionGridLayoutInOrder(ordered, width, gap);
+  const byId = new Map(cards.map((card) => [card.id, card]));
+  const center = { x: point.x + dragged.width / 2, y: point.y + dragged.height / 2 };
+  const targetIndex = initial.positions.map((position, index) => {
+    const occupant = byId.get(position.id);
+    return {
+      index,
+      distance: Math.hypot(
+        center.x - (position.x + occupant.width / 2),
+        center.y - (position.y + occupant.height / 2),
+      ),
+    };
+  }).sort((a, b) => a.distance - b.distance || a.index - b.index)[0].index;
+  const withoutDragged = ordered.filter((card) => card.id !== draggedId);
+  withoutDragged.splice(targetIndex, 0, dragged);
+  return collectionGridLayoutInOrder(withoutDragged, width, gap);
 }

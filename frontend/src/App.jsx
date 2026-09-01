@@ -4240,6 +4240,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-chapter.collection { box-sizing: border-box; pointer-events: auto; }
 .board-chapter.collection::before { display: none; }
 .board-chapter.collection::after { display: block; z-index: -1; top: 76px; right: 0; bottom: 0; left: 0; box-sizing: border-box; width: auto; height: auto; border: 1px dashed var(--line-strong); border-radius: 14px; background: transparent; }
+.board-chapter.collection.auto-arrange::after { border-style: solid; }
 .board-chapter.collection.moving-active::after, .board-chapter.collection.drop-active::after { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
 .board-chapter.collection.moving-active { transition: none; }
 .board-chapter.collection.selected::after { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -4248,10 +4249,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-chapter.collection:has(.board-chapter-spine:active)::after { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
 .board-chapter.collection .board-chapter-heading { top: 0; left: 12px; width: calc(100% - 24px) !important; height: 36px; }
 .board-chapter.collection .board-chapter-header { top: 36px; left: 12px; width: calc(100% - 24px) !important; }
-.board-chapter.collection .board-chapter-title { color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-sm); }
+.board-chapter.collection .board-chapter-title { color: var(--ink-soft); font-family: var(--font-ui); }
 .board-chapter-heading { position: absolute; top: 0; left: 0; box-sizing: border-box; max-width: 420px; height: 36px; border-bottom: 1px solid var(--line-strong); pointer-events: none; }
 .board-chapter-header { position: absolute; top: 36px; left: 0; box-sizing: border-box; max-width: 420px; height: 34px; pointer-events: none; }
-.board-chapter-title { display: block; width: 100%; height: 35px; margin: 0; padding: 3px 5px; overflow: hidden; border: 1px solid transparent; border-radius: 6px 6px 0 0; background: transparent; box-shadow: none; color: var(--ink); font: 650 var(--fs-lg) var(--font-serif); text-align: left; text-overflow: ellipsis; white-space: nowrap; pointer-events: auto; }
+.board-chapter-title { display: block; width: 100%; height: 35px; margin: 0; padding: 3px 5px; overflow: hidden; border: 1px solid transparent; border-radius: 6px 6px 0 0; background: transparent; box-shadow: none; color: var(--ink); font: 650 var(--fs-xl) var(--font-serif); text-align: left; text-overflow: ellipsis; white-space: nowrap; pointer-events: auto; }
 .board-chapter-title:is(button) { cursor: grab; }
 .board-chapter-title:is(button):active { cursor: grabbing; }
 .board-chapter-title:hover { border-color: var(--line-strong); background: color-mix(in srgb, var(--card) 88%, transparent); }

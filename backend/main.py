@@ -502,6 +502,7 @@ def _board_out(board: Board, include_items: bool = False, can_edit: bool = False
         staged_items=(staged_items if include_items and can_edit else []),
         groups=([BoardGroupOut(
             id=group.id, kind=group.kind, title=group.title, header=group.header or "",
+            auto_arrange=group.auto_arrange,
             item_ids=[item.id for item in group.items if item.deleted_at is None],
         ) for group in board.groups] if include_items else []),
     )
@@ -1069,7 +1070,11 @@ async def create_board_group(
     ).all()
     if len(items) != len(item_ids):
         raise HTTPException(status_code=400, detail="Some selected items are unavailable")
-    group = BoardGroup(board_id=board.id, kind=data.kind, title=data.title.strip(), header=data.header.strip() or None)
+    group = BoardGroup(
+        board_id=board.id, kind=data.kind, title=data.title.strip(),
+        header=data.header.strip() or None,
+        auto_arrange=data.auto_arrange if data.kind == "collection" else False,
+    )
     db.add(group)
     db.flush()
     anchor_x = min(item.x for item in items)
@@ -1080,7 +1085,7 @@ async def create_board_group(
     board.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(group)
-    return BoardGroupOut(id=group.id, kind=group.kind, title=group.title, header=group.header or "", item_ids=item_ids)
+    return BoardGroupOut(id=group.id, kind=group.kind, title=group.title, header=group.header or "", auto_arrange=group.auto_arrange, item_ids=item_ids)
 
 
 @app.put("/api/board-groups/{group_id}/move", response_model=list[BoardItemOut])
@@ -1118,11 +1123,16 @@ async def update_board_group(
         group.title = data.title.strip()
     if data.header is not None:
         group.header = data.header.strip() or None
+    if data.auto_arrange is not None:
+        if group.kind != "collection":
+            raise HTTPException(status_code=400, detail="Only collections can use auto-arrange")
+        group.auto_arrange = data.auto_arrange
     group.board.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(group)
     return BoardGroupOut(
         id=group.id, kind=group.kind, title=group.title, header=group.header or "",
+        auto_arrange=group.auto_arrange,
         item_ids=[item.id for item in group.items if item.deleted_at is None],
     )
 

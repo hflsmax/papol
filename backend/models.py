@@ -348,6 +348,7 @@ class BoardGroup(Base):
     kind = Column(String(20), nullable=False, default="chapter", server_default="chapter")
     title = Column(String(240), nullable=False)
     header = Column(Text, nullable=True)
+    auto_arrange = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     board = relationship("Board", back_populates="groups")

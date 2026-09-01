@@ -233,12 +233,14 @@ class BoardGroupCreate(BaseModel):
     kind: Literal["chapter", "collection"] = "chapter"
     title: str = Field(default="", max_length=240)
     header: str = Field(default="", max_length=4000)
+    auto_arrange: bool = False
     item_ids: List[int] = Field(min_length=2, max_length=100)
 
 
 class BoardGroupUpdate(BaseModel):
     title: Optional[str] = Field(default=None, max_length=240)
     header: Optional[str] = Field(default=None, max_length=4000)
+    auto_arrange: Optional[bool] = None
 
 
 class BoardGroupMove(BaseModel):
@@ -266,6 +268,7 @@ class BoardGroupOut(BaseModel):
     kind: Literal["chapter", "collection"]
     title: str
     header: str = ""
+    auto_arrange: bool = False
     item_ids: List[int] = []
 
     class Config:
