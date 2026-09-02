@@ -1,0 +1,6 @@
+Send passages and figures from the viewer to a board.
+Select a sentence, choose the arrow button, add a comment, choose a board, and send.
+For a figure, use the clipping feature to make a clean crop.
+Select the clip's Send button, choose the same board, and send again.
+Both items wait in staging. Drag each one onto the canvas.
+Each card keeps a backlink. Open one to return to its source in the paper. Enjoy Papol.

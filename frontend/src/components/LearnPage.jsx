@@ -20,6 +20,12 @@ const lessons = [
     video: '/assets/learn/board-grouping.mp4',
     poster: '/assets/learn/board-grouping.jpg',
   },
+  {
+    id: 'viewer-to-board',
+    title: 'Send excerpts and figures to a board',
+    video: '/assets/learn/viewer-to-board.mp4',
+    poster: '/assets/learn/viewer-to-board.jpg',
+  },
 ];
 
 export default function LearnPage() {

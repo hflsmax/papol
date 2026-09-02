@@ -1,0 +1,29 @@
+1
+00:00:00,400 --> 00:00:04,850
+Send passages and figures from the viewer
+to a board.
+
+2
+00:00:05,100 --> 00:00:11,625
+Select a sentence, choose the arrow button,
+add a comment, choose a board, and send.
+
+3
+00:00:13,000 --> 00:00:17,725
+For a figure, use the clipping feature
+to make a clean crop.
+
+4
+00:00:18,500 --> 00:00:23,825
+Select the clip's Send button, choose
+the same board, and send again.
+
+5
+00:00:25,200 --> 00:00:30,825
+Both items wait in staging.
+Drag each one onto the canvas.
+
+6
+00:00:31,400 --> 00:00:39,175
+Each card keeps a backlink. Open one to return
+to its source in the paper. Enjoy Papol.
