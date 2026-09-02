@@ -243,32 +243,139 @@ input[type='checkbox'] {
 
 .learn-page {
   display: grid;
-  gap: 16px;
+  gap: 34px;
+}
+
+.learn-section {
+  display: grid;
+  gap: 14px;
+}
+
+.learn-section > h1 {
+  color: var(--muted);
+  font: 600 var(--fs-sm)/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .learn-lesson {
-  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--card);
+  box-shadow: 0 2px 8px rgba(29, 33, 41, 0.04);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
-.learn-video-shell {
-  aspect-ratio: 16 / 9;
-  background: var(--ink);
+.learn-lesson:hover {
+  border-color: var(--accent-line);
+  box-shadow: 0 8px 24px rgba(29, 33, 41, 0.1);
+  transform: translateY(-2px);
 }
 
-.learn-video-shell video {
+.learn-lesson-open {
+  display: grid;
+  width: 100%;
+  min-height: 238px;
+  grid-template-rows: 1fr auto;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+  text-align: left;
+}
+
+.learn-lesson-open:hover { background: var(--card); }
+.learn-lesson-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.learn-lesson-art {
+  display: grid;
+  min-height: 152px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--lesson-wash, var(--accent-soft));
+}
+
+.learn-lesson-art > svg { width: min(88%, 270px); height: 128px; }
+.learn-lesson-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 20px 20px; }
+.learn-art-animal { --lesson-wash: #f8eadc; --lesson-color: #a85b3f; }
+.learn-art-group { --lesson-wash: #e9e5f4; --lesson-color: #66568c; }
+.learn-art-send { --lesson-wash: #e1f0ec; --lesson-color: #377a6b; }
+.learn-lesson-art .art-paper { fill: #fff; stroke: var(--lesson-color, var(--accent)); stroke-width: 2; }
+.learn-lesson-art .art-card { fill: #fff; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; }
+.learn-lesson-art .art-line, .learn-lesson-art .art-detail, .learn-lesson-art .art-spark, .learn-lesson-art .art-arrow, .learn-lesson-art .art-bracket { fill: none; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.learn-lesson-art .art-image, .learn-lesson-art .art-dot { fill: var(--lesson-color, var(--accent)); }
+.learn-lesson-art .art-highlight { fill: var(--lesson-color, var(--accent)); opacity: 0.18; }
+.learn-lesson-art .art-animal { fill: #fff; stroke: var(--lesson-color); stroke-width: 2.5; stroke-linejoin: round; }
+.learn-lesson-art .art-booklet-spine, .learn-lesson-art .art-mini-line { fill: none; stroke: var(--lesson-color); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.learn-lesson-art .art-mini-card { fill: rgba(255, 255, 255, 0.72); stroke: var(--lesson-color); stroke-width: 1.8; }
+.learn-lesson-art .art-collection-frame { fill: rgba(255, 255, 255, 0.24); stroke: var(--lesson-color); stroke-width: 2; stroke-dasharray: 5 4; }
+
+.learn-lesson-open h2 {
+  max-width: 19ch;
+  font-size: var(--fs-xl);
+}
+
+.learn-play {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  fill: var(--accent);
+}
+
+.learn-play circle { fill: var(--accent); }
+.learn-play path { fill: var(--ink-inverse); }
+
+.learn-player-backdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+  background: rgba(17, 24, 34, 0.78);
+}
+
+.learn-player {
+  position: relative;
+  width: min(1040px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-lg);
+  background: #000;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.learn-player video {
   display: block;
   width: 100%;
-  height: 100%;
+  max-height: calc(100vh - 48px);
+  aspect-ratio: 16 / 9;
   object-fit: contain;
 }
 
-.learn-lesson h2 {
-  padding: 12px 14px 14px;
-  font-size: var(--fs-lg);
+.learn-player-close {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(15, 20, 28, 0.78);
+  box-shadow: none;
+  color: white;
+  font: 400 25px/1 var(--font-ui);
 }
+
+.learn-player-close:hover { background: var(--accent); }
+.learn-player-close:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 
 .learn-grid {
   display: grid;
@@ -280,6 +387,10 @@ input[type='checkbox'] {
   .learn-grid {
     grid-template-columns: 1fr;
   }
+  .learn-lesson-open { min-height: 220px; }
+  .learn-lesson-art { min-height: 136px; }
+  .learn-player-backdrop { padding: 0; }
+  .learn-player { border: 0; border-radius: 0; }
 }
 
 /* The offer of a newer PDF: informational, never alarming, and never
