@@ -39,6 +39,7 @@ from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
     backfill_shelves, backfill_favourite_tags,
     backfill_board_guids, backfill_board_shelves, backfill_board_excerpts,
+    normalize_board_group_kinds,
     SessionLocal,
 )
 from models import (
@@ -90,6 +91,7 @@ import dbmetrics
 # Create database tables and apply column migrations
 migrate()
 Base.metadata.create_all(bind=engine)
+normalize_board_group_kinds()
 backfill_board_guids()
 backfill_board_excerpts()
 
@@ -1083,7 +1085,7 @@ async def move_board_item(
                 BoardGroup.board_id == item.board_id,
             ).first()
             if not group:
-                raise HTTPException(status_code=400, detail="Chapter not found on this board")
+                raise HTTPException(status_code=400, detail="Booklet not found on this board")
             item.group_id = group.id
     if data.x is not None:
         item.x = data.x
@@ -1131,7 +1133,7 @@ async def create_board_group(
     anchor_x = min(item.x for item in items)
     for item in items:
         item.group_id = group.id
-        if data.kind == "chapter":
+        if data.kind == "booklet":
             item.x = anchor_x
     board.updated_at = datetime.utcnow()
     db.commit()

@@ -345,7 +345,7 @@ class BoardGroup(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
-    kind = Column(String(20), nullable=False, default="chapter", server_default="chapter")
+    kind = Column(String(20), nullable=False, default="booklet", server_default="booklet")
     title = Column(String(240), nullable=False)
     header = Column(Text, nullable=True)
     auto_arrange = Column(Boolean, nullable=False, default=False, server_default="0")

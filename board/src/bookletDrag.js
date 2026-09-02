@@ -1,5 +1,5 @@
-export const CHAPTER_GAP = 18;
-export const CHAPTER_MIN_HEIGHT = 74;
+export const BOOKLET_GAP = 18;
+export const BOOKLET_MIN_HEIGHT = 74;
 export const DRAG_THRESHOLD_PX = 4;
 export const DEFAULT_CARD_WIDTH = 300;
 export const COLLECTION_TIDY_GAP = 80;
@@ -13,15 +13,15 @@ export function cardCenter(position, width, height) {
   return { x: position.x + width / 2, y: position.y + height / 2 };
 }
 
-export function chapterDropTarget(chapters, center, originGroupId = null) {
-  return chapters.find((chapter) => {
-    const horizontal = center.x >= chapter.x && center.x <= chapter.x + chapter.width;
-    if (originGroupId != null) return chapter.id === originGroupId && horizontal;
-    return horizontal && center.y >= chapter.y && center.y <= chapter.y + chapter.height;
+export function bookletDropTarget(booklets, center, originGroupId = null) {
+  return booklets.find((booklet) => {
+    const horizontal = center.x >= booklet.x && center.x <= booklet.x + booklet.width;
+    if (originGroupId != null) return booklet.id === originGroupId && horizontal;
+    return horizontal && center.y >= booklet.y && center.y <= booklet.y + booklet.height;
   }) || null;
 }
 
-export function chapterInsertionIndex(members, draggedCenterY) {
+export function bookletInsertionIndex(members, draggedCenterY) {
   const sorted = [...members].sort((a, b) => a.y - b.y);
   const index = sorted.findIndex((member) => draggedCenterY <= member.y + member.height / 2);
   return index < 0 ? sorted.length : index;
@@ -29,14 +29,14 @@ export function chapterInsertionIndex(members, draggedCenterY) {
 
 export function stackWithInsertion(members, dragged, groupId, anchor = null) {
   const sorted = [...members].sort((a, b) => a.y - b.y);
-  const insertAt = chapterInsertionIndex(sorted, dragged.centerY);
+  const insertAt = bookletInsertionIndex(sorted, dragged.centerY);
   const x = anchor?.x ?? (sorted.length ? Math.min(...sorted.map((member) => member.x)) : dragged.x);
   let y = anchor?.y ?? (sorted.length ? Math.min(...sorted.map((member) => member.y)) : dragged.y);
   const order = [...sorted];
   order.splice(insertAt, 0, dragged);
   const positions = order.map((member) => {
     const position = { id: member.id, group_id: groupId, x, y };
-    y += member.height + CHAPTER_GAP;
+    y += member.height + BOOKLET_GAP;
     return position;
   });
   return { positions, insertAt };
@@ -50,15 +50,15 @@ export function stackWithout(members, removedId, groupId) {
   let y = Math.min(...sorted.map((member) => member.y));
   return remaining.map((member) => {
     const position = { id: member.id, group_id: groupId, x, y };
-    y += member.height + CHAPTER_GAP;
+    y += member.height + BOOKLET_GAP;
     return position;
   });
 }
 
-export function previewChapterHeight(chapterY, positions, heights) {
-  if (!positions.length) return CHAPTER_MIN_HEIGHT;
+export function previewBookletHeight(bookletY, positions, heights) {
+  if (!positions.length) return BOOKLET_MIN_HEIGHT;
   const bottom = Math.max(...positions.map((position) => position.y + heights.get(position.id)));
-  return Math.max(CHAPTER_MIN_HEIGHT, bottom - chapterY);
+  return Math.max(BOOKLET_MIN_HEIGHT, bottom - bookletY);
 }
 
 export function membershipHistorySnapshots(items, draggedId, targetGroupId, destination, originLayout = [], targetLayout = []) {

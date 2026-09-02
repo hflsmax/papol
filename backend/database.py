@@ -73,6 +73,16 @@ def backfill_board_guids():
         ))
 
 
+def normalize_board_group_kinds():
+    """Rename the legacy chapter discriminator without breaking saved boards."""
+    with engine.begin() as conn:
+        if not _table_exists(conn, "board_groups"):
+            return
+        conn.execute(text(
+            "UPDATE board_groups SET kind='booklet' WHERE kind='chapter'"
+        ))
+
+
 def backfill_board_shelves():
     """Place legacy boards on their owner's default shelf."""
     with engine.begin() as conn:

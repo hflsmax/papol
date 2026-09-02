@@ -275,11 +275,18 @@ class BoardItemUpdate(BaseModel):
 
 
 class BoardGroupCreate(BaseModel):
-    kind: Literal["chapter", "collection"] = "chapter"
+    kind: Literal["booklet", "collection", "chapter"] = "booklet"
     title: str = Field(default="", max_length=240)
     header: str = Field(default="", max_length=4000)
     auto_arrange: bool = False
     item_ids: List[int] = Field(min_length=2, max_length=100)
+
+    @model_validator(mode="after")
+    def normalize_legacy_kind(self):
+        # Older board clients may still submit the former discriminator.
+        if self.kind == "chapter":
+            self.kind = "booklet"
+        return self
 
 
 class BoardGroupUpdate(BaseModel):
@@ -310,7 +317,7 @@ class BoardGroupLayout(BaseModel):
 
 class BoardGroupOut(BaseModel):
     id: int
-    kind: Literal["chapter", "collection"]
+    kind: Literal["booklet", "collection"]
     title: str
     header: str = ""
     auto_arrange: bool = False

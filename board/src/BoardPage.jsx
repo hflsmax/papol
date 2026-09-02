@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
 import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
 import BackLink from '../../frontend/src/components/BackLink.jsx';
-import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewChapterHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './chapterDrag.js';
+import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -71,22 +71,22 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const [imageUrls, setImageUrls] = useState({});
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [selectedChapter, setSelectedChapter] = useState(null);
+  const [selectedBooklet, setSelectedBooklet] = useState(null);
   const [menuItem, setMenuItem] = useState(null);
   const [marquee, setMarquee] = useState(null);
   const [urlLoading, setUrlLoading] = useState([]);
   const [showNewBoardHint, setShowNewBoardHint] = useState(false);
   const urlLoadingRef = useRef([]);
-  const [chapterLayouts, setChapterLayouts] = useState([]);
-  const [chapterRedraws, setChapterRedraws] = useState({});
-  const [dropChapter, setDropChapter] = useState(null);
+  const [bookletLayouts, setBookletLayouts] = useState([]);
+  const [bookletRedraws, setBookletRedraws] = useState({});
+  const [dropBooklet, setDropBooklet] = useState(null);
   const [visibleGrip, setVisibleGrip] = useState(null);
   const [foregroundGrip, setForegroundGrip] = useState(null);
   const [draggingGrip, setDraggingGrip] = useState(null);
-  const [editingChapter, setEditingChapter] = useState(null);
-  const [chapterTitleDraft, setChapterTitleDraft] = useState('');
-  const [editingChapterHeader, setEditingChapterHeader] = useState(null);
-  const [chapterHeaderDraft, setChapterHeaderDraft] = useState('');
+  const [editingBooklet, setEditingBooklet] = useState(null);
+  const [bookletTitleDraft, setBookletTitleDraft] = useState('');
+  const [editingBookletHeader, setEditingBookletHeader] = useState(null);
+  const [bookletHeaderDraft, setBookletHeaderDraft] = useState('');
   const [editingDescription, setEditingDescription] = useState(null);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [editingText, setEditingText] = useState(null);
@@ -105,14 +105,14 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const newNoteToSelect = useRef(null);
-  const suppressChapterClick = useRef(null);
+  const suppressBookletClick = useRef(null);
   const showGrip = (itemId) => {
     setVisibleGrip(itemId);
   };
-  const redrawChapters = (groupIds) => {
+  const redrawBooklets = (groupIds) => {
     const ids = [...new Set(groupIds.filter((id) => id != null))];
     if (!ids.length) return;
-    setChapterRedraws((current) => {
+    setBookletRedraws((current) => {
       const next = { ...current };
       ids.forEach((id) => { next[id] = (next[id] || 0) + 1; });
       return next;
@@ -267,14 +267,14 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     });
     return () => { active = false; urls.forEach((url) => URL.revokeObjectURL(url)); };
   }, [imageIds]);
-  const chapterKey = board?.groups?.map((group) => `${group.id}:${group.kind}:${group.title}:${group.header}:${group.auto_arrange}:${group.item_ids.join(',')}`).join('|') || '';
+  const bookletKey = board?.groups?.map((group) => `${group.id}:${group.kind}:${group.title}:${group.header}:${group.auto_arrange}:${group.item_ids.join(',')}`).join('|') || '';
   useEffect(() => {
-    if (!board?.groups?.length || !stageRef.current) { setChapterLayouts([]); return undefined; }
+    if (!board?.groups?.length || !stageRef.current) { setBookletLayouts([]); return undefined; }
     let reflowTimer = null;
     const compact = () => {
       if (!board.can_edit) return;
       if (['item', 'resize'].includes(gesture.current?.type)) return;
-      const layouts = board.groups.filter((group) => group.kind === 'chapter').map((group) => {
+      const layouts = board.groups.filter((group) => group.kind === 'booklet').map((group) => {
         const members = group.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean).sort((a, b) => a.y - b.y);
         if (members.length < 2) return null;
         const x = Math.min(...members.map((item) => item.x));
@@ -301,7 +301,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       reflowTimer = setTimeout(compact, 60);
     };
     const measure = () => {
-      setChapterLayouts(board.groups.map((group) => {
+      setBookletLayouts(board.groups.map((group) => {
         const members = group.item_ids.map((id) => {
           const item = board.items.find((candidate) => candidate.id === id);
           const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
@@ -326,7 +326,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const observer = new ResizeObserver(measure);
     stageRef.current.querySelectorAll('.board-canvas-card').forEach((element) => observer.observe(element));
     return () => { cancelAnimationFrame(frame); observer.disconnect(); if (reflowTimer != null) clearTimeout(reflowTimer); };
-  }, [chapterKey, imageIds, board?.items, chapterRedraws]);
+  }, [bookletKey, imageIds, board?.items, bookletRedraws]);
 
   const paintView = (next) => {
     if (stageRef.current) {
@@ -473,7 +473,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   }, [board?.id]);
   const startPan = (event) => {
     if (event.button !== 0 || event.target.closest('.board-canvas-card, .board-youtube-loading')) return;
-    setSelectedChapter(null);
+    setSelectedBooklet(null);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (event.pointerType === 'touch') {
       touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -502,7 +502,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const startDrag = (event, item) => {
     if (event.button !== 0 || event.target.closest('button,a')) return;
-    setSelectedChapter(null);
+    setSelectedBooklet(null);
     setMenuItem(null);
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     if (!board.can_edit) {
@@ -523,7 +523,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       }).filter(Boolean);
       const groupIds = new Set(members.map((member) => board.items.find((candidate) => candidate.id === member.id)?.group_id).filter((id) => id != null));
       const groups = [...groupIds].map((id) => {
-        const layout = chapterLayouts.find((candidate) => candidate.id === id);
+        const layout = bookletLayouts.find((candidate) => candidate.id === id);
         const element = stageRef.current?.querySelector(`[data-group-id="${id}"]`);
         return layout && element ? { id, x: layout.x, y: layout.y, element } : null;
       }).filter(Boolean);
@@ -539,7 +539,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       const group = board.groups?.find((candidate) => candidate.id === item.group_id);
       if (group?.kind === 'collection') {
         raiseCards([item.id]);
-        event.currentTarget.classList.add('chapter-reordering');
+        event.currentTarget.classList.add('booklet-reordering');
         gesture.current = {
           type: 'free-item', id: item.id, originGroupId: group.id,
           sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
@@ -552,12 +552,12 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
         return member && element ? { id, x: member.x, y: member.y, element } : null;
       }).filter(Boolean);
-      const chapter = chapterLayouts.find((candidate) => candidate.id === group?.id);
-      const chapterElement = stageRef.current?.querySelector(`[data-group-id="${group?.id}"]`);
-      if (group && members?.length && chapter) {
+      const booklet = bookletLayouts.find((candidate) => candidate.id === group?.id);
+      const bookletElement = stageRef.current?.querySelector(`[data-group-id="${group?.id}"]`);
+      if (group && members?.length && booklet) {
         raiseCards(members.map((member) => member.id));
         gesture.current = {
-          type: 'chapter-move', groupId: group.id, members, chapter, chapterElement,
+          type: 'booklet-move', groupId: group.id, members, booklet, bookletElement,
           clickedId: item.id, sx: event.clientX, sy: event.clientY,
           mode: selectionMode(event), baseSelected: [...selectedItems],
         };
@@ -566,7 +566,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     }
     gesture.current = {
       type: 'free-item', id: item.id,
-      chapter: null, chapterElement: null, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
+      booklet: null, bookletElement: null, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
       element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems],
     };
     raiseCards([item.id]);
@@ -575,15 +575,15 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (event.button !== 0 || !board.can_edit) return;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setSelectedChapter(null); setMenuItem(null);
+    setSelectedBooklet(null); setMenuItem(null);
     const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
     if (!element) return;
-    element.classList.add('chapter-reordering');
+    element.classList.add('booklet-reordering');
     raiseCards([item.id]);
     gesture.current = {
       type: 'membership-item', id: item.id, originGroupId: item.group_id || null,
       sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element,
-      collectionBounds: new Map(chapterLayouts.filter((group) => group.kind === 'collection').map((group) => {
+      collectionBounds: new Map(bookletLayouts.filter((group) => group.kind === 'collection').map((group) => {
         const collection = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
         return [group.id, collection?.getBoundingClientRect() || null];
       })),
@@ -607,7 +607,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       const groupIds = [...new Set(entries.map((entry) => {
         const candidate = board.items.find((boardItem) => boardItem.id === entry.id);
         const group = board.groups.find((boardGroup) => boardGroup.id === candidate?.group_id);
-        return group?.kind === 'chapter' ? group.id : null;
+        return group?.kind === 'booklet' ? group.id : null;
       }).filter((id) => id != null))];
       const beforeLayouts = new Map(groupIds.map((groupId) => {
         const group = board.groups.find((candidate) => candidate.id === groupId);
@@ -620,18 +620,18 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       return;
     }
     const group = item.group_id ? board.groups?.find((candidate) => candidate.id === item.group_id) : null;
-    const chapter = group?.kind === 'chapter' ? group : null;
-    const beforePositions = chapter?.item_ids.map((id) => {
+    const booklet = group?.kind === 'booklet' ? group : null;
+    const beforePositions = booklet?.item_ids.map((id) => {
       const member = board.items.find((candidate) => candidate.id === id);
-      return { id, group_id: chapter.id, x: member.x, y: member.y };
+      return { id, group_id: booklet.id, x: member.x, y: member.y };
     });
     gesture.current = {
       type: 'resize', id: item.id, sx: event.clientX,
       width: item.width || 300, element: event.currentTarget.closest('.board-canvas-card'),
-      groupId: chapter?.id, beforePositions,
+      groupId: booklet?.id, beforePositions,
     };
   };
-  const compactChapterPositions = (groupId) => {
+  const compactBookletPositions = (groupId) => {
     const group = board.groups.find((candidate) => candidate.id === groupId);
     if (!group) return null;
     const members = group.item_ids
@@ -676,26 +676,26 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const settleDraggedCard = (element, position) => {
     if (!element || !position) return;
-    element.classList.remove('chapter-reordering');
-    element.classList.add('chapter-reorder-peer');
+    element.classList.remove('booklet-reordering');
+    element.classList.add('booklet-reorder-peer');
     element.style.transform = `translate(${position.x}px, ${position.y}px)`;
-    setTimeout(() => element.classList.remove('chapter-reorder-peer'), 190);
+    setTimeout(() => element.classList.remove('booklet-reorder-peer'), 190);
   };
-  const startChapterMove = (event, chapter) => {
+  const startBookletMove = (event, booklet) => {
     if (event.button !== 0 || !board.can_edit) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const members = chapter.item_ids.map((id) => {
+    const members = booklet.item_ids.map((id) => {
       const item = board.items.find((candidate) => candidate.id === id);
       const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
       return item && element ? { id, x: item.x, y: item.y, element } : null;
     }).filter(Boolean);
     if (!members.length) return;
-    setSelectedChapter(null);
+    setSelectedBooklet(null);
     setMenuItem(null);
     gesture.current = {
-      type: 'chapter-move', groupId: chapter.id, members, chapter,
-      chapterElement: stageRef.current?.querySelector(`[data-group-id="${chapter.id}"]`),
+      type: 'booklet-move', groupId: booklet.id, members, booklet,
+      bookletElement: stageRef.current?.querySelector(`[data-group-id="${booklet.id}"]`),
       sx: event.clientX, sy: event.clientY,
     };
   };
@@ -704,7 +704,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (!preview) return;
     preview.members?.forEach((member) => {
       member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
-      member.element.classList.remove('chapter-reorder-peer');
+      member.element.classList.remove('booklet-reorder-peer');
     });
     preview.element.style.transform = `translate(${preview.original.x}px, ${preview.original.y}px)`;
     preview.element.style.width = `${preview.original.width}px`;
@@ -714,7 +714,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const showCollectionPreview = (drag, group, point) => {
     if (drag.collectionPreview?.id !== group.id) clearCollectionPreview(drag);
-    const layout = chapterLayouts.find((candidate) => candidate.id === group.id);
+    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
     const element = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
     if (!layout || !element) return;
     const members = [...new Set([...group.item_ids, drag.id])].map((id) => {
@@ -743,7 +743,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         const peer = previewPeers.get(member.id);
         if (!peer) drag.collectionPreview.members.push(member);
         const position = positions.get(member.id);
-        member.element.classList.add('chapter-reorder-peer');
+        member.element.classList.add('booklet-reorder-peer');
         member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
       });
     }
@@ -768,7 +768,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (!preview) return;
     preview.members?.forEach((member) => {
       member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
-      member.element.classList.remove('chapter-reorder-peer');
+      member.element.classList.remove('booklet-reorder-peer');
     });
     preview.element.style.transform = `translate(${preview.original.x}px, ${preview.original.y}px)`;
     preview.element.style.width = `${preview.original.width}px`;
@@ -779,7 +779,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const showOriginCollectionPreview = (drag, group) => {
     if (drag.originCollectionPreview) return;
-    const layout = chapterLayouts.find((candidate) => candidate.id === group.id);
+    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
     const element = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
     if (!layout || !element) return;
     const members = group.item_ids.filter((id) => id !== drag.id).map((id) => {
@@ -800,7 +800,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       displayMembers = members.map((member) => ({ ...member, ...positions.get(member.id) }));
       previewMembers.forEach((member) => {
         const position = positions.get(member.id);
-        member.element.classList.add('chapter-reorder-peer');
+        member.element.classList.add('booklet-reorder-peer');
         member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
       });
     }
@@ -812,18 +812,18 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     element.style.width = `${maxRight - minX + COLLECTION_INSET_X * 2}px`;
     element.style.height = `${maxBottom - minY + COLLECTION_CARD_OFFSET_Y + COLLECTION_INSET_BOTTOM}px`;
   };
-  const clearMembershipChapterPreview = (drag) => {
-    const preview = drag?.membershipChapterPreview;
+  const clearMembershipBookletPreview = (drag) => {
+    const preview = drag?.membershipBookletPreview;
     if (!preview) return;
     preview.members.forEach((member) => {
       member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
-      member.element.classList.remove('chapter-reorder-peer');
+      member.element.classList.remove('booklet-reorder-peer');
     });
-    if (preview.chapterElement) preview.chapterElement.style.height = `${preview.originalHeight}px`;
-    drag.membershipChapterPreview = null;
+    if (preview.bookletElement) preview.bookletElement.style.height = `${preview.originalHeight}px`;
+    drag.membershipBookletPreview = null;
   };
-  const showMembershipChapterPreview = (drag, group, point, insertionY) => {
-    const layout = chapterLayouts.find((candidate) => candidate.id === group.id);
+  const showMembershipBookletPreview = (drag, group, point, insertionY) => {
+    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
     if (!layout) return;
     const members = group.item_ids.filter((id) => id !== drag.id).map((id) => {
       const item = board.items.find((candidate) => candidate.id === id);
@@ -840,32 +840,32 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       id: drag.id, x: point.x, y: point.y, height, centerY: insertionY,
     }, group.id, anchor).positions;
     const signature = `${group.id}:${after.map((position) => position.id).join(',')}`;
-    if (drag.membershipChapterPreview?.signature === signature) return;
-    clearMembershipChapterPreview(drag);
+    if (drag.membershipBookletPreview?.signature === signature) return;
+    clearMembershipBookletPreview(drag);
     const positions = new Map(after.map((position) => [position.id, position]));
     members.forEach((member) => {
       const position = positions.get(member.id);
-      member.element.classList.add('chapter-reorder-peer');
+      member.element.classList.add('booklet-reorder-peer');
       member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
     });
-    const chapterElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
+    const bookletElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
     const heights = new Map([...members.map((member) => [member.id, member.height]), [drag.id, height]]);
-    if (chapterElement) chapterElement.style.height = `${previewChapterHeight(layout.y, after, heights)}px`;
-    drag.membershipChapterPreview = { groupId: group.id, members, after, chapterElement, originalHeight: layout.height, signature };
+    if (bookletElement) bookletElement.style.height = `${previewBookletHeight(layout.y, after, heights)}px`;
+    drag.membershipBookletPreview = { groupId: group.id, members, after, bookletElement, originalHeight: layout.height, signature };
   };
-  const clearOriginChapterPreview = (drag) => {
-    const preview = drag?.originChapterPreview;
+  const clearOriginBookletPreview = (drag) => {
+    const preview = drag?.originBookletPreview;
     if (!preview) return;
     preview.members.forEach((member) => {
       member.element.style.transform = `translate(${member.x}px, ${member.y}px)`;
-      member.element.classList.remove('chapter-reorder-peer');
+      member.element.classList.remove('booklet-reorder-peer');
     });
-    if (preview.chapterElement) preview.chapterElement.style.height = `${preview.originalHeight}px`;
-    drag.originChapterPreview = null;
+    if (preview.bookletElement) preview.bookletElement.style.height = `${preview.originalHeight}px`;
+    drag.originBookletPreview = null;
   };
-  const showOriginChapterPreview = (drag, group) => {
-    if (drag.originChapterPreview) return;
-    const layout = chapterLayouts.find((candidate) => candidate.id === group.id);
+  const showOriginBookletPreview = (drag, group) => {
+    if (drag.originBookletPreview) return;
+    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
     if (!layout) return;
     const allMembers = group.item_ids.map((id) => {
       const item = board.items.find((candidate) => candidate.id === id);
@@ -877,13 +877,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const positions = new Map(after.map((position) => [position.id, position]));
     members.forEach((member) => {
       const position = positions.get(member.id);
-      member.element.classList.add('chapter-reorder-peer');
+      member.element.classList.add('booklet-reorder-peer');
       member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
     });
-    const chapterElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
+    const bookletElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
     const heights = new Map(members.map((member) => [member.id, member.height]));
-    if (chapterElement) chapterElement.style.height = `${previewChapterHeight(layout.y, after, heights)}px`;
-    drag.originChapterPreview = { members, after, chapterElement, originalHeight: layout.height };
+    if (bookletElement) bookletElement.style.height = `${previewBookletHeight(layout.y, after, heights)}px`;
+    drag.originBookletPreview = { members, after, bookletElement, originalHeight: layout.height };
   };
   const move = (event) => {
     const g = gesture.current; if (!g) return;
@@ -892,7 +892,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       if (moved && !g.moved) {
         const draggedId = g.id ?? g.clickedId ?? g.primaryId;
         if (draggedId != null) setDraggingGrip(draggedId);
-        setSelectedChapter(null);
+        setSelectedBooklet(null);
         setMenuItem(null);
       }
       g.moved = g.moved || moved;
@@ -923,13 +923,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         .map((card) => Number(card.dataset.itemId));
       setSelectedItems(mergeSelection(g.baseSelected, hitIds, g.mode));
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
-    else if (g.type === 'chapter-move') {
+    else if (g.type === 'booklet-move') {
       const dx = (event.clientX - g.sx) / viewRef.current.zoom;
       const dy = (event.clientY - g.sy) / viewRef.current.zoom;
       g.current = { dx, dy };
       registerDragMovement();
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x + dx}px, ${member.y + dy}px)`; });
-      if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x + dx}px, ${g.chapter.y + dy}px)`;
+      if (g.bookletElement) g.bookletElement.style.transform = `translate(${g.booklet.x + dx}px, ${g.booklet.y + dy}px)`;
     }
     else if (g.type === 'multi-item') {
       const dx = (event.clientX - g.sx) / viewRef.current.zoom;
@@ -952,7 +952,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         const pointer = boardPointFromClient(event.clientX, event.clientY, viewportRect, viewRef.current);
         const pointerX = pointer.x;
         g.insertionY = pointer.y;
-        const collectionTarget = chapterLayouts.find((group) => {
+        const collectionTarget = bookletLayouts.find((group) => {
           if (group.kind !== 'collection') return false;
           const rect = g.collectionBounds.get(group.id);
           if (!rect) return false;
@@ -960,28 +960,28 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           return event.clientX >= rect.left && event.clientX <= rect.right
             && event.clientY >= outlineTop && event.clientY <= rect.bottom;
         });
-        const originChapter = chapterLayouts.find((group) => group.kind === 'chapter' && group.id === g.originGroupId);
-        const staysInOriginChapter = originChapter && pointerX >= originChapter.x && pointerX <= originChapter.x + originChapter.width;
-        const chapterTarget = staysInOriginChapter ? originChapter : chapterLayouts.find((group) => group.kind === 'chapter' && group.id !== g.originGroupId
+        const originBooklet = bookletLayouts.find((group) => group.kind === 'booklet' && group.id === g.originGroupId);
+        const staysInOriginBooklet = originBooklet && pointerX >= originBooklet.x && pointerX <= originBooklet.x + originBooklet.width;
+        const bookletTarget = staysInOriginBooklet ? originBooklet : bookletLayouts.find((group) => group.kind === 'booklet' && group.id !== g.originGroupId
           && center.x >= group.x && center.x <= group.x + group.width
           && center.y >= group.y && center.y <= group.y + group.height);
-        g.dropGroupId = collectionTarget?.id || chapterTarget?.id || null;
-        setDropChapter(g.dropGroupId);
+        g.dropGroupId = collectionTarget?.id || bookletTarget?.id || null;
+        setDropBooklet(g.dropGroupId);
         const target = board.groups.find((group) => group.id === g.dropGroupId);
         const origin = board.groups.find((group) => group.id === g.originGroupId);
-        if (origin?.kind === 'chapter' && target?.id !== origin.id) showOriginChapterPreview(g, origin);
-        else clearOriginChapterPreview(g);
+        if (origin?.kind === 'booklet' && target?.id !== origin.id) showOriginBookletPreview(g, origin);
+        else clearOriginBookletPreview(g);
         if (origin?.kind === 'collection' && target?.id !== origin.id) showOriginCollectionPreview(g, origin);
         else clearOriginCollectionPreview(g);
         if (target?.kind === 'collection') {
-          clearMembershipChapterPreview(g);
+          clearMembershipBookletPreview(g);
           showCollectionPreview(g, target, g.current);
-        } else if (target?.kind === 'chapter') {
+        } else if (target?.kind === 'booklet') {
           clearCollectionPreview(g);
-          showMembershipChapterPreview(g, target, g.current, g.insertionY);
+          showMembershipBookletPreview(g, target, g.current, g.insertionY);
         } else {
           clearCollectionPreview(g);
-          clearMembershipChapterPreview(g);
+          clearMembershipBookletPreview(g);
         }
       } else if (g.type === 'free-item' && g.originGroupId) {
         const group = board.groups.find((candidate) => candidate.id === g.originGroupId);
@@ -1003,20 +1003,20 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const g = gesture.current;
     gesture.current = null;
     setDraggingGrip(null);
-    setDropChapter(null);
+    setDropBooklet(null);
     setMarquee(null);
     touches.current.clear();
     if (!g) return;
     if (g.type === 'free-item' || g.type === 'loading-item' || g.type === 'membership-item') {
       clearCollectionPreview(g);
       clearOriginCollectionPreview(g);
-      clearMembershipChapterPreview(g);
-      clearOriginChapterPreview(g);
+      clearMembershipBookletPreview(g);
+      clearOriginBookletPreview(g);
       g.element.style.transform = `translate(${g.x}px, ${g.y}px)`;
-      g.element.classList.remove('chapter-reordering');
-    } else if (g.type === 'chapter-move') {
+      g.element.classList.remove('booklet-reordering');
+    } else if (g.type === 'booklet-move') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
-      if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+      if (g.bookletElement) g.bookletElement.style.transform = `translate(${g.booklet.x}px, ${g.booklet.y}px)`;
     } else if (g.type === 'multi-item') {
       g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
       g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
@@ -1029,19 +1029,19 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const endGesture = (event) => {
     const g = gesture.current; gesture.current = null;
     setDraggingGrip(null);
-    setDropChapter(null);
+    setDropBooklet(null);
     if (g?.type === 'membership-item') {
-      const membershipPeers = [...(g.membershipChapterPreview?.members || []), ...(g.collectionPreview?.members || [])];
-      const originPeers = [...(g.originChapterPreview?.members || []), ...(g.originCollectionPreview?.members || [])];
-      setTimeout(() => [...membershipPeers, ...originPeers].forEach((member) => member.element.classList.remove('chapter-reorder-peer')), 190);
-      g.element.classList.remove('chapter-reordering');
+      const membershipPeers = [...(g.membershipBookletPreview?.members || []), ...(g.collectionPreview?.members || [])];
+      const originPeers = [...(g.originBookletPreview?.members || []), ...(g.originCollectionPreview?.members || [])];
+      setTimeout(() => [...membershipPeers, ...originPeers].forEach((member) => member.element.classList.remove('booklet-reorder-peer')), 190);
+      g.element.classList.remove('booklet-reordering');
       const item = board.items.find((candidate) => candidate.id === g.id);
       const point = g.current || { x: g.x, y: g.y };
       const target = board.groups.find((group) => group.id === g.dropGroupId) || null;
       const origin = board.groups.find((group) => group.id === g.originGroupId) || null;
       const saveMembership = async () => {
         let targetLayout = null;
-        if (target?.kind === 'chapter') {
+        if (target?.kind === 'booklet') {
           const members = target.item_ids.filter((id) => id !== item.id).map((id) => {
             const member = board.items.find((candidate) => candidate.id === id);
             const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
@@ -1052,8 +1052,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
               x: Math.min(result.x, member.x), y: Math.min(result.y, member.y),
             }), { x: Infinity, y: Infinity })
             : null;
-          targetLayout = g.membershipChapterPreview?.groupId === target.id
-            ? g.membershipChapterPreview.after
+          targetLayout = g.membershipBookletPreview?.groupId === target.id
+            ? g.membershipBookletPreview.after
             : stackWithInsertion(members, {
               id: item.id, x: point.x, y: point.y, height: g.element.offsetHeight || 1,
               centerY: g.insertionY ?? point.y + (g.element.offsetHeight || 1) / 2,
@@ -1063,7 +1063,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           targetLayout = collectionLayout(target, item.id, point);
         }
         let originLayout = null;
-        if (origin?.kind === 'chapter' && origin.id !== target?.id) {
+        if (origin?.kind === 'booklet' && origin.id !== target?.id) {
           const members = origin.item_ids.map((id) => {
             const member = board.items.find((candidate) => candidate.id === id);
             const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
@@ -1085,9 +1085,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         undoStack.current.push({ type: 'membership', ...history });
         redoStack.current = [];
         await load();
-        redrawChapters([
-          origin?.kind === 'chapter' ? origin.id : null,
-          target?.kind === 'chapter' ? target.id : null,
+        redrawBooklets([
+          origin?.kind === 'booklet' ? origin.id : null,
+          target?.kind === 'booklet' ? target.id : null,
         ]);
       };
       if (item && g.moved) {
@@ -1100,13 +1100,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       } else {
         clearCollectionPreview(g);
         clearOriginCollectionPreview(g);
-        clearMembershipChapterPreview(g);
-        clearOriginChapterPreview(g);
+        clearMembershipBookletPreview(g);
+        clearOriginBookletPreview(g);
         g.element.style.transform = `translate(${g.x}px, ${g.y}px)`;
       }
     }
     if (g?.type === 'free-item') {
-      g.element.classList.remove('chapter-reordering');
+      g.element.classList.remove('booklet-reordering');
       g.collectionPreview?.element.classList.remove('moving-active');
       const point = g.current || { x: g.x, y: g.y };
       if (g.moved) {
@@ -1120,7 +1120,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           undoStack.current.push({ type: 'membership', ...history });
           redoStack.current = [];
           setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, ...positions.get(item.id) } : item) }));
-          setTimeout(() => g.collectionPreview?.members?.forEach((member) => member.element.classList.remove('chapter-reorder-peer')), 190);
+          setTimeout(() => g.collectionPreview?.members?.forEach((member) => member.element.classList.remove('booklet-reorder-peer')), 190);
           setBusy(true);
           layoutBoardGroup(group.id, layout).then(load).catch((err) => { setError(err.message); load(); }).finally(() => setBusy(false));
         } else {
@@ -1134,11 +1134,11 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         setSelectedItems(mergeSelection(g.baseSelected, [g.id], g.mode));
       }
     }
-    if (g?.type === 'chapter-move') {
+    if (g?.type === 'booklet-move') {
       const { dx = 0, dy = 0 } = g.current || {};
       if (g.moved) {
-        suppressChapterClick.current = g.groupId;
-        setSelectedChapter(null);
+        suppressBookletClick.current = g.groupId;
+        setSelectedBooklet(null);
         setMenuItem(null);
         undoStack.current.push({ type: 'group-move', id: g.groupId, dx, dy });
         redoStack.current = [];
@@ -1147,10 +1147,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         moveBoardGroup(g.groupId, dx, dy).catch((err) => { setError(err.message); load(); });
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
-        if (g.chapterElement) g.chapterElement.style.transform = `translate(${g.chapter.x}px, ${g.chapter.y}px)`;
+        if (g.bookletElement) g.bookletElement.style.transform = `translate(${g.booklet.x}px, ${g.booklet.y}px)`;
         if (g.clickedId != null) {
           setSelectedItems(mergeSelection(g.baseSelected, [g.clickedId], g.mode));
-          setSelectedChapter(null);
+          setSelectedBooklet(null);
           setMenuItem(null);
         }
       }
@@ -1183,7 +1183,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (g?.type === 'resize') {
       const width = g.current ?? g.width;
       if (Math.abs(width - g.width) > 1) {
-        const afterPositions = g.groupId ? compactChapterPositions(g.groupId) : null;
+        const afterPositions = g.groupId ? compactBookletPositions(g.groupId) : null;
         undoStack.current.push({ type: 'resize', id: g.id, from: g.width, to: width, groupId: g.groupId, beforePositions: g.beforePositions, afterPositions });
         redoStack.current = [];
         const positions = new Map(afterPositions?.map((position) => [position.id, position]));
@@ -1207,7 +1207,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         const layouts = g.groupIds.map((groupId) => ({
           id: groupId,
           before: g.beforeLayouts.get(groupId),
-          after: compactChapterPositions(groupId),
+          after: compactBookletPositions(groupId),
         }));
         const positions = new Map(layouts.flatMap((layout) => layout.after).map((position) => [position.id, position]));
         undoStack.current.push({ type: 'resize-selection', changes, layouts });
@@ -1296,7 +1296,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? updated : candidate) }));
     } catch (err) { setError(err.message); }
   };
-  const groupAsChapter = async () => {
+  const groupAsBooklet = async () => {
     if (selectedItems.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
     setBusy(true); setError(null);
     try {
@@ -1304,13 +1304,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         const item = board.items.find((candidate) => candidate.id === id);
         return { id, group_id: item.group_id || null, x: item.x, y: item.y };
       });
-      const group = await createBoardGroup(board.guid, { kind: 'chapter', title: '', item_ids: selectedItems });
-      undoStack.current.push({ type: 'group', kind: 'chapter', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
+      const group = await createBoardGroup(board.guid, { kind: 'booklet', title: '', item_ids: selectedItems });
+      undoStack.current.push({ type: 'group', kind: 'booklet', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
       redoStack.current = [];
       setSelectedItems([]);
       await load();
-      setChapterTitleDraft('');
-      setEditingChapter(group.id);
+      setBookletTitleDraft('');
+      setEditingBooklet(group.id);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const groupAsCollection = async () => {
@@ -1326,25 +1326,25 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       redoStack.current = [];
       setSelectedItems([]);
       await load();
-      setChapterTitleDraft('');
-      setEditingChapter(group.id);
+      setBookletTitleDraft('');
+      setEditingBooklet(group.id);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const ungroupChapter = async (chapter) => {
-    const items = chapter.item_ids.map((id) => {
+  const ungroupBooklet = async (booklet) => {
+    const items = booklet.item_ids.map((id) => {
       const item = board.items.find((candidate) => candidate.id === id);
       return { id, group_id: null, x: item.x, y: item.y };
     });
     setBusy(true); setError(null);
     try {
-      await ungroupBoardGroup(chapter.id, items);
+      await ungroupBoardGroup(booklet.id, items);
       undoStack.current.push({
-        type: 'ungroup', kind: chapter.kind, id: chapter.id, boardGuid: board.guid,
-        title: chapter.title, header: chapter.header, autoArrange: chapter.auto_arrange,
-        itemIds: [...chapter.item_ids], items,
+        type: 'ungroup', kind: booklet.kind, id: booklet.id, boardGuid: board.guid,
+        title: booklet.title, header: booklet.header, autoArrange: booklet.auto_arrange,
+        itemIds: [...booklet.item_ids], items,
       });
       redoStack.current = [];
-      setSelectedChapter(null);
+      setSelectedBooklet(null);
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
@@ -1429,26 +1429,26 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       await load();
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
-  const saveChapterTitle = async (chapter) => {
-    setEditingChapter(null);
+  const saveBookletTitle = async (booklet) => {
+    setEditingBooklet(null);
     try {
-      const updated = await updateBoardGroup(chapter.id, { title: chapterTitleDraft });
+      const updated = await updateBoardGroup(booklet.id, { title: bookletTitleDraft });
       for (let index = undoStack.current.length - 1; index >= 0; index -= 1) {
         const action = undoStack.current[index];
-        if (action.type === 'group' && action.id === chapter.id) { action.title = updated.title; break; }
+        if (action.type === 'group' && action.id === booklet.id) { action.title = updated.title; break; }
       }
-      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === chapter.id ? updated : group) }));
+      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === booklet.id ? updated : group) }));
     } catch (err) { setError(err.message); }
   };
-  const saveChapterHeader = async (chapter) => {
-    setEditingChapterHeader(null);
+  const saveBookletHeader = async (booklet) => {
+    setEditingBookletHeader(null);
     try {
-      const updated = await updateBoardGroup(chapter.id, { header: chapterHeaderDraft });
+      const updated = await updateBoardGroup(booklet.id, { header: bookletHeaderDraft });
       for (let index = undoStack.current.length - 1; index >= 0; index -= 1) {
         const action = undoStack.current[index];
-        if (action.type === 'group' && action.id === chapter.id) { action.header = updated.header; break; }
+        if (action.type === 'group' && action.id === booklet.id) { action.header = updated.header; break; }
       }
-      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === chapter.id ? updated : group) }));
+      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === booklet.id ? updated : group) }));
     } catch (err) { setError(err.message); }
   };
   const applyHistory = async (direction) => {
@@ -1473,7 +1473,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           x: item.x,
           y: item.y,
         })));
-      } else if (action.type === 'chapter-join') {
+      } else if (action.type === 'booklet-join') {
         const joined = action.after.find((position) => position.id === action.id);
         if (direction === 'undo') {
           await updateBoardItem(action.id, { group_id: null, ...action.from });
@@ -1482,7 +1482,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           await updateBoardItem(action.id, { group_id: action.groupId, x: joined.x, y: joined.y });
           await layoutBoardGroup(action.groupId, action.after);
         }
-      } else if (action.type === 'chapter-leave') {
+      } else if (action.type === 'booklet-leave') {
         const original = action.before.find((position) => position.id === action.id);
         if (direction === 'undo') {
           await updateBoardItem(action.id, { group_id: action.groupId, x: original.x, y: original.y });
@@ -1500,7 +1500,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         } else {
           const previousId = action.id;
           const group = await createBoardGroup(action.boardGuid, {
-            kind: action.kind || 'chapter', title: action.title, header: action.header,
+            kind: action.kind || 'booklet', title: action.title, header: action.header,
             auto_arrange: action.autoArrange || false, item_ids: action.itemIds,
           });
           action.id = group.id;
@@ -1511,7 +1511,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       } else if (action.type === 'ungroup') {
         if (direction === 'undo') {
           const group = await createBoardGroup(action.boardGuid, {
-            kind: action.kind || 'chapter', title: action.title, header: action.header,
+            kind: action.kind || 'booklet', title: action.title, header: action.header,
             auto_arrange: action.autoArrange || false, item_ids: action.itemIds,
           });
           action.id = group.id;
@@ -1568,13 +1568,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       if (event.key === 'Escape') {
         boardActionsRef.current?.removeAttribute('open');
         setSelectedItems([]);
-        setSelectedChapter(null);
+        setSelectedBooklet(null);
         setMenuItem(null);
         cancelGesture();
         setEditingDescription(null);
         setEditingText(null);
-        setEditingChapter(null);
-        setEditingChapterHeader(null);
+        setEditingBooklet(null);
+        setEditingBookletHeader(null);
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
@@ -1634,7 +1634,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const createNoteAt = async (event) => {
-    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-chapter, .board-staging')) return;
+    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-booklet, .board-staging')) return;
     const bounds = viewportRef.current?.getBoundingClientRect();
     if (!bounds) return;
     const { x, y } = boardPointFromClient(
@@ -1652,7 +1652,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         items: [...currentBoard.items, item],
       }));
       setSelectedItems([]);
-      setSelectedChapter(null);
+      setSelectedBooklet(null);
       setTextDraft(item.content);
       newNoteToSelect.current = item.id;
       setEditingText(item.id);
@@ -1673,17 +1673,17 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const canGroupSelection = selectedItems.every((id) =>
     board.items.find((item) => item.id === id)?.group_id == null
   );
-  const activeChapter = board.groups?.find((chapter) => chapter.id === selectedChapter);
+  const activeBooklet = board.groups?.find((booklet) => booklet.id === selectedBooklet);
   const handleBoardPointerDownCapture = (event) => {
-    const editing = editingText != null || editingDescription != null || editingChapter != null || editingChapterHeader != null;
-    if (editing && !event.target.closest?.('.board-inline-text-editor, input.board-chapter-title, textarea.board-chapter-header-text')) {
-      const editor = document.querySelector('.board-inline-text-editor textarea, input.board-chapter-title, textarea.board-chapter-header-text');
+    const editing = editingText != null || editingDescription != null || editingBooklet != null || editingBookletHeader != null;
+    if (editing && !event.target.closest?.('.board-inline-text-editor, input.board-booklet-title, textarea.board-booklet-header-text')) {
+      const editor = document.querySelector('.board-inline-text-editor textarea, input.board-booklet-title, textarea.board-booklet-header-text');
       if (editor instanceof HTMLInputElement || editor instanceof HTMLTextAreaElement) editor.blur();
       else {
         setEditingText(null);
         setEditingDescription(null);
-        setEditingChapter(null);
-        setEditingChapterHeader(null);
+        setEditingBooklet(null);
+        setEditingBookletHeader(null);
       }
     }
     if (!selectedItems.length || event.shiftKey || event.metaKey || event.ctrlKey) return;
@@ -1706,8 +1706,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     </header>
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
-    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={groupAsCollection}>Make collection</button><button type="button" disabled={busy} onClick={groupAsChapter}>Make chapter</button></>}</div>}
-    {board.can_edit && activeChapter && <div className="board-selection-menu"><span>{activeChapter.kind === 'collection' ? 'Collection' : 'Chapter'} selected</span>{activeChapter.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeChapter.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeChapter)}>{activeChapter.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeChapter)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupChapter(activeChapter)}>Ungroup</button></div>}
+    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={groupAsCollection}>Make collection</button><button type="button" disabled={busy} onClick={groupAsBooklet}>Make booklet</button></>}</div>}
+    {board.can_edit && activeBooklet && <div className="board-selection-menu"><span>{activeBooklet.kind === 'collection' ? 'Collection' : 'Booklet'} selected</span>{activeBooklet.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeBooklet.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeBooklet)}>{activeBooklet.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeBooklet)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupBooklet(activeBooklet)}>Ungroup</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
@@ -1746,22 +1746,22 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       )}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {chapterLayouts.map((chapter) => <div key={`${chapter.id}:${chapterRedraws[chapter.id] || 0}`} data-group-id={chapter.id} className={`board-chapter ${chapter.kind}${chapter.auto_arrange ? ' auto-arrange' : ''}${selectedChapter === chapter.id ? ' selected' : ''}${dropChapter === chapter.id ? ' drop-active' : ''}`} style={{ transform: `translate(${chapter.x}px, ${chapter.y}px)`, width: chapter.kind === 'collection' ? chapter.width : undefined, height: chapter.height }} onPointerDown={(event) => { if (chapter.kind === 'collection' && event.target === event.currentTarget) startChapterMove(event, chapter); }}>
-          {board.can_edit && <button type="button" className="board-chapter-spine" aria-label={`Move or select ${chapter.kind}${chapter.title ? ` ${chapter.title}` : ''}`} aria-pressed={selectedChapter === chapter.id} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedChapter((current) => current === chapter.id ? null : chapter.id); }} />}
-          <div className="board-chapter-heading" style={{ width: Math.max(0, chapter.width - 14) }}>
-            {editingChapter === chapter.id
-              ? <input className="board-chapter-title" aria-label={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title`} placeholder={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title`} autoFocus maxLength="240" value={chapterTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterTitleDraft(event.target.value)} onBlur={() => saveChapterTitle(chapter)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapter(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-chapter-title${chapter.title ? '' : ' empty'}`} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setChapterTitleDraft(chapter.title); setEditingChapter(chapter.id); }}>{chapter.title || (board.can_edit ? `${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} title` : '')}</button>}
+        {bookletLayouts.map((booklet) => <div key={`${booklet.id}:${bookletRedraws[booklet.id] || 0}`} data-group-id={booklet.id} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.id ? ' selected' : ''}${dropBooklet === booklet.id ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
+          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.id} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedBooklet((current) => current === booklet.id ? null : booklet.id); }} />}
+          <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
+            {editingBooklet === booklet.id
+              ? <input className="board-booklet-title" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} placeholder={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} autoFocus maxLength="240" value={bookletTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletTitleDraft(event.target.value)} onBlur={() => saveBookletTitle(booklet)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBooklet(null); } }} />
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setBookletTitleDraft(booklet.title); setEditingBooklet(booklet.id); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
           </div>
-          <div className="board-chapter-header" style={{ width: Math.max(0, chapter.width - 14) }}>
-            {editingChapterHeader === chapter.id
-              ? <textarea className="board-chapter-header-text" aria-label={`${chapter.kind === 'collection' ? 'Collection' : 'Chapter'} header text`} placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={chapterHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setChapterHeaderDraft(event.target.value)} onBlur={() => saveChapterHeader(chapter)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingChapterHeader(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-chapter-header-text${chapter.header ? '' : ' empty'}`} onPointerDown={(event) => startChapterMove(event, chapter)} onClick={() => { if (suppressChapterClick.current === chapter.id) { suppressChapterClick.current = null; return; } setChapterHeaderDraft(chapter.header || ''); setEditingChapterHeader(chapter.id); }}>{chapter.header || (board.can_edit ? 'Add header text…' : '')}</button>}
+          <div className="board-booklet-header" style={{ width: Math.max(0, booklet.width - 14) }}>
+            {editingBookletHeader === booklet.id
+              ? <textarea className="board-booklet-header-text" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} header text`} placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={bookletHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletHeaderDraft(event.target.value)} onBlur={() => saveBookletHeader(booklet)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBookletHeader(null); } }} />
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setBookletHeaderDraft(booklet.header || ''); setEditingBookletHeader(booklet.id); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
           </div>
-          {chapter.kind === 'chapter' && chapter.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-chapter-branch" style={{ top: branch.top, width: branch.width }} />)}
+          {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${chapterRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
@@ -1774,10 +1774,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onFocus={(event) => { if (newNoteToSelect.current === item.id) { event.currentTarget.select(); newNoteToSelect.current = null; } }} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
-            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedChapter(null); setMenuItem(null); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
+            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
           {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.id
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
-            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedChapter(null); setMenuItem(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
+            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
           {item.kind === 'excerpt' && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>}
           </div>
           {selectedItems.length === 1 && selectedItems[0] === item.id && menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
