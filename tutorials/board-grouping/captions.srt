@@ -1,0 +1,28 @@
+1
+00:00:00,400 --> 00:00:05,625
+Related cards can turn a busy board
+into a clear structure.
+
+2
+00:00:05,700 --> 00:00:09,350
+Hold Shift and select two or more cards.
+
+3
+00:00:10,300 --> 00:00:17,200
+Choose Make booklet for an ordered thread.
+Papol stacks it into a vertical reading path.
+
+4
+00:00:17,900 --> 00:00:24,250
+For ideas without a fixed order, select another set
+and choose Make collection.
+
+5
+00:00:25,000 --> 00:00:34,475
+Collections keep a flexible layout. Choose Auto-arrange
+for a tidy grid, or Freeform to arrange cards yourself.
+
+6
+00:00:34,550 --> 00:00:39,775
+Booklets are paths. Collections are clusters.
+Enjoy Papol.

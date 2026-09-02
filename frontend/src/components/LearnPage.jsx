@@ -14,6 +14,12 @@ const lessons = [
     video: '/assets/learn/animal-functionality.mp4',
     poster: '/assets/learn/animal-functionality.jpg',
   },
+  {
+    id: 'group-board-cards',
+    title: 'Group cards with booklets and collections',
+    video: '/assets/learn/board-grouping.mp4',
+    poster: '/assets/learn/board-grouping.jpg',
+  },
 ];
 
 export default function LearnPage() {
