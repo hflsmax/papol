@@ -1,0 +1,7 @@
+When reading a paper, a relevant figure may be too far from the text to see.
+When that happens, use the clipping feature in the viewer to keep it nearby.
+The result is a movable clip. Resize it to fit, then place it beside the text.
+You can also send the clip to a board.
+A pinned clip moves with the paper as you scroll.
+Choose Free float and scroll. The clip stays in place.
+Enjoy Papol.

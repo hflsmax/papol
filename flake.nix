@@ -72,6 +72,12 @@
       ruff
       chromium
       ffmpeg
+      # Native libraries used by the optional Kokoro tutorial voice generator.
+      # The Python package itself lives in a disposable venv, while its binary
+      # wheels resolve their runtime libraries from this reproducible shell.
+      stdenv.cc.cc.lib
+      zlib
+      libsndfile
       # Playwright will not download browsers here and should not try; these
       # are the ones Nix built, wired up by PLAYWRIGHT_BROWSERS_PATH below.
       playwright-driver.browsers
@@ -127,6 +133,7 @@
         packages = devPackages pkgs;
 
         shellHook = ''
+          export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.libsndfile ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           echo "Papol development environment"
           echo "  Backend:  cd backend && uvicorn main:app --reload"
           echo "  Frontend: cd frontend && npm install && npm run dev"

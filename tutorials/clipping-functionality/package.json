@@ -1,0 +1,8 @@
+{
+  "name": "papol-clipping-tutorial",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "24.16.0"
+  }
+}

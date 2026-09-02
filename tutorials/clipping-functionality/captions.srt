@@ -1,0 +1,32 @@
+1
+00:00:00,400 --> 00:00:06,625
+When reading a paper, a relevant figure
+may be too far from the text to see.
+
+2
+00:00:07,000 --> 00:00:12,575
+When that happens, use the clipping feature
+in the viewer to keep it nearby.
+
+3
+00:00:14,300 --> 00:00:21,225
+The result is a movable clip. Resize it to fit,
+then place it beside the text.
+
+4
+00:00:21,500 --> 00:00:24,625
+You can also send the clip to a board.
+
+5
+00:00:26,000 --> 00:00:30,000
+A pinned clip moves with the paper
+as you scroll.
+
+6
+00:00:31,000 --> 00:00:35,700
+Choose Free float and scroll.
+The clip stays in place.
+
+7
+00:00:37,650 --> 00:00:39,825
+Enjoy Papol.

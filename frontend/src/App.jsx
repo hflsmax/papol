@@ -12,6 +12,7 @@ import RoomPage from './components/RoomPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
+import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
 import { appPath, stripAppBase } from './base';
@@ -236,6 +237,49 @@ input[type='checkbox'] {
   margin-left: 6px;
   opacity: 1;
   transform: translateX(0);
+}
+
+/* ---------- Learn ---------- */
+
+.learn-page {
+  display: grid;
+  gap: 16px;
+}
+
+.learn-lesson {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.learn-video-shell {
+  aspect-ratio: 16 / 9;
+  background: var(--ink);
+}
+
+.learn-video-shell video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.learn-lesson h2 {
+  padding: 12px 14px 14px;
+  font-size: var(--fs-lg);
+}
+
+.learn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .learn-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* The offer of a newer PDF: informational, never alarming, and never
@@ -4567,6 +4611,7 @@ function parseRoute() {
   if (path === '/profile') return routed({ page: 'profile' });
   if (path === '/join') return routed({ page: 'join' });
   if (path === '/about') return routed({ page: 'about' });
+  if (path === '/learn') return routed({ page: 'learn' });
   if (path === '/signin') return routed({ page: 'signin' });
   if (path === '/library' || path === '/papers') return routed({ page: 'papers' });
   if (path === '/village' || path === '/readers') return routed({ page: 'papers' });
@@ -4937,6 +4982,9 @@ export default function App() {
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
+            <a href={appPath('/learn')} className={route.page === 'learn' ? 'active' : ''}>
+              Learn
+            </a>
           </nav>
           <span className="spacer" />
           {user ? (
@@ -5056,6 +5104,7 @@ export default function App() {
               onDemo={demoActive() ? undefined : handleDemo}
             />
           )}
+          {route.page === 'learn' && <LearnPage />}
           {route.page === 'join' && (
             <AuthPage onAuth={handleAuth} initialMode="register" />
           )}

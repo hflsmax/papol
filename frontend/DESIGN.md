@@ -94,6 +94,11 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 
 ## Recurring patterns
 
+- **Learn lesson** — tutorial videos live on the public Learn page in a
+  two-column grid of bordered white cards. Each card contains only a 16:9
+  video and one serif title. The grid collapses to one column on narrow
+  screens; new lessons are added as catalog entries.
+
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:
   `--green-soft` for public fields (ratings, thought) and `--accent-soft`
