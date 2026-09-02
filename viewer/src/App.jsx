@@ -1279,11 +1279,14 @@ export default function App() {
       }
       const last = usable[usable.length - 1];
       const above = last.top - 38;
+      const scrollerBox = scroller.getBoundingClientRect();
+      const viewportLeft = Math.max(22, Math.min(window.innerWidth - 22, last.right));
+      const viewportTop = above >= 8 ? above : Math.min(window.innerHeight - 44, last.bottom + 8);
       setSelectionPaint({
         strokes,
         text: selectedTextWithoutPdfCitations(selection, scroller).trim(),
-        left: Math.max(22, Math.min(window.innerWidth - 22, last.right)),
-        top: above >= 8 ? above : Math.min(window.innerHeight - 44, last.bottom + 8),
+        left: viewportLeft - scrollerBox.left + scroller.scrollLeft,
+        top: viewportTop - scrollerBox.top + scroller.scrollTop,
       });
     };
     const selectionChanged = () => {
@@ -1306,7 +1309,6 @@ export default function App() {
     document.addEventListener('pointerup', pointerFinished);
     document.addEventListener('pointercancel', pointerFinished);
     window.addEventListener('resize', update);
-    scrollerRef.current?.addEventListener('scroll', update, { passive: true });
     return () => {
       if (finishFrame != null) cancelAnimationFrame(finishFrame);
       document.removeEventListener('selectionchange', selectionChanged);
@@ -1314,7 +1316,6 @@ export default function App() {
       document.removeEventListener('pointerup', pointerFinished);
       document.removeEventListener('pointercancel', pointerFinished);
       window.removeEventListener('resize', update);
-      scrollerRef.current?.removeEventListener('scroll', update);
     };
   }, [doc, scale, paper?.edition_id, source]);
 
@@ -3154,6 +3155,61 @@ export default function App() {
               />
             </React.Fragment>
           ))}
+          {openCite && (
+            <ReferenceCard
+              anchor={openCite.anchor}
+              reference={reference}
+              error={referenceError}
+              onClose={closeReference}
+              position={openCite.index}
+              count={openCite.referenceIds.length}
+              onPrevious={openCite.index > 0 ? () => openReference(
+                openCite.referenceIds[openCite.index - 1],
+                openCite.anchor,
+                null,
+                openCite.referenceIds
+              ) : null}
+              onNext={openCite.index < openCite.referenceIds.length - 1 ? () => openReference(
+                openCite.referenceIds[openCite.index + 1],
+                openCite.anchor,
+                null,
+                openCite.referenceIds
+              ) : null}
+            />
+          )}
+          {selectionPaint && (
+            <span
+              className="selection-actions"
+              style={{
+                left: selectionPaint.left,
+                top: selectionPaint.top,
+              }}
+            >
+              <button
+                type="button"
+                className="selection-action selection-brush"
+                style={{ '--loaded': inkColor }}
+                aria-label="Paint selected text"
+                title="Paint selected text"
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={paintSelection}
+              >
+                <ToolGlyph id="brush" />
+              </button>
+              <button
+                type="button"
+                className="selection-action selection-send"
+                aria-label="Send selected text to a board"
+                title="Send selected text to a board"
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={openSendSelection}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 17 17 7M9 7h8v8" />
+                </svg>
+              </button>
+            </span>
+          )}
         </div>
 
         {helpOpen && (
@@ -3271,29 +3327,6 @@ export default function App() {
           </div>
         )}
 
-        {openCite && (
-          <ReferenceCard
-            anchor={openCite.anchor}
-            reference={reference}
-            error={referenceError}
-            onClose={closeReference}
-            position={openCite.index}
-            count={openCite.referenceIds.length}
-            onPrevious={openCite.index > 0 ? () => openReference(
-              openCite.referenceIds[openCite.index - 1],
-              openCite.anchor,
-              null,
-              openCite.referenceIds
-            ) : null}
-            onNext={openCite.index < openCite.referenceIds.length - 1 ? () => openReference(
-              openCite.referenceIds[openCite.index + 1],
-              openCite.anchor,
-              null,
-              openCite.referenceIds
-            ) : null}
-          />
-        )}
-
         {searchWrap && (
           <div
             key={searchWrap.id}
@@ -3303,40 +3336,6 @@ export default function App() {
           >
             <span aria-hidden="true">{searchWrap.direction > 0 ? '↻' : '↺'}</span>
           </div>
-        )}
-
-        {selectionPaint && (
-          <span
-            className="selection-actions"
-            style={{
-              left: selectionPaint.left,
-              top: selectionPaint.top,
-            }}
-          >
-            <button
-              type="button"
-              className="selection-action selection-brush"
-              style={{ '--loaded': inkColor }}
-              aria-label="Paint selected text"
-              title="Paint selected text"
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={paintSelection}
-            >
-              <ToolGlyph id="brush" />
-            </button>
-            <button
-              type="button"
-              className="selection-action selection-send"
-              aria-label="Send selected text to a board"
-              title="Send selected text to a board"
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={openSendSelection}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 17 17 7M9 7h8v8" />
-              </svg>
-            </button>
-          </span>
         )}
 
         {sendSelection && (

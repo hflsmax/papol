@@ -846,7 +846,7 @@ button.link.danger { color: var(--red); }
 }
 
 .selection-actions {
-  position: fixed;
+  position: absolute;
   z-index: 30;
   display: flex;
   gap: 5px;
@@ -987,7 +987,7 @@ button.link.danger { color: var(--red); }
 }
 
 .ref-card {
-  position: fixed;
+  position: absolute;
   z-index: 20;
   background: var(--card);
   border: 1px solid var(--line);

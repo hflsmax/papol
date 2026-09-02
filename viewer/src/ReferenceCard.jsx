@@ -19,7 +19,6 @@ export default function ReferenceCard({
   anchor, reference, error, onClose, position = 0, count = 1, onPrevious, onNext,
 }) {
   const cardRef = useRef(null);
-  const [placement, setPlacement] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
   // Placed after measuring: whether the card fits below the marker depends
@@ -37,6 +36,9 @@ export default function ReferenceCard({
     const place = () => {
       if (!anchor.isConnected) return;
       const box = anchor.getBoundingClientRect();
+      const scroller = anchor.closest('.pages');
+      if (!scroller) return;
+      const scrollerBox = scroller.getBoundingClientRect();
       const width = Math.min(WIDTH, window.innerWidth - 2 * MARGIN);
       const height = el.offsetHeight;
       const roomBelow = window.innerHeight - box.bottom - 2 * MARGIN;
@@ -49,17 +51,22 @@ export default function ReferenceCard({
         160,
         Math.min(below ? roomBelow : roomAbove, window.innerHeight * 0.62)
       );
-      setPlacement({
-        width,
-        left: Math.min(
-          Math.max(MARGIN, box.left + box.width / 2 - width / 2),
-          Math.max(MARGIN, window.innerWidth - width - MARGIN)
-        ),
-        top: below
-          ? box.bottom + MARGIN
-          : Math.max(MARGIN, box.top - MARGIN - Math.min(height, cap)),
-        maxHeight: cap,
-      });
+      const viewportLeft = Math.min(
+        Math.max(MARGIN, box.left + box.width / 2 - width / 2),
+        Math.max(MARGIN, window.innerWidth - width - MARGIN)
+      );
+      const viewportTop = below
+        ? box.bottom + MARGIN
+        : Math.max(MARGIN, box.top - MARGIN - Math.min(height, cap));
+
+      // The card lives in the same scroll container as the PDF. Convert its
+      // viewport placement into that container's content coordinates once;
+      // after that the browser scrolls marker and card in one operation.
+      el.style.width = `${width}px`;
+      el.style.maxHeight = `${cap}px`;
+      el.style.transform = `translate3d(${
+        viewportLeft - scrollerBox.left + scroller.scrollLeft
+      }px, ${viewportTop - scrollerBox.top + scroller.scrollTop}px, 0)`;
     };
 
     place();
@@ -67,12 +74,10 @@ export default function ReferenceCard({
     // paper's own scroller as well as the window. ResizeObserver covers a
     // zoom changing the marker's box without changing the window itself.
     window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
     const observer = new ResizeObserver(place);
     observer.observe(anchor);
     return () => {
       window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
       observer.disconnect();
     };
   }, [anchor, reference, error, showAll]);
@@ -104,10 +109,10 @@ export default function ReferenceCard({
       ref={cardRef}
       className="ref-card"
       style={{
-        width: placement ? placement.width : WIDTH,
-        left: placement ? placement.left : -9999,
-        top: placement ? placement.top : 0,
-        maxHeight: placement ? placement.maxHeight : undefined,
+        width: WIDTH,
+        left: 0,
+        top: 0,
+        transform: 'translate3d(-9999px, 0, 0)',
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
