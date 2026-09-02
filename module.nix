@@ -23,6 +23,12 @@ let
     yt-dlp
   ]));
 
+  backupScript = pkgs.writeShellApplication {
+    name = "papol-r2-backup";
+    runtimeInputs = [ pkgs.coreutils pkgs.zip pkgs.wrangler pkgs.systemd pkgs.sudo ];
+    text = builtins.readFile ./tools/backup-r2.sh;
+  };
+
   # The one proxy location, twice: the service's own vhost and the LAN
   # names' vhost differ only in where they point.
   proxyTo = port: {
@@ -194,6 +200,43 @@ in {
       };
     };
 
+    backup = {
+      enable = lib.mkEnableOption "daily ZIP backups of Papol to Cloudflare R2";
+
+      accountId = lib.mkOption {
+        type = lib.types.str;
+        example = "0123456789abcdef0123456789abcdef";
+        description = "Cloudflare account ID containing the R2 bucket.";
+      };
+
+      bucket = lib.mkOption {
+        type = lib.types.str;
+        default = "papol-backups";
+        description = "R2 bucket receiving backups.";
+      };
+
+      prefix = lib.mkOption {
+        type = lib.types.str;
+        default = "daily";
+        description = "Object-key prefix inside the R2 bucket.";
+      };
+
+      credentialsFile = lib.mkOption {
+        type = lib.types.str;
+        example = "/run/secrets/papol-r2-backup.env";
+        description = ''
+          Root-owned or mode-0600 environment file containing
+          CLOUDFLARE_API_TOKEN. Its contents stay outside the Nix store.
+        '';
+      };
+
+      onCalendar = lib.mkOption {
+        type = lib.types.str;
+        default = "*-*-* 05:00:00 America/Toronto";
+        description = "systemd OnCalendar expression for the backup.";
+      };
+    };
+
     cloudflare = {
       enable = lib.mkEnableOption "exposing papol via a Cloudflare Tunnel (for mc-pony.com/papol)";
 
@@ -294,6 +337,37 @@ in {
         OnUnitActiveSec = cfg.health.interval;
         AccuracySec = "5s";
         Persistent = true;
+      };
+    };
+
+    systemd.services.papol-r2-backup = lib.mkIf cfg.backup.enable {
+      description = "Archive Papol and upload the backup to Cloudflare R2";
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      environment = {
+        CLOUDFLARE_ACCOUNT_ID = cfg.backup.accountId;
+        PAPOL_PARENT = dirOf cfg.srcDir;
+        PAPOL_DIR = cfg.srcDir;
+        R2_BUCKET = cfg.backup.bucket;
+        R2_PREFIX = cfg.backup.prefix;
+      };
+      serviceConfig = {
+        Type = "oneshot";
+        User = cfg.user;
+        Group = "users";
+        EnvironmentFile = cfg.backup.credentialsFile;
+        ExecStart = "${backupScript}/bin/papol-r2-backup";
+      };
+    };
+
+    systemd.timers.papol-r2-backup = lib.mkIf cfg.backup.enable {
+      description = "Back up Papol to Cloudflare R2";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = cfg.backup.onCalendar;
+        Persistent = true;
+        RandomizedDelaySec = 0;
+        Unit = "papol-r2-backup.service";
       };
     };
 
