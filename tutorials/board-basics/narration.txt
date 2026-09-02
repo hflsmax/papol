@@ -1,0 +1,8 @@
+A board gives your research room to think out loud.
+From your nook, choose New board, give it a name, and create it.
+Drag files straight onto the board: first the Utah teapot, then the Stanford bunny.
+Double-click an empty spot and type a thought of your own.
+Press Control-V to paste a webpage address. Papol turns the link into a card.
+Paste a YouTube address the same way, and it becomes another card.
+Resize and move the cards wherever they fit.
+Images, links, files, and thoughts are all cards you can arrange. Enjoy Papol.

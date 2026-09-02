@@ -303,6 +303,7 @@ input[type='checkbox'] {
 .learn-art-animal { --lesson-wash: #f8eadc; --lesson-color: #a85b3f; }
 .learn-art-group { --lesson-wash: #e9e5f4; --lesson-color: #66568c; }
 .learn-art-send { --lesson-wash: #e1f0ec; --lesson-color: #377a6b; }
+.learn-art-board-basics { --lesson-wash: #e7edf7; --lesson-color: #4b668e; }
 .learn-lesson-art .art-paper { fill: #fff; stroke: var(--lesson-color, var(--accent)); stroke-width: 2; }
 .learn-lesson-art .art-card { fill: #fff; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; }
 .learn-lesson-art .art-line, .learn-lesson-art .art-detail, .learn-lesson-art .art-spark, .learn-lesson-art .art-arrow, .learn-lesson-art .art-bracket { fill: none; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }

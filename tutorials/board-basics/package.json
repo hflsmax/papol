@@ -1,0 +1,8 @@
+{
+  "name": "papol-board-basics-tutorial",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "24.16.0"
+  }
+}

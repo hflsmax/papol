@@ -1,0 +1,38 @@
+1
+00:00:00,400 --> 00:00:04,400
+A board gives your research room
+to think out loud.
+
+2
+00:00:05,000 --> 00:00:09,600
+From your nook, choose New board,
+give it a name, and create it.
+
+3
+00:00:10,800 --> 00:00:17,775
+Drag files straight onto the board: first the Utah teapot,
+then the Stanford bunny.
+
+4
+00:00:20,000 --> 00:00:24,500
+Double-click an empty spot
+and type a thought of your own.
+
+5
+00:00:25,400 --> 00:00:32,200
+Press Control-V to paste a webpage address.
+Papol turns the link into a card.
+
+6
+00:00:33,000 --> 00:00:38,500
+Paste a YouTube address the same way,
+and it becomes another card.
+
+7
+00:00:40,200 --> 00:00:44,075
+Resize and move the cards wherever they fit.
+
+8
+00:00:46,800 --> 00:00:53,550
+Images, links, files, and thoughts are all cards
+you can arrange. Enjoy Papol.

@@ -25,6 +25,13 @@ const lessons = [
     video: '/assets/learn/animal-functionality.mp4',
   },
   {
+    id: 'board-basics',
+    art: 'board-basics',
+    section: 'Board',
+    title: 'Build a board with cards',
+    video: '/assets/learn/board-basics.mp4',
+  },
+  {
     id: 'group-board-cards',
     art: 'group',
     section: 'Board',
@@ -41,6 +48,17 @@ const lessons = [
 ];
 
 function LessonArt({ type }) {
+  if (type === 'board-basics') return (
+    <svg viewBox="0 0 240 112" aria-hidden="true">
+      <rect className="art-collection-frame" x="20" y="14" width="200" height="84" rx="10" />
+      <rect className="art-card" x="36" y="29" width="52" height="39" rx="5" />
+      <path className="art-image" d="m43 61 12-13 9 8 8-10 10 15Z" />
+      <rect className="art-card" x="101" y="24" width="60" height="48" rx="5" />
+      <path className="art-line" d="M111 37h39M111 47h32M111 57h36" />
+      <rect className="art-card" x="130" y="79" width="66" height="13" rx="4" />
+      <path className="art-arrow" d="M179 27h25m-8-8 8 8-8 8" />
+    </svg>
+  );
   if (type === 'upload') return (
     <svg viewBox="0 0 240 112" aria-hidden="true">
       <rect className="art-paper" x="42" y="17" width="76" height="80" rx="5" />
