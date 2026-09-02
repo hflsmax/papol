@@ -1,5 +1,6 @@
 import unittest
 
+import crossref
 import grobid
 from pdf_parser import arxiv_doi, extract_arxiv_id
 
@@ -53,6 +54,13 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertEqual(header.journal, "LNCS")
         self.assertEqual(header.year, 2018)
         self.assertEqual(header.arxiv_id, "arXiv:1705.07354v3")
+
+    def test_crossref_metadata_decodes_journal_entities(self):
+        summary = crossref.summarize_crossref({
+            "title": ["KinetiX"],
+            "container-title": ["Computers &amp; Graphics"],
+        })
+        self.assertEqual(summary["venue"], "Computers & Graphics")
 
     def test_parses_figure_reference_as_document_link(self):
         analysis = grobid.parse_tei(GROBID_FIGURE_LINK)

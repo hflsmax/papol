@@ -764,7 +764,7 @@ class ExtractedMetadata(BaseModel):
 
 
 class ReextractedMetadata(BaseModel):
-    """Metadata GROBID found in an already-stored PDF."""
+    """Metadata an external bibliography API found for a stored PDF."""
     doi: Optional[str] = None
     title: Optional[str] = None
     authors: Optional[str] = None

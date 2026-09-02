@@ -81,6 +81,7 @@ from pdf_parser import (
 )
 import grobid
 import biblio
+import metadata_lookup
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
 )
@@ -1540,24 +1541,29 @@ async def extract_paper_metadata(
         "file_path": filename
     }
 
-    # Metadata extraction requires GROBID. A broken analyzer must be visible
-    # to operators rather than disguised as a successful, mostly-empty result.
+    lookup_doi = arxiv_doi(arxiv_id) if arxiv_id else doi
     try:
-        header = await grobid.extract_header(str(file_path))
-    except Exception as exc:
-        logger.exception("Required GROBID header extraction failed")
+        api_metadata = await metadata_lookup.by_doi(lookup_doi) if lookup_doi else None
+    except metadata_lookup.Unavailable as exc:
+        logger.exception("Bibliographic metadata APIs are unavailable")
         raise HTTPException(
             status_code=503,
-            detail="Metadata extraction failed",
+            detail="Metadata lookup failed",
         ) from exc
 
-    metadata.update({
-        "doi": header.doi or (arxiv_doi(arxiv_id) if arxiv_id else doi),
-        "title": header.title or metadata["title"],
-        "authors": json.dumps(header.authors) if header.authors else None,
-        "journal": header.journal,
-        "year": header.year,
-    })
+    if api_metadata:
+        metadata.update({
+            "doi": api_metadata.get("doi") or lookup_doi,
+            "title": api_metadata.get("title") or metadata["title"],
+            "authors": (
+                json.dumps(api_metadata["authors"])
+                if api_metadata.get("authors") else None
+            ),
+            "journal": api_metadata.get("venue"),
+            "year": api_metadata.get("year"),
+        })
+    else:
+        metadata["doi"] = lookup_doi
     return ExtractedMetadata(**metadata)
 
 
@@ -1868,20 +1874,30 @@ async def reextract_paper_metadata(
     if path is None:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
 
+    doi, text = extract_doi_from_pdf(str(path))
+    arxiv_id = extract_arxiv_id(text)
+    lookup_doi = paper.doi or (arxiv_doi(arxiv_id) if arxiv_id else doi)
+    if not lookup_doi:
+        raise HTTPException(status_code=422, detail="No DOI or arXiv identifier found")
     try:
-        header = await grobid.extract_header(str(path))
-    except Exception as exc:
-        logger.exception("Required GROBID metadata re-extraction failed")
+        api_metadata = await metadata_lookup.by_doi(lookup_doi)
+    except metadata_lookup.Unavailable as exc:
+        logger.exception("Bibliographic metadata APIs are unavailable")
         raise HTTPException(
             status_code=503,
-            detail="Metadata extraction failed",
+            detail="Metadata lookup failed",
         ) from exc
+    if not api_metadata:
+        raise HTTPException(status_code=404, detail="Metadata was not found")
     return ReextractedMetadata(
-        doi=header.doi,
-        title=header.title,
-        authors=json.dumps(header.authors) if header.authors else None,
-        journal=header.journal,
-        year=header.year,
+        doi=api_metadata.get("doi") or lookup_doi,
+        title=api_metadata.get("title"),
+        authors=(
+            json.dumps(api_metadata["authors"])
+            if api_metadata.get("authors") else None
+        ),
+        journal=api_metadata.get("venue"),
+        year=api_metadata.get("year"),
     )
 
 

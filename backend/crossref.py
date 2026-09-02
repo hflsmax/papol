@@ -1,5 +1,6 @@
 import os
 import re
+from html import unescape
 
 import httpx
 
@@ -60,6 +61,26 @@ async def match_reference(raw: str, rows: int = 5) -> list[dict]:
         raise Unavailable(str(exc)) from exc
 
 
+async def by_doi(doi: str) -> dict | None:
+    """Return the publisher-registered work for an exact DOI."""
+    normalized = doi.strip().replace("https://doi.org/", "")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                f"https://api.crossref.org/works/{normalized}",
+                headers={"User-Agent": CROSSREF_UA},
+            )
+            if response.status_code == 404:
+                return None
+            if response.status_code != 200:
+                raise Unavailable(f"CrossRef returned {response.status_code}")
+            return response.json().get("message") or None
+    except Unavailable:
+        raise
+    except (httpx.HTTPError, ValueError) as exc:
+        raise Unavailable(str(exc)) from exc
+
+
 def _query_for(raw: str) -> str:
     """The reference, tidied into a query.
 
@@ -68,7 +89,12 @@ def _query_for(raw: str) -> str:
     reference to *Layer Normalization* comes back as an unrelated paper
     that happens to contain the words "arXiv preprint". Bare URLs do the
     same for less reason."""
-    text = re.sub(r"arXiv\s*preprint\s*arXiv:\s*[\d.]+(v\d+)?", " ", raw, flags=re.I)
+    text = re.sub(
+        r"arXiv\s*preprint\s*arXiv:\s*[\d.]+(v\d+)?",
+        " ",
+        raw,
+        flags=re.IGNORECASE,
+    )
     text = re.sub(r"https?://\S+", " ", text)
     text = " ".join(text.split())
     return text[:_MAX_QUERY]
@@ -79,7 +105,9 @@ def summarize_crossref(item: dict) -> dict:
     OpenAlex's — CrossRef often has no abstract, and its citation count is
     of works registered with CrossRef rather than of everything."""
     title = (item.get("title") or [None])[0]
+    title = unescape(title) if title else None
     container = (item.get("container-title") or [None])[0]
+    container = unescape(container) if container else None
     year = None
     issued = (item.get("issued") or {}).get("date-parts") or [[]]
     if issued and issued[0]:
@@ -92,7 +120,7 @@ def summarize_crossref(item: dict) -> dict:
     return {
         "title": title,
         "authors": [
-            " ".join(p for p in (a.get("given"), a.get("family")) if p)
+            unescape(" ".join(p for p in (a.get("given"), a.get("family")) if p))
             for a in item.get("author") or []
         ],
         "year": year,
