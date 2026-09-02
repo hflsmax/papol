@@ -115,9 +115,7 @@ h1, h2, h3, h4, h5, h6 {
    blue/purple/red link states — a chip flashing red on click is the
    browser's :active default leaking through. Anything that should look
    like a link says so with its own colour. */
-a,
-a:visited,
-a:active {
+:where(a, a:visited, a:active) {
   color: inherit;
 }
 

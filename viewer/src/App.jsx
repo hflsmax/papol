@@ -1403,9 +1403,7 @@ export default function App() {
       backlink.searchParams.set('mark', btoa(JSON.stringify(compactSelection)));
     }
     try {
-      const sourceLabel = sendSelection.kind === 'clip'
-        ? 'Open source'
-        : `${paper?.title || 'Paper'}, page ${sendSelection.page}`;
+      const sourceLabel = `${paper?.title || 'Paper'}, page ${sendSelection.page}`;
       if (sendSelection.kind === 'clip') {
         await stageBoardClip(sendBoardGuid, {
           blob: sendSelection.blob,

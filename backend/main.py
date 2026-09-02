@@ -39,7 +39,7 @@ from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
     backfill_shelves, backfill_favourite_tags,
     backfill_board_guids, backfill_board_shelves, backfill_board_excerpts,
-    normalize_board_group_kinds,
+    backfill_board_clip_source_labels, normalize_board_group_kinds,
     SessionLocal,
 )
 from models import (
@@ -128,6 +128,7 @@ for _stale in normalize_papers():
     if _stale_path.exists():
         _stale_path.unlink()
 backfill_copy_edition_hashes()
+backfill_board_clip_source_labels()
 backfill_shelves()
 backfill_board_shelves()
 backfill_favourite_tags()

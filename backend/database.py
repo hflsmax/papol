@@ -4,6 +4,7 @@ from sqlalchemy.schema import CreateColumn
 import os
 from pathlib import Path
 import hashlib
+import urllib.parse
 import uuid
 
 # Use absolute path for database in backend directory
@@ -111,6 +112,39 @@ def backfill_board_excerpts():
             "UPDATE board_items SET excerpt_text=content, content=NULL "
             "WHERE kind='excerpt' AND excerpt_text IS NULL AND content IS NOT NULL"
         ))
+
+
+def backfill_board_clip_source_labels():
+    """Give viewer clips created before descriptive backlinks a useful label."""
+    with engine.begin() as conn:
+        if not all(_table_exists(conn, table) for table in (
+            "board_items", "paper_editions", "papers",
+        )):
+            return
+        clips = conn.execute(text(
+            "SELECT id, source_url FROM board_items "
+            "WHERE kind='image' AND source_url IS NOT NULL "
+            "AND (source_label IS NULL OR source_label='Open source')"
+        )).all()
+        for item_id, source_url in clips:
+            try:
+                params = urllib.parse.parse_qs(urllib.parse.urlparse(source_url).query)
+                digest = params.get("pdf", [None])[0]
+                page = params.get("page", [None])[0]
+            except (TypeError, ValueError):
+                continue
+            if not digest or not page:
+                continue
+            title = conn.execute(text(
+                "SELECT papers.title FROM paper_editions "
+                "JOIN papers ON papers.id=paper_editions.paper_id "
+                "WHERE paper_editions.sha256=:digest LIMIT 1"
+            ), {"digest": digest}).scalar()
+            if title:
+                label = f"{title}, page {page}"[:500]
+                conn.execute(text(
+                    "UPDATE board_items SET source_label=:label WHERE id=:id"
+                ), {"label": label, "id": item_id})
 
 
 def backfill_copy_edition_hashes():
