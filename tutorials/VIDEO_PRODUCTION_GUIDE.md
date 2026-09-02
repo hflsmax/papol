@@ -23,6 +23,27 @@ sequences, package environments, and recording-only uploads temporary.
 Published videos live in `frontend/public/assets/learn/`. Their catalog entries
 live in the `lessons` array in `frontend/src/components/LearnPage.jsx`.
 
+## Environment preflight
+
+Use the repository flake through `nix develop` for every production command.
+The development shell supplies Chromium, FFmpeg, `ffprobe`, SQLite, and the
+shared Puppeteer Core runtime. Do not run `npm install` before recording.
+
+Before recording:
+
+1. Enter `nix develop` and confirm Chromium, FFmpeg, Node, and Puppeteer Core
+   resolve from that shell.
+2. Confirm the local Papol server is reachable and the recorder's required
+   account token, database rows, and source files exist.
+3. Launch the recorder from the repository root, for example:
+   `nix develop --command node tutorials/<lesson>/record.mjs`.
+
+Running from the tutorial directory can break scripts that intentionally use
+repository-relative paths such as `backend/papol.db` or `uploads/`. Do not rely
+on globally installed Node or Python packages: a successful run must be
+reproducible directly from the flake and repository sources. If a required
+recorder import is missing, fix `flake.nix` rather than installing it ad hoc.
+
 ## Production sequence
 
 1. Write the complete narration.
@@ -49,6 +70,9 @@ needed to understand the feature. A useful structure is:
 
 Use direct, conversational language. Describe what the viewer can do. Mention
 interface names only when the viewer needs them to locate or choose something.
+If a precise explanation or a sequence of consequential actions needs more
+room, extend the duration instead of rushing the voice or cursor. Split compound
+instructions into separately scheduled lines and pauses.
 
 ## Voice and subtitles
 
@@ -78,6 +102,13 @@ interface names only when the viewer needs them to locate or choose something.
   the effect.
 - Preserve timing when slowing a gesture by shortening static holds, then
   recheck every later action against the narration.
+- Treat absolute-time helpers such as `padTo` as minimum holds. Once recorded
+  actions have passed a target frame they will not move backward; log or inspect
+  the actual frame at each later boundary after adding clicks or typing.
+- A full-page navigation can remove an injected tutorial pointer. Finish pointer
+  choreography before navigation, or explicitly install it in the destination
+  document. Scroll the destination's real scroller (the viewer uses `.pages`),
+  not `window`, when demonstrating reading after navigation.
 
 ## Framing and continuity
 
@@ -114,6 +145,9 @@ broad browser compatibility. Use `ffprobe` on the final file to verify:
 - Track and delete only database rows and uploads created by the recording run.
 - Remove temporary frames, dependencies, voice environments, and recording-only
   uploads after verification. Preserve reusable source scripts and media.
+- Learn-page catalogs may filter lessons by section. Confirm a new entry has all
+  fields required by the current card design and actually renders before treating
+  a successful frontend build as publication verification.
 
 ## Lesson-specific checks
 

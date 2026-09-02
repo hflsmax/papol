@@ -66,6 +66,7 @@
 
     devPackages = pkgs: with pkgs; [
       (python312.withPackages devPython)
+      (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       sqlite               # papol.db is read and edited by hand often enough
       ripgrep              # fast repository-wide source search
@@ -82,6 +83,23 @@
       # are the ones Nix built, wired up by PLAYWRIGHT_BROWSERS_PATH below.
       playwright-driver.browsers
     ];
+
+    # Tutorial recorders share one pinned browser driver. Build its npm closure
+    # once through Nix and expose it to every recorder through NODE_PATH; the
+    # tutorial directories do not need mutable node_modules trees.
+    tutorialNodeModules = pkgs: pkgs.buildNpmPackage {
+      pname = "papol-tutorial-node-modules";
+      version = "0.0.1";
+      src = ./tutorials/runtime;
+      npmDepsHash = "sha256-Cnbevv6cbzbeXpKJ+7Rq0lRPqd43aHJpi5gWgxMPKt8=";
+      dontNpmBuild = true;
+      installPhase = ''
+        runHook preInstall
+        mkdir -p $out/lib
+        cp -r node_modules $out/lib/
+        runHook postInstall
+      '';
+    };
 
     # Playwright looks for browsers it fetched itself, under a path that
     # does not exist on NixOS. Pointing it at the store copy is what makes
@@ -134,6 +152,7 @@
 
         shellHook = ''
           export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.libsndfile ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export NODE_PATH="${tutorialNodeModules pkgs}/lib/node_modules''${NODE_PATH:+:$NODE_PATH}"
           echo "Papol development environment"
           echo "  Backend:  cd backend && uvicorn main:app --reload"
           echo "  Frontend: cd frontend && npm install && npm run dev"

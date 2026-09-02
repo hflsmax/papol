@@ -65,7 +65,17 @@ requirements and definition of done as part of the task.
   surrounding prose, and unrelated page content unless they are essential to
   the explanation.
 - Keep a roughly 40-second tutorial to the essential workflow. End with a short
-  result demonstration rather than another explanation.
+  result demonstration rather than another explanation. Treat 40 seconds as a
+  default, not a constraint: when clarity needs more time, retime the complete
+  lesson and use the longer duration.
+- Do not compress several consequential actions into one hurried closing line.
+  Give each action and the visible result separate beats when they matter.
+- A `padTo` helper is only a lower bound: it cannot recover time already spent
+  on clicks, typing, waits, or cursor movement. Inspect actual frame numbers at
+  every narration boundary after adding an interaction.
+- Enter `nix develop` before production and run repository-relative recorder
+  commands from the repository root. The flake provides the browser driver and
+  media tools; do not install recorder dependencies manually.
 - Use a natural voice and confirm the final narration is complete, audible, and
   not clipped at either end.
 - Watch the complete final MP4 with sound. Check continuity, narration/action

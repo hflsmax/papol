@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import puppeteer from 'puppeteer-core';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const puppeteer = require('puppeteer-core');
 
 const FPS = 15;
 const WIDTH = 1280;
