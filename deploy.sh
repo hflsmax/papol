@@ -676,7 +676,8 @@ CREATE TEMP TABLE sync_editions AS
     WHERE user_id IN sync_admins AND ignored_edition_id IS NOT NULL;
 INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
   SELECT 1 FROM sync_papers n JOIN dev.papers d ON d.id=n.id JOIN papers p ON p.id=n.id
-  WHERE lower(coalesce(p.doi,'')) <> lower(coalesce(d.doi,'')) OR p.title <> d.title
+  WHERE lower(coalesce(p.doi,'')) <> lower(coalesce(d.doi,''))
+     OR (coalesce(p.doi,'') = '' AND coalesce(d.doi,'') = '' AND p.title <> d.title)
 );
 INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
   SELECT 1 FROM sync_editions n JOIN dev.paper_editions d ON d.id=n.id
