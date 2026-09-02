@@ -1,5 +1,7 @@
 import unittest
 
+import fitz
+
 import crossref
 import grobid
 from pdf_parser import arxiv_doi, extract_arxiv_id
@@ -21,6 +23,15 @@ coords="2,120,160,12,10">2</ref>.</p></body>
 <back><figure xml:id="fig_0" coords="2,100,400,300,20">
 <head>Figure 2:</head><label>2</label></figure></back></text>
 </TEI>"""
+
+GROBID_BOX_LINK = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<facsimile>
+<surface n="1" lrx="600" lry="800"/><surface n="2" lrx="600" lry="800"/>
+</facsimile><text><body><p>See <hi>BOX </hi><ref type="figure" target="#fig_1"
+coords="1,300,160,12,10">1</ref>.</p>
+<figure xml:id="fig_1" coords="1,100,400,300,20"><head>Figure 1</head><label>1</label></figure>
+<figure xml:id="box_1" coords="2,100,240,300,20"><head>Box 1 | Methods</head><label>1</label></figure>
+</body></text></TEI>"""
 
 GROBID_JOURNAL_ONLY_REFERENCE = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
 <text><back><listBibl><biblStruct xml:id="b7">
@@ -71,6 +82,27 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertAlmostEqual(link.x, 0.15)
         self.assertAlmostEqual(link.w, 0.07)
         self.assertEqual((link.target_page, link.target_y), (2, 0.5))
+
+    def test_uses_cross_reference_kind_to_disambiguate_numbered_targets(self):
+        analysis = grobid.parse_tei(GROBID_BOX_LINK)
+        self.assertEqual(len(analysis.links), 1)
+        link = analysis.links[0]
+        self.assertEqual((link.kind, link.label), ("box", "1"))
+        self.assertEqual((link.target_page, link.target_y), (2, 0.3))
+
+    def test_recovers_figure_links_omitted_from_tei_from_pdf_layout(self):
+        document = fitz.open()
+        source = document.new_page()
+        source.insert_text((72, 100), "See FIG. 2 for the mechanism.")
+        target = document.new_page()
+        target.insert_text((72, 200), "Figure 2 | Mechanism-based metamaterials")
+
+        links = grobid._layout_links(document)
+
+        self.assertEqual(len(links), 1)
+        self.assertEqual((links[0].kind, links[0].label), ("figure", "2"))
+        self.assertEqual((links[0].page, links[0].target_page), (1, 2))
+        document.close()
 
     def test_does_not_use_journal_as_missing_article_title(self):
         reference = grobid.parse_tei(GROBID_JOURNAL_ONLY_REFERENCE).references[0]

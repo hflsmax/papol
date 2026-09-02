@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { citationNumbers, destinationY, pageOverlays, referenceAt } from './references.js';
+import {
+  citationNumbers, consolidateCitations, destinationY, pageOverlays, referenceAt,
+} from './references.js';
 
 test('expands every reference in numeric citation ranges', () => {
   assert.deepEqual(citationNumbers('1–7'), [1, 2, 3, 4, 5, 6, 7]);
@@ -29,6 +31,26 @@ test('consolidates linked range endpoints into one navigable citation', async ()
   const overlays = await pageOverlays(doc, 1, { references, citations: [], links: [] });
   assert.equal(overlays.citations.length, 1);
   assert.deepEqual(overlays.citations[0].referenceIds, [100, 101, 102, 103, 104, 105, 106]);
+});
+
+test('consolidates analyzer rows for one continuous citation range', () => {
+  const citations = Array.from({ length: 19 }, (_, index) => ({
+    referenceId: 700 + index,
+    label: `[${7 + index}]`,
+    x: index === 0 ? 0.4605 : index === 18 ? 0.4688 : 0.4647,
+    y: 0.7126,
+    w: index === 0 ? 0.0042 : index === 18 ? 0.0083 : 0.0041,
+    h: 0.0069,
+    exact: true,
+  }));
+
+  const consolidated = consolidateCitations(citations);
+  assert.equal(consolidated.length, 1);
+  assert.deepEqual(
+    consolidated[0].referenceIds,
+    Array.from({ length: 19 }, (_, index) => 700 + index),
+  );
+  assert.equal(consolidated[0].referenceId, 700);
 });
 
 test('reads the vertical position from each PDF destination shape', () => {

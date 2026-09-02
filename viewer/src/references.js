@@ -54,7 +54,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
     annotated = { citations: [], links: [] };
   }
 
-  const fromAnalyzer = (analysis?.citations || [])
+  const fromAnalyzer = consolidateCitations((analysis?.citations || [])
     .filter((c) => c.page === pageNumber)
     .map((c) => ({
       referenceId: c.reference_id,
@@ -64,7 +64,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
       w: c.w,
       h: c.h,
       exact: !c.inferred,
-    }));
+    })));
 
   const analyzedLinks = (analysis?.links || [])
     .filter((link) => link.page === pageNumber)
@@ -170,6 +170,48 @@ export function citationNumbers(text) {
     for (let value = start; value <= end; value += 1) numbers.push(value);
   }
   return [...new Set(numbers)];
+}
+
+/**
+ * GROBID represents a marker which cites several works as one citation row
+ * per work. For a printed range, most of those rows can have the very same
+ * box (the collapsed middle numbers have no glyphs of their own), while the
+ * range endpoints occupy touching boxes. Turn that physical marker back into
+ * one target and retain every referenced work for the card's range controls.
+ */
+export function consolidateCitations(citations) {
+  const ordered = [...citations].sort((a, b) => a.y - b.y || a.x - b.x);
+  const groups = [];
+
+  for (const citation of ordered) {
+    const right = citation.x + citation.w;
+    const group = groups.find((candidate) => {
+      const sameLine = Math.abs(candidate.y - citation.y) <= Math.min(candidate.h, citation.h) * 0.35;
+      const horizontalGap = Math.max(candidate.x, citation.x) - Math.min(candidate.x + candidate.w, right);
+      return sameLine && horizontalGap <= 0.0005;
+    });
+
+    if (!group) {
+      groups.push({
+        ...citation,
+        referenceIds: [citation.referenceId],
+      });
+      continue;
+    }
+
+    const bottom = Math.max(group.y + group.h, citation.y + citation.h);
+    const groupRight = Math.max(group.x + group.w, right);
+    group.x = Math.min(group.x, citation.x);
+    group.y = Math.min(group.y, citation.y);
+    group.w = groupRight - group.x;
+    group.h = bottom - group.y;
+    group.exact = group.exact && citation.exact;
+    if (!group.referenceIds.includes(citation.referenceId)) {
+      group.referenceIds.push(citation.referenceId);
+    }
+  }
+
+  return groups;
 }
 
 function multiply(a, b) {

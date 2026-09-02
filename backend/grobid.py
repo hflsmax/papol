@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import httpx
+import fitz
 
 from pdf_parser import extract_arxiv_id
 
@@ -30,6 +31,9 @@ XML_ID = "{http://www.w3.org/XML/1998/namespace}id"
 # GROBID's figure-reference tag contains only the label: ``Figure `` is
 # outside the tag. In the source font that prefix occupies about three ems.
 FIGURE_PREFIX_EMS = 3.0
+
+_CROSS_REFERENCE_KIND = re.compile(r"\b(box|fig(?:ure)?|table)\s*$", re.IGNORECASE)
+_TARGET_HEADING = re.compile(r"^\s*(box|fig(?:ure)?|table)\s*([\w.-]+)", re.IGNORECASE)
 
 # Where the required analyzer lives. Production always sets this; keeping the
 # empty default makes a misconfigured development process fail explicitly.
@@ -271,7 +275,14 @@ async def analyze(pdf_path: str) -> Analysis:
     if response.status_code != 200:
         raise RuntimeError(f"GROBID returned {response.status_code}")
 
-    return parse_tei(response.text)
+    analysis = parse_tei(response.text)
+    # Article boxes are structural sidebars rather than figures in TEI, and
+    # GROBID does not emit their in-text mentions as refs. Recover those from
+    # the PDF's own searchable text: numbered headings define destinations,
+    # and matching "Box N" phrases define sources.
+    with fitz.open(pdf_path) as document:
+        analysis.links.extend(_layout_links(document, analysis.links))
+    return analysis
 
 
 def parse_tei(xml: str) -> Analysis:
@@ -327,21 +338,41 @@ def parse_tei(xml: str) -> Analysis:
                 Citation(key=target, label=label, inferred=inferred, **box)
             )
 
+    # GROBID represents figures, tables, and article boxes with the same TEI
+    # `figure` element and can occasionally attach an in-text Box reference
+    # to a Figure with the same number. Preserve the explicit target, but
+    # also index the human-readable heading so the document's own semantics
+    # can disambiguate those collisions.
     figures = {}
+    named_targets = {}
     for figure in root.iter(f"{TEI}figure"):
         key = figure.get(XML_ID)
         boxes = _boxes(figure.get("coords"), pages)
         if key and boxes:
             figures[key] = boxes[0]
+            heading = " ".join(
+                "".join(element.itertext()).strip()
+                for element in (figure.find(f"{TEI}head"), figure.find(f"{TEI}label"))
+                if element is not None and "".join(element.itertext()).strip()
+            )
+            match = _TARGET_HEADING.match(heading)
+            if match:
+                named_targets[(_link_kind(match.group(1)), match.group(2).casefold())] = boxes[0]
+
+    marker_prefixes = _preceding_text(root)
 
     links: list[DocumentLink] = []
     for marker in root.iter(f"{TEI}ref"):
         if marker.get("type") != "figure":
             continue
-        target = figures.get((marker.get("target") or "").lstrip("#"))
+        label = "".join(marker.itertext()).strip()
+        kind_match = _CROSS_REFERENCE_KIND.search(marker_prefixes.get(id(marker), ""))
+        kind = _link_kind(kind_match.group(1)) if kind_match else "figure"
+        target = named_targets.get((kind, label.casefold()))
+        if target is None:
+            target = figures.get((marker.get("target") or "").lstrip("#"))
         if target is None:
             continue
-        label = "".join(marker.itertext()).strip()
         for box in _boxes(marker.get("coords"), pages):
             # Extend left over the prefix so the complete phrase is one
             # pointer target rather than making only the numeral clickable.
@@ -352,11 +383,87 @@ def parse_tei(xml: str) -> Analysis:
             )
             box = {**box, "x": box["x"] - prefix, "w": box["w"] + prefix}
             links.append(DocumentLink(
-                kind="figure", label=label, **box,
+                kind=kind, label=label, **box,
                 target_page=target["page"], target_y=target["y"],
             ))
 
     return Analysis(references=references, citations=citations, links=links)
+
+
+def _link_kind(value: str) -> str:
+    value = value.casefold()
+    return "figure" if value.startswith("fig") else value
+
+
+def _preceding_text(root: ET.Element) -> dict[int, str]:
+    """Flattened text immediately before each element in document order."""
+    prefixes = {}
+    preceding = ""
+
+    def visit(element: ET.Element):
+        nonlocal preceding
+        preceding = (preceding + (element.text or ""))[-40:]
+        for child in element:
+            prefixes[id(child)] = preceding
+            visit(child)
+            preceding = (preceding + (child.tail or ""))[-40:]
+
+    visit(root)
+    return prefixes
+
+
+_LAYOUT_HEADING = re.compile(
+    r"^\s*(box|fig(?:ure)?|table)\s+(\d+[a-z]?)\s*(?:\||$)", re.IGNORECASE,
+)
+
+
+def _layout_links(document, known_links=()) -> list[DocumentLink]:
+    """Recover numbered Figure, Box, and Table links from PDF text layout."""
+    targets = {}
+    for page_index, page in enumerate(document):
+        for line in page.get_text("text").splitlines():
+            match = _LAYOUT_HEADING.match(line)
+            if not match:
+                continue
+            kind, label = _link_kind(match.group(1)), match.group(2)
+            heading = f"{'Figure' if kind == 'figure' else kind.title()} {label}"
+            hits = page.search_for(heading)
+            if hits:
+                targets[(kind, label.casefold())] = (
+                    page_index + 1, hits[0], hits[0].y0 / page.rect.height,
+                )
+
+    links = []
+    for (kind, label), (target_page, target_rect, target_y) in targets.items():
+        phrases = (
+            (f"Fig. {label}", f"Figure {label}")
+            if kind == "figure" else (f"{kind.title()} {label}",)
+        )
+        for page_index, page in enumerate(document):
+            for phrase in phrases:
+                for rect in page.search_for(phrase):
+                    if page_index + 1 == target_page and rect.intersects(target_rect):
+                        continue
+                    width, height = page.rect.width, page.rect.height
+                    candidate = DocumentLink(
+                        kind=kind, label=label,
+                        page=page_index + 1,
+                        x=rect.x0 / width, y=rect.y0 / height,
+                        w=rect.width / width, h=rect.height / height,
+                        target_page=target_page, target_y=target_y,
+                    )
+                    if not any(_link_overlap(candidate, known) for known in (*known_links, *links)):
+                        links.append(candidate)
+    return links
+
+
+def _link_overlap(a: DocumentLink, b: DocumentLink) -> bool:
+    if a.page != b.page:
+        return False
+    return (
+        min(a.x + a.w, b.x + b.w) > max(a.x, b.x)
+        and min(a.y + a.h, b.y + b.h) > max(a.y, b.y)
+    )
 
 
 # A citation marker's number, as printed: "[8]", "(3)", "[9," or the "[2]"
