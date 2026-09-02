@@ -8,6 +8,12 @@ const lessons = [
     video: '/assets/learn/clipping-functionality.mp4',
     poster: '/assets/learn/clipping-functionality.jpg',
   },
+  {
+    id: 'add-animal',
+    title: 'Add animals to your viewer',
+    video: '/assets/learn/animal-functionality.mp4',
+    poster: '/assets/learn/animal-functionality.jpg',
+  },
 ];
 
 export default function LearnPage() {
