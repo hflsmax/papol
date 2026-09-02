@@ -3,6 +3,14 @@ import { appPath } from '../base';
 
 const lessons = [
   {
+    id: 'upload-pdf',
+    art: 'upload',
+    section: 'Library',
+    title: 'Upload and organize a PDF',
+    video: '/assets/learn/uploading-a-pdf.mp4',
+    poster: '/assets/learn/uploading-a-pdf.jpg',
+  },
+  {
     id: 'clipping-figures',
     art: 'clip',
     section: 'Viewer',
@@ -33,6 +41,15 @@ const lessons = [
 ];
 
 function LessonArt({ type }) {
+  if (type === 'upload') return (
+    <svg viewBox="0 0 240 112" aria-hidden="true">
+      <rect className="art-paper" x="42" y="17" width="76" height="80" rx="5" />
+      <path className="art-line" d="M55 39h49M55 51h38M55 63h45M55 75h31" />
+      <path className="art-arrow" d="M151 72V39m-10 10 10-10 10 10" />
+      <path className="art-collection-frame" d="M129 78h45a12 12 0 0 0 12-12V31" />
+      <rect className="art-mini-card" x="135" y="82" width="62" height="14" rx="4" />
+    </svg>
+  );
   if (type === 'clip') return (
     <svg viewBox="0 0 240 112" aria-hidden="true">
       <rect className="art-paper" x="34" y="15" width="104" height="82" rx="5" />
@@ -79,7 +96,7 @@ function LessonArt({ type }) {
 
 export default function LearnPage() {
   const [playing, setPlaying] = useState(null);
-  const sections = ['Viewer', 'Board'];
+  const sections = ['Library', 'Viewer', 'Board'];
 
   useEffect(() => {
     if (!playing) return undefined;

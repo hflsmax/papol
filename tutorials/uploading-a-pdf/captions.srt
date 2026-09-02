@@ -1,0 +1,40 @@
+1
+00:00:00,400 --> 00:00:04,925
+Add a paper to Papol from its PDF in the Library.
+
+2
+00:00:05,200 --> 00:00:09,950
+Drop it here, or click the upload area
+and choose the file.
+
+3
+00:00:10,200 --> 00:00:15,100
+Papol extracts the metadata.
+Review it before saving.
+
+4
+00:00:15,300 --> 00:00:30,250
+By default, every account has two shelves: one called Display,
+and the other called Personal. Each paper inherits the visibility
+of its shelf: Display is public; Personal is private.
+
+5
+00:00:31,200 --> 00:00:34,975
+A paper can have multiple private tags.
+
+6
+00:00:35,100 --> 00:00:39,550
+Summaries are private;
+thoughts and ratings public.
+
+7
+00:00:41,700 --> 00:00:44,050
+Then save the paper.
+
+8
+00:00:44,700 --> 00:00:47,325
+Open it, and choose Read.
+
+9
+00:00:48,500 --> 00:00:50,675
+Enjoy Papol.

@@ -1,0 +1,9 @@
+Add a paper to Papol from its PDF in the Library.
+Drop it here, or click the upload area and choose the file.
+Papol extracts the metadata. Review it before saving.
+By default, every account has two shelves: one called Display, and the other called Personal. Each paper inherits the visibility of its shelf: Display is public; Personal is private.
+A paper can have multiple private tags.
+Summaries are private; thoughts and ratings public.
+Then save the paper.
+Open it, and choose Read.
+Enjoy Papol.
