@@ -41,5 +41,36 @@ requirements and definition of done as part of the task.
 - Learn-page title changed: update the lesson catalog entry. Do not burn the
   catalog title into the video.
 
+## Lessons from previous recordings
+
+- Write the complete narration before scripting the recording. Build a timed
+  action list from it, and make every visible action occur in the same order as
+  the words that describe it.
+- Prefer one continuous interaction path. When multiple takes are necessary,
+  match the viewport, zoom, scroll position, pointer position, and UI state so
+  the edit does not jump.
+- Move the pointer slowly and deliberately, with extra approach time before a
+  click. After choosing a mode, move the pointer away from the control before
+  demonstrating the result.
+- Resolve click and drag targets from current DOM bounds. Inspect the recorded
+  frames to confirm the pointer actually lands on the intended control, resize
+  handle, text, or paper area.
+- Center the subject before recording and minimize camera, zoom, and scroll
+  movement. If the narration describes a specific region, the viewport must
+  visibly show that region.
+- Demonstrate claims literally. If the narration says resize then move, record
+  resize then move. Give consequential actions, such as sending to a board,
+  enough screen time to be understood.
+- Crop clips tightly around the intended figure or excerpt. Exclude captions,
+  surrounding prose, and unrelated page content unless they are essential to
+  the explanation.
+- Keep a roughly 40-second tutorial to the essential workflow. End with a short
+  result demonstration rather than another explanation.
+- Use a natural voice and confirm the final narration is complete, audible, and
+  not clipped at either end.
+- Watch the complete final MP4 with sound. Check continuity, narration/action
+  synchronization, pointer accuracy, accidental clicks, clean crops, and the
+  final frame; frame sampling alone is not enough.
+
 Do not report completion until every applicable verification item in
 `VIDEO_PRODUCTION_GUIDE.md` passes.
