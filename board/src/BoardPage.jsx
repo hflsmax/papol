@@ -66,7 +66,8 @@ const stagedSourceLabel = (item) => {
 
 export default function BoardPage({ boardId, onBack, backHref }) {
   const [board, setBoard] = useState(null);
-  const [view] = useState(() => initialBoardView(boardId));
+  const [view, setView] = useState(() => initialBoardView(boardId));
+  const [viewRevision, setViewRevision] = useState(0);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [imageUrls, setImageUrls] = useState({});
@@ -218,6 +219,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     viewRef.current = restored;
     pendingView.current = restored;
     paintView(restored);
+    setView(restored);
     load();
   }, [boardId]);
   useEffect(() => { document.body.classList.add('board-workspace-open'); return () => document.body.classList.remove('board-workspace-open'); }, []);
@@ -247,13 +249,16 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         contentHeight ? (bounds.height - 32) / contentHeight : 1,
       ), 0.05, 3);
       centerInitialView.current = false;
-      paintView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
+      queueView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
     });
     return () => cancelAnimationFrame(frame);
   }, [board?.id]);
   const imageItems = board ? [...board.items, ...(board.staged_items || [])]
     .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)) : [];
   const imageIds = imageItems.map((item) => item.id).join(',');
+  // Toggling a paint-affecting property invalidates each card's composited
+  // layer without remounting it or discarding editors and loaded images.
+  const cardPaintState = viewRevision % 2 ? 'hidden' : 'visible';
   useEffect(() => {
     if (!board) return undefined;
     let active = true; const urls = [];
@@ -347,7 +352,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (viewFrame.current != null) return;
     viewFrame.current = requestAnimationFrame(() => {
       viewFrame.current = null;
-      paintView(pendingView.current);
+      const nextView = pendingView.current;
+      paintView(nextView);
+      // View changes also invalidate the React tree so every card can
+      // redraw viewport-dependent content. Raw input remains coalesced to
+      // one update per animation frame.
+      setView(nextView);
+      setViewRevision((current) => current + 1);
     });
     if (viewSaveTimer.current != null) clearTimeout(viewSaveTimer.current);
     viewSaveTimer.current = setTimeout(() => {
@@ -1762,7 +1773,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
