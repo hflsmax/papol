@@ -177,7 +177,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   useEffect(() => {
     if (menuItem == null) return undefined;
     const closeMenu = (event) => {
-      if (!event.target.closest('.board-item-menu')) setMenuItem(null);
+      // The card's own button toggles the menu, so leave that click to it.
+      if (!event.target.closest('.board-item-menu, .board-card-more')) setMenuItem(null);
     };
     document.addEventListener('pointerdown', closeMenu, true);
     return () => document.removeEventListener('pointerdown', closeMenu, true);
@@ -1777,7 +1778,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
-            {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([item.id]); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
+            {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setSelectedBooklet(null); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
           </header>
           <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
           {['image', 'youtube', 'webpage'].includes(item.kind) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
@@ -1792,7 +1793,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
             : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
           {['excerpt', 'image'].includes(item.kind) && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>}
           </div>
-          {selectedItems.length === 1 && selectedItems[0] === item.id && menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
+          {menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
             {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
             {item.kind !== 'comment' && <button onClick={() => downloadBoardFile(item)}>Download</button>}
             {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove card</button>}

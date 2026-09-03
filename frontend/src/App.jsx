@@ -4438,8 +4438,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card { position: absolute; left: 0; top: 0; isolation: isolate; width: 300px; max-height: 520px; overflow: visible; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: 0 2px 5px rgba(29,33,41,.09), 0 9px 24px rgba(29,33,41,.08); cursor: default; user-select: none; contain: layout style; will-change: transform; }
 .board-canvas-card.selected { z-index: 2; outline: 2px solid var(--accent); outline-offset: 3px; border-color: var(--accent-line); border-radius: 10px; box-shadow: 0 6px 20px rgba(43,74,111,.16); }
 .board-canvas-card.selected > .board-card-header,
-.board-canvas-card.selected > .board-card-content,
-.board-canvas-card.selected > .board-item-menu { pointer-events: none; }
+.board-canvas-card.selected > .board-card-content { pointer-events: none; }
+.board-canvas-card.selected .board-card-more,
+.board-canvas-card.selected .board-editable-text,
+.board-canvas-card.selected .board-youtube-description,
+.board-canvas-card.selected .board-inline-text-editor { pointer-events: auto; }
 .board-canvas-card.selected > .board-card-content,
 .board-canvas-card.selected > .board-card-content * { user-select: none; }
 .board-card-header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
