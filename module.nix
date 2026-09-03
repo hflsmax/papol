@@ -25,7 +25,7 @@ let
 
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";
-    runtimeInputs = [ pkgs.coreutils pkgs.zip pkgs.wrangler pkgs.systemd pkgs.sudo ];
+    runtimeInputs = [ pkgs.coreutils pkgs.zip pkgs.wrangler ];
     text = builtins.readFile ./tools/backup-r2.sh;
   };
 

@@ -9,13 +9,9 @@ readonly R2_PREFIX=${R2_PREFIX:-daily}
 tmp_dir=$(mktemp -d /var/tmp/papol-r2-backup.XXXXXX)
 archive="$tmp_dir/papol-$(date +%Y-%m-%dT%H%M%S%z).zip"
 backup_name=$(basename "$archive" .zip)
-papol_stopped=no
 
 cleanup() {
   status=$?
-  if [ "$papol_stopped" = yes ]; then
-    sudo -n systemctl start papol.service || true
-  fi
   rm -rf -- "$tmp_dir"
   exit "$status"
 }
@@ -23,16 +19,11 @@ trap cleanup EXIT INT TERM
 
 test -d "$PAPOL_DIR"
 
-# SQLite and uploaded files must not change while zip is walking the tree.
-# Bring the site back before the comparatively slow network upload.
-sudo -n systemctl stop papol.service
-papol_stopped=yes
+# Archive the live production tree without interrupting the service.
 (
   cd "$PAPOL_PARENT"
   zip -1 -q -r "$archive" prod
 )
-sudo -n systemctl start papol.service
-papol_stopped=no
 
 # Wrangler's object command accepts at most 300 MiB. Keep one ordinary ZIP,
 # but split it into transport parts below that ceiling. The checksum is
@@ -46,15 +37,13 @@ for part in "$tmp_dir/$backup_name.zip.part-"*; do
     "$R2_BUCKET/$R2_PREFIX/$backup_name/$(basename "$part")" \
     --remote \
     --file "$part" \
-    --content-type application/octet-stream \
-    --force
+    --content-type application/octet-stream
 done
 wrangler r2 object put \
   "$R2_BUCKET/$R2_PREFIX/$backup_name/$backup_name.sha256" \
   --remote \
   --file "$tmp_dir/$backup_name.sha256" \
-  --content-type text/plain \
-  --force
+  --content-type text/plain
 
 printf 'Uploaded %s (%s bytes)\n' \
   "$R2_BUCKET/$R2_PREFIX/$backup_name/" \
