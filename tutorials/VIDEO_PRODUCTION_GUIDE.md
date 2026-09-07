@@ -86,6 +86,10 @@ instructions into separately scheduled lines and pauses.
 - Derive subtitle end times from generated audio boundaries, not estimates.
 - Inspect an encoded subtitle frame; libass sizing can differ from expectations.
 - Listen to the opening and closing words and confirm neither is clipped.
+- Match the established subtitle treatment: centered DejaVu Sans at size 18,
+  white on an opaque black box (`BorderStyle=3`, `Outline=1`, `MarginV=18`).
+  ASS colour alpha is inverted from the usual expectation: `00` is opaque and
+  `FF` is transparent.
 
 ## Recording and cursor choreography
 
@@ -109,6 +113,9 @@ instructions into separately scheduled lines and pauses.
   choreography before navigation, or explicitly install it in the destination
   document. Scroll the destination's real scroller (the viewer uses `.pages`),
   not `window`, when demonstrating reading after navigation.
+- Verify the result of a click, not only its coordinates. Nested controls can
+  behave differently from their parent—for example, a label may rename while
+  the surrounding card navigates.
 
 ## Framing and continuity
 
@@ -133,6 +140,11 @@ broad browser compatibility. Use `ffprobe` on the final file to verify:
 - AAC audio;
 - expected frame rate.
 
+JPEG frame sequences are full-range. Convert them with
+`scale=in_range=pc:out_range=tv,format=yuv420p`, and set
+`-pix_fmt yuv420p -color_range tv`; otherwise `ffprobe` may report the output
+as `yuvj420p` despite the requested pixel format.
+
 ## Publishing and cleanup
 
 - Copy the final MP4 to `frontend/public/assets/learn/` and add or update one
@@ -143,6 +155,10 @@ broad browser compatibility. Use `ffprobe` on the final file to verify:
 - Build the frontend after publishing. If the catalog or layout changed, inspect
   the Learn page at desktop and mobile widths.
 - Track and delete only database rows and uploads created by the recording run.
+- For a deliberately empty starting state, use an isolated recording account
+  rather than hiding existing data. Give it any temporary source access it
+  needs, track every created object ID, and remove the account and access
+  records after verification.
 - Remove temporary frames, dependencies, voice environments, and recording-only
   uploads after verification. Preserve reusable source scripts and media.
 - Learn-page catalogs may filter lessons by section. Confirm a new entry has all
