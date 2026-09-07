@@ -1,0 +1,41 @@
+1
+00:00:00,300 --> 00:00:06,000
+You can navigate a PDF in Papol two ways:
+with link history and anchors.
+
+2
+00:00:06,200 --> 00:00:10,800
+Link history retraces jumps made by links
+inside the paper.
+
+3
+00:00:11,300 --> 00:00:16,000
+Follow a link, then use Back and Forward
+to move between locations.
+
+4
+00:00:16,700 --> 00:00:19,725
+The left and right bracket keys do the same.
+
+5
+00:00:20,200 --> 00:00:25,300
+When you want to move between two parts of a paper,
+drop an anchor in each place.
+
+6
+00:00:26,500 --> 00:00:30,975
+The anchors appear in My anchors.
+Click either anchor to go there.
+
+7
+00:00:31,400 --> 00:00:34,100
+Click a page label to name an anchor.
+
+8
+00:00:34,800 --> 00:00:40,375
+Turn an anchor into a note by selecting add a note,
+writing your note, and saving it.
+
+9
+00:00:42,600 --> 00:00:44,450
+Enjoy Papol.

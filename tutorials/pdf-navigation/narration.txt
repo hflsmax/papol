@@ -1,0 +1,9 @@
+You can navigate a PDF in Papol two ways: with link history and anchors.
+Link history retraces jumps made by links inside the paper.
+Follow a link, then use Back and Forward to move between locations.
+The left and right bracket keys do the same.
+When you want to move between two parts of a paper, drop an anchor in each place.
+The anchors appear in My anchors. Click either anchor to go there.
+Click a page label to name an anchor.
+Turn an anchor into a note by selecting add a note, writing your note, and saving it.
+Enjoy Papol.

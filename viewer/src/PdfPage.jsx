@@ -5,6 +5,7 @@ import { animalFor } from './animals';
 import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
 import { pageOverlays } from './references';
 import { STRIP_RATIO } from './ink';
+import { resizeClipFrame } from './clipResize';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -156,6 +157,7 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
     const container = clip.floating
       ? event.currentTarget.closest('.pages').getBoundingClientRect()
       : event.currentTarget.closest('.pdf-page').getBoundingClientRect();
+    const pdfPage = event.currentTarget.closest('.pdf-page').getBoundingClientRect();
     gestureRef.current = {
       kind,
       x: event.clientX,
@@ -163,6 +165,8 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
       page: container,
       frame: liveFrame,
       lastFrame: liveFrame,
+      rendered: rootRef.current?.getBoundingClientRect(),
+      aspect: (clip.source.w * pdfPage.width) / (clip.source.h * pdfPage.height),
     };
     if (kind === 'move' && rootRef.current) rootRef.current.style.willChange = 'transform';
     draggedRef.current = false;
@@ -197,13 +201,11 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
       }
       return;
     }
-    const aspect = clip.source.w / clip.source.h;
-    let w = Math.min(0.9, Math.max(0.08, gesture.frame.w + dx));
-    let h = w / aspect;
-    if (h > 0.9) {
-      h = 0.9;
-      w = h * aspect;
-    }
+    const resized = resizeClipFrame(gesture.frame, gesture.rendered, {
+      x: event.clientX - gesture.x,
+      y: event.clientY - gesture.y,
+    }, gesture.aspect, gesture.page);
+    const { w, h } = resized;
     const frame = {
       ...gesture.frame,
       x: clip.floating ? Math.min(1 - w, gesture.frame.x) : gesture.frame.x,

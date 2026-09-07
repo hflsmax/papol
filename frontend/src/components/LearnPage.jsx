@@ -18,6 +18,13 @@ const lessons = [
     video: '/assets/learn/clipping-functionality.mp4',
   },
   {
+    id: 'pdf-navigation',
+    art: 'send',
+    section: 'Viewer',
+    title: 'Navigate PDFs with history and anchors',
+    video: '/assets/learn/pdf-navigation.mp4',
+  },
+  {
     id: 'add-animal',
     art: 'animal',
     section: 'Viewer',
