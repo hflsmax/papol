@@ -6,6 +6,7 @@ import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
 import { pageOverlays } from './references';
 import { STRIP_RATIO } from './ink';
 import { resizeClipFrame } from './clipResize';
+import { anchorSpotAtPage } from './anchorDrag';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -392,6 +393,7 @@ function PdfPage({
   // re-renders and a stale `moved` flag would read a drag as a click. The
   // state alongside it exists only to redraw the pin under the pointer.
   const dragRef = useRef(null);
+  const dragScrollRef = useRef(null);
   const [drag, setDrag] = useState(null);
   // Set when a drag ends, so the click that follows it is not also read as
   // "open the menu".
@@ -642,15 +644,60 @@ function PdfPage({
     e.currentTarget.setPointerCapture(e.pointerId);
     // Where the pointer sits relative to the anchor's own point, so the
     // shape keeps that offset instead of snapping its point to the cursor.
-    const grabbed = anchorAt(e.clientX, e.clientY);
+    const page = holderRef.current.getBoundingClientRect();
+    const anchorScreen = {
+      x: page.left + note.anchor.x * page.width,
+      y: page.top + (1 - note.anchor.y) * page.height,
+    };
     dragRef.current = {
       id: note.id,
       from: { x: e.clientX, y: e.clientY },
       anchor: note.anchor,
-      grab: { x: grabbed.x - note.anchor.x, y: grabbed.y - note.anchor.y },
+      page: pageNumber,
+      spot: { page: pageNumber, anchor: note.anchor },
+      grab: { x: e.clientX - anchorScreen.x, y: e.clientY - anchorScreen.y },
+      screen: anchorScreen,
+      pointer: { x: e.clientX, y: e.clientY },
       moved: false,
     };
     setDrag({ id: note.id, anchor: note.anchor, moved: false });
+  };
+
+  const updateDraggedAnchor = (d) => {
+    const pages = [...document.querySelectorAll('.pdf-page')].map((element) => ({
+      page: Number(element.dataset.page),
+      rect: element.getBoundingClientRect(),
+    }));
+    const spot = anchorSpotAtPage(pages, d.pointer.x, d.pointer.y, d.grab);
+    if (spot) {
+      d.spot = spot;
+      d.page = spot.page;
+      d.anchor = spot.anchor;
+    }
+    d.screen = { x: d.pointer.x - d.grab.x, y: d.pointer.y - d.grab.y };
+    setDrag({ id: d.id, page: d.page, anchor: d.anchor, screen: d.screen, moved: d.moved });
+  };
+
+  const scrollWhileDragging = () => {
+    const d = dragRef.current;
+    if (!d?.moved) {
+      dragScrollRef.current = null;
+      return;
+    }
+    const scroller = holderRef.current?.closest('.pages');
+    const box = scroller?.getBoundingClientRect();
+    const edge = 72;
+    let amount = 0;
+    if (box && d.pointer.y < box.top + edge) {
+      amount = -18 * (1 - Math.max(0, d.pointer.y - box.top) / edge);
+    } else if (box && d.pointer.y > box.bottom - edge) {
+      amount = 18 * (1 - Math.max(0, box.bottom - d.pointer.y) / edge);
+    }
+    if (amount) {
+      scroller.scrollTop += amount;
+      updateDraggedAnchor(d);
+    }
+    dragScrollRef.current = requestAnimationFrame(scrollWhileDragging);
   };
 
   // The pin follows from the first pixel, and the slop decides only what
@@ -664,14 +711,11 @@ function PdfPage({
     d.moved =
       d.moved ||
       Math.abs(e.clientX - d.from.x) + Math.abs(e.clientY - d.from.y) > DRAG_SLOP;
-    const under = anchorAt(e.clientX, e.clientY);
-    const clamp = (v) => Math.min(1, Math.max(0, v));
-    d.anchor = {
-      type: 'point',
-      x: clamp(under.x - d.grab.x),
-      y: clamp(under.y - d.grab.y),
-    };
-    setDrag({ id: d.id, anchor: d.anchor, moved: d.moved });
+    d.pointer = { x: e.clientX, y: e.clientY };
+    updateDraggedAnchor(d);
+    if (d.moved && dragScrollRef.current == null) {
+      dragScrollRef.current = requestAnimationFrame(scrollWhileDragging);
+    }
     if (d.moved) onDragNote(d.id);
   };
 
@@ -679,6 +723,8 @@ function PdfPage({
     e.stopPropagation();
     const d = dragRef.current;
     dragRef.current = null;
+    if (dragScrollRef.current != null) cancelAnimationFrame(dragScrollRef.current);
+    dragScrollRef.current = null;
     onDragNote(null);
     // Dropping the drag state is also what puts a pin back that moved a
     // pixel or two and turned out to be a click: it is drawn from the
@@ -687,7 +733,7 @@ function PdfPage({
     if (!d) return;
     draggedRef.current = d.moved;
     if (d.moved) {
-      onMoveNote(note.id, { page: pageNumber, anchor: d.anchor });
+      onMoveNote(note.id, d.spot);
       onSelectNote(null);
     }
     // A click that did not drag opens the menu — and it is left to the
@@ -1903,7 +1949,12 @@ function PdfPage({
               }${note.content ? '' : ' bare'}${
                 drag?.id === note.id && drag.moved ? ' dragging' : ''
               }`}
-              style={{
+              style={drag?.id === note.id && drag.moved ? {
+                position: 'fixed',
+                left: drag.screen.x,
+                top: drag.screen.y,
+                zIndex: 50,
+              } : {
                 // The y fraction is measured from the bottom in PDF space and
                 // drawn from the top in CSS.
                 left: `${(drag?.id === note.id ? drag.anchor : note.anchor).x * 100}%`,
