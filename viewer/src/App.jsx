@@ -21,6 +21,7 @@ import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
+import { linkHistoryDirection } from './linkHistoryShortcut';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -842,12 +843,13 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === '[' || e.key === ']') {
+      const historyDirection = linkHistoryDirection(e);
+      if (historyDirection) {
         e.preventDefault();
-        moveThroughLinks(e.key === '[' ? 'back' : 'forward');
+        moveThroughLinks(historyDirection);
         return;
       }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         setSheet(null);
