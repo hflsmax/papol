@@ -52,6 +52,13 @@ const lessons = [
     title: 'Send excerpts and figures to a board',
     video: '/assets/learn/viewer-to-board.mp4',
   },
+  {
+    id: 'note-making',
+    art: 'send',
+    section: 'Viewer',
+    title: 'Make notes while reading',
+    video: '/assets/learn/note-making-v2.mp4',
+  },
 ];
 
 function LessonArt({ type }) {

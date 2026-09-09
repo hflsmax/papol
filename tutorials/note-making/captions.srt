@@ -1,0 +1,51 @@
+1
+00:00:00,300 --> 00:00:03,850
+Papol gives you two ways to make notes
+while you read.
+
+2
+00:00:04,600 --> 00:00:10,050
+First, choose Anchor, then click beside the exact place
+you want to remember.
+
+3
+00:00:10,400 --> 00:00:13,400
+Open My anchors and select Add a note.
+
+4
+00:00:13,800 --> 00:00:16,850
+Write your thought, then save it to the anchor.
+
+5
+00:00:17,300 --> 00:00:22,825
+Now click Back to Papol. On the paper page,
+the same note appears under Notes.
+
+6
+00:00:23,700 --> 00:00:29,325
+Anchors work best when a thought depends
+on one precise passage or diagram.
+
+7
+00:00:29,500 --> 00:00:37,000
+For the second method, highlight text to save a passage.
+For a figure, choose Clipper and draw a box around it.
+
+8
+00:00:37,000 --> 00:00:42,625
+Select the clip's Send button, add your note,
+choose a board, and send it to that board.
+
+9
+00:00:45,200 --> 00:00:49,475
+Open the board and drag the saved figure
+onto the canvas.
+
+10
+00:00:49,600 --> 00:00:53,700
+Boards gather evidence across papers for comparison.
+
+11
+00:00:54,000 --> 00:00:58,350
+Anchors keep context. Boards connect.
+Enjoy Papol.

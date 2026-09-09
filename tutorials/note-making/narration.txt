@@ -1,0 +1,11 @@
+Papol gives you two ways to make notes while you read.
+First, choose Anchor, then click beside the exact place you want to remember.
+Open My anchors and select Add a note.
+Write your thought, then save it to the anchor.
+Now click Back to Papol. On the paper page, the same note appears under Notes.
+Anchors work best when a thought depends on one precise passage or diagram.
+For the second method, highlight text to save a passage. For a figure, choose Clipper and draw a box around it.
+Select the clip's Send button, add your note, choose a board, and send it to that board.
+Open the board and drag the saved figure onto the canvas.
+Boards gather evidence across papers for comparison.
+Anchors keep context. Boards connect. Enjoy Papol.
