@@ -57,7 +57,7 @@ const lessons = [
     art: 'send',
     section: 'Viewer',
     title: 'Make notes while reading',
-    video: '/assets/learn/note-making-v2.mp4',
+    video: '/assets/learn/note-making.mp4',
   },
 ];
 
