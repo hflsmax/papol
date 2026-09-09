@@ -74,6 +74,11 @@ If a precise explanation or a sequence of consequential actions needs more
 room, extend the duration instead of rushing the voice or cursor. Split compound
 instructions into separately scheduled lines and pauses.
 
+Before production, decide whether the request updates an existing lesson or
+introduces a new one. Similar subject matter is not enough to merge lessons: if
+the requested learning objective is distinct, keep the existing lesson intact
+and create a separate tutorial directory and catalog entry.
+
 ## Voice and subtitles
 
 - Prefer the established natural voice in the tutorial being updated. For a new
@@ -84,8 +89,15 @@ instructions into separately scheduled lines and pauses.
 - Preserve intentional silence between ideas.
 - Make subtitle text match the generated narration word for word.
 - Derive subtitle end times from generated audio boundaries, not estimates.
+- Schedule narration against visible state transitions. For navigation, show
+  the click and complete the transition before narration starts explaining the
+  destination. For a multi-option workflow, show every option named as part of
+  the lesson rather than relying on narration alone.
 - Inspect an encoded subtitle frame; libass sizing can differ from expectations.
 - Listen to the opening and closing words and confirm neither is clipped.
+- Keep at least one second of quiet final-frame headroom after the closing
+  phrase when the requested duration allows it. Verify the closing phrase in
+  the published asset, not only in the source WAV or source MP4.
 - Match the established subtitle treatment: centered DejaVu Sans at size 18,
   white on an opaque black box (`BorderStyle=3`, `Outline=1`, `MarginV=18`).
   ASS colour alpha is inverted from the usual expectation: `00` is opaque and
@@ -149,9 +161,16 @@ as `yuvj420p` despite the requested pixel format.
 
 - Copy the final MP4 to `frontend/public/assets/learn/` and add or update one
   catalog entry in `frontend/src/components/LearnPage.jsx`.
+- Use one canonical, descriptive filename for the published lesson. Do not
+  leave permanent `-v2`, `-final`, or similar duplicate assets as a cache fix.
+  If cache invalidation is necessary, change a query parameter or the deployment
+  cache policy, then return the catalog to the canonical filename.
 - Each lesson card has one title. Do not add descriptions, durations, badges, or
   other text unless the Learn-page design is intentionally changing.
 - Confirm the tutorial source MP4 and published MP4 have identical checksums.
+- After changing narration or republishing in place, load the exact URL used by
+  the Learn card and confirm it serves the new bytes; checking only the local
+  source file can miss a stale browser or edge cache.
 - Build the frontend after publishing. If the catalog or layout changed, inspect
   the Learn page at desktop and mobile widths.
 - Track and delete only database rows and uploads created by the recording run.

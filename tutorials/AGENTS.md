@@ -43,9 +43,19 @@ requirements and definition of done as part of the task.
 
 ## Lessons from previous recordings
 
+- Confirm the lesson boundary before editing assets. A request for a new
+  workflow tutorial does not authorize repurposing an existing lesson that
+  overlaps with part of that workflow. Preserve the old lesson and create a
+  separately named tutorial, video asset, and Learn card.
 - Write the complete narration before scripting the recording. Build a timed
   action list from it, and make every visible action occur in the same order as
   the words that describe it.
+- Treat narration as a live description of the screen, not a summary laid over
+  unrelated motion. Begin navigation before narrating what to do on the
+  destination page, and do not name a result until it is visible.
+- When a sentence presents alternatives such as highlighting text or clipping
+  a figure, visibly demonstrate each alternative the lesson promises to teach.
+  Mentioning an option while showing another one is not a demonstration.
 - Prefer one continuous interaction path. When multiple takes are necessary,
   match the viewport, zoom, scroll position, pointer position, and UI state so
   the edit does not jump.
@@ -78,6 +88,9 @@ requirements and definition of done as part of the task.
   media tools; do not install recorder dependencies manually.
 - Use a natural voice and confirm the final narration is complete, audible, and
   not clipped at either end.
+- Leave audible and visual headroom after the closing phrase. Finishing speech
+  a fraction of a second before the container ends can sound clipped in a web
+  player even when the encoded audio technically contains every word.
 - Watch the complete final MP4 with sound. Check continuity, narration/action
   synchronization, pointer accuracy, accidental clicks, clean crops, and the
   final frame; frame sampling alone is not enough.
