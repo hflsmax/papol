@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Papol",
+  "version": "0.1.0",
+  "identifier": "com.mc-pony.papol",
+  "build": {
+    "frontendDist": "https://mc-pony.com/papol/"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Papol",
+        "url": "https://mc-pony.com/papol/",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "capabilities": []
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "shortDescription": "Read, annotate, and discuss research papers.",
+    "longDescription": "Papol is a workspace for reading, annotating, organizing, and discussing research papers.",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": null,
+      "hardenedRuntime": true
+    }
+  }
+}
