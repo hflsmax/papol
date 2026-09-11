@@ -5,6 +5,9 @@ import { PAPER_DRAG_TYPE, isBrowsing, sourcePath } from '../desktopSources';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
+import {
+  getSyncStatus, refreshSyncStatus, setSyncPreference, syncOfflineQueue,
+} from '../../../shared/offlineStore';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol Desktop (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -106,6 +109,61 @@ function ItemMark({ item }) {
   return <Glyph name={item.glyph} />;
 }
 
+function SyncControl() {
+  const [status, setStatus] = useState(getSyncStatus);
+
+  useEffect(() => {
+    const update = () => setStatus(getSyncStatus());
+    window.addEventListener('papol-offline-status', update);
+    refreshSyncStatus().then(update).catch(() => {});
+    document.getElementById('papol-offline-status')?.remove();
+    return () => window.removeEventListener('papol-offline-status', update);
+  }, []);
+
+  const syncNow = async () => {
+    await syncOfflineQueue();
+    const latest = getSyncStatus();
+    setStatus(latest);
+    if (!latest.error && latest.pending === 0) {
+      try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
+      window.location.reload();
+    }
+  };
+
+  const summary = status.error || (status.syncing
+    ? `Syncing ${status.pending} change${status.pending === 1 ? '' : 's'}…`
+    : status.offline
+      ? `Offline${status.pending ? ` · ${status.pending} waiting` : ''}`
+      : status.pending
+        ? `${status.pending} change${status.pending === 1 ? '' : 's'} waiting`
+        : status.lastSynced
+          ? `Synced ${new Date(status.lastSynced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+          : 'Up to date');
+
+  return (
+    <section id="desktop-sync-control" className={`desktop-sync-control${status.error ? ' error' : ''}`} aria-label="Synchronization">
+      <div className="desktop-sync-row">
+        <button type="button" className="desktop-sync-button" onClick={syncNow} disabled={status.syncing}>
+          <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
+          <span>Sync now</span>
+          {status.pending > 0 && <span className="desktop-sync-count">{status.pending}</span>}
+        </button>
+        <select
+          className="desktop-sync-preference"
+          aria-label="Sync preference"
+          title="Choose when Papol sends local changes to the backend"
+          value={status.preference}
+          onChange={(event) => setSyncPreference(event.target.value)}
+        >
+          <option value="automatic">Automatic</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+      <p className="desktop-sync-summary" title={status.error || undefined}>{summary}</p>
+    </section>
+  );
+}
+
 export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, notice }) {
   const [dropKey, setDropKey] = useState(null);
   const openPath = (path) => onNavigate ? onNavigate(path) : window.location.assign(appPath(path));
@@ -192,6 +250,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
       ))}
       {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
       <div className="desktop-sidebar-footer">
+        {user && <SyncControl />}
         <button type="button" className="desktop-sidebar-item" onClick={onFeedback} onContextMenu={contextMenuHandler(() => [
           { label: 'Send Feedback…', onSelect: onFeedback },
         ])}>

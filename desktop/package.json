@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "tauri dev",
-    "dev:local": "PAPOL_URL=http://localhost:8000/ tauri dev",
-    "build": "tauri build"
+    "install:web": "npm ci --prefix ../frontend && npm ci --prefix ../viewer && npm ci --prefix ../board",
+    "build:web": "node scripts/build-web.mjs",
+    "build": "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY:--} tauri build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.5"

@@ -18,6 +18,16 @@ export function appPath(path = '/') {
   return `${APP_BASE}${absolute}` || '/';
 }
 
+// Browser builds keep using Papol's own origin. The desktop build supplies a
+// hosted backend here, while its pages and all of their runtime dependencies
+// remain inside the application bundle.
+const configuredBackend = (import.meta.env.VITE_PAPOL_BACKEND || '').replace(/\/$/, '');
+
+export function backendPath(path = '/') {
+  const absolute = path.startsWith('/') ? path : `/${path}`;
+  return configuredBackend ? `${configuredBackend}${absolute}` : appPath(absolute);
+}
+
 export function stripAppBase(pathname) {
   if (!APP_BASE) return pathname || '/';
   if (pathname === APP_BASE) return '/';

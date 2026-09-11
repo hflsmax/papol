@@ -6,7 +6,9 @@ import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
 
 function route() {
   const match = window.location.pathname.match(/\/(?:demo\/)?boards\/([^/]+)\/?$/);
-  return match ? decodeURIComponent(match[1]) : null;
+  return match && match[1] !== 'index.html'
+    ? decodeURIComponent(match[1])
+    : new URLSearchParams(window.location.search).get('board');
 }
 
 function boardReturnPath() {
@@ -29,7 +31,8 @@ function returnToPapol() {
 
 export default function App() {
   const boardId = route();
-  const inDemo = window.location.pathname.includes('/demo/boards/');
+  const inDemo = window.location.pathname.includes('/demo/boards/') ||
+    new URLSearchParams(window.location.search).get('demo') === '1';
   if (!inDemo && !getToken()) {
     const marker = '/boards/';
     const base = window.location.pathname.slice(0, window.location.pathname.indexOf(marker));

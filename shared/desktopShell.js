@@ -1,8 +1,7 @@
-// Papol Desktop loads the hosted pages inside a Tauri window. The pages stay
-// the same code; this module only tells them they are inside that window so
-// their chrome can look like a native app's instead of a website's.
-//
-// Tauri defines `window.isTauri` in every page of its webview. For working on
+import { APP_ENV, IS_DESKTOP } from './appEnvironment.js';
+
+// Papol Desktop loads bundled pages inside a Tauri window. Tauri injects the
+// shared runtime environment before these modules execute. For working on
 // the desktop layout in an ordinary browser, `?shell=desktop` opts the tab in
 // (for the rest of the tab's session, across the viewer and boards) and
 // `?shell=web` opts it back out.
@@ -20,15 +19,12 @@ function readOverride() {
   }
 }
 
-export const DESKTOP = Boolean(
-  window.__PAPOL_DESKTOP__ || window.isTauri || window.__TAURI_INTERNALS__ ||
-  /PapolDesktop\//.test(navigator.userAgent)
-) || readOverride();
+export const DESKTOP = IS_DESKTOP || readOverride();
 
 // On macOS the window's title bar is transparent and overlays the page, so
 // the traffic lights sit on top of whatever is in the page's top-left corner.
 export const MAC = /Mac/.test(navigator.platform || navigator.userAgent);
-export const DOCUMENT_WINDOW = DESKTOP && Boolean(window.__PAPOL_DOCUMENT_WINDOW__);
+export const DOCUMENT_WINDOW = IS_DESKTOP && APP_ENV.documentWindow;
 
 export function openDesktopDocumentWindow(href, features = '') {
   const absoluteUrl = new URL(href, window.location.href).href;

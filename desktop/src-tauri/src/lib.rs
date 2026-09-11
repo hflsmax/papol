@@ -2,15 +2,23 @@ use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
 
-const DESKTOP_MARKER: &str = "window.__PAPOL_DESKTOP__ = true; \
+const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
+      runtime: 'desktop', surface: 'main', documentWindow: false \
+    }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url });";
-const DOCUMENT_MARKER: &str = "window.__PAPOL_DESKTOP__ = true; \
-    window.__PAPOL_DOCUMENT_WINDOW__ = true; \
-    window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
-      window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
-    window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
-      window.__TAURI_INTERNALS__.invoke('close_document_window');";
+
+fn document_environment(surface: &str) -> String {
+    format!(
+        "window.__PAPOL_ENV__ = Object.freeze({{ \
+           runtime: 'desktop', surface: '{surface}', documentWindow: true \
+         }}); \
+         window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
+           window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
+         window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
+           window.__TAURI_INTERNALS__.invoke('close_document_window');"
+    )
+}
 
 #[tauri::command]
 fn close_document_window(window: tauri::WebviewWindow) {
@@ -20,10 +28,10 @@ fn close_document_window(window: tauri::WebviewWindow) {
         let _ = window.close();
     }
 }
-const DESKTOP_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) PapolDesktop/0.1";
-
 struct DocumentWindow {
     label: String,
+    route: String,
+    entry: &'static str,
     title: &'static str,
     width: f64,
     min_width: f64,
@@ -37,8 +45,19 @@ fn label_part(value: &str) -> String {
         .collect()
 }
 
+fn url_origin(url: &tauri::Url) -> String {
+    let serialized = url.origin().ascii_serialization();
+    if serialized != "null" {
+        return serialized;
+    }
+    match url.host_str() {
+        Some(host) => format!("{}://{host}", url.scheme()),
+        None => serialized,
+    }
+}
+
 fn document_window(url: &tauri::Url, papol_origin: &str) -> Option<DocumentWindow> {
-    if url.origin().ascii_serialization() != papol_origin {
+    if url_origin(url) != papol_origin {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
@@ -50,6 +69,12 @@ fn document_window(url: &tauri::Url, papol_origin: &str) -> Option<DocumentWindo
         }
         return Some(DocumentWindow {
             label: format!("viewer-{identity}"),
+            route: identity,
+            entry: if parts.contains(&"demo") {
+                "/demo/viewer/index.html"
+            } else {
+                "/viewer/index.html"
+            },
             title: "Papol Viewer",
             width: 1100.0,
             min_width: 760.0,
@@ -63,6 +88,12 @@ fn document_window(url: &tauri::Url, papol_origin: &str) -> Option<DocumentWindo
         let demo = if parts.contains(&"demo") { "demo-" } else { "" };
         return Some(DocumentWindow {
             label: format!("board-{demo}{identity}"),
+            route: identity,
+            entry: if parts.contains(&"demo") {
+                "/demo/boards/index.html"
+            } else {
+                "/boards/index.html"
+            },
             title: "Papol Board",
             width: 1200.0,
             min_width: 800.0,
@@ -71,10 +102,30 @@ fn document_window(url: &tauri::Url, papol_origin: &str) -> Option<DocumentWindo
     None
 }
 
+fn bundled_document_url(mut url: tauri::Url, document: &DocumentWindow) -> tauri::Url {
+    url.set_path(document.entry);
+    if document.entry.contains("/boards/") {
+        url.query_pairs_mut()
+            .clear()
+            .append_pair("board", &document.route);
+        if document.entry.starts_with("/demo/") {
+            url.query_pairs_mut().append_pair("demo", "1");
+        }
+    }
+    url
+}
+
 fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::Url) -> bool {
     let Some(document) = document_window(&url, papol_origin) else {
         return false;
     };
+    let url = bundled_document_url(url, &document);
+    let surface = if document.entry.contains("/boards/") {
+        "board"
+    } else {
+        "viewer"
+    };
+    let environment = document_environment(surface);
 
     // A document has one window. Asking for it again brings that window
     // forward; a note URL may also retarget an already-open paper precisely.
@@ -99,7 +150,6 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
     config.label = document.label;
     config.create = true;
     config.url = tauri::WebviewUrl::External(url);
-    config.user_agent = Some(DESKTOP_USER_AGENT.into());
     config.center = false;
     config.x = None;
     config.y = None;
@@ -114,7 +164,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         return false;
     };
     builder
-        .initialization_script(DOCUMENT_MARKER)
+        .initialization_script(environment)
         .on_document_title_changed(|window, title| {
             let _ = window.set_title(&title);
         })
@@ -139,7 +189,7 @@ fn open_document_window(
     let target_url = url
         .parse::<tauri::Url>()
         .map_err(|error| error.to_string())?;
-    let papol_origin = source_url.origin().ascii_serialization();
+    let papol_origin = url_origin(&source_url);
     if show_document_window(&app, &papol_origin, target_url) {
         Ok(())
     } else {
@@ -150,6 +200,7 @@ fn open_document_window(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .menu(|app| {
             let menu = Menu::default(app)?;
             if let Some(item) = menu.get(WINDOW_SUBMENU_ID) {
@@ -185,22 +236,18 @@ pub fn run() {
                 config.url = tauri::WebviewUrl::External(url.parse()?);
             }
             let papol_origin = match &config.url {
-                tauri::WebviewUrl::External(url) => Some(url.origin().ascii_serialization()),
+                tauri::WebviewUrl::External(url) => Some(url_origin(url)),
+                // macOS and Linux expose bundled assets through Tauri's
+                // custom origin. Windows uses tauri.localhost instead.
+                tauri::WebviewUrl::App(_) if cfg!(windows) => Some("http://tauri.localhost".into()),
+                tauri::WebviewUrl::App(_) => Some("tauri://localhost".into()),
                 _ => None,
             };
             let app_handle = app.handle().clone();
             WebviewWindowBuilder::from_config(app.handle(), &config)?
-                // Tauri v2 does not expose its JavaScript globals unless the
-                // global API is enabled. Papol needs only to know that its
-                // page is in this shell, so mark that explicitly before any
-                // page script runs instead of exposing the whole API.
-                .initialization_script(DESKTOP_MARKER)
-                // Remote WebKit pages do not consistently run initialization
-                // scripts before their module graph. The user agent is
-                // available synchronously on every navigation, so it is the
-                // durable shell marker; keep a WebKit-shaped value for sites
-                // and libraries that make ordinary browser distinctions.
-                .user_agent(DESKTOP_USER_AGENT)
+                // Publish Papol's runtime contract before application modules
+                // execute, without exposing Tauri's entire global API.
+                .initialization_script(DESKTOP_ENVIRONMENT)
                 // Papers are native document windows: the Papol library
                 // remains mounted behind them, ready exactly where it was.
                 // Other target=_blank links still belong in the browser.
@@ -263,6 +310,7 @@ mod tests {
         assert_eq!(window.title, "Papol Viewer");
         assert_eq!(window.width, 1100.0);
         assert_eq!(window.min_width, 760.0);
+        assert_eq!(window.entry, "/viewer/index.html");
     }
 
     #[test]
@@ -280,6 +328,27 @@ mod tests {
 
         assert_eq!(regular.label, "board-board_123");
         assert_eq!(demo.label, "board-demo-board-456");
+        assert_eq!(regular.entry, "/boards/index.html");
+        assert_eq!(demo.entry, "/demo/boards/index.html");
+    }
+
+    #[test]
+    fn maps_document_routes_to_bundled_entry_points() {
+        let original = parse("tauri://localhost/boards/board-123");
+        let document = document_window(&original, "tauri://localhost")
+            .expect("local board URL should be recognized");
+        let bundled = bundled_document_url(original, &document);
+
+        assert_eq!(bundled.path(), "/boards/index.html");
+        assert_eq!(bundled.query(), Some("board=board-123"));
+
+        let original = parse("tauri://localhost/viewer/?pdf=paper-123&page=4#note");
+        let document = document_window(&original, "tauri://localhost")
+            .expect("local viewer URL should be recognized");
+        let bundled = bundled_document_url(original, &document);
+        assert_eq!(bundled.path(), "/viewer/index.html");
+        assert_eq!(bundled.query(), Some("pdf=paper-123&page=4"));
+        assert_eq!(bundled.fragment(), Some("note"));
     }
 
     #[test]

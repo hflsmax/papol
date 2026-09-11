@@ -9,11 +9,11 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import {
-  pdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, cachedPdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
 import { resolveSource, getToken } from './source';
-import { appPath } from './base';
+import { appPath, backendPath } from './base';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
@@ -566,27 +566,31 @@ export default function App() {
 
   useEffect(() => {
     if (!paper) return undefined;
-    const href = pdfHref(paper);
-    if (!href) {
-      setError('This paper has no PDF.');
-      return undefined;
-    }
     let cancelled = false;
+    let task = null;
+    let localUrl = null;
     setPdfProgress(null);
-    const task = pdfjs.getDocument({
-      url: href,
-      standardFontDataUrl: 'standard_fonts/',
-      wasmUrl: 'wasm/',
-    });
-    task.onProgress = ({ loaded, total }) => {
-      if (!cancelled) setPdfProgress({ loaded, total });
-    };
-    task.promise
-      .then((d) => !cancelled && setDoc(d))
+    cachedPdfHref(paper)
+      .then((href) => {
+        if (!href) throw new Error('This paper has no PDF.');
+        if (cancelled) { URL.revokeObjectURL(href); return null; }
+        localUrl = href;
+        task = pdfjs.getDocument({
+          url: href,
+          standardFontDataUrl: 'standard_fonts/',
+          wasmUrl: 'wasm/',
+        });
+        task.onProgress = ({ loaded, total }) => {
+          if (!cancelled) setPdfProgress({ loaded, total });
+        };
+        return task.promise;
+      })
+      .then((d) => d && !cancelled && setDoc(d))
       .catch((e) => !cancelled && setError(`PDF failed to open: ${e.message}`));
     return () => {
       cancelled = true;
-      task.destroy();
+      task?.destroy();
+      if (localUrl) URL.revokeObjectURL(localUrl);
     };
   }, [paper]);
 
@@ -1542,7 +1546,15 @@ export default function App() {
     if (!sendSelection || !sendBoardGuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
     setSendBusy(true);
     setSendError(null);
-    const backlink = new URL(window.location.href);
+    // The desktop viewer itself has a tauri:// URL, which the backend rejects
+    // (and which would be useless outside this Mac). Keep board backlinks on
+    // the canonical hosted viewer while preserving the current paper query.
+    const viewerPath = window.location.pathname.includes('/demo/viewer')
+      ? '/demo/viewer/'
+      : '/viewer/';
+    const backlink = new URL(backendPath(viewerPath), window.location.href);
+    backlink.search = window.location.search;
+    backlink.hash = window.location.hash;
     backlink.searchParams.delete('note');
     backlink.searchParams.set('page', String(sendSelection.page));
     backlink.searchParams.set('y', String(sendSelection.y));

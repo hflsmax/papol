@@ -198,6 +198,83 @@ export const desktopStyles = `
   border-top: 1px solid var(--line);
 }
 
+.desktop-sync-control {
+  display: grid;
+  gap: 3px;
+  padding: 2px 0 8px;
+}
+
+.desktop-sync-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-sidebar .desktop-sync-button,
+.desktop-sidebar .desktop-sync-preference {
+  min-width: 0;
+  height: 28px;
+  border: 0;
+  border-radius: var(--chrome-radius);
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+}
+
+.desktop-sidebar .desktop-sync-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.desktop-sidebar .desktop-sync-button:hover:not(:disabled),
+.desktop-sidebar .desktop-sync-preference:hover {
+  background: var(--chrome-hover);
+  color: var(--ink);
+}
+
+.desktop-sync-mark {
+  width: 16px;
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+}
+
+.desktop-sync-mark.spinning {
+  animation: desktop-sync-spin .8s linear infinite;
+}
+
+@keyframes desktop-sync-spin { to { transform: rotate(360deg); } }
+
+.desktop-sync-count {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-sidebar .desktop-sync-preference {
+  width: 77px;
+  padding: 0 3px;
+  font-size: var(--fs-2xs);
+}
+
+.desktop-sync-summary {
+  overflow: hidden;
+  margin: 0 8px;
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-sync-control.error .desktop-sync-summary {
+  color: var(--red);
+}
+
 .desktop-sidebar-avatar {
   flex: none;
   display: inline-flex;

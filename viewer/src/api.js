@@ -3,8 +3,17 @@
 // and no second idea of who a reader is.
 // Both /viewer and /demo/viewer run this build. Step back once from the
 // former and twice from the latter to reach Papol's root API and assets.
-const ROOT = window.location.pathname.includes('/demo/viewer') ? '../..' : '..';
-const API_BASE = `${ROOT}/api`;
+import { appPath, backendPath } from './base';
+import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
+import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { configureNetworkFetch, offlineFetch, offlinePdfUrl } from '../../shared/offlineStore';
+
+const networkFetch = IS_DESKTOP
+  ? tauriHttpFetch
+  : (...args) => window.fetch(...args);
+configureNetworkFetch(networkFetch);
+
+const API_BASE = backendPath('/api');
 const TOKEN_KEY = 'papol_token';
 
 export function getToken() {
@@ -13,7 +22,7 @@ export function getToken() {
 
 async function request(path, options = {}) {
   const token = getToken();
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await offlineFetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       ...(options.headers || {}),
@@ -53,9 +62,14 @@ export function getViewerPaperInfo(hash) {
 export function pdfHref(paper) {
   if (!paper?.file_path) return null;
   if (paper.file_path.startsWith('http')) return paper.file_path;
+  if (paper.file_path.startsWith('offline-file:')) return paper.file_path;
   // Demo papers are shipped with the app; uploaded ones live in /uploads.
-  if (paper.file_path.startsWith('assets/')) return `${ROOT}/${paper.file_path}`;
-  return `${ROOT}/uploads/${paper.file_path}`;
+  if (paper.file_path.startsWith('assets/')) return appPath(`/${paper.file_path}`);
+  return backendPath(`/uploads/${paper.file_path}`);
+}
+
+export async function cachedPdfHref(paper) {
+  return offlinePdfUrl(pdfHref(paper));
 }
 
 export function listBoards() {

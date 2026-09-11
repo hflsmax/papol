@@ -1,9 +1,18 @@
 import { demoActive, demoRequest } from './demo';
-import { appPath } from './base';
+import { appPath, backendPath } from './base';
+import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
+import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import {
+  cachedBlobUrl, configureNetworkFetch, offlineFetch, rememberOfflineIdentity, runtimeFetch,
+} from '../../shared/offlineStore';
+
+configureNetworkFetch(IS_DESKTOP
+  ? tauriHttpFetch
+  : (...args) => window.fetch(...args));
 
 // Relative, so it resolves against the app's own base URL — works at / and
 // under a proxied subpath like mc-pony.com/papol/.
-const API_BASE = appPath('/api');
+const API_BASE = backendPath('/api');
 
 const TOKEN_KEY = 'papol_token';
 
@@ -51,7 +60,7 @@ async function request(path, options = {}) {
   if (demoActive() && !alwaysReal.some((p) => path.startsWith(p))) {
     return demoRequest(path, options);
   }
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await offlineFetch(`${API_BASE}${path}`, {
     ...options,
     headers: authHeaders(options.headers || {}),
   });
@@ -68,17 +77,21 @@ function jsonRequest(path, method, body) {
 
 // ---------- Auth ----------
 
-export function register(email, displayName, affiliation, password) {
-  return jsonRequest('/auth/register', 'POST', {
+export async function register(email, displayName, affiliation, password) {
+  const result = await jsonRequest('/auth/register', 'POST', {
     email,
     display_name: displayName,
     affiliation: affiliation || null,
     password,
   });
+  await rememberOfflineIdentity(result.token, result.user).catch(() => {});
+  return result;
 }
 
-export function login(email, password) {
-  return jsonRequest('/auth/login', 'POST', { email, password });
+export async function login(email, password) {
+  const result = await jsonRequest('/auth/login', 'POST', { email, password });
+  await rememberOfflineIdentity(result.token, result.user).catch(() => {});
+  return result;
 }
 
 export function logout() {
@@ -111,7 +124,7 @@ export async function downloadMyData() {
       'The demo has nothing of yours to export — create a real account first.'
     );
   }
-  const response = await fetch(`${API_BASE}/auth/export`, {
+  const response = await runtimeFetch(`${API_BASE}/auth/export`, {
     headers: authHeaders(),
   });
   if (!response.ok) {
@@ -181,8 +194,9 @@ export function paperHref(paper) {
 // canonical open-access copy; demo-created papers use a bundled placeholder.
 export function pdfHref(paper) {
   if (paper.file_path.startsWith('http')) return paper.file_path;
+  if (paper.file_path.startsWith('offline-file:')) return paper.file_path;
   if (paper.file_path.startsWith('assets/')) return appPath(`/${paper.file_path}`);
-  return appPath(`/uploads/${paper.file_path}`);
+  return backendPath(`/uploads/${paper.file_path}`);
 }
 
 // The name a downloaded PDF is saved under: the paper's title, with the
@@ -288,11 +302,13 @@ export function placeStagedBoardItem(id, x, y) {
 }
 
 export async function boardFileBlob(item) {
-  const response = await fetch(`${API_BASE}/board-items/${item.id}/file`, {
-    headers: authHeaders(),
+  if (item.file_path?.startsWith('offline-file:')) return cachedBlobUrl(item.file_path);
+  const key = `${API_BASE}/board-items/${item.id}/file`;
+  return cachedBlobUrl(key, async () => {
+    const response = await runtimeFetch(key, { headers: authHeaders() });
+    if (!response.ok) await handleResponse(response);
+    return response.blob();
   });
-  if (!response.ok) await handleResponse(response);
-  return URL.createObjectURL(await response.blob());
 }
 
 export async function downloadBoardFile(item) {
