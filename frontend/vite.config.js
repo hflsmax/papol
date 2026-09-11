@@ -11,6 +11,27 @@ export default defineConfig({
     // either root.
     fs: { allow: ['..'] },
     proxy: {
+      // Keep all three development surfaces on one browser origin. Besides
+      // matching production routing, this lets the desktop shell carry its
+      // login and viewer handoff into the separately hosted Vite apps.
+      '/demo/viewer': {
+        target: 'http://127.0.0.1:5174',
+        rewrite: (path) => path.replace(/^\/demo\/viewer/, '/viewer') || '/viewer/',
+        ws: true,
+      },
+      '/demo/boards': {
+        target: 'http://127.0.0.1:5175',
+        rewrite: (path) => path.replace(/^\/demo\/boards/, '/boards') || '/boards/',
+        ws: true,
+      },
+      '/viewer': {
+        target: 'http://127.0.0.1:5174',
+        ws: true,
+      },
+      '/boards': {
+        target: 'http://127.0.0.1:5175',
+        ws: true,
+      },
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,

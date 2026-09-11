@@ -437,7 +437,7 @@ function PdfPage({
   onSelectClip,
   onSendClip,
   onMoveStroke,
-  onDragNote,
+  onDragNote, onContextNote,
   animal,
   animalSpeed,
   animalActivity,
@@ -1049,6 +1049,7 @@ function PdfPage({
   };
 
   const startDrag = (e, note) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     // Where the pointer sits relative to the anchor's own point, so the
@@ -2374,6 +2375,7 @@ function PdfPage({
               onPointerMove={onDragMove}
               onPointerUp={(e) => endDrag(e, note)}
               onClick={(e) => pointAt(e, note)}
+              onContextMenu={(e) => onContextNote(e, note)}
             >
               <GlyphFor note={note} />
             </button>

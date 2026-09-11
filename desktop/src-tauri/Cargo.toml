@@ -14,3 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+
+# Included in Tauri 2.12. Remove this patch after upgrading.
+[patch.crates-io]
+tao = { git = "https://github.com/tauri-apps/tao", rev = "7d2cdb1aedb992e6b70d104b392809847944edd6" }

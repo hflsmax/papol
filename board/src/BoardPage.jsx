@@ -5,8 +5,9 @@ import BackLink from '../../frontend/src/components/BackLink.jsx';
 import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
-import { DESKTOP } from '../../shared/desktopShell.js';
+import { DESKTOP, DOCUMENT_WINDOW } from '../../shared/desktopShell.js';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
+import { openContextMenu } from '../../shared/contextMenu.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const COLLECTION_INSET_X = 28;
@@ -111,6 +112,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const redoStack = useRef([]);
   const newNoteToSelect = useRef(null);
   const suppressBookletClick = useRef(null);
+
+  useEffect(() => {
+    if (board?.name) document.title = `${board.name} — Papol`;
+  }, [board?.name]);
   const showGrip = (itemId) => {
     setVisibleGrip(itemId);
   };
@@ -1282,9 +1287,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setEditingDescription(null);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const removeSelectedItems = async () => {
-    if (!selectedItems.length) return;
-    const ids = [...selectedItems];
+  const removeItems = async (itemIds) => {
+    if (!itemIds.length) return;
+    const ids = [...itemIds];
     setBusy(true); setError(null);
     try {
       await Promise.all(ids.map(deleteBoardItem));
@@ -1298,6 +1303,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       }));
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
+  const removeSelectedItems = () => removeItems(selectedItems);
   const saveText = async (item) => {
     setBusy(true); setError(null);
     try {
@@ -1312,16 +1318,16 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? updated : candidate) }));
     } catch (err) { setError(err.message); }
   };
-  const groupAsBooklet = async () => {
-    if (selectedItems.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
+  const groupAsBooklet = async (itemIds = selectedItems) => {
+    if (itemIds.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
     setBusy(true); setError(null);
     try {
-      const previous = selectedItems.map((id) => {
+      const previous = itemIds.map((id) => {
         const item = board.items.find((candidate) => candidate.id === id);
         return { id, group_id: item.group_id || null, x: item.x, y: item.y };
       });
-      const group = await createBoardGroup(board.guid, { kind: 'booklet', title: '', item_ids: selectedItems });
-      undoStack.current.push({ type: 'group', kind: 'booklet', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
+      const group = await createBoardGroup(board.guid, { kind: 'booklet', title: '', item_ids: itemIds });
+      undoStack.current.push({ type: 'group', kind: 'booklet', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...itemIds], previous });
       redoStack.current = [];
       setSelectedItems([]);
       await load();
@@ -1329,16 +1335,16 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setEditingBooklet(group.id);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const groupAsCollection = async () => {
-    if (selectedItems.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
+  const groupAsCollection = async (itemIds = selectedItems) => {
+    if (itemIds.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
     setBusy(true); setError(null);
     try {
-      const previous = selectedItems.map((id) => {
+      const previous = itemIds.map((id) => {
         const item = board.items.find((candidate) => candidate.id === id);
         return { id, group_id: null, x: item.x, y: item.y };
       });
-      const group = await createBoardGroup(board.guid, { kind: 'collection', title: '', item_ids: selectedItems });
-      undoStack.current.push({ type: 'group', kind: 'collection', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...selectedItems], previous });
+      const group = await createBoardGroup(board.guid, { kind: 'collection', title: '', item_ids: itemIds });
+      undoStack.current.push({ type: 'group', kind: 'collection', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...itemIds], previous });
       redoStack.current = [];
       setSelectedItems([]);
       await load();
@@ -1576,7 +1582,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.metaKey && !event.ctrlKey && !event.altKey && event.key === '[') {
+      if (!DOCUMENT_WINDOW && event.metaKey && !event.ctrlKey && !event.altKey && event.key === '[') {
         event.preventDefault();
         window.history.back();
         return;
@@ -1690,6 +1696,88 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     board.items.find((item) => item.id === id)?.group_id == null
   );
   const activeBooklet = board.groups?.find((booklet) => booklet.id === selectedBooklet);
+  const historyEntries = () => [
+    { label: 'Undo', shortcut: '⌘Z', disabled: busy || undoStack.current.length === 0, onSelect: () => applyHistory('undo') },
+    { label: 'Redo', shortcut: '⇧⌘Z', disabled: busy || redoStack.current.length === 0, onSelect: () => applyHistory('redo') },
+  ];
+  const beginEditingItem = (item) => {
+    setSelectedItems([]);
+    setSelectedBooklet(null);
+    setMenuItem(null);
+    if (item.source_url || item.kind === 'image') {
+      setDescriptionDraft(item.content || '');
+      setEditingDescription(item.id);
+    } else {
+      setTextDraft(item.content || '');
+      setEditingText(item.id);
+    }
+  };
+  const handleCardContextMenu = (event, item) => {
+    const itemIds = selectedItems.length > 1 && selectedItems.includes(item.id)
+      ? [...selectedItems]
+      : [item.id];
+    const isSelection = itemIds.length > 1;
+    const selectionCanGroup = itemIds.every((id) => (
+      board.items.find((candidate) => candidate.id === id)?.group_id == null
+    ));
+    const opened = openContextMenu(event, [
+      !isSelection && item.source_url && {
+        label: item.kind === 'youtube' ? 'Open Video' : 'Open Page',
+        onSelect: () => window.open(item.source_url, '_blank', 'noopener,noreferrer'),
+      },
+      !isSelection && item.kind !== 'comment' && {
+        label: 'Download', onSelect: () => downloadBoardFile(item),
+      },
+      !isSelection && board.can_edit && { label: item.kind === 'comment' ? 'Edit Thought…' : 'Edit Description…', onSelect: () => beginEditingItem(item) },
+      !isSelection && board.can_edit && {
+        label: 'Text Alignment',
+        submenu: ['left', 'center', 'right'].map((alignment) => ({
+          label: alignment[0].toUpperCase() + alignment.slice(1),
+          checked: (item.text_align || 'left') === alignment,
+          onSelect: () => alignText(item, alignment),
+        })),
+      },
+      isSelection && board.can_edit && { label: `Tidy ${itemIds.length} Cards`, onSelect: () => tidyItems(itemIds) },
+      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Collection', onSelect: () => groupAsCollection(itemIds) },
+      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Booklet', onSelect: () => groupAsBooklet(itemIds) },
+      board.can_edit && { separator: true },
+      board.can_edit && { label: isSelection ? `Remove ${itemIds.length} Cards` : 'Remove Card…', disabled: busy, onSelect: () => isSelection ? removeItems(itemIds) : removeItem(item) },
+      board.can_edit && { separator: true },
+      board.can_edit && historyEntries()[0],
+      board.can_edit && historyEntries()[1],
+    ]);
+    if (opened) {
+      setSelectedItems(itemIds);
+      setSelectedBooklet(null);
+      setMenuItem(null);
+    }
+  };
+  const handleGroupContextMenu = (event, booklet) => {
+    const opened = openContextMenu(event, [
+      board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => {
+        setBookletTitleDraft(booklet.title || '');
+        setEditingBooklet(booklet.id);
+      } },
+      board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => {
+        setBookletHeaderDraft(booklet.header || '');
+        setEditingBookletHeader(booklet.id);
+      } },
+      board.can_edit && booklet.kind === 'collection' && {
+        label: 'Auto-arrange', checked: booklet.auto_arrange, onSelect: () => toggleCollectionAutoArrange(booklet),
+      },
+      board.can_edit && booklet.kind === 'collection' && { label: 'Tidy Up', onSelect: () => tidyCollection(booklet) },
+      board.can_edit && { separator: true },
+      board.can_edit && { label: 'Ungroup', disabled: busy, onSelect: () => ungroupBooklet(booklet) },
+      board.can_edit && { separator: true },
+      board.can_edit && historyEntries()[0],
+      board.can_edit && historyEntries()[1],
+    ]);
+    if (opened) {
+      setSelectedItems([]);
+      setSelectedBooklet(booklet.id);
+      setMenuItem(null);
+    }
+  };
   const handleBoardPointerDownCapture = (event) => {
     const editing = editingText != null || editingDescription != null || editingBooklet != null || editingBookletHeader != null;
     if (editing && !event.target.closest?.('.board-inline-text-editor, input.board-booklet-title, textarea.board-booklet-header-text')) {
@@ -1711,9 +1799,11 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
     <header className="board-toolbar" data-tauri-drag-region="deep">
       {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
-      {DESKTOP
+      {DESKTOP && !DOCUMENT_WINDOW
         ? <DesktopNav back={{ onClick: onBack, label: 'Back to Papol' }} />
-        : <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>}
+        : !DESKTOP
+          ? <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
+          : null}
       <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
@@ -1725,7 +1815,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     </header>
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
-    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={groupAsCollection}>Make collection</button><button type="button" disabled={busy} onClick={groupAsBooklet}>Make booklet</button></>}</div>}
+    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
     {board.can_edit && activeBooklet && <div className="board-selection-menu"><span>{activeBooklet.kind === 'collection' ? 'Collection' : 'Booklet'} selected</span>{activeBooklet.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeBooklet.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeBooklet)}>{activeBooklet.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeBooklet)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupBooklet(activeBooklet)}>Ungroup</button></div>}
     <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
@@ -1765,7 +1855,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       )}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {bookletLayouts.map((booklet) => <div key={`${booklet.id}:${bookletRedraws[booklet.id] || 0}`} data-group-id={booklet.id} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.id ? ' selected' : ''}${dropBooklet === booklet.id ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
+        {bookletLayouts.map((booklet) => <div key={`${booklet.id}:${bookletRedraws[booklet.id] || 0}`} data-group-id={booklet.id} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.id ? ' selected' : ''}${dropBooklet === booklet.id ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
           {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.id} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedBooklet((current) => current === booklet.id ? null : booklet.id); }} />}
           <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
             {editingBooklet === booklet.id
@@ -1780,7 +1870,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>

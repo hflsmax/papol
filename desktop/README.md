@@ -6,20 +6,24 @@ so the desktop and browser clients share accounts and data.
 
 ## Development
 
-Install the Tauri prerequisites for your platform, then run:
+### Run the native app against local code
+
+Use two terminals. From the repository root, run:
+
+```sh
+./deploy.sh dev
+```
+
+Then, in the second terminal, run:
 
 ```sh
 cd desktop
 npm install
-npm run dev
+npm run dev:local
 ```
 
-`npm run dev` opens the hosted site. To see unreleased changes to the desktop
-layout, run `./deploy.sh dev` from the repository root and then
-`npm run dev:local`, which opens `http://localhost:8000/` in the same window
-chrome. Any Papol address works the same way: a debug build opens the one in
-`PAPOL_URL` (release builds always open the hosted site). The layout itself can also be previewed in any browser by adding
-`?shell=desktop` to a Papol URL (`?shell=web` turns it off again).
+Keep both terminals running. Quit any other copy of Papol first. `npm run dev`
+without `:local` opens the hosted web UI instead.
 
 ## Window chrome
 

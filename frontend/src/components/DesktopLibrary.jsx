@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getUserSpace, listPapers, paperHref } from '../api';
+import { deleteBoard, deletePaper, getUserSpace, listPapers, paperHref, updateBoard, updatePaper } from '../api';
 import { appPath } from '../base';
 import {
   PAPER_DRAG_TYPE, matchesSearch, papersInSource, rememberSource, shelfOf, sourcePath, tagOf,
@@ -10,6 +10,9 @@ import PaperUpload from './PaperUpload';
 import BoardCreateForm from './BoardCreateForm';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
+import { confirmAction } from '../../../shared/confirmAction';
+import { contextMenuHandler } from '../../../shared/contextMenu';
+import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 
 // Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
@@ -54,6 +57,7 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
   const [draggingId, setDraggingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const listRef = useRef(null);
   const paperId = route.page === 'paper' ? route.id : null;
   const selectedKey = paperId == null ? null : decoded(paperId);
@@ -64,6 +68,8 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
 
   useEffect(() => { setSearch(''); }, [source]);
   useEffect(() => { setComposer(null); }, [paperId, source]);
+
+  const openReader = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
 
   useEffect(() => {
     if (source !== 'library') return undefined;
@@ -108,6 +114,37 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
 
   const canCompose = Boolean(space) && !libraryView;
   const sourceHome = () => onNavigate(sourcePath(source));
+  const movePaper = async (paper, shelfId) => {
+    setActionError(null);
+    try {
+      await updatePaper(paper.id, { shelf_id: shelfId });
+      reload();
+    } catch (error) { setActionError(error.message); }
+  };
+  const moveBoard = async (board, shelfId) => {
+    setActionError(null);
+    try {
+      await updateBoard(board.guid, { shelf_id: shelfId });
+      reload();
+    } catch (error) { setActionError(error.message); }
+  };
+  const removePaper = async (paper) => {
+    if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
+    setActionError(null);
+    try {
+      await deletePaper(paper.id);
+      if (paperKey(paper) === selectedKey) sourceHome();
+      reload();
+    } catch (error) { setActionError(error.message); }
+  };
+  const removeBoard = async (board) => {
+    if (!(await confirmAction(`Delete “${board.name}”? This cannot be undone.`, { confirmLabel: 'Delete board', destructive: true }))) return;
+    setActionError(null);
+    try {
+      await deleteBoard(board.guid);
+      reload();
+    } catch (error) { setActionError(error.message); }
+  };
 
   const moveSelection = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -169,6 +206,7 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
             hideBack
             onBack={sourceHome}
             onChanged={reload}
+            onRead={openReader}
             onSelectPaper={(id) => onNavigate(`/paper/${id}`)}
           />
         </div>
@@ -219,6 +257,7 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
           />
         </label>
         <div className="desktop-list" ref={listRef} onKeyDown={moveSelection}>
+          {actionError && <p className="desktop-list-empty" role="alert">{actionError}</p>}
           {emptyList ? (
             <p className="desktop-list-empty">{emptyList}</p>
           ) : boardsView ? (
@@ -230,6 +269,20 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
                 data-document
                 draggable="false"
                 onClick={(event) => { event.preventDefault(); onOpenBoard(board.guid); }}
+                onContextMenu={contextMenuHandler(() => [
+                  { label: 'Open Board', onSelect: () => onOpenBoard(board.guid) },
+                  shelves.length > 0 && { separator: true },
+                  shelves.length > 0 && {
+                    label: 'Move to Shelf',
+                    submenu: shelves.map((item) => ({
+                      label: item.name,
+                      checked: item.id === board.shelf_id,
+                      onSelect: () => item.id !== board.shelf_id && moveBoard(board, item.id),
+                    })),
+                  },
+                  { separator: true },
+                  { label: 'Delete Board…', onSelect: () => removeBoard(board) },
+                ])}
               >
                 <span
                   className="desktop-row-swatch"
@@ -266,6 +319,20 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
                     setDraggingId(paper.id);
                   }}
                   onDragEnd={() => setDraggingId(null)}
+                  onContextMenu={contextMenuHandler(() => [
+                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperKey(paper)}`) },
+                    !libraryView && shelves.length > 0 && { separator: true },
+                    !libraryView && shelves.length > 0 && {
+                      label: 'Move to Shelf',
+                      submenu: shelves.map((item) => ({
+                        label: item.name,
+                        checked: item.id === paper.shelf_id,
+                        onSelect: () => item.id !== paper.shelf_id && movePaper(paper, item.id),
+                      })),
+                    },
+                    !libraryView && { separator: true },
+                    !libraryView && { label: 'Remove from My Nook…', onSelect: () => removePaper(paper) },
+                  ])}
                 >
                   {shelfColor && (
                     <span className="desktop-row-swatch" style={{ background: shelfColor }} aria-hidden="true" />

@@ -22,7 +22,7 @@
         "center": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 18, "y": 20 },
+        "trafficLightPosition": { "x": 18, "y": 24 },
         "backgroundColor": "#f5f6f8",
         "dragDropEnabled": false
       }
@@ -32,9 +32,11 @@
         {
           "identifier": "window-chrome",
           "description": "Lets Papol's own toolbars move and zoom the window, as a native title bar would. Nothing else is exposed to the hosted pages.",
-          "windows": ["main"],
+          "windows": ["main", "viewer-*", "board-*"],
           "remote": { "urls": ["https://mc-pony.com/papol/*", "http://localhost:*/*", "http://127.0.0.1:*/*"] },
           "permissions": [
+            "allow-open-document-window",
+            "allow-close-document-window",
             "core:window:allow-start-dragging",
             "core:window:allow-internal-toggle-maximize"
           ]

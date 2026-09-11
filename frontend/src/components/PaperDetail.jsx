@@ -14,8 +14,12 @@ import { demoActive } from '../demo';
 import { appPath } from '../base';
 import BackLink from './BackLink';
 import { confirmAction } from '../../../shared/confirmAction';
+import { contextMenuHandler } from '../../../shared/contextMenu';
 
-export default function PaperDetail({ paperId, currentUser, onBack, backHref, onSelectPaper, onChanged, hideBack = false }) {
+export default function PaperDetail({
+  paperId, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
+  hideBack = false,
+}) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
@@ -129,9 +133,11 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
       if (document.visibilityState === 'visible') refresh();
     };
     window.addEventListener('pageshow', onShow);
+    window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.removeEventListener('pageshow', onShow);
+      window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [paperId, editMode, editingSummary, editingThought]);
@@ -395,6 +401,26 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
     setAvailableTags((current) => current.some((item) => item.id === tag.id) ? current : [...current, tag]);
     loadPaper();
   };
+  const openViewer = () => {
+    const href = viewerHref();
+    if (!href) return;
+    if (onRead) onRead(href);
+    else window.location.assign(href);
+  };
+  const paperContextMenu = contextMenuHandler(() => [
+    hasEntry && viewerHref() && { label: 'Read', onSelect: openViewer },
+    paper.file_path && { label: 'Download PDF', onSelect: () => {
+      const link = document.createElement('a');
+      link.href = pdfHref(paper);
+      link.download = pdfFileName(paper);
+      link.click();
+    } },
+    hasEntry && { label: 'Edit Paper…', onSelect: startMetadataEdit },
+    currentUser && !demoActive() && { separator: true },
+    currentUser && !demoActive() && { label: 'Share…', onSelect: () => setShareOpen(true) },
+    hasEntry && { separator: true },
+    hasEntry && { label: 'Remove from My Nook…', onSelect: handleDelete },
+  ]);
 
   return (
     <div className="paper-detail">
@@ -546,7 +572,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
               </div>
             </div>
           )}
-          <div className="detail-title-row">
+          <div className="detail-title-row" onContextMenu={paperContextMenu}>
             <h2>{paper.title}</h2>
             {hasEntry && (
               <div className="detail-toggle">
@@ -629,12 +655,17 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
             )}
           </div>
 
-          <div className="paper-actions">
+          <div className="paper-actions" onContextMenu={paperContextMenu}>
             {hasEntry && viewerHref() && (
               <a
                 className="btn primary"
                 href={viewerHref()}
                 data-document
+                onClick={(event) => {
+                  if (!onRead || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                  event.preventDefault();
+                  openViewer();
+                }}
               >
                 Read
               </a>
@@ -995,6 +1026,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
             paperId={paper.id}
             comments={(paper.comments || []).filter((c) => c.content)}
             noteHref={noteHref}
+            onOpenNote={onRead}
             currentUser={currentUser}
             onCommentChange={loadPaper}
           />

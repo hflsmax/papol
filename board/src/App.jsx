@@ -2,6 +2,7 @@ import React from 'react';
 import BoardPage from './BoardPage.jsx';
 import { styles } from '../../frontend/src/App.jsx';
 import { getToken } from '../../frontend/src/api.js';
+import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
 
 function route() {
   const match = window.location.pathname.match(/\/(?:demo\/)?boards\/([^/]+)\/?$/);
@@ -20,6 +21,7 @@ function boardReturnPath() {
 }
 
 function returnToPapol() {
+  if (closeDesktopDocumentWindow()) return;
   const returnPath = boardReturnPath();
   window.sessionStorage.removeItem('papol.boardReturn');
   window.location.assign(returnPath);

@@ -31,11 +31,14 @@ import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
-import { DESKTOP, MAC } from '../../shared/desktopShell';
+import {
+  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow,
+} from '../../shared/desktopShell';
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
+import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -558,6 +561,10 @@ export default function App() {
   }, [source]);
 
   useEffect(() => {
+    if (paper?.title) document.title = `${paper.title} — Papol`;
+  }, [paper?.title]);
+
+  useEffect(() => {
     if (!paper) return undefined;
     const href = pdfHref(paper);
     if (!href) {
@@ -864,9 +871,9 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
-      // In Papol Desktop ⌘[ is the toolbar's Back to Papol, as in every other
-      // window; jumps within the document stay on [ and ] (the return pill).
-      if (DESKTOP && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
+      // A viewer in Papol's main window can return to the library. Native
+      // document windows use the standard Close Window command instead.
+      if (DESKTOP && !DOCUMENT_WINDOW && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
         e.preventDefault();
         returnToPapol();
         return;
@@ -2392,13 +2399,17 @@ export default function App() {
         title="Click to name this anchor"
         onClick={(e) => {
           e.stopPropagation();
-          setNameDraft(note.name || '');
-          setNaming(note.id);
+          startNaming(note);
         }}
       >
         {note.name || (note.anchor ? `page ${note.page}` : 'not placed on the page')}
       </button>
     );
+
+  const startNaming = (note) => {
+    setNameDraft(note.name || '');
+    setNaming(note.id);
+  };
 
   // Clicking an anchor on the page says which entry it is: the row lights
   // up, scrolls into view, and fades back on its own.
@@ -2509,6 +2520,22 @@ export default function App() {
       setError(e.message);
     }
   };
+
+  const noteContextMenu = (event, note) => openContextMenu(event, [
+    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
+    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => startWriting(note) },
+    { label: 'Rename Anchor…', onSelect: () => startNaming(note) },
+    { separator: true },
+    { label: 'Delete Anchor', onSelect: () => removeNote(note.id) },
+    { separator: true },
+    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
+    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
+  ]);
+
+  const pageContextMenu = contextMenuHandler((event) => event.target.closest?.('.pdf-page') ? [
+    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
+    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
+  ] : []);
 
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
@@ -2735,9 +2762,20 @@ export default function App() {
         <style>{styles}</style>
         <div className="shell">
           <div className="error">{error}</div>
-          <p className="hint">
-            <a href={source?.backHref || appPath('/')} onClick={markReturnToPapol}>Back to Papol</a>
-          </p>
+          {!DOCUMENT_WINDOW && <p className="hint">
+            <a
+              href={source?.backHref || appPath('/')}
+              onClick={(event) => {
+                if (closeDesktopDocumentWindow()) {
+                  event.preventDefault();
+                } else {
+                  markReturnToPapol();
+                }
+              }}
+            >
+              Back to Papol
+            </a>
+          </p>}
         </div>
       </>
     );
@@ -2759,6 +2797,9 @@ export default function App() {
   // viewer again. A direct visit has no Papol behind it, so it goes to the
   // paper's page instead.
   const returnToPapol = () => {
+    // Papol Desktop opens papers as document windows. Closing that window
+    // returns to the library that has remained mounted behind it.
+    if (closeDesktopDocumentWindow()) return;
     markReturnToPapol();
     if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
       window.history.back();
@@ -2812,9 +2853,9 @@ export default function App() {
       >
         {/* The bar is the window's navigation: back to Papol and nothing
             else. Jumps inside the PDF are the return pill's, over the pages. */}
-        {DESKTOP ? (
+        {DESKTOP && !DOCUMENT_WINDOW ? (
           <DesktopNav back={{ onClick: returnToPapol, label: 'Back to Papol' }} />
-        ) : (
+        ) : !DESKTOP ? (
           // The href stays for a direct visit, and for opening in a new tab.
           <a
             className="back"
@@ -2830,7 +2871,7 @@ export default function App() {
           >
             ← <span className="back-word">Back to </span>Papol
           </a>
-        )}
+        ) : null}
         <span className="spacer" />
         <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
           <button type="button" className="search-button" onClick={() => setSearchOpen((open) => !open)} title="Search PDF (Ctrl/Command+F)" aria-label="Search PDF" aria-expanded={searchOpen}>
@@ -3268,6 +3309,7 @@ export default function App() {
         <div
           className="pages"
           ref={scrollerRef}
+          onContextMenu={pageContextMenu}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
             const pages = [...e.currentTarget.querySelectorAll('.pdf-page')];
@@ -3367,6 +3409,7 @@ export default function App() {
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
               onDragNote={setDraggingNoteId}
+              onContextNote={noteContextMenu}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}
@@ -3709,6 +3752,7 @@ export default function App() {
                   note.id === flashId ? ' flash' : ''
                 }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
+                onContextMenu={(event) => noteContextMenu(event, note)}
               >
                 <span className="row-glyph">
                   <GlyphFor note={note} />
@@ -3743,6 +3787,7 @@ export default function App() {
                   note.id === flashId ? ' flash' : ''
                 }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
+                onContextMenu={(event) => noteContextMenu(event, note)}
               >
                 <button
                   className="card-x"

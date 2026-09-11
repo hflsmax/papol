@@ -24,7 +24,7 @@ import { isBrowsing, lastShownSource, resolveSource } from './desktopSources';
 import { desktopStyles } from './desktopStyles';
 import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
-import { DESKTOP } from '../../shared/desktopShell';
+import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 
 export const styles = `
@@ -4846,6 +4846,10 @@ function navigate(path, { replace = false } = {}) {
 
 function openBoard(guid) {
   const path = demoActive() ? `/demo/boards/${guid}` : `/boards/${guid}`;
+  if (DESKTOP) {
+    openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
+    return;
+  }
   window.sessionStorage.setItem(
     'papol.boardReturn',
     `${window.location.pathname}${window.location.search}`,
@@ -5202,6 +5206,7 @@ export default function App() {
         <PaperDetail
           paperId={route.id}
           currentUser={user}
+          onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
           onBack={goBack}
           backHref={backHref}
           hideBack={
@@ -5296,6 +5301,7 @@ export default function App() {
             onFeedback={() => setFeedbackOpen(true)}
             onManageNook={nook.space ? () => setManagingNook(true) : undefined}
             onMovePaper={nook.space ? movePaperToShelf : undefined}
+            onNavigate={navigate}
             notice={desktopNotice}
           />
           {isBrowsing(route, user) ? (
