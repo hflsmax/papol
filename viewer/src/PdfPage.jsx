@@ -479,6 +479,10 @@ function PdfPage({
   // count that goes up whenever a new one is in, for the search highlights.
   const textLayerRef = useRef(null);
   const [textReady, setTextReady] = useState(0);
+  // Whether the reader's selection reaches into this page's text. A page that
+  // holds it keeps its text layer, however far away the reader scrolls:
+  // taking the spans away, or rebuilding them, would drop the selection.
+  const [holdsSelection, setHoldsSelection] = useState(false);
   const renderScaleRef = useRef(renderScale);
   renderScaleRef.current = renderScale;
   // The citation markers on this page. Worked out when the page first
@@ -653,12 +657,9 @@ function PdfPage({
     };
   }, [doc, pageNumber, renderScale, near, size.width]);
 
-  // Well away from the view, a page gives back its bitmap straight away, and
-  // its text layer once the reader pauses: taking a dense page's thousand
-  // spans out of the document held a frame for 37ms, and nothing needs that
-  // memory back this instant. Coming near again first, it keeps the text.
+  // Well away from the view, a page gives back its bitmap straight away.
   useEffect(() => {
-    if (kept) return undefined;
+    if (kept) return;
     canvasHostRef.current?.replaceChildren();
     releaseCanvas(paintedRef.current?.canvas);
     paintedRef.current = null;
@@ -669,9 +670,31 @@ function PdfPage({
       delete holderRef.current.dataset.detail;
     }
     setDrawn(null);
-
     textTaskRef.current?.cancel();
-    if (!textLayerRef.current) return undefined;
+  }, [kept]);
+
+  useEffect(() => {
+    const check = () => {
+      const host = textHostRef.current;
+      const selection = window.getSelection();
+      let holds = false;
+      if (host && textLayerRef.current && selection && !selection.isCollapsed) {
+        for (let i = 0; i < selection.rangeCount && !holds; i += 1) {
+          holds = selection.getRangeAt(i).intersectsNode(host);
+        }
+      }
+      setHoldsSelection(holds);
+    };
+    document.addEventListener('selectionchange', check);
+    return () => document.removeEventListener('selectionchange', check);
+  }, []);
+
+  // Its text layer goes once the reader pauses: taking a dense page's
+  // thousand spans out of the document held a frame for 37ms, and nothing
+  // needs that memory back this instant. Coming near again first, it keeps
+  // the text — and it keeps it while the selection is in it.
+  useEffect(() => {
+    if (kept || holdsSelection || !textLayerRef.current) return undefined;
     let cancelled = false;
     const withdraw = pageRenderQueue().request({
       idle: true,
@@ -687,7 +710,7 @@ function PdfPage({
       cancelled = true;
       withdraw();
     };
-  }, [kept]);
+  }, [kept, holdsSelection]);
 
   useEffect(() => () => {
     releaseCanvas(paintedRef.current?.canvas);
@@ -840,9 +863,11 @@ function PdfPage({
     const host = textHostRef.current;
     if (!near || drawn?.doc !== doc || !host || !renderScale || !size.width) return undefined;
     const built = textLayerRef.current;
-    if (built?.doc === doc
-      && renderScale / built.scale <= TEXT_RESCALE_LIMIT
-      && built.scale / renderScale <= TEXT_RESCALE_LIMIT) return undefined;
+    // A layer holding the selection is kept as it is, however far the zoom
+    // has moved: a rebuild would drop the selection.
+    if (built?.doc === doc && (holdsSelection || (
+      renderScale / built.scale <= TEXT_RESCALE_LIMIT
+      && built.scale / renderScale <= TEXT_RESCALE_LIMIT))) return undefined;
     let cancelled = false;
     const queue = pageRenderQueue();
     const withdraw = queue.request({
@@ -911,7 +936,7 @@ function PdfPage({
       withdraw();
       textTaskRef.current?.cancel();
     };
-  }, [doc, pageNumber, near, drawn?.doc, renderScale, size.width, size.height]);
+  }, [doc, pageNumber, near, drawn?.doc, renderScale, size.width, size.height, holdsSelection]);
 
   // A zoom scales the built layer with a transform, applied with the page's
   // new size: no layout at all, where changing pdf.js's scale variable
