@@ -692,9 +692,10 @@ function PdfPage({
   // Its text layer goes once the reader pauses: taking a dense page's
   // thousand spans out of the document held a frame for 37ms, and nothing
   // needs that memory back this instant. Coming near again first, it keeps
-  // the text — and it keeps it while the selection is in it.
+  // the text — and it keeps it while the selection, or the selected paint
+  // mark, is on it.
   useEffect(() => {
-    if (kept || holdsSelection || !textLayerRef.current) return undefined;
+    if (kept || holdsSelection || selectedInk || !textLayerRef.current) return undefined;
     let cancelled = false;
     const withdraw = pageRenderQueue().request({
       idle: true,
@@ -710,7 +711,7 @@ function PdfPage({
       cancelled = true;
       withdraw();
     };
-  }, [kept, holdsSelection]);
+  }, [kept, holdsSelection, selectedInk]);
 
   useEffect(() => () => {
     releaseCanvas(paintedRef.current?.canvas);
@@ -861,7 +862,10 @@ function PdfPage({
   // zoom has moved too far from the one it was laid out at.
   useEffect(() => {
     const host = textHostRef.current;
-    if (!near || drawn?.doc !== doc || !host || !renderScale || !size.width) return undefined;
+    // A page holding the selected paint mark builds its text whether or not
+    // it is near: the mark's text is read from it (paintText.js).
+    if (!near && !selectedInk) return undefined;
+    if ((drawn?.doc !== doc && !selectedInk) || !host || !renderScale || !size.width) return undefined;
     const built = textLayerRef.current;
     // A layer holding the selection is kept as it is, however far the zoom
     // has moved: a rebuild would drop the selection.
@@ -936,7 +940,7 @@ function PdfPage({
       withdraw();
       textTaskRef.current?.cancel();
     };
-  }, [doc, pageNumber, near, drawn?.doc, renderScale, size.width, size.height, holdsSelection]);
+  }, [doc, pageNumber, near, drawn?.doc, renderScale, size.width, size.height, holdsSelection, selectedInk]);
 
   // A zoom scales the built layer with a transform, applied with the page's
   // new size: no layout at all, where changing pdf.js's scale variable

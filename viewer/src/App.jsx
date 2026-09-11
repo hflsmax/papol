@@ -25,6 +25,7 @@ import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
+import { joinTextPieces, markBounds, pageCharacters, textUnderMarks } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
@@ -277,17 +278,7 @@ function selectedTextWithoutPdfCitations(selection, scroller) {
     if (text) pieces.push({ text, box: pieceBox });
   }
 
-  return pieces.map((piece, index) => {
-    if (index === 0) return piece.text;
-    const previous = pieces[index - 1];
-    const newLine = piece.box.top > previous.box.top + previous.box.height * 0.55;
-    const paragraphBreak = piece.box.top - previous.box.bottom >
-      Math.max(piece.box.height, previous.box.height) * 0.8;
-    const separated = piece.box.left - previous.box.right > 1;
-    const needsSpace = !/\s$/.test(previous.text) && !/^\s/.test(piece.text);
-    const separator = paragraphBreak ? '\n\n' : newLine ? '\n' : separated ? ' ' : '';
-    return `${needsSpace ? separator : ''}${piece.text}`;
-  }).join('');
+  return joinTextPieces(pieces);
 }
 
 function paperAuthors(authors) {
@@ -946,7 +937,7 @@ export default function App() {
 
   useEffect(() => {
     const clearInkSelection = (event) => {
-      if (!event.target.closest?.('.ink-grab')) setSelectedInk(null);
+      if (!event.target.closest?.('.ink-grab') && !event.target.closest?.('.ink-actions')) setSelectedInk(null);
       if (!event.target.closest?.('.paper-clip') && !event.target.closest?.('.clip-actions')) setSelectedClipId(null);
     };
     document.addEventListener('pointerdown', clearInkSelection, true);
@@ -1377,6 +1368,102 @@ export default function App() {
     };
   }, [doc, scale, paper?.edition_id, source]);
 
+  // Every stroke of the paint mark in hand.
+  const selectedStrokes = useMemo(() => (selectedInk
+    ? ink.filter((stroke) => (
+      selectedInk.groupId ? stroke.group_id === selectedInk.groupId : stroke.id === selectedInk.id
+    ))
+    : []), [ink, selectedInk]);
+
+  // A selected paint mark offers to be removed, or to send the text under it
+  // to a board. The text is worked out from the mark's shape and the text
+  // layers of its pages (paintText.js); PdfPage builds those for a selected
+  // mark even where scrolling has kept them waiting, so this waits for them.
+  const [inkActions, setInkActions] = useState(null);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!selectedStrokes.length || !scroller) {
+      setInkActions(null);
+      return undefined;
+    }
+    let cancelled = false;
+    let frame = null;
+    const pageElement = (n) => scroller.querySelector(`.pdf-page[data-page="${n}"]`);
+    const pageSize = (el) => ({ width: Number(el.dataset.pageWidth), height: Number(el.dataset.pageHeight) });
+
+    // Beside the end of the mark: above it where there is room, as a
+    // selection's actions sit.
+    const last = selectedStrokes[selectedStrokes.length - 1];
+    const lastPage = pageElement(last.page);
+    if (!lastPage) {
+      setInkActions(null);
+      return undefined;
+    }
+    const size = pageSize(lastPage);
+    const pageBox = lastPage.getBoundingClientRect();
+    const bounds = markBounds(last, size);
+    const right = pageBox.left + (bounds.right / size.width) * pageBox.width;
+    const top = pageBox.top + (bounds.top / size.height) * pageBox.height;
+    const bottom = pageBox.top + (bounds.bottom / size.height) * pageBox.height;
+    const scrollerBox = scroller.getBoundingClientRect();
+    const above = top - 38;
+    const position = {
+      left: Math.max(22, Math.min(window.innerWidth - 22, right)) - scrollerBox.left + scroller.scrollLeft,
+      top: (above >= 8 ? above : Math.min(window.innerHeight - 44, bottom + 8)) - scrollerBox.top + scroller.scrollTop,
+    };
+    setInkActions({ ...position, text: null, bands: [] });
+
+    const pageNumbers = [...new Set(selectedStrokes.map((stroke) => stroke.page))].sort((a, b) => a - b);
+    const began = performance.now();
+    const readText = () => {
+      if (cancelled) return;
+      const elements = pageNumbers.map(pageElement);
+      if (!elements.every((el) => el?.dataset.text) && performance.now() - began < 4000) {
+        frame = requestAnimationFrame(readText);
+        return;
+      }
+      const pages = new Map();
+      const characters = [];
+      pageNumbers.forEach((n, index) => {
+        const el = elements[index];
+        if (!el?.dataset.text) return;
+        const pageUnits = pageSize(el);
+        pages.set(n, pageUnits);
+        const within = selectedStrokes
+          .filter((stroke) => stroke.page === n)
+          .map((stroke) => markBounds(stroke, pageUnits))
+          .reduce((a, b) => ({
+            left: Math.min(a.left, b.left),
+            right: Math.max(a.right, b.right),
+            top: Math.min(a.top, b.top),
+            bottom: Math.max(a.bottom, b.bottom),
+          }));
+        characters.push(...pageCharacters(el, within));
+      });
+      const { text, bands } = textUnderMarks(characters, selectedStrokes, pages);
+      setInkActions((current) => current && { ...current, text: cleanExcerptText(text), bands });
+    };
+    readText();
+    return () => {
+      cancelled = true;
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  }, [selectedStrokes, scale]);
+
+  const removeSelectedInk = () => {
+    const [first] = selectedStrokes;
+    if (!first) return;
+    setSelectedInk(null);
+    eraseStroke(first.id);
+  };
+
+  const openSendPaint = () => {
+    if (!inkActions?.text || !inkActions.bands.length) return;
+    const { text, bands } = inkActions;
+    setSelectedInk(null);
+    openSendText(text, bands);
+  };
+
   const paintSelection = async () => {
     if (!selectionPaint) return;
     const groupId = crypto.randomUUID();
@@ -1413,20 +1500,28 @@ export default function App() {
     setSendComplete(false);
   };
 
-  const openSendSelection = async () => {
+  const openSendSelection = () => {
     if (!selectionPaint?.text) return;
-    const first = selectionPaint.strokes[0];
+    const { text, strokes } = selectionPaint;
+    window.getSelection()?.removeAllRanges();
+    setSelectionPaint(null);
+    openSendText(text, strokes);
+  };
+
+  // The send sheet for text and the line bands it sits in: what a selection,
+  // or a paint mark, sends to a board. The bands become the backlink's
+  // highlight.
+  const openSendText = async (text, strokes) => {
+    const first = strokes[0];
     setSendSelection({
-      text: cleanExcerptText(selectionPaint.text),
+      text: cleanExcerptText(text),
       comment: '',
       page: first.page,
       y: first.points[0]?.y ?? 0.5,
-      strokes: selectionPaint.strokes,
+      strokes,
     });
     setSendError(null);
     setSendComplete(false);
-    window.getSelection()?.removeAllRanges();
-    setSelectionPaint(null);
     try {
       const boards = await listBoards();
       setSendBoards(boards);
@@ -3334,6 +3429,42 @@ export default function App() {
                 title="Send selected text to a board"
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={openSendSelection}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 17 17 7M9 7h8v8" />
+                </svg>
+              </button>
+            </span>
+          )}
+          {inkActions && (
+            <span
+              className="selection-actions ink-actions"
+              style={{ left: inkActions.left, top: inkActions.top }}
+            >
+              <button
+                type="button"
+                className="selection-action ink-remove"
+                aria-label="Remove paint"
+                title="Remove paint (Delete)"
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={removeSelectedInk}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 11v5M13.5 11v5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="selection-action selection-send"
+                aria-label="Send painted text to a board"
+                title={inkActions.text == null
+                  ? 'Reading the text under this paint…'
+                  : inkActions.text
+                    ? 'Send painted text to a board'
+                    : 'No text under this paint'}
+                disabled={!inkActions.text}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={openSendPaint}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M7 17 17 7M9 7h8v8" />

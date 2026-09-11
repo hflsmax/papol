@@ -1037,6 +1037,20 @@ button.link.danger { color: var(--red); }
   stroke-linejoin: round;
 }
 
+/* A selected paint mark's actions: the same round buttons as a selection's. */
+.ink-remove { color: var(--red); }
+.ink-remove svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.selection-action:disabled { opacity: 0.45; cursor: default; background: var(--card); }
+
 .provenance-highlight {
   pointer-events: none;
   animation: provenance-highlight-fade 6s 0.8s ease-out forwards;
