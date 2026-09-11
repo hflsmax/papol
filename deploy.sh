@@ -6,6 +6,10 @@
 #                  [--no-sync] deploy code without the usual data sync
 #   ./deploy.sh sync           publish admin dev data, then refresh from prod
 #   ./deploy.sh status         what is running where
+#   ./deploy.sh macos dev      run the native app with Vite live reload
+#                  [--backend URL] (default: http://127.0.0.1:8000)
+#   ./deploy.sh macos prod     test and build a production-backed app and DMG
+#                  [--backend URL] [--universal] [--no-check]
 #
 # Code goes up with `prod`, then admin development data goes up and the
 # resulting production data comes back down. `sync` runs that data step alone.
@@ -41,7 +45,7 @@ confirm_deploy() {
 }
 
 usage() {
-  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -95,6 +99,153 @@ build_tree() {
       (cd "$dir" && nix develop --command bash -c "cd $app && npm run build")
     fi
   done
+}
+
+# --- macOS desktop ----------------------------------------------------------
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "$1 is required for macOS desktop development"
+}
+
+# npm keeps the lockfile used to populate node_modules here. Comparing against
+# that file avoids reinstalling on every run while still making a changed
+# package.json or package-lock.json take effect before a build starts.
+install_node_tree() {
+  local dir=$1 installed
+  installed="$dir/node_modules/.package-lock.json"
+  if [ ! -d "$dir/node_modules" ] || [ ! -f "$installed" ] \
+     || [ "$dir/package.json" -nt "$installed" ] \
+     || [ "$dir/package-lock.json" -nt "$installed" ]; then
+    say "Installing $(basename "$dir") dependencies"
+    (cd "$dir" && npm ci)
+  fi
+}
+
+prepare_macos() {
+  [ "$(uname -s)" = Darwin ] || die "the macos command must run on macOS"
+  require_command node
+  require_command npm
+  require_command cargo
+  require_command rustc
+  require_command xcrun
+  xcrun --show-sdk-path >/dev/null 2>&1 \
+    || die "the Xcode Command Line Tools are missing; run: xcode-select --install"
+  node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major === 20 ? +(minor < 19) : +(major < 22 || (major === 22 && minor < 12)))' \
+    || die "Node.js 20.19+ or 22.12+ is required (found $(node --version))"
+
+  install_node_tree "$DEV_DIR/desktop"
+  install_node_tree "$DEV_DIR/frontend"
+  install_node_tree "$DEV_DIR/viewer"
+  install_node_tree "$DEV_DIR/board"
+}
+
+valid_backend() {
+  case "$1" in
+    http://*|https://*) return 0 ;;
+    *) die "backend must be an http:// or https:// URL: $1" ;;
+  esac
+}
+
+macos_dev() {
+  local backend="http://127.0.0.1:$DEV_PORT"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --backend)
+        [ $# -ge 2 ] || die "--backend needs a URL"
+        backend=$2
+        shift
+        ;;
+      *) die "unknown macos dev option: $1 (only --backend URL)" ;;
+    esac
+    shift
+  done
+  valid_backend "$backend"
+  prepare_macos
+
+  local port
+  for port in 5173 5174 5175; do
+    port_busy "$port" && die "port $port is already in use; stop the existing Vite process first"
+  done
+  if ! curl -fs -o /dev/null --max-time 2 "$backend/" 2>/dev/null; then
+    note "backend is not answering at $backend; cached/offline work remains available"
+    note "start the backend separately when you need fresh server data"
+  fi
+
+  say "Papol macOS development"
+  note "backend: $backend"
+  note "frontend, viewer, and board use Vite live reload"
+  note "Rust changes rebuild and relaunch the native app"
+  note "Ctrl-C stops the app and all three Vite servers"
+  (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run dev)
+}
+
+macos_prod() {
+  local backend="https://mc-pony.com/papol" universal=no checks=yes arg marker dmg
+  while [ $# -gt 0 ]; do
+    arg=$1
+    case "$arg" in
+      --backend)
+        [ $# -ge 2 ] || die "--backend needs a URL"
+        backend=$2
+        shift
+        ;;
+      --universal) universal=yes ;;
+      --no-check) checks=no ;;
+      *) die "unknown macos prod option: $arg (--backend URL, --universal, --no-check)" ;;
+    esac
+    shift
+  done
+  valid_backend "$backend"
+  prepare_macos
+
+  if [ "$checks" = yes ]; then
+    say "Testing the macOS application"
+    (cd "$DEV_DIR/desktop" && npm test && npm run check:native)
+  fi
+
+  local -a args
+  args=(--bundles app,dmg)
+  if [ "$universal" = yes ]; then
+    require_command rustup
+    say "Preparing universal macOS targets"
+    rustup target add aarch64-apple-darwin x86_64-apple-darwin
+    args+=(--target universal-apple-darwin)
+  fi
+
+  marker=$(mktemp -t papol-macos-build.XXXXXX)
+  say "Building Papol for macOS"
+  note "backend: $backend"
+  [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
+  if ! (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}"); then
+    rm -f "$marker"
+    die "the macOS application build failed"
+  fi
+  dmg=$(find "$DEV_DIR/desktop/src-tauri/target" -type f -name '*.dmg' -newer "$marker" -print | head -1)
+  rm -f "$marker"
+  [ -n "$dmg" ] || die "the build completed but no new DMG was found"
+
+  say "macOS application ready"
+  note "$dmg"
+  note "$(du -h "$dmg" | cut -f1), SHA-256 $(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+}
+
+run_macos() {
+  case "${1:-}" in
+    dev) shift; macos_dev "$@" ;;
+    prod|build) shift; macos_prod "$@" ;;
+    ""|-h|--help)
+      cat <<'MSG'
+Usage:
+  ./deploy.sh macos dev [--backend URL]
+  ./deploy.sh macos prod [--backend URL] [--universal] [--no-check]
+
+`prod` and its `build` alias create an application bundle and DMG. Local
+builds are ad-hoc signed; tagged GitHub releases use Developer ID signing and
+notarization. Add --universal to build one binary for Apple Silicon and Intel.
+MSG
+      ;;
+    *) die "unknown macos target: $1 (try dev, prod, or build)" ;;
+  esac
 }
 
 # --- development -------------------------------------------------------------
@@ -828,6 +979,7 @@ case "${1:-}" in
   prod)   shift; deploy_prod "$@" ;;
   sync)   sync_data "${2:-}" ;;
   status) status ;;
+  macos)  shift; run_macos "$@" ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, sync, status)" ;;
+  *)      die "unknown target: $1 (try dev, prod, sync, status, macos)" ;;
 esac

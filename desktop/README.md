@@ -32,18 +32,35 @@ previously opened still require a connection.
 
 ## Development
 
-### Run the bundled native app
+### Run the native app on macOS
 
-Use Node.js 20.19+ or 22.12+, install the desktop CLI once, then run it:
+From the repository root, start the developer app against the local backend:
 
 ```sh
-cd desktop
-npm install
-npm run dev
+./deploy.sh macos dev
 ```
 
-`npm run dev` installs and compiles all three web surfaces before launching.
-Refresh the running app after later web UI changes with `npm run build:web`.
+This checks the local Node, Rust, and Xcode toolchains, installs changed npm
+dependencies, and starts the frontend, viewer, and board Vite servers before
+Tauri. UI edits live-reload and Rust edits rebuild and relaunch the app. The
+default backend is `http://127.0.0.1:8000`; choose another explicitly with
+`--backend URL`. If it is unavailable, the app still opens for cached/offline
+work.
+
+Build the production-backed application bundle and DMG with:
+
+```sh
+./deploy.sh macos prod
+```
+
+`macos build` is an alias. Production builds run all tests and native lints by
+default; use `--no-check` only when iterating locally. `--universal` installs
+both Rust macOS targets and produces one Apple Silicon/Intel application.
+Local builds are ad-hoc signed, while tagged CI builds use the configured
+Developer ID identity and notarization credentials.
+
+The lower-level commands remain available from `desktop/` as `npm run dev`,
+`npm run build:web`, and `npm run build`.
 Run `npm test` for all UI and Rust tests, and `npm run check:native` for Rust
 formatting and Clippy's warning-denying lint pass. The release workflow runs
 both before signing and publishing.

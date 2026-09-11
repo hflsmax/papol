@@ -5,7 +5,8 @@
   "identifier": "com.mc-pony.papol",
   "build": {
     "beforeBuildCommand": "npm run install:web && npm run build:web",
-    "beforeDevCommand": "npm run install:web && npm run build:web",
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://127.0.0.1:5173",
     "frontendDist": "../dist"
   },
   "app": {
@@ -32,6 +33,21 @@
     "security": {
       "capabilities": ["main", "documents"],
       "freezePrototype": true,
+      "devCsp": {
+        "default-src": "'self'",
+        "base-uri": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:5173",
+        "font-src": "'self' data:",
+        "form-action": "'self'",
+        "frame-ancestors": "'none'",
+        "frame-src": "'none'",
+        "img-src": "'self' blob: data: https://mc-pony.com http://localhost:* http://127.0.0.1:*",
+        "media-src": "'self' blob:",
+        "object-src": "'none'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "worker-src": "'self' blob:"
+      },
       "csp": {
         "default-src": "'self'",
         "base-uri": "'self'",
