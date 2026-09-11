@@ -10,7 +10,6 @@ import PaperUpload from './PaperUpload';
 import BoardCreateForm from './BoardCreateForm';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
-import DesktopNav from './DesktopNav';
 
 // Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
@@ -49,9 +48,7 @@ function decoded(id) {
   catch { return id; }
 }
 
-// navigation: { back, forward } for DesktopNav; it leads the list pane's
-// header, the window's leading toolbar edge beside the sidebar.
-export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, onOpenBoard, navigation, banner }) {
+export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, onOpenBoard, banner }) {
   const { space, reload } = nook;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
@@ -195,7 +192,6 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
     <div className="desktop-browser">
       <section className="desktop-list-pane" aria-label={title}>
         <header className="desktop-toolbar desktop-list-header" data-tauri-drag-region="deep">
-          <DesktopNav {...navigation} />
           <div className="desktop-list-heading">
             <h1>{title}</h1>
             <span>{subtitle}</span>

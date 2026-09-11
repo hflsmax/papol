@@ -29,6 +29,9 @@ import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
 import { DESKTOP, MAC } from '../../shared/desktopShell';
+import {
+  LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
+} from '../../shared/featureStates';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -36,9 +39,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
-const LEARN_LINK_NAVIGATION_KEY = 'papol_learn_link_navigation';
-// Set once a reader hides the return pill; [ and ] keep working without it.
-const RETURN_PILL_KEY = 'papol_link_return_pill';
 const markReturnToPapol = () => {
   // This is a one-shot navigation handoff, not demo-mode state. Papol
   // consumes it on arrival so returning from the viewer does not greet the
@@ -417,10 +417,7 @@ export default function App() {
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
-  const [returnPillHidden, setReturnPillHidden] = useState(() => {
-    try { return localStorage.getItem(RETURN_PILL_KEY) === 'hidden'; }
-    catch { return false; }
-  });
+  const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
@@ -803,6 +800,11 @@ export default function App() {
         setLearnLinkNavigation(false);
         return;
       }
+      if (e.key === 'Escape' && returnPillNotice) {
+        e.preventDefault();
+        setReturnPillNotice(false);
+        return;
+      }
       if (e.key === 'Escape' && paperInfoOpen) {
         e.preventDefault();
         setPaperInfoOpen(false);
@@ -1074,14 +1076,10 @@ export default function App() {
       renderLinkHistory((version) => version + 1);
       // The lesson on getting back belongs to the first time there is
       // somewhere to get back to, beside the pill that does it.
-      try {
-        if (localStorage.getItem(LEARN_LINK_NAVIGATION_KEY) !== 'seen') {
-          localStorage.setItem(LEARN_LINK_NAVIGATION_KEY, 'seen');
-          setLearnLinkNavigation(true);
-        }
-      } catch {
-        // Storage can be unavailable in a locked-down browser. The lesson is
-        // still useful for this visit, even if it cannot be remembered.
+      // Where storage is unavailable the lesson cannot be remembered, but it
+      // is still useful for this visit.
+      if (!isFeatureStateSet(LINK_NAVIGATION_TIP)) {
+        setFeatureState(LINK_NAVIGATION_TIP, true);
         setLearnLinkNavigation(true);
       }
     }
@@ -1136,22 +1134,15 @@ export default function App() {
     setReturnPillHidden(true);
     setReturnPillNotice(true);
     setLearnLinkNavigation(false);
-    try { localStorage.setItem(RETURN_PILL_KEY, 'hidden'); }
-    catch { /* Unremembered, the choice still holds for this visit. */ }
+    // Unremembered, the choice still holds for this visit.
+    setFeatureState(RETURN_PILL_HIDDEN, true);
   };
 
   const showReturnPill = () => {
     setReturnPillHidden(false);
     setReturnPillNotice(false);
-    try { localStorage.removeItem(RETURN_PILL_KEY); }
-    catch { /* Nothing was remembered to forget. */ }
+    setFeatureState(RETURN_PILL_HIDDEN, false);
   };
-
-  useEffect(() => {
-    if (!returnPillNotice) return undefined;
-    const timer = setTimeout(() => setReturnPillNotice(false), 7000);
-    return () => clearTimeout(timer);
-  }, [returnPillNotice]);
 
   const closeReference = () => {
     setOpenCite(null);
@@ -3094,6 +3085,7 @@ export default function App() {
           onForward={() => moveThroughLinks('forward')}
           onHide={hideReturnPill}
           onUndo={showReturnPill}
+          onDismiss={() => setReturnPillNotice(false)}
         >
           {learnLinkTip}
         </ReturnPill>

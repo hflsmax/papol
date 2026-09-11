@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
-import DesktopNav from './DesktopNav';
 import { PAPER_DRAG_TYPE, isBrowsing, sourcePath } from '../desktopSources';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
@@ -207,16 +206,13 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
   );
 }
 
-// Papol Desktop has no browser around it, so it answers the keys a native app
-// would: ⌘[ and ⌘] to go back and forward, ⌘1…⌘4 for the sidebar's numbered
-// rows. canGoBack / canGoForward are asked at the moment a key is pressed.
-export function useDesktopShortcuts({ groups, onNavigate, canGoBack, canGoForward }) {
+// ⌘1…⌘4 open the sidebar's numbered rows. Papol has no in-app history to
+// walk, so there is no Back or Forward: the sidebar is how a reader moves.
+export function useDesktopShortcuts({ groups, onNavigate }) {
   const latest = useRef(null);
   latest.current = {
     items: groups.flatMap((group) => group.items).filter((item) => item.shortcut),
     onNavigate,
-    canGoBack,
-    canGoForward,
   };
 
   useEffect(() => {
@@ -225,36 +221,20 @@ export function useDesktopShortcuts({ groups, onNavigate, canGoBack, canGoForwar
       if (event.defaultPrevented || event.altKey || event.shiftKey) return;
       if (!(MAC ? event.metaKey : event.ctrlKey)) return;
       const current = latest.current;
-      if (event.key === '[') {
-        event.preventDefault();
-        if (current.canGoBack()) window.history.back();
-      } else if (event.key === ']') {
-        event.preventDefault();
-        if (current.canGoForward()) window.history.forward();
-      } else {
-        const item = current.items.find((entry) => entry.shortcut === event.key);
-        if (!item) return;
-        event.preventDefault();
-        current.onNavigate(item.path);
-      }
+      const item = current.items.find((entry) => entry.shortcut === event.key);
+      if (!item) return;
+      event.preventDefault();
+      current.onNavigate(item.path);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 }
 
-// Back and Forward walk Papol's own history (see navigate() in App.jsx).
-export function desktopHistoryNav({ canGoBack, canGoForward }) {
-  return {
-    back: { onClick: () => window.history.back(), disabled: !canGoBack },
-    forward: { onClick: () => window.history.forward(), disabled: !canGoForward },
-  };
-}
-
-export function DesktopToolbar({ title, canGoBack, canGoForward }) {
+// A page's toolbar: its title, in the strip that moves the window.
+export function DesktopToolbar({ title }) {
   return (
     <header className="desktop-toolbar" data-tauri-drag-region="deep">
-      <DesktopNav {...desktopHistoryNav({ canGoBack, canGoForward })} />
       {title && <h1 className="desktop-toolbar-title">{title}</h1>}
     </header>
   );

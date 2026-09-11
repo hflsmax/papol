@@ -731,12 +731,56 @@ button.link.danger { color: var(--red); }
   stroke-linecap: round;
 }
 
-/* Where the pill was, for a few seconds: the keys that still do its job,
-   and a way to take the choice back. */
-.link-return.link-return-notice {
-  gap: 10px;
-  padding: 3px 3px 3px 16px;
-  color: var(--ink-soft);
+/* Where the pill stood, the Learn Papol card that explains hiding it: the
+   same card as the pill's own lesson, drawn in place rather than hung off an
+   anchor, since the pill it would point at is gone. */
+.link-return-notice {
+  position: absolute;
+  z-index: 42;
+  bottom: 20px;
+  left: calc((100% - var(--rail-w)) / 2);
+  transform: translateX(-50%);
+}
+
+.viewer-body.rail-hidden .link-return-notice { left: 50%; }
+
+.link-return-notice .learn-papol {
+  position: static;
+  transform: none;
+}
+
+.link-return-notice .learn-papol::before { display: none; }
+
+.learn-papol-actions {
+  display: flex;
+  align-self: stretch;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.learn-papol .learn-papol-actions .learn-papol-close { margin-top: 0; }
+
+.learn-papol .learn-papol-undo {
+  padding: 4px 9px;
+  border-color: var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* The card's buttons keep their own colours under the pointer. The viewer's
+   general button hover turns text accent, which on Got it's accent fill made
+   the label vanish. */
+.learn-papol .learn-papol-close:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--ink-inverse);
+}
+
+.learn-papol .learn-papol-undo:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--card);
+  color: var(--accent);
 }
 
 /* The lesson on getting back opens above the pill it is about. */
@@ -1893,7 +1937,8 @@ button.link.danger { color: var(--red); }
    scrolled instead would quietly break going to an anchor. */
 @media (max-width: 860px) {
   /* The rail lies over the pages here, so the pill centres on the window. */
-  .viewer-body .link-return { left: 50%; }
+  .viewer-body .link-return,
+  .viewer-body .link-return-notice { left: 50%; }
   .viewer-body {
     --rail-w: min(320px, 86vw);
     grid-template-columns: minmax(0, 1fr);

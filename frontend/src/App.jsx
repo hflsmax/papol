@@ -16,7 +16,7 @@ import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
 import {
-  DesktopSidebar, DesktopToolbar, desktopHistoryNav, desktopNavigation, desktopTitle,
+  DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
 import { DesktopBrowser, useNookSpace } from './components/DesktopLibrary';
@@ -4259,6 +4259,44 @@ a.btn:hover {
   margin-top: 12px;
 }
 
+.feature-state-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feature-state {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.feature-state:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.feature-state-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feature-state-body span {
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.feature-state-body code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--ink-faint);
+}
+
 /* ---------- Comments ---------- */
 
 .comment-section h4 {
@@ -4780,18 +4818,6 @@ const SIGN_IN_PAGES = new Set([
   'space', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
-// Every in-app step records how many steps deep it is, and the session
-// remembers the deepest step still reachable, so the desktop toolbar can
-// tell whether Back and Forward lead anywhere inside Papol.
-const HISTORY_TIP_KEY = 'papol.historyTip';
-
-const historyDepth = () => window.history.state?.papolDepth || 0;
-
-function historyTip() {
-  try { return Number(window.sessionStorage.getItem(HISTORY_TIP_KEY)) || 0; }
-  catch { return 0; }
-}
-
 function navigate(path, { replace = false } = {}) {
   const destination = demoActive() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
@@ -4809,14 +4835,11 @@ function navigate(path, { replace = false } = {}) {
       mountedDestination,
     );
   } else {
-    const depth = historyDepth() + 1;
     window.history.pushState(
-      { ...(window.history.state || {}), papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}`, papolDepth: depth },
+      { ...(window.history.state || {}), papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
       '',
       mountedDestination,
     );
-    try { window.sessionStorage.setItem(HISTORY_TIP_KEY, String(depth)); }
-    catch { /* session storage may be disabled */ }
   }
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
@@ -4952,12 +4975,7 @@ export default function App() {
   const desktopGroups = desktopNavigation({
     user, route, unreadCount, space: nook.space, source: desktopSource,
   });
-  useDesktopShortcuts({
-    groups: desktopGroups,
-    onNavigate: navigate,
-    canGoBack: () => historyDepth() > 0,
-    canGoForward: () => historyDepth() < historyTip(),
-  });
+  useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
 
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
@@ -5247,8 +5265,6 @@ export default function App() {
   // Reading happens in a three-pane browser — source, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
-    const depth = historyDepth();
-    const steps = { canGoBack: depth > 0, canGoForward: depth < historyTip() };
     const movePaperToShelf = async (paperId, shelfId) => {
       try {
         await updatePaper(paperId, { shelf_id: shelfId });
@@ -5291,12 +5307,11 @@ export default function App() {
               nook={nook}
               onNavigate={navigate}
               onOpenBoard={openBoard}
-              navigation={desktopHistoryNav(steps)}
               banner={demoBanner}
             />
           ) : (
             <div className="desktop-pane">
-              <DesktopToolbar title={desktopTitle(route, user)} {...steps} />
+              <DesktopToolbar title={desktopTitle(route, user)} />
               {demoBanner}
               <div className="desktop-scroll">
                 <div className="desktop-content">{pages}</div>

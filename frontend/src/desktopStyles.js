@@ -223,7 +223,7 @@ export const desktopStyles = `
   align-items: center;
   gap: 10px;
   height: 52px;
-  padding: 0 16px 0 12px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--line);
   background: var(--paper);
 }
@@ -304,7 +304,7 @@ export const desktopStyles = `
 }
 
 .desktop-list-header {
-  padding: 0 10px 0 12px;
+  padding: 0 10px 0 16px;
   background: var(--card);
 }
 

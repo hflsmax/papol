@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { confirmAction } from '../../../shared/confirmAction';
+import { FEATURE_STATES, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates';
 import {
   adminListTables,
   adminGetTable,
@@ -360,6 +361,76 @@ function FeedbackPanel() {
   );
 }
 
+const readFeatureStates = () => Object.fromEntries(
+  FEATURE_STATES.map((state) => [state.key, isFeatureStateSet(state)])
+);
+
+// Lessons Papol has shown and choices the reader made, as this browser
+// remembers them (shared/featureStates.js), each on a switch.
+function FeatureStatesPanel() {
+  const [states, setStates] = useState(readFeatureStates);
+  const [error, setError] = useState(null);
+
+  // The viewer, open in another tab, can change them while this page is up.
+  useEffect(() => {
+    const refresh = () => setStates(readFeatureStates());
+    window.addEventListener('storage', refresh);
+    return () => window.removeEventListener('storage', refresh);
+  }, []);
+
+  const apply = (changes) => {
+    const saved = changes.map(([state, on]) => setFeatureState(state, on)).every(Boolean);
+    setError(saved ? null : 'This browser would not save the change.');
+    setStates(readFeatureStates());
+  };
+
+  const anySet = FEATURE_STATES.some((state) => states[state.key]);
+
+  return (
+    <>
+      <p className="panel-note">
+        Kept in this browser only; the viewer picks up a change the next time it opens.{' '}
+        {anySet && (
+          <button
+            className="link-btn"
+            onClick={() => apply(FEATURE_STATES.map((state) => [state, false]))}
+          >
+            Reset all
+          </button>
+        )}
+      </p>
+      {error && <div className="error">{error}</div>}
+      <ul className="feature-state-list">
+        {FEATURE_STATES.map((state) => {
+          const on = states[state.key];
+          const label = on ? state.setLabel : state.unsetLabel;
+          return (
+            <li key={state.key} className="feature-state">
+              <div className="feature-state-body">
+                <strong>{state.name}</strong>
+                <span>{state.description}</span>
+                <code>{state.key}</code>
+              </div>
+              <button
+                className={`market-toggle ${on ? 'on' : 'off'}`}
+                role="switch"
+                aria-checked={on}
+                aria-label={`${state.name}: ${label}`}
+                onClick={() => apply([[state, !on]])}
+              >
+                <span className="switch">
+                  <span className="switch-knob" />
+                  <span className="switch-text">{label}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
 export default function AdminPage() {
   const [tables, setTables] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -461,6 +532,11 @@ export default function AdminPage() {
       <div className="panel">
         <h2 className="panel-title">Bug reports and feature requests</h2>
         <FeedbackPanel />
+      </div>
+
+      <div className="panel">
+        <h2 className="panel-title">Feature introductions</h2>
+        <FeatureStatesPanel />
       </div>
 
       <div className="panel">

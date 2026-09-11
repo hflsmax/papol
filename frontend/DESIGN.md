@@ -202,21 +202,23 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   field, and the selected paper opens beside the list in the ordinary
   `PaperDetail`. Adding a paper or a board also happens in that pane. Every
   other page (Inbox, Profile, Learn, a seminar, someone else's nook) fills the
-  space beside the sidebar under a toolbar with Back, Forward and the title.
-  Navigation is always one control, `components/DesktopNav.jsx`: a pair of
-  borderless chevrons at a toolbar's leading edge, immediately before its
-  title, as in Finder and Safari. There is never a "← Back" text link in the
-  app. The pair leads the list pane in the browser, every page's toolbar, the
-  viewer's bar (on its own: the paper fills the window below it) and a
-  board's toolbar (where
-  Forward stays dimmed). ⌘[ and ⌘] press them. The pair only ever moves
-  between Papol's pages. Jumps inside a PDF (a followed "see Section 3" link)
+  space beside the sidebar under a toolbar holding just its title.
+  Papol is small enough that the sidebar is all the navigation the app needs:
+  its window has no Back or Forward and no history to walk (⌘1…⌘4 open the
+  sidebar's numbered rows). The viewer and a board are the exception, because
+  they replace the sidebar: their bars lead with `components/DesktopNav.jsx`,
+  a pair of borderless chevrons at the leading edge, as in Finder and Safari,
+  whose Back returns to Papol and whose Forward stays dimmed; ⌘[ presses Back.
+  There is never a "← Back" text link in the app. Jumps inside a PDF (a followed "see Section 3" link)
   are the document's own history, shown in the viewer on the web and in the app
   alike as a return pill centred over the pages: it names the page to go back
   to ("Back to page 4", or "‹ Page 4 │ Page 12 ›" once there is a way forward
   too), answers to [ and ], and exists only while there is somewhere to return
-  to. Its × hides it for good in that browser: the note that takes its place
-  for a few seconds says [ and ] still work, and offers Undo.
+  to. Its × hides it for good in that browser: a Learn Papol card takes its
+  place, says [ and ] still work, offers Undo, and stays until dismissed.
+  What a browser remembers having shown or been told — the tip, the hidden
+  pill — is listed in `shared/featureStates.js`, and Admin's Feature
+  introductions panel puts each on a switch.
   Chrome is UI sans at `--fs-sm`, never selectable, and uses the arrow cursor
   rather than the pointing hand; rows and toolbar buttons are borderless,
   shadowless `--chrome-radius` shapes tinted `--chrome-hover` /
