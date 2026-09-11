@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
-  addToNook, pdfHref, reextractPaperMetadata,
+  addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../api';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
@@ -688,6 +688,22 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
                   />
                 )}
               </span>
+            )}
+            {/* Leaves with a copy of the PDF, saved under the paper's title
+                (Papol Desktop puts it in Downloads). A copy hosted elsewhere
+                cannot be named from here, so it opens in a new tab instead
+                of taking the reader away from Papol. */}
+            {paper.file_path && (
+              <a
+                className="btn"
+                href={pdfHref(paper)}
+                download={pdfFileName(paper)}
+                {...(pdfHref(paper).startsWith('http')
+                  ? { target: '_blank', rel: 'noopener noreferrer' }
+                  : {})}
+              >
+                Download
+              </a>
             )}
             {hasEntry && (
               <button onClick={startMetadataEdit}>Edit</button>

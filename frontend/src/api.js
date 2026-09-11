@@ -185,6 +185,13 @@ export function pdfHref(paper) {
   return appPath(`/uploads/${paper.file_path}`);
 }
 
+// The name a downloaded PDF is saved under: the paper's title, with the
+// characters a file name cannot hold replaced, as the viewer names it.
+export function pdfFileName(paper) {
+  const title = (paper.title || '').replace(/[\\/:*?"<>|]/g, '-').trim();
+  return `${title || 'paper'}.pdf`;
+}
+
 export function listPapers() {
   return request('/papers');
 }
