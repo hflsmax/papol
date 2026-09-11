@@ -207,8 +207,9 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   its window has no Back or Forward and no history to walk (⌘1…⌘4 open the
   sidebar's numbered rows). The viewer and a board are the exception, because
   they replace the sidebar: their bars lead with `components/DesktopNav.jsx`,
-  a pair of borderless chevrons at the leading edge, as in Finder and Safari,
-  whose Back returns to Papol and whose Forward stays dimmed; ⌘[ presses Back.
+  a single borderless Back chevron at the leading edge, as in the App Store
+  and System Settings, which returns to Papol; ⌘[ presses it. Nothing lies
+  ahead of either, so there is no Forward.
   There is never a "← Back" text link in the app. Jumps inside a PDF (a followed "see Section 3" link)
   are the document's own history, shown in the viewer on the web and in the app
   alike as a return pill centred over the pages: it names the page to go back
@@ -236,8 +237,8 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   every top bar — the toolbar, `.viewer-bar`, `.board-toolbar` — is 52px
   tall, carries `data-tauri-drag-region="deep"` so its empty stretches move
   the window, and under `[data-platform='mac']` leaves 88px on the left for the
-  traffic lights. Keys follow the platform: ⌘[ / ⌘] for Back / Forward and
-  ⌘1…⌘4 for the sidebar's numbered rows.
+  traffic lights. Keys follow the platform: ⌘[ for Back in the viewer and
+  boards, and ⌘1…⌘4 for the sidebar's numbered rows.
   Beside the list, the paper sits flush on a white pane rather than as a card
   on a card. Inbox marks unread with an `--accent` dot, as Mail does, instead
   of a tinted row and badge. The desktop sign-in card is centred in the window

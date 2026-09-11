@@ -1,10 +1,12 @@
 import React from 'react';
 import { MAC } from '../../../shared/desktopShell';
 
-// Papol Desktop's back and forward: the chevron pair at the leading edge of a
-// toolbar, before its title, as Finder and Safari have it. Papol, the viewer
-// and boards are separate pages that each draw their own toolbar, so all
-// three use this one control (DESIGN.md, "Desktop shell").
+// Papol Desktop's Back: a lone chevron at the leading edge of a toolbar,
+// before its title, as the App Store and System Settings have it. Only the
+// viewer and boards need one — they replace Papol's sidebar, and Back returns
+// to it — and nothing ever lies ahead of them, so there is no Forward beside
+// it. They are separate pages that each draw their own toolbar, so both use
+// this one control (DESIGN.md, "Desktop shell").
 //
 // It keeps no React state, so the viewer and boards can import it from here
 // even though they bundle their own copy of React.
@@ -18,7 +20,6 @@ const STYLE = `
 .desktop-nav {
   display: inline-flex;
   flex: none;
-  gap: 2px;
 }
 .desktop-nav .desktop-nav-button,
 .desktop-nav .desktop-nav-button:hover:not(:disabled),
@@ -71,31 +72,23 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
   document.head.appendChild(style);
 }
 
-function NavButton({ direction, label, onClick, disabled }) {
-  const name = label || (direction === 'back' ? 'Back' : 'Forward');
+// back: { onClick, label }. Without onClick it is shown disabled.
+export default function DesktopNav({ back = {} }) {
+  const { onClick, label = 'Back', disabled } = back;
   return (
-    <button
-      type="button"
-      className="desktop-nav-button"
-      onClick={onClick}
-      disabled={disabled || !onClick}
-      aria-label={name}
-      title={`${name} (${MOD}${direction === 'back' ? '[' : ']'})`}
-    >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path d={direction === 'back' ? 'M10 3.25 5.25 8 10 12.75' : 'M6 3.25 10.75 8 6 12.75'} />
-      </svg>
-    </button>
-  );
-}
-
-// back / forward: { onClick, disabled, label }. A side without onClick is
-// shown disabled, so the pair keeps its shape where only one way exists.
-export default function DesktopNav({ back = {}, forward = {} }) {
-  return (
-    <div className="desktop-nav" role="group" aria-label="Navigation">
-      <NavButton direction="back" {...back} />
-      <NavButton direction="forward" {...forward} />
+    <div className="desktop-nav">
+      <button
+        type="button"
+        className="desktop-nav-button"
+        onClick={onClick}
+        disabled={disabled || !onClick}
+        aria-label={label}
+        title={`${label} (${MOD}[)`}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M10 3.25 5.25 8 10 12.75" />
+        </svg>
+      </button>
     </div>
   );
 }

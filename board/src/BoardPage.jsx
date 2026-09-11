@@ -1710,8 +1710,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
     <header className="board-toolbar" data-tauri-drag-region="deep">
-      {/* In Papol Desktop the toolbar leads with the native back/forward
-          pair; a board has nowhere forward to go, so Forward stays dimmed. */}
+      {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
       {DESKTOP
         ? <DesktopNav back={{ onClick: onBack, label: 'Back to Papol' }} />
         : <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>}

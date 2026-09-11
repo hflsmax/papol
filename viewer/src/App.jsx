@@ -866,9 +866,9 @@ export default function App() {
       }
       // In Papol Desktop ⌘[ is the toolbar's Back to Papol, as in every other
       // window; jumps within the document stay on [ and ] (the return pill).
-      if (DESKTOP && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === '[' || e.key === ']')) {
+      if (DESKTOP && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
         e.preventDefault();
-        if (e.key === '[') returnToPapol();
+        returnToPapol();
         return;
       }
       const historyDirection = linkHistoryDirection(e);
