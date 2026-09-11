@@ -940,7 +940,13 @@ button.link.danger { color: var(--red); }
 }
 
 .pdf-page canvas { display: block; }
-.pdf-page-blank { width: 100%; height: 100%; background: var(--card); }
+/* The drawing fills the page whatever scale it was made at, so between a
+   zoom and the sharp redraw the last one stretches rather than jumps. */
+.page-canvas { position: absolute; inset: 0; }
+.page-canvas canvas { width: 100%; height: 100%; }
+/* Over a limited drawing, the part on screen at full sharpness; placed in
+   fractions of the page by PdfPage. */
+.page-canvas .page-detail { position: absolute; }
 
 .page-number {
   position: absolute;
@@ -953,7 +959,17 @@ button.link.danger { color: var(--red); }
 
 /* Papol's own touches on pdf.js's text layer; the layout rules come from
    the library's stylesheet. */
-.textLayer { z-index: 2; }
+/* Where PdfPage puts the text layer, above the drawing: laid out at one zoom
+   and scaled to the zoom shown. */
+.text-host { position: absolute; inset: 0; z-index: 2; }
+.text-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* While a pinch is under way. The spans are invisible anyway, but WebKit
+   still paints them, and resizing pages under a dense paper's text layers
+   cost about 10ms a frame; hidden, pinching out went from about 22 to 54
+   frames a second. Every page's text, not only the text on screen: hiding
+   just that measured slower, because text beside the view still repaints.
+   Selection and search highlights come back once the view is still. */
+.pages.zooming .text-host { visibility: hidden; }
 .textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
 .provenance-box {
   position: absolute;

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 // The same legacy build as App.jsx (see there): one pdf.js, and one that
 // runs in WebKit.
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -9,6 +9,7 @@ import { pageOverlays } from './references';
 import { STRIP_RATIO } from './ink';
 import { resizeClipFrame } from './clipResize';
 import { anchorSpotAtPage } from './anchorDrag';
+import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -65,6 +66,76 @@ const GRAB_WIDTH = 14;
 // thing a hand drawing freehand never manages. Long enough not to fire on
 // someone drawing slowly and carefully.
 const STRAIGHTEN_HOLD = 550;
+
+// Near: within a screen of the view, so worth drawing now, before it
+// arrives. Kept: within three, so what was drawn is worth keeping for the
+// way back. Past that a page gives its bitmap back.
+const NEAR_MARGIN = '100% 50%';
+const KEPT_MARGIN = '300% 100%';
+
+// A page's bitmap is never larger than this. Past it — a letter page beyond
+// about 2.9× on a Retina screen — the drawing is stretched rather than drawn
+// bigger. Not for drawing time: WebKit draws canvases in its GPU process,
+// and even a 56-megapixel page costs the main thread a few milliseconds.
+// For memory: that page holds about 225MB, and a scanned page at the same
+// zoom was 178 megapixels, about 700MB.
+const MAX_CANVAS_PIXELS = 2 ** 24;
+const outputRatio = (width, height) => Math.min(
+  window.devicePixelRatio || 1,
+  Math.sqrt(MAX_CANVAS_PIXELS / (width * height))
+);
+// Past that limit, the part of the page on screen is drawn again at full
+// sharpness over the stretched whole: about a window's worth of pixels at
+// any zoom. With this much margin round it, a little scrolling stays sharp.
+const DETAIL_MARGIN = 0.25;
+
+// A text layer laid out at one zoom is scaled to others, and rebuilt only
+// once the zoom is more than this many times larger or smaller.
+const TEXT_RESCALE_LIMIT = 2;
+
+// A page's text, handed to pdf.js's TextLayer in slices: each in a task of
+// its own, and each only once scrolling has paused, so building a dense page
+// never holds a frame. The spans come out exactly as from the whole text —
+// same items, same order — so search's span indexes still hold.
+const TEXT_SLICE = 100;
+const textInSlices = (textContent, queue, isCancelled) => {
+  const { items, styles, lang } = textContent;
+  let next = 0;
+  return new ReadableStream({
+    async pull(controller) {
+      if (next > 0) await queue.quiet();
+      if (isCancelled()) {
+        controller.close();
+        return;
+      }
+      controller.enqueue({ items: items.slice(next, next + TEXT_SLICE), styles, lang });
+      next += TEXT_SLICE;
+      if (next >= items.length) controller.close();
+    },
+  }, { highWaterMark: 0 });
+};
+
+// A canvas's memory goes back as soon as it has no size, without waiting for
+// the collector to notice the element is gone.
+const releaseCanvas = (canvas) => {
+  if (!canvas) return;
+  canvas.width = 0;
+  canvas.height = 0;
+};
+
+// How far a page is from being on screen, in pixels: 0 when it is, with the
+// distance of its middle from the view's middle ordering those on screen.
+// Null once it has left the document.
+const distanceFromView = (el) => {
+  const root = el?.closest('.pages');
+  if (!root) return null;
+  const view = root.getBoundingClientRect();
+  const box = el.getBoundingClientRect();
+  const gap = (from, to, start, end) => (to < start ? start - to : from > end ? from - end : 0);
+  return gap(box.top, box.bottom, view.top, view.bottom)
+    + gap(box.left, box.right, view.left, view.right)
+    + Math.abs((box.top + box.bottom) / 2 - (view.top + view.bottom) / 2) / 1000;
+};
 
 // A box stored as fractions of the page, as CSS.
 const boxStyle = (box) => ({
@@ -330,7 +401,7 @@ function PdfPage({
   doc,
   pageNumber,
   scale,
-  renderScale,
+  renderScaleStore,
   notes,
   activeNoteId,
   analysis,
@@ -377,13 +448,39 @@ function PdfPage({
   searchMatches,
   activeSearchId,
 }) {
-  const canvasRef = useRef(null);
   const holderRef = useRef(null);
-  const textRef = useRef(null);
-  const renderTaskRef = useRef(null);
+  const textHostRef = useRef(null);
   const textTaskRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [visible, setVisible] = useState(false);
+  const [near, setNear] = useState(false);
+  const [kept, setKept] = useState(false);
+  const nearRef = useRef(false);
+  // The zoom pages are drawn at. A page near the view follows it; a page
+  // away from it keeps the value it last had, so a settled zoom re-renders
+  // only the pages about to be redrawn — re-rendering every page of a long
+  // paper held that frame for up to 70ms. A page coming near catches up.
+  const heldRenderScale = useRef(null);
+  const renderScale = useSyncExternalStore(renderScaleStore.subscribe, () => {
+    if (nearRef.current || heldRenderScale.current == null) heldRenderScale.current = renderScaleStore.get();
+    return heldRenderScale.current;
+  });
+  // Where the drawing goes, and what is there now: { canvas, doc, scale }.
+  const canvasHostRef = useRef(null);
+  const paintedRef = useRef(null);
+  // What the citations and links below were worked out for.
+  const overlaysForRef = useRef(null);
+  // What the drawing on show was made for, { doc, scale }: the text layer
+  // waits for the first one, and the sharp detail for each.
+  const [drawn, setDrawn] = useState(null);
+  // A sharper drawing of the part on screen, over a limited bitmap:
+  // { canvas, doc, scale, region }, the region in fractions of the page.
+  const detailRef = useRef(null);
+  // The built text layer, { layer, doc, scale, wrapper, container }, and a
+  // count that goes up whenever a new one is in, for the search highlights.
+  const textLayerRef = useRef(null);
+  const [textReady, setTextReady] = useState(0);
+  const renderScaleRef = useRef(renderScale);
+  renderScaleRef.current = renderScale;
   // The citation markers on this page. Worked out when the page first
   // comes into view, because finding them means resolving the PDF's own
   // links, and a page nobody has reached should not cost that.
@@ -445,17 +542,27 @@ function PdfPage({
   const [, setLaserTick] = useState(0);
   const rafRef = useRef(null);
 
-  // Only pages the reader can see are rendered: a 40-page PDF should not
-  // cost 40 canvases up front.
+  // Only pages near the view are drawn: a 40-page PDF should not cost 40
+  // canvases up front. Measured against the scroller, which is what clips
+  // the pages — against the window, a margin cannot reach past the
+  // scroller's edge, and a page was only drawn once it was already showing.
   useEffect(() => {
     const el = holderRef.current;
-    if (!el) return undefined;
-    const io = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
-      { rootMargin: '400px 0px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
+    const root = el?.closest('.pages');
+    if (!el || !root) return undefined;
+    const watch = (rootMargin, set) => {
+      const io = new IntersectionObserver(([entry]) => set(entry.isIntersecting), { root, rootMargin });
+      io.observe(el);
+      return io;
+    };
+    const observers = [
+      watch(NEAR_MARGIN, (isNear) => {
+        nearRef.current = isNear;
+        setNear(isNear);
+      }),
+      watch(KEPT_MARGIN, setKept),
+    ];
+    return () => observers.forEach((io) => io.disconnect());
   }, []);
 
   // Measured once, unscaled: every size below is then arithmetic, so a
@@ -489,138 +596,409 @@ function PdfPage({
     }
   }, [size.width, size.height, renderScale, scale]);
 
+  // Drawn into a canvas of its own and swapped in when finished, so a page
+  // keeps showing its last drawing — stretched, after a zoom — instead of
+  // going blank while the next is made. Drawing waits its turn in the queue
+  // every page shares (pageRenderQueue.js). `data-painted` says at what
+  // scale the drawing on show was made.
   useEffect(() => {
-    if (!visible || !canvasRef.current) return undefined;
+    if (!near || !renderScale || !size.width) return undefined;
+    const painted = paintedRef.current;
+    if (painted?.doc === doc && painted.scale === renderScale) return undefined;
     let cancelled = false;
-
-    doc.getPage(pageNumber).then((page) => {
-      if (cancelled) return;
-      const viewport = page.getViewport({ scale: renderScale });
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
-      canvas.style.width = `${viewport.width}px`;
-      canvas.style.height = `${viewport.height}px`;
-
-      renderTaskRef.current?.cancel();
-      const task = page.render({
-        canvasContext: canvas.getContext('2d'),
-        viewport,
-        transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0],
-      });
-      renderTaskRef.current = task;
-      task.promise.catch((err) => {
-          if (err?.name !== 'RenderingCancelledException') throw err;
-      });
+    let task = null;
+    let drawing = null;
+    const withdraw = pageRenderQueue().request({
+      priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
+      run: async () => {
+        const page = await doc.getPage(pageNumber);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale: renderScale });
+        const ratio = outputRatio(viewport.width, viewport.height);
+        drawing = document.createElement('canvas');
+        drawing.width = Math.floor(viewport.width * ratio);
+        drawing.height = Math.floor(viewport.height * ratio);
+        task = page.render({
+          canvasContext: drawing.getContext('2d', { alpha: false }),
+          viewport,
+          transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0],
+        });
+        try {
+          await task.promise;
+        } catch (err) {
+          if (err?.name === 'RenderingCancelledException') return;
+          throw err;
+        }
+        const host = canvasHostRef.current;
+        if (cancelled || !host) return;
+        // The sharp detail over the last drawing belonged to its scale, and
+        // goes with it.
+        host.replaceChildren(drawing);
+        releaseCanvas(paintedRef.current?.canvas);
+        releaseCanvas(detailRef.current?.canvas);
+        detailRef.current = null;
+        delete holderRef.current.dataset.detail;
+        paintedRef.current = { canvas: drawing, doc, scale: renderScale };
+        drawing = null;
+        holderRef.current.dataset.painted = String(renderScale);
+        setDrawn({ doc, scale: renderScale });
+      },
     });
 
     return () => {
       cancelled = true;
-      renderTaskRef.current?.cancel();
+      withdraw();
+      task?.cancel();
+      releaseCanvas(drawing);
     };
-  }, [doc, pageNumber, renderScale, visible]);
+  }, [doc, pageNumber, renderScale, near, size.width]);
+
+  // Well away from the view, a page gives back its bitmap straight away, and
+  // its text layer once the reader pauses: taking a dense page's thousand
+  // spans out of the document held a frame for 37ms, and nothing needs that
+  // memory back this instant. Coming near again first, it keeps the text.
+  useEffect(() => {
+    if (kept) return undefined;
+    canvasHostRef.current?.replaceChildren();
+    releaseCanvas(paintedRef.current?.canvas);
+    paintedRef.current = null;
+    releaseCanvas(detailRef.current?.canvas);
+    detailRef.current = null;
+    if (holderRef.current) {
+      delete holderRef.current.dataset.painted;
+      delete holderRef.current.dataset.detail;
+    }
+    setDrawn(null);
+
+    textTaskRef.current?.cancel();
+    if (!textLayerRef.current) return undefined;
+    let cancelled = false;
+    const withdraw = pageRenderQueue().request({
+      idle: true,
+      priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
+      run: () => {
+        if (cancelled) return;
+        textHostRef.current?.replaceChildren();
+        textLayerRef.current = null;
+        if (holderRef.current) delete holderRef.current.dataset.text;
+      },
+    });
+    return () => {
+      cancelled = true;
+      withdraw();
+    };
+  }, [kept]);
+
+  useEffect(() => () => {
+    releaseCanvas(paintedRef.current?.canvas);
+    releaseCanvas(detailRef.current?.canvas);
+  }, []);
+
+  // A page whose bitmap was limited (MAX_CANVAS_PIXELS) goes soft past a
+  // certain zoom. Once the reader pauses, the part of it on screen is drawn
+  // again at full resolution and laid over the whole — placed in fractions
+  // of the page, so while a later zoom stretches the page it stays in place
+  // until the next one replaces it.
+  useEffect(() => {
+    const releaseDetail = () => {
+      const detail = detailRef.current;
+      if (!detail) return;
+      detail.canvas.remove();
+      releaseCanvas(detail.canvas);
+      detailRef.current = null;
+      if (holderRef.current) delete holderRef.current.dataset.detail;
+    };
+    const root = holderRef.current?.closest('.pages');
+    if (!near) releaseDetail();
+    if (!near || drawn?.doc !== doc || !renderScale || !size.width || !root) return undefined;
+    const dpr = window.devicePixelRatio || 1;
+    if (outputRatio(size.width * renderScale, size.height * renderScale) >= dpr) {
+      releaseDetail();
+      return undefined;
+    }
+    let cancelled = false;
+    let withdraw = null;
+    let task = null;
+    let drawing = null;
+    let timer = null;
+
+    // The part of the page on screen, and the part to draw: that, with a
+    // margin, in fractions of the page.
+    const onScreen = () => {
+      const view = root.getBoundingClientRect();
+      const box = holderRef.current.getBoundingClientRect();
+      const left = Math.max(view.left, box.left);
+      const right = Math.min(view.right, box.right);
+      const top = Math.max(view.top, box.top);
+      const bottom = Math.min(view.bottom, box.bottom);
+      if (right <= left || bottom <= top) return null;
+      const fraction = (x0, y0, x1, y1) => {
+        const x = Math.max(0, (x0 - box.left) / box.width);
+        const y = Math.max(0, (y0 - box.top) / box.height);
+        return {
+          x,
+          y,
+          w: Math.min(1, (x1 - box.left) / box.width) - x,
+          h: Math.min(1, (y1 - box.top) / box.height) - y,
+        };
+      };
+      const padX = (right - left) * DETAIL_MARGIN;
+      const padY = (bottom - top) * DETAIL_MARGIN;
+      return {
+        visible: fraction(left, top, right, bottom),
+        region: fraction(left - padX, top - padY, right + padX, bottom + padY),
+      };
+    };
+    const covers = (outer, inner) => inner.x >= outer.x - 1e-6 && inner.y >= outer.y - 1e-6
+      && inner.x + inner.w <= outer.x + outer.w + 1e-6 && inner.y + inner.h <= outer.y + outer.h + 1e-6;
+
+    const refresh = () => {
+      // Only over this scale's drawing, and not while a zoom stretches it.
+      const shown = String(renderScale);
+      if (cancelled || holderRef.current?.dataset.painted !== shown || root.dataset.scale !== shown) return;
+      const wanted = onScreen();
+      if (!wanted) return;
+      const current = detailRef.current;
+      if (current?.doc === doc && current.scale === renderScale && covers(current.region, wanted.visible)) return;
+      withdraw?.();
+      const { region } = wanted;
+      withdraw = pageRenderQueue().request({
+        idle: true,
+        priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
+        run: async () => {
+          const page = await doc.getPage(pageNumber);
+          if (cancelled) return;
+          const viewport = page.getViewport({ scale: renderScale });
+          const x = region.x * viewport.width;
+          const y = region.y * viewport.height;
+          const width = region.w * viewport.width;
+          const height = region.h * viewport.height;
+          const ratio = Math.min(dpr, Math.sqrt(MAX_CANVAS_PIXELS / (width * height)));
+          drawing = document.createElement('canvas');
+          drawing.className = 'page-detail';
+          drawing.width = Math.max(1, Math.floor(width * ratio));
+          drawing.height = Math.max(1, Math.floor(height * ratio));
+          task = page.render({
+            canvasContext: drawing.getContext('2d', { alpha: false }),
+            viewport,
+            transform: [ratio, 0, 0, ratio, -x * ratio, -y * ratio],
+          });
+          try {
+            await task.promise;
+          } catch (err) {
+            if (err?.name === 'RenderingCancelledException') return;
+            throw err;
+          } finally {
+            task = null;
+          }
+          const host = canvasHostRef.current;
+          if (cancelled || !host) return;
+          Object.assign(drawing.style, {
+            left: `${region.x * 100}%`,
+            top: `${region.y * 100}%`,
+            width: `${region.w * 100}%`,
+            height: `${region.h * 100}%`,
+          });
+          host.append(drawing);
+          const old = detailRef.current?.canvas;
+          old?.remove();
+          releaseCanvas(old);
+          detailRef.current = { canvas: drawing, doc, scale: renderScale, region };
+          drawing = null;
+          holderRef.current.dataset.detail = String(renderScale);
+        },
+      });
+    };
+
+    const onScroll = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(refresh, SCROLL_QUIET_MS);
+    };
+    root.addEventListener('scroll', onScroll, { passive: true });
+    refresh();
+    return () => {
+      cancelled = true;
+      root.removeEventListener('scroll', onScroll);
+      window.clearTimeout(timer);
+      withdraw?.();
+      task?.cancel();
+      releaseCanvas(drawing);
+    };
+  }, [doc, pageNumber, near, drawn, renderScale, size.width, size.height]);
 
   // The text layer: invisible spans positioned over the drawing, which is
   // what makes the page's text selectable and searchable by the browser.
-  // It is rebuilt on zoom, since the spans are laid out in scaled pixels.
+  // Nobody selects words mid-scroll or mid-zoom, so all of it waits: it
+  // starts once the page is drawn — drawing registers the PDF's embedded
+  // fonts the spans are measured in — and the reader has stopped, and pdf.js
+  // is handed the text a slice at a time, stepping aside again whenever
+  // scrolling resumes. Built in one go, a text-dense page held the main
+  // thread for 50ms. The layer is built out of sight and swapped in whole,
+  // then kept through zooms (scaled, below) until the page is let go or the
+  // zoom has moved too far from the one it was laid out at.
   useEffect(() => {
-    const container = textRef.current;
-    if (!visible || !container) return undefined;
+    const host = textHostRef.current;
+    if (!near || drawn?.doc !== doc || !host || !renderScale || !size.width) return undefined;
+    const built = textLayerRef.current;
+    if (built?.doc === doc
+      && renderScale / built.scale <= TEXT_RESCALE_LIMIT
+      && built.scale / renderScale <= TEXT_RESCALE_LIMIT) return undefined;
     let cancelled = false;
-
-    doc.getPage(pageNumber).then(async (page) => {
-      if (cancelled) return;
-      const viewport = page.getViewport({ scale: renderScale });
-      container.replaceChildren();
-      container.style.width = `${viewport.width}px`;
-      container.style.height = `${viewport.height}px`;
-      // pdf.js sizes and positions its spans through this variable; without
-      // it every span collapses and selection lands on the wrong words.
-      container.style.setProperty('--total-scale-factor', String(renderScale));
-      textTaskRef.current?.cancel();
-      // Use the same text-content shape as the document-wide search index.
-      // In particular, do not introduce marked-content wrapper items here:
-      // they change rendered span indexes and make a correct match point at
-      // an unrelated line.
-      const textContent = await page.getTextContent();
-      // Canvas rendering has already registered pdf.js's converted embedded
-      // fonts under these internal names. Measure and lay out selectable text
-      // with those same faces instead of generic serif/sans-serif fallbacks.
-      // That keeps browser Range boxes on the glyph advances in the PDF.
-      for (const [fontName, style] of Object.entries(textContent.styles)) {
-        style.fontFamily = `"${fontName}", ${style.fontFamily}`;
-      }
-      const task = new pdfjs.TextLayer({
-        textContentSource: textContent,
-        container,
-        viewport,
-      });
-      textTaskRef.current = task;
-      try {
-        await task.render();
+    const queue = pageRenderQueue();
+    const withdraw = queue.request({
+      idle: true,
+      priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
+      run: async () => {
+        const page = await doc.getPage(pageNumber);
         if (cancelled) return;
-        const spans = [...container.querySelectorAll(':scope > span')];
-        const containerBox = container.getBoundingClientRect();
-        const visualScale = scale / renderScale;
-        let activeHighlight = null;
-        for (const match of searchMatches) {
-          for (const part of match.parts) {
-            const textNode = spans[part.spanIndex]?.firstChild;
-            if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
-            const range = document.createRange();
-            range.setStart(textNode, Math.min(part.start, textNode.length));
-            range.setEnd(textNode, Math.min(part.end, textNode.length));
-            for (const box of range.getClientRects()) {
-              const highlight = document.createElement('span');
-              const active = match.id === activeSearchId;
-              highlight.className = `search-highlight${active ? ' search-highlight-active' : ''}`;
-              highlight.style.left = `${(box.left - containerBox.left) / visualScale}px`;
-              highlight.style.top = `${(box.top - containerBox.top) / visualScale}px`;
-              highlight.style.width = `${box.width / visualScale}px`;
-              highlight.style.height = `${box.height / visualScale}px`;
-              container.appendChild(highlight);
-              if (active && !activeHighlight) activeHighlight = highlight;
-            }
-            range.detach();
-          }
+        // Use the same text-content shape as the document-wide search index.
+        // In particular, do not introduce marked-content wrapper items here:
+        // they change rendered span indexes and make a correct match point at
+        // an unrelated line.
+        const textContent = await page.getTextContent();
+        if (cancelled) return;
+        // Canvas rendering has already registered pdf.js's converted embedded
+        // fonts under these internal names. Measure and lay out selectable text
+        // with those same faces instead of generic serif/sans-serif fallbacks.
+        // That keeps browser Range boxes on the glyph advances in the PDF.
+        for (const [fontName, style] of Object.entries(textContent.styles)) {
+          style.fontFamily = `"${fontName}", ${style.fontFamily}`;
         }
-        // Follow the result only when it has left the viewport. `nearest`
-        // asks the scroller for the shortest possible movement instead of
-        // pulling every result to the middle of the screen.
-        activeHighlight?.scrollIntoView({
-          block: 'nearest',
-          inline: 'nearest',
-          behavior: 'smooth',
+        const layoutScale = renderScaleRef.current;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'text-scale';
+        wrapper.style.width = `${size.width * layoutScale}px`;
+        wrapper.style.height = `${size.height * layoutScale}px`;
+        wrapper.style.visibility = 'hidden';
+        const container = document.createElement('div');
+        container.className = 'textLayer';
+        // pdf.js sizes and positions its spans through this variable; without
+        // it every span collapses and selection lands on the wrong words.
+        container.style.setProperty('--total-scale-factor', String(layoutScale));
+        wrapper.append(container);
+        host.append(wrapper);
+        const layer = new pdfjs.TextLayer({
+          textContentSource: textInSlices(textContent, queue, () => cancelled),
+          container,
+          viewport: page.getViewport({ scale: layoutScale }),
         });
-      } catch (err) {
-        if (err?.name !== 'AbortException') throw err;
-      }
+        textTaskRef.current = layer;
+        try {
+          await layer.render();
+        } catch (err) {
+          wrapper.remove();
+          if (err?.name === 'AbortException') return;
+          throw err;
+        } finally {
+          if (textTaskRef.current === layer) textTaskRef.current = null;
+        }
+        if (cancelled) {
+          wrapper.remove();
+          return;
+        }
+        textLayerRef.current?.wrapper.remove();
+        const ratio = renderScaleRef.current / layoutScale;
+        wrapper.style.transform = ratio === 1 ? '' : `scale(${ratio})`;
+        wrapper.style.visibility = '';
+        textLayerRef.current = { layer, doc, scale: layoutScale, wrapper, container };
+        if (holderRef.current) holderRef.current.dataset.text = String(layoutScale);
+        setTextReady((count) => count + 1);
+      },
     });
 
     return () => {
       cancelled = true;
+      withdraw();
       textTaskRef.current?.cancel();
     };
-  }, [doc, pageNumber, renderScale, visible, searchMatches, activeSearchId]);
+  }, [doc, pageNumber, near, drawn?.doc, renderScale, size.width, size.height]);
+
+  // A zoom scales the built layer with a transform, applied with the page's
+  // new size: no layout at all, where changing pdf.js's scale variable
+  // relaid every span (19ms on a dense page). Within TEXT_RESCALE_LIMIT of
+  // the zoom it was laid out at that is precise; past it the layer is
+  // rebuilt in the background, above, and this one serves until then.
+  useLayoutEffect(() => {
+    const built = textLayerRef.current;
+    if (!built || !renderScale) return;
+    const ratio = renderScale / built.scale;
+    built.wrapper.style.transform = ratio === 1 ? '' : `scale(${ratio})`;
+  }, [renderScale, textReady]);
+
+  // Search matches, painted over the text layer's spans. Kept apart from
+  // building the layer, so the next match, a new query or a zoom repaints a
+  // few boxes rather than rebuilding the page's text.
+  const followedSearchRef = useRef(null);
+  useEffect(() => {
+    const container = textLayerRef.current?.container;
+    if (!container) return;
+    for (const old of container.querySelectorAll(':scope > .search-highlight')) old.remove();
+    if (!textLayerRef.current || !searchMatches.length) {
+      if (!activeSearchId) followedSearchRef.current = null;
+      return;
+    }
+    const spans = [...container.querySelectorAll(':scope > span:not(.search-highlight)')];
+    const containerBox = container.getBoundingClientRect();
+    // Between a zoom and its redraw the page is stretched on screen, and the
+    // highlights are placed in the layer's own unstretched pixels.
+    const visualScale = containerBox.width / container.offsetWidth || 1;
+    let activeHighlight = null;
+    for (const match of searchMatches) {
+      for (const part of match.parts) {
+        const textNode = spans[part.spanIndex]?.firstChild;
+        if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
+        const range = document.createRange();
+        range.setStart(textNode, Math.min(part.start, textNode.length));
+        range.setEnd(textNode, Math.min(part.end, textNode.length));
+        for (const box of range.getClientRects()) {
+          const highlight = document.createElement('span');
+          const active = match.id === activeSearchId;
+          highlight.className = `search-highlight${active ? ' search-highlight-active' : ''}`;
+          highlight.style.left = `${(box.left - containerBox.left) / visualScale}px`;
+          highlight.style.top = `${(box.top - containerBox.top) / visualScale}px`;
+          highlight.style.width = `${box.width / visualScale}px`;
+          highlight.style.height = `${box.height / visualScale}px`;
+          container.appendChild(highlight);
+          if (active && !activeHighlight) activeHighlight = highlight;
+        }
+        range.detach();
+      }
+    }
+    // Follow a result when it becomes the current one, and only when it has
+    // left the viewport. `nearest` asks the scroller for the shortest
+    // possible movement instead of pulling every result to the middle of
+    // the screen.
+    if (activeHighlight && followedSearchRef.current !== activeSearchId) {
+      activeHighlight.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+        behavior: 'smooth',
+      });
+    }
+    followedSearchRef.current = activeSearchId;
+  }, [textReady, renderScale, searchMatches, activeSearchId]);
 
   // Only that the page is on screen — not that the references are ready.
   // The PDF's own links are in the file itself: they need no analyzer, and
   // in the demo, where there is no analysis at all, they are the whole of
   // what this layer has to offer.
+  // Worked out once for a document and its analysis, not again every time
+  // the page comes back near the view.
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!near) return undefined;
+    const done = overlaysForRef.current;
+    if (done?.doc === doc && done.pageNumber === pageNumber && done.analysis === analysis) return undefined;
     let cancelled = false;
     pageOverlays(doc, pageNumber, analysis).then((found) => {
       if (cancelled) return;
+      overlaysForRef.current = { doc, pageNumber, analysis };
       setCitations(found.citations);
       setLinks(found.links);
     });
     return () => {
       cancelled = true;
     };
-  }, [doc, pageNumber, visible, analysis]);
+  }, [doc, pageNumber, near, analysis]);
 
   // Anchors are placed with the explicit tool, at a spot the reader can see
   // before committing to it. An ordinary double-click remains text selection.
@@ -1464,7 +1842,7 @@ function PdfPage({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [animals, visible, size.width, size.height, stillAnimals, animalSpeed, animalActivity]);
+  }, [animals, size.width, size.height, stillAnimals, animalSpeed, animalActivity]);
 
   // The anchor in hand is the anchor it drops: the same path, at the size
   // the pin is drawn, with the hotspot on the point the pin hangs from — so
@@ -1652,10 +2030,10 @@ function PdfPage({
           transform: stretch === 1 ? undefined : `scale(${stretch})`,
         }}
       >
-        {visible ? <canvas ref={canvasRef} /> : <div className="pdf-page-blank" />}
+        <div className="page-canvas" ref={canvasHostRef} />
         {/* Selectable text sits above the drawing; a double-click passes
             through it to the page, so both reading and marking work. */}
-        <div className="textLayer" ref={textRef} />
+        <div className="text-host" ref={textHostRef} />
         {provenanceBox && <div className="provenance-box" style={boxStyle(provenanceBox)} />}
         {/* Ink: over the page and under the pins, because a mark belongs to
             the paper and a pin is a control sitting on top of it. Drawn in

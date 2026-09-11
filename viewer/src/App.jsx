@@ -28,6 +28,8 @@ import { cleanExcerptText } from './excerptText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
+import { createValueStore } from './valueStore';
+import { pageRenderQueue } from './pageRenderQueue';
 import { DESKTOP, MAC } from '../../shared/desktopShell';
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
@@ -59,6 +61,9 @@ const MIN_SCALE = 0.5;
 // on getting thicker. The brush is drawn on the page now, in the stroke's
 // own coordinates, and has no ceiling to reach.
 const MAX_SCALE = 10;
+// How long a pinch has to pause before the rest of the viewer hears of the
+// zoom it reached and the pages are redrawn sharp.
+const ZOOM_SETTLE_MS = 120;
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
 // nobody reads at. The reader can still zoom past this — it only bounds
@@ -356,6 +361,12 @@ export default function App() {
   // reader stops zooming, so a pinch costs a transform rather than a
   // re-render of every visible page.
   const [renderScale, setRenderScale] = useState(null);
+  // Handed to the pages rather than the value itself, so that a new drawing
+  // zoom reaches only the pages that follow it (see PdfPage).
+  const renderScaleStore = useMemo(() => createValueStore(null), []);
+  useLayoutEffect(() => {
+    renderScaleStore.set(renderScale);
+  }, [renderScale]);
   const [selectionPaint, setSelectionPaint] = useState(null);
   const [sendSelection, setSendSelection] = useState(null);
   const [sendBoards, setSendBoards] = useState([]);
@@ -1838,39 +1849,37 @@ export default function App() {
     const cx = at ? at.x : box.left + box.width / 2;
     const cy = at ? at.y : box.top + box.height / 2;
 
-    // Usually the pointer is directly over a page, which the browser can
-    // answer without us measuring document layout at all. In an inter-page
-    // gap, binary-search the vertically ordered sheets. The old linear scan
-    // forced a rectangle read for every page on every trackpad event.
-    const hit = document.elementFromPoint(cx, cy)?.closest?.('.pdf-page');
-    let pageEl = hit && el.contains(hit) ? hit : null;
-    if (!pageEl) {
-      const pages = el.querySelectorAll('.pdf-page');
-      const boxes = new Map();
-      const boxFor = (index) => {
-        if (!boxes.has(index)) boxes.set(index, pages[index].getBoundingClientRect());
-        return boxes.get(index);
-      };
-      let low = 0;
-      let high = pages.length - 1;
-      while (low <= high) {
-        const middle = (low + high) >> 1;
-        const r = boxFor(middle);
-        if (cy < r.top) high = middle - 1;
-        else if (cy > r.bottom) low = middle + 1;
-        else {
-          pageEl = pages[middle];
-          break;
-        }
+    // Binary-search the vertically ordered sheets: a handful of rectangle
+    // reads. Asking the browser what is under the pointer instead
+    // (elementFromPoint) hit-tests every span of every text layer — about
+    // 4ms a zoom frame in WebKit on a text-dense paper, against almost
+    // nothing for the reads.
+    const pages = el.querySelectorAll('.pdf-page');
+    const boxes = new Map();
+    const boxFor = (index) => {
+      if (!boxes.has(index)) boxes.set(index, pages[index].getBoundingClientRect());
+      return boxes.get(index);
+    };
+    let pageEl = null;
+    let low = 0;
+    let high = pages.length - 1;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      const r = boxFor(middle);
+      if (cy < r.top) high = middle - 1;
+      else if (cy > r.bottom) low = middle + 1;
+      else {
+        pageEl = pages[middle];
+        break;
       }
-      if (!pageEl && pages.length) {
-        const candidates = [low - 1, low].filter((index) => index >= 0 && index < pages.length);
-        pageEl = candidates.reduce((nearest, index) => {
-          const r = boxFor(index);
-          const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
-          return !nearest || gap < nearest.gap ? { el: pages[index], gap } : nearest;
-        }, null)?.el;
-      }
+    }
+    if (!pageEl && pages.length) {
+      const candidates = [low - 1, low].filter((index) => index >= 0 && index < pages.length);
+      pageEl = candidates.reduce((nearest, index) => {
+        const r = boxFor(index);
+        const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
+        return !nearest || gap < nearest.gap ? { el: pages[index], gap } : nearest;
+      }, null)?.el;
     }
     if (!pageEl) return null;
 
@@ -1884,6 +1893,76 @@ export default function App() {
     };
   };
 
+  // The zoom a gesture has reached. While fingers move it runs ahead of
+  // `scale`: each frame goes straight into the pages' geometry, and the rest
+  // of the viewer — React, and every effect that reads the zoom — hears of
+  // it once, when the gesture pauses, which is also when the pages are
+  // redrawn sharp.
+  const liveScale = useRef(null);
+  const zoomCommit = useRef(null);
+  // The spot a gesture zooms about, held while the pointer stays put:
+  // measured again every frame, each scroll position's rounding would be
+  // taken for movement and the page would creep out from under the pointer.
+  const gestureFocus = useRef(null);
+
+  // Page geometry for a zoom: three style values a page, straight onto the
+  // DOM, so React does not reconcile every stroke, pin, clip and link on
+  // every sheet for a scale-only change. PdfPage's memo comparator mirrors
+  // this boundary.
+  const applyScale = (value) => {
+    const el = scrollerRef.current;
+    if (!el || value == null) return;
+    el.dataset.scale = String(value);
+    for (const pageEl of el.querySelectorAll('.pdf-page')) {
+      const width = Number(pageEl.dataset.pageWidth);
+      const height = Number(pageEl.dataset.pageHeight);
+      const drawnAt = Number(pageEl.dataset.renderScale);
+      if (!width || !height) continue;
+      pageEl.style.width = `${width * value}px`;
+      pageEl.style.height = `${height * value}px`;
+      const inner = pageEl.querySelector(':scope > .page-inner');
+      if (inner && drawnAt) inner.style.transform = value === drawnAt ? '' : `scale(${value / drawnAt})`;
+    }
+  };
+
+  // Scroll so a spot captured by captureFocus is back under the point it
+  // was taken at.
+  const keepFocus = (f) => {
+    const el = scrollerRef.current;
+    const pageEl = f && el?.querySelector(`[data-page="${f.page}"]`);
+    if (!pageEl) return;
+    const r = pageEl.getBoundingClientRect();
+    el.scrollLeft += r.left + f.fx * r.width - f.cx;
+    el.scrollTop += r.top + f.fy * r.height - f.cy;
+  };
+
+  // Commits the zoom a gesture reached once input has paused for
+  // ZOOM_SETTLE_MS — counted from the last event, not the last frame, so one
+  // slow frame in the middle of a pinch is not taken for the fingers
+  // stopping.
+  const armZoomCommit = () => {
+    window.clearTimeout(zoomCommit.current);
+    zoomCommit.current = window.setTimeout(function commit() {
+      if (pendingZoom.current.frame != null) {
+        zoomCommit.current = window.setTimeout(commit, ZOOM_SETTLE_MS);
+        return;
+      }
+      zoomCommit.current = null;
+      gestureFocus.current = null;
+      // Text comes back once the view is still. There is nothing in it to
+      // see, and showing a dense paper's text again repaints it — tens of
+      // milliseconds, which here fall where nothing is moving.
+      pageRenderQueue().quiet().then(() => {
+        if (zoomCommit.current == null) scrollerRef.current?.classList.remove('zooming');
+      });
+      if (liveScale.current == null) return;
+      // The gesture has paused: the viewer takes the zoom, and the pages
+      // are redrawn sharp now rather than after a further wait.
+      setScale(liveScale.current);
+      setRenderScale(liveScale.current);
+    }, ZOOM_SETTLE_MS);
+  };
+
   const zoomBy = (factor, at) => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -1891,44 +1970,44 @@ export default function App() {
     const pending = pendingZoom.current;
     pending.factor *= factor;
     pending.at = at;
+    armZoomCommit();
+    // A pinch is the reader moving the page as much as a scroll is: work
+    // that waits for stillness (text layers, detail) waits for this too.
+    pageRenderQueue().scrolled();
     if (pending.frame != null) return;
     // Browsers can deliver several wheel events inside one display frame.
-    // Accumulate them and commit one layout/React update for that frame.
+    // Accumulate them and apply one geometry change for that frame.
     pending.frame = requestAnimationFrame(() => {
       pending.frame = null;
       const combinedFactor = pending.factor;
       const latestAt = pending.at;
       pending.factor = 1;
       pending.at = null;
-      const captured = captureFocus(latestAt);
+      const from = liveScale.current;
+      const next = from == null ? null : clampScale(from * combinedFactor);
+      if (next == null || next === from) return;
+      const held = gestureFocus.current;
+      const captured = held && latestAt && Math.abs(held.cx - latestAt.x) < 2 && Math.abs(held.cy - latestAt.y) < 2
+        ? held
+        : captureFocus(latestAt);
       if (!captured) return;
-      setScale((prev) => {
-        const next = clampScale(prev * combinedFactor);
-        if (next === prev) return prev;
-        focus.current = captured;
-        return next;
-      });
+      gestureFocus.current = captured;
+      liveScale.current = next;
+      // Text layers are hidden until the gesture pauses (.zooming, styles.js).
+      el.classList.add('zooming');
+      applyScale(next);
+      keepFocus(captured);
     });
   };
 
-  // A transient zoom changes only page geometry. Apply those three style
-  // values directly before paint so React does not have to reconcile every
-  // stroke, pin, clip and link on every visible sheet for a scale-only
-  // update. PdfPage's memo comparator deliberately mirrors this boundary.
+  useEffect(() => () => window.clearTimeout(zoomCommit.current), []);
+
   useLayoutEffect(() => {
-    const el = scrollerRef.current;
-    if (!el || scale == null) return;
-    el.dataset.scale = String(scale);
-    for (const pageEl of el.querySelectorAll('.pdf-page')) {
-      const width = Number(pageEl.dataset.pageWidth);
-      const height = Number(pageEl.dataset.pageHeight);
-      const drawnAt = Number(pageEl.dataset.renderScale);
-      if (!width || !height || !drawnAt) continue;
-      pageEl.style.width = `${width * scale}px`;
-      pageEl.style.height = `${height * scale}px`;
-      const inner = pageEl.querySelector(':scope > .page-inner');
-      if (inner) inner.style.transform = scale === drawnAt ? '' : `scale(${scale / drawnAt})`;
-    }
+    // A gesture still under way owns the geometry, and this commit is
+    // already behind it.
+    if (zoomCommit.current != null || scale == null) return;
+    liveScale.current = scale;
+    applyScale(scale);
   }, [scale]);
 
   useLayoutEffect(() => {
@@ -1941,12 +2020,7 @@ export default function App() {
       el.scrollTo({ top: restore.top, left: restore.left, behavior: 'auto' });
       return;
     }
-    if (!f || !el) return;
-    const pageEl = el.querySelector(`[data-page="${f.page}"]`);
-    if (!pageEl) return;
-    const r = pageEl.getBoundingClientRect();
-    el.scrollLeft += r.left + f.fx * r.width - f.cx;
-    el.scrollTop += r.top + f.fy * r.height - f.cy;
+    keepFocus(f);
   }, [scale, railOpen]);
 
   // While a wheel or pinch gesture is moving, PdfPage stretches the current
@@ -2386,9 +2460,12 @@ export default function App() {
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
+  // Once for the document: a later zoom must not pull the reader back.
+  const revealedWantedPage = useRef(null);
   useEffect(() => {
     const pageNumber = Number(wantedPage);
     if (!pageNumber || !doc || !scale || pageNumber > doc.numPages) return undefined;
+    if (revealedWantedPage.current === doc) return undefined;
     let frame = null;
     let cancelled = false;
     const reveal = () => {
@@ -2405,6 +2482,7 @@ export default function App() {
         - box.top - box.height / 2;
       scroller.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
       readingViewRestored.current = true;
+      revealedWantedPage.current = doc;
     };
     reveal();
     return () => {
@@ -2413,10 +2491,13 @@ export default function App() {
     };
   }, [doc, scale, wantedPage, wantedY]);
 
+  // Subscribed once the pages have a zoom, not again at every zoom: a zoom
+  // moves the scroll position, and that is what saves.
+  const hasScale = scale != null;
   useEffect(() => {
     const scroller = scrollerRef.current;
     const key = readingView.current.key;
-    if (!scroller || !key || !doc || !scale) return undefined;
+    if (!scroller || !key || !doc || !hasScale) return undefined;
     let timer = null;
     const save = () => {
       if (!readingViewRestored.current && !wantedNoteId) return;
@@ -2435,7 +2516,7 @@ export default function App() {
         page: Number(nearest.pageEl.dataset.page),
         x: Math.max(0, Math.min(1, (cx - nearest.rect.left) / nearest.rect.width)),
         y: Math.max(0, Math.min(1, (cy - nearest.rect.top) / nearest.rect.height)),
-        scale,
+        scale: liveScale.current,
       };
       readingView.current.view = view;
       localStorage.setItem(key, JSON.stringify(view));
@@ -2451,7 +2532,7 @@ export default function App() {
       window.clearTimeout(timer);
       save();
     };
-  }, [doc, scale, wantedNoteId]);
+  }, [doc, hasScale, wantedNoteId]);
 
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
@@ -3152,7 +3233,7 @@ export default function App() {
               doc={doc}
               pageNumber={n}
               scale={scale}
-              renderScale={renderScale}
+              renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}
               activeNoteId={notesByPage.get(n)?.some((note) => note.id === activeNoteId) ? activeNoteId : null}
               analysis={analysis}
