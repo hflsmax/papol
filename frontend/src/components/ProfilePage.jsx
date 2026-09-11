@@ -7,6 +7,7 @@ import {
   deleteAccount,
 } from '../api';
 import Avatar from './Avatar';
+import { confirmAction } from '../../../shared/confirmAction';
 
 export default function ProfilePage({ user, onUserUpdated, onLogout }) {
   const [displayName, setDisplayName] = useState(user.display_name);
@@ -60,15 +61,13 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
       setCloseError("Email doesn't match this account.");
       return;
     }
-    if (
-      !confirm(
-        'This deletes your account, your notes and your nook, and cannot ' +
-          'be undone. Papers you uploaded stay for the readers who have ' +
-          'them. Continue?'
-      )
-    ) {
-      return;
-    }
+    const confirmed = await confirmAction(
+      'This deletes your account, your notes and your nook, and cannot ' +
+        'be undone. Papers you uploaded stay for the readers who have ' +
+        'them. Continue?',
+      { confirmLabel: 'Delete account', destructive: true },
+    );
+    if (!confirmed) return;
     setIsClosing(true);
     try {
       await deleteAccount(closeEmail.trim());

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { addComment, updateComment, deleteComment } from '../api';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
+import { confirmAction } from '../../../shared/confirmAction';
 
 export default function CommentSection({
   noteHref, paperId, comments, currentUser, onCommentChange }) {
@@ -44,7 +45,7 @@ export default function CommentSection({
   };
 
   const handleDelete = async (commentId) => {
-    if (!confirm('Delete this comment?')) return;
+    if (!(await confirmAction('Delete this comment?', { confirmLabel: 'Delete', destructive: true }))) return;
 
     try {
       await deleteComment(commentId);

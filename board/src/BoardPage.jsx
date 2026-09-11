@@ -4,6 +4,9 @@ import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.j
 import BackLink from '../../frontend/src/components/BackLink.jsx';
 import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
+import { confirmAction } from '../../shared/confirmAction.js';
+import { DESKTOP } from '../../shared/desktopShell.js';
+import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const COLLECTION_INSET_X = 28;
@@ -1256,7 +1259,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     }
   };
   const removeItem = async (item, ask = true) => {
-    if (ask && !window.confirm('Remove this card?')) return;
+    if (ask && !(await confirmAction('Remove this card?', { confirmLabel: 'Remove', destructive: true }))) return;
     setBusy(true); setError(null);
     try {
       await deleteBoardItem(item.id);
@@ -1672,7 +1675,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const removeBoard = async () => {
-    if (!window.confirm(`Delete “${board.name}”? This cannot be undone.`)) return;
+    if (!(await confirmAction(`Delete “${board.name}”? This cannot be undone.`, { confirmLabel: 'Delete board', destructive: true }))) return;
     setBusy(true); setError(null);
     try {
       await deleteBoard(board.guid);
@@ -1706,8 +1709,12 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     setSelectedItems([]);
   };
   return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
-    <header className="board-toolbar">
-      <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
+    <header className="board-toolbar" data-tauri-drag-region="deep">
+      {/* In Papol Desktop the toolbar leads with the native back/forward
+          pair; a board has nowhere forward to go, so Forward stays dimmed. */}
+      {DESKTOP
+        ? <DesktopNav back={{ onClick: onBack, label: 'Back to Papol' }} />
+        : <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>}
       <input className="board-toolbar-title" value={board.name} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}

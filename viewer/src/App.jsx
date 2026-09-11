@@ -1,9 +1,13 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import * as pdfjs from 'pdfjs-dist';
+// The legacy build, not the modern one: the modern build calls JavaScript
+// that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
+// fails in Safari and in Papol Desktop's macOS webview. The legacy build
+// carries polyfills for exactly that, in the document and in the worker.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
-import 'pdfjs-dist/web/pdf_viewer.css';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import 'pdfjs-dist/legacy/web/pdf_viewer.css';
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import {
   pdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
@@ -22,6 +26,10 @@ import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement'
 import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
+import { pageAtLine } from './readingPage';
+import ReturnPill from './ReturnPill';
+import { DESKTOP, MAC } from '../../shared/desktopShell';
+import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -29,6 +37,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
 const LEARN_LINK_NAVIGATION_KEY = 'papol_learn_link_navigation';
+// Set once a reader hides the return pill; [ and ] keep working without it.
+const RETURN_PILL_KEY = 'papol_link_return_pill';
 const markReturnToPapol = () => {
   // This is a one-shot navigation handoff, not demo-mode state. Papol
   // consumes it on arrival so returning from the viewer does not greet the
@@ -407,6 +417,11 @@ export default function App() {
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
+  const [returnPillHidden, setReturnPillHidden] = useState(() => {
+    try { return localStorage.getItem(RETURN_PILL_KEY) === 'hidden'; }
+    catch { return false; }
+  });
+  const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
@@ -575,7 +590,9 @@ export default function App() {
     if (!pdfHash) return undefined;
     let cancelled = false;
     setPaperInfoError(null);
-    getViewerPaperInfo(pdfHash)
+    // A demo paper is fictional: there is nothing to look up and no server to
+    // ask, so the demo's source answers from the paper itself.
+    (source?.info ? source.info() : getViewerPaperInfo(pdfHash))
       .then((info) => {
         if (!cancelled) setPaperInfo(info);
       })
@@ -585,7 +602,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [paper, paperInfo, paperInfoOpen]);
+  }, [paper, paperInfo, paperInfoOpen, source]);
 
   useEffect(() => {
     if (!paperInfoOpen) return undefined;
@@ -843,6 +860,13 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
+      // In Papol Desktop ⌘[ is the toolbar's Back to Papol, as in every other
+      // window; jumps within the document stay on [ and ] (the return pill).
+      if (DESKTOP && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === '[' || e.key === ']')) {
+        e.preventDefault();
+        if (e.key === '[') returnToPapol();
+        return;
+      }
       const historyDirection = linkHistoryDirection(e);
       if (historyDirection) {
         e.preventDefault();
@@ -1026,25 +1050,11 @@ export default function App() {
     // the reader is looking at and its paint action should not follow them.
     window.getSelection()?.removeAllRanges();
     setSelectionPaint(null);
-    try {
-      if (localStorage.getItem(LEARN_LINK_NAVIGATION_KEY) !== 'seen') {
-        localStorage.setItem(LEARN_LINK_NAVIGATION_KEY, 'seen');
-        setLearnLinkNavigation(true);
-      }
-    } catch {
-      // Storage can be unavailable in a locked-down browser. The lesson is
-      // still useful for this visit, even if it cannot be remembered.
-      setLearnLinkNavigation(true);
-    }
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
     if (!scroller || !pageEl) return;
     const from = scroller.scrollTop;
-    const viewBeforeJump = {
-      top: from,
-      left: scroller.scrollLeft,
-      scale,
-    };
+    const viewBeforeJump = currentView();
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
     // A little above what was linked to, rather than flush against the top
@@ -1062,14 +1072,33 @@ export default function App() {
       linkHistory.current.back.push(viewBeforeJump);
       linkHistory.current.forward = [];
       renderLinkHistory((version) => version + 1);
+      // The lesson on getting back belongs to the first time there is
+      // somewhere to get back to, beside the pill that does it.
+      try {
+        if (localStorage.getItem(LEARN_LINK_NAVIGATION_KEY) !== 'seen') {
+          localStorage.setItem(LEARN_LINK_NAVIGATION_KEY, 'seen');
+          setLearnLinkNavigation(true);
+        }
+      } catch {
+        // Storage can be unavailable in a locked-down browser. The lesson is
+        // still useful for this visit, even if it cannot be remembered.
+        setLearnLinkNavigation(true);
+      }
     }
   };
 
+  // A place in the document: where it was scrolled, at what zoom, and the
+  // page being read there, so the way back to it can be named by its page.
   const currentView = () => {
     const scroller = scrollerRef.current;
-    return scroller
-      ? { top: scroller.scrollTop, left: scroller.scrollLeft, scale }
-      : null;
+    if (!scroller) return null;
+    const box = scroller.getBoundingClientRect();
+    const pages = [...scroller.querySelectorAll('.pdf-page[data-page]')].map((el) => {
+      const rect = el.getBoundingClientRect();
+      return { page: Number(el.dataset.page), top: rect.top, bottom: rect.bottom };
+    });
+    const page = pageAtLine(box.top + box.height * 0.3, pages);
+    return { top: scroller.scrollTop, left: scroller.scrollLeft, scale, page };
   };
 
   const restoreView = (view) => {
@@ -1098,6 +1127,31 @@ export default function App() {
     renderLinkHistory((version) => version + 1);
     restoreView(destination);
   };
+
+  // Hiding the return pill is for good, in this browser: the reader has
+  // said they do not want it, so later jumps do not bring it back. What
+  // they lose is only the button — [ and ] still move through the jumps,
+  // and the note that confirms the choice says so.
+  const hideReturnPill = () => {
+    setReturnPillHidden(true);
+    setReturnPillNotice(true);
+    setLearnLinkNavigation(false);
+    try { localStorage.setItem(RETURN_PILL_KEY, 'hidden'); }
+    catch { /* Unremembered, the choice still holds for this visit. */ }
+  };
+
+  const showReturnPill = () => {
+    setReturnPillHidden(false);
+    setReturnPillNotice(false);
+    try { localStorage.removeItem(RETURN_PILL_KEY); }
+    catch { /* Nothing was remembered to forget. */ }
+  };
+
+  useEffect(() => {
+    if (!returnPillNotice) return undefined;
+    const timer = setTimeout(() => setReturnPillNotice(false), 7000);
+    return () => clearTimeout(timer);
+  }, [returnPillNotice]);
 
   const closeReference = () => {
     setOpenCite(null);
@@ -2533,11 +2587,50 @@ export default function App() {
       : null;
   const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page) || null;
 
+  // Arriving from Papol, going back is a step back in history, not a new
+  // entry — otherwise Papol's own Back walks the reader straight into the
+  // viewer again. A direct visit has no Papol behind it, so it goes to the
+  // paper's page instead.
+  const returnToPapol = () => {
+    markReturnToPapol();
+    if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.assign(source?.backHref || appPath('/'));
+    }
+  };
+  // The document's own history, kept apart from the window's Back: the return
+  // pill over the pages names the page each way leads to.
+  const returnView = linkHistory.current.back[linkHistory.current.back.length - 1] || null;
+  const onwardView = linkHistory.current.forward[linkHistory.current.forward.length - 1] || null;
+
+  const learnLinkTip = learnLinkNavigation && (
+    <span className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
+      <span className="learn-papol-kicker">Learn Papol</span>
+      <strong id="learn-link-title">Jump back to where you were</strong>
+      <span>
+        Use this pill after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>
+        {' '}to move back and forward.
+      </span>
+      <button
+        type="button"
+        className="learn-papol-close"
+        onClick={() => setLearnLinkNavigation(false)}
+        aria-label="Dismiss this tip"
+      >
+        Got it
+      </button>
+    </span>
+  );
+
   return (
     <>
       <style>{styles}</style>
       <header
         className="viewer-bar"
+        // Empty stretches of the bar move the window in Papol Desktop;
+        // everywhere else the attribute is inert.
+        data-tauri-drag-region="deep"
         // A tool taken with the pointer should not be left holding keyboard
         // focus. Nothing shows while the pointer is what moved, but the
         // moment a key is pressed the browser promotes that parked focus to
@@ -2550,74 +2643,27 @@ export default function App() {
           e.target.closest?.('button')?.blur();
         }}
       >
-        {/* Arriving from Papol, going back is a step back in history, not a
-            new entry — otherwise Papol's own Back button walks the reader
-            straight into the viewer again. The href stays for a direct
-            visit, and for opening in a new tab. */}
-        <a
-          className="back"
-          href={source?.backHref || appPath('/')}
-          onClick={(e) => {
-            markReturnToPapol();
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-            if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
+        {/* The bar is the window's navigation: back to Papol and nothing
+            else. Jumps inside the PDF are the return pill's, over the pages. */}
+        {DESKTOP ? (
+          <DesktopNav back={{ onClick: returnToPapol, label: 'Back to Papol' }} />
+        ) : (
+          // The href stays for a direct visit, and for opening in a new tab.
+          <a
+            className="back"
+            href={source?.backHref || appPath('/')}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+                markReturnToPapol();
+                return;
+              }
               e.preventDefault();
-              window.history.back();
-            }
-          }}
-        >
-          ← <span className="back-word">Back to </span>Papol
-        </a>
-        <span
-          className={`link-navigation${learnLinkNavigation ? ' learning' : ''}`}
-          role="group"
-          aria-label="Link navigation"
-        >
-          <button
-            type="button"
-            className="history-arrow"
-            disabled={linkHistory.current.back.length === 0}
-            onClick={() => moveThroughLinks('back')}
-            aria-label="Back through followed links"
-            title="Back through followed links ([)"
+              returnToPapol();
+            }}
           >
-            <svg className="history-arrow-glyph" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 12H4m6-6-6 6 6 6" />
-            </svg>
-            <span className="history-key" aria-hidden="true">[</span>
-          </button>
-          <button
-            type="button"
-            className="history-arrow"
-            disabled={linkHistory.current.forward.length === 0}
-            onClick={() => moveThroughLinks('forward')}
-            aria-label="Forward through followed links"
-            title="Forward through followed links (])"
-          >
-            <svg className="history-arrow-glyph" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 12h16m-6-6 6 6-6 6" />
-            </svg>
-            <span className="history-key" aria-hidden="true">]</span>
-          </button>
-          {learnLinkNavigation && (
-            <span className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
-              <span className="learn-papol-kicker">Learn Papol</span>
-              <strong id="learn-link-title">Jump back to where you were</strong>
-              <span>
-                Use these buttons after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>
-                {' '}to move back and forward.
-              </span>
-              <button
-                type="button"
-                className="learn-papol-close"
-                onClick={() => setLearnLinkNavigation(false)}
-                aria-label="Dismiss this tip"
-              >
-                Got it
-              </button>
-            </span>
-          )}
-        </span>
+            ← <span className="back-word">Back to </span>Papol
+          </a>
+        )}
         <span className="spacer" />
         <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
           <button type="button" className="search-button" onClick={() => setSearchOpen((open) => !open)} title="Search PDF (Ctrl/Command+F)" aria-label="Search PDF" aria-expanded={searchOpen}>
@@ -3039,6 +3085,18 @@ export default function App() {
         >
           {railOpen ? '›' : '‹'}
         </button>
+        <ReturnPill
+          returnView={returnView}
+          onwardView={onwardView}
+          hidden={returnPillHidden}
+          notice={returnPillNotice}
+          onBack={() => moveThroughLinks('back')}
+          onForward={() => moveThroughLinks('forward')}
+          onHide={hideReturnPill}
+          onUndo={showReturnPill}
+        >
+          {learnLinkTip}
+        </ReturnPill>
         <div
           className="pages"
           ref={scrollerRef}

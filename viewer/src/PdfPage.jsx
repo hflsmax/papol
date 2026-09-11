@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import * as pdfjs from 'pdfjs-dist';
+// The same legacy build as App.jsx (see there): one pdf.js, and one that
+// runs in WebKit.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
 import { animalFor } from './animals';
 import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';

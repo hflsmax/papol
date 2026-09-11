@@ -13,8 +13,9 @@ import AutoTextarea from './AutoTextarea';
 import { demoActive } from '../demo';
 import { appPath } from '../base';
 import BackLink from './BackLink';
+import { confirmAction } from '../../../shared/confirmAction';
 
-export default function PaperDetail({ paperId, currentUser, onBack, backHref, onSelectPaper, hideBack = false }) {
+export default function PaperDetail({ paperId, currentUser, onBack, backHref, onSelectPaper, onChanged, hideBack = false }) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
@@ -135,12 +136,17 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
     };
   }, [paperId, editMode, editingSummary, editingThought]);
 
+  // Every load after the first follows a change made here, so whatever lists
+  // this paper beside the page (Papol Desktop's nook) is told to catch up.
+  const loadedOnce = useRef(false);
   const loadPaper = async () => {
     setError(null);
     try {
       const data = await getPaper(paperId);
       setPaper(data);
       if (currentUser && data.viewer_has_entry) setShelves(await listShelves());
+      if (loadedOnce.current) onChanged?.();
+      loadedOnce.current = true;
     } catch (err) {
       setError(err.message);
     } finally {
@@ -234,6 +240,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
         '',
         appPath(`${modePrefix}/paper/${added.doi || added.id}`),
       );
+      // Reload rather than stop at the returned copy: a paper just taken into
+      // the nook needs the reader's shelves for its shelf menu.
+      loadPaper();
     } catch (err) {
       setError(err.message);
     }
@@ -266,7 +275,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
   };
 
   const handleDelete = async () => {
-    if (!confirm('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.')) return;
+    if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
       await deletePaper(paper.id);
       onBack();

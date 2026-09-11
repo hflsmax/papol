@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "tauri dev",
+    "dev:local": "PAPOL_URL=http://localhost:8000/ tauri dev",
     "build": "tauri build"
   },
   "devDependencies": {

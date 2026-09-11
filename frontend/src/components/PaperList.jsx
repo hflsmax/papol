@@ -5,6 +5,7 @@ import Avatar from './Avatar';
 import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
+import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
@@ -58,32 +59,13 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
 
   // Your own nook reads as a journal: newest first, grouped by month.
   // Other nooks rank active seminars to the top.
-  const rank = (p) =>
-    p.room_status === 'open' || p.room_status === 'planning'
-      ? 0
-      : p.room_status === 'scheduled'
-        ? 1
-        : 2;
   filteredPapers.sort((a, b) =>
-    isOwn
-      ? new Date(b.created_at) - new Date(a.created_at)
-      : rank(a) - rank(b) || new Date(b.created_at) - new Date(a.created_at)
+    isOwn ? newestFirst(a, b) : seminarRank(a) - seminarRank(b) || newestFirst(a, b)
   );
   const entries = [
-    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: rank(paper) })),
+    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: seminarRank(paper) })),
     ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
   ].sort((a, b) => (isOwn ? 0 : a.rank - b.rank) || new Date(b.at) - new Date(a.at));
-
-  const parseAuthors = (authorsJson) => {
-    if (!authorsJson) return '';
-    try {
-      const authors = JSON.parse(authorsJson);
-      if (authors.length <= 2) return authors.join(', ');
-      return `${authors[0]} et al.`;
-    } catch {
-      return authorsJson;
-    }
-  };
 
   const activeShelf = shelves.find((shelf) => shelf.id === selectedShelf);
   const activeTag = tags.find((tag) => tag.id === selectedTag);
@@ -273,7 +255,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                 )}
                 </div>
                 <p className="paper-meta">
-                  {parseAuthors(paper.authors)}
+                  {formatAuthors(paper.authors)}
                   {paper.year && ` (${paper.year})`}
                   {paper.journal && ` - ${paper.journal}`}
                 </p>

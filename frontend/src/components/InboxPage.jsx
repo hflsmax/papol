@@ -67,30 +67,35 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
             <li
               key={n.id}
               className={n.read ? 'notif-item' : 'notif-item unread'}
-              onClick={() => handleClick(n)}
             >
-              <p
-                className={
-                  expanded[n.id] ? 'notif-content' : 'notif-content collapsed'
-                }
+              {/* A real button, so a notification can be reached and opened
+                  from the keyboard, not only clicked. */}
+              <button
+                type="button"
+                className="notif-toggle"
+                aria-expanded={Boolean(expanded[n.id])}
+                onClick={() => handleClick(n)}
               >
-                {!n.read && <span className="notif-new">new</span>}
-                {n.content}
-              </p>
+                <span
+                  className={
+                    expanded[n.id] ? 'notif-content' : 'notif-content collapsed'
+                  }
+                >
+                  {!n.read && <span className="notif-new">new</span>}
+                  {n.content}
+                </span>
+                <span className="notif-date">{formatWhen(n.created_at)}</span>
+              </button>
               {expanded[n.id] && n.room_id && (
                 <p className="notif-room-link">
                   <button
                     className="link-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenRoom(n.room_id);
-                    }}
+                    onClick={() => onOpenRoom(n.room_id)}
                   >
                     Open the seminar cohort →
                   </button>
                 </p>
               )}
-              <p className="notif-date">{formatWhen(n.created_at)}</p>
             </li>
           ))}
         </ul>

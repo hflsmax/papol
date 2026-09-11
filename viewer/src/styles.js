@@ -152,6 +152,36 @@ button.link.danger { color: var(--red); }
   border-bottom: 1px solid var(--line);
 }
 
+/* In Papol Desktop the bar is the window's title bar: the same height as
+   the app's toolbar, draggable, and clear of the macOS traffic lights. */
+[data-shell='desktop'] .viewer-bar {
+  min-height: 52px;
+  padding-block: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[data-shell='desktop'][data-platform='mac'] .viewer-bar {
+  padding-left: 88px;
+}
+
+/* Every control in the bar keeps its size; only the spacer gives way. */
+[data-shell='desktop'] .viewer-bar > :not(.spacer) {
+  flex-shrink: 0;
+}
+
+/* Only the bar's own controls keep to one line. Its wrappers also hold
+   pop-ups (the paper's info, search, the brush), whose text must wrap. */
+[data-shell='desktop'] .viewer-bar > :is(button, a),
+[data-shell='desktop'] .viewer-bar > * > :is(button, a) {
+  white-space: nowrap;
+}
+
+/* Feedback lives in the app's sidebar. */
+[data-shell='desktop'] .feedback-fab {
+  display: none;
+}
+
 .viewer-bar .back {
   color: var(--accent);
   text-decoration: none;
@@ -160,18 +190,6 @@ button.link.danger { color: var(--red); }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.link-navigation {
-  position: relative;
-  flex: none;
-  display: flex;
-  gap: 2px;
-}
-
-.link-navigation.learning .history-arrow {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .learn-papol {
@@ -235,64 +253,6 @@ button.link.danger { color: var(--red); }
   border-color: var(--accent);
   background: var(--accent);
   color: var(--ink-inverse);
-}
-
-.history-arrow {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: inherit;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.history-arrow-glyph {
-  display: block;
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.history-key {
-  position: absolute;
-  left: 3px;
-  bottom: 1px;
-  color: var(--ink-faint);
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.history-arrow:not(:disabled) { border-color: var(--accent-line); }
-.history-arrow:hover:not(:disabled),
-.history-arrow:focus-visible:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--ink-inverse);
-  outline: none;
-}
-.history-arrow:hover:not(:disabled) .history-key,
-.history-arrow:focus-visible:not(:disabled) .history-key { color: var(--ink-inverse); }
-.history-arrow:focus-visible:not(:disabled) { box-shadow: 0 0 0 2px var(--accent-soft); }
-.history-arrow:active:not(:disabled) { transform: translateY(1px); }
-.history-arrow:disabled {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--muted);
-  opacity: 0.38;
-  cursor: default;
 }
 
 .viewer-bar .spacer { flex: 1; }
@@ -661,6 +621,141 @@ button.link.danger { color: var(--red); }
 }
 
 .viewer-body.rail-hidden { grid-template-columns: minmax(0, 1fr); }
+
+/* ---------- Return pill ---------- */
+
+/* Where a followed link ("see Section 3") left the reader: a pill over the
+   pages naming the page to go back to, the document's own history. It is
+   kept apart from the bar, whose navigation only leaves for Papol, and it
+   exists only while there is somewhere to return to. Centred over the pages,
+   not the window. */
+.link-return {
+  position: absolute;
+  z-index: 36;
+  bottom: 20px;
+  left: calc((100% - var(--rail-w)) / 2);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  box-shadow: 0 6px 20px rgba(29, 33, 41, 0.16), 0 1px 3px rgba(29, 33, 41, 0.1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.viewer-body.rail-hidden .link-return { left: 50%; }
+
+.link-return .link-return-button,
+.link-return .link-return-button:hover:not(:disabled) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.link-return .link-return-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.link-return-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.link-return kbd {
+  min-width: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink-faint);
+  font: 600 var(--fs-xs) var(--font-ui);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.link-return-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 5px 1px;
+  background: var(--line);
+}
+
+/* The pill's own way out: quiet until pointed at, like a tab's close box. */
+.link-return .link-return-hide,
+.link-return .link-return-hide:hover:not(:disabled) {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.link-return .link-return-hide:hover:not(:disabled) {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.link-return-hide svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Where the pill was, for a few seconds: the keys that still do its job,
+   and a way to take the choice back. */
+.link-return.link-return-notice {
+  gap: 10px;
+  padding: 3px 3px 3px 16px;
+  color: var(--ink-soft);
+}
+
+/* The lesson on getting back opens above the pill it is about. */
+.link-return .learn-papol {
+  top: auto;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: normal;
+}
+
+.link-return .learn-papol::before {
+  top: auto;
+  bottom: -7px;
+  left: calc(50% - 6px);
+  border: 0;
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+}
 
 .rail-handle {
   position: absolute;
@@ -1797,6 +1892,8 @@ button.link.danger { color: var(--red); }
    the viewer scrolls the .pages element, so a layout where the window
    scrolled instead would quietly break going to an anchor. */
 @media (max-width: 860px) {
+  /* The rail lies over the pages here, so the pill centres on the window. */
+  .viewer-body .link-return { left: 50%; }
   .viewer-body {
     --rail-w: min(320px, 86vw);
     grid-template-columns: minmax(0, 1fr);

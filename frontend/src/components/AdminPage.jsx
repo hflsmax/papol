@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { confirmAction } from '../../../shared/confirmAction';
 import {
   adminListTables,
   adminGetTable,
@@ -426,7 +427,7 @@ export default function AdminPage() {
 
   const deleteRow = async (row) => {
     const pk = row[pkName];
-    if (!confirm(`Delete row ${pk} from ${selected}?`)) return;
+    if (!(await confirmAction(`Delete row ${pk} from ${selected}?`, { confirmLabel: 'Delete row', destructive: true }))) return;
     setError(null);
     setNotice(null);
     try {

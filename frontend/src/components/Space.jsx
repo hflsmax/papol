@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserSpace, createBoard, createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../api';
+import { getUserSpace } from '../api';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from './BackLink';
+import NookManager from './NookManager';
+import BoardCreateForm from './BoardCreateForm';
 
 export default function Space({ userId, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
   const [space, setSpace] = useState(null);
@@ -12,11 +14,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
   const [managingShelves, setManagingShelves] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
   const [creatingBoard, setCreatingBoard] = useState(false);
-  const [boardName, setBoardName] = useState('');
-  const [boardShelfId, setBoardShelfId] = useState('');
-  const [nookManagerError, setNookManagerError] = useState(null);
   const [section, setSection] = useState(() => {
     if (initialSection) return initialSection;
     try { return sessionStorage.getItem(`papol_nook_section_${userId}`) || 'papers'; }
@@ -70,19 +68,9 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
     };
   }, [userId]);
 
-  useEffect(() => {
-    if (!managingShelves) return undefined;
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setManagingShelves(false);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [managingShelves]);
-
   if (isLoading) return <div className="loading">Loading nook…</div>;
   if (error) return <div className="error">{error}</div>;
   if (!space) return null;
-  const selectedBoardShelf = space.shelves.find((shelf) => shelf.id === Number(boardShelfId));
 
   return (
     <div className={reviewingUpload ? 'space upload-review-mode' : 'space'}>
@@ -98,7 +86,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
                 <span>My nook</span>
                 <button
                   className="manage-nook-gear"
-                  onClick={() => { setNookManagerError(null); setManagingShelves(true); }}
+                  onClick={() => setManagingShelves(true)}
                   title="Manage nook"
                   aria-label="Manage nook"
                 >
@@ -120,7 +108,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
           </div>
           {isOwn && (
             <div className="space-header-actions">
-              <button className="new-board-btn" type="button" onClick={() => { setBoardShelfId(space.shelves.find((shelf) => shelf.is_default)?.id || space.shelves[0]?.id || ''); setCreatingBoard(true); }}>
+              <button className="new-board-btn" type="button" onClick={() => setCreatingBoard(true)}>
                 <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
                 <span>New board</span>
               </button>
@@ -134,145 +122,23 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
         </div>
       </div>
 
-      {isOwn && creatingBoard && <form className="panel board-create nook-inline-board-create" onSubmit={async (event) => { event.preventDefault(); if (!boardName.trim()) return; const board = await createBoard({ name: boardName.trim(), shelf_id: Number(boardShelfId) }); setCreatingBoard(false); setBoardName(''); onSelectBoard(board.guid); }}>
-        <div className="board-create-heading"><h3>New board</h3><p>Name it and choose who can find it through its shelf.</p></div>
-        <div className="board-create-fields">
-          <div className="form-group"><label htmlFor="inline-board-name">Board name</label><input id="inline-board-name" value={boardName} onChange={(event) => setBoardName(event.target.value)} autoFocus required maxLength="120" placeholder="Untitled board" /></div>
-          <div className="form-group board-create-shelf-field"><label htmlFor="inline-board-shelf">Shelf</label><div className="board-create-shelf-select"><select id="inline-board-shelf" value={boardShelfId} onChange={(event) => setBoardShelfId(event.target.value)} required>{space.shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}</select><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></div><p className="board-create-shelf-hint">{selectedBoardShelf?.is_public ? 'Anyone can view this board.' : 'Only you can view this board.'}</p></div>
-        </div>
-        <div className="form-actions"><button className="primary" type="submit">Create board</button><button type="button" onClick={() => setCreatingBoard(false)}>Cancel</button></div>
-      </form>}
+      {isOwn && creatingBoard && (
+        <BoardCreateForm
+          className="nook-inline-board-create"
+          shelves={space.shelves}
+          onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.guid); }}
+          onCancel={() => setCreatingBoard(false)}
+        />
+      )}
 
       {isOwn && managingShelves && (
-        <div className="modal-overlay shelf-manager-overlay" onMouseDown={() => setManagingShelves(false)}>
-          <div className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="shelf-manager-head">
-              <div>
-                <h3 id="shelf-manager-title">Manage nook</h3>
-                <p>You can create up to five shelves.</p>
-              </div>
-              <button className="icon-btn shelf-manager-close" onClick={() => setManagingShelves(false)} title="Close" aria-label="Close nook manager">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-              </button>
-            </div>
-            {nookManagerError && <p className="nook-manager-error" role="alert">{nookManagerError}</p>}
-            <div className="shelf-manager-list">
-              {space.shelves.map((shelf) => (
-                <div className="shelf-manager-row" key={shelf.id}>
-                  <label className="shelf-color-control" title="Shelf color">
-                    <input
-                      className="shelf-color-input"
-                      type="color"
-                      value={shelf.color}
-                      aria-label={`Color for ${shelf.name}`}
-                      onChange={async (e) => { await updateShelf(shelf.id, { color: e.target.value }); loadSpace(); }}
-                    />
-                  </label>
-                  <div className="shelf-name-block">
-                    <input
-                      className="shelf-name-input"
-                      value={shelf.name}
-                      aria-label="Shelf name"
-                      onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.id === shelf.id ? { ...item, name: e.target.value } : item) }))}
-                      onBlur={async (e) => { if (e.target.value.trim()) { await updateShelf(shelf.id, { name: e.target.value.trim() }); loadSpace(); } }}
-                    />
-                    <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
-                  </div>
-                  <button
-                    className={`market-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
-                    role="switch"
-                    aria-checked={shelf.is_public}
-                    aria-label={`${shelf.name} is ${shelf.is_public ? 'public' : 'private'}`}
-                    onClick={async () => { await updateShelf(shelf.id, { is_public: !shelf.is_public }); loadSpace(); }}
-                  >
-                    <span className="switch">
-                      <span className="switch-knob" />
-                      <span className="switch-text">{shelf.is_public ? 'Public' : 'Private'}</span>
-                    </span>
-                  </button>
-                  <label className="shelf-default">
-                    <input
-                      type="radio"
-                      name="default-shelf"
-                      checked={shelf.is_default}
-                      onChange={async () => { if (!shelf.is_default) { await updateShelf(shelf.id, { is_default: true }); loadSpace(); } }}
-                    />
-                    <span>Default</span>
-                  </label>
-                  <button
-                    className="icon-btn shelf-delete-btn"
-                    title={`Delete ${shelf.name}`}
-                    aria-label={`Delete shelf ${shelf.name}`}
-                    onClick={async () => {
-                      setNookManagerError(null);
-                      if (space.shelves.length === 1) {
-                        setNookManagerError('Keep at least one shelf.');
-                        return;
-                      }
-                      const papers = shelf.paper_count === 1 ? '1 paper' : `${shelf.paper_count} papers`;
-                      if (!window.confirm(`Delete ${shelf.name}? Its ${papers} will move to another shelf.`)) return;
-                      try {
-                        await deleteShelf(shelf.id);
-                        loadSpace();
-                      } catch (err) {
-                        setNookManagerError(err.message);
-                      }
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-            {space.shelves.length < 5 && (
-              <button className="link-btn shelf-add" onClick={async () => {
-                const colors = ['#b3923d', '#6b3f5e', '#35606b'];
-                await createShelf({ name: `Shelf ${space.shelves.length + 1}`, color: colors[(space.shelves.length - 2) % colors.length], is_public: false });
-                loadSpace();
-              }}>Add another shelf</button>
-            )}
-            <section className="nook-manager-section" aria-labelledby="manage-tags-title">
-              <div className="nook-manager-section-head">
-                <div>
-                  <h4 id="manage-tags-title">Tags</h4>
-                  <p>Private labels you can add to any paper.</p>
-                </div>
-              </div>
-              {space.tags.length > 0 && (
-                <div className="manage-tag-list">
-                  {space.tags.map((tag) => (
-                    <div className="manage-tag-row" key={tag.id}>
-                      <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
-                      <button
-                        className="icon-btn tag-delete-btn"
-                        title={`Delete ${tag.name}`}
-                        aria-label={`Delete tag ${tag.name}`}
-                        onClick={async () => {
-                          if (!window.confirm(`Delete #${tag.name} from every paper?`)) return;
-                          await deleteTag(tag.id);
-                          if (selectedTag === tag.id) setSelectedTag(null);
-                          loadSpace();
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <form className="manage-tag-add" onSubmit={async (event) => {
-                event.preventDefault();
-                if (!newTagName.trim()) return;
-                await createTag(newTagName.trim());
-                setNewTagName('');
-                loadSpace();
-              }}>
-                <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="New private tag" aria-label="New private tag" maxLength="60" />
-                <button type="submit">Add tag</button>
-              </form>
-            </section>
-          </div>
-        </div>
+        <NookManager
+          space={space}
+          setSpace={setSpace}
+          onChanged={loadSpace}
+          onClose={() => setManagingShelves(false)}
+          onTagDeleted={(tagId) => { if (selectedTag === tagId) setSelectedTag(null); }}
+        />
       )}
 
       <PaperList

@@ -95,6 +95,11 @@ function localSource(paperId) {
 
   return {
     backHref: appPath(`/demo/paper/${paperId}`),
+    // The paper's details panel shows the demo paper's own fields; there is
+    // no catalogue entry to add to them.
+    async info() {
+      return {};
+    },
     async load() {
       const edition = demoEditionFor(paper);
       return {

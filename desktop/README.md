@@ -14,6 +14,34 @@ npm install
 npm run dev
 ```
 
+`npm run dev` opens the hosted site. To see unreleased changes to the desktop
+layout, run `./deploy.sh dev` from the repository root and then
+`npm run dev:local`, which opens `http://localhost:8000/` in the same window
+chrome. Any Papol address works the same way: a debug build opens the one in
+`PAPOL_URL` (release builds always open the hosted site). The layout itself can also be previewed in any browser by adding
+`?shell=desktop` to a Papol URL (`?shell=web` turns it off again).
+
+## Window chrome
+
+The pages notice they are inside the app (Tauri defines `window.isTauri`) and
+swap the website masthead for a native reference-manager layout: a source-list
+sidebar of shelves, tags, boards and the library, a list of papers, and the
+selected paper beside it. See "Desktop shell" in `frontend/DESIGN.md`. On macOS
+the window uses an overlay title bar, so those toolbars sit where the title bar
+would be and the traffic lights float over their left edge.
+
+A webview is not a browser, and three things a web page takes for granted need
+the app's help. The window is declared in `tauri.conf.json` with `create: false`
+and built in `src-tauri/src/lib.rs`, so handlers can be attached to it:
+
+- Links that ask for a new tab or window (a DOI, a publisher's PDF) open in the
+  default browser. Only `http`, `https` and `mailto` links are handed on.
+- Downloads (a paper's PDF, an account export) are allowed, and saved to the
+  Downloads folder without overwriting.
+- The macOS webview shows no JavaScript dialogs, so `window.confirm` silently
+  answers "no". Every confirmation goes through `shared/confirmAction.js`, which
+  asks with an in-app sheet inside the app and with `confirm()` in a browser.
+
 ## macOS release
 
 The final macOS build must run on macOS. The repository release workflow builds,
@@ -32,6 +60,11 @@ Configure these GitHub Actions secrets first:
 Then update the version in both `package.json` and `src-tauri/tauri.conf.json`,
 commit it, and push a matching tag, for example `desktop-v0.1.0`.
 
-This first release intentionally grants the remote page no Tauri commands or
-native filesystem access. Local-first caching and sync can therefore be added as
-a separately reviewed capability instead of exposing native APIs to hosted code.
+The remote page is granted exactly two Tauri permissions, in the `window-chrome`
+capability: starting a window drag and toggling zoom, which is what
+`data-tauri-drag-region` needs to make a page toolbar behave like a title bar.
+The capability names the hosted site and localhost, so a debug build pointed at
+a local Papol behaves the same.
+It has no other Tauri commands and no native filesystem access. Local-first
+caching and sync can therefore be added as a separately reviewed capability
+instead of exposing native APIs to hosted code.

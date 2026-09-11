@@ -10,19 +10,36 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Papol",
         "url": "https://mc-pony.com/papol/",
         "width": 1280,
         "height": 820,
-        "minWidth": 900,
+        "minWidth": 1000,
         "minHeight": 620,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 18, "y": 20 },
+        "backgroundColor": "#f5f6f8",
+        "dragDropEnabled": false
       }
     ],
     "security": {
-      "capabilities": []
+      "capabilities": [
+        {
+          "identifier": "window-chrome",
+          "description": "Lets Papol's own toolbars move and zoom the window, as a native title bar would. Nothing else is exposed to the hosted pages.",
+          "windows": ["main"],
+          "remote": { "urls": ["https://mc-pony.com/papol/*", "http://localhost:*/*", "http://127.0.0.1:*/*"] },
+          "permissions": [
+            "core:window:allow-start-dragging",
+            "core:window:allow-internal-toggle-maximize"
+          ]
+        }
+      ]
     }
   },
   "bundle": {

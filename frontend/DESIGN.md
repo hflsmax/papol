@@ -3,7 +3,9 @@
 All styles live in the template string in `src/App.jsx`. The system is a set
 of CSS custom properties declared on `:root` at the top of that sheet; every
 rule below the token block should derive from them. When you add UI, pick
-tokens — don't invent new hexes, font sizes, or radii.
+tokens — don't invent new hexes, font sizes, or radii. Papol Desktop's rules
+live apart, in `src/desktopStyles.js`, which the sheet appends to itself; they
+use the same tokens.
 
 ## Color
 
@@ -22,6 +24,9 @@ tokens — don't invent new hexes, font sizes, or radii.
 | `--accent` | `#2b4a6f` | Brand navy: links, primary buttons, selection |
 | `--accent-strong` | `#1e3752` | Primary button hover |
 | `--accent-soft` | `#eaeff5` | Tinted cards (notes, summaries, quotes) |
+| `--chrome` | `#eaedf1` | Papol Desktop sidebar ground |
+| `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
+| `--chrome-radius` | `6px` | Desktop sidebar rows and toolbar buttons only |
 
 Semantic hues — states carry meaning consistently across the app:
 
@@ -185,6 +190,60 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   removes only that label from papers, never the papers themselves.
   Shelves use the same compact black × removal affordance as tags. Removing a
   shelf moves its papers to another shelf; the final shelf cannot be removed.
+- **Desktop shell** — inside Papol Desktop (the Tauri app;
+  `shared/desktopShell.js` stamps `data-shell="desktop"` on `<html>`, and
+  `?shell=desktop` previews it in a browser tab) the website masthead gives
+  way to a native reference-manager layout. A 220px `--chrome` source-list
+  sidebar (`components/DesktopChrome.jsx`) lists the reader's sources — All
+  papers, each shelf (by its swatch, once there are two), Boards, their tags —
+  then Library, Inbox, Learn, with Manage nook as the icon beside "My nook".
+  Reading is three panes (`components/DesktopLibrary.jsx`): the sidebar picks
+  a source, a 320px white list pane shows it as compact rows with a search
+  field, and the selected paper opens beside the list in the ordinary
+  `PaperDetail`. Adding a paper or a board also happens in that pane. Every
+  other page (Inbox, Profile, Learn, a seminar, someone else's nook) fills the
+  space beside the sidebar under a toolbar with Back, Forward and the title.
+  Navigation is always one control, `components/DesktopNav.jsx`: a pair of
+  borderless chevrons at a toolbar's leading edge, immediately before its
+  title, as in Finder and Safari. There is never a "← Back" text link in the
+  app. The pair leads the list pane in the browser, every page's toolbar, the
+  viewer's bar (on its own: the paper fills the window below it) and a
+  board's toolbar (where
+  Forward stays dimmed). ⌘[ and ⌘] press them. The pair only ever moves
+  between Papol's pages. Jumps inside a PDF (a followed "see Section 3" link)
+  are the document's own history, shown in the viewer on the web and in the app
+  alike as a return pill centred over the pages: it names the page to go back
+  to ("Back to page 4", or "‹ Page 4 │ Page 12 ›" once there is a way forward
+  too), answers to [ and ], and exists only while there is somewhere to return
+  to. Its × hides it for good in that browser: the note that takes its place
+  for a few seconds says [ and ] still work, and offers Undo.
+  Chrome is UI sans at `--fs-sm`, never selectable, and uses the arrow cursor
+  rather than the pointing hand; rows and toolbar buttons are borderless,
+  shadowless `--chrome-radius` shapes tinted `--chrome-hover` /
+  `--chrome-selected`, with `--accent` line glyphs. Paper titles in the list
+  stay serif. A selected row is `--chrome-selected` grey, and `--accent` with
+  inverse text while the list has focus, as native lists do. Arrow keys move
+  the selection without adding history. A row from the reader's own nook can
+  be dragged onto a shelf in the sidebar to move the paper there; the shelf
+  under the pointer lights in `--accent` with inverse text, like a native
+  drop target. Anything the chrome already offers
+  leaves the page: the About link, the guest pitch (a signed-out window opens
+  on Sign in), the floating Feedback button (now a sidebar row) and in-page
+  `.back-btn` links. The unread count is a quiet trailing number, as in Mail,
+  not a badge. On macOS the title bar is transparent and overlays the page, so
+  every top bar — the toolbar, `.viewer-bar`, `.board-toolbar` — is 52px
+  tall, carries `data-tauri-drag-region="deep"` so its empty stretches move
+  the window, and under `[data-platform='mac']` leaves 88px on the left for the
+  traffic lights. Keys follow the platform: ⌘[ / ⌘] for Back / Forward and
+  ⌘1…⌘4 for the sidebar's numbered rows.
+  Beside the list, the paper sits flush on a white pane rather than as a card
+  on a card. Inbox marks unread with an `--accent` dot, as Mail does, instead
+  of a tinted row and badge. The desktop sign-in card is centred in the window
+  and lifted by a shadow. The macOS webview shows no JavaScript dialogs, so
+  every "are you sure?" goes through `shared/confirmAction.js`: the browser's
+  `confirm()` on the web, and in the app a sheet with the action named on its
+  button (never a bare OK), destructive actions in `--red` and never the
+  default button. Never call `window.confirm`, `alert` or `prompt` directly.
 
 ## Voice
 
