@@ -24,11 +24,13 @@ actions—seminars, public profile changes, feedback, and administration—show 
 online-required message instead of being queued.
 
 Synchronization is a permanent control at the bottom of the desktop sidebar.
-It shows pending changes and the last successful sync, has an explicit
-**Sync now** action, and lets the reader choose **Automatic** or **Manual**.
-Manual mode keeps all owned edits local until Sync now is chosen; Automatic
-mode replays them when connectivity returns. A first sign-in and data not
-previously opened still require a connection.
+It shows pending changes and the last successful sync, and has an explicit
+**Sync now** action. The **Automatic** or **Manual** preference lives in
+Settings under **On this Mac**, making clear that it applies only to this
+installation and is not stored with the reader's account. Manual mode keeps
+all owned edits local until Sync now is chosen; Automatic mode replays them
+when connectivity returns. A first sign-in and data not previously opened
+still require a connection.
 
 ## Development
 

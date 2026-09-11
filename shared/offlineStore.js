@@ -5,7 +5,10 @@
 const DB_NAME = 'papol-offline-v1';
 const DB_VERSION = 1;
 const OFFLINE_FILE = 'offline-file:';
-const SYNC_PREFERENCE_KEY = 'papol.syncPreference';
+// Device settings live only in this installation's webview storage. They are
+// deliberately named "local" at the API boundary so they cannot be mistaken
+// for account settings persisted by the backend and shared across devices.
+const LOCAL_SYNC_PREFERENCE_KEY = 'papol.syncPreference';
 const LAST_SYNC_KEY = 'papol.lastSync';
 let syncing = null;
 let remoteNetworkFetch = (...args) => globalThis.fetch(...args);
@@ -38,13 +41,13 @@ function storedSetting(key, fallback = null) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
 }
 
-export function getSyncPreference() {
-  return storedSetting(SYNC_PREFERENCE_KEY, 'automatic');
+export function getLocalSyncPreference() {
+  return storedSetting(LOCAL_SYNC_PREFERENCE_KEY, 'automatic');
 }
 
-export function setSyncPreference(preference) {
+export function setLocalSyncPreference(preference) {
   if (!['automatic', 'manual'].includes(preference)) throw new Error('Unknown sync preference');
-  try { localStorage.setItem(SYNC_PREFERENCE_KEY, preference); } catch { /* best effort */ }
+  try { localStorage.setItem(LOCAL_SYNC_PREFERENCE_KEY, preference); } catch { /* best effort */ }
   notify({ preference });
   if (preference === 'automatic') syncOfflineQueue().catch(() => {});
 }
@@ -52,7 +55,7 @@ export function setSyncPreference(preference) {
 export function getSyncStatus() {
   return {
     ...syncStatus,
-    preference: getSyncPreference(),
+    preference: getLocalSyncPreference(),
     lastSynced: syncStatus.lastSynced || storedSetting(LAST_SYNC_KEY),
   };
 }
@@ -593,12 +596,12 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
   let pullRequested = false;
   try { pullRequested = Number(sessionStorage.getItem('papol.syncPullUntil') || 0) > Date.now(); }
   catch { /* session storage unavailable */ }
-  if (method === 'GET' && getSyncPreference() === 'manual' && !pullRequested) {
+  if (method === 'GET' && getLocalSyncPreference() === 'manual' && !pullRequested) {
     const cached = await cachedResponse(path, options);
     if (cached) return cached;
   }
   if (method !== 'GET') {
-    if (getSyncPreference() === 'manual' && isSafeOfflineMutation(method, path, options.body)) {
+    if (getLocalSyncPreference() === 'manual' && isSafeOfflineMutation(method, path, options.body)) {
       return queueMutation(url, path, method, options);
     }
     const pending = (await allStored('queue')).length;
@@ -625,7 +628,7 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
   try {
     const response = await fetchImpl(requestUrl, requestOptions);
     if (method === 'GET') await rememberResponse(path, response, options);
-    if (response.ok && getSyncPreference() === 'automatic') syncOfflineQueue(fetchImpl);
+    if (response.ok && getLocalSyncPreference() === 'automatic') syncOfflineQueue(fetchImpl);
     notify({ offline: false });
     return response;
   } catch (error) {
@@ -678,7 +681,7 @@ export function rememberOfflineIdentity(token, user) {
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     notify({ offline: false });
-    if (getSyncPreference() === 'automatic') syncOfflineQueue();
+    if (getLocalSyncPreference() === 'automatic') syncOfflineQueue();
   });
   window.addEventListener('offline', () => notify({ offline: true }));
 }

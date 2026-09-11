@@ -8,8 +8,66 @@ import {
 } from '../api';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
+import { DESKTOP } from '../../../shared/desktopShell';
+import {
+  getLocalSyncPreference,
+  setLocalSyncPreference,
+} from '../../../shared/offlineStore';
+
+// Unlike the account fields below, these settings belong to this installation
+// only. Keeping the component and storage API explicitly local prevents a new
+// device preference from accidentally becoming part of updateProfile().
+function LocalDeviceSettings() {
+  const [syncPreference, setSyncPreferenceState] = useState(getLocalSyncPreference);
+
+  const chooseSyncPreference = (preference) => {
+    setLocalSyncPreference(preference);
+    setSyncPreferenceState(preference);
+  };
+
+  return (
+    <div className="panel local-settings-panel">
+      <h2 className="panel-title">On this Mac</h2>
+      <p className="panel-note">
+        These preferences apply only to this Papol installation. They are not
+        saved to your account or copied to your other devices.
+      </p>
+      <fieldset className="local-setting-options">
+        <legend>Synchronization</legend>
+        <label className="local-setting-option">
+          <input
+            type="radio"
+            name="local-sync-preference"
+            value="automatic"
+            checked={syncPreference === 'automatic'}
+            onChange={() => chooseSyncPreference('automatic')}
+          />
+          <span>
+            <strong>Automatic</strong>
+            <small>Send local changes when a connection is available.</small>
+          </span>
+        </label>
+        <label className="local-setting-option">
+          <input
+            type="radio"
+            name="local-sync-preference"
+            value="manual"
+            checked={syncPreference === 'manual'}
+            onChange={() => chooseSyncPreference('manual')}
+          />
+          <span>
+            <strong>Manual</strong>
+            <small>Keep changes on this Mac until you choose Sync now.</small>
+          </span>
+        </label>
+      </fieldset>
+    </div>
+  );
+}
 
 export default function ProfilePage({ user, onUserUpdated, onLogout }) {
+  // Account settings in this component are global: their handlers call the
+  // backend and the resulting values follow the reader to every device.
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
   const [emailPublic, setEmailPublic] = useState(user.email_public !== false);
@@ -142,13 +200,16 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
     <div className="profile-page">
       <div className="panel">
         <div className="panel-head-row">
-          <h2 className="panel-title">Profile</h2>
+          <h2 className="panel-title">Account</h2>
           {onLogout && (
             <button type="button" onClick={onLogout}>
               Sign out
             </button>
           )}
         </div>
+        <p className="panel-note">
+          These settings are saved to your account and apply wherever you sign in.
+        </p>
         <p className="profile-email">
           Signed in as <strong>{user.email}</strong>.
         </p>
@@ -291,6 +352,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
           </form>
         )}
       </div>
+
+      {DESKTOP && <LocalDeviceSettings />}
 
       {/* Notes you cannot leave with are not really yours. */}
       <div className="panel">

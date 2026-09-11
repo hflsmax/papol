@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyOfflineQueue, configureNetworkFetch, getSyncPreference, isSafeOfflineMutation,
-  runtimeFetch, setSyncPreference,
+  applyOfflineQueue, configureNetworkFetch, getLocalSyncPreference, isSafeOfflineMutation,
+  runtimeFetch, setLocalSyncPreference,
 } from '../../shared/offlineStore.js';
 
 const raw = (value) => ({ type: 'raw', value: JSON.stringify(value) });
@@ -18,16 +18,16 @@ test('only user-owned mutations are accepted for offline replay', () => {
   assert.equal(isSafeOfflineMutation('PUT', '/board-items/12', JSON.stringify({ x: 4 })), true);
 });
 
-test('sync preference persists as automatic or manual', () => {
+test('local sync preference persists on this device as automatic or manual', () => {
   const values = new Map();
   global.localStorage = {
     getItem: (key) => values.get(key) || null,
     setItem: (key, value) => values.set(key, value),
   };
-  setSyncPreference('manual');
-  assert.equal(getSyncPreference(), 'manual');
-  setSyncPreference('automatic');
-  assert.equal(getSyncPreference(), 'automatic');
+  setLocalSyncPreference('manual');
+  assert.equal(getLocalSyncPreference(), 'manual');
+  setLocalSyncPreference('automatic');
+  assert.equal(getLocalSyncPreference(), 'automatic');
   delete global.localStorage;
 });
 

@@ -6,7 +6,7 @@ import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import {
-  getSyncStatus, refreshSyncStatus, setSyncPreference, syncOfflineQueue,
+  getSyncStatus, refreshSyncStatus, syncOfflineQueue,
 } from '../../../shared/offlineStore';
 
 // The sidebar and toolbar that stand in for the website masthead inside
@@ -95,7 +95,7 @@ const TITLES = {
   learn: 'Learn',
   join: 'Create account',
   signin: 'Sign in',
-  profile: 'Profile',
+  profile: 'Settings',
 };
 
 export function desktopTitle(route, user) {
@@ -148,16 +148,6 @@ function SyncControl() {
           <span>Sync now</span>
           {status.pending > 0 && <span className="desktop-sync-count">{status.pending}</span>}
         </button>
-        <select
-          className="desktop-sync-preference"
-          aria-label="Sync preference"
-          title="Choose when Papol sends local changes to the backend"
-          value={status.preference}
-          onChange={(event) => setSyncPreference(event.target.value)}
-        >
-          <option value="automatic">Automatic</option>
-          <option value="manual">Manual</option>
-        </select>
       </div>
       <p className="desktop-sync-summary" title={status.error || undefined}>{summary}</p>
     </section>

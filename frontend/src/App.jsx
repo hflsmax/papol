@@ -3057,6 +3057,51 @@ h4 .state-pill {
   font-style: normal;
 }
 
+.local-setting-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.local-setting-options legend {
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.local-setting-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.local-setting-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.local-setting-option input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.local-setting-option span {
+  display: grid;
+  gap: 2px;
+}
+
+.local-setting-option small {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+
 .panel-head-row {
   display: flex;
   align-items: flex-start;

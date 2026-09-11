@@ -206,13 +206,12 @@ export const desktopStyles = `
 
 .desktop-sync-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 4px;
 }
 
-.desktop-sidebar .desktop-sync-button,
-.desktop-sidebar .desktop-sync-preference {
+.desktop-sidebar .desktop-sync-button {
   min-width: 0;
   height: 28px;
   border: 0;
@@ -230,8 +229,7 @@ export const desktopStyles = `
   text-align: left;
 }
 
-.desktop-sidebar .desktop-sync-button:hover:not(:disabled),
-.desktop-sidebar .desktop-sync-preference:hover {
+.desktop-sidebar .desktop-sync-button:hover:not(:disabled) {
   background: var(--chrome-hover);
   color: var(--ink);
 }
@@ -254,12 +252,6 @@ export const desktopStyles = `
   margin-left: auto;
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
-}
-
-.desktop-sidebar .desktop-sync-preference {
-  width: 77px;
-  padding: 0 3px;
-  font-size: var(--fs-2xs);
 }
 
 .desktop-sync-summary {
