@@ -153,8 +153,10 @@ const SAFE_ROUTES = [
   ['POST', /^\/boards(?:\/[^/]+\/(?:comments|files|youtube|webpage|staging(?:\/clip)?|groups))?$/],
   ['PUT', /^\/boards\/[^/]+$/],
   ['DELETE', /^\/boards\/[^/]+$/],
-  ['PUT', /^\/board-(?:items|groups)\/[^/]+(?:\/move|\/layout)?$/],
-  ['POST', /^\/board-(?:items|groups)\/[^/]+\/(?:restore|place|ungroup)$/],
+  ['PUT', /^\/board-(?:items|groups)\/[^/]+$/],
+  ['PUT', /^\/board-groups\/[^/]+\/(?:move|layout)$/],
+  ['POST', /^\/board-items\/[^/]+\/(?:restore|place)$/],
+  ['POST', /^\/board-groups\/[^/]+\/ungroup$/],
   ['DELETE', /^\/board-items\/[^/]+$/],
 ];
 
@@ -278,13 +280,15 @@ function jsonResponse(value) {
 
 function notify(detail) {
   try {
+    const pending = detail.pending ?? detail.queued ?? syncStatus.pending;
     syncStatus = {
-      ...syncStatus,
-      ...detail,
-      pending: detail.pending ?? detail.queued ?? syncStatus.pending,
+      pending,
+      syncing: detail.syncing ?? syncStatus.syncing,
+      offline: detail.offline ?? syncStatus.offline,
       error: Object.prototype.hasOwnProperty.call(detail, 'error')
         ? detail.error
         : detail.conflict ?? (detail.syncing ? null : syncStatus.error),
+      lastSynced: detail.lastSynced ?? syncStatus.lastSynced,
     };
     window.dispatchEvent(new CustomEvent('papol-offline-status', { detail }));
     if (document.getElementById('desktop-sync-control')) {
@@ -509,24 +513,46 @@ async function rememberResponse(path, response, options) {
   } catch { /* cache is best effort */ }
 }
 
-function replaceMappings(value, mappings) {
-  if (typeof value === 'string') {
-    let result = value;
-    for (const [from, to] of Object.entries(mappings)) result = result.replaceAll(from, String(to));
-    return result;
+function replaceMappings(value, mappings, field = '') {
+  const identifierField = field === 'id' || field === 'file_path' ||
+    field.endsWith('_id') || field.endsWith('_ids');
+  if ((typeof value === 'number' || (typeof value === 'string' && identifierField)) &&
+      Object.prototype.hasOwnProperty.call(mappings, String(value))) {
+    return mappings[String(value)];
   }
-  if (Array.isArray(value)) return value.map((item) => replaceMappings(item, mappings));
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((item) => replaceMappings(item, mappings, field));
   if (value && typeof value === 'object' && !(value instanceof Blob)) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceMappings(item, mappings)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceMappings(item, mappings, key)]));
   }
   return value;
+}
+
+function mappedUrl(url, mappings) {
+  const raw = String(url);
+  try {
+    const parsed = new URL(raw, window.location.href);
+    parsed.pathname = parsed.pathname.split('/').map((part) => {
+      const decoded = decodeURIComponent(part);
+      return Object.prototype.hasOwnProperty.call(mappings, decoded)
+        ? encodeURIComponent(String(mappings[decoded]))
+        : part;
+    }).join('/');
+    return /^https?:\/\//i.test(raw)
+      ? parsed.toString()
+      : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return raw;
+  }
 }
 
 function mappedOptions(options, mappings) {
   if (!options.body) return options;
   if (options.body instanceof FormData) {
     const form = new FormData();
-    for (const [key, value] of options.body.entries()) form.append(key, replaceMappings(value, mappings));
+    for (const [key, value] of options.body.entries()) form.append(key, replaceMappings(value, mappings, key));
     return { ...options, body: form };
   }
   if (typeof options.body === 'string') {
@@ -545,14 +571,14 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
     const mappings = (await getStored('mappings', 'ids')) || {};
     let syncError = null;
     for (const operation of operations) {
-      const url = replaceMappings(operation.url, mappings);
+      const url = mappedUrl(operation.url, mappings);
       const rawBody = deserializeBody(operation.body);
       let body = rawBody;
       if (operation.body.type === 'raw' && typeof rawBody === 'string') {
         try { body = JSON.stringify(replaceMappings(JSON.parse(rawBody), mappings)); } catch { /* raw text */ }
       } else if (operation.body.type === 'form') {
         const form = new FormData();
-        for (const [key, value] of operation.body.value) form.append(key, replaceMappings(value, mappings));
+        for (const [key, value] of operation.body.value) form.append(key, replaceMappings(value, mappings, key));
         body = form;
       }
       let response;
@@ -623,7 +649,7 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
     }
   }
   const mappings = (await getStored('mappings', 'ids')) || {};
-  const requestUrl = replaceMappings(url, mappings);
+  const requestUrl = mappedUrl(url, mappings);
   const requestOptions = mappedOptions(options, mappings);
   try {
     const response = await fetchImpl(requestUrl, requestOptions);

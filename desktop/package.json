@@ -11,6 +11,8 @@
     "install:web": "npm ci --prefix ../frontend && npm ci --prefix ../viewer && npm ci --prefix ../board",
     "build:web": "node scripts/build-web.mjs",
     "test": "npm test --prefix ../frontend && npm test --prefix ../viewer && npm test --prefix ../board && cargo test --locked --manifest-path src-tauri/Cargo.toml",
+    "test:sync": "npm run test:sync --prefix ../frontend",
+    "test:backend-contract": "cd ../backend && python -m unittest test_desktop_sync.py",
     "check:native": "cargo fmt --check --manifest-path src-tauri/Cargo.toml && cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
     "build": "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY:--} tauri build"
   },

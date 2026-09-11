@@ -66,6 +66,13 @@ The lower-level commands remain available from `desktop/` as `npm run dev`,
 Run `npm test` for all UI and Rust tests, and `npm run check:native` for Rust
 formatting and Clippy's warning-denying lint pass. The release workflow runs
 both before signing and publishing.
+
+The synchronization boundary has two focused suites. From `desktop/`, run
+`npm run test:sync` for the macOS transport's durable IndexedDB queue, ordered
+replay, ID remapping, multipart uploads, retry, and concurrency behavior. Run
+`npm run test:backend-contract` inside the repository's Python development
+environment to exercise the same dependent board operations against FastAPI
+and an isolated in-memory SQLite database.
 Dependabot checks the four npm lockfiles, the Rust lockfile, and GitHub Actions
 weekly so Tauri and its surrounding supply chain do not silently age in place.
 To use another backend in that bundle:

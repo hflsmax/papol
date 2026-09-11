@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/*.test.js",
+    "test": "node --test --test-concurrency=1 src/*.test.js",
+    "test:sync": "node --test --test-concurrency=1 src/offlineStore.test.js src/offlineSync.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

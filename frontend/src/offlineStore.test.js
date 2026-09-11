@@ -16,6 +16,10 @@ test('only user-owned mutations are accepted for offline replay', () => {
   assert.equal(isSafeOfflineMutation('DELETE', '/admin/tables/users/rows/2'), false);
   assert.equal(isSafeOfflineMutation('POST', '/boards/mine/files', new FormData()), true);
   assert.equal(isSafeOfflineMutation('PUT', '/board-items/12', JSON.stringify({ x: 4 })), true);
+  assert.equal(isSafeOfflineMutation('PUT', '/board-groups/12/move', JSON.stringify({ dx: 4, dy: 2 })), true);
+  assert.equal(isSafeOfflineMutation('POST', '/board-groups/12/ungroup', '{}'), true);
+  assert.equal(isSafeOfflineMutation('POST', '/board-groups/12/restore', '{}'), false);
+  assert.equal(isSafeOfflineMutation('PUT', '/board-items/12/layout', '{}'), false);
 });
 
 test('local sync preference persists on this device as automatic or manual', () => {
