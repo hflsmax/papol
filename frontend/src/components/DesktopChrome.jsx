@@ -109,7 +109,7 @@ function ItemMark({ item }) {
   return <Glyph name={item.glyph} />;
 }
 
-function SyncControl() {
+function SyncControl({ onSynced }) {
   const [status, setStatus] = useState(getSyncStatus);
 
   useEffect(() => {
@@ -126,35 +126,37 @@ function SyncControl() {
     setStatus(latest);
     if (!latest.error && latest.pending === 0) {
       try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
-      window.location.reload();
+      onSynced?.();
     }
   };
 
-  const summary = status.error || (status.syncing
-    ? `Syncing ${status.pending} change${status.pending === 1 ? '' : 's'}…`
+  const summary = status.error ? 'Sync error' : (status.syncing
+    ? 'Syncing…'
     : status.offline
-      ? `Offline${status.pending ? ` · ${status.pending} waiting` : ''}`
+      ? `Offline${status.pending ? ` · ${status.pending} pending` : ''}`
       : status.pending
-        ? `${status.pending} change${status.pending === 1 ? '' : 's'} waiting`
-        : status.lastSynced
-          ? `Synced ${new Date(status.lastSynced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-          : 'Up to date');
+        ? `${status.pending} pending`
+        : 'Up to date');
 
   return (
     <section id="desktop-sync-control" className={`desktop-sync-control${status.error ? ' error' : ''}`} aria-label="Synchronization">
-      <div className="desktop-sync-row">
-        <button type="button" className="desktop-sync-button" onClick={syncNow} disabled={status.syncing}>
-          <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
-          <span>Sync now</span>
-          {status.pending > 0 && <span className="desktop-sync-count">{status.pending}</span>}
-        </button>
-      </div>
-      <p className="desktop-sync-summary" title={status.error || undefined}>{summary}</p>
+      <button
+        type="button"
+        className="desktop-sync-button"
+        onClick={syncNow}
+        disabled={status.syncing}
+        aria-label={`Sync now — ${summary}`}
+        title={status.error || 'Send and receive changes now'}
+      >
+        <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
+        <span>Sync now</span>
+        <span className="desktop-sync-summary">{summary}</span>
+      </button>
     </section>
   );
 }
 
-export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, notice }) {
+export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onSync, notice }) {
   const [dropKey, setDropKey] = useState(null);
   const openPath = (path) => onNavigate ? onNavigate(path) : window.location.assign(appPath(path));
 
@@ -240,7 +242,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
       ))}
       {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
       <div className="desktop-sidebar-footer">
-        {user && <SyncControl />}
+        {user && <SyncControl onSynced={onSync} />}
         <button type="button" className="desktop-sidebar-item" onClick={onFeedback} onContextMenu={contextMenuHandler(() => [
           { label: 'Send Feedback…', onSelect: onFeedback },
         ])}>

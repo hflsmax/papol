@@ -27,40 +27,18 @@ function LocalDeviceSettings() {
 
   return (
     <div className="panel local-settings-panel">
-      <h2 className="panel-title">On this Mac</h2>
-      <p className="panel-note">
-        These preferences apply only to this Papol installation. They are not
-        saved to your account or copied to your other devices.
-      </p>
-      <fieldset className="local-setting-options">
-        <legend>Synchronization</legend>
-        <label className="local-setting-option">
-          <input
-            type="radio"
-            name="local-sync-preference"
-            value="automatic"
-            checked={syncPreference === 'automatic'}
-            onChange={() => chooseSyncPreference('automatic')}
-          />
-          <span>
-            <strong>Automatic</strong>
-            <small>Send local changes when a connection is available.</small>
-          </span>
-        </label>
-        <label className="local-setting-option">
-          <input
-            type="radio"
-            name="local-sync-preference"
-            value="manual"
-            checked={syncPreference === 'manual'}
-            onChange={() => chooseSyncPreference('manual')}
-          />
-          <span>
-            <strong>Manual</strong>
-            <small>Keep changes on this Mac until you choose Sync now.</small>
-          </span>
-        </label>
-      </fieldset>
+      <h2 className="panel-title">Settings</h2>
+      <div className="local-setting-row">
+        <label htmlFor="local-sync-preference"><strong>Sync</strong></label>
+        <select
+          id="local-sync-preference"
+          value={syncPreference}
+          onChange={(event) => chooseSyncPreference(event.target.value)}
+        >
+          <option value="automatic">Automatic</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
     </div>
   );
 }

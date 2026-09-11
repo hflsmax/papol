@@ -199,16 +199,7 @@ export const desktopStyles = `
 }
 
 .desktop-sync-control {
-  display: grid;
-  gap: 3px;
-  padding: 2px 0 8px;
-}
-
-.desktop-sync-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 4px;
+  padding: 2px 0 6px;
 }
 
 .desktop-sidebar .desktop-sync-button {
@@ -222,9 +213,11 @@ export const desktopStyles = `
 }
 
 .desktop-sidebar .desktop-sync-button {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr);
   align-items: center;
   gap: 7px;
+  width: 100%;
   padding: 4px 8px;
   text-align: left;
 }
@@ -248,21 +241,16 @@ export const desktopStyles = `
 
 @keyframes desktop-sync-spin { to { transform: rotate(360deg); } }
 
-.desktop-sync-count {
-  margin-left: auto;
-  font-size: var(--fs-xs);
-  font-variant-numeric: tabular-nums;
-}
-
 .desktop-sync-summary {
   overflow: hidden;
-  margin: 0 8px;
+  justify-self: end;
   color: var(--ink-faint);
   font-size: var(--fs-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.desktop-sync-control.error .desktop-sync-mark,
 .desktop-sync-control.error .desktop-sync-summary {
   color: var(--red);
 }

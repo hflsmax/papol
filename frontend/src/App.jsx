@@ -3021,6 +3021,7 @@ h4 .state-pill {
 .profile-page,
 .profile-page input,
 .profile-page label,
+.profile-page select,
 .profile-page button {
   font-family: var(--font-ui);
 }
@@ -3057,48 +3058,24 @@ h4 .state-pill {
   font-style: normal;
 }
 
-.local-setting-options {
+.local-setting-row {
   display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  border: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
 }
 
-.local-setting-options legend {
-  margin-bottom: 8px;
-  color: var(--ink);
-  font-weight: 600;
+.local-setting-row label {
+  display: block;
 }
 
-.local-setting-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
+.local-setting-row select {
+  min-width: 120px;
+  padding: 7px 28px 7px 9px;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.local-setting-option:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.local-setting-option input {
-  width: auto;
-  margin-top: 3px;
-}
-
-.local-setting-option span {
-  display: grid;
-  gap: 2px;
-}
-
-.local-setting-option small {
-  color: var(--ink-soft);
+  background: var(--card);
+  color: var(--ink);
   font-size: var(--fs-sm);
 }
 
@@ -5014,6 +4991,7 @@ export default function App() {
 
   const [managingNook, setManagingNook] = useState(false);
   const [desktopNotice, setDesktopNotice] = useState(null);
+  const [syncRefresh, setSyncRefresh] = useState(0);
   // The desktop sidebar lists the reader's shelves and tags, so the desktop
   // app keeps their nook loaded beside whatever is open.
   const nook = useNookSpace(DESKTOP && user ? user.id : null, route);
@@ -5347,6 +5325,10 @@ export default function App() {
             onManageNook={nook.space ? () => setManagingNook(true) : undefined}
             onMovePaper={nook.space ? movePaperToShelf : undefined}
             onNavigate={navigate}
+            onSync={() => {
+              nook.reload();
+              setSyncRefresh((revision) => revision + 1);
+            }}
             notice={desktopNotice}
           />
           {isBrowsing(route, user) ? (
@@ -5358,6 +5340,7 @@ export default function App() {
               nook={nook}
               onNavigate={navigate}
               onOpenBoard={openBoard}
+              onSyncRefresh={syncRefresh}
               banner={demoBanner}
             />
           ) : (

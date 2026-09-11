@@ -51,7 +51,7 @@ function decoded(id) {
   catch { return id; }
 }
 
-export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, onOpenBoard, banner }) {
+export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner }) {
   const { space, reload } = nook;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
@@ -78,7 +78,7 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
       .then((papers) => { if (active) setLibrary(papers); })
       .catch(() => { if (active) setLibrary([]); });
     return () => { active = false; };
-  }, [source, route]);
+  }, [source, route, onSyncRefresh]);
 
   // Keep the selection in view, and keep keyboard focus on it while the
   // reader is moving through the list with the arrow keys.
