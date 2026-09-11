@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-14
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -25,13 +26,27 @@ jobs:
             board/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci
 
+      - name: Install bundled UI dependencies
+        working-directory: desktop
+        run: npm run install:web
+
+      - name: Test bundled UI and native shell
+        working-directory: desktop
+        run: npm test
+
+      - name: Check native formatting and lints
+        working-directory: desktop
+        run: npm run check:native
+
       - name: Build, sign, notarize, and publish
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -42,6 +57,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
+          args: --target universal-apple-darwin
           tagName: desktop-v__VERSION__
           releaseName: Papol Desktop v__VERSION__
           releaseBody: Download the signed and notarized Papol DMG below.

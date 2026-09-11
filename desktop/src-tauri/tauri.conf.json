@@ -30,27 +30,23 @@
       }
     ],
     "security": {
-      "capabilities": [
-        {
-          "identifier": "desktop-runtime",
-          "description": "Native window and scoped HTTP capabilities for Papol's bundled interfaces.",
-          "windows": ["main", "viewer-*", "board-*"],
-          "permissions": [
-            "allow-open-document-window",
-            "allow-close-document-window",
-            "core:window:allow-start-dragging",
-            "core:window:allow-internal-toggle-maximize",
-            {
-              "identifier": "http:default",
-              "allow": [
-                { "url": "https://mc-pony.com/**" },
-                { "url": "http://localhost:**" },
-                { "url": "http://127.0.0.1:**" }
-              ]
-            }
-          ]
-        }
-      ]
+      "capabilities": ["main", "documents"],
+      "freezePrototype": true,
+      "csp": {
+        "default-src": "'self'",
+        "base-uri": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "font-src": "'self' data:",
+        "form-action": "'self'",
+        "frame-ancestors": "'none'",
+        "frame-src": "'none'",
+        "img-src": "'self' blob: data: https://mc-pony.com http://localhost:* http://127.0.0.1:*",
+        "media-src": "'self' blob:",
+        "object-src": "'none'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "worker-src": "'self' blob:"
+      }
     }
   },
   "bundle": {

@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "documents",
+  "description": "Least-privilege native access for bundled viewer and board windows.",
+  "windows": ["viewer-*", "board-*"],
+  "permissions": [
+    "allow-open-document-window",
+    "allow-close-document-window",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://mc-pony.com/**" },
+        { "url": "http://localhost:**" },
+        { "url": "http://127.0.0.1:**" }
+      ]
+    }
+  ]
+}

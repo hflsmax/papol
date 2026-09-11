@@ -34,7 +34,7 @@ previously opened still require a connection.
 
 ### Run the bundled native app
 
-Install the desktop CLI once, then run it:
+Use Node.js 20.19+ or 22.12+, install the desktop CLI once, then run it:
 
 ```sh
 cd desktop
@@ -44,6 +44,11 @@ npm run dev
 
 `npm run dev` installs and compiles all three web surfaces before launching.
 Refresh the running app after later web UI changes with `npm run build:web`.
+Run `npm test` for all UI and Rust tests, and `npm run check:native` for Rust
+formatting and Clippy's warning-denying lint pass. The release workflow runs
+both before signing and publishing.
+Dependabot checks the four npm lockfiles, the Rust lockfile, and GitHub Actions
+weekly so Tauri and its surrounding supply chain do not silently age in place.
 To use another backend in that bundle:
 
 ```sh
@@ -61,10 +66,16 @@ network selection all consume that contract rather than probing private Tauri
 globals or the user agent.
 
 HTTP(S) traffic uses Tauri's native HTTP client and is restricted by the
-`desktop-runtime` capability to the Papol production backend and local development
+window-specific capabilities to the Papol production backend and local development
 backends. It therefore does not require the API to grant CORS access to Tauri's
 internal asset origin. Requests for bundled `tauri:` assets remain inside the
 webview; hosted Papol builds continue using normal browser `fetch` and CORS.
+
+The bundled application has an explicit Content Security Policy. Tauri adds
+nonces and hashes for compiled assets; Papol additionally permits only its own
+resources, IPC, local data/blob images, and uploaded avatars from its backend.
+Object embedding and frames are disabled, and `Object.prototype` is frozen in
+the custom-protocol webview.
 
 The desktop pages swap the website masthead for a native reference-manager
 layout: a source-list sidebar of shelves, tags, boards and the library, a list
@@ -89,9 +100,9 @@ and built in `src-tauri/src/lib.rs`, so handlers can be attached to it:
 
 ## macOS release
 
-The final macOS build must run on macOS. The repository release workflow builds,
-signs, notarizes, and attaches a DMG to a GitHub release when a tag matching
-`desktop-v*` is pushed.
+The final macOS build must run on macOS. The repository release workflow builds
+a universal Apple Silicon/Intel binary, signs and notarizes it, and attaches its
+DMG to a GitHub release when a tag matching `desktop-v*` is pushed.
 
 Configure these GitHub Actions secrets first:
 
@@ -109,8 +120,16 @@ A local `npm run build` uses an ad-hoc macOS signature so its DMG is internally
 consistent. Tagged workflow builds replace that with the configured Developer
 ID signature and notarization.
 
-The bundled pages are granted narrow Tauri permissions for opening and closing
-Papol document windows, starting a window drag, toggling zoom, and making HTTP
-requests only to the configured Papol production or local-development backend.
-They have no native filesystem access. Hosted pages are not granted these
-capabilities.
+Capabilities live in `src-tauri/capabilities/`, rather than being embedded in
+the main configuration. The permanent library window cannot invoke the close
+command; viewer and board document windows can. Each receives only window
+chrome, document navigation, and HTTP access to the Papol production or local
+development backend. No window has native filesystem access, and hosted pages
+are not granted native capabilities.
+
+The Isolation pattern is intentionally not enabled yet. It is most valuable
+with a small, separately reviewed hook that validates every IPC payload; adding
+an empty pass-through isolation app would add complexity without another useful
+policy boundary. The updater is also deferred until a public update endpoint
+and updater signing key are chosen. These are separate from Apple's application
+signature and notarization credentials.

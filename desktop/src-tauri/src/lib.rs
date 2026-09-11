@@ -22,8 +22,8 @@ fn document_environment(surface: &str) -> String {
 
 #[tauri::command]
 fn close_document_window(window: tauri::WebviewWindow) {
-    // Hosted content may invoke registered commands, so keep this command
-    // incapable of closing Papol's permanent library window.
+    // Capabilities expose this command only to document windows; retain the
+    // label check as defense in depth around the permanent library window.
     if window.label().starts_with("viewer-") || window.label().starts_with("board-") {
         let _ = window.close();
     }
@@ -219,8 +219,7 @@ pub fn run() {
             // The window is declared in tauri.conf.json with `create: false`
             // and built here, because a webview's handlers can only be given
             // to it as it is created.
-            #[allow(unused_mut)]
-            let mut config = app
+            let config = app
                 .config()
                 .app
                 .windows
@@ -228,13 +227,6 @@ pub fn run() {
                 .find(|window| window.label == "main")
                 .cloned()
                 .expect("tauri.conf.json declares the main window");
-            // A debug build can be pointed at another Papol, such as
-            // `./deploy.sh dev` on localhost (`npm run dev:local`). A release
-            // build always opens the hosted site.
-            #[cfg(debug_assertions)]
-            if let Ok(url) = std::env::var("PAPOL_URL") {
-                config.url = tauri::WebviewUrl::External(url.parse()?);
-            }
             let papol_origin = match &config.url {
                 tauri::WebviewUrl::External(url) => Some(url_origin(url)),
                 // macOS and Linux expose bundled assets through Tauri's
