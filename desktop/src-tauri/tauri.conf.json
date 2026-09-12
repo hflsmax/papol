@@ -4,30 +4,77 @@
   "version": "0.1.0",
   "identifier": "com.mc-pony.papol",
   "build": {
-    "frontendDist": "https://mc-pony.com/papol/"
+    "beforeBuildCommand": "npm run build:web",
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Papol",
-        "url": "https://mc-pony.com/papol/",
+        "url": "index.html",
         "width": 1280,
         "height": 820,
-        "minWidth": 900,
+        "minWidth": 1000,
         "minHeight": 620,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 18, "y": 24 },
+        "backgroundColor": "#f5f6f8",
+        "dragDropEnabled": false
       }
     ],
     "security": {
-      "capabilities": []
+      "capabilities": ["main", "documents"],
+      "freezePrototype": true,
+      "devCsp": {
+        "default-src": "'self'",
+        "base-uri": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:5173",
+        "font-src": "'self' data:",
+        "form-action": "'self'",
+        "frame-ancestors": "'none'",
+        "frame-src": "'none'",
+        "img-src": "'self' blob: data: https://mc-pony.com http://localhost:* http://127.0.0.1:*",
+        "media-src": "'self' blob:",
+        "object-src": "'none'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "worker-src": "'self' blob:"
+      },
+      "csp": {
+        "default-src": "'self'",
+        "base-uri": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "font-src": "'self' data:",
+        "form-action": "'self'",
+        "frame-ancestors": "'none'",
+        "frame-src": "'none'",
+        "img-src": "'self' blob: data: https://mc-pony.com http://localhost:* http://127.0.0.1:*",
+        "media-src": "'self' blob:",
+        "object-src": "'none'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "worker-src": "'self' blob:"
+      }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "category": "Education",
     "shortDescription": "Read, annotate, and discuss research papers.",
     "longDescription": "Papol is a workspace for reading, annotating, organizing, and discussing research papers.",

@@ -126,6 +126,7 @@ class InkStrokeUpdate(BaseModel):
 
 class InkStrokeOut(BaseModel):
     id: int
+    sync_id: Optional[str] = None
     group_id: Optional[str] = None
     page: int
     points: List[InkPoint]
@@ -179,6 +180,7 @@ class PaperClipUpdate(BaseModel):
 
 class PaperClipOut(PaperClipCreate):
     id: int
+    sync_id: Optional[str] = None
 
 
 class CommentCreate(BaseModel):
@@ -217,6 +219,7 @@ class CommentUpdate(BaseModel):
 
 class Comment(BaseModel):
     id: int
+    sync_id: Optional[str] = None
     paper_id: int
     content: str
     created_at: datetime
@@ -344,6 +347,7 @@ class BoardItemOut(BaseModel):
     content: Optional[str] = None
     excerpt_text: Optional[str] = None
     file_path: Optional[str] = None
+    blob_sha256: Optional[str] = None
     original_filename: Optional[str] = None
     mime_type: Optional[str] = None
     source_url: Optional[str] = None
@@ -547,6 +551,7 @@ class PaperUpdate(BaseModel):
 
 class TagOut(BaseModel):
     id: int
+    sync_id: Optional[str] = None
     name: str
 
     class Config:
@@ -559,6 +564,7 @@ class TagCreate(BaseModel):
 
 class ShelfOut(BaseModel):
     id: int
+    sync_id: Optional[str] = None
     name: str
     color: str
     is_public: bool
@@ -680,6 +686,7 @@ class EditionReferences(BaseModel):
 
 class PaperEditionOut(BaseModel):
     id: int
+    sync_id: Optional[str] = None
     file_path: str
     sha256: Optional[str] = None
     created_at: datetime
@@ -691,6 +698,7 @@ class PaperEditionOut(BaseModel):
 
 class PaperList(PaperBase):
     id: int
+    sync_id: Optional[str] = None
     # The file the viewer's own copy reads, falling back to the latest
     # edition for a paper they do not have.
     file_path: str
@@ -709,6 +717,8 @@ class PaperList(PaperBase):
     edition_sha256: Optional[str] = None
     tags: List[TagOut] = []
     shelf_id: Optional[int] = None
+    shelf_sync_id: Optional[str] = None
+    copy_sync_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -717,6 +727,7 @@ class PaperList(PaperBase):
 class Paper(PaperBase):
     """Paper detail, merged with the viewer's own copy when they have one."""
     id: int
+    sync_id: Optional[str] = None
     file_path: str
     created_at: datetime
     summary: Optional[str] = None
@@ -733,12 +744,15 @@ class Paper(PaperBase):
     viewer_has_entry: bool = False  # viewer has any copy
     # Editions: which one the viewer reads, and whether a newer one waits.
     edition_id: Optional[int] = None
+    edition_sync_id: Optional[str] = None
     edition_sha256: Optional[str] = None
     ignored_edition_id: Optional[int] = None
     editions: List[PaperEditionOut] = []
     latest_edition: Optional[PaperEditionOut] = None
     tags: List[TagOut] = []
     shelf_id: Optional[int] = None
+    shelf_sync_id: Optional[str] = None
+    copy_sync_id: Optional[str] = None
 
     class Config:
         from_attributes = True

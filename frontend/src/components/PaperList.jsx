@@ -5,6 +5,8 @@ import Avatar from './Avatar';
 import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
+import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
+import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
@@ -58,32 +60,13 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
 
   // Your own nook reads as a journal: newest first, grouped by month.
   // Other nooks rank active seminars to the top.
-  const rank = (p) =>
-    p.room_status === 'open' || p.room_status === 'planning'
-      ? 0
-      : p.room_status === 'scheduled'
-        ? 1
-        : 2;
   filteredPapers.sort((a, b) =>
-    isOwn
-      ? new Date(b.created_at) - new Date(a.created_at)
-      : rank(a) - rank(b) || new Date(b.created_at) - new Date(a.created_at)
+    isOwn ? newestFirst(a, b) : seminarRank(a) - seminarRank(b) || newestFirst(a, b)
   );
   const entries = [
-    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: rank(paper) })),
+    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: seminarRank(paper) })),
     ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
   ].sort((a, b) => (isOwn ? 0 : a.rank - b.rank) || new Date(b.at) - new Date(a.at));
-
-  const parseAuthors = (authorsJson) => {
-    if (!authorsJson) return '';
-    try {
-      const authors = JSON.parse(authorsJson);
-      if (authors.length <= 2) return authors.join(', ');
-      return `${authors[0]} et al.`;
-    } catch {
-      return authorsJson;
-    }
-  };
 
   const activeShelf = shelves.find((shelf) => shelf.id === selectedShelf);
   const activeTag = tags.find((tag) => tag.id === selectedTag);
@@ -198,7 +181,18 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             if (entry.kind === 'board') {
               const board = entry.value;
               const pickerId = `board:${board.guid}`;
-              return <li key={pickerId} className="nook-board-row">
+              return <li key={pickerId} className="nook-board-row" onContextMenu={contextMenuHandler(() => [
+                { label: 'Open Board', onSelect: () => onSelectBoard(board.guid) },
+                isOwn && shelves.length > 0 && { separator: true },
+                isOwn && shelves.length > 0 && {
+                  label: 'Move to Shelf',
+                  submenu: shelves.map((shelf) => ({
+                    label: shelf.name,
+                    checked: board.shelf_id === shelf.id,
+                    onSelect: () => board.shelf_id !== shelf.id && handleBoardShelfMove(board, shelf.id),
+                  })),
+                },
+              ])}>
                 {isOwn && <span className="hint-anchor bar-anchor shelf-bar" onMouseEnter={() => setOpenShelfPicker(pickerId)} onMouseLeave={() => setOpenShelfPicker((current) => current === pickerId ? null : current)}>
                   <button className="shelf-current" style={{ '--shelf-color': shelves.find((shelf) => shelf.id === board.shelf_id)?.color || 'var(--line-strong)' }} onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === pickerId ? null : pickerId); }} title="Move to another shelf" aria-label="Choose shelf" aria-expanded={openShelfPicker === pickerId} />
                   {openShelfPicker === pickerId && <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
@@ -213,6 +207,18 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             return <React.Fragment key={`paper-${paper.id}`}>
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
+              onContextMenu={contextMenuHandler(() => [
+                { label: 'Open Paper', onSelect: () => onSelectPaper(paper.id) },
+                isOwn && shelves.length > 0 && { separator: true },
+                isOwn && shelves.length > 0 && {
+                  label: 'Move to Shelf',
+                  submenu: shelves.map((shelf) => ({
+                    label: shelf.name,
+                    checked: paper.shelf_id === shelf.id,
+                    onSelect: () => paper.shelf_id !== shelf.id && handleShelfMove(paper, shelf.id),
+                  })),
+                },
+              ])}
             >
               {/* Keep the row quiet: its edge shows the current shelf, and
                   reveals the full shelf palette only on request. */}
@@ -273,7 +279,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                 )}
                 </div>
                 <p className="paper-meta">
-                  {parseAuthors(paper.authors)}
+                  {formatAuthors(paper.authors)}
                   {paper.year && ` (${paper.year})`}
                   {paper.journal && ` - ${paper.journal}`}
                 </p>

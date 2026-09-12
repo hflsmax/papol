@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-blob-import"
+description = "Enables the blob_import command without any pre-configured scope."
+commands.allow = ["blob_import"]
+
+[[permission]]
+identifier = "deny-blob-import"
+description = "Denies the blob_import command without any pre-configured scope."
+commands.deny = ["blob_import"]

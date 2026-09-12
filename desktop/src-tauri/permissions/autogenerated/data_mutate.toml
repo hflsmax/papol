@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-data-mutate"
+description = "Enables the data_mutate command without any pre-configured scope."
+commands.allow = ["data_mutate"]
+
+[[permission]]
+identifier = "deny-data-mutate"
+description = "Denies the data_mutate command without any pre-configured scope."
+commands.deny = ["data_mutate"]

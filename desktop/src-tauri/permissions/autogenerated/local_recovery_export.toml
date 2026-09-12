@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-recovery-export"
+description = "Enables the local_recovery_export command without any pre-configured scope."
+commands.allow = ["local_recovery_export"]
+
+[[permission]]
+identifier = "deny-local-recovery-export"
+description = "Denies the local_recovery_export command without any pre-configured scope."
+commands.deny = ["local_recovery_export"]

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   updateProfile,
   changePassword,
@@ -7,8 +7,115 @@ import {
   deleteAccount,
 } from '../api';
 import Avatar from './Avatar';
+import { confirmAction } from '../../../shared/confirmAction';
+import { DESKTOP } from '../../../shared/desktopShell';
+import {
+  getLocalSyncPreference,
+  setLocalSyncPreference,
+} from '../../../shared/offlineStore';
+import {
+  clearNativeCache, hydrateNativeSyncPreference, nativeStorageStatus,
+  exportNativeRecovery, persistNativeSyncPreference,
+} from '../nativeData';
+
+// Unlike the account fields below, these settings belong to this installation
+// only. Keeping the component and storage API explicitly local prevents a new
+// device preference from accidentally becoming part of updateProfile().
+function LocalDeviceSettings() {
+  const [syncPreference, setSyncPreferenceState] = useState(getLocalSyncPreference);
+  const [storage, setStorage] = useState(null);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [recovery, setRecovery] = useState(null);
+  const [recoveryError, setRecoveryError] = useState(null);
+  const [exportingRecovery, setExportingRecovery] = useState(false);
+
+  useEffect(() => {
+    hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
+    nativeStorageStatus().then(setStorage).catch(() => {});
+  }, []);
+
+  const chooseSyncPreference = (preference) => {
+    setLocalSyncPreference(preference);
+    persistNativeSyncPreference(preference).catch(() => {});
+    setSyncPreferenceState(preference);
+  };
+
+  const clearCache = async () => {
+    setClearingCache(true);
+    try {
+      await clearNativeCache();
+      setStorage(await nativeStorageStatus());
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
+  const exportRecovery = async () => {
+    setExportingRecovery(true);
+    setRecoveryError(null);
+    try {
+      setRecovery(await exportNativeRecovery());
+    } catch (error) {
+      setRecoveryError(error?.message || String(error));
+    } finally {
+      setExportingRecovery(false);
+    }
+  };
+
+  return (
+    <div className="panel local-settings-panel">
+      <h2 className="panel-title">Settings</h2>
+      <div className="local-setting-row">
+        <label htmlFor="local-sync-preference"><strong>Sync</strong></label>
+        <select
+          id="local-sync-preference"
+          value={syncPreference}
+          onChange={(event) => chooseSyncPreference(event.target.value)}
+        >
+          <option value="automatic">Automatic</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+      {storage && (
+        <div className="local-setting-row local-storage-row">
+          <div>
+            <strong>Storage</strong>
+            <div className="local-storage-totals">
+              {formatSize(storage.classes.pending.bytes)} unsynced ·{' '}
+              {formatSize(storage.classes.pinned.bytes)} offline ·{' '}
+              {formatSize(storage.classes.cache.bytes)} cache
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={clearingCache || storage.classes.cache.files === 0}
+            onClick={clearCache}
+          >
+            {clearingCache ? 'Clearing…' : 'Clear cache'}
+          </button>
+        </div>
+      )}
+      <div className="local-setting-row local-storage-row">
+        <div>
+          <strong>Offline recovery</strong>
+          {recovery && (
+            <div className="local-storage-totals">
+              Saved {recovery.mutations} {recovery.mutations === 1 ? 'change' : 'changes'} to Downloads
+            </div>
+          )}
+          {recoveryError && <div className="form-error">{recoveryError}</div>}
+        </div>
+        <button type="button" disabled={exportingRecovery} onClick={exportRecovery}>
+          {exportingRecovery ? 'Saving…' : 'Save copy'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function ProfilePage({ user, onUserUpdated, onLogout }) {
+  // Account settings in this component are global: their handlers call the
+  // backend and the resulting values follow the reader to every device.
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
   const [emailPublic, setEmailPublic] = useState(user.email_public !== false);
@@ -60,15 +167,13 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
       setCloseError("Email doesn't match this account.");
       return;
     }
-    if (
-      !confirm(
-        'This deletes your account, your notes and your nook, and cannot ' +
-          'be undone. Papers you uploaded stay for the readers who have ' +
-          'them. Continue?'
-      )
-    ) {
-      return;
-    }
+    const confirmed = await confirmAction(
+      'This deletes your account, your notes and your nook, and cannot ' +
+        'be undone. Papers you uploaded stay for the readers who have ' +
+        'them. Continue?',
+      { confirmLabel: 'Delete account', destructive: true },
+    );
+    if (!confirmed) return;
     setIsClosing(true);
     try {
       await deleteAccount(closeEmail.trim());
@@ -143,13 +248,16 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
     <div className="profile-page">
       <div className="panel">
         <div className="panel-head-row">
-          <h2 className="panel-title">Profile</h2>
+          <h2 className="panel-title">Account</h2>
           {onLogout && (
             <button type="button" onClick={onLogout}>
               Sign out
             </button>
           )}
         </div>
+        <p className="panel-note">
+          These settings are saved to your account and apply wherever you sign in.
+        </p>
         <p className="profile-email">
           Signed in as <strong>{user.email}</strong>.
         </p>
@@ -292,6 +400,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
           </form>
         )}
       </div>
+
+      {DESKTOP && <LocalDeviceSettings />}
 
       {/* Notes you cannot leave with are not really yours. */}
       <div className="panel">

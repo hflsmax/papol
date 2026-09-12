@@ -4,3 +4,10 @@ const markerAt = pathname.indexOf(marker);
 
 export const APP_BASE = markerAt > 0 ? pathname.slice(0, markerAt) : '';
 export const appPath = (path) => `${APP_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+
+const environment = import.meta.env || {};
+const configuredBackend = (environment.VITE_PAPOL_BACKEND || '').replace(/\/$/, '');
+export const backendPath = (path) => {
+  const absolute = path.startsWith('/') ? path : `/${path}`;
+  return configuredBackend ? `${configuredBackend}${absolute}` : appPath(absolute);
+};
