@@ -782,6 +782,23 @@ select {
   color: var(--ink);
 }
 
+select {
+  min-height: 36px;
+  padding: 8px 34px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  appearance: none;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 10px center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+select:hover:not(:disabled) { border-color: var(--line-strong); background-color: var(--paper); }
+select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+select:disabled { cursor: default; opacity: .65; }
+
 .form-group input,
 .form-group textarea,
 .note-form textarea,
@@ -1299,7 +1316,7 @@ select {
 .upload-private-card { padding: 8px 12px; background: var(--accent-soft); border-radius: var(--radius); }
 .upload-private-field > label { color: var(--accent); }
 .upload-shelf-select { position: relative; padding: 6px; border-radius: var(--radius); background: var(--accent-soft); }
-.upload-review-form .upload-shelf-select select { width: 100%; appearance: none; padding-right: 34px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); cursor: pointer; }
+.upload-review-form .upload-shelf-select select { width: 100%; appearance: none; padding-right: 34px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); background-image: none; cursor: pointer; }
 .upload-review-form .upload-shelf-select select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .upload-shelf-select svg { position: absolute; top: 50%; right: 16px; width: 16px; height: 16px; transform: translateY(-50%); fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .upload-private-summary textarea { display: block; background: var(--card); border-color: var(--accent-line); }
@@ -1375,7 +1392,7 @@ select {
 .shelf-palette button > span { width: 6px; height: 18px; border-radius: var(--radius-pill); }
 .paper-shelf-picker { display: inline-flex; align-items: center; gap: 6px; }
 .paper-shelf-picker label { color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-xs); }
-.paper-shelf-picker select { max-width: 12rem; padding: 5px 24px 5px 7px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-xs); }
+.paper-shelf-picker select { max-width: 12rem; padding: 5px 30px 5px 7px; border: 1px solid var(--line-strong); border-radius: var(--radius); background-color: var(--card); color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-xs); }
 
 .search-bar {
   margin-bottom: 12px;
@@ -1399,7 +1416,7 @@ select {
 }
 
 .sort-control select {
-  padding: 7px 8px;
+  padding: 7px 30px 7px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
@@ -1591,7 +1608,7 @@ select {
 .board-create-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .65fr); gap: 14px; }
 .board-create-fields .form-group { margin-bottom: 0; }
 .board-create-shelf-select { position: relative; }
-.board-create-shelf-select select { width: 100%; min-width: 0; appearance: none; padding: 9px 34px 9px 10px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); cursor: pointer; }
+.board-create-shelf-select select { width: 100%; min-width: 0; appearance: none; padding: 9px 34px 9px 10px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); background-image: none; cursor: pointer; }
 .board-create-shelf-select select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .board-create-shelf-select svg { position: absolute; top: 50%; right: 11px; width: 16px; height: 16px; transform: translateY(-50%); fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .board-create-shelf-hint { margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-xs); }
@@ -3493,7 +3510,7 @@ a.btn:hover {
 }
 
 .leave-handoff select {
-  padding: 5px 8px;
+  padding: 5px 30px 5px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
