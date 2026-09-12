@@ -44,7 +44,10 @@ const SORTS = {
   },
 };
 
-export default function PapersPage({ currentUser, onSelectPaper, onSelectBoard }) {
+export default function PapersPage({
+  currentUser, onSelectPaper, onSelectBoard,
+  incomingPaperFile, onIncomingPaperFileHandled,
+}) {
   const [papers, setPapers] = useState(null);
   const [boards, setBoards] = useState(null);
   const [search, setSearch] = useState('');
@@ -96,6 +99,8 @@ export default function PapersPage({ currentUser, onSelectPaper, onSelectBoard }
         <PaperUpload
           onPaperCreated={load}
           onReviewChange={setReviewingUpload}
+          incomingFile={incomingPaperFile}
+          onIncomingFileHandled={onIncomingPaperFileHandled}
         />
       )}
 

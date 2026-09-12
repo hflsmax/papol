@@ -9,6 +9,7 @@ import { DESKTOP, DOCUMENT_WINDOW } from '../../shared/desktopShell.js';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
 import { subscribeNativeData } from '../../frontend/src/nativeData.js';
+import { carriesFiles } from '../../frontend/src/fileDrop.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const compareId = (a, b) => String(a).localeCompare(String(b));
@@ -1656,7 +1657,12 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const files = [...event.dataTransfer.files]; if (!files.length) return;
     const bounds = viewportRef.current?.getBoundingClientRect();
     if (!bounds) return;
-    const origin = boardPointFromClient(event.clientX, event.clientY, bounds, viewRef.current);
+    const origin = boardPointFromClient(
+      clamp(event.clientX, bounds.left, bounds.right),
+      clamp(event.clientY, bounds.top, bounds.bottom),
+      bounds,
+      viewRef.current,
+    );
     setBusy(true); setError(null);
     try {
       await Promise.all(files.map((file, index) => addBoardFile(board.guid, file, '', {
@@ -1806,7 +1812,24 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (card && selectedItems.includes(dataId(card.dataset.itemId))) return;
     setSelectedItems([]);
   };
-  return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
+  return <div
+    className="infinite-board"
+    onPointerDownCapture={handleBoardPointerDownCapture}
+    onDragEnter={(event) => {
+      if (!carriesFiles(event.dataTransfer)) return;
+      event.preventDefault();
+      if (board.can_edit) setDraggingFiles(true);
+    }}
+    onDragOver={(event) => {
+      if (!carriesFiles(event.dataTransfer) && !event.dataTransfer.types.includes('application/x-papol-staged-item')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = board.can_edit ? 'copy' : 'none';
+    }}
+    onDragLeave={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setDraggingFiles(false);
+    }}
+    onDrop={dropFiles}
+  >
     <header className="board-toolbar" data-tauri-drag-region="deep">
       {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
       {DESKTOP && !DOCUMENT_WINDOW
@@ -1827,7 +1850,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
     {board.can_edit && activeBooklet && <div className="board-selection-menu"><span>{activeBooklet.kind === 'collection' ? 'Collection' : 'Booklet'} selected</span>{activeBooklet.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeBooklet.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeBooklet)}>{activeBooklet.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeBooklet)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupBooklet(activeBooklet)}>Ungroup</button></div>}
-    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture} onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDraggingFiles(true); } }} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-papol-staged-item')) e.preventDefault(); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDraggingFiles(false); }} onDrop={dropFiles}>
+    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
         <aside className="board-staging" aria-label="Staging area">

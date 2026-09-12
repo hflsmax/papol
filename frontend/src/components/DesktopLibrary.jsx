@@ -56,7 +56,10 @@ function decoded(id) {
   catch { return id; }
 }
 
-export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner }) {
+export function DesktopBrowser({
+  source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner,
+  incomingPaperFile, onIncomingPaperFileHandled,
+}) {
   const { space, reload } = nook;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
@@ -73,6 +76,9 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
 
   useEffect(() => { setSearch(''); }, [source]);
   useEffect(() => { setComposer(null); }, [paperId, source]);
+  useEffect(() => {
+    if (incomingPaperFile) setComposer('paper');
+  }, [incomingPaperFile]);
 
   const openReader = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
 
@@ -182,7 +188,11 @@ export function DesktopBrowser({ source, route, currentUser, nook, onNavigate, o
             <h2>Add a paper</h2>
             <button type="button" onClick={() => setComposer(null)}>Cancel</button>
           </div>
-          <PaperUpload onPaperCreated={() => { setComposer(null); reload(); }} />
+          <PaperUpload
+            onPaperCreated={() => { setComposer(null); reload(); }}
+            incomingFile={incomingPaperFile}
+            onIncomingFileHandled={onIncomingPaperFileHandled}
+          />
         </div>
       </div>
     );

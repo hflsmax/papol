@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   getMe, getToken, setToken, logout, pendingLocalChanges, getNotifications, sendPresence, updatePaper,
 } from './api';
@@ -26,6 +26,7 @@ import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
+import { carriesFiles, isPdfFile, libraryFileDragState } from './fileDrop.js';
 
 export const styles = `
 * {
@@ -1181,6 +1182,57 @@ select {
   color: var(--ink-faint);
   margin-top: 6px;
   font-style: italic;
+}
+
+.library-file-drop-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 16px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent-soft) 88%, transparent);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+
+.library-file-drop-overlay.reject {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red-soft) 90%, transparent);
+  color: var(--red);
+}
+
+.library-file-drop-card {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  max-width: min(420px, calc(100vw - 64px));
+  padding: 24px 30px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(29,33,41,.18);
+  text-align: center;
+}
+
+.library-file-drop-card strong { font-size: var(--fs-lg); }
+.library-file-drop-card span { color: var(--ink-soft); font-size: var(--fs-sm); }
+.library-file-drop-notice {
+  position: fixed;
+  z-index: 1000;
+  right: 20px;
+  bottom: 20px;
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 10px 14px;
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--red);
+  box-shadow: 0 8px 24px rgba(29,33,41,.18);
+  font: var(--fs-sm) var(--font-ui);
 }
 
 .upload-section.compact { flex: 1 1 240px; min-width: 180px; }
@@ -4893,12 +4945,33 @@ function openBoard(guid) {
   window.location.assign(appPath(path));
 }
 
+function LibraryFileDropFeedback({ state, message }) {
+  return <>
+    {state && (
+      <div className={`library-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
+        <div className="library-file-drop-card">
+          <strong>{state === 'reject' ? 'PDF files only' : 'Drop PDF to import'}</strong>
+          <span>{state === 'reject'
+            ? 'Papol’s library only supports PDF files.'
+            : 'The paper will open for metadata review.'}</span>
+        </div>
+      </div>
+    )}
+    {message && <div className="library-file-drop-notice" role="alert">{message}</div>}
+  </>;
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [libraryFileDrag, setLibraryFileDrag] = useState(null);
+  const [libraryDropNotice, setLibraryDropNotice] = useState(null);
+  const [incomingPaperFile, setIncomingPaperFile] = useState(null);
+  const libraryDragDepth = useRef(0);
+  const libraryDropNoticeTimer = useRef(null);
   // The welcome modal greets every fresh demo visit. Returning from its
   // viewer is still the same visit, so consume the viewer's one-shot marker
   // rather than greeting the reader again after the full-page transition.
@@ -4912,6 +4985,68 @@ export default function App() {
   // otherwise a real authenticated reader wins; guest is only the public
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
+
+  useEffect(() => {
+    if (mode !== 'signed-in') return undefined;
+    const resetDrag = () => {
+      libraryDragDepth.current = 0;
+      setLibraryFileDrag(null);
+    };
+    const showNotice = (message) => {
+      setLibraryDropNotice(message);
+      window.clearTimeout(libraryDropNoticeTimer.current);
+      libraryDropNoticeTimer.current = window.setTimeout(
+        () => setLibraryDropNotice(null), 4000,
+      );
+    };
+    const dragEnter = (event) => {
+      if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
+      event.preventDefault();
+      libraryDragDepth.current += 1;
+      setLibraryFileDrag(libraryFileDragState(event.dataTransfer));
+    };
+    const dragOver = (event) => {
+      if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
+      event.preventDefault();
+      const state = libraryFileDragState(event.dataTransfer);
+      event.dataTransfer.dropEffect = state === 'reject' ? 'none' : 'copy';
+      setLibraryFileDrag(state);
+    };
+    const dragLeave = (event) => {
+      if (!carriesFiles(event.dataTransfer)) return;
+      libraryDragDepth.current = Math.max(0, libraryDragDepth.current - 1);
+      if (libraryDragDepth.current === 0) setLibraryFileDrag(null);
+    };
+    const drop = (event) => {
+      if (!carriesFiles(event.dataTransfer)) return;
+      resetDrag();
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      const files = Array.from(event.dataTransfer.files || []);
+      if (files.length !== 1) {
+        showNotice('Import one PDF at a time.');
+        return;
+      }
+      if (!isPdfFile(files[0])) {
+        showNotice('Papol’s library only supports PDF files.');
+        return;
+      }
+      setLibraryDropNotice(null);
+      setIncomingPaperFile({ id: globalThis.crypto.randomUUID(), file: files[0] });
+      navigate('/library');
+    };
+    window.addEventListener('dragenter', dragEnter);
+    window.addEventListener('dragover', dragOver);
+    window.addEventListener('dragleave', dragLeave);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragenter', dragEnter);
+      window.removeEventListener('dragover', dragOver);
+      window.removeEventListener('dragleave', dragLeave);
+      window.removeEventListener('drop', drop);
+      window.clearTimeout(libraryDropNoticeTimer.current);
+    };
+  }, [mode]);
 
   const dismissDemoIntro = () => setDemoIntroSeen(true);
 
@@ -5273,6 +5408,8 @@ export default function App() {
           currentUser={user}
           onSelectPaper={(id) => navigate(`/paper/${id}`)}
           onSelectBoard={openBoard}
+          incomingPaperFile={incomingPaperFile}
+          onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
         />
       )}
       {route.page === 'room' && (
@@ -5334,6 +5471,7 @@ export default function App() {
     return (
       <>
         <style>{styles}</style>
+        <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
         {demoIntro}
         {feedbackDialog}
         {managingNook && nook.space && (
@@ -5371,6 +5509,8 @@ export default function App() {
               onOpenBoard={openBoard}
               onSyncRefresh={syncRefresh}
               banner={demoBanner}
+              incomingPaperFile={incomingPaperFile}
+              onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
             />
           ) : (
             <div className="desktop-pane">
@@ -5389,6 +5529,7 @@ export default function App() {
   return (
     <>
       <style>{styles}</style>
+      <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
       {demoIntro}
       {demoBanner}
       <button

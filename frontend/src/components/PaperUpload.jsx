@@ -5,8 +5,12 @@ import {
 import { RatingInput } from './Rating';
 import BackLink from './BackLink';
 import { nativeDataActive } from '../nativeData.js';
+import { isPdfFile } from '../fileDrop.js';
 
-export default function PaperUpload({ onPaperCreated, onReviewChange = () => {}, compact = false }) {
+export default function PaperUpload({
+  onPaperCreated, onReviewChange = () => {}, compact = false,
+  incomingFile = null, onIncomingFileHandled = () => {},
+}) {
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -19,6 +23,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
   const [tagDraft, setTagDraft] = useState('');
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const handledIncomingFile = useRef(null);
 
   useEffect(() => () => {
     if (extractedData) discardPaperImport(extractedData).catch(() => {});
@@ -38,10 +43,10 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type === 'application/pdf') {
+    if (isPdfFile(file)) {
       handleFile(file);
     } else {
-      setError('Drop a PDF file');
+      setError('Papol’s library only supports PDF files.');
     }
   };
 
@@ -87,6 +92,14 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!incomingFile || handledIncomingFile.current === incomingFile.id) return;
+    handledIncomingFile.current = incomingFile.id;
+    onIncomingFileHandled();
+    if (isPdfFile(incomingFile.file)) handleFile(incomingFile.file);
+    else setError('Papol’s library only supports PDF files.');
+  }, [incomingFile]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
