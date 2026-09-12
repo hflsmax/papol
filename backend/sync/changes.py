@@ -139,31 +139,36 @@ def commit_sync(db):
 
 
 def seed_board_change_log(db):
-    """Make pre-sync board rows discoverable by a first cursor pull."""
-    existing = {
-        (table_name, row_sync_id)
-        for table_name, row_sync_id in db.query(
-            ServerChange.table_name, ServerChange.row_sync_id,
-        ).distinct().all()
-    }
+    """Publish legacy rows and repairs missing from the cursor change log."""
+    latest = {}
+    for change in db.query(ServerChange).filter(
+        ServerChange.table_name.in_(("boards", "board_groups", "board_items")),
+    ).order_by(ServerChange.sequence).all():
+        latest[(change.table_name, change.row_sync_id)] = change
     records = []
     for model in (Board, BoardGroup, BoardItem):
-        records.extend(
-            record for record in db.query(model).all()
-            if (record.__tablename__, record.sync_id) not in existing
-        )
+        records.extend(db.query(model).all())
+    changes = 0
     for record in records:
         _prepare_identity(db, record)
+        key = (record.__tablename__, record.sync_id)
         if not record.revision:
             record.revision = 1
         row = row_snapshot(record)
+        row_json = json.dumps(row, separators=(",", ":"), sort_keys=True)
+        operation = "delete" if record.deleted_at is not None else "upsert"
+        previous = latest.get(key)
+        if (previous is not None and previous.operation == operation
+                and previous.row_json == row_json):
+            continue
         db.add(ServerChange(
             user_id=_owner_id(db, record),
             table_name=record.__tablename__,
             row_sync_id=record.sync_id,
             revision=record.revision,
-            operation="delete" if record.deleted_at is not None else "upsert",
-            row_json=json.dumps(row, separators=(",", ":"), sort_keys=True),
+            operation=operation,
+            row_json=row_json,
         ))
+        changes += 1
     db.commit()
-    return len(records)
+    return changes
