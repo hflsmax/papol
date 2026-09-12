@@ -4,10 +4,10 @@ import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   boardView, discardNativeBlob, nativeAccountId, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeQuery, nativeSyncNow,
-  noteView, paperView, prepareNativeAccount, scheduleAutomaticNativeSync, setNativeAccount, shelfView, uuid,
+  noteView, paperView, prepareNativeAccount, removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount, shelfView, uuid,
 } from './nativeData.js';
 import {
-  cachedBlobUrl, configureNetworkFetch, configureReplayAuthorization, offlineFetch,
+  cachedBlobUrl, clearOfflineData, configureNetworkFetch, configureReplayAuthorization, offlineFetch,
   refreshSyncStatus, rememberOfflineIdentity, runtimeFetch,
 } from '../../shared/offlineStore';
 import { currentCredential, storeCredential } from '../../shared/credentials.js';
@@ -34,6 +34,15 @@ const pendingPaperBlobs = new Map();
 // A developer backend may arrive through an SSH/IDE port forward. Keep auth
 // bounded without treating a healthy forwarded request as offline too early.
 const DESKTOP_AUTH_TIMEOUT_MS = 10_000;
+
+function forgetAccountData() {
+  paperSyncIds.clear();
+  copySyncIds.clear();
+  shelfSyncIds.clear();
+  serverShelfIds.clear();
+  tagSyncIds.clear();
+  pendingPaperBlobs.clear();
+}
 
 function rememberPaperIdentity(paper) {
   if (paper?.id != null && paper.sync_id) paperSyncIds.set(String(paper.id), paper.sync_id);
@@ -164,10 +173,14 @@ export async function login(email, password) {
   return result;
 }
 
-export async function logout() {
-  const accountId = nativeAccountId();
+export async function logout(accountId = nativeAccountId()) {
+  if (IS_DESKTOP && accountId != null) await removeNativeAccount(accountId);
+  else await clearOfflineData();
+  forgetAccountData();
   try {
-    return await request('/auth/logout', { method: 'POST' });
+    await desktopAuthRequest((signal) => request('/auth/logout', { method: 'POST', signal }));
+  } catch {
+    // Local sign-out must remain available while the backend is offline.
   } finally {
     try {
       await storeCredential(null, accountId);

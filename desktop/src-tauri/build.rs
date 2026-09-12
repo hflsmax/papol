@@ -13,6 +13,7 @@ fn main() {
             "local_setting_get",
             "local_setting_set",
             "local_account_set",
+            "local_account_remove",
             "local_recovery_export",
             "sync_now",
         ]),

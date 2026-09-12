@@ -111,6 +111,33 @@ fn local_account_set(
 }
 
 #[tauri::command]
+fn local_account_remove(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+    account_id: i64,
+) -> Result<usize, String> {
+    use tauri::Emitter;
+
+    // Document windows keep decoded papers and board state in memory. Close
+    // them before deleting the signed-out account's durable replica.
+    for (label, window) in app.webview_windows() {
+        if label.starts_with("viewer-") || label.starts_with("board-") {
+            let _ = window.close();
+        }
+    }
+    let removed = store.remove_account(account_id)?;
+    let _ = app.emit(
+        "papol://data-changed",
+        serde_json::json!({"accountRemoved": account_id}),
+    );
+    let _ = app.emit(
+        "papol://sync-status",
+        serde_json::json!({"accountRemoved": account_id}),
+    );
+    Ok(removed)
+}
+
+#[tauri::command]
 fn local_recovery_export(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
@@ -386,6 +413,7 @@ pub fn run() {
             local_setting_get,
             local_setting_set,
             local_account_set,
+            local_account_remove,
             local_recovery_export,
             sync_now
         ])

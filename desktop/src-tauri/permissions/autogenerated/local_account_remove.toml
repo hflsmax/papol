@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-account-remove"
+description = "Enables the local_account_remove command without any pre-configured scope."
+commands.allow = ["local_account_remove"]
+
+[[permission]]
+identifier = "deny-local-account-remove"
+description = "Denies the local_account_remove command without any pre-configured scope."
+commands.deny = ["local_account_remove"]

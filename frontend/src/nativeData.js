@@ -114,6 +114,15 @@ export async function clearNativeData() {
   return removed;
 }
 
+export async function removeNativeAccount(accountId) {
+  if (!IS_DESKTOP || !Number.isSafeInteger(Number(accountId))) return 0;
+  // IndexedDB is only an upgrade bridge and is not reliably account-keyed.
+  // Clear it in full so no response or queued mutation survives sign-out.
+  await clearOfflineData();
+  const removed = await invoke('local_account_remove', { accountId: Number(accountId) });
+  return removed;
+}
+
 export function discardNativeBlob(sha256) {
   return invoke('blob_discard', { sha256 });
 }

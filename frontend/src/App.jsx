@@ -5065,25 +5065,27 @@ export default function App() {
       navigate('/signin');
       return;
     }
+    let pending = null;
+    try { pending = await pendingLocalChanges(); } catch { /* still allow sign-out */ }
+    const warning = pending > 0
+      ? `Signing out deletes this account's downloaded data and local changes from this Mac. ` +
+        `${pending} unsynced ${pending === 1 ? 'change will' : 'changes will'} be permanently lost. Sign out?`
+      : `Signing out deletes this account's downloaded data and local changes from this Mac. ` +
+        'Any unsynced changes will be permanently lost. Sign out?';
+    const leave = await confirmAction(warning, { confirmLabel: 'Sign out' });
+    if (!leave) return;
     try {
-      const pending = await pendingLocalChanges();
-      if (pending > 0) {
-        const leave = await confirmAction(
-          `${pending} ${pending === 1 ? 'change has' : 'changes have'} not synced yet. ` +
-            'They will stay on this Mac for this account, but will not be available elsewhere. Sign out?',
-          { confirmLabel: 'Sign out' },
-        );
-        if (!leave) return;
+      await logout(user?.id);
+    } catch (error) {
+      const message = `Could not delete local account data: ${error.message}`;
+      if (DESKTOP) {
+        setDesktopNotice(message);
+        window.setTimeout(() => setDesktopNotice(null), 5000);
+      } else {
+        window.alert(message);
       }
-    } catch {
-      // A damaged status read must not make an account impossible to leave.
+      return;
     }
-    try {
-      await logout();
-    } catch {
-      // best effort
-    }
-    await setToken(null);
     exitDemo();
     setUser(null);
     navigate('/');

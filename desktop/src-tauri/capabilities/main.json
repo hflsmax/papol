@@ -15,6 +15,7 @@
     "allow-local-setting-get",
     "allow-local-setting-set",
     "allow-local-account-set",
+    "allow-local-account-remove",
     "allow-local-recovery-export",
     "allow-sync-now",
     "core:event:allow-listen",

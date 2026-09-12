@@ -839,6 +839,119 @@ impl LocalStore {
         Ok(blobs.len())
     }
 
+    pub fn remove_account(&self, account_id: i64) -> Result<usize, String> {
+        let mut connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        let mut staged = Vec::new();
+        let result = (|| {
+            let transaction = connection
+                .transaction()
+                .map_err(|error| error.to_string())?;
+
+            // Account-owned rows are hard-deleted on sign-out. Children must
+            // go first because the canonical schema deliberately has no
+            // cascading deletes: sync normally uses tombstones instead.
+            transaction
+                .execute(
+                    "DELETE FROM _local_blob_refs WHERE table_name='board_items' AND row_id IN (\
+                       SELECT board_items.id FROM board_items JOIN boards ON boards.id=board_items.board_id \
+                       WHERE boards.user_id=?1\
+                     )",
+                    [account_id],
+                )
+                .map_err(|error| error.to_string())?;
+            for statement in [
+                "DELETE FROM copy_tags WHERE user_id=?1",
+                "DELETE FROM board_items WHERE board_id IN (SELECT id FROM boards WHERE user_id=?1)",
+                "DELETE FROM board_groups WHERE board_id IN (SELECT id FROM boards WHERE user_id=?1)",
+                "DELETE FROM comments WHERE user_id=?1",
+                "DELETE FROM ink_strokes WHERE user_id=?1",
+                "DELETE FROM paper_clips WHERE user_id=?1",
+                "DELETE FROM copies WHERE user_id=?1",
+                "DELETE FROM boards WHERE user_id=?1",
+                "DELETE FROM tags WHERE user_id=?1",
+                "DELETE FROM shelves WHERE user_id=?1",
+                "DELETE FROM _local_outbox WHERE account_id=?1",
+                "DELETE FROM _local_conflicts WHERE account_id=?1",
+                "DELETE FROM _local_sync_state WHERE account_id=?1",
+                "DELETE FROM _local_accounts WHERE account_id=?1",
+            ] {
+                transaction
+                    .execute(statement, [account_id])
+                    .map_err(|error| error.to_string())?;
+            }
+
+            // Papers and editions are shared cache rows. Remove them only
+            // when no other local account still owns a copy or annotation.
+            transaction
+                .execute_batch(
+                    "DELETE FROM _local_blob_refs
+                       WHERE table_name='paper_editions' AND row_id IN (
+                         SELECT paper_editions.id FROM paper_editions
+                         WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_id=paper_editions.paper_id)
+                           AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_id=paper_editions.paper_id)
+                           AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_id=paper_editions.id)
+                           AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_id=paper_editions.id)
+                       );
+                     DELETE FROM paper_editions
+                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_id=paper_editions.paper_id)
+                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_id=paper_editions.paper_id)
+                         AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_id=paper_editions.id)
+                         AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_id=paper_editions.id);
+                     DELETE FROM papers
+                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_id=papers.id)
+                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_id=papers.id)
+                         AND NOT EXISTS (SELECT 1 FROM paper_editions WHERE paper_editions.paper_id=papers.id);",
+                )
+                .map_err(|error| error.to_string())?;
+
+            let queued_digests = queued_blob_digests(&transaction)?;
+            let blobs = {
+                let mut statement = transaction
+                    .prepare(
+                        "SELECT sha256 FROM _local_blobs WHERE NOT EXISTS (\
+                           SELECT 1 FROM _local_blob_refs WHERE _local_blob_refs.sha256=_local_blobs.sha256\
+                         ) ORDER BY sha256",
+                    )
+                    .map_err(|error| error.to_string())?;
+                let rows = statement
+                    .query_map([], |row| row.get::<_, String>(0))
+                    .map_err(|error| error.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| error.to_string())?;
+                rows.into_iter()
+                    .filter(|sha256| !queued_digests.contains(sha256))
+                    .collect::<Vec<_>>()
+            };
+            for sha256 in &blobs {
+                match stage_blob_removal(&self.blob_directory, sha256) {
+                    Ok(Some(path)) => staged.push((sha256.clone(), path)),
+                    Ok(None) => {}
+                    Err(error) => return Err(error),
+                }
+                transaction
+                    .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
+                    .map_err(|error| error.to_string())?;
+            }
+            transaction.commit().map_err(|error| error.to_string())?;
+            Ok(blobs.len())
+        })();
+        let removed = match result {
+            Ok(removed) => removed,
+            Err(error) => {
+                restore_staged_blobs(&self.blob_directory, &staged);
+                return Err(error);
+            }
+        };
+        drop(connection);
+        for (_, path) in staged {
+            let _ = std::fs::remove_file(path);
+        }
+        Ok(removed)
+    }
+
     pub fn discard_unreferenced_blob(&self, sha256: &str) -> Result<bool, String> {
         let connection = self
             .connection
@@ -1848,6 +1961,30 @@ fn refresh_blob_reference(
         }
     }
     Ok(())
+}
+
+fn queued_blob_digests(connection: &Connection) -> Result<HashSet<String>, String> {
+    let mut statement = connection
+        .prepare("SELECT changes_json FROM _local_outbox")
+        .map_err(|error| error.to_string())?;
+    let encoded = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    let mut digests = HashSet::new();
+    for value in encoded {
+        let changes: Vec<QueuedChange> =
+            serde_json::from_str(&value).map_err(|error| error.to_string())?;
+        for change in changes {
+            for value in change.values.values() {
+                if let Some(digest) = value.as_str().filter(|value| value.len() == 64) {
+                    digests.insert(digest.to_owned());
+                }
+            }
+        }
+    }
+    Ok(digests)
 }
 
 fn refresh_blob_references_for_digest(connection: &Connection, sha256: &str) -> Result<(), String> {
@@ -3003,6 +3140,147 @@ mod tests {
             store.query(7, "account", json!({})).unwrap()["display_name"],
             "Reader"
         );
+    }
+
+    #[test]
+    fn remove_account_deletes_only_that_accounts_replica_and_orphaned_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let unique_paper = Uuid::new_v4().to_string();
+        let unique_edition = Uuid::new_v4().to_string();
+        let unique_copy = Uuid::new_v4().to_string();
+        let shared_paper = Uuid::new_v4().to_string();
+        let shared_edition = Uuid::new_v4().to_string();
+        let first_copy = Uuid::new_v4().to_string();
+        let second_copy = Uuid::new_v4().to_string();
+        let first_board = Uuid::new_v4().to_string();
+        let second_board = Uuid::new_v4().to_string();
+        let first_item = Uuid::new_v4().to_string();
+        let second_item = Uuid::new_v4().to_string();
+        let unique_blob = store
+            .import_blob(b"first account PDF", Some("application/pdf".into()))
+            .unwrap();
+        let shared_blob = store
+            .import_blob(b"shared PDF", Some("application/pdf".into()))
+            .unwrap();
+        let first_board_blob = store
+            .import_blob(b"first board file", Some("application/pdf".into()))
+            .unwrap();
+        let second_board_blob = store
+            .import_blob(b"second board file", Some("application/pdf".into()))
+            .unwrap();
+        store
+            .set_local_account(7, json!({"id": 7, "display_name": "First"}))
+            .unwrap();
+        store
+            .set_local_account(8, json!({"id": 8, "display_name": "Second"}))
+            .unwrap();
+        {
+            let connection = store.connection.lock().unwrap();
+            let now = "2026-09-12T00:00:00Z";
+            for (paper, title) in [(&unique_paper, "Unique"), (&shared_paper, "Shared")] {
+                connection
+                    .execute(
+                        "INSERT INTO papers(id,title,created_at,updated_at) VALUES (?1,?2,?3,?3)",
+                        params![paper, title, now],
+                    )
+                    .unwrap();
+            }
+            for (edition, paper, blob) in [
+                (&unique_edition, &unique_paper, &unique_blob.sha256),
+                (&shared_edition, &shared_paper, &shared_blob.sha256),
+            ] {
+                connection.execute(
+                    "INSERT INTO paper_editions(id,paper_id,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
+                    params![edition, paper, blob, now],
+                ).unwrap();
+                connection.execute(
+                    "INSERT INTO _local_blob_refs(table_name,row_id,sha256) VALUES ('paper_editions',?1,?2)",
+                    params![edition, blob],
+                ).unwrap();
+            }
+            for (copy, paper, edition, account) in [
+                (&unique_copy, &unique_paper, &unique_edition, 7),
+                (&first_copy, &shared_paper, &shared_edition, 7),
+                (&second_copy, &shared_paper, &shared_edition, 8),
+            ] {
+                connection.execute(
+                    "INSERT INTO copies(id,paper_id,user_id,edition_id,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?5)",
+                    params![copy, paper, account, edition, now],
+                ).unwrap();
+            }
+            for (board, item, blob, account) in [
+                (&first_board, &first_item, &first_board_blob.sha256, 7),
+                (&second_board, &second_item, &second_board_blob.sha256, 8),
+            ] {
+                connection.execute(
+                    "INSERT INTO boards(id,user_id,name,created_at,updated_at) VALUES (?1,?2,'Board',?3,?3)",
+                    params![board, account, now],
+                ).unwrap();
+                connection.execute(
+                    "INSERT INTO board_items(id,board_id,kind,blob_sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
+                    params![item, board, blob, now],
+                ).unwrap();
+                connection.execute(
+                    "INSERT INTO _local_blob_refs(table_name,row_id,sha256) VALUES ('board_items',?1,?2)",
+                    params![item, blob],
+                ).unwrap();
+            }
+            connection.execute(
+                "INSERT INTO _local_outbox(account_id,client_id,mutation_id,changes_json) VALUES (7,'client-7','mutation-7','[]')",
+                [],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO _local_outbox(account_id,client_id,mutation_id,changes_json) VALUES (8,'client-8','mutation-8','[]')",
+                [],
+            ).unwrap();
+        }
+
+        assert_eq!(store.remove_account(7).unwrap(), 2);
+        let connection = store.connection.lock().unwrap();
+        for (query, expected) in [
+            ("SELECT COUNT(*) FROM _local_accounts WHERE account_id=7", 0),
+            ("SELECT COUNT(*) FROM _local_accounts WHERE account_id=8", 1),
+            ("SELECT COUNT(*) FROM copies WHERE user_id=7", 0),
+            ("SELECT COUNT(*) FROM copies WHERE user_id=8", 1),
+            ("SELECT COUNT(*) FROM boards WHERE user_id=7", 0),
+            ("SELECT COUNT(*) FROM boards WHERE user_id=8", 1),
+            ("SELECT COUNT(*) FROM _local_outbox WHERE account_id=7", 0),
+            ("SELECT COUNT(*) FROM _local_outbox WHERE account_id=8", 1),
+        ] {
+            assert_eq!(
+                connection
+                    .query_row(query, [], |row| row.get::<_, i64>(0))
+                    .unwrap(),
+                expected,
+                "{query}"
+            );
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM papers WHERE id=?1",
+                    [&unique_paper],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM papers WHERE id=?1",
+                    [&shared_paper],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        drop(connection);
+        assert!(!store.has_blob(&unique_blob.sha256));
+        assert!(!store.has_blob(&first_board_blob.sha256));
+        assert!(store.has_blob(&shared_blob.sha256));
+        assert!(store.has_blob(&second_board_blob.sha256));
     }
 
     #[test]

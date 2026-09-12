@@ -44,6 +44,7 @@ global.window = {
         return [37, 80, 68, 70];
       }
       if (command === 'local_setting_get') return 'manual';
+      if (command === 'local_account_remove') return 2;
       if (command === 'sync_now' && syncFailure) throw syncFailure;
       return null;
     },
@@ -60,7 +61,7 @@ await credentials.hydrateCredential();
 const {
   activateNativeAfterLegacyDrain, boardView, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
-  prepareNativeAccount,
+  prepareNativeAccount, removeNativeAccount,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
 const {
@@ -150,4 +151,12 @@ test('an upgrade stays on IndexedDB until legacy work drains, then activates SQL
   await syncOfflineQueue();
   assert.equal(await activateNativeAfterLegacyDrain(), true);
   assert.equal(nativeDataActive(), true);
+});
+
+test('sign-out removes only the active native account replica', async () => {
+  dispatchedEvents.length = 0;
+  assert.equal(await removeNativeAccount(7), 2);
+  const call = calls.find(([command]) => command === 'local_account_remove');
+  assert.deepEqual(call[1], { accountId: 7 });
+  assert.deepEqual(dispatchedEvents, ['papol-offline-status']);
 });
