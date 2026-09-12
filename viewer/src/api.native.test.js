@@ -20,6 +20,7 @@ global.window = {
     invoke: async (command, arguments_) => {
       calls.push([command, arguments_]);
       if (command === 'local_setting_get') return 'manual';
+      if (command === 'data_query') return [];
       if (command === 'data_mutate') {
         return { rows: [{ id: arguments_.changes[0].id, ...arguments_.changes[0].values }] };
       }
@@ -33,7 +34,7 @@ global.window = {
 global.Event = class Event { constructor(type) { this.type = type; } };
 
 const {
-  addClip, addInk, createNote, eraseInk, rememberPaperIdentity,
+  addClip, addInk, createNote, eraseInk, getClips, getInk, rememberPaperIdentity,
 } = await import('./api.js');
 
 rememberPaperIdentity({
@@ -73,4 +74,15 @@ test('ink and clips enter the native transactional outbox', async () => {
   await eraseInk(stroke.id);
   const deleteCall = calls.find(([, args]) => args?.changes?.[0]?.operation === 'delete');
   assert.equal(deleteCall[1].changes[0].table, 'ink_strokes');
+});
+
+test('a local edition UUID reads annotations without falling through to integer REST routes', async () => {
+  const localEditionId = '6e13e900-fece-4d91-8eaa-f8e0c48a75cc';
+  await getInk(localEditionId);
+  await getClips(localEditionId);
+  const reads = calls.filter(([command, args]) => command === 'data_query'
+    && ['ink', 'clips'].includes(args.queryName));
+  assert.deepEqual(reads.map(([, args]) => args.parameters.parent_id), [
+    localEditionId, localEditionId,
+  ]);
 });

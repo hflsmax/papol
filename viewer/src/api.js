@@ -28,6 +28,12 @@ const API_BASE = backendPath('/api');
 const paperSyncIds = new Map();
 const editionSyncIds = new Map();
 const activeEditionByPaper = new Map();
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function nativeEditionId(editionId) {
+  const key = String(editionId);
+  return editionSyncIds.get(key) || (UUID.test(key) ? key : null);
+}
 
 export function rememberPaperIdentity(paper) {
   if (paper?.id != null && paper.sync_id) paperSyncIds.set(String(paper.id), paper.sync_id);
@@ -230,18 +236,20 @@ export function resolveViewerReference(pdfHash, { key, raw }) {
 // What the reader has drawn on this edition. Kept per edition, like the
 // references: the marks were made over a particular PDF.
 export function getInk(editionId) {
-  if (nativeDataActive() && editionSyncIds.has(String(editionId))) {
-    return nativeQuery('ink', { parent_id: editionSyncIds.get(String(editionId)) })
+  const localEditionId = nativeEditionId(editionId);
+  if (nativeDataActive() && localEditionId) {
+    return nativeQuery('ink', { parent_id: localEditionId })
       .then((rows) => rows.map(inkView));
   }
   return request(`/editions/${editionId}/ink`);
 }
 
 export function addInk(editionId, stroke) {
-  if (nativeDataActive() && editionSyncIds.has(String(editionId))) {
+  const localEditionId = nativeEditionId(editionId);
+  if (nativeDataActive() && localEditionId) {
     return nativeMutate([{
       table: 'ink_strokes', id: uuid(), operation: 'upsert',
-      values: { ...stroke, edition_id: editionSyncIds.get(String(editionId)), points: JSON.stringify(stroke.points) },
+      values: { ...stroke, edition_id: localEditionId, points: JSON.stringify(stroke.points) },
     }]).then((receipt) => inkView(receipt.rows[0]));
   }
   return jsonRequest(`/editions/${editionId}/ink`, 'POST', stroke);
@@ -266,19 +274,21 @@ export function eraseInk(strokeId) {
 // ---- Clips ----
 
 export function getClips(editionId) {
-  if (nativeDataActive() && editionSyncIds.has(String(editionId))) {
-    return nativeQuery('clips', { parent_id: editionSyncIds.get(String(editionId)) })
+  const localEditionId = nativeEditionId(editionId);
+  if (nativeDataActive() && localEditionId) {
+    return nativeQuery('clips', { parent_id: localEditionId })
       .then((rows) => rows.map(clipView));
   }
   return request(`/editions/${editionId}/clips`);
 }
 
 export function addClip(editionId, clip) {
-  if (nativeDataActive() && editionSyncIds.has(String(editionId))) {
+  const localEditionId = nativeEditionId(editionId);
+  if (nativeDataActive() && localEditionId) {
     return nativeMutate([{
       table: 'paper_clips', id: uuid(), operation: 'upsert',
       values: {
-        ...clip, edition_id: editionSyncIds.get(String(editionId)),
+        ...clip, edition_id: localEditionId,
         source: JSON.stringify(clip.source), frame: JSON.stringify(clip.frame),
       },
     }]).then((receipt) => clipView(receipt.rows[0]));
