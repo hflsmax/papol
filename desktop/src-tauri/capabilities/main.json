@@ -10,7 +10,7 @@
     "allow-blob-import",
     "allow-blob-read",
     "allow-blob-ensure",
-    "allow-blob-clear-cache",
+    "allow-local-clear-data",
     "allow-blob-discard",
     "allow-local-setting-get",
     "allow-local-setting-set",

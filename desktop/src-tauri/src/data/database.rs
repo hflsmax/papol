@@ -774,6 +774,71 @@ impl LocalStore {
         Ok(removed.len())
     }
 
+    pub fn clear_data(&self) -> Result<usize, String> {
+        let mut connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        let blobs = {
+            let mut statement = connection
+                .prepare("SELECT sha256 FROM _local_blobs ORDER BY sha256")
+                .map_err(|error| error.to_string())?;
+            let rows = statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            rows
+        };
+        let mut staged = Vec::new();
+        for sha256 in &blobs {
+            match stage_blob_removal(&self.blob_directory, sha256) {
+                Ok(Some(path)) => staged.push((sha256.clone(), path)),
+                Ok(None) => {}
+                Err(error) => {
+                    restore_staged_blobs(&self.blob_directory, &staged);
+                    return Err(error);
+                }
+            }
+        }
+        let result = (|| {
+            let transaction = connection
+                .transaction()
+                .map_err(|error| error.to_string())?;
+            transaction
+                .execute_batch(
+                    "DELETE FROM copy_tags;
+                     DELETE FROM board_items;
+                     DELETE FROM board_groups;
+                     DELETE FROM comments;
+                     DELETE FROM ink_strokes;
+                     DELETE FROM paper_clips;
+                     DELETE FROM copies;
+                     DELETE FROM boards;
+                     DELETE FROM tags;
+                     DELETE FROM shelves;
+                     DELETE FROM paper_editions;
+                     DELETE FROM papers;
+                     DELETE FROM _local_blob_refs;
+                     DELETE FROM _local_blobs;
+                     DELETE FROM _local_outbox;
+                     DELETE FROM _local_conflicts;
+                     DELETE FROM _local_sync_state;",
+                )
+                .map_err(|error| error.to_string())?;
+            transaction.commit().map_err(|error| error.to_string())
+        })();
+        if let Err(error) = result {
+            restore_staged_blobs(&self.blob_directory, &staged);
+            return Err(error);
+        }
+        drop(connection);
+        for (_, path) in staged {
+            let _ = std::fs::remove_file(path);
+        }
+        Ok(blobs.len())
+    }
+
     pub fn discard_unreferenced_blob(&self, sha256: &str) -> Result<bool, String> {
         let connection = self
             .connection
@@ -2903,6 +2968,41 @@ mod tests {
         assert_eq!(status["classes"]["cache"]["bytes"], 0);
         assert_eq!(status["classes"]["pinned"]["files"], 1);
         assert_eq!(status["cache_limit_bytes"], DEFAULT_CACHE_LIMIT_BYTES);
+    }
+
+    #[test]
+    fn clear_data_removes_replica_pending_work_and_files_but_keeps_the_account() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board_id = Uuid::new_v4().to_string();
+        let blob = store
+            .import_blob(b"unsynchronized file", Some("application/pdf".into()))
+            .unwrap();
+        store
+            .set_local_account(7, json!({"id": 7, "display_name": "Reader"}))
+            .unwrap();
+        store
+            .mutate(7, vec![board_change(&board_id, "Unsynced board")])
+            .unwrap();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO _local_sync_state(account_id,pull_cursor) VALUES (7,42)",
+                    [],
+                )
+                .unwrap();
+        }
+
+        assert_eq!(store.clear_data().unwrap(), 1);
+        assert_eq!(store.query(7, "boards", json!({})).unwrap(), json!([]));
+        assert_eq!(store.outbox_count(), 0);
+        assert_eq!(store.pull_cursor(7).unwrap(), 0);
+        assert!(!store.has_blob(&blob.sha256));
+        assert_eq!(
+            store.query(7, "account", json!({})).unwrap()["display_name"],
+            "Reader"
+        );
     }
 
     #[test]

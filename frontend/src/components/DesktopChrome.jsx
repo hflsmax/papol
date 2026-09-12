@@ -279,27 +279,29 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
       ))}
       {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
       <div className="desktop-sidebar-footer">
-        {user && <SyncControl onSynced={onSync} />}
         <button type="button" className="desktop-sidebar-item" onClick={onFeedback} onContextMenu={contextMenuHandler(() => [
-          { label: 'Send Feedback…', onSelect: onFeedback },
+          { label: 'Feedback…', onSelect: onFeedback },
         ])}>
           <Glyph name="feedback" />
-          <span className="desktop-sidebar-text">Send feedback</span>
+          <span className="desktop-sidebar-text">Feedback</span>
         </button>
         {user && (
-          <a
-            href={appPath('/profile')}
-            className={`desktop-sidebar-item desktop-sidebar-profile${profileActive ? ' active' : ''}`}
-            aria-current={profileActive ? 'page' : undefined}
-            title="Edit profile"
-            draggable="false"
-            onContextMenu={contextMenuHandler(() => [
-              { label: 'Edit Profile…', onSelect: () => openPath('/profile') },
-            ])}
-          >
-            <Avatar user={user} className="desktop-sidebar-avatar" />
-            <span className="desktop-sidebar-text">{user.display_name}</span>
-          </a>
+          <div className="desktop-sidebar-account">
+            <a
+              href={appPath('/profile')}
+              className={`desktop-sidebar-item desktop-sidebar-profile${profileActive ? ' active' : ''}`}
+              aria-current={profileActive ? 'page' : undefined}
+              title="Edit profile"
+              draggable="false"
+              onContextMenu={contextMenuHandler(() => [
+                { label: 'Edit Profile…', onSelect: () => openPath('/profile') },
+              ])}
+            >
+              <Avatar user={user} className="desktop-sidebar-avatar" />
+              <span className="desktop-sidebar-text">{user.display_name}</span>
+            </a>
+            <SyncControl onSynced={onSync} />
+          </div>
         )}
       </div>
     </aside>

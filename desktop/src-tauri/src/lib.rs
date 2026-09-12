@@ -64,8 +64,16 @@ async fn blob_ensure(
 }
 
 #[tauri::command]
-fn blob_clear_cache(store: tauri::State<'_, data::LocalStore>) -> Result<usize, String> {
-    store.prune_cache(0)
+fn local_clear_data(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+) -> Result<usize, String> {
+    use tauri::Emitter;
+
+    let removed = store.clear_data()?;
+    let _ = app.emit("papol://data-changed", serde_json::json!({"cleared": true}));
+    let _ = app.emit("papol://sync-status", serde_json::json!({"cleared": true}));
+    Ok(removed)
 }
 
 #[tauri::command]
@@ -364,7 +372,7 @@ pub fn run() {
             blob_import,
             blob_read,
             blob_ensure,
-            blob_clear_cache,
+            local_clear_data,
             blob_discard,
             local_setting_get,
             local_setting_set,

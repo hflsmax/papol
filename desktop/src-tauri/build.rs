@@ -8,7 +8,7 @@ fn main() {
             "blob_import",
             "blob_read",
             "blob_ensure",
-            "blob_clear_cache",
+            "local_clear_data",
             "blob_discard",
             "local_setting_get",
             "local_setting_set",

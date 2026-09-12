@@ -14,8 +14,8 @@ import {
   setLocalSyncPreference,
 } from '../../../shared/offlineStore';
 import {
-  clearNativeCache, hydrateNativeSyncPreference, nativeStorageStatus,
-  exportNativeRecovery, persistNativeSyncPreference,
+  clearNativeData, hydrateNativeSyncPreference, nativeStorageStatus,
+  persistNativeSyncPreference,
 } from '../nativeData';
 
 // Unlike the account fields below, these settings belong to this installation
@@ -24,10 +24,7 @@ import {
 function LocalDeviceSettings() {
   const [syncPreference, setSyncPreferenceState] = useState(getLocalSyncPreference);
   const [storage, setStorage] = useState(null);
-  const [clearingCache, setClearingCache] = useState(false);
-  const [recovery, setRecovery] = useState(null);
-  const [recoveryError, setRecoveryError] = useState(null);
-  const [exportingRecovery, setExportingRecovery] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
 
   useEffect(() => {
     hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
@@ -40,25 +37,18 @@ function LocalDeviceSettings() {
     setSyncPreferenceState(preference);
   };
 
-  const clearCache = async () => {
-    setClearingCache(true);
+  const clearData = async () => {
+    const confirmed = await confirmAction(
+      'Clear all data stored on this device? Unsynced data will be lost. This cannot be undone.',
+      { confirmLabel: 'Clear data', destructive: true },
+    );
+    if (!confirmed) return;
+    setClearingData(true);
     try {
-      await clearNativeCache();
+      await clearNativeData();
       setStorage(await nativeStorageStatus());
     } finally {
-      setClearingCache(false);
-    }
-  };
-
-  const exportRecovery = async () => {
-    setExportingRecovery(true);
-    setRecoveryError(null);
-    try {
-      setRecovery(await exportNativeRecovery());
-    } catch (error) {
-      setRecoveryError(error?.message || String(error));
-    } finally {
-      setExportingRecovery(false);
+      setClearingData(false);
     }
   };
 
@@ -88,27 +78,13 @@ function LocalDeviceSettings() {
           </div>
           <button
             type="button"
-            disabled={clearingCache || storage.classes.cache.files === 0}
-            onClick={clearCache}
+            disabled={clearingData}
+            onClick={clearData}
           >
-            {clearingCache ? 'Clearing…' : 'Clear cache'}
+            {clearingData ? 'Clearing…' : 'Clear data'}
           </button>
         </div>
       )}
-      <div className="local-setting-row local-storage-row">
-        <div>
-          <strong>Offline recovery</strong>
-          {recovery && (
-            <div className="local-storage-totals">
-              Saved {recovery.mutations} {recovery.mutations === 1 ? 'change' : 'changes'} to Downloads
-            </div>
-          )}
-          {recoveryError && <div className="form-error">{recoveryError}</div>}
-        </div>
-        <button type="button" disabled={exportingRecovery} onClick={exportRecovery}>
-          {exportingRecovery ? 'Saving…' : 'Save copy'}
-        </button>
-      </div>
     </div>
   );
 }

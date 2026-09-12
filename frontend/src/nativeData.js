@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  getLocalSyncPreference, refreshSyncStatus, setLocalSyncPreference,
+  clearOfflineData, getLocalSyncPreference, refreshSyncStatus, setLocalSyncPreference,
 } from '../../shared/offlineStore.js';
 import { BACKEND_BASE } from './base.js';
 import { currentCredential } from '../../shared/credentials.js';
@@ -107,14 +107,9 @@ export function nativeStorageStatus() {
   return nativeQuery('storage_status');
 }
 
-export function exportNativeRecovery() {
-  const accountId = nativeAccountId();
-  if (accountId == null) throw new Error('Local recovery requires a signed-in account');
-  return invoke('local_recovery_export', { accountId });
-}
-
-export async function clearNativeCache() {
-  const removed = await invoke('blob_clear_cache');
+export async function clearNativeData() {
+  const removed = await invoke('local_clear_data');
+  await clearOfflineData();
   window.dispatchEvent(new Event('papol-offline-status'));
   return removed;
 }

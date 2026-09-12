@@ -152,6 +152,25 @@ async function allStored(store) {
   return transact(store, 'readonly', (s) => s.getAll());
 }
 
+export async function clearOfflineData() {
+  const db = await openDb();
+  try {
+    const storeNames = Array.from(db.objectStoreNames);
+    if (storeNames.length > 0) {
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeNames, 'readwrite');
+        storeNames.forEach((name) => transaction.objectStore(name).clear());
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    }
+  } finally {
+    db.close();
+  }
+  notify({ pending: 0, syncing: false, error: null, lastSynced: null });
+}
+
 function pathOf(url) {
   const marker = '/api';
   const pathname = new URL(url, window.location.href).pathname;

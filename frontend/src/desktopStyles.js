@@ -195,11 +195,21 @@ export const desktopStyles = `
   gap: 1px;
   margin-top: auto;
   padding-top: 10px;
-  border-top: 1px solid var(--line);
+}
+
+.desktop-sidebar-account {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.desktop-sidebar .desktop-sidebar-profile {
+  flex: 1;
+  min-width: 0;
 }
 
 .desktop-sync-control {
-  padding: 2px 0 6px;
+  flex: none;
 }
 
 .desktop-sidebar .desktop-sync-button {
@@ -208,6 +218,7 @@ export const desktopStyles = `
   border: 0;
   border-radius: var(--chrome-radius);
   background: transparent;
+  box-shadow: none;
   color: var(--ink-soft);
   font: inherit;
 }
@@ -217,7 +228,7 @@ export const desktopStyles = `
   grid-template-columns: 16px auto;
   align-items: center;
   gap: 7px;
-  width: 100%;
+  width: auto;
   padding: 4px 8px;
   text-align: left;
 }
@@ -252,6 +263,7 @@ export const desktopStyles = `
   justify-content: center;
   width: 20px;
   height: 20px;
+  margin-inline: -2px;
   border-radius: 50%;
   font-size: var(--fs-xs);
   object-fit: cover;
