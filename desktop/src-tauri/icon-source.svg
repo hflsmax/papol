@@ -22,7 +22,7 @@
   </defs>
   <g clip-path="url(#tile-clip)">
     <rect x="5" y="5" width="170" height="170" rx="38" fill="#17233b"/>
-    <g transform="translate(13.5 13.5) scale(.85)">
+    <g transform="translate(21.15 21.15) scale(.765)">
       <path transform="translate(0 5)" fill="#586273" fill-opacity=".72" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
       <path fill="url(#mark)" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
       <path fill="url(#mark-highlight)" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
