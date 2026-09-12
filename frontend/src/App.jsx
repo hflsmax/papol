@@ -1419,7 +1419,10 @@ select:disabled { cursor: default; opacity: .65; }
   padding: 7px 30px 7px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--card);
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
   font: inherit;
   color: inherit;
 }
@@ -3513,7 +3516,7 @@ a.btn:hover {
   padding: 5px 30px 5px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--card);
+  background-color: var(--card);
   font: inherit;
   color: inherit;
 }
