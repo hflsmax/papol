@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-account-set"
+description = "Enables the local_account_set command without any pre-configured scope."
+commands.allow = ["local_account_set"]
+
+[[permission]]
+identifier = "deny-local-account-set"
+description = "Denies the local_account_set command without any pre-configured scope."
+commands.deny = ["local_account_set"]

@@ -8,8 +8,11 @@ import { confirmAction } from '../../shared/confirmAction.js';
 import { DESKTOP, DOCUMENT_WINDOW } from '../../shared/desktopShell.js';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
+import { subscribeNativeData } from '../../frontend/src/nativeData.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const compareId = (a, b) => String(a).localeCompare(String(b));
+const dataId = (value) => /^\d+$/.test(value || '') ? Number(value) : value;
 const COLLECTION_INSET_X = 28;
 const COLLECTION_CARD_OFFSET_Y = 96;
 const COLLECTION_INSET_BOTTOM = 20;
@@ -53,6 +56,10 @@ const itemTypeIcons = {
   excerpt: <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8c0-2.8 1.4-4.8 4-6v2.2C4.9 4.9 4.3 5.8 4.1 7H6v6H2V8Zm8 0c0-2.8 1.4-4.8 4-6v2.2c-1.1.7-1.7 1.6-1.9 2.8H14v6h-4V8Z" /></svg>,
   image: '▧', file: '↧', youtube: '▶', webpage: '↗',
 };
+
+function hasCardPreview(item) {
+  return item.kind === 'image' || Boolean(item.blob_sha256 || item.file_path);
+}
 const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
@@ -131,8 +138,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const updateGripProximity = (event) => {
     if (event.pointerType === 'touch') return;
     if (event.target.closest?.('.board-card-drag-handle')) {
-      const itemId = Number(event.target.closest('[data-item-id]')?.dataset.itemId);
-      if (Number.isFinite(itemId)) {
+      const itemId = dataId(event.target.closest('[data-item-id]')?.dataset.itemId);
+      if (itemId) {
         showGrip(itemId);
         setForegroundGrip(itemId);
       }
@@ -151,9 +158,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         // The whole card and a 24px halo around it form one uninterrupted
         // activation region. This also bridges the gap to the protruding grip.
         const distance = Math.hypot(outsideX, outsideY);
-        return { itemId: Number(element.dataset.itemId), distance, z: Number(element.style.zIndex) || 0 };
+        return { itemId: dataId(element.dataset.itemId), distance, z: Number(element.style.zIndex) || 0 };
       })
-      .filter((candidate) => Number.isFinite(candidate.itemId) && candidate.distance <= 24)
+      .filter((candidate) => candidate.itemId && candidate.distance <= 24)
       .sort((a, b) => a.distance - b.distance || b.z - a.z);
 
     if (candidates.length) {
@@ -172,9 +179,12 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     }
   };
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
+  useEffect(() => subscribeNativeData((change) => {
+    if (!change?.scope || change.scope === 'boards') load();
+  }), [boardId]);
   const raiseCards = (itemIds) => {
     const ids = new Set(itemIds);
-    const ordered = board.items.filter((item) => ids.has(item.id)).sort((a, b) => a.position - b.position || a.id - b.id);
+    const ordered = board.items.filter((item) => ids.has(item.id)).sort((a, b) => a.position - b.position || compareId(a.id, b.id));
     if (!ordered.length) return;
     const start = Math.max(0, ...board.items.map((item) => item.position || 0)) + 1;
     const positions = new Map(ordered.map((item, index) => [item.id, start + index]));
@@ -263,7 +273,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     return () => cancelAnimationFrame(frame);
   }, [board?.id]);
   const imageItems = board ? [...board.items, ...(board.staged_items || [])]
-    .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind)) : [];
+    .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind) && hasCardPreview(item)) : [];
   const imageIds = imageItems.map((item) => item.id).join(',');
   // Toggling a paint-affecting property invalidates each card's composited
   // layer without remounting it or discarding editors and loaded images.
@@ -941,7 +951,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           const rect = card.getBoundingClientRect();
           return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
         })
-        .map((card) => Number(card.dataset.itemId));
+        .map((card) => dataId(card.dataset.itemId));
       setSelectedItems(mergeSelection(g.baseSelected, hitIds, g.mode));
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
     else if (g.type === 'booklet-move') {
@@ -1256,7 +1266,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           const rect = card.getBoundingClientRect();
           return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
         });
-        setSelectedItems(mergeSelection(g.baseSelected, hits.map((card) => Number(card.dataset.itemId)), g.mode));
+        setSelectedItems(mergeSelection(g.baseSelected, hits.map((card) => dataId(card.dataset.itemId)), g.mode));
       } else if (g.mode === 'replace') {
         setSelectedItems([]);
       }
@@ -1626,7 +1636,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const dropFiles = async (event) => {
     event.preventDefault(); setDraggingFiles(false);
     if (!board.can_edit) return;
-    const stagedId = Number(event.dataTransfer.getData('application/x-papol-staged-item'));
+    const stagedId = dataId(event.dataTransfer.getData('application/x-papol-staged-item'));
     if (Number.isInteger(stagedId) && stagedId > 0) {
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
@@ -1793,7 +1803,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (!selectedItems.length || event.shiftKey || event.metaKey || event.ctrlKey) return;
     if (event.target.closest?.('.board-selection-menu')) return;
     const card = event.target.closest?.('[data-item-id]');
-    if (card && selectedItems.includes(Number(card.dataset.itemId))) return;
+    if (card && selectedItems.includes(dataId(card.dataset.itemId))) return;
     setSelectedItems([]);
   };
   return <div className="infinite-board" onPointerDownCapture={handleBoardPointerDownCapture}>
@@ -1870,15 +1880,16 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
         {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || a.id - b.id).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || compareId(a.id, b.id)).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
             {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setSelectedBooklet(null); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
           </header>
           <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
-          {['image', 'youtube', 'webpage'].includes(item.kind) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
-          {['image', 'youtube', 'webpage'].includes(item.kind) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
+          {hasCardPreview(item) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
+          {hasCardPreview(item) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
+          {!hasCardPreview(item) && ['youtube', 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{item.kind === 'youtube' ? '▶' : '↗'}</span><span>{item.kind === 'youtube' ? 'Video saved offline' : 'Page saved offline'}</span></div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
@@ -1891,7 +1902,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           </div>
           {menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
             {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
-            {item.kind !== 'comment' && <button onClick={() => downloadBoardFile(item)}>Download</button>}
+            {item.kind !== 'comment' && hasCardPreview(item) && <button onClick={() => downloadBoardFile(item)}>Download</button>}
             {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove card</button>}
           </div>}
           {board.can_edit && <button className="board-resize-handle" aria-label="Resize card" title="Resize card" onPointerDown={(event) => startResize(event, item)} />}

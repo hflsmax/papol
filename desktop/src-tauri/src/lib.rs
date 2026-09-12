@@ -2,6 +2,185 @@ use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
 
+pub mod data;
+pub mod sync;
+
+#[tauri::command]
+fn data_query(
+    store: tauri::State<'_, data::LocalStore>,
+    account_id: i64,
+    query_name: String,
+    parameters: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    store.query(account_id, &query_name, parameters)
+}
+
+#[tauri::command]
+fn data_mutate(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+    account_id: i64,
+    changes: Vec<data::DataChange>,
+) -> Result<data::MutationReceipt, String> {
+    use tauri::Emitter;
+
+    let receipt = store.mutate(account_id, changes)?;
+    let _ = app.emit(
+        "papol://data-changed",
+        serde_json::json!({"scope": "boards"}),
+    );
+    Ok(receipt)
+}
+
+#[tauri::command]
+fn blob_import(
+    store: tauri::State<'_, data::LocalStore>,
+    bytes: Vec<u8>,
+    mime_type: Option<String>,
+) -> Result<data::BlobRecord, String> {
+    store.import_blob(&bytes, mime_type)
+}
+
+#[tauri::command]
+fn blob_read(store: tauri::State<'_, data::LocalStore>, sha256: String) -> Result<Vec<u8>, String> {
+    store.read_blob(&sha256)
+}
+
+#[tauri::command]
+async fn blob_ensure(
+    store: tauri::State<'_, data::LocalStore>,
+    coordinator: tauri::State<'_, sync::Coordinator>,
+    backend_url: String,
+    token: String,
+    sha256: String,
+) -> Result<(), String> {
+    coordinator
+        .ensure_blob(&store, &backend_url, &token, &sha256)
+        .await
+}
+
+#[tauri::command]
+fn blob_clear_cache(store: tauri::State<'_, data::LocalStore>) -> Result<usize, String> {
+    store.prune_cache(0)
+}
+
+#[tauri::command]
+fn blob_discard(store: tauri::State<'_, data::LocalStore>, sha256: String) -> Result<bool, String> {
+    store.discard_unreferenced_blob(&sha256)
+}
+
+#[tauri::command]
+fn local_setting_get(
+    store: tauri::State<'_, data::LocalStore>,
+    key: String,
+) -> Result<Option<String>, String> {
+    store.local_setting(&key)
+}
+
+#[tauri::command]
+fn local_setting_set(
+    store: tauri::State<'_, data::LocalStore>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    store.set_local_setting(&key, &value)
+}
+
+#[tauri::command]
+fn local_account_set(
+    store: tauri::State<'_, data::LocalStore>,
+    account_id: i64,
+    profile: serde_json::Value,
+) -> Result<(), String> {
+    store.set_local_account(account_id, profile)
+}
+
+#[tauri::command]
+fn local_recovery_export(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+    account_id: i64,
+) -> Result<data::RecoveryExport, String> {
+    let directory = app
+        .path()
+        .download_dir()
+        .map_err(|error| error.to_string())?;
+    let filename = format!(
+        "Papol Offline Recovery {} {}.zip",
+        chrono::Local::now().format("%Y-%m-%d %H-%M-%S"),
+        uuid::Uuid::new_v4().simple(),
+    );
+    store.export_recovery(account_id, &directory.join(filename))
+}
+
+const KEYCHAIN_SERVICE: &str = "com.mc-pony.papol.session";
+
+#[tauri::command]
+fn credential_get(account_id: i64) -> Result<Option<String>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use security_framework::passwords::get_generic_password;
+        match get_generic_password(KEYCHAIN_SERVICE, &account_id.to_string()) {
+            Ok(bytes) => String::from_utf8(bytes)
+                .map(Some)
+                .map_err(|_| "Keychain token is invalid".into()),
+            Err(error) if error.code() == -25300 => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("Secure credential storage is only available in the macOS app".into())
+}
+
+#[tauri::command]
+fn credential_set(account_id: i64, token: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use security_framework::passwords::{delete_generic_password, set_generic_password};
+        if token.is_empty() {
+            return match delete_generic_password(KEYCHAIN_SERVICE, &account_id.to_string()) {
+                Ok(()) => Ok(()),
+                Err(error) if error.code() == -25300 => Ok(()),
+                Err(error) => Err(error.to_string()),
+            };
+        }
+        set_generic_password(KEYCHAIN_SERVICE, &account_id.to_string(), token.as_bytes())
+            .map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("Secure credential storage is only available in the macOS app".into())
+}
+
+#[tauri::command]
+async fn sync_now(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+    coordinator: tauri::State<'_, sync::Coordinator>,
+    account_id: i64,
+    backend_url: String,
+    token: String,
+) -> Result<sync::SyncResult, String> {
+    use tauri::Emitter;
+
+    let result = coordinator
+        .synchronize(&store, account_id, &backend_url, &token)
+        .await;
+    match &result {
+        Ok(status) => {
+            let _ = app.emit(
+                "papol://data-changed",
+                serde_json::json!({"scope": "boards"}),
+            );
+            let _ = app.emit("papol://sync-status", status);
+        }
+        Err(error) => {
+            let _ = store.record_sync_error(account_id, error);
+            let _ = app.emit("papol://sync-status", serde_json::json!({"error": error}));
+        }
+    }
+    result
+}
+
 const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
       runtime: 'desktop', surface: 'main', documentWindow: false \
     }); \
@@ -213,9 +392,29 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             close_document_window,
-            open_document_window
+            open_document_window,
+            data_query,
+            data_mutate,
+            blob_import,
+            blob_read,
+            blob_ensure,
+            blob_clear_cache,
+            blob_discard,
+            local_setting_get,
+            local_setting_set,
+            local_account_set,
+            local_recovery_export,
+            credential_get,
+            credential_set,
+            sync_now
         ])
         .setup(|app| {
+            let data_directory = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&data_directory)?;
+            let store = data::LocalStore::open(&data_directory.join("papol.sqlite3"))
+                .map_err(std::io::Error::other)?;
+            app.manage(store);
+            app.manage(sync::Coordinator::new().map_err(std::io::Error::other)?);
             // The window is declared in tauri.conf.json with `create: false`
             // and built here, because a webview's handlers can only be given
             // to it as it is created.

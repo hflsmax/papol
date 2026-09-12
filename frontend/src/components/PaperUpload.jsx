@@ -1,9 +1,13 @@
-import React, { useState, useRef } from 'react';
-import { extractPaperMetadata, createPaper, listTags, createTag, listShelves } from '../api';
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  createPaper, createTag, discardPaperImport, extractPaperMetadata, listShelves, listTags,
+} from '../api';
 import { RatingInput } from './Rating';
 import BackLink from './BackLink';
+import { nativeDataActive } from '../nativeData.js';
 
 export default function PaperUpload({ onPaperCreated, onReviewChange = () => {}, compact = false }) {
+  const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -15,6 +19,10 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
   const [tagDraft, setTagDraft] = useState('');
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
+
+  useEffect(() => () => {
+    if (extractedData) discardPaperImport(extractedData).catch(() => {});
+  }, [extractedData]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -62,7 +70,9 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
         doi: data.doi || '',
         thought: '',
         summary: '',
-        shelf_id: shelfData.find((shelf) => shelf.is_default)?.id || shelfData[0]?.id || '',
+        shelf_id: (nativeDataActive()
+          ? shelfData.find((shelf) => !shelf.is_public)
+          : shelfData.find((shelf) => shelf.is_default))?.id || shelfData[0]?.id || '',
         is_author: false,
         rating_expertise: null,
         rating_reading: null,
@@ -107,7 +117,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
         thought: formData.thought || null,
         summary: formData.summary || null,
         file_path: extractedData.file_path,
-        shelf_id: Number(formData.shelf_id),
+        shelf_id: shelves.find((shelf) => String(shelf.id) === String(formData.shelf_id))?.id,
         is_author: !!formData.is_author,
         rating_expertise: formData.rating_expertise,
         rating_reading: formData.rating_reading,
@@ -127,7 +137,8 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
     setFormData({});
     setSelectedTags([]);
@@ -171,7 +182,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
           <div className="form-group">
             <div className="field-label-row">
               <label>Authors (comma-separated)</label>
-              <label
+              {!localImport && <label
                 className="checkbox-row inline"
                 title="Marks your chip on this paper as an author"
               >
@@ -183,7 +194,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
                   }
                 />
                 <span>I am an author</span>
-              </label>
+              </label>}
             </div>
             <input
               type="text"
@@ -295,7 +306,7 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
             </div>
           </div>
 
-          <div className="form-group upload-public-field upload-public-thought">
+          {!localImport && <div className="form-group upload-public-field upload-public-thought">
             <label>One-sentence thought</label>
             <div className="upload-public-card">
               <input
@@ -307,14 +318,14 @@ export default function PaperUpload({ onPaperCreated, onReviewChange = () => {},
                 placeholder="Your public one-line take on this paper"
               />
             </div>
-          </div>
+          </div>}
 
-          <div className="form-group upload-public-field">
+          {!localImport && <div className="form-group upload-public-field">
             <label>Public ratings</label>
             <div className="upload-public-card">
               <RatingInput values={formData} onChange={handleRatingChange} />
             </div>
-          </div>
+          </div>}
 
           <div className="form-actions">
             <button type="button" onClick={handleCancel} disabled={isLoading}>

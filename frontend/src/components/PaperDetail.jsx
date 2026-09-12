@@ -578,7 +578,7 @@ export default function PaperDetail({
               <div className="detail-toggle">
                 <span className="hint-anchor paper-shelf-picker">
                   <label htmlFor="paper-shelf">Shelf:</label>
-                  <select id="paper-shelf" value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(Number(e.target.value))}>
+                  <select id="paper-shelf" value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.id) === e.target.value)?.id)}>
                     {shelves.map((shelf) => (
                       <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
                     ))}

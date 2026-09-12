@@ -10,8 +10,18 @@ const OFFLINE_FILE = 'offline-file:';
 // for account settings persisted by the backend and shared across devices.
 const LOCAL_SYNC_PREFERENCE_KEY = 'papol.syncPreference';
 const LAST_SYNC_KEY = 'papol.lastSync';
+const LOCAL_SYNC_CLIENT_ID_KEY = 'papol.syncClientId';
+const CLIENT_ID_HEADER = 'X-Papol-Client-ID';
+const MUTATION_ID_HEADER = 'X-Papol-Mutation-ID';
 let syncing = null;
 let remoteNetworkFetch = (...args) => globalThis.fetch(...args);
+let replayAuthorization = () => {
+  try {
+    const token = localStorage.getItem('papol_token');
+    return token ? `Bearer ${token}` : null;
+  } catch { return null; }
+};
+let latestAuthorization = null;
 let syncStatus = {
   pending: 0,
   syncing: false,
@@ -23,6 +33,11 @@ let syncStatus = {
 export function configureNetworkFetch(fetchImpl) {
   if (typeof fetchImpl !== 'function') throw new TypeError('Network fetch must be a function');
   remoteNetworkFetch = fetchImpl;
+}
+
+export function configureReplayAuthorization(provider) {
+  if (typeof provider !== 'function') throw new TypeError('Authorization provider must be a function');
+  replayAuthorization = provider;
 }
 
 // HTTP(S) leaves the bundled UI and uses Tauri's native client on desktop.
@@ -39,6 +54,32 @@ export function runtimeFetch(input, options) {
 
 function storedSetting(key, fallback = null) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+
+function uuid() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export function getLocalSyncClientId() {
+  const existing = storedSetting(LOCAL_SYNC_CLIENT_ID_KEY);
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing || '')) {
+    return existing;
+  }
+  const created = uuid();
+  try { localStorage.setItem(LOCAL_SYNC_CLIENT_ID_KEY, created); } catch { /* queue also retains it */ }
+  return created;
+}
+
+function identifiedMutationOptions(options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has(CLIENT_ID_HEADER)) headers.set(CLIENT_ID_HEADER, getLocalSyncClientId());
+  if (!headers.has(MUTATION_ID_HEADER)) headers.set(MUTATION_ID_HEADER, uuid());
+  return { ...options, headers };
 }
 
 export function getLocalSyncPreference() {
@@ -104,6 +145,7 @@ async function transact(storeName, mode, action) {
 const getStored = (store, key) => transact(store, 'readonly', (s) => s.get(key));
 const putStored = (store, value, key) => transact(store, 'readwrite', (s) => s.put(value, key));
 const addStored = (store, value) => transact(store, 'readwrite', (s) => s.add(value));
+const putInlineStored = (store, value) => transact(store, 'readwrite', (s) => s.put(value));
 const deleteStored = (store, key) => transact(store, 'readwrite', (s) => s.delete(key));
 
 async function allStored(store) {
@@ -118,7 +160,14 @@ function pathOf(url) {
 }
 
 function authScope(options = {}) {
-  return new Headers(options.headers || {}).get('authorization') || 'guest';
+  const authorization = new Headers(options.headers || {}).get('authorization');
+  if (!authorization) return 'guest';
+  let hash = 2166136261;
+  for (let index = 0; index < authorization.length; index += 1) {
+    hash ^= authorization.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `account:${(hash >>> 0).toString(16)}`;
 }
 
 function responseKey(path, options = {}) {
@@ -319,9 +368,13 @@ function notify(detail) {
 
 async function queueMutation(url, path, method, options) {
   const optimistic = await optimisticValue(path, method, options.body);
+  const headers = new Headers(options.headers || {});
+  const accountScope = authScope({ headers });
+  headers.delete('authorization');
   await addStored('queue', {
     url, path, method,
-    headers: Object.fromEntries(new Headers(options.headers || {}).entries()),
+    headers: Object.fromEntries(headers.entries()),
+    accountScope,
     body: serializeBody(options.body),
     optimistic,
     queuedAt: new Date().toISOString(),
@@ -502,7 +555,7 @@ async function cachedResponse(path, options) {
   if (cached === undefined) return null;
   const scope = authScope(options);
   const operations = (await allStored('queue')).filter((operation) =>
-    authScope({ headers: operation.headers }) === scope);
+    (operation.accountScope || authScope({ headers: operation.headers })) === scope);
   return jsonResponse(applyOfflineQueue(path, cached, operations));
 }
 
@@ -571,6 +624,27 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
     const mappings = (await getStored('mappings', 'ids')) || {};
     let syncError = null;
     for (const operation of operations) {
+      const previousHeaders = new Headers(operation.headers || {});
+      const legacyAuthorization = previousHeaders.get('authorization');
+      const operationScope = operation.accountScope || authScope({ headers: previousHeaders });
+      previousHeaders.delete('authorization');
+      const authorization = replayAuthorization() || latestAuthorization;
+      const currentScope = authScope({
+        headers: authorization ? { Authorization: authorization } : {},
+      });
+      if (operationScope !== currentScope) continue;
+      const needsIdentity = !previousHeaders.has(CLIENT_ID_HEADER) ||
+        !previousHeaders.has(MUTATION_ID_HEADER);
+      const identified = identifiedMutationOptions({ headers: previousHeaders });
+      if (authorization) identified.headers.set('Authorization', authorization);
+      operation.headers = Object.fromEntries(identified.headers.entries());
+      delete operation.headers.authorization;
+      operation.accountScope = operationScope;
+      // Upgrade queues written by pre-idempotency desktop releases before
+      // their first attempt. The identity must be durable before networking.
+      if (needsIdentity || legacyAuthorization || !operation.accountScope) {
+        await putInlineStored('queue', operation);
+      }
       const url = mappedUrl(operation.url, mappings);
       const rawBody = deserializeBody(operation.body);
       let body = rawBody;
@@ -582,7 +656,9 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
         body = form;
       }
       let response;
-      try { response = await fetchImpl(url, { method: operation.method, headers: operation.headers, body }); }
+      const requestHeaders = new Headers(operation.headers);
+      if (authorization) requestHeaders.set('Authorization', authorization);
+      try { response = await fetchImpl(url, { method: operation.method, headers: requestHeaders, body }); }
       catch { syncError = 'Sync paused — no connection'; break; }
       if (!response.ok) {
         syncError = `Sync stopped: server returned ${response.status}`;
@@ -619,6 +695,10 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
 export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) {
   const method = (options.method || 'GET').toUpperCase();
   const path = pathOf(url);
+  const requestAuthorization = new Headers(options.headers || {}).get('authorization');
+  if (requestAuthorization) latestAuthorization = requestAuthorization;
+  const safeMutation = method !== 'GET' && isSafeOfflineMutation(method, path, options.body);
+  if (safeMutation) options = identifiedMutationOptions(options);
   let pullRequested = false;
   try { pullRequested = Number(sessionStorage.getItem('papol.syncPullUntil') || 0) > Date.now(); }
   catch { /* session storage unavailable */ }
@@ -627,22 +707,19 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
     if (cached) return cached;
   }
   if (method !== 'GET') {
-    if (getLocalSyncPreference() === 'manual' && isSafeOfflineMutation(method, path, options.body)) {
+    if (getLocalSyncPreference() === 'manual' && safeMutation) {
       return queueMutation(url, path, method, options);
     }
     const pending = (await allStored('queue')).length;
     if (pending) {
       await syncOfflineQueue(fetchImpl);
-      if ((await allStored('queue')).length && isSafeOfflineMutation(method, path, options.body)) {
+      if ((await allStored('queue')).length && safeMutation) {
         return queueMutation(url, path, method, options);
       }
     }
     // Queue before issuing a request when the platform knows it is offline.
-    // A generic fetch failure while "online" is deliberately not queued: the
-    // server may have committed before the response was interrupted, and
-    // blindly replaying a create could duplicate the reader's data.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      if (isSafeOfflineMutation(method, path, options.body)) {
+      if (safeMutation) {
         return queueMutation(url, path, method, options);
       }
       throw new OnlineRequiredError();
@@ -662,8 +739,9 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
       const cached = await cachedResponse(path, options);
       if (cached) { notify({ offline: true, queued: (await allStored('queue')).length }); return cached; }
     }
-    if (typeof navigator !== 'undefined' && navigator.onLine === false &&
-        isSafeOfflineMutation(method, path, options.body)) {
+    // Identified mutations are safe to retain after an ambiguous transport
+    // failure: if the server committed, replay returns its recorded result.
+    if (safeMutation) {
       return queueMutation(url, path, method, options);
     }
     if (method !== 'GET') throw new OnlineRequiredError();

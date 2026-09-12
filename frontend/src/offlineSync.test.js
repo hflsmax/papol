@@ -21,7 +21,8 @@ global.sessionStorage = { getItem: () => null };
 Object.defineProperty(global, 'navigator', { configurable: true, value: { onLine: true } });
 
 const {
-  getSyncStatus, offlineFetch, refreshSyncStatus, setLocalSyncPreference, syncOfflineQueue,
+  configureReplayAuthorization, getSyncStatus, offlineFetch, refreshSyncStatus,
+  setLocalSyncPreference, syncOfflineQueue,
 } = await import('../../shared/offlineStore.js');
 
 const API = 'https://backend.test/api';
@@ -96,18 +97,80 @@ test('a server failure commits only the successful prefix and retry resumes at t
     });
   }
   let calls = 0;
-  assert.equal(await syncOfflineQueue(async () => {
+  let failedIdentity;
+  assert.equal(await syncOfflineQueue(async (_url, options) => {
     calls += 1;
+    if (calls === 2) {
+      const headers = new Headers(options.headers);
+      failedIdentity = [
+        headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID'),
+      ];
+    }
     return calls === 2 ? json({ detail: 'temporary failure' }, 503) : json({ id: 100 + calls });
   }), 2);
   assert.equal(getSyncStatus().error, 'Sync stopped: server returned 503');
 
   const retried = [];
   assert.equal(await syncOfflineQueue(async (_url, options) => {
-    retried.push(JSON.parse(options.body).name);
+    const headers = new Headers(options.headers);
+    retried.push({
+      name: JSON.parse(options.body).name,
+      identity: [headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID')],
+    });
     return json({ id: 200 + retried.length });
   }), 0);
-  assert.deepEqual(retried, ['two', 'three']);
+  assert.deepEqual(retried.map(({ name }) => name), ['two', 'three']);
+  assert.deepEqual(retried[0].identity, failedIdentity);
+  assert.match(failedIdentity[0], /^[0-9a-f-]{36}$/);
+  assert.match(failedIdentity[1], /^[0-9a-f-]{36}$/);
+});
+
+test('an ambiguous transport failure queues the already identified mutation', async () => {
+  reset();
+  settings.set('papol.syncPreference', 'automatic');
+  let attemptedIdentity;
+  const response = await offlineFetch(`${API}/boards`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Committed maybe' }),
+  }, async (_url, options) => {
+    const headers = new Headers(options.headers);
+    attemptedIdentity = [
+      headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID'),
+    ];
+    throw new TypeError('response connection was lost');
+  });
+  assert.equal((await response.json()).name, 'Committed maybe');
+  assert.equal(getSyncStatus().pending, 1);
+
+  let replayedIdentity;
+  assert.equal(await syncOfflineQueue(async (_url, options) => {
+    const headers = new Headers(options.headers);
+    replayedIdentity = [
+      headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID'),
+    ];
+    return json({ id: 9, guid: 'server-board', name: 'Committed maybe' });
+  }), 0);
+  assert.deepEqual(replayedIdentity, attemptedIdentity);
+});
+
+test('persisted queues use account scope and inject current authorization only at replay', async () => {
+  reset();
+  await offlineFetch(`${API}/boards`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Private queue' }),
+  });
+  configureReplayAuthorization(() => 'Bearer another-account');
+  let calls = 0;
+  assert.equal(await syncOfflineQueue(async () => { calls += 1; return json({}); }), 1);
+  assert.equal(calls, 0);
+
+  configureReplayAuthorization(() => auth.Authorization);
+  let replayHeaders;
+  assert.equal(await syncOfflineQueue(async (_url, options) => {
+    replayHeaders = new Headers(options.headers);
+    return json({ id: 1, guid: 'private' });
+  }), 0);
+  assert.equal(replayHeaders.get('authorization'), auth.Authorization);
 });
 
 test('simultaneous sync requests share one replay and never duplicate a create', async () => {

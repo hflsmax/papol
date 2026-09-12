@@ -13,6 +13,7 @@
     "test": "npm test --prefix ../frontend && npm test --prefix ../viewer && npm test --prefix ../board && cargo test --locked --manifest-path src-tauri/Cargo.toml",
     "test:sync": "npm run test:sync --prefix ../frontend",
     "test:backend-contract": "cd ../backend && python -m unittest test_desktop_sync.py",
+    "test:e2e:native-sync": "python3 scripts/test-native-sync-e2e.py",
     "check:native": "cargo fmt --check --manifest-path src-tauri/Cargo.toml && cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
     "build": "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY:--} tauri build"
   },

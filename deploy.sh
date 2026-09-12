@@ -111,14 +111,34 @@ require_command() {
 # that file avoids reinstalling on every run while still making a changed
 # package.json or package-lock.json take effect before a build starts.
 install_node_tree() {
-  local dir=$1 installed
-  installed="$dir/node_modules/.package-lock.json"
-  if [ ! -d "$dir/node_modules" ] || [ ! -f "$installed" ] \
-     || [ "$dir/package.json" -nt "$installed" ] \
-     || [ "$dir/package-lock.json" -nt "$installed" ]; then
-    say "Installing $(basename "$dir") dependencies"
-    (cd "$dir" && npm ci)
+  local dir=$1 marker expected staging backup
+  marker="$dir/node_modules/.papol-package-input.sha256"
+  expected=$(shasum -a 256 "$dir/package.json" "$dir/package-lock.json" | shasum -a 256 | cut -d' ' -f1)
+  if [ -d "$dir/node_modules" ] && [ "$(cat "$marker" 2>/dev/null || true)" = "$expected" ]; then
+    return 0
   fi
+
+  # Adopt an existing valid tree on the first run. This is important on a
+  # laptop that is temporarily offline, and `npm ls` still catches missing
+  # or incompatible direct dependencies before a build starts.
+  if [ -d "$dir/node_modules" ] && [ ! -e "$marker" ] \
+     && (cd "$dir" && npm ls --depth=0 --ignore-scripts >/dev/null 2>&1); then
+    printf '%s\n' "$expected" > "$marker"
+    return 0
+  fi
+
+  say "Installing $(basename "$dir") dependencies"
+  staging=$(mktemp -d "$dir/.papol-npm.XXXXXX")
+  cp "$dir/package.json" "$dir/package-lock.json" "$staging/"
+  if ! (cd "$staging" && npm ci); then
+    rm -rf "$staging"
+    die "dependency installation failed; the previous $(basename "$dir") node_modules was preserved"
+  fi
+  printf '%s\n' "$expected" > "$staging/node_modules/.papol-package-input.sha256"
+  backup="$dir/.papol-node-modules-old.$$"
+  if [ -d "$dir/node_modules" ]; then mv "$dir/node_modules" "$backup"; fi
+  mv "$staging/node_modules" "$dir/node_modules"
+  rm -rf "$staging" "$backup"
 }
 
 prepare_macos() {
@@ -133,7 +153,10 @@ prepare_macos() {
   node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major === 20 ? +(minor < 19) : +(major < 22 || (major === 22 && minor < 12)))' \
     || die "Node.js 20.19+ or 22.12+ is required (found $(node --version))"
 
-  install_node_tree "$DEV_DIR/desktop"
+  if [ ! -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ] \
+     && ! cargo tauri --version >/dev/null 2>&1; then
+    install_node_tree "$DEV_DIR/desktop"
+  fi
   install_node_tree "$DEV_DIR/frontend"
   install_node_tree "$DEV_DIR/viewer"
   install_node_tree "$DEV_DIR/board"
@@ -176,7 +199,11 @@ macos_dev() {
   note "frontend, viewer, and board use Vite live reload"
   note "Rust changes rebuild and relaunch the native app"
   note "Ctrl-C stops the app and all three Vite servers"
-  (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run dev)
+  if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
+    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run dev)
+  else
+    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" cargo tauri dev)
+  fi
 }
 
 macos_prod() {
@@ -216,7 +243,12 @@ macos_prod() {
   say "Building Papol for macOS"
   note "backend: $backend"
   [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
-  if ! (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}"); then
+  if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
+    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}") || {
+      rm -f "$marker"
+      die "the macOS application build failed"
+    }
+  elif ! (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" cargo tauri build "${args[@]}"); then
     rm -f "$marker"
     die "the macOS application build failed"
   fi

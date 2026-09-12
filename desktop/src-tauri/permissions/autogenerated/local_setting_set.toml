@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-setting-set"
+description = "Enables the local_setting_set command without any pre-configured scope."
+commands.allow = ["local_setting_set"]
+
+[[permission]]
+identifier = "deny-local-setting-set"
+description = "Denies the local_setting_set command without any pre-configured scope."
+commands.deny = ["local_setting_set"]

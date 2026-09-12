@@ -9,28 +9,38 @@ and data without loading the hosted frontend.
 
 ## Offline use
 
-After a reader has signed in and opened their nook once, successful API reads
-are retained in the app's IndexedDB store. PDFs are downloaded into that store
-when opened, so they can be read again without a connection.
+The user's boards, nook, papers, notes, ink, clips, tags, and shelves are stored
+in a Rust-owned SQLite database under Tauri's application data directory.
+Files use content-addressed SHA-256 names in a `blobs` directory beside that
+database. A local row change and its outbox entry commit in one SQLite
+transaction; one process-wide coordinator uploads blobs, pushes mutations,
+refreshes bounded paper dependencies, then pulls the server cursor. Remote PDFs
+download lazily when opened. Pending and pinned files are durable; only the
+replaceable cache is subject to the 2 GiB LRU limit and Clear cache.
 
 Offline writes are deliberately limited to data owned by that reader: adding
 or removing a personal PDF, private paper fields, notes, ink, clips, tags, and
 private shelves. All operations on the reader's own boards are supported too,
 including board creation, cards, files, notes, groups, layout, staging, and
-sending excerpts or clips from the viewer. Each change is applied to cached
-data immediately and queued durably. Papol replays the queue in order and maps
-temporary offline IDs, GUIDs, and file names to the server's IDs. Shared
-actions—seminars, public profile changes, feedback, and administration—show an
+sending excerpts or clips from the viewer. These rows use permanent UUIDs and
+the same synchronized schema locally and remotely. The previous IndexedDB queue
+is a one-release upgrade bridge: it drains through the retry-safe legacy
+protocol before native storage activates and remains intact for rollback.
+Shared actions—seminars, public shelf/profile changes, feedback, and administration—show an
 online-required message instead of being queued.
 
 Synchronization is a permanent control at the bottom of the desktop sidebar.
-It shows pending changes and the last successful sync, and has an explicit
-**Sync now** action. The **Automatic** or **Manual** preference lives in
+Its explicit action is simply **Sync**; detailed state remains available to
+assistive text and the control's tooltip. The **Automatic** or **Manual** preference lives in
 the **Settings** panel. It applies only to this installation and is not stored
 with the reader's account. Manual mode keeps
-all owned edits local until Sync now is chosen; Automatic mode replays them
-when connectivity returns. A first sign-in and data not previously opened
-still require a connection.
+all owned edits local until Sync is chosen. Automatic mode synchronizes after
+an edit, at sign-in/startup, when connectivity returns, and when the app comes
+back to the foreground. A first sign-in and data not previously opened still
+require a connection. Permanent validation failures remain visible as blocked
+recovery records without freezing unrelated later work. Settings can save a
+portable recovery ZIP with queued mutations, current affected rows, conflict
+details, and unsynchronized files.
 
 ## Development
 
@@ -68,11 +78,13 @@ formatting and Clippy's warning-denying lint pass. The release workflow runs
 both before signing and publishing.
 
 The synchronization boundary has two focused suites. From `desktop/`, run
-`npm run test:sync` for the macOS transport's durable IndexedDB queue, ordered
-replay, ID remapping, multipart uploads, retry, and concurrency behavior. Run
+`npm run test:sync` for the compatibility IndexedDB queue. Run
 `npm run test:backend-contract` inside the repository's Python development
 environment to exercise the same dependent board operations against FastAPI
-and an isolated in-memory SQLite database.
+and an isolated in-memory SQLite database. `npm run test:e2e:native-sync`
+starts a disposable real backend and drives a Rust harness through offline
+creation, process restart, blob transfer, push, and pull; set
+`PAPOL_TEST_PYTHON` to the backend virtual environment's Python executable.
 Dependabot checks the four npm lockfiles, the Rust lockfile, and GitHub Actions
 weekly so Tauri and its surrounding supply chain do not silently age in place.
 To use another backend in that bundle:
@@ -80,6 +92,17 @@ To use another backend in that bundle:
 ```sh
 PAPOL_BACKEND_URL=http://localhost:8000 npm run build:web
 ```
+
+### Extending offline data
+
+For a nullable field on an existing synchronized row: add it to the ordered
+shared migration in `schema/domain`, mirror it in the SQLAlchemy model, add it
+to `schema/sync_registry.json` only if the desktop may write it, expose it from
+the named local query, and add a round-trip test. A normal new private table
+follows the same pattern plus its ownership rule. Shared, public, security, and
+irreversible actions must stay outside the registry unless their delayed
+offline semantics have been explicitly designed. Do not add a response-cache
+overlay, a temporary ID mapper, or raw SQL IPC for a synchronized feature.
 
 ## Runtime and networking
 

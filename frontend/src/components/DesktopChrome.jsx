@@ -8,6 +8,10 @@ import { contextMenuHandler } from '../../../shared/contextMenu';
 import {
   getSyncStatus, refreshSyncStatus, syncOfflineQueue,
 } from '../../../shared/offlineStore';
+import {
+  activateNativeAfterLegacyDrain, nativeDataActive, nativeQuery, nativeSyncNow,
+  subscribeNativeData,
+} from '../nativeData';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol Desktop (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -113,16 +117,50 @@ function SyncControl({ onSynced }) {
   const [status, setStatus] = useState(getSyncStatus);
 
   useEffect(() => {
-    const update = () => setStatus(getSyncStatus());
+    const update = async () => {
+      const web = getSyncStatus();
+      if (!nativeDataActive()) { setStatus(web); return; }
+      try {
+        const local = await nativeQuery('sync_status');
+        setStatus({
+          ...web,
+          pending: web.pending + local.pending,
+          error: web.error || local.error || local.outbox_error || null,
+          conflicts: local.conflicts || 0,
+          lastSynced: local.last_synced_at || web.lastSynced,
+        });
+      } catch { setStatus(web); }
+    };
     window.addEventListener('papol-offline-status', update);
+    const unsubscribeNative = subscribeNativeData(update);
     refreshSyncStatus().then(update).catch(() => {});
     document.getElementById('papol-offline-status')?.remove();
-    return () => window.removeEventListener('papol-offline-status', update);
+    return () => {
+      unsubscribeNative();
+      window.removeEventListener('papol-offline-status', update);
+    };
   }, []);
 
   const syncNow = async () => {
-    await syncOfflineQueue();
-    const latest = getSyncStatus();
+    setStatus((current) => ({ ...current, syncing: true, error: null }));
+    const compatibility = await Promise.allSettled([syncOfflineQueue()]);
+    await activateNativeAfterLegacyDrain().catch(() => false);
+    const native = await Promise.allSettled([
+      nativeDataActive() ? nativeSyncNow() : Promise.resolve(),
+    ]);
+    const results = [...compatibility, ...native];
+    const nativeFailure = results.find((result) => result.status === 'rejected');
+    const latest = { ...getSyncStatus(), syncing: false };
+    if (nativeFailure) latest.error = nativeFailure.reason?.message || String(nativeFailure.reason);
+    if (nativeDataActive()) {
+      try {
+        const local = await nativeQuery('sync_status');
+        latest.pending += local.pending;
+        latest.error ||= local.error || local.outbox_error;
+        latest.conflicts = local.conflicts || 0;
+        latest.lastSynced = local.last_synced_at || latest.lastSynced;
+      } catch { /* IndexedDB status still remains useful */ }
+    }
     setStatus(latest);
     if (!latest.error && latest.pending === 0) {
       try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
@@ -130,7 +168,7 @@ function SyncControl({ onSynced }) {
     }
   };
 
-  const summary = status.error ? 'Sync error' : (status.syncing
+  const summary = status.error || status.conflicts ? 'Needs attention' : (status.syncing
     ? 'Syncing…'
     : status.offline
       ? `Offline${status.pending ? ` · ${status.pending} pending` : ''}`
@@ -149,8 +187,7 @@ function SyncControl({ onSynced }) {
         title={status.error || 'Send and receive changes now'}
       >
         <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
-        <span>Sync now</span>
-        <span className="desktop-sync-summary">{summary}</span>
+        <span>Sync</span>
       </button>
     </section>
   );

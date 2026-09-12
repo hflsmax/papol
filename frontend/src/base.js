@@ -1,7 +1,8 @@
 // Vite supplies / in development and /papol/ in the production deployment.
 // Keep browser URLs and API requests inside that mount without teaching the
 // application routes themselves about where Papol happens to be hosted.
-const configuredBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+const viteEnvironment = import.meta.env || {};
+const configuredBase = (viteEnvironment.BASE_URL || '/').replace(/\/$/, '');
 
 // The standalone board's asset base (/boards/ in development, relative in a
 // build) is not the API mount. Derive Papol's actual prefix from its URL so
@@ -21,7 +22,8 @@ export function appPath(path = '/') {
 // Browser builds keep using Papol's own origin. The desktop build supplies a
 // hosted backend here, while its pages and all of their runtime dependencies
 // remain inside the application bundle.
-const configuredBackend = (import.meta.env.VITE_PAPOL_BACKEND || '').replace(/\/$/, '');
+const configuredBackend = (viteEnvironment.VITE_PAPOL_BACKEND || '').replace(/\/$/, '');
+export const BACKEND_BASE = configuredBackend || APP_BASE;
 
 export function backendPath(path = '/') {
   const absolute = path.startsWith('/') ? path : `/${path}`;

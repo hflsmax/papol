@@ -7,8 +7,9 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from starlette.background import BackgroundTask
+from starlette.datastructures import UploadFile as StarletteUploadFile
 import tempfile
 from functools import lru_cache
 from fastapi.security import HTTPAuthorizationCredentials
@@ -38,12 +39,14 @@ logger = logging.getLogger(__name__)
 from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
     backfill_shelves, backfill_favourite_tags,
-    backfill_board_guids, backfill_board_shelves, backfill_board_excerpts,
+    backfill_annotation_sync_identity, backfill_board_guids, backfill_board_sync_identity,
+    backfill_nook_sync_identity,
+    backfill_board_shelves, backfill_board_excerpts,
     backfill_board_clip_source_labels, normalize_board_group_kinds,
-    SessionLocal,
+    SessionLocal, set_request_session, reset_request_session,
 )
 from models import (
-    User, AuthToken, PresencePing, Paper, Copy, Comment,
+    User, AuthToken, AppliedMutation, PresencePing, Paper, Copy, CopyTagLink, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation, EditionLink,
     InkStroke, PaperClip, Tag, Shelf, Board, BoardGroup, BoardItem,
@@ -87,20 +90,29 @@ from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
 )
 import dbmetrics
+from sync.api import router as sync_router
+from sync.changes import commit_sync, seed_board_change_log
 
 # Create database tables and apply column migrations
 migrate()
 Base.metadata.create_all(bind=engine)
 normalize_board_group_kinds()
 backfill_board_guids()
+backfill_board_sync_identity()
+backfill_annotation_sync_identity()
+backfill_nook_sync_identity()
 backfill_board_excerpts()
 
 # Uploads directory
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
+UPLOADS_DIR = Path(os.environ.get(
+    "PAPOL_UPLOADS_DIR", Path(__file__).parent.parent / "uploads",
+))
 UPLOADS_DIR.mkdir(exist_ok=True)
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 AVATARS_DIR.mkdir(exist_ok=True)
-BOARDS_DIR = Path(__file__).parent.parent / "board_uploads"
+BOARDS_DIR = Path(os.environ.get(
+    "PAPOL_BOARD_FILES_DIR", Path(__file__).parent.parent / "board_uploads",
+))
 BOARDS_DIR.mkdir(exist_ok=True)
 
 
@@ -132,6 +144,8 @@ backfill_board_clip_source_labels()
 backfill_shelves()
 backfill_board_shelves()
 backfill_favourite_tags()
+with SessionLocal() as _sync_seed_db:
+    seed_board_change_log(_sync_seed_db)
 
 # Instrument after the startup migrations so the metrics reflect request
 # traffic, not one-time schema work.
@@ -141,6 +155,173 @@ app = FastAPI(
     title="Papol - A Nook for Every Reader",
     description="A paper-reading community built to make spontaneous seminars happen.",
 )
+app.state.session_factory = SessionLocal
+app.include_router(sync_router)
+
+_IDEMPOTENCY_CLIENT_HEADER = "x-papol-client-id"
+_IDEMPOTENCY_MUTATION_HEADER = "x-papol-mutation-id"
+_IDEMPOTENCY_RESPONSE_LIMIT = 5 * 1024 * 1024
+
+
+def _uuid_header(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return str(uuid.UUID(value))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _stored_mutation_response(record: AppliedMutation) -> Response:
+    headers = {"X-Papol-Idempotent-Replay": "true"}
+    if record.response_content_type:
+        headers["Content-Type"] = record.response_content_type
+    return Response(
+        content=record.response_body,
+        status_code=record.response_status,
+        headers=headers,
+    )
+
+
+async def _mutation_request_hash(request: Request, body: bytes) -> str:
+    """Hash the logical request, independent of multipart boundary choice."""
+    raw_content_type = request.headers.get("content-type") or ""
+    media_type = raw_content_type.partition(";")[0].strip().lower()
+    payload = body
+    if media_type == "multipart/form-data":
+        logical_parts = []
+        form = await request.form()
+        try:
+            for name, value in form.multi_items():
+                if isinstance(value, StarletteUploadFile):
+                    contents = await value.read()
+                    logical_parts.append(b"\0".join([
+                        b"file", name.encode(), (value.filename or "").encode(),
+                        (value.content_type or "").encode(), hashlib.sha256(contents).digest(),
+                    ]))
+                else:
+                    logical_parts.append(b"\0".join([b"field", name.encode(), str(value).encode()]))
+        finally:
+            await form.close()
+        payload = b"\1".join(logical_parts)
+    return hashlib.sha256(b"\0".join([
+        request.method.encode(),
+        request.url.path.encode(),
+        request.url.query.encode(),
+        media_type.encode(),
+        payload,
+    ])).hexdigest()
+
+
+@app.middleware("http")
+async def idempotent_desktop_mutations(request: Request, call_next):
+    """Commit a mutation and its replayable result as one transaction.
+
+    Requests without Papol's two UUID headers retain the ordinary web/API
+    behavior. Identified writes share one deferred session with existing route
+    dependencies, so their current ``db.commit()`` calls flush and the final
+    commit also includes the idempotency record.
+    """
+    if (request.method not in {"POST", "PUT", "PATCH", "DELETE"}
+            or request.url.path == "/api/sync/push"):
+        return await call_next(request)
+    raw_client_id = request.headers.get(_IDEMPOTENCY_CLIENT_HEADER)
+    raw_mutation_id = request.headers.get(_IDEMPOTENCY_MUTATION_HEADER)
+    if not raw_client_id and not raw_mutation_id:
+        return await call_next(request)
+    client_id = _uuid_header(raw_client_id)
+    mutation_id = _uuid_header(raw_mutation_id)
+    if client_id is None or mutation_id is None:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Sync client and mutation IDs must both be UUIDs"},
+        )
+
+    authorization = request.headers.get("authorization", "")
+    scheme, _, bearer = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not bearer:
+        return await call_next(request)
+
+    request_body = await request.body()
+    fingerprint = await _mutation_request_hash(request, request_body)
+
+    session_factory = request.app.state.session_factory
+    db = session_factory()
+    context_token = None
+    try:
+        auth = db.query(AuthToken).filter(
+            AuthToken.token == bearer,
+            AuthToken.revoked_at.is_(None),
+        ).first()
+        if auth is None or auth.user is None or auth.user.is_deleted:
+            return await call_next(request)
+
+        existing = db.query(AppliedMutation).filter(
+            AppliedMutation.user_id == auth.user_id,
+            AppliedMutation.client_id == client_id,
+            AppliedMutation.mutation_id == mutation_id,
+        ).first()
+        if existing is not None:
+            if existing.request_hash != fingerprint:
+                return JSONResponse(
+                    status_code=409,
+                    content={"detail": "Mutation ID was already used for a different request"},
+                )
+            return _stored_mutation_response(existing)
+
+        db.info["defer_commit"] = True
+        context_token = set_request_session(db)
+        response = await call_next(request)
+        response_body = b"".join([chunk async for chunk in response.body_iterator])
+        if len(response_body) > _IDEMPOTENCY_RESPONSE_LIMIT:
+            db.rollback()
+            return JSONResponse(
+                status_code=507,
+                content={"detail": "Mutation response is too large to replay safely"},
+            )
+        if response.status_code >= 400:
+            db.rollback()
+        else:
+            db.add(AppliedMutation(
+                user_id=auth.user_id,
+                client_id=client_id,
+                mutation_id=mutation_id,
+                request_hash=fingerprint,
+                method=request.method,
+                path=request.url.path,
+                response_status=response.status_code,
+                response_content_type=response.headers.get("content-type"),
+                response_body=response_body,
+            ))
+            try:
+                db.commit_deferred()
+            except IntegrityError:
+                # A concurrent delivery may have won the unique key. This
+                # request's domain work rolled back with its losing insert.
+                db.rollback()
+                winner = db.query(AppliedMutation).filter(
+                    AppliedMutation.user_id == auth.user_id,
+                    AppliedMutation.client_id == client_id,
+                    AppliedMutation.mutation_id == mutation_id,
+                ).first()
+                if winner is None or winner.request_hash != fingerprint:
+                    raise
+                return _stored_mutation_response(winner)
+
+        headers = dict(response.headers)
+        headers.pop("content-length", None)
+        return Response(
+            content=response_body,
+            status_code=response.status_code,
+            headers=headers,
+        )
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        if context_token is not None:
+            reset_request_session(context_token)
+        db.close()
 
 
 @app.exception_handler(Exception)
@@ -476,7 +657,8 @@ BOARD_FILE_LIMIT = 25 * 1024 * 1024
 
 def _owned_board(board_guid: str, user: User, db: Session) -> Board:
     board = db.query(Board).filter(
-        Board.guid == board_guid, Board.user_id == user.id
+        Board.guid == board_guid, Board.user_id == user.id,
+        Board.deleted_at.is_(None),
     ).first()
     if not board:
         # Do not reveal whether another reader's private board exists.
@@ -509,7 +691,7 @@ def _board_out(board: Board, include_items: bool = False, can_edit: bool = False
             id=group.id, kind=group.kind, title=group.title, header=group.header or "",
             auto_arrange=group.auto_arrange,
             item_ids=[item.id for item in group.items if item.deleted_at is None],
-        ) for group in board.groups] if include_items else []),
+        ) for group in board.groups if group.deleted_at is None] if include_items else []),
     )
 
 
@@ -517,7 +699,9 @@ def _board_out(board: Board, include_items: bool = False, can_edit: bool = False
 async def list_boards(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    boards = db.query(Board).filter(Board.user_id == user.id).order_by(
+    boards = db.query(Board).filter(
+        Board.user_id == user.id, Board.deleted_at.is_(None),
+    ).order_by(
         Board.updated_at.desc(), Board.id.desc()
     ).all()
     return [_board_out(board, can_edit=True) for board in boards]
@@ -529,7 +713,7 @@ async def list_library_boards(
 ):
     """Boards whose shelves are public, for the shared Library."""
     boards = db.query(Board).join(Shelf, Board.shelf_id == Shelf.id).filter(
-        Shelf.is_public.is_(True)
+        Shelf.is_public.is_(True), Board.deleted_at.is_(None),
     ).order_by(Board.updated_at.desc(), Board.id.desc()).all()
     return [
         _board_out(board, can_edit=board.user_id == current_user.id)
@@ -553,7 +737,7 @@ async def create_board(
         description=data.description.strip() if data.description else None,
     )
     db.add(board)
-    db.commit()
+    commit_sync(db)
     db.refresh(board)
     return _board_out(board, can_edit=True)
 
@@ -564,7 +748,9 @@ async def get_board(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    board = db.query(Board).filter(Board.guid == board_guid).first()
+    board = db.query(Board).filter(
+        Board.guid == board_guid, Board.deleted_at.is_(None),
+    ).first()
     if not board:
         raise HTTPException(status_code=404, detail="Board not found")
     can_edit = board.user_id == user.id
@@ -591,7 +777,7 @@ async def update_board(
             raise HTTPException(status_code=400, detail="Choose one of your shelves")
         board.shelf_id = shelf.id
     board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(board)
     return _board_out(board, include_items=True, can_edit=True)
 
@@ -603,11 +789,12 @@ async def delete_board(
     db: Session = Depends(get_db),
 ):
     board = _owned_board(board_guid, user, db)
-    directory = BOARDS_DIR / str(board.id)
-    db.delete(board)
-    db.commit()
-    if directory.is_dir():
-        shutil.rmtree(directory)
+    board.deleted_at = datetime.utcnow()
+    for group in board.groups:
+        group.deleted_at = board.deleted_at
+    for item in board.items:
+        item.deleted_at = board.deleted_at
+    commit_sync(db)
 
 
 @app.post("/api/boards/{board_guid}/comments", response_model=BoardItemOut)
@@ -626,7 +813,7 @@ async def add_board_comment(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -651,7 +838,7 @@ async def stage_board_excerpt(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -676,12 +863,14 @@ async def stage_board_clip(
     destination = BOARDS_DIR / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     size = 0
+    digest = hashlib.sha256()
     try:
         with destination.open("wb") as output:
             while chunk := await file.read(1024 * 1024):
                 size += len(chunk)
                 if size > BOARD_FILE_LIMIT:
                     raise HTTPException(status_code=413, detail="Board files may be at most 25 MB")
+                digest.update(chunk)
                 output.write(chunk)
     except Exception:
         destination.unlink(missing_ok=True)
@@ -691,6 +880,7 @@ async def stage_board_clip(
         kind="image",
         content=caption.strip() or None,
         file_path=str(relative),
+        blob_sha256=digest.hexdigest(),
         original_filename="paper-clip.png",
         mime_type="image/png",
         source_url=source_url.strip(),
@@ -699,7 +889,7 @@ async def stage_board_clip(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -723,7 +913,7 @@ async def place_staged_board_item(
     item.y = data.y
     item.staged = False
     item.board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -747,12 +937,14 @@ async def add_board_file(
     destination = BOARDS_DIR / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     size = 0
+    digest = hashlib.sha256()
     try:
         with destination.open("wb") as output:
             while chunk := await file.read(1024 * 1024):
                 size += len(chunk)
                 if size > BOARD_FILE_LIMIT:
                     raise HTTPException(status_code=413, detail="Board files may be at most 25 MB")
+                digest.update(chunk)
                 output.write(chunk)
     except Exception:
         destination.unlink(missing_ok=True)
@@ -763,6 +955,7 @@ async def add_board_file(
         kind="image" if mime.startswith("image/") else "file",
         content=caption.strip() or None,
         file_path=str(relative),
+        blob_sha256=digest.hexdigest(),
         original_filename=original,
         mime_type=mime,
         x=x if x is not None else (len(board.items) % 4) * 340,
@@ -770,7 +963,7 @@ async def add_board_file(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -986,6 +1179,7 @@ async def add_youtube_to_board(
         kind="youtube",
         content=title,
         file_path=str(relative),
+        blob_sha256=hashlib.sha256(image).hexdigest(),
         original_filename=f"youtube-{video_id}{suffix}",
         mime_type=mime,
         source_url=data.url.strip(),
@@ -994,7 +1188,7 @@ async def add_youtube_to_board(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -1023,6 +1217,7 @@ async def add_webpage_to_board(
         kind="webpage",
         content=hostname,
         file_path=str(relative),
+        blob_sha256=hashlib.sha256(image).hexdigest(),
         original_filename=f"webpage-{hostname[:80]}.png",
         mime_type="image/png",
         source_url=url,
@@ -1032,7 +1227,7 @@ async def add_webpage_to_board(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -1044,11 +1239,11 @@ async def delete_board_item(
     db: Session = Depends(get_db),
 ):
     item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
-    if not item or item.board.user_id != user.id:
+    if not item or item.deleted_at is not None or item.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board item not found")
     item.board.updated_at = datetime.utcnow()
     item.deleted_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
 
 
 @app.post("/api/board-items/{item_id}/restore", response_model=BoardItemOut)
@@ -1062,7 +1257,7 @@ async def restore_board_item(
         raise HTTPException(status_code=404, detail="Board item not found")
     item.deleted_at = None
     item.board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -1075,11 +1270,12 @@ async def move_board_item(
     db: Session = Depends(get_db),
 ):
     item = db.query(BoardItem).filter(BoardItem.id == item_id).first()
-    if not item or item.board.user_id != user.id:
+    if not item or item.deleted_at is not None or item.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board item not found")
     if "group_id" in data.model_fields_set:
         if data.group_id is None:
-            item.group_id = None
+            item.group = None
+            item.group_sync_id = None
         else:
             group = db.query(BoardGroup).filter(
                 BoardGroup.id == data.group_id,
@@ -1087,7 +1283,8 @@ async def move_board_item(
             ).first()
             if not group:
                 raise HTTPException(status_code=400, detail="Booklet not found on this board")
-            item.group_id = group.id
+            item.group = group
+            item.group_sync_id = group.sync_id
     if data.x is not None:
         item.x = data.x
     if data.y is not None:
@@ -1101,7 +1298,7 @@ async def move_board_item(
     if data.text_align is not None:
         item.text_align = data.text_align
     item.board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(item)
     return item
 
@@ -1137,7 +1334,7 @@ async def create_board_group(
         if data.kind == "booklet":
             item.x = anchor_x
     board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(group)
     return BoardGroupOut(id=group.id, kind=group.kind, title=group.title, header=group.header or "", auto_arrange=group.auto_arrange, item_ids=item_ids)
 
@@ -1150,14 +1347,14 @@ async def move_board_group(
     db: Session = Depends(get_db),
 ):
     group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
-    if not group or group.board.user_id != user.id:
+    if not group or group.deleted_at is not None or group.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board group not found")
     active_items = [item for item in group.items if item.deleted_at is None]
     for item in active_items:
         item.x += data.dx
         item.y += data.dy
     group.board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     for item in active_items:
         db.refresh(item)
     return active_items
@@ -1171,7 +1368,7 @@ async def update_board_group(
     db: Session = Depends(get_db),
 ):
     group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
-    if not group or group.board.user_id != user.id:
+    if not group or group.deleted_at is not None or group.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board group not found")
     if data.title is not None:
         group.title = data.title.strip()
@@ -1182,7 +1379,7 @@ async def update_board_group(
             raise HTTPException(status_code=400, detail="Only collections can use auto-arrange")
         group.auto_arrange = data.auto_arrange
     group.board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(group)
     return BoardGroupOut(
         id=group.id, kind=group.kind, title=group.title, header=group.header or "",
@@ -1199,7 +1396,7 @@ async def ungroup_board_group(
     db: Session = Depends(get_db),
 ):
     group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
-    if not group or group.board.user_id != user.id:
+    if not group or group.deleted_at is not None or group.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board group not found")
     current_ids = {item.id for item in group.items if item.deleted_at is None}
     restore_ids = {entry.id for entry in data.items}
@@ -1214,15 +1411,20 @@ async def ungroup_board_group(
                 raise HTTPException(status_code=400, detail="A previous group no longer exists")
     items = {item.id: item for item in group.items}
     board = group.board
-    db.delete(group)
-    db.flush()
+    group.deleted_at = datetime.utcnow()
     for entry in data.items:
         item = items[entry.id]
-        item.group_id = entry.group_id
+        target = (db.query(BoardGroup).filter(
+            BoardGroup.id == entry.group_id,
+            BoardGroup.board_id == group.board_id,
+            BoardGroup.deleted_at.is_(None),
+        ).first() if entry.group_id is not None else None)
+        item.group = target
+        item.group_sync_id = target.sync_id if target else None
         item.x = entry.x
         item.y = entry.y
     board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
 
 
 @app.put("/api/board-groups/{group_id}/layout", response_model=list[BoardItemOut])
@@ -1233,7 +1435,7 @@ async def layout_board_group(
     db: Session = Depends(get_db),
 ):
     group = db.query(BoardGroup).filter(BoardGroup.id == group_id).first()
-    if not group or group.board.user_id != user.id:
+    if not group or group.deleted_at is not None or group.board.user_id != user.id:
         raise HTTPException(status_code=404, detail="Board group not found")
     active_items = {item.id: item for item in group.items if item.deleted_at is None}
     if set(active_items) != {entry.id for entry in data.items}:
@@ -1243,7 +1445,7 @@ async def layout_board_group(
         item.x = entry.x
         item.y = entry.y
     group.board.updated_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     result = list(active_items.values())
     for item in result:
         db.refresh(item)
@@ -1309,15 +1511,16 @@ def _room_status_map(db: Session) -> dict:
 
 def _shelf_out(shelf: Shelf) -> ShelfOut:
     return ShelfOut(
-        id=shelf.id, name=shelf.name, color=shelf.color,
+        id=shelf.id, sync_id=shelf.sync_id, name=shelf.name, color=shelf.color,
         is_public=bool(shelf.is_public), is_default=bool(shelf.is_default),
         position=shelf.position, paper_count=len(shelf.copies), board_count=len(shelf.boards),
     )
 
 
 def _default_shelf(user: User) -> Shelf:
-    shelf = next((s for s in user.shelves if s.is_default), None)
-    return shelf or user.shelves[0]
+    shelves = [s for s in user.shelves if s.deleted_at is None]
+    shelf = next((s for s in shelves if s.is_default), None)
+    return shelf or shelves[0]
 
 
 def _reader_entry(user_copy: Copy) -> ReaderEntry:
@@ -1388,6 +1591,7 @@ def _register_edition(
 ) -> PaperEdition:
     edition = PaperEdition(
         paper_id=paper.id,
+        paper_sync_id=paper.sync_id,
         file_path=filename,
         sha256=digest,
         uploaded_by=user.id,
@@ -1408,7 +1612,7 @@ def _add_edition(db: Session, paper: Paper, filename: str, user: User) -> PaperE
 
 
 def _displayed_copies(paper: Paper) -> list[Copy]:
-    return [r for r in paper.copies if r.marketed]
+    return [r for r in paper.copies if r.marketed and r.deleted_at is None]
 
 
 def _paper_list_entry(
@@ -1431,6 +1635,8 @@ def _paper_list_entry(
     entry.edition_sha256 = selected_edition.sha256 if selected_edition else None
     if user_copy:
         entry.shelf_id = user_copy.shelf_id
+        entry.shelf_sync_id = user_copy.shelf_sync_id
+        entry.copy_sync_id = user_copy.sync_id
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
         entry.marketed = user_copy.marketed
@@ -1460,7 +1666,7 @@ async def get_user_space(
     if user.is_deleted:
         raise HTTPException(status_code=404, detail="This reader has left Papol")
     hide_private = current_user is None or current_user.id != user_id
-    query = db.query(Copy).filter(Copy.user_id == user_id)
+    query = db.query(Copy).filter(Copy.user_id == user_id, Copy.deleted_at.is_(None))
     if hide_private:
         query = query.filter(Copy.marketed.is_(True))
     copies = query.order_by(Copy.created_at.desc()).all()
@@ -1492,7 +1698,7 @@ async def get_user_space(
         ),
         shelves=[
             _shelf_out(s) for s in user.shelves
-            if not hide_private or s.is_public
+            if s.deleted_at is None and (not hide_private or s.is_public)
         ],
     )
 
@@ -1635,6 +1841,7 @@ def _comment_out(c: Comment) -> CommentSchema:
         anchor = PointAnchor(**payload)
     return CommentSchema(
         id=c.id,
+        sync_id=c.sync_id,
         paper_id=c.paper_id,
         content=c.content,
         created_at=c.created_at,
@@ -1650,7 +1857,8 @@ def _comment_out(c: Comment) -> CommentSchema:
 def _copy_of(paper: Paper, viewer: User | None) -> Copy | None:
     if viewer is None:
         return None
-    return next((r for r in paper.copies if r.user_id == viewer.id), None)
+    return next((r for r in paper.copies
+                 if r.user_id == viewer.id and r.deleted_at is None), None)
 
 
 def _paper_detail(
@@ -1664,6 +1872,7 @@ def _paper_detail(
     user_copy = _copy_of(paper, viewer)
     detail = PaperSchema(
         id=paper.id,
+        sync_id=paper.sync_id,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
@@ -1679,10 +1888,13 @@ def _paper_detail(
     )
     selected_edition = edition_override or _edition_for(paper, user_copy)
     detail.edition_id = selected_edition.id if selected_edition else None
+    detail.edition_sync_id = selected_edition.sync_id if selected_edition else None
     detail.edition_sha256 = selected_edition.sha256 if selected_edition else None
     detail.ignored_edition_id = user_copy.ignored_edition_id if user_copy else None
     if user_copy:
         detail.shelf_id = user_copy.shelf_id
+        detail.shelf_sync_id = user_copy.shelf_sync_id
+        detail.copy_sync_id = user_copy.sync_id
         detail.summary = user_copy.summary
         detail.thought = user_copy.thought
         detail.marketed = user_copy.marketed
@@ -1694,7 +1906,7 @@ def _paper_detail(
         detail.comments = [
             _comment_out(c)
             for c in sorted(paper.comments, key=lambda c: (c.created_at, c.id))
-            if c.user_id == viewer.id
+            if c.user_id == viewer.id and c.deleted_at is None
         ]
     detail.also_read_by = [_reader_entry(r) for r in _displayed_copies(paper)]
 
@@ -1741,6 +1953,23 @@ def _require_copy(paper: Paper, user: User) -> Copy:
             status_code=403, detail="Add this paper to your nook first"
         )
     return user_copy
+
+
+def _set_copy_tags(db: Session, copy: Copy, tags: list[Tag]):
+    """Replace private tag membership using versioned association rows."""
+    desired = {tag.id: tag for tag in tags}
+    links = (db.query(CopyTagLink).filter(CopyTagLink.copy_id == copy.id).all()
+             if copy.id is not None else [])
+    by_tag = {link.tag_id: link for link in links}
+    now = datetime.utcnow()
+    for link in links:
+        link.deleted_at = None if link.tag_id in desired else now
+    for tag_id, tag in desired.items():
+        if tag_id not in by_tag:
+            db.add(CopyTagLink(
+                sync_id=str(uuid.uuid4()), copy=copy, copy_sync_id=copy.sync_id,
+                tag=tag, tag_sync_id=tag.sync_id, user_id=copy.user_id,
+            ))
 
 
 @app.post("/api/papers", response_model=PaperSchema)
@@ -1807,21 +2036,21 @@ async def create_paper(
     if shelf is None:
         raise HTTPException(status_code=400, detail="Shelf does not belong to you")
     user_copy = Copy(
-        paper_id=db_paper.id,
+        paper=db_paper,
         user_id=current_user.id,
-        edition_id=edition.id,
+        edition=edition,
         edition_sha256=edition.sha256,
         summary=paper.summary,
         thought=paper.thought,
         marketed=bool(shelf.is_public),
-        shelf_id=shelf.id,
+        shelf=shelf,
         is_author=paper.is_author,
         rating_expertise=paper.rating_expertise,
         rating_reading=paper.rating_reading,
         rating_liking=paper.rating_liking,
     )
-    user_copy.tags = tags
     db.add(user_copy)
+    _set_copy_tags(db, user_copy, tags)
 
     if paper.initial_comment and paper.initial_comment.strip():
         db.add(Comment(
@@ -1838,7 +2067,7 @@ async def create_paper(
         edition.references_status = "pending"
         edition.references_error = None
         edition.references_at = datetime.utcnow()
-    db.commit()
+    commit_sync(db)
     db.refresh(db_paper)
     if queue_analysis:
         _analyzing.add(edition.id)
@@ -2027,7 +2256,7 @@ async def update_paper(
         tags = db.query(Tag).filter(Tag.user_id == current_user.id, Tag.id.in_(unique_ids)).all() if unique_ids else []
         if len(tags) != len(unique_ids):
             raise HTTPException(status_code=400, detail="One or more tags do not belong to you")
-        user_copy.tags = tags
+        _set_copy_tags(db, user_copy, tags)
 
     if shelf_id is not None:
         user_copy = _require_copy(paper, current_user)
@@ -2044,7 +2273,7 @@ async def update_paper(
     for key, value in metadata.items():
         setattr(paper, key, value)
 
-    db.commit()
+    commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
 
@@ -2065,7 +2294,7 @@ async def create_tag(
         return existing
     tag = Tag(user_id=current_user.id, name=name)
     db.add(tag)
-    db.commit()
+    commit_sync(db)
     db.refresh(tag)
     return tag
 
@@ -2075,7 +2304,9 @@ async def list_tags(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(Tag).filter(Tag.user_id == current_user.id).order_by(func.lower(Tag.name)).all()
+    return db.query(Tag).filter(
+        Tag.user_id == current_user.id, Tag.deleted_at.is_(None),
+    ).order_by(func.lower(Tag.name)).all()
 
 
 @app.delete("/api/tags/{tag_id}", status_code=204)
@@ -2087,16 +2318,19 @@ async def delete_tag(
     tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
-    tag.copies.clear()
-    db.delete(tag)
-    db.commit()
+    for link in db.query(CopyTagLink).filter(
+        CopyTagLink.tag_id == tag.id, CopyTagLink.deleted_at.is_(None),
+    ).all():
+        link.deleted_at = datetime.utcnow()
+    tag.deleted_at = datetime.utcnow()
+    commit_sync(db)
 
 
 @app.get("/api/shelves", response_model=list[ShelfOut])
 async def list_shelves(
     current_user: User = Depends(get_current_user),
 ):
-    return [_shelf_out(s) for s in current_user.shelves]
+    return [_shelf_out(s) for s in current_user.shelves if s.deleted_at is None]
 
 
 @app.post("/api/shelves", response_model=ShelfOut)
@@ -2105,17 +2339,18 @@ async def create_shelf(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if len(current_user.shelves) >= 5:
+    active_shelves = [s for s in current_user.shelves if s.deleted_at is None]
+    if len(active_shelves) >= 5:
         raise HTTPException(status_code=400, detail="A nook can have at most five shelves")
     name = " ".join(data.name.split())
-    if any(s.name.lower() == name.lower() for s in current_user.shelves):
+    if any(s.name.lower() == name.lower() for s in active_shelves):
         raise HTTPException(status_code=400, detail="You already have a shelf with that name")
     shelf = Shelf(
         user_id=current_user.id, name=name, color=data.color.lower(),
-        is_public=data.is_public, position=len(current_user.shelves),
+        is_public=data.is_public, position=len(active_shelves),
     )
     db.add(shelf)
-    db.commit()
+    commit_sync(db)
     db.refresh(shelf)
     return _shelf_out(shelf)
 
@@ -2135,7 +2370,8 @@ async def update_shelf(
         name = " ".join(changes["name"].split())
         if not name:
             raise HTTPException(status_code=400, detail="Shelf name cannot be empty")
-        if any(s.id != shelf.id and s.name.lower() == name.lower() for s in current_user.shelves):
+        if any(s.id != shelf.id and s.deleted_at is None
+               and s.name.lower() == name.lower() for s in current_user.shelves):
             raise HTTPException(status_code=400, detail="You already have a shelf with that name")
         shelf.name = name
     if "color" in changes:
@@ -2151,8 +2387,10 @@ async def update_shelf(
             copy.marketed = becoming_public
     if changes.get("is_default"):
         for other in current_user.shelves:
+            if other.deleted_at is not None:
+                continue
             other.is_default = other.id == shelf.id
-    db.commit()
+    commit_sync(db)
     db.refresh(shelf)
     return _shelf_out(shelf)
 
@@ -2166,7 +2404,8 @@ async def delete_shelf(
     shelf = db.query(Shelf).filter(Shelf.id == shelf_id, Shelf.user_id == current_user.id).first()
     if not shelf:
         raise HTTPException(status_code=404, detail="Shelf not found")
-    remaining = [item for item in current_user.shelves if item.id != shelf.id]
+    remaining = [item for item in current_user.shelves
+                 if item.id != shelf.id and item.deleted_at is None]
     if not remaining:
         raise HTTPException(status_code=400, detail="A nook must have at least one shelf")
     destination = next((item for item in remaining if item.is_default), remaining[0])
@@ -2187,8 +2426,8 @@ async def delete_shelf(
         board.shelf = destination
     if shelf.is_default:
         destination.is_default = True
-    db.delete(shelf)
-    db.commit()
+    shelf.deleted_at = datetime.utcnow()
+    commit_sync(db)
 
 
 @app.delete("/api/papers/{paper_id}")
@@ -2204,12 +2443,12 @@ async def delete_paper(
     paper = _get_paper_or_404(paper_id, db)
     user_copy = _require_copy(paper, current_user)
 
-    db.delete(user_copy)
+    user_copy.deleted_at = datetime.utcnow()
     for c in paper.comments:
-        if c.user_id == current_user.id:
-            db.delete(c)
+        if c.user_id == current_user.id and c.deleted_at is None:
+            c.deleted_at = datetime.utcnow()
 
-    db.commit()
+    commit_sync(db)
     return {"message": "Paper removed from your nook"}
 
 
@@ -2229,14 +2468,14 @@ async def add_to_nook(
     latest = _latest_edition(paper)
     shelf = _default_shelf(current_user)
     db.add(Copy(
-        paper_id=paper.id,
+        paper=paper,
         user_id=current_user.id,
         marketed=bool(shelf.is_public),
-        shelf_id=shelf.id,
-        edition_id=latest.id if latest else None,
+        shelf=shelf,
+        edition=latest,
         edition_sha256=latest.sha256 if latest else None,
     ))
-    db.commit()
+    commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
 
@@ -2773,6 +3012,7 @@ def _papol_papers_for(db: Session, references) -> dict[int, int]:
 def _stroke_out(stroke: InkStroke) -> InkStrokeOut:
     return InkStrokeOut(
         id=stroke.id,
+        sync_id=stroke.sync_id,
         group_id=stroke.group_id,
         page=stroke.page,
         points=json.loads(stroke.points),
@@ -2808,7 +3048,11 @@ async def list_ink(
     _readable_edition(edition_id, current_user, db)
     rows = (
         db.query(InkStroke)
-        .filter(InkStroke.edition_id == edition_id, InkStroke.user_id == current_user.id)
+        .filter(
+            InkStroke.edition_id == edition_id,
+            InkStroke.user_id == current_user.id,
+            InkStroke.deleted_at.is_(None),
+        )
         .order_by(InkStroke.id)
         .all()
     )
@@ -2837,7 +3081,7 @@ async def add_ink(
         shape=stroke.shape,
     )
     db.add(row)
-    db.commit()
+    commit_sync(db)
     db.refresh(row)
     return _stroke_out(row)
 
@@ -2858,7 +3102,7 @@ async def move_ink(
     if row.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only move your own ink")
     row.points = json.dumps([p.model_dump() for p in move.points])
-    db.commit()
+    commit_sync(db)
     db.refresh(row)
     return _stroke_out(row)
 
@@ -2876,14 +3120,15 @@ async def delete_ink(
         raise HTTPException(status_code=404, detail="No such stroke")
     if row.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only erase your own ink")
-    db.delete(row)
-    db.commit()
+    row.deleted_at = datetime.utcnow()
+    commit_sync(db)
     return {"message": "Stroke erased"}
 
 
 def _clip_out(clip: PaperClip) -> PaperClipOut:
     return PaperClipOut(
         id=clip.id,
+        sync_id=clip.sync_id,
         page=clip.page,
         source=json.loads(clip.source),
         frame=json.loads(clip.frame),
@@ -2900,7 +3145,11 @@ async def list_clips(
     _readable_edition(edition_id, current_user, db)
     rows = (
         db.query(PaperClip)
-        .filter(PaperClip.edition_id == edition_id, PaperClip.user_id == current_user.id)
+        .filter(
+            PaperClip.edition_id == edition_id,
+            PaperClip.user_id == current_user.id,
+            PaperClip.deleted_at.is_(None),
+        )
         .order_by(PaperClip.id)
         .all()
     )
@@ -2924,7 +3173,7 @@ async def add_clip(
         floating=clip.floating,
     )
     db.add(row)
-    db.commit()
+    commit_sync(db)
     db.refresh(row)
     return _clip_out(row)
 
@@ -2943,7 +3192,7 @@ async def move_clip(
         raise HTTPException(status_code=403, detail="You can only move your own clips")
     row.frame = json.dumps(change.frame.model_dump())
     row.floating = change.floating
-    db.commit()
+    commit_sync(db)
     db.refresh(row)
     return _clip_out(row)
 
@@ -2959,8 +3208,8 @@ async def delete_clip(
         raise HTTPException(status_code=404, detail="No such clip")
     if row.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only remove your own clips")
-    db.delete(row)
-    db.commit()
+    row.deleted_at = datetime.utcnow()
+    commit_sync(db)
     return {"message": "Clip removed"}
 
 
@@ -2995,7 +3244,7 @@ async def add_comment(
         name=(comment.name or "").strip() or None,
     )
     db.add(db_comment)
-    db.commit()
+    commit_sync(db)
     db.refresh(db_comment)
     return _comment_out(db_comment)
 
@@ -3027,7 +3276,7 @@ async def edit_comment(
         db_comment.edition_id = edition.id if edition else None
     if comment.name is not None:
         db_comment.name = comment.name.strip() or None
-    db.commit()
+    commit_sync(db)
     db.refresh(db_comment)
     return _comment_out(db_comment)
 
@@ -3045,8 +3294,8 @@ async def delete_comment(
     if comment.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only delete your own comments")
 
-    db.delete(comment)
-    db.commit()
+    comment.deleted_at = datetime.utcnow()
+    commit_sync(db)
     return {"message": "Comment deleted"}
 
 

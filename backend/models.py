@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint, Table
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint, Table, LargeBinary, and_
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -10,6 +10,14 @@ copy_tags = Table(
     Base.metadata,
     Column("copy_id", Integer, ForeignKey("copies.id"), primary_key=True),
     Column("tag_id", Integer, ForeignKey("tags.id"), primary_key=True),
+    Column("sync_id", String(36), unique=True, nullable=True, index=True),
+    Column("copy_sync_id", String(36), nullable=True, index=True),
+    Column("tag_sync_id", String(36), nullable=True, index=True),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=True, index=True),
+    Column("created_at", DateTime, default=datetime.utcnow),
+    Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+    Column("revision", Integer, nullable=False, default=0, server_default="0"),
+    Column("deleted_at", DateTime, nullable=True),
 )
 
 
@@ -60,6 +68,64 @@ class AuthToken(Base):
     user = relationship("User")
 
 
+class AppliedMutation(Base):
+    """The durable result of one retryable desktop mutation.
+
+    The unique caller identity makes a lost HTTP response safe to retry. The
+    stored fingerprint also prevents accidentally reusing an identifier for a
+    different operation.
+    """
+    __tablename__ = "applied_mutations"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "client_id", "mutation_id",
+            name="uq_applied_mutation_identity",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    client_id = Column(String(36), nullable=False)
+    mutation_id = Column(String(36), nullable=False)
+    request_hash = Column(String(64), nullable=False)
+    method = Column(String(8), nullable=False)
+    path = Column(Text, nullable=False)
+    response_status = Column(Integer, nullable=False)
+    response_content_type = Column(String(255), nullable=True)
+    response_body = Column(LargeBinary, nullable=False, default=b"")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+
+
+class ServerChange(Base):
+    """One committed synchronized row version, ordered for cursor pulls."""
+    __tablename__ = "_server_change_log"
+
+    sequence = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    table_name = Column(String(64), nullable=False)
+    row_sync_id = Column(String(36), nullable=False)
+    revision = Column(Integer, nullable=False)
+    operation = Column(String(10), nullable=False)
+    row_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SyncClient(Base):
+    """Last cursor durably acknowledged by one installed desktop client."""
+    __tablename__ = "_server_clients"
+    __table_args__ = (
+        UniqueConstraint("user_id", "client_id", name="uq_server_sync_client"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    client_id = Column(String(36), nullable=False)
+    acknowledged_cursor = Column(Integer, nullable=False, default=0, server_default="0")
+    last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class PresencePing(Base):
     """One reader heartbeat per minute, retained for concurrency history."""
     __tablename__ = "presence_pings"
@@ -79,12 +145,16 @@ class Paper(Base):
     __tablename__ = "papers"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     doi = Column(Text, nullable=True)
     title = Column(Text, nullable=False)
     authors = Column(Text, nullable=True)  # JSON array stored as text
     journal = Column(Text, nullable=True)
     year = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=1, server_default="1")
+    deleted_at = Column(DateTime, nullable=True)
 
     copies = relationship("Copy", back_populates="paper", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="paper", cascade="all, delete-orphan")
@@ -101,13 +171,18 @@ class PaperEdition(Base):
     __tablename__ = "paper_editions"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False, index=True)
+    paper_sync_id = Column(String(36), nullable=True, index=True)
     file_path = Column(Text, nullable=False)
     # Content hash: an upload identical to an existing edition reuses it
     # rather than adding a duplicate.
     sha256 = Column(String, nullable=True, index=True)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=1, server_default="1")
+    deleted_at = Column(DateTime, nullable=True)
 
     # How far the reference analysis of this PDF has got. References are
     # a property of the file, not of the paper, so they are read once per
@@ -219,12 +294,16 @@ class Copy(Base):
     __table_args__ = (UniqueConstraint("paper_id", "user_id", name="uq_copy"),)
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False, index=True)
+    paper_sync_id = Column(String(36), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     shelf_id = Column(Integer, ForeignKey("shelves.id"), nullable=True, index=True)
+    shelf_sync_id = Column(String(36), nullable=True, index=True)
     # The edition this reader reads. Only the reader moves it, by adopting
     # a newer one; nothing else may change the file under their notes.
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
+    edition_sync_id = Column(String(36), nullable=True, index=True)
     # Durable identity of those exact PDF bytes. The integer remains an
     # internal join key for edition-owned analysis; a reader's choice is the
     # content hash, which survives row renumbering and names the viewer URL.
@@ -233,6 +312,7 @@ class Copy(Base):
     # simply present when they last chose a PDF. The offer of a newer PDF
     # stays hidden until one newer still arrives.
     ignored_edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
+    ignored_edition_sync_id = Column(String(36), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
     marketed = Column(Boolean, nullable=False, default=True, server_default="1")
@@ -242,11 +322,20 @@ class Copy(Base):
     rating_reading = Column(Integer, nullable=True)
     rating_liking = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     paper = relationship("Paper", back_populates="copies")
     user = relationship("User", back_populates="copies")
     edition = relationship("PaperEdition", foreign_keys=[edition_id])
-    tags = relationship("Tag", secondary=copy_tags, back_populates="copies")
+    tags = relationship(
+        "Tag", secondary=copy_tags, viewonly=True,
+        primaryjoin=lambda: and_(
+            Copy.id == copy_tags.c.copy_id, copy_tags.c.deleted_at.is_(None),
+        ),
+        secondaryjoin=lambda: Tag.id == copy_tags.c.tag_id,
+    )
     shelf = relationship("Shelf", back_populates="copies")
 
 
@@ -257,6 +346,7 @@ class Shelf(Base):
     __table_args__ = (UniqueConstraint("user_id", "name", name="uq_shelf_user_name"),)
 
     id = Column(Integer, primary_key=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String(40), nullable=False)
     color = Column(String(7), nullable=False)
@@ -264,6 +354,9 @@ class Shelf(Base):
     is_default = Column(Boolean, nullable=False, default=False, server_default="0")
     position = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="shelves")
     copies = relationship("Copy", back_populates="shelf")
@@ -276,12 +369,29 @@ class Tag(Base):
     __table_args__ = (UniqueConstraint("user_id", "name", name="uq_tag_user_name"),)
 
     id = Column(Integer, primary_key=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String(60), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="tags")
-    copies = relationship("Copy", secondary=copy_tags, back_populates="tags")
+    copies = relationship(
+        "Copy", secondary=copy_tags, viewonly=True,
+        primaryjoin=lambda: and_(
+            Tag.id == copy_tags.c.tag_id, copy_tags.c.deleted_at.is_(None),
+        ),
+        secondaryjoin=lambda: Copy.id == copy_tags.c.copy_id,
+    )
+
+
+class CopyTagLink(Base):
+    """Synchronized identity for one private copy/tag membership."""
+    __table__ = copy_tags
+    copy = relationship("Copy", foreign_keys=[copy_tags.c.copy_id])
+    tag = relationship("Tag", foreign_keys=[copy_tags.c.tag_id])
 
 
 class Comment(Base):
@@ -292,12 +402,15 @@ class Comment(Base):
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     paper_id = Column(Integer, ForeignKey("papers.id"), nullable=False)
+    paper_sync_id = Column(String(36), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     # Empty while an anchor is only a mark, before anything is written.
     content = Column(Text, nullable=False, default="")
     # Location, all null for a note that is not pinned to the page.
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=True)
+    edition_sync_id = Column(String(36), nullable=True, index=True)
     page = Column(Integer, nullable=True)
     # `point` today; `rect`, `polygon` and `quote` later, each with its own
     # shape in `anchor` (JSON). A point is {"x": 0.42, "y": 0.71}: fractions
@@ -308,6 +421,9 @@ class Comment(Base):
     # they have not named it.
     name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     paper = relationship("Paper", back_populates="comments")
     user = relationship("User")
@@ -320,12 +436,16 @@ class Board(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     guid = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     shelf_id = Column(Integer, ForeignKey("shelves.id"), nullable=True, index=True)
+    shelf_sync_id = Column(String(36), nullable=True, index=True)
     name = Column(String(120), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     owner = relationship("User", back_populates="boards")
     shelf = relationship("Shelf", back_populates="boards")
@@ -344,12 +464,17 @@ class BoardGroup(Base):
     __tablename__ = "board_groups"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
+    board_sync_id = Column(String(36), nullable=True, index=True)
     kind = Column(String(20), nullable=False, default="booklet", server_default="booklet")
     title = Column(String(240), nullable=False)
     header = Column(Text, nullable=True)
     auto_arrange = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     board = relationship("Board", back_populates="groups")
     items = relationship("BoardItem", back_populates="group")
@@ -360,12 +485,16 @@ class BoardItem(Base):
     __tablename__ = "board_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     board_id = Column(Integer, ForeignKey("boards.id"), nullable=False, index=True)
+    board_sync_id = Column(String(36), nullable=True, index=True)
     group_id = Column(Integer, ForeignKey("board_groups.id"), nullable=True, index=True)
+    group_sync_id = Column(String(36), nullable=True, index=True)
     kind = Column(String(20), nullable=False)  # comment | excerpt | image | file | youtube | webpage
     content = Column(Text, nullable=True)
     excerpt_text = Column(Text, nullable=True)
     file_path = Column(Text, nullable=True)
+    blob_sha256 = Column(String(64), nullable=True, index=True)
     original_filename = Column(Text, nullable=True)
     mime_type = Column(String(255), nullable=True)
     source_url = Column(Text, nullable=True)
@@ -378,6 +507,8 @@ class BoardItem(Base):
     width = Column(Float, nullable=False, default=300, server_default="300")
     deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
 
     board = relationship("Board", back_populates="items")
     group = relationship("BoardGroup", back_populates="items")
@@ -400,11 +531,13 @@ class InkStroke(Base):
     __tablename__ = "ink_strokes"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     # Several stored paths can be one logical mark. Text selected across
     # lines must be rendered as separate paths, but it is still one brush
     # action when the reader moves or erases it.
     group_id = Column(String, nullable=True)
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    edition_sync_id = Column(String(36), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     page = Column(Integer, nullable=False, index=True)
     points = Column(Text, nullable=False)
@@ -425,6 +558,9 @@ class InkStroke(Base):
     # brush now shows.
     shape = Column(String, nullable=False, default="flat", server_default="round")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     edition = relationship("PaperEdition")
     user = relationship("User")
@@ -435,7 +571,9 @@ class PaperClip(Base):
     __tablename__ = "paper_clips"
 
     id = Column(Integer, primary_key=True, index=True)
+    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
     edition_id = Column(Integer, ForeignKey("paper_editions.id"), nullable=False, index=True)
+    edition_sync_id = Column(String(36), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     page = Column(Integer, nullable=False, index=True)
     source = Column(Text, nullable=False)
@@ -444,6 +582,9 @@ class PaperClip(Base):
     # the viewer viewport, so scrolling the paper leaves them in place.
     floating = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at = Column(DateTime, nullable=True)
 
     edition = relationship("PaperEdition")
     user = relationship("User")

@@ -214,7 +214,7 @@ export const desktopStyles = `
 
 .desktop-sidebar .desktop-sync-button {
   display: grid;
-  grid-template-columns: 16px auto minmax(0, 1fr);
+  grid-template-columns: 16px auto;
   align-items: center;
   gap: 7px;
   width: 100%;
@@ -241,17 +241,7 @@ export const desktopStyles = `
 
 @keyframes desktop-sync-spin { to { transform: rotate(360deg); } }
 
-.desktop-sync-summary {
-  overflow: hidden;
-  justify-self: end;
-  color: var(--ink-faint);
-  font-size: var(--fs-2xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-sync-control.error .desktop-sync-mark,
-.desktop-sync-control.error .desktop-sync-summary {
+.desktop-sync-control.error .desktop-sync-mark {
   color: var(--red);
 }
 

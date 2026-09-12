@@ -8,14 +8,15 @@ export default function BoardCreateForm({ shelves, className, onCreated, onCance
     () => shelves.find((shelf) => shelf.is_default)?.id || shelves[0]?.id || ''
   );
   const [error, setError] = useState(null);
-  const selectedBoardShelf = shelves.find((shelf) => shelf.id === Number(boardShelfId));
+  const selectedBoardShelf = shelves.find((shelf) => String(shelf.id) === String(boardShelfId));
 
   const submit = async (event) => {
     event.preventDefault();
     if (!boardName.trim()) return;
     setError(null);
     try {
-      const board = await createBoard({ name: boardName.trim(), shelf_id: Number(boardShelfId) });
+      const selectedShelf = shelves.find((shelf) => String(shelf.id) === String(boardShelfId));
+      const board = await createBoard({ name: boardName.trim(), shelf_id: selectedShelf?.id ?? null });
       onCreated(board);
     } catch (err) {
       // Said where the reader pressed Create, not left as a button that

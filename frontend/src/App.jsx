@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  getMe, getToken, setToken, logout, getNotifications, sendPresence, updatePaper,
+  getMe, getToken, setToken, logout, pendingLocalChanges, getNotifications, sendPresence, updatePaper,
 } from './api';
 import AuthPage from './components/AuthPage';
 import Space from './components/Space';
@@ -3079,6 +3079,18 @@ h4 .state-pill {
   font-size: var(--fs-sm);
 }
 
+.local-storage-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.local-storage-totals {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
 .panel-head-row {
   display: flex;
   align-items: flex-start;
@@ -4554,6 +4566,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
 .board-image-loading { display: grid; width: 100%; aspect-ratio: 4 / 3; place-items: center; background: var(--paper); }
 .board-canvas-card.youtube .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
+.board-link-placeholder { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--paper-soft); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.board-link-placeholder > span:first-child { color: var(--accent); font-size: 24px; }
 .board-canvas-card.webpage img,
 .board-canvas-card.youtube img { height: auto; max-height: none; object-fit: initial; background: transparent; }
 .board-canvas-card p { margin: 0; padding: 14px; white-space: pre-wrap; user-select: text; cursor: text; }
@@ -4924,7 +4938,7 @@ export default function App() {
           try {
             setUser(await getMe());
           } catch {
-            setToken(null);
+            await setToken(null);
             setUser(null);
           }
         } else {
@@ -4965,7 +4979,7 @@ export default function App() {
       .catch(async () => {
         // A stale session becomes an ordinary guest session. Demo is only
         // entered by a URL that explicitly contains /demo.
-        setToken(null);
+        await setToken(null);
         setUser(null);
       })
       .finally(() => setAuthChecked(true));
@@ -5012,7 +5026,7 @@ export default function App() {
       ? candidate
       : '/';
     exitDemo();
-    setToken(token);
+    // login/register already persisted the credential for this account.
     setUser(user);
     if (returnTo.startsWith('/boards/')) {
       window.location.replace(appPath(returnTo));
@@ -5028,7 +5042,7 @@ export default function App() {
     try {
       setUser(await getMe());
     } catch {
-      setToken(null);
+      await setToken(null);
       setUser(null);
     }
   };
@@ -5052,11 +5066,24 @@ export default function App() {
       return;
     }
     try {
+      const pending = await pendingLocalChanges();
+      if (pending > 0) {
+        const leave = await confirmAction(
+          `${pending} ${pending === 1 ? 'change has' : 'changes have'} not synced yet. ` +
+            'They will stay on this Mac for this account, but will not be available elsewhere. Sign out?',
+          { confirmLabel: 'Sign out' },
+        );
+        if (!leave) return;
+      }
+    } catch {
+      // A damaged status read must not make an account impossible to leave.
+    }
+    try {
       await logout();
     } catch {
       // best effort
     }
-    setToken(null);
+    await setToken(null);
     exitDemo();
     setUser(null);
     navigate('/');

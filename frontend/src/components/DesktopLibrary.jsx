@@ -13,6 +13,7 @@ import Glyph from './DesktopGlyph';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
+import { subscribeNativeData } from '../nativeData';
 
 // Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
@@ -38,7 +39,11 @@ export function useNookSpace(userId, refreshKey) {
   useEffect(() => { reload(); }, [reload, refreshKey]);
   useEffect(() => {
     window.addEventListener('focus', reload);
-    return () => window.removeEventListener('focus', reload);
+    const unsubscribeNative = subscribeNativeData(reload);
+    return () => {
+      unsubscribeNative();
+      window.removeEventListener('focus', reload);
+    };
   }, [reload]);
 
   return { space, setSpace, reload };

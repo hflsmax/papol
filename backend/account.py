@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     AuthToken,
+    AppliedMutation,
     Comment,
     Copy,
     InkStroke,
@@ -37,7 +38,9 @@ from models import (
     RoomAvailability,
     RoomMessage,
     RoomParticipant,
+    ServerChange,
     Shelf,
+    SyncClient,
     Tag,
     Board,
     BoardGroup,
@@ -561,6 +564,17 @@ def tombstone(
     # Signed out of everywhere, and no way back in.
     removed["sessions"] = (
         db.query(AuthToken).filter(AuthToken.user_id == user_id).delete(
+            synchronize_session=False
+        )
+    )
+    removed["sync_history"] = (
+        db.query(ServerChange).filter(ServerChange.user_id == user_id).delete(
+            synchronize_session=False
+        )
+        + db.query(AppliedMutation).filter(AppliedMutation.user_id == user_id).delete(
+            synchronize_session=False
+        )
+        + db.query(SyncClient).filter(SyncClient.user_id == user_id).delete(
             synchronize_session=False
         )
     )

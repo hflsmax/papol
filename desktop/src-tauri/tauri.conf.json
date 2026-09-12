@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.mc-pony.papol",
   "build": {
-    "beforeBuildCommand": "npm run install:web && npm run build:web",
+    "beforeBuildCommand": "npm run build:web",
     "beforeDevCommand": "npm run dev:web",
     "devUrl": "http://127.0.0.1:5173",
     "frontendDist": "../dist"

@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import Session, sessionmaker, declarative_base
 from sqlalchemy.schema import CreateColumn
+from contextvars import ContextVar
 import os
 from pathlib import Path
 import hashlib
@@ -12,11 +13,53 @@ DB_PATH = Path(__file__).parent / "papol.db"
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+class PapolSession(Session):
+    """A session whose request commit can be joined to sync bookkeeping.
+
+    Existing route handlers commit their own domain work. An idempotent desktop
+    mutation must commit that work and its replay record atomically, so the
+    request middleware temporarily turns those commits into flushes and owns
+    the one final commit.
+    """
+
+    def commit(self):
+        if self.info.get("defer_commit"):
+            self.flush()
+            return
+        return super().commit()
+
+    def commit_deferred(self):
+        """Commit even while this request has deferred ordinary commits."""
+        return super().commit()
+
+
+SessionLocal = sessionmaker(
+    autocommit=False, autoflush=False, bind=engine, class_=PapolSession
+)
 Base = declarative_base()
+
+_request_session = ContextVar("papol_request_session", default=None)
+
+
+def set_request_session(db: Session):
+    return _request_session.set(db)
+
+
+def reset_request_session(token):
+    _request_session.reset(token)
+
+
+def current_request_session():
+    return _request_session.get()
 
 
 def get_db():
+    request_db = current_request_session()
+    if request_db is not None:
+        yield request_db
+        return
     db = SessionLocal()
     try:
         yield db
@@ -72,6 +115,186 @@ def backfill_board_guids():
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_boards_guid ON boards (guid)"
         ))
+
+
+def backfill_board_sync_identity():
+    """Populate the UUID relationship columns used by the sync protocol."""
+    with engine.begin() as conn:
+        if not all(_table_exists(conn, table) for table in (
+            "boards", "board_groups", "board_items",
+        )):
+            return
+        boards = conn.execute(text(
+            "SELECT id, guid, sync_id FROM boards"
+        )).all()
+        for board_id, guid, sync_id in boards:
+            value = sync_id or guid or str(uuid.uuid4())
+            conn.execute(text(
+                "UPDATE boards SET sync_id=:sync_id, guid=COALESCE(guid,:sync_id) WHERE id=:id"
+            ), {"sync_id": value, "id": board_id})
+        groups = conn.execute(text(
+            "SELECT board_groups.id, board_groups.sync_id, boards.sync_id "
+            "FROM board_groups JOIN boards ON boards.id=board_groups.board_id"
+        )).all()
+        for group_id, sync_id, board_sync_id in groups:
+            conn.execute(text(
+                "UPDATE board_groups SET sync_id=:sync_id, board_sync_id=:board_sync_id, "
+                "updated_at=COALESCE(updated_at,created_at), revision=MAX(revision,1) WHERE id=:id"
+            ), {
+                "sync_id": sync_id or str(uuid.uuid4()),
+                "board_sync_id": board_sync_id,
+                "id": group_id,
+            })
+        items = conn.execute(text(
+            "SELECT board_items.id, board_items.sync_id, boards.sync_id, board_groups.sync_id "
+            "FROM board_items JOIN boards ON boards.id=board_items.board_id "
+            "LEFT JOIN board_groups ON board_groups.id=board_items.group_id"
+        )).all()
+        for item_id, sync_id, board_sync_id, group_sync_id in items:
+            conn.execute(text(
+                "UPDATE board_items SET sync_id=:sync_id, board_sync_id=:board_sync_id, "
+                "group_sync_id=:group_sync_id, updated_at=COALESCE(updated_at,created_at), "
+                "revision=MAX(revision,1) WHERE id=:id"
+            ), {
+                "sync_id": sync_id or str(uuid.uuid4()),
+                "board_sync_id": board_sync_id,
+                "group_sync_id": group_sync_id,
+                "id": item_id,
+            })
+        conn.execute(text(
+            "UPDATE boards SET updated_at=COALESCE(updated_at,created_at), revision=MAX(revision,1)"
+        ))
+        if _table_exists(conn, "shelves"):
+            conn.execute(text(
+                "UPDATE boards SET shelf_sync_id=(SELECT shelves.sync_id FROM shelves "
+                "WHERE shelves.id=boards.shelf_id)"
+            ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_boards_sync_id ON boards(sync_id)"
+        ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_board_groups_sync_id ON board_groups(sync_id)"
+        ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_board_items_sync_id ON board_items(sync_id)"
+        ))
+
+
+def backfill_annotation_sync_identity():
+    """Populate stable UUID references for papers and private annotations."""
+    with engine.begin() as conn:
+        required = ("papers", "paper_editions", "comments", "ink_strokes", "paper_clips")
+        if not all(_table_exists(conn, table) for table in required):
+            return
+        for table in ("papers", "paper_editions"):
+            for row_id, sync_id in conn.execute(text(
+                f"SELECT id, sync_id FROM {table}"
+            )).all():
+                conn.execute(text(
+                    f"UPDATE {table} SET sync_id=:sync_id WHERE id=:id"
+                ), {"sync_id": sync_id or str(uuid.uuid4()), "id": row_id})
+        conn.execute(text(
+            "UPDATE paper_editions SET paper_sync_id=(SELECT papers.sync_id FROM papers "
+            "WHERE papers.id=paper_editions.paper_id), "
+            "updated_at=COALESCE(updated_at,created_at), revision=MAX(revision,1)"
+        ))
+        conn.execute(text(
+            "UPDATE papers SET updated_at=COALESCE(updated_at,created_at), revision=MAX(revision,1)"
+        ))
+        relationships = {
+            "comments": (
+                "paper_sync_id=(SELECT papers.sync_id FROM papers WHERE papers.id=comments.paper_id), "
+                "edition_sync_id=(SELECT paper_editions.sync_id FROM paper_editions "
+                "WHERE paper_editions.id=comments.edition_id)"
+            ),
+            "ink_strokes": (
+                "edition_sync_id=(SELECT paper_editions.sync_id FROM paper_editions "
+                "WHERE paper_editions.id=ink_strokes.edition_id)"
+            ),
+            "paper_clips": (
+                "edition_sync_id=(SELECT paper_editions.sync_id FROM paper_editions "
+                "WHERE paper_editions.id=paper_clips.edition_id)"
+            ),
+        }
+        for table, relationship_sql in relationships.items():
+            rows = conn.execute(text(f"SELECT id, sync_id FROM {table}")).all()
+            for row_id, sync_id in rows:
+                conn.execute(text(
+                    f"UPDATE {table} SET sync_id=:sync_id, {relationship_sql}, "
+                    "updated_at=COALESCE(updated_at,created_at), revision=MAX(revision,1) "
+                    "WHERE id=:id"
+                ), {"sync_id": sync_id or str(uuid.uuid4()), "id": row_id})
+        for table in required:
+            conn.execute(text(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS ix_{table}_sync_id ON {table}(sync_id)"
+            ))
+
+
+def backfill_nook_sync_identity():
+    """Populate stable UUIDs and UUID relationships for private nook rows."""
+    with engine.begin() as conn:
+        if not all(_table_exists(conn, table) for table in ("shelves", "tags", "copies")):
+            return
+        for table in ("shelves", "tags"):
+            for row_id, sync_id in conn.execute(text(
+                f"SELECT id, sync_id FROM {table}"
+            )).all():
+                conn.execute(text(
+                    f"UPDATE {table} SET sync_id=:sync_id, "
+                    "updated_at=COALESCE(updated_at,created_at), revision=MAX(revision,1) "
+                    "WHERE id=:id"
+                ), {"sync_id": sync_id or str(uuid.uuid4()), "id": row_id})
+        copies = conn.execute(text(
+            "SELECT copies.id, copies.sync_id, papers.sync_id, shelves.sync_id, "
+            "paper_editions.sync_id, ignored.sync_id "
+            "FROM copies JOIN papers ON papers.id=copies.paper_id "
+            "LEFT JOIN shelves ON shelves.id=copies.shelf_id "
+            "LEFT JOIN paper_editions ON paper_editions.id=copies.edition_id "
+            "LEFT JOIN paper_editions AS ignored ON ignored.id=copies.ignored_edition_id"
+        )).all()
+        for row_id, sync_id, paper_id, shelf_id, edition_id, ignored_id in copies:
+            conn.execute(text(
+                "UPDATE copies SET sync_id=:sync_id,paper_sync_id=:paper_id,"
+                "shelf_sync_id=:shelf_id,edition_sync_id=:edition_id,"
+                "ignored_edition_sync_id=:ignored_id,"
+                "updated_at=COALESCE(updated_at,created_at),revision=MAX(revision,1) "
+                "WHERE id=:id"
+            ), {
+                "sync_id": sync_id or str(uuid.uuid4()), "paper_id": paper_id,
+                "shelf_id": shelf_id, "edition_id": edition_id,
+                "ignored_id": ignored_id, "id": row_id,
+            })
+        for table in ("shelves", "tags", "copies"):
+            conn.execute(text(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS ix_{table}_sync_id ON {table}(sync_id)"
+            ))
+        if _table_exists(conn, "copy_tags"):
+            links = conn.execute(text(
+                "SELECT copy_tags.copy_id,copy_tags.tag_id,copy_tags.sync_id,"
+                "copies.sync_id,tags.sync_id,copies.user_id "
+                "FROM copy_tags JOIN copies ON copies.id=copy_tags.copy_id "
+                "JOIN tags ON tags.id=copy_tags.tag_id"
+            )).all()
+            for copy_id, tag_id, sync_id, copy_sync_id, tag_sync_id, user_id in links:
+                conn.execute(text(
+                    "UPDATE copy_tags SET sync_id=:sync_id,copy_sync_id=:copy_sync_id,"
+                    "tag_sync_id=:tag_sync_id,user_id=:user_id,"
+                    "created_at=COALESCE(created_at,CURRENT_TIMESTAMP),"
+                    "updated_at=COALESCE(updated_at,CURRENT_TIMESTAMP),revision=MAX(revision,1) "
+                    "WHERE copy_id=:copy_id AND tag_id=:tag_id"
+                ), {
+                    "sync_id": sync_id or str(uuid.uuid4()), "copy_sync_id": copy_sync_id,
+                    "tag_sync_id": tag_sync_id, "user_id": user_id,
+                    "copy_id": copy_id, "tag_id": tag_id,
+                })
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_copy_tags_sync_id ON copy_tags(sync_id)"
+            ))
+        if _table_exists(conn, "boards"):
+            conn.execute(text(
+                "UPDATE boards SET shelf_sync_id=(SELECT shelves.sync_id FROM shelves "
+                "WHERE shelves.id=boards.shelf_id)"
+            ))
 
 
 def normalize_board_group_kinds():
