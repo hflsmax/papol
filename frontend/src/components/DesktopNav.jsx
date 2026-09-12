@@ -59,7 +59,7 @@ const STYLE = `
   height: 19px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.9;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
