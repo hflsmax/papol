@@ -14,6 +14,8 @@ import {
 } from './api';
 import { resolveSource, getToken } from './source';
 import { appPath, backendPath } from './base';
+import { nativeDataActive } from '../../frontend/src/nativeData.js';
+import { canOpenPrivateSource } from './viewerAccess.js';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
@@ -554,7 +556,11 @@ export default function App() {
       setError('Open a paper from your nook.');
       return;
     }
-    if (source.requiresSignIn && !getToken()) {
+    if (!canOpenPrivateSource({
+      requiresSignIn: source.requiresSignIn,
+      token: getToken(),
+      localAccount: nativeDataActive(),
+    })) {
       setError('Sign in to view your notes.');
       return;
     }

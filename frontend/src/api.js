@@ -11,6 +11,7 @@ import {
   refreshSyncStatus, rememberOfflineIdentity, runtimeFetch,
 } from '../../shared/offlineStore';
 import { currentCredential, storeCredential } from '../../shared/credentials.js';
+import { withAbortTimeout } from './requestTimeout.js';
 
 configureNetworkFetch(IS_DESKTOP
   ? tauriHttpFetch
@@ -114,28 +115,50 @@ function jsonRequest(path, method, body) {
   });
 }
 
+async function desktopAuthRequest(requester) {
+  if (!IS_DESKTOP) return requester(undefined);
+  try {
+    return await withAbortTimeout(requester, DESKTOP_AUTH_TIMEOUT_MS);
+  } catch (error) {
+    if (error?.name === 'OnlineRequiredError' || error?.name === 'AbortError') {
+      throw new Error('Cannot reach the Papol backend. Start it or choose a working backend URL.');
+    }
+    throw error;
+  }
+}
+
 // ---------- Auth ----------
 
 export async function register(email, displayName, affiliation, password) {
-  const result = await jsonRequest('/auth/register', 'POST', {
-    email,
-    display_name: displayName,
-    affiliation: affiliation || null,
-    password,
-  });
+  const result = await desktopAuthRequest((signal) => request('/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      display_name: displayName,
+      affiliation: affiliation || null,
+      password,
+    }),
+    signal,
+  }));
   await rememberOfflineIdentity(result.token, result.user).catch(() => {});
   await prepareNativeAccount(result.user);
   await setToken(result.token, result.user.id);
-  await scheduleAutomaticNativeSync().catch(() => {});
+  void scheduleAutomaticNativeSync().catch(() => {});
   return result;
 }
 
 export async function login(email, password) {
-  const result = await jsonRequest('/auth/login', 'POST', { email, password });
+  const result = await desktopAuthRequest((signal) => request('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+    signal,
+  }));
   await rememberOfflineIdentity(result.token, result.user).catch(() => {});
   await prepareNativeAccount(result.user);
   await setToken(result.token, result.user.id);
-  await scheduleAutomaticNativeSync().catch(() => {});
+  void scheduleAutomaticNativeSync().catch(() => {});
   return result;
 }
 
@@ -160,23 +183,17 @@ export async function pendingLocalChanges() {
 }
 
 export async function getMe() {
-  const controller = new AbortController();
-  const timeout = IS_DESKTOP
-    ? setTimeout(() => controller.abort(), DESKTOP_AUTH_TIMEOUT_MS)
-    : null;
   let user;
   try {
     // A half-open backend must not hold the desktop shell on “Loading…”.
     // offlineFetch first tries its upgrade-era response cache; native SQLite
     // supplies the identity below when that bridge has no cached response.
-    user = await request('/auth/me', { signal: controller.signal });
+    user = await desktopAuthRequest((signal) => request('/auth/me', { signal }));
   } catch (error) {
     if (!nativeDataActive() || error?.status === 401 || error?.status === 403) throw error;
     // SQLite owns the signed-in reader's offline identity. IndexedDB remains
     // only an upgrade bridge and may legitimately have no cached /auth/me.
     user = await nativeQuery('account');
-  } finally {
-    if (timeout != null) clearTimeout(timeout);
   }
   if (!user) throw new Error('Account profile is unavailable');
   if (!nativeDataActive()) {

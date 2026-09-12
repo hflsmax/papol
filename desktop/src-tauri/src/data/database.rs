@@ -512,6 +512,39 @@ impl LocalStore {
             .transaction()
             .map_err(|error| error.to_string())?;
         let count = rows.len();
+        let pending: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM _local_outbox WHERE account_id=?1",
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if pending == 0 {
+            // A snapshot is the complete server mirror for these account-owned
+            // tables. Mark the previous mirror stale inside this transaction;
+            // rows present below are immediately restored by their upsert.
+            // Never do this around queued local work: its rows and dependencies
+            // must remain intact until the server has accepted or rejected it.
+            let stale_at = chrono_text();
+            for table in [
+                "comments",
+                "ink_strokes",
+                "paper_clips",
+                "copy_tags",
+                "copies",
+                "shelves",
+                "tags",
+            ] {
+                transaction
+                    .execute(
+                        &format!(
+                            "UPDATE {table} SET deleted_at=?1 WHERE user_id=?2 AND deleted_at IS NULL"
+                        ),
+                        params![stale_at, account_id],
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
+        }
         for mut row in rows {
             let table = row
                 .remove("table")
@@ -3133,7 +3166,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|column| column == "blob_sha256");
-        assert_eq!(migration_count, 10);
+        assert_eq!(migration_count, 11);
         assert!(has_blob_column);
         drop(connection);
         drop(store);
@@ -3145,7 +3178,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(migration_count, 10);
+        assert_eq!(migration_count, 11);
     }
 
     #[test]
@@ -3154,6 +3187,7 @@ mod tests {
         let path = directory.path().join("papol.sqlite3");
         let paper_id = Uuid::new_v4().to_string();
         let edition_id = Uuid::new_v4().to_string();
+        let duplicate_edition_id = Uuid::new_v4().to_string();
         let note_id = Uuid::new_v4().to_string();
         let store = LocalStore::open(&path).unwrap();
         store
@@ -3178,6 +3212,17 @@ mod tests {
                         ("id".into(), json!(edition_id.clone())),
                         ("paper_id".into(), json!(paper_id.clone())),
                         ("file_path".into(), json!("paper.pdf")),
+                        ("sha256".into(), json!("1".repeat(64))),
+                        ("created_at".into(), json!("2026-09-12T00:00:00Z")),
+                        ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
+                        ("revision".into(), json!(1)),
+                        ("deleted_at".into(), Value::Null),
+                    ]),
+                    Map::from_iter([
+                        ("table".into(), json!("paper_editions")),
+                        ("id".into(), json!(duplicate_edition_id)),
+                        ("paper_id".into(), json!(paper_id.clone())),
+                        ("file_path".into(), json!("duplicate.pdf")),
                         ("sha256".into(), json!("1".repeat(64))),
                         ("created_at".into(), json!("2026-09-12T00:00:00Z")),
                         ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
@@ -3215,6 +3260,67 @@ mod tests {
         assert_eq!(notes[0]["content"], "Written offline");
         assert_eq!(notes[0]["anchor"]["type"], "point");
         assert_eq!(reopened.outbox_count(), 1);
+    }
+
+    #[test]
+    fn snapshot_replaces_the_account_mirror_without_erasing_pending_work() {
+        fn shelf(id: &str, name: &str) -> Map<String, Value> {
+            Map::from_iter([
+                ("table".into(), json!("shelves")),
+                ("id".into(), json!(id)),
+                ("user_id".into(), json!(7)),
+                ("name".into(), json!(name)),
+                ("color".into(), json!("#123456")),
+                ("is_public".into(), json!(0)),
+                ("is_default".into(), json!(0)),
+                ("position".into(), json!(0)),
+                ("created_at".into(), json!("2026-09-12T00:00:00Z")),
+                ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
+                ("revision".into(), json!(1)),
+                ("deleted_at".into(), Value::Null),
+            ])
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let stale_id = Uuid::new_v4().to_string();
+        let current_id = Uuid::new_v4().to_string();
+        store
+            .apply_snapshot(
+                7,
+                vec![shelf(&stale_id, "Old"), shelf(&current_id, "Current")],
+            )
+            .unwrap();
+        store
+            .apply_snapshot(7, vec![shelf(&current_id, "Current")])
+            .unwrap();
+        let nook = store.query(7, "nook", json!({})).unwrap();
+        assert_eq!(nook["shelves"].as_array().unwrap().len(), 1);
+        assert_eq!(nook["shelves"][0]["id"], current_id);
+
+        let pending_id = Uuid::new_v4().to_string();
+        store
+            .mutate(
+                7,
+                vec![DataChange {
+                    table: "shelves".into(),
+                    id: pending_id.clone(),
+                    operation: "upsert".into(),
+                    values: Map::from_iter([
+                        ("name".into(), json!("Offline")),
+                        ("color".into(), json!("#654321")),
+                        ("position".into(), json!(1)),
+                    ]),
+                }],
+            )
+            .unwrap();
+        store.apply_snapshot(7, vec![]).unwrap();
+        let nook = store.query(7, "nook", json!({})).unwrap();
+        assert!(nook["shelves"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == pending_id));
     }
 
     #[test]

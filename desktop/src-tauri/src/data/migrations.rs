@@ -6,6 +6,8 @@ const DOMAIN_ANNOTATIONS: &str =
     include_str!("../../../../schema/domain/202609120002_annotations.sql");
 const DOMAIN_NOOK: &str = include_str!("../../../../schema/domain/202609120003_nook.sql");
 const DOMAIN_COPY_TAGS: &str = include_str!("../../../../schema/domain/202609120004_copy_tags.sql");
+const DOMAIN_NONUNIQUE_EDITION_HASH: &str =
+    include_str!("../../../../schema/domain/202609120005_nonunique_edition_hash.sql");
 
 const LOCAL_INFRASTRUCTURE: &str = r#"
 CREATE TABLE IF NOT EXISTS _local_settings (
@@ -109,6 +111,11 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         &transaction,
         "202609120004_domain_copy_tags",
         DOMAIN_COPY_TAGS,
+    )?;
+    apply_sql(
+        &transaction,
+        "202609120005_domain_nonunique_edition_hash",
+        DOMAIN_NONUNIQUE_EDITION_HASH,
     )?;
     apply_sql(
         &transaction,
