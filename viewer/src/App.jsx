@@ -2874,7 +2874,6 @@ export default function App() {
             to bring the library back to the front. */}
         {DESKTOP ? (
           <DesktopNav
-            back={{ onClick: returnToPapol, label: 'Back to Papol' }}
             library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }}
           />
         ) : !DESKTOP ? (

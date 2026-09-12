@@ -1868,7 +1868,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     <header className="board-toolbar" data-tauri-drag-region="deep">
       {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
       {DESKTOP
-        ? <DesktopNav back={{ onClick: onBack, label: 'Back to Papol' }} library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
+        ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
         : !DESKTOP
           ? <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
           : null}

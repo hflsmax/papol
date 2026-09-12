@@ -78,7 +78,7 @@ export default function DesktopNav({ back = {}, library = {} }) {
   const { onClick: onLibraryClick, label: libraryLabel = 'Open Library', disabled: libraryDisabled } = library;
   return (
     <div className="desktop-nav">
-      <button
+      {Object.keys(back).length > 0 && <button
         type="button"
         className="desktop-nav-button"
         onClick={onClick}
@@ -89,7 +89,7 @@ export default function DesktopNav({ back = {}, library = {} }) {
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M10 3.25 5.25 8 10 12.75" />
         </svg>
-      </button>
+      </button>}
       <button
         type="button"
         className="desktop-nav-button"
