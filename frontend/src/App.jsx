@@ -3146,7 +3146,7 @@ h4 .state-pill {
   padding: 7px 28px 7px 9px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: var(--card);
+  background-color: var(--card);
   color: var(--ink);
   font-size: var(--fs-sm);
 }
