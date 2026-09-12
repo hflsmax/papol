@@ -253,7 +253,7 @@ export const desktopStyles = `
 
 @keyframes desktop-sync-spin { to { transform: rotate(360deg); } }
 
-.desktop-sync-control.error .desktop-sync-mark {
+.desktop-sync-control.has-error .desktop-sync-mark {
   color: var(--red);
 }
 

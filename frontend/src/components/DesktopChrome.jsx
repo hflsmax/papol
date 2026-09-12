@@ -172,7 +172,7 @@ function SyncControl({ onSynced }) {
         : 'Up to date');
 
   return (
-    <section id="desktop-sync-control" className={`desktop-sync-control${status.error ? ' error' : ''}`} aria-label="Synchronization">
+    <section id="desktop-sync-control" className={`desktop-sync-control${status.error ? ' has-error' : ''}`} aria-label="Synchronization">
       <button
         type="button"
         className="desktop-sync-button"
