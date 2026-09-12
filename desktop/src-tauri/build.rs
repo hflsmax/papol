@@ -3,6 +3,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "open_document_window",
             "close_document_window",
+            "focus_library_window",
             "data_query",
             "data_mutate",
             "blob_import",

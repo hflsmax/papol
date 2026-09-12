@@ -34,7 +34,7 @@ import ReturnPill from './ReturnPill';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
 import {
-  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow,
+  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopLibraryWindow,
 } from '../../shared/desktopShell';
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
@@ -2870,10 +2870,13 @@ export default function App() {
           e.target.closest?.('button')?.blur();
         }}
       >
-        {/* The bar is the window's navigation: back to Papol and nothing
-            else. Jumps inside the PDF are the return pill's, over the pages. */}
-        {DESKTOP && !DOCUMENT_WINDOW ? (
-          <DesktopNav back={{ onClick: returnToPapol, label: 'Back to Papol' }} />
+        {/* The bar is the window's navigation: back to Papol and a quick way
+            to bring the library back to the front. */}
+        {DESKTOP ? (
+          <DesktopNav
+            back={{ onClick: returnToPapol, label: 'Back to Papol' }}
+            library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }}
+          />
         ) : !DESKTOP ? (
           // The href stays for a direct visit, and for opening in a new tab.
           <a

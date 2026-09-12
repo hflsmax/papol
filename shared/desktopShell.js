@@ -46,6 +46,12 @@ export function closeDesktopDocumentWindow() {
   return true;
 }
 
+export function focusDesktopLibraryWindow() {
+  if (!DESKTOP || typeof window.__PAPOL_FOCUS_LIBRARY_WINDOW__ !== 'function') return false;
+  window.__PAPOL_FOCUS_LIBRARY_WINDOW__();
+  return true;
+}
+
 if (DESKTOP) {
   document.documentElement.dataset.shell = 'desktop';
   if (MAC) document.documentElement.dataset.platform = 'mac';

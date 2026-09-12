@@ -72,9 +72,10 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
   document.head.appendChild(style);
 }
 
-// back: { onClick, label }. Without onClick it is shown disabled.
-export default function DesktopNav({ back = {} }) {
+// back/library: { onClick, label }. Without onClick a control is disabled.
+export default function DesktopNav({ back = {}, library = {} }) {
   const { onClick, label = 'Back', disabled } = back;
+  const { onClick: onLibraryClick, label: libraryLabel = 'Open Library', disabled: libraryDisabled } = library;
   return (
     <div className="desktop-nav">
       <button
@@ -87,6 +88,19 @@ export default function DesktopNav({ back = {} }) {
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M10 3.25 5.25 8 10 12.75" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="desktop-nav-button"
+        onClick={onLibraryClick}
+        disabled={libraryDisabled || !onLibraryClick}
+        aria-label={libraryLabel}
+        title={libraryLabel}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.5 3.5h3l1 1.5h7v7.5h-11z" />
+          <path d="M2.5 3.5v-1h4l1 1.5" />
         </svg>
       </button>
     </div>

@@ -195,7 +195,9 @@ const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
       runtime: 'desktop', surface: 'main', documentWindow: false \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
-      window.__TAURI_INTERNALS__.invoke('open_document_window', { url });";
+      window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
+    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = () => \
+      window.__TAURI_INTERNALS__.invoke('focus_library_window');";
 
 fn document_environment(surface: &str) -> String {
     format!(
@@ -205,7 +207,9 @@ fn document_environment(surface: &str) -> String {
          window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
-           window.__TAURI_INTERNALS__.invoke('close_document_window');"
+           window.__TAURI_INTERNALS__.invoke('close_document_window'); \
+         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = () => \
+           window.__TAURI_INTERNALS__.invoke('focus_library_window');"
     )
 }
 
@@ -215,6 +219,15 @@ fn close_document_window(window: tauri::WebviewWindow) {
     // label check as defense in depth around the permanent library window.
     if window.label().starts_with("viewer-") || window.label().starts_with("board-") {
         let _ = window.close();
+    }
+}
+
+#[tauri::command]
+fn focus_library_window(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
     }
 }
 struct DocumentWindow {
@@ -426,6 +439,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             close_document_window,
+            focus_library_window,
             open_document_window,
             data_query,
             data_mutate,

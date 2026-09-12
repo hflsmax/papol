@@ -6,6 +6,7 @@
   "permissions": [
     "allow-open-document-window",
     "allow-close-document-window",
+    "allow-focus-library-window",
     "allow-data-query",
     "allow-data-mutate",
     "allow-blob-import",

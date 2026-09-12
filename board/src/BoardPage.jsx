@@ -5,7 +5,7 @@ import BackLink from '../../frontend/src/components/BackLink.jsx';
 import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
-import { DESKTOP, DOCUMENT_WINDOW } from '../../shared/desktopShell.js';
+import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow } from '../../shared/desktopShell.js';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
 import { subscribeNativeData } from '../../frontend/src/nativeData.js';
@@ -1832,8 +1832,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   >
     <header className="board-toolbar" data-tauri-drag-region="deep">
       {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
-      {DESKTOP && !DOCUMENT_WINDOW
-        ? <DesktopNav back={{ onClick: onBack, label: 'Back to Papol' }} />
+      {DESKTOP
+        ? <DesktopNav back={{ onClick: onBack, label: 'Back to Papol' }} library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
         : !DESKTOP
           ? <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
           : null}
