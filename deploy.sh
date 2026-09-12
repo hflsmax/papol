@@ -2,17 +2,16 @@
 # Papol's deployment, all of it.
 #
 #   ./deploy.sh dev            run development here, rebuilding as you save
-#   ./deploy.sh prod [ref]     promote a ref, then sync data (default: main)
-#                  [--no-sync] deploy code without the usual data sync
-#   ./deploy.sh sync           publish admin dev data, then refresh from prod
+#   ./deploy.sh prod [ref]     promote a ref (default: main)
+#   ./deploy.sh pull           overwrite development data from production
 #   ./deploy.sh status         what is running where
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8000)
 #   ./deploy.sh macos prod     test and build a production-backed app and DMG
 #                  [--backend URL] [--universal] [--no-check]
 #
-# Code goes up with `prod`, then admin development data goes up and the
-# resulting production data comes back down. `sync` runs that data step alone.
+# Code goes up with `prod`. Data never goes from development to production;
+# `pull` explicitly replaces development's database with production's.
 #
 # Production is deployed and stays up; development is a server that runs for
 # as long as you leave this command running. Production is a checkout of its
@@ -33,8 +32,7 @@ note() { printf '    %s\n' "$*"; }
 die()  { printf '\n\033[1;31mdeploy: %s\033[0m\n' "$*" >&2; exit 1; }
 
 confirm_deploy() {
-  local sync=${1:-yes} answer action="Deploy this revision to production"
-  [ "$sync" = yes ] && action="$action, then synchronize data"
+  local answer action="Deploy this revision to production"
   [ -t 0 ] || die "production deployment requires confirmation from a terminal"
   printf '\n%s? [y/N] ' "$action"
   IFS= read -r answer || die "deployment confirmation was not received"
@@ -513,10 +511,8 @@ prod_port() {
     | sed -n 's/.*ExecStart=.*--port \([0-9]\+\).*/\1/p' | head -1
 }
 
-# First run: the worktree, and the state production starts life with. The
-# database and uploads are copied from this tree only when production has
-# none — today they are one and the same service, and this is the moment
-# they stop being.
+# First run: create the production worktree and seed only its configuration.
+# Production data starts independently and is never copied from development.
 init_prod() {
   [ -e "$PROD_DIR/.git" ] && return 0
 
@@ -531,14 +527,11 @@ init_prod() {
     git -C "$DEV_DIR" worktree add "$PROD_DIR" -b "$PROD_BRANCH" "${1:-main}"
   fi
 
-  say "Seeding production state from $DEV_DIR"
-  local f
-  for f in backend/papol.db .env; do
-    if [ -e "$DEV_DIR/$f" ] && [ ! -e "$PROD_DIR/$f" ]; then
-      cp -p "$DEV_DIR/$f" "$PROD_DIR/$f"
-      note "copied $f"
-    fi
-  done
+  say "Seeding production configuration from $DEV_DIR"
+  if [ -e "$DEV_DIR/.env" ] && [ ! -e "$PROD_DIR/.env" ]; then
+    cp -p "$DEV_DIR/.env" "$PROD_DIR/.env"
+    note "copied .env"
+  fi
 
   # Development's .env points mail at a dead port, and the environment wins
   # over the settings table — so seeding that line into production is how
@@ -549,21 +542,13 @@ init_prod() {
       "$PROD_DIR/.env"
     note "dropped development's mail sink from production's .env"
   fi
-  if [ -d "$DEV_DIR/uploads" ] && [ ! -d "$PROD_DIR/uploads" ]; then
-    cp -a "$DEV_DIR/uploads" "$PROD_DIR/uploads"
-    note "copied uploads/"
-  fi
-  if [ -d "$DEV_DIR/board_uploads" ] && [ ! -d "$PROD_DIR/board_uploads" ]; then
-    cp -a "$DEV_DIR/board_uploads" "$PROD_DIR/board_uploads"
-    note "copied board_uploads/"
-  fi
   chmod 600 "$PROD_DIR/.env" 2>/dev/null || true
 
   cat <<MSG
 
-    Production now has its own copy of the database, the uploads and the
-    secrets. What is left in $DEV_DIR is development's, and diverges from
-    here on. Two things to do to it, once:
+    Production now has its own checkout and secrets. Its database and uploads
+    start independently from development. Two things to do to development's
+    configuration, once:
 
       - point SMTP at a sink in .env, so development cannot mail readers
         (SMTP_HOST=localhost, SMTP_PORT=1025, SMTP_STARTTLS=0)
@@ -598,11 +583,10 @@ MSG
 }
 
 deploy_prod() {
-  local ref=main sync=yes ref_set=no arg
+  local ref=main ref_set=no arg
   for arg in "$@"; do
     case "$arg" in
-      --no-sync) sync=no ;;
-      -*) die "unknown prod option: $arg (only --no-sync)" ;;
+      -*) die "unknown prod option: $arg" ;;
       *)
         [ "$ref_set" = no ] || die "prod takes one ref (default: main)"
         ref=$arg
@@ -614,10 +598,6 @@ deploy_prod() {
 
   init_prod "$ref"
   check_system_config
-  if [ "$sync" = yes ] && dev_is_up; then
-    die "the development server is answering on $DEV_PORT — stop it before the default production deploy, or use --no-sync"
-  fi
-
   [ -n "$(git -C "$PROD_DIR" status --porcelain)" ] \
     && die "$PROD_DIR has uncommitted changes; production is a checkout, not a workspace"
 
@@ -645,7 +625,7 @@ deploy_prod() {
     note "note: $ref is ahead of origin/main — these commits are not pushed anywhere"
   fi
 
-  confirm_deploy "$sync"
+  confirm_deploy
 
   git -C "$PROD_DIR" reset --hard "$rev" --quiet
   note "production is at $(git -C "$PROD_DIR" log -1 --oneline)"
@@ -708,7 +688,6 @@ deploy_prod() {
   fi
 
   health_check
-  [ "$sync" = yes ] && sync_data
 }
 
 # The service is up when it serves the page — which also says the build
@@ -732,7 +711,7 @@ health_check() {
   die "production did not come up — the log is above, and the database backup is beside it"
 }
 
-# --- synchronizing development and production data ---------------------------
+# --- pulling production data into development -------------------------------
 
 dev_is_up() {
   curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
@@ -747,196 +726,35 @@ sqlite() {
   fi
 }
 
-# An admin is the one person whose development nook is intentional data rather
-# than a disposable copy of production. Publish each admin's profile and nook
-# first, while retaining every production reader, then copy that combined
-# database back to development. IDs deliberately have to agree: development
-# begins as a production snapshot, and silently guessing after both sides have
-# reused an ID could attach a private note to the wrong reader or paper.
-sync_data() {
-  local uploads=yes
-  case "${1:-}" in
-    --no-uploads) uploads=no ;;
-    "") ;;
-    *) die "unknown option: $1 (only --no-uploads)" ;;
-  esac
-
+# Pulling is deliberately one-way and explicit. Production is read through
+# SQLite's backup API and is never modified.
+pull_data() {
+  [ "$#" -eq 0 ] || die "pull takes no options"
   [ "$DEV_DIR" = "$PROD_DIR" ] && die "development and production are the same tree"
   [ -e "$PROD_DIR/backend/papol.db" ] \
     || die "no production database at $PROD_DIR/backend/papol.db"
 
-  # A running server holds the file open, and writing a new database over
-  # one that is being read is how you get half of each.
+  # Replacing a database beneath a running server can leave it using a mixture
+  # of the old and new files.
   dev_is_up && die "the development server is answering on $DEV_PORT — stop it first"
 
   local dev_bak=""
   if [ -e "$DEV_DIR/backend/papol.db" ]; then
-    dev_bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
+    dev_bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-pull"
     cp -p "$DEV_DIR/backend/papol.db" "$dev_bak"
     say "Kept development's database as $(basename "$dev_bak")"
   fi
 
-  local prod_bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-sync"
-  sqlite "$PROD_DIR/backend/papol.db" ".backup '$prod_bak'"
-  say "Kept production's database as $(basename "$prod_bak")"
-
-  # A column mismatch means development has code/schema that production does
-  # not have yet. Deploy it first; SELECT * must never shuffle unlike rows.
-  local table dev_cols prod_cols
-  for table in users papers paper_editions edition_references edition_citations edition_links \
-      tags copies copy_tags comments ink_strokes; do
-    dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
-    prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "PRAGMA table_info($table)" | cut -d'|' -f2)
-    [ -n "$dev_cols" ] && [ "$dev_cols" = "$prod_cols" ] \
-      || die "$table differs between development and production — deploy the schema first"
-  done
-  local required column
-  for table in shelves boards board_groups board_items; do
-    case "$table" in
-      shelves) required="id user_id name color is_public is_default position created_at" ;;
-      boards) required="id guid user_id shelf_id name description created_at updated_at" ;;
-      board_groups) required="id board_id kind title header created_at" ;;
-      board_items) required="id board_id group_id kind content excerpt_text file_path original_filename mime_type source_url source_label staged text_align position x y width deleted_at created_at" ;;
-    esac
-    for column in $required; do
-      dev_cols=$(sqlite "$DEV_DIR/backend/papol.db" "SELECT 1 FROM pragma_table_info('$table') WHERE name='$column'")
-      prod_cols=$(sqlite "$PROD_DIR/backend/papol.db" "SELECT 1 FROM pragma_table_info('$table') WHERE name='$column'")
-      [ "$dev_cols" = 1 ] && [ "$prod_cols" = 1 ] \
-        || die "$table.$column is missing — deploy the schema first"
-    done
-  done
-
-  say "Publishing admin development data"
-  sqlite "$PROD_DIR/backend/papol.db" <<SQL
-.bail on
-ATTACH DATABASE '$DEV_DIR/backend/papol.db' AS dev;
-PRAGMA foreign_keys = OFF;
-BEGIN IMMEDIATE;
-
-CREATE TEMP TABLE sync_admins (id INTEGER PRIMARY KEY);
-INSERT INTO sync_admins SELECT id FROM dev.users WHERE is_admin = 1 AND deleted_at IS NULL;
-CREATE TEMP TABLE sync_assert (ok INTEGER CHECK (ok = 1));
-INSERT INTO sync_assert SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM sync_admins);
-INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
-  SELECT 1 FROM sync_admins a
-  LEFT JOIN users p ON p.id = a.id
-  JOIN dev.users d ON d.id = a.id
-  WHERE p.id IS NULL OR p.email <> d.email OR p.is_admin <> 1
-);
-
--- Refuse an integer ID reused by somebody else while the two databases were
--- apart. User-owned foreign keys make overwriting such a row unrecoverable.
-INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
-  SELECT 1 FROM dev.shelves d JOIN shelves p ON p.id=d.id
-    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.tags d JOIN tags p ON p.id=d.id
-    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.copies d JOIN copies p ON p.id=d.id
-    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.comments d JOIN comments p ON p.id=d.id
-    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.ink_strokes d JOIN ink_strokes p ON p.id=d.id
-    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.boards d JOIN boards p ON p.id=d.id
-    WHERE d.user_id IN sync_admins AND p.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.board_items d JOIN board_items p ON p.id=d.id
-    JOIN dev.boards db ON db.id=d.board_id JOIN boards pb ON pb.id=p.board_id
-    WHERE db.user_id IN sync_admins AND pb.user_id NOT IN sync_admins
-  UNION ALL SELECT 1 FROM dev.board_groups d JOIN board_groups p ON p.id=d.id
-    JOIN dev.boards db ON db.id=d.board_id JOIN boards pb ON pb.id=p.board_id
-    WHERE db.user_id IN sync_admins AND pb.user_id NOT IN sync_admins
-);
-
--- Bring across shared paper/edition records needed by the admin's nook. A
--- matching ID must describe the same object; new ones can then retain all of
--- their reference-analysis rows and stable foreign keys.
-CREATE TEMP TABLE sync_papers AS
-  SELECT DISTINCT paper_id AS id FROM dev.copies WHERE user_id IN sync_admins;
-CREATE TEMP TABLE sync_editions AS
-  SELECT DISTINCT edition_id AS id FROM dev.copies
-    WHERE user_id IN sync_admins AND edition_id IS NOT NULL
-  UNION SELECT DISTINCT ignored_edition_id FROM dev.copies
-    WHERE user_id IN sync_admins AND ignored_edition_id IS NOT NULL;
-INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
-  SELECT 1 FROM sync_papers n JOIN dev.papers d ON d.id=n.id JOIN papers p ON p.id=n.id
-  WHERE lower(coalesce(p.doi,'')) <> lower(coalesce(d.doi,''))
-     OR (coalesce(p.doi,'') = '' AND coalesce(d.doi,'') = '' AND p.title <> d.title)
-);
-INSERT INTO sync_assert SELECT 0 WHERE EXISTS (
-  SELECT 1 FROM sync_editions n JOIN dev.paper_editions d ON d.id=n.id
-    JOIN paper_editions p ON p.id=n.id
-  WHERE coalesce(p.sha256,'') <> coalesce(d.sha256,'')
-);
-
-INSERT INTO papers SELECT d.* FROM dev.papers d JOIN sync_papers n ON n.id=d.id
-  WHERE NOT EXISTS (SELECT 1 FROM papers p WHERE p.id=d.id);
-INSERT INTO paper_editions SELECT d.* FROM dev.paper_editions d JOIN sync_editions n ON n.id=d.id
-  WHERE NOT EXISTS (SELECT 1 FROM paper_editions p WHERE p.id=d.id);
-INSERT INTO edition_references SELECT d.* FROM dev.edition_references d JOIN sync_editions n ON n.id=d.edition_id
-  WHERE NOT EXISTS (SELECT 1 FROM edition_references p WHERE p.id=d.id);
-INSERT INTO edition_citations SELECT d.* FROM dev.edition_citations d JOIN sync_editions n ON n.id=d.edition_id
-  WHERE NOT EXISTS (SELECT 1 FROM edition_citations p WHERE p.id=d.id);
-INSERT INTO edition_links SELECT d.* FROM dev.edition_links d JOIN sync_editions n ON n.id=d.edition_id
-  WHERE NOT EXISTS (SELECT 1 FROM edition_links p WHERE p.id=d.id);
-
-DELETE FROM copy_tags WHERE copy_id IN (SELECT id FROM copies WHERE user_id IN sync_admins)
-  OR tag_id IN (SELECT id FROM tags WHERE user_id IN sync_admins);
-DELETE FROM comments WHERE user_id IN sync_admins;
-DELETE FROM ink_strokes WHERE user_id IN sync_admins;
-DELETE FROM board_items WHERE board_id IN (SELECT id FROM boards WHERE user_id IN sync_admins);
-DELETE FROM board_groups WHERE board_id IN (SELECT id FROM boards WHERE user_id IN sync_admins);
-DELETE FROM boards WHERE user_id IN sync_admins;
-DELETE FROM copies WHERE user_id IN sync_admins;
-DELETE FROM tags WHERE user_id IN sync_admins;
-DELETE FROM shelves WHERE user_id IN sync_admins;
-
-INSERT OR REPLACE INTO users SELECT d.* FROM dev.users d JOIN sync_admins a ON a.id=d.id;
-INSERT INTO shelves (id,user_id,name,color,is_public,is_default,position,created_at)
-  SELECT d.id,d.user_id,d.name,d.color,d.is_public,d.is_default,d.position,d.created_at
-  FROM dev.shelves d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO tags SELECT d.* FROM dev.tags d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO copies SELECT d.* FROM dev.copies d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO comments SELECT d.* FROM dev.comments d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO ink_strokes SELECT d.* FROM dev.ink_strokes d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO boards (id,guid,user_id,shelf_id,name,description,created_at,updated_at)
-  SELECT d.id,d.guid,d.user_id,d.shelf_id,d.name,d.description,d.created_at,d.updated_at
-  FROM dev.boards d JOIN sync_admins a ON a.id=d.user_id;
-INSERT INTO board_groups (id,board_id,kind,title,header,created_at)
-  SELECT d.id,d.board_id,d.kind,d.title,d.header,d.created_at
-  FROM dev.board_groups d
-  JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
-INSERT INTO board_items (
-  id,board_id,group_id,kind,content,file_path,original_filename,mime_type,source_url,
-  text_align,position,x,y,width,deleted_at,created_at,source_label,staged,excerpt_text
-)
-  SELECT d.id,d.board_id,d.group_id,d.kind,d.content,d.file_path,d.original_filename,
-    d.mime_type,d.source_url,d.text_align,d.position,d.x,d.y,d.width,
-    d.deleted_at,d.created_at,d.source_label,d.staged,d.excerpt_text
-  FROM dev.board_items d
-  JOIN dev.boards b ON b.id=d.board_id JOIN sync_admins a ON a.id=b.user_id;
-INSERT INTO copy_tags SELECT d.* FROM dev.copy_tags d
-  JOIN dev.copies c ON c.id=d.copy_id JOIN sync_admins a ON a.id=c.user_id;
-
-COMMIT;
-DETACH DATABASE dev;
-SQL
-  note "admin profiles and nooks are now in production"
-
-  if [ "$uploads" = yes ]; then
-    say "Publishing development uploads"
-    rsync -a "$DEV_DIR/uploads/" "$PROD_DIR/uploads/"
-    rsync -a "$DEV_DIR/board_uploads/" "$PROD_DIR/board_uploads/"
-  fi
-
   # .backup takes a consistent snapshot while production continues serving.
-  say "Refreshing development from production"
-  rm -f "$DEV_DIR/backend/papol.db"
-  sqlite "$PROD_DIR/backend/papol.db" ".backup '$DEV_DIR/backend/papol.db'"
+  local pulled="$DEV_DIR/backend/papol.db.pull-$$"
+  trap 'rm -f "$pulled"' RETURN
+  say "Pulling production database into development"
+  sqlite "$PROD_DIR/backend/papol.db" ".backup '$pulled'"
+  mv -f "$pulled" "$DEV_DIR/backend/papol.db"
   note "$(du -h "$DEV_DIR/backend/papol.db" | cut -f1)"
 
-  # Production sessions must not work in development. Keep development's
-  # existing sessions for users whose ID and email still match the refreshed
-  # database, so a routine deploy does not sign the developer out.
+  # Production sessions must not work in development. Preserve development
+  # sessions only where the account identity still matches the pulled data.
   if [ -n "$dev_bak" ]; then
     sqlite "$DEV_DIR/backend/papol.db" <<SQL
 ATTACH DATABASE '$dev_bak' AS olddev;
@@ -955,32 +773,16 @@ SQL
     sqlite "$DEV_DIR/backend/papol.db" "DELETE FROM auth_tokens"
   fi
 
-  # The other two things that must not make the trip. Development's .env already
-  # points SMTP at a dead port, but that only holds in a shell that loaded
-  # it; the credentials are gone from the copy either way. site_url would
-  # otherwise put production's address in links generated here.
+  # Production credentials and URLs must not become active in development.
   say "Scrubbing production's reach out of the copy"
   sqlite "$DEV_DIR/backend/papol.db" <<SQL
 DELETE FROM settings WHERE key LIKE 'smtp_%';
--- Upsert, not UPDATE: a production database without a site_url row would
--- leave this a silent no-op, and _site_url then falls through PAPOL_URL
--- (unset here) to a default that points at production. Development would
--- put production's address in every link it generated.
 INSERT INTO settings (key, value) VALUES ('site_url', 'http://papol.local/')
   ON CONFLICT(key) DO UPDATE SET value = excluded.value;
 SQL
   note "production sessions and SMTP credentials dropped; site_url now points at development"
-
-  if [ "$uploads" = yes ]; then
-    say "Refreshing uploads from production"
-    rsync -a --delete "$PROD_DIR/uploads/" "$DEV_DIR/uploads/"
-    rsync -a --delete "$PROD_DIR/board_uploads/" "$DEV_DIR/board_uploads/"
-    note "$(du -sh "$DEV_DIR/uploads" | cut -f1)"
-  else
-    note "uploads left alone — papers whose PDF is only in production will 404"
-  fi
-
-  say "Done. Admin data is in production; everyone is now current in development."
+  trap - RETURN
+  say "Done. Development now contains a sanitized copy of production's database."
 }
 
 # --- status -----------------------------------------------------------------
@@ -1009,9 +811,9 @@ status() {
 case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
   prod)   shift; deploy_prod "$@" ;;
-  sync)   sync_data "${2:-}" ;;
+  pull)   shift; pull_data "$@" ;;
   status) status ;;
   macos)  shift; run_macos "$@" ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, sync, status, macos)" ;;
+  *)      die "unknown target: $1 (try dev, prod, pull, status, macos)" ;;
 esac
