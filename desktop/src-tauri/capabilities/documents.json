@@ -17,6 +17,8 @@
     "allow-credential-get",
     "allow-credential-set",
     "allow-sync-now",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
     {

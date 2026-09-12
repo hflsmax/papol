@@ -2,6 +2,7 @@ use crate::data::{LocalStore, RemoteChange};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +71,9 @@ impl Coordinator {
     pub fn new() -> Result<Self, String> {
         let client = Client::builder()
             .user_agent("Papol Desktop/0.1")
+            .connect_timeout(Duration::from_secs(5))
+            .read_timeout(Duration::from_secs(20))
+            .timeout(Duration::from_secs(120))
             .build()
             .map_err(|error| error.to_string())?;
         Ok(Self {

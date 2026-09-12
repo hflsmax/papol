@@ -35,6 +35,7 @@ const shelfSyncIds = new Map();
 const serverShelfIds = new Map();
 const tagSyncIds = new Map();
 const pendingPaperBlobs = new Map();
+const DESKTOP_AUTH_TIMEOUT_MS = 4_000;
 
 function rememberPaperIdentity(paper) {
   if (paper?.id != null && paper.sync_id) paperSyncIds.set(String(paper.id), paper.sync_id);
@@ -164,9 +165,31 @@ export async function pendingLocalChanges() {
 }
 
 export async function getMe() {
-  const user = await request('/auth/me');
-  await prepareNativeAccount(user);
-  await scheduleAutomaticNativeSync().catch(() => {});
+  const controller = new AbortController();
+  const timeout = IS_DESKTOP
+    ? setTimeout(() => controller.abort(), DESKTOP_AUTH_TIMEOUT_MS)
+    : null;
+  let user;
+  try {
+    // A half-open backend must not hold the desktop shell on “Loading…”.
+    // offlineFetch first tries its upgrade-era response cache; native SQLite
+    // supplies the identity below when that bridge has no cached response.
+    user = await request('/auth/me', { signal: controller.signal });
+  } catch (error) {
+    if (!nativeDataActive() || error?.status === 401 || error?.status === 403) throw error;
+    // SQLite owns the signed-in reader's offline identity. IndexedDB remains
+    // only an upgrade bridge and may legitimately have no cached /auth/me.
+    user = await nativeQuery('account');
+  } finally {
+    if (timeout != null) clearTimeout(timeout);
+  }
+  if (!user) throw new Error('Account profile is unavailable');
+  if (!nativeDataActive()) {
+    await prepareNativeAccount(user);
+  }
+  // Connectivity is not part of rendering the local shell. The sync status
+  // control reports this background attempt independently.
+  void scheduleAutomaticNativeSync().catch(() => {});
   return user;
 }
 
