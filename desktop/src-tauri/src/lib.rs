@@ -117,44 +117,6 @@ fn local_recovery_export(
     store.export_recovery(account_id, &directory.join(filename))
 }
 
-const KEYCHAIN_SERVICE: &str = "com.mc-pony.papol.session";
-
-#[tauri::command]
-fn credential_get(account_id: i64) -> Result<Option<String>, String> {
-    #[cfg(target_os = "macos")]
-    {
-        use security_framework::passwords::get_generic_password;
-        match get_generic_password(KEYCHAIN_SERVICE, &account_id.to_string()) {
-            Ok(bytes) => String::from_utf8(bytes)
-                .map(Some)
-                .map_err(|_| "Keychain token is invalid".into()),
-            Err(error) if error.code() == -25300 => Ok(None),
-            Err(error) => Err(error.to_string()),
-        }
-    }
-    #[cfg(not(target_os = "macos"))]
-    Err("Secure credential storage is only available in the macOS app".into())
-}
-
-#[tauri::command]
-fn credential_set(account_id: i64, token: String) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        use security_framework::passwords::{delete_generic_password, set_generic_password};
-        if token.is_empty() {
-            return match delete_generic_password(KEYCHAIN_SERVICE, &account_id.to_string()) {
-                Ok(()) => Ok(()),
-                Err(error) if error.code() == -25300 => Ok(()),
-                Err(error) => Err(error.to_string()),
-            };
-        }
-        set_generic_password(KEYCHAIN_SERVICE, &account_id.to_string(), token.as_bytes())
-            .map_err(|error| error.to_string())
-    }
-    #[cfg(not(target_os = "macos"))]
-    Err("Secure credential storage is only available in the macOS app".into())
-}
-
 #[tauri::command]
 async fn sync_now(
     app: tauri::AppHandle,
@@ -408,8 +370,6 @@ pub fn run() {
             local_setting_set,
             local_account_set,
             local_recovery_export,
-            credential_get,
-            credential_set,
             sync_now
         ])
         .setup(|app| {

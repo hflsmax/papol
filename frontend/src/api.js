@@ -1,7 +1,6 @@
 import { demoActive, demoRequest } from './demo';
 import { appPath, backendPath } from './base';
 import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
-import { invoke } from '@tauri-apps/api/core';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   boardView, discardNativeBlob, nativeAccountId, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeQuery, nativeSyncNow,
@@ -11,11 +10,7 @@ import {
   cachedBlobUrl, configureNetworkFetch, configureReplayAuthorization, offlineFetch,
   refreshSyncStatus, rememberOfflineIdentity, runtimeFetch,
 } from '../../shared/offlineStore';
-import {
-  configureCredentialInvoke, currentCredential, storeCredential,
-} from '../../shared/credentials.js';
-
-configureCredentialInvoke(invoke);
+import { currentCredential, storeCredential } from '../../shared/credentials.js';
 
 configureNetworkFetch(IS_DESKTOP
   ? tauriHttpFetch

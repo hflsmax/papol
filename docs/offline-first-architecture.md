@@ -106,7 +106,7 @@ IndexedDB is capable of offline applications and transactional records, but its 
 
 ### Secrets and accounts are not cleanly partitioned
 
-The bearer token appears in response keys and queued request headers, while files and ID mappings are not intrinsically account-scoped. Tokens should live in macOS Keychain (or a carefully configured Stronghold vault), and every local row must carry an account partition. Apple explicitly recommends Keychain for small secrets such as passwords and cryptographic keys.[^apple-keychain]
+The bearer token appears in response keys and queued request headers, while files and ID mappings are not intrinsically account-scoped. Tokens persist in the webview's local storage and every local row must carry an account partition. This storage is convenient and shared across Papol windows, but it does not provide OS-backed secret protection.
 
 ### Storage has no lifecycle
 
@@ -123,7 +123,7 @@ Bundled React UI: library / viewer / board windows
         ├─ SQLite local replica + durable outbox
         ├─ content-addressed file store
         ├─ one synchronization coordinator
-        └─ credential adapter → macOS Keychain
+        └─ account-partitioned repository
               │ native HTTPS
               ▼
            FastAPI synchronization API
@@ -406,9 +406,9 @@ The database should retain compact tombstones and mutation deduplication records
 
 ## Credentials, encryption, and privacy
 
-Store the backend refresh/access credential in macOS Keychain through a narrow Rust credential adapter. Do not use the bearer token as a cache namespace or persist it inside every outbox row. Outbox rows carry `account_id`; the coordinator obtains current credentials at send time.
+Store the backend refresh/access credential in the webview's local storage and load it into memory at startup. Do not use the bearer token as a cache namespace or persist it inside every outbox row. Outbox rows carry `account_id`; the coordinator receives the current credential at send time. Treat script execution in the app origin as credential-sensitive because local storage is not an OS-backed secret store.
 
-SQLite and file permissions prevent casual cross-account exposure but are not application-level encryption. Decide explicitly whether the threat model requires protection from someone who can read the user's unlocked filesystem. If yes, use a well-supported encrypted SQLite build and encrypt blobs, with the key held in Keychain. Do not invent field encryption ad hoc.
+SQLite and file permissions prevent casual cross-account exposure but are not application-level encryption. Decide explicitly whether the threat model requires protection from someone who can read the user's unlocked filesystem. If yes, use a well-supported encrypted SQLite build and encrypt blobs with a separately designed key-management mechanism. Do not invent field encryption ad hoc.
 
 Each account must have a distinct logical partition. A stronger, simpler cleanup boundary is one database and blob namespace per account plus one device-settings database. On logout, close the account database; on removal, verify no pending work or obtain explicit discard/export intent.
 
@@ -468,7 +468,7 @@ Papol's custom portion should be deliberately bounded:
 - domain-specific conflict functions;
 - content-addressed upload endpoints.
 
-Everything underneath remains established technology: SQLite transactions, HTTPS, FastAPI, SQLAlchemy, Tauri commands/channels, and Keychain. This is less operational and migration risk than adding a replication service whose supported backend and Tauri maturity do not presently match Papol.
+Everything underneath remains established technology: SQLite transactions, HTTPS, FastAPI, SQLAlchemy, Tauri commands/channels, and webview storage. This is less operational and migration risk than adding a replication service whose supported backend and Tauri maturity do not presently match Papol.
 
 The decision should be revisited if any of these become true:
 
@@ -529,7 +529,7 @@ This phase turns the Sync button into a complete push-and-pull operation rather 
 - create a Rust-managed SQLite connection and migrations under Tauri app data;
 - expose narrow read/write/sync commands and a status/change channel;
 - create normalized local tables and the transactional outbox;
-- move tokens to Keychain;
+- keep tokens in webview local storage and out of replica/outbox rows;
 - move blobs to content-addressed app-data/cache directories;
 - ensure one process-wide sync coordinator serves every window;
 - update React data hooks to query/subscribe to the repository instead of calling REST directly.
@@ -617,7 +617,6 @@ Do not begin by swapping IndexedDB for SQLite alone. A different storage engine 
 [^aws-idempotency]: Amazon Builders' Library, [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/).
 [^couch-replication]: Apache CouchDB, [Replication protocol](https://docs.couchdb.org/en/stable/replication/protocol.html).
 [^mdn-quota]: MDN Web Docs, [Storage quotas and eviction criteria](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria).
-[^apple-keychain]: Apple Developer Documentation, [Keychain services](https://developer.apple.com/documentation/security/keychain-services/).
 [^tauri-rust]: Tauri, [Calling Rust from the frontend](https://v2.tauri.app/develop/calling-rust/).
 [^tauri-security]: Tauri, [Security](https://v2.tauri.app/security/).
 [^tauri-capabilities]: Tauri, [Capabilities](https://v2.tauri.app/security/capabilities/).

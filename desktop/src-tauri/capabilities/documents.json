@@ -14,8 +14,6 @@
     "allow-blob-discard",
     "allow-local-setting-get",
     "allow-local-setting-set",
-    "allow-credential-get",
-    "allow-credential-set",
     "allow-sync-now",
     "core:event:allow-listen",
     "core:event:allow-unlisten",

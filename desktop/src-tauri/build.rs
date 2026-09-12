@@ -14,8 +14,6 @@ fn main() {
             "local_setting_set",
             "local_account_set",
             "local_recovery_export",
-            "credential_get",
-            "credential_set",
             "sync_now",
         ]),
     ))

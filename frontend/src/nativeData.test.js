@@ -35,7 +35,6 @@ global.window = {
       if (command === 'blob_import') {
         return { sha256: 'a'.repeat(64), size: arguments_.bytes.length, mime_type: arguments_.mimeType };
       }
-      if (command === 'credential_set') return null;
       if (command === 'blob_ensure') {
         remoteBlobReady = true;
         return null;
@@ -56,7 +55,6 @@ global.window = {
 global.Event = class Event { constructor(type) { this.type = type; } };
 
 const credentials = await import('../../shared/credentials.js');
-credentials.configureCredentialInvoke(window.__TAURI_INTERNALS__.invoke);
 await credentials.hydrateCredential();
 
 const {

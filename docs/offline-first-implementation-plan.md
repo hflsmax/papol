@@ -397,15 +397,15 @@ Exit criterion: create and fully edit a board offline, quit the app, reopen it o
 Implementation status (2026-09-12): complete for approved private desktop
 operations. Notes, ink, clips, copies, tags, shelves, paper/edition dependencies,
 content-hash PDF import and canonical identity aliases use the native replica.
-The bearer credential is memory-only in JavaScript and persists in macOS
-Keychain. Visibility changes, account/security, seminars, and social actions
+The bearer credential is loaded into JavaScript memory and persists in the
+webview's local storage. Visibility changes, account/security, seminars, and social actions
 remain deliberately online-only.
 
 - migrate notes, ink, clips, copies, shelves, tags, and associations;
 - add paper/edition read dependencies;
 - implement the explicit PDF import/canonicalization workflow;
 - add local search where needed;
-- move credentials to Keychain.
+- standardize credential persistence in webview local storage.
 
 Exit criterion: every approved user-owned operation works across restart and sync; shared/security operations remain online-only.
 

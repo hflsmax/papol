@@ -5,7 +5,6 @@
 // former and twice from the latter to reach Papol's root API and assets.
 import { appPath, backendPath } from './base.js';
 import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
-import { invoke } from '@tauri-apps/api/core';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   configureNetworkFetch, configureReplayAuthorization, offlineFetch, offlinePdfUrl,
@@ -14,9 +13,7 @@ import {
   boardView, clipView, inkView, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate,
   nativeQuery, noteView, paperView, uuid,
 } from '../../frontend/src/nativeData.js';
-import { configureCredentialInvoke, currentCredential } from '../../shared/credentials.js';
-
-configureCredentialInvoke(invoke);
+import { currentCredential } from '../../shared/credentials.js';
 
 const networkFetch = IS_DESKTOP
   ? tauriHttpFetch

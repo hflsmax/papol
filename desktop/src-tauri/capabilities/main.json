@@ -16,8 +16,6 @@
     "allow-local-setting-set",
     "allow-local-account-set",
     "allow-local-recovery-export",
-    "allow-credential-get",
-    "allow-credential-set",
     "allow-sync-now",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
