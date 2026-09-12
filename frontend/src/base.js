@@ -1,21 +1,33 @@
 // Vite supplies / in development and /papol/ in the production deployment.
 // Keep browser URLs and API requests inside that mount without teaching the
 // application routes themselves about where Papol happens to be hosted.
-const configuredBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+const viteEnvironment = import.meta.env || {};
+const configuredBase = (viteEnvironment.BASE_URL || '/').replace(/\/$/, '');
 
-// Standalone workspace builds use a relative asset base. That value is not
-// the API mount: derive Papol's actual prefix from the board URL so
+// The standalone board's asset base (/boards/ in development, relative in a
+// build) is not the API mount. Derive Papol's actual prefix from its URL so
 // /boards/<guid> calls /api, while /papol/boards/<guid> calls /papol/api.
 const pathname = window.location.pathname;
 const boardMarker = pathname.includes('/demo/boards/') ? '/demo/boards/' : '/boards/';
 const boardAt = pathname.indexOf(boardMarker);
-export const APP_BASE = configuredBase === '.' && boardAt >= 0
+export const APP_BASE = boardAt >= 0
   ? pathname.slice(0, boardAt)
   : configuredBase;
 
 export function appPath(path = '/') {
   const absolute = path.startsWith('/') ? path : `/${path}`;
   return `${APP_BASE}${absolute}` || '/';
+}
+
+// Browser builds keep using Papol's own origin. The desktop build supplies a
+// hosted backend here, while its pages and all of their runtime dependencies
+// remain inside the application bundle.
+const configuredBackend = (viteEnvironment.VITE_PAPOL_BACKEND || '').replace(/\/$/, '');
+export const BACKEND_BASE = configuredBackend || APP_BASE;
+
+export function backendPath(path = '/') {
+  const absolute = path.startsWith('/') ? path : `/${path}`;
+  return configuredBackend ? `${configuredBackend}${absolute}` : appPath(absolute);
 }
 
 export function stripAppBase(pathname) {

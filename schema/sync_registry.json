@@ -1,0 +1,123 @@
+{
+  "protocol_version": 1,
+  "tables": {
+    "boards": {
+      "owner": "user_id",
+      "client_writable": ["name", "description", "shelf_id", "deleted_at"],
+      "conflict": "field_patch",
+      "compatibility_columns": ["id", "guid", "shelf_id"],
+      "column_aliases": {"sync_id": "id", "shelf_sync_id": "shelf_id"}
+    },
+    "board_groups": {
+      "owner": "board.user_id",
+      "client_writable": ["board_id", "kind", "title", "header", "auto_arrange", "deleted_at"],
+      "conflict": "compound_membership",
+      "compatibility_columns": ["id", "board_id"],
+      "column_aliases": {"sync_id": "id", "board_sync_id": "board_id"}
+    },
+    "board_items": {
+      "owner": "board.user_id",
+      "client_writable": [
+        "board_id", "group_id", "kind", "content", "excerpt_text",
+        "blob_sha256", "original_filename", "mime_type", "source_url",
+        "source_label", "staged", "text_align", "position", "x", "y",
+        "width", "deleted_at"
+      ],
+      "conflict": "field_patch",
+      "blob_columns": ["blob_sha256"],
+      "compatibility_columns": ["id", "board_id", "group_id"],
+      "column_aliases": {
+        "sync_id": "id",
+        "board_sync_id": "board_id",
+        "group_sync_id": "group_id"
+      }
+    },
+    "papers": {
+      "create_only": true,
+      "client_writable": ["doi", "title", "authors", "journal", "year"],
+      "compatibility_columns": ["id"],
+      "column_aliases": {"sync_id": "id"}
+    },
+    "paper_editions": {
+      "create_only": true,
+      "client_writable": ["paper_id", "file_path", "sha256"],
+      "blob_columns": ["sha256"],
+      "compatibility_columns": [
+        "id", "paper_id", "uploaded_by", "references_status",
+        "references_error", "references_at"
+      ],
+      "column_aliases": {"sync_id": "id", "paper_sync_id": "paper_id"}
+    },
+    "comments": {
+      "owner": "user_id",
+      "client_writable": [
+        "paper_id", "edition_id", "content", "page", "anchor_type",
+        "anchor", "name", "deleted_at"
+      ],
+      "conflict": "field_patch",
+      "compatibility_columns": ["id", "paper_id", "edition_id"],
+      "column_aliases": {
+        "sync_id": "id", "paper_sync_id": "paper_id",
+        "edition_sync_id": "edition_id"
+      }
+    },
+    "ink_strokes": {
+      "owner": "user_id",
+      "client_writable": [
+        "edition_id", "group_id", "page", "points", "color", "width",
+        "opacity", "shape", "deleted_at"
+      ],
+      "conflict": "whole_row",
+      "compatibility_columns": ["id", "edition_id"],
+      "column_aliases": {"sync_id": "id", "edition_sync_id": "edition_id"}
+    },
+    "paper_clips": {
+      "owner": "user_id",
+      "client_writable": [
+        "edition_id", "page", "source", "frame", "floating", "deleted_at"
+      ],
+      "conflict": "field_patch",
+      "compatibility_columns": ["id", "edition_id"],
+      "column_aliases": {"sync_id": "id", "edition_sync_id": "edition_id"}
+    },
+    "shelves": {
+      "owner": "user_id",
+      "client_writable": ["name", "color", "position", "deleted_at"],
+      "conflict": "field_patch",
+      "compatibility_columns": ["id"],
+      "column_aliases": {"sync_id": "id"}
+    },
+    "tags": {
+      "owner": "user_id",
+      "client_writable": ["name", "deleted_at"],
+      "conflict": "field_patch",
+      "compatibility_columns": ["id"],
+      "column_aliases": {"sync_id": "id"}
+    },
+    "copies": {
+      "owner": "user_id",
+      "client_writable": [
+        "paper_id", "shelf_id", "edition_id", "edition_sha256",
+        "ignored_edition_id", "summary", "deleted_at"
+      ],
+      "conflict": "field_patch",
+      "compatibility_columns": [
+        "id", "paper_id", "shelf_id", "edition_id", "ignored_edition_id"
+      ],
+      "column_aliases": {
+        "sync_id": "id", "paper_sync_id": "paper_id",
+        "shelf_sync_id": "shelf_id", "edition_sync_id": "edition_id",
+        "ignored_edition_sync_id": "ignored_edition_id"
+      }
+    },
+    "copy_tags": {
+      "owner": "user_id",
+      "client_writable": ["copy_id", "tag_id", "deleted_at"],
+      "conflict": "whole_row",
+      "compatibility_columns": ["copy_id", "tag_id"],
+      "column_aliases": {
+        "sync_id": "id", "copy_sync_id": "copy_id", "tag_sync_id": "tag_id"
+      }
+    }
+  }
+}

@@ -1,0 +1,541 @@
+use crate::data::{LocalStore, RemoteChange};
+use reqwest::{Client, Url};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use tokio::sync::Mutex;
+
+pub struct Coordinator {
+    client: Client,
+    gate: Mutex<()>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncResult {
+    pub pushed: usize,
+    pub pulled: usize,
+    pub cursor: i64,
+}
+
+#[derive(Deserialize)]
+struct PushResponse {
+    rows: Vec<Map<String, Value>>,
+    #[serde(default)]
+    conflicts: Vec<Value>,
+    #[serde(default)]
+    aliases: Map<String, Value>,
+}
+
+#[derive(Deserialize)]
+struct PullResponse {
+    cursor: i64,
+    has_more: bool,
+    changes: Vec<RemoteChange>,
+}
+
+#[derive(Deserialize)]
+struct SnapshotResponse {
+    rows: Vec<Map<String, Value>>,
+}
+
+impl Coordinator {
+    pub fn new() -> Result<Self, String> {
+        let client = Client::builder()
+            .user_agent("Papol Desktop/0.1")
+            .build()
+            .map_err(|error| error.to_string())?;
+        Ok(Self {
+            client,
+            gate: Mutex::new(()),
+        })
+    }
+
+    pub async fn synchronize(
+        &self,
+        store: &LocalStore,
+        account_id: i64,
+        backend_url: &str,
+        token: &str,
+    ) -> Result<SyncResult, String> {
+        let _guard = self.gate.lock().await;
+        let backend = validated_backend(backend_url)?;
+        if token.trim().is_empty() {
+            return Err("Sync requires a signed-in account".into());
+        }
+        let mut pushed = 0;
+        while let Some(mutation) = store.next_outbox(account_id)? {
+            let attempted: Result<PushResponse, String> = async {
+                for change in &mutation.changes {
+                    let Some(sha256) = change
+                        .values
+                        .get(if change.table == "paper_editions" {
+                            "sha256"
+                        } else {
+                            "blob_sha256"
+                        })
+                        .and_then(Value::as_str)
+                    else {
+                        continue;
+                    };
+                    let url = backend
+                        .join(&format!("api/sync/blobs/{sha256}"))
+                        .map_err(|error| error.to_string())?;
+                    let present = self
+                        .client
+                        .head(url.clone())
+                        .bearer_auth(token)
+                        .send()
+                        .await
+                        .map_err(|error| error.to_string())?;
+                    if present.status() == reqwest::StatusCode::NOT_FOUND {
+                        let bytes = store.read_blob(sha256)?;
+                        let mime = change
+                            .values
+                            .get("mime_type")
+                            .and_then(Value::as_str)
+                            .unwrap_or("application/octet-stream");
+                        let uploaded = self
+                            .client
+                            .put(url)
+                            .bearer_auth(token)
+                            .header(reqwest::header::CONTENT_TYPE, mime)
+                            .body(bytes)
+                            .send()
+                            .await
+                            .map_err(|error| error.to_string())?;
+                        if !uploaded.status().is_success() {
+                            return Err(http_error(uploaded).await);
+                        }
+                    } else if !present.status().is_success() {
+                        return Err(http_error(present).await);
+                    }
+                }
+                let url = backend
+                    .join("api/sync/push")
+                    .map_err(|error| error.to_string())?;
+                let response = self
+                    .client
+                    .post(url)
+                    .bearer_auth(token)
+                    .json(&mutation)
+                    .send()
+                    .await
+                    .map_err(|error| error.to_string())?;
+                if !response.status().is_success() {
+                    return Err(http_error(response).await);
+                }
+                response.json().await.map_err(|error| error.to_string())
+            }
+            .await;
+            let result = match attempted {
+                Ok(result) => result,
+                Err(error) => {
+                    let blocked = is_permanent_rejection(&error);
+                    store.record_outbox_error(
+                        account_id,
+                        mutation.local_sequence,
+                        &error,
+                        blocked,
+                    )?;
+                    if blocked {
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+            store
+                .accept_push(
+                    account_id,
+                    mutation.local_sequence,
+                    result.rows,
+                    result.conflicts,
+                    result.aliases,
+                )
+                .map_err(|error| format!("Applying pushed rows failed: {error}"))?;
+            pushed += 1;
+        }
+
+        // Push first so aliases can collapse a temporary offline import
+        // before a snapshot introduces the same paper or edition UUID.
+        let snapshot_url = backend
+            .join("api/sync/snapshot")
+            .map_err(|error| error.to_string())?;
+        let snapshot_response = self
+            .client
+            .get(snapshot_url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|error| error.to_string())?;
+        if !snapshot_response.status().is_success() {
+            return Err(http_error(snapshot_response).await);
+        }
+        let snapshot: SnapshotResponse = snapshot_response
+            .json()
+            .await
+            .map_err(|error| error.to_string())?;
+        store
+            .apply_snapshot(account_id, snapshot.rows)
+            .map_err(|error| format!("Applying snapshot failed: {error}"))?;
+
+        let mut pulled = 0;
+        let mut cursor = store.pull_cursor(account_id)?;
+        let client_id = store.client_id()?;
+        loop {
+            let mut url = backend
+                .join("api/sync/pull")
+                .map_err(|error| error.to_string())?;
+            url.query_pairs_mut()
+                .append_pair("cursor", &cursor.to_string())
+                .append_pair("client_id", &client_id)
+                .append_pair("limit", "250");
+            let response = self
+                .client
+                .get(url)
+                .bearer_auth(token)
+                .send()
+                .await
+                .map_err(|error| error.to_string())?;
+            if !response.status().is_success() {
+                return Err(http_error(response).await);
+            }
+            let page: PullResponse = response.json().await.map_err(|error| error.to_string())?;
+            pulled += page.changes.len();
+            cursor = page.cursor;
+            store
+                .apply_pull(account_id, page.changes, cursor)
+                .map_err(|error| format!("Applying pull page failed: {error}"))?;
+            if !page.has_more {
+                break;
+            }
+        }
+        Ok(SyncResult {
+            pushed,
+            pulled,
+            cursor,
+        })
+    }
+
+    pub async fn ensure_blob(
+        &self,
+        store: &LocalStore,
+        backend_url: &str,
+        token: &str,
+        sha256: &str,
+    ) -> Result<(), String> {
+        let _guard = self.gate.lock().await;
+        if store.has_blob(sha256) {
+            return Ok(());
+        }
+        if token.trim().is_empty() {
+            return Err("Downloading a file requires a signed-in account".into());
+        }
+        if sha256.len() != 64
+            || !sha256
+                .chars()
+                .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character))
+        {
+            return Err("Invalid blob identifier".into());
+        }
+        let backend = validated_backend(backend_url)?;
+        let url = backend
+            .join(&format!("api/sync/blobs/{sha256}"))
+            .map_err(|error| error.to_string())?;
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|error| error.to_string())?;
+        if !response.status().is_success() {
+            return Err(http_error(response).await);
+        }
+        let mime = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+        store.import_remote_blob(sha256, &bytes, mime)
+    }
+}
+
+fn validated_backend(value: &str) -> Result<Url, String> {
+    let normalized = format!("{}/", value.trim_end_matches('/'));
+    let url = Url::parse(&normalized).map_err(|_| "Backend URL is invalid")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("Backend must be an http or https origin without credentials".into());
+    }
+    Ok(url)
+}
+
+async fn http_error(response: reqwest::Response) -> String {
+    let status = response.status();
+    let detail = response.text().await.unwrap_or_default();
+    if detail.is_empty() {
+        format!("Sync server returned {status}")
+    } else {
+        format!("Sync server returned {status}: {detail}")
+    }
+}
+
+fn is_permanent_rejection(error: &str) -> bool {
+    [
+        "400 Bad Request",
+        "403 Forbidden",
+        "404 Not Found",
+        "422 Unprocessable Entity",
+    ]
+    .iter()
+    .any(|status| error.contains(status))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::DataChange;
+    use serde_json::{json, Map};
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+    use uuid::Uuid;
+
+    #[test]
+    fn backend_url_is_constrained_to_http_origins() {
+        assert!(validated_backend("https://example.test/papol").is_ok());
+        assert!(validated_backend("file:///tmp/server").is_err());
+        assert!(validated_backend("https://user:secret@example.test").is_err());
+    }
+
+    #[test]
+    fn only_permanent_client_rejections_enter_the_dead_letter_state() {
+        assert!(is_permanent_rejection(
+            "Sync server returned 422 Unprocessable Entity: invalid field"
+        ));
+        assert!(is_permanent_rejection("Sync server returned 403 Forbidden"));
+        assert!(!is_permanent_rejection(
+            "Sync server returned 401 Unauthorized"
+        ));
+        assert!(!is_permanent_rejection(
+            "Sync server returned 503 Service Unavailable"
+        ));
+    }
+
+    fn read_request(stream: &mut TcpStream) -> String {
+        let mut bytes = Vec::new();
+        let mut buffer = [0_u8; 4096];
+        let header_end = loop {
+            let count = stream.read(&mut buffer).unwrap();
+            if count == 0 {
+                return String::from_utf8_lossy(&bytes).into_owned();
+            }
+            bytes.extend_from_slice(&buffer[..count]);
+            if let Some(index) = bytes.windows(4).position(|part| part == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        let headers = String::from_utf8_lossy(&bytes[..header_end]);
+        let length = headers
+            .lines()
+            .find_map(|line| {
+                line.to_ascii_lowercase()
+                    .strip_prefix("content-length:")
+                    .map(str::trim)
+                    .map(str::to_owned)
+            })
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(0);
+        while bytes.len() < header_end + length {
+            let count = stream.read(&mut buffer).unwrap();
+            if count == 0 {
+                break;
+            }
+            bytes.extend_from_slice(&buffer[..count]);
+        }
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
+    fn respond(stream: &mut TcpStream, body: &Value) {
+        let body = body.to_string();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(), body,
+        ).unwrap();
+    }
+
+    #[tokio::test]
+    async fn ambiguous_push_is_retried_with_the_same_identity() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let board_id = Uuid::new_v4().to_string();
+        let response_id = board_id.clone();
+        let server = thread::spawn(move || {
+            let (mut lost, _) = listener.accept().unwrap();
+            let first = read_request(&mut lost);
+            drop(lost);
+
+            let (mut retry, _) = listener.accept().unwrap();
+            let second = read_request(&mut retry);
+            respond(
+                &mut retry,
+                &json!({
+                    "rows": [{
+                        "table": "boards", "id": response_id, "user_id": 7,
+                        "shelf_id": null, "name": "Offline", "description": null,
+                        "created_at": "2026-09-12T00:00:00Z",
+                        "updated_at": "2026-09-12T00:00:00Z",
+                        "revision": 1, "deleted_at": null
+                    }],
+                    "conflicts": []
+                }),
+            );
+
+            let (mut retry_snapshot, _) = listener.accept().unwrap();
+            let retry_snapshot_request = read_request(&mut retry_snapshot);
+            respond(&mut retry_snapshot, &json!({"rows": []}));
+
+            let (mut pull, _) = listener.accept().unwrap();
+            let pull_request = read_request(&mut pull);
+            respond(
+                &mut pull,
+                &json!({
+                    "cursor": 1, "has_more": false, "changes": []
+                }),
+            );
+            (first, retry_snapshot_request, second, pull_request)
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        store
+            .mutate(
+                7,
+                vec![DataChange {
+                    table: "boards".into(),
+                    id: board_id.clone(),
+                    operation: "upsert".into(),
+                    values: Map::from_iter([("name".into(), json!("Offline"))]),
+                }],
+            )
+            .unwrap();
+        let coordinator = Coordinator::new().unwrap();
+        let backend = format!("http://{address}");
+        assert!(coordinator
+            .synchronize(&store, 7, &backend, "token")
+            .await
+            .is_err());
+        assert_eq!(
+            store.query(7, "sync_status", json!({})).unwrap()["pending"],
+            1
+        );
+        let failed_status = store.query(7, "sync_status", json!({})).unwrap();
+        assert_eq!(failed_status["attempts"], 1);
+        assert!(failed_status["outbox_error"].as_str().is_some());
+        let result = coordinator
+            .synchronize(&store, 7, &backend, "token")
+            .await
+            .unwrap();
+        assert_eq!(result.pushed, 1);
+        assert_eq!(
+            store.query(7, "sync_status", json!({})).unwrap()["pending"],
+            0
+        );
+
+        let (first, retry_snapshot, second, pull) = server.join().unwrap();
+        assert!(retry_snapshot.starts_with("GET /api/sync/snapshot "));
+        let first_body = first.split("\r\n\r\n").nth(1).unwrap();
+        let second_body = second.split("\r\n\r\n").nth(1).unwrap();
+        let first_json: Value = serde_json::from_str(first_body).unwrap();
+        let second_json: Value = serde_json::from_str(second_body).unwrap();
+        assert_eq!(first_json["mutation_id"], second_json["mutation_id"]);
+        assert_eq!(first_json["client_id"], second_json["client_id"]);
+        assert!(pull.starts_with("GET /api/sync/pull?"));
+    }
+
+    #[tokio::test]
+    async fn simultaneous_windows_share_one_push_coordinator() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let board_id = Uuid::new_v4().to_string();
+        let response_id = board_id.clone();
+        let server = thread::spawn(move || {
+            let mut requests = Vec::new();
+            for _ in 0..5 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let request = read_request(&mut stream);
+                if request.starts_with("POST /api/sync/push ") {
+                    respond(
+                        &mut stream,
+                        &json!({
+                            "rows": [{
+                                "table": "boards", "id": response_id, "user_id": 7,
+                                "shelf_id": null, "name": "One push", "description": null,
+                                "created_at": "2026-09-12T00:00:00Z",
+                                "updated_at": "2026-09-12T00:00:00Z",
+                                "revision": 1, "deleted_at": null
+                            }],
+                            "conflicts": []
+                        }),
+                    );
+                } else if request.starts_with("GET /api/sync/pull?") {
+                    respond(
+                        &mut stream,
+                        &json!({"cursor": 1, "has_more": false, "changes": []}),
+                    );
+                } else {
+                    respond(&mut stream, &json!({"rows": []}));
+                }
+                requests.push(request);
+            }
+            requests
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        store
+            .mutate(
+                7,
+                vec![DataChange {
+                    table: "boards".into(),
+                    id: board_id,
+                    operation: "upsert".into(),
+                    values: Map::from_iter([("name".into(), json!("One push"))]),
+                }],
+            )
+            .unwrap();
+        let coordinator = Coordinator::new().unwrap();
+        let backend = format!("http://{address}");
+        let (first, second) = tokio::join!(
+            coordinator.synchronize(&store, 7, &backend, "token"),
+            coordinator.synchronize(&store, 7, &backend, "token"),
+        );
+        assert_eq!(first.unwrap().pushed + second.unwrap().pushed, 1);
+        let requests = server.join().unwrap();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.starts_with("POST /api/sync/push "))
+                .count(),
+            1
+        );
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.starts_with("GET /api/sync/pull?"))
+                .count(),
+            2
+        );
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.starts_with("GET /api/sync/snapshot "))
+                .count(),
+            2
+        );
+    }
+}

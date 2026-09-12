@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-data-query"
+description = "Enables the data_query command without any pre-configured scope."
+commands.allow = ["data_query"]
+
+[[permission]]
+identifier = "deny-data-query"
+description = "Denies the data_query command without any pre-configured scope."
+commands.deny = ["data_query"]

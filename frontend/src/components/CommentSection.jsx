@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { addComment, updateComment, deleteComment } from '../api';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
+import { confirmAction } from '../../../shared/confirmAction';
 
 export default function CommentSection({
-  noteHref, paperId, comments, currentUser, onCommentChange }) {
+  noteHref, onOpenNote, paperId, comments, currentUser, onCommentChange }) {
   const [newComment, setNewComment] = useState('');
   const [composing, setComposing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,7 +45,7 @@ export default function CommentSection({
   };
 
   const handleDelete = async (commentId) => {
-    if (!confirm('Delete this comment?')) return;
+    if (!(await confirmAction('Delete this comment?', { confirmLabel: 'Delete', destructive: true }))) return;
 
     try {
       await deleteComment(commentId);
@@ -148,6 +149,11 @@ export default function CommentSection({
                         href={noteHref(comment)}
                         data-document
                         title="Open this note in the PDF"
+                        onClick={(event) => {
+                          if (!onOpenNote || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                          event.preventDefault();
+                          onOpenNote(noteHref(comment));
+                        }}
                       >
                         page {comment.page}
                       </a>

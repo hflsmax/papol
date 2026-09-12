@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
-  addToNook, pdfHref, reextractPaperMetadata,
+  addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../api';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
@@ -13,8 +13,13 @@ import AutoTextarea from './AutoTextarea';
 import { demoActive } from '../demo';
 import { appPath } from '../base';
 import BackLink from './BackLink';
+import { confirmAction } from '../../../shared/confirmAction';
+import { contextMenuHandler } from '../../../shared/contextMenu';
 
-export default function PaperDetail({ paperId, currentUser, onBack, backHref, onSelectPaper, hideBack = false }) {
+export default function PaperDetail({
+  paperId, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
+  hideBack = false,
+}) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
@@ -128,19 +133,26 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
       if (document.visibilityState === 'visible') refresh();
     };
     window.addEventListener('pageshow', onShow);
+    window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.removeEventListener('pageshow', onShow);
+      window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [paperId, editMode, editingSummary, editingThought]);
 
+  // Every load after the first follows a change made here, so whatever lists
+  // this paper beside the page (Papol Desktop's nook) is told to catch up.
+  const loadedOnce = useRef(false);
   const loadPaper = async () => {
     setError(null);
     try {
       const data = await getPaper(paperId);
       setPaper(data);
       if (currentUser && data.viewer_has_entry) setShelves(await listShelves());
+      if (loadedOnce.current) onChanged?.();
+      loadedOnce.current = true;
     } catch (err) {
       setError(err.message);
     } finally {
@@ -234,6 +246,9 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
         '',
         appPath(`${modePrefix}/paper/${added.doi || added.id}`),
       );
+      // Reload rather than stop at the returned copy: a paper just taken into
+      // the nook needs the reader's shelves for its shelf menu.
+      loadPaper();
     } catch (err) {
       setError(err.message);
     }
@@ -266,7 +281,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
   };
 
   const handleDelete = async () => {
-    if (!confirm('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.')) return;
+    if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
       await deletePaper(paper.id);
       onBack();
@@ -386,6 +401,26 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
     setAvailableTags((current) => current.some((item) => item.id === tag.id) ? current : [...current, tag]);
     loadPaper();
   };
+  const openViewer = () => {
+    const href = viewerHref();
+    if (!href) return;
+    if (onRead) onRead(href);
+    else window.location.assign(href);
+  };
+  const paperContextMenu = contextMenuHandler(() => [
+    hasEntry && viewerHref() && { label: 'Read', onSelect: openViewer },
+    paper.file_path && { label: 'Download PDF', onSelect: () => {
+      const link = document.createElement('a');
+      link.href = pdfHref(paper);
+      link.download = pdfFileName(paper);
+      link.click();
+    } },
+    hasEntry && { label: 'Edit Paper…', onSelect: startMetadataEdit },
+    currentUser && !demoActive() && { separator: true },
+    currentUser && !demoActive() && { label: 'Share…', onSelect: () => setShareOpen(true) },
+    hasEntry && { separator: true },
+    hasEntry && { label: 'Remove from My Nook…', onSelect: handleDelete },
+  ]);
 
   return (
     <div className="paper-detail">
@@ -537,13 +572,13 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
               </div>
             </div>
           )}
-          <div className="detail-title-row">
+          <div className="detail-title-row" onContextMenu={paperContextMenu}>
             <h2>{paper.title}</h2>
             {hasEntry && (
               <div className="detail-toggle">
                 <span className="hint-anchor paper-shelf-picker">
                   <label htmlFor="paper-shelf">Shelf:</label>
-                  <select id="paper-shelf" value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(Number(e.target.value))}>
+                  <select id="paper-shelf" value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.id) === e.target.value)?.id)}>
                     {shelves.map((shelf) => (
                       <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
                     ))}
@@ -620,12 +655,17 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
             )}
           </div>
 
-          <div className="paper-actions">
+          <div className="paper-actions" onContextMenu={paperContextMenu}>
             {hasEntry && viewerHref() && (
               <a
                 className="btn primary"
                 href={viewerHref()}
                 data-document
+                onClick={(event) => {
+                  if (!onRead || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                  event.preventDefault();
+                  openViewer();
+                }}
               >
                 Read
               </a>
@@ -679,6 +719,22 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
                   />
                 )}
               </span>
+            )}
+            {/* Leaves with a copy of the PDF, saved under the paper's title
+                (Papol Desktop puts it in Downloads). A copy hosted elsewhere
+                cannot be named from here, so it opens in a new tab instead
+                of taking the reader away from Papol. */}
+            {paper.file_path && (
+              <a
+                className="btn"
+                href={pdfHref(paper)}
+                download={pdfFileName(paper)}
+                {...(pdfHref(paper).startsWith('http')
+                  ? { target: '_blank', rel: 'noopener noreferrer' }
+                  : {})}
+              >
+                Download
+              </a>
             )}
             {hasEntry && (
               <button onClick={startMetadataEdit}>Edit</button>
@@ -970,6 +1026,7 @@ export default function PaperDetail({ paperId, currentUser, onBack, backHref, on
             paperId={paper.id}
             comments={(paper.comments || []).filter((c) => c.content)}
             noteHref={noteHref}
+            onOpenNote={onRead}
             currentUser={currentUser}
             onCommentChange={loadPaper}
           />

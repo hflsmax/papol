@@ -1,15 +1,19 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import * as pdfjs from 'pdfjs-dist';
+// The legacy build, not the modern one: the modern build calls JavaScript
+// that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
+// fails in Safari and in Papol Desktop's macOS webview. The legacy build
+// carries polyfills for exactly that, in the document and in the worker.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
-import 'pdfjs-dist/web/pdf_viewer.css';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import 'pdfjs-dist/legacy/web/pdf_viewer.css';
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import {
-  pdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, cachedPdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
 import { resolveSource, getToken } from './source';
-import { appPath } from './base';
+import { appPath, backendPath } from './base';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
@@ -21,14 +25,26 @@ import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
+import { joinTextPieces, markBounds, pageCharacters, textUnderMarks } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
+import { pageAtLine } from './readingPage';
+import ReturnPill from './ReturnPill';
+import { createValueStore } from './valueStore';
+import { pageRenderQueue } from './pageRenderQueue';
+import {
+  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow,
+} from '../../shared/desktopShell';
+import {
+  LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
+} from '../../shared/featureStates';
+import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
+import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
-const LEARN_LINK_NAVIGATION_KEY = 'papol_learn_link_navigation';
 const markReturnToPapol = () => {
   // This is a one-shot navigation handoff, not demo-mode state. Papol
   // consumes it on arrival so returning from the viewer does not greet the
@@ -49,6 +65,9 @@ const MIN_SCALE = 0.5;
 // on getting thicker. The brush is drawn on the page now, in the stroke's
 // own coordinates, and has no ceiling to reach.
 const MAX_SCALE = 10;
+// How long a pinch has to pause before the rest of the viewer hears of the
+// zoom it reached and the pages are redrawn sharp.
+const ZOOM_SETTLE_MS = 120;
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
 // nobody reads at. The reader can still zoom past this — it only bounds
@@ -262,17 +281,7 @@ function selectedTextWithoutPdfCitations(selection, scroller) {
     if (text) pieces.push({ text, box: pieceBox });
   }
 
-  return pieces.map((piece, index) => {
-    if (index === 0) return piece.text;
-    const previous = pieces[index - 1];
-    const newLine = piece.box.top > previous.box.top + previous.box.height * 0.55;
-    const paragraphBreak = piece.box.top - previous.box.bottom >
-      Math.max(piece.box.height, previous.box.height) * 0.8;
-    const separated = piece.box.left - previous.box.right > 1;
-    const needsSpace = !/\s$/.test(previous.text) && !/^\s/.test(piece.text);
-    const separator = paragraphBreak ? '\n\n' : newLine ? '\n' : separated ? ' ' : '';
-    return `${needsSpace ? separator : ''}${piece.text}`;
-  }).join('');
+  return joinTextPieces(pieces);
 }
 
 function paperAuthors(authors) {
@@ -346,6 +355,12 @@ export default function App() {
   // reader stops zooming, so a pinch costs a transform rather than a
   // re-render of every visible page.
   const [renderScale, setRenderScale] = useState(null);
+  // Handed to the pages rather than the value itself, so that a new drawing
+  // zoom reaches only the pages that follow it (see PdfPage).
+  const renderScaleStore = useMemo(() => createValueStore(null), []);
+  useLayoutEffect(() => {
+    renderScaleStore.set(renderScale);
+  }, [renderScale]);
   const [selectionPaint, setSelectionPaint] = useState(null);
   const selectionHighlightsByPage = useMemo(() => {
     const byPage = new Map();
@@ -414,6 +429,8 @@ export default function App() {
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
+  const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
+  const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
@@ -551,28 +568,36 @@ export default function App() {
   }, [source]);
 
   useEffect(() => {
+    if (paper?.title) document.title = `${paper.title} — Papol`;
+  }, [paper?.title]);
+
+  useEffect(() => {
     if (!paper) return undefined;
-    const href = pdfHref(paper);
-    if (!href) {
-      setError('This paper has no PDF.');
-      return undefined;
-    }
     let cancelled = false;
+    let task = null;
+    let localUrl = null;
     setPdfProgress(null);
-    const task = pdfjs.getDocument({
-      url: href,
-      standardFontDataUrl: 'standard_fonts/',
-      wasmUrl: 'wasm/',
-    });
-    task.onProgress = ({ loaded, total }) => {
-      if (!cancelled) setPdfProgress({ loaded, total });
-    };
-    task.promise
-      .then((d) => !cancelled && setDoc(d))
+    cachedPdfHref(paper)
+      .then((href) => {
+        if (!href) throw new Error('This paper has no PDF.');
+        if (cancelled) { URL.revokeObjectURL(href); return null; }
+        localUrl = href;
+        task = pdfjs.getDocument({
+          url: href,
+          standardFontDataUrl: 'standard_fonts/',
+          wasmUrl: 'wasm/',
+        });
+        task.onProgress = ({ loaded, total }) => {
+          if (!cancelled) setPdfProgress({ loaded, total });
+        };
+        return task.promise;
+      })
+      .then((d) => d && !cancelled && setDoc(d))
       .catch((e) => !cancelled && setError(`PDF failed to open: ${e.message}`));
     return () => {
       cancelled = true;
-      task.destroy();
+      task?.destroy();
+      if (localUrl) URL.revokeObjectURL(localUrl);
     };
   }, [paper]);
 
@@ -582,7 +607,9 @@ export default function App() {
     if (!pdfHash) return undefined;
     let cancelled = false;
     setPaperInfoError(null);
-    getViewerPaperInfo(pdfHash)
+    // A demo paper is fictional: there is nothing to look up and no server to
+    // ask, so the demo's source answers from the paper itself.
+    (source?.info ? source.info() : getViewerPaperInfo(pdfHash))
       .then((info) => {
         if (!cancelled) setPaperInfo(info);
       })
@@ -592,7 +619,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [paper, paperInfo, paperInfoOpen]);
+  }, [paper, paperInfo, paperInfoOpen, source]);
 
   useEffect(() => {
     if (!paperInfoOpen) return undefined;
@@ -793,6 +820,11 @@ export default function App() {
         setLearnLinkNavigation(false);
         return;
       }
+      if (e.key === 'Escape' && returnPillNotice) {
+        e.preventDefault();
+        setReturnPillNotice(false);
+        return;
+      }
       if (e.key === 'Escape' && paperInfoOpen) {
         e.preventDefault();
         setPaperInfoOpen(false);
@@ -848,6 +880,13 @@ export default function App() {
         e.preventDefault();
         e.stopPropagation();
         runHistory(e.shiftKey ? 'redo' : 'undo');
+        return;
+      }
+      // A viewer in Papol's main window can return to the library. Native
+      // document windows use the standard Close Window command instead.
+      if (DESKTOP && !DOCUMENT_WINDOW && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        returnToPapol();
         return;
       }
       const historyDirection = linkHistoryDirection(e);
@@ -916,7 +955,7 @@ export default function App() {
 
   useEffect(() => {
     const clearInkSelection = (event) => {
-      if (!event.target.closest?.('.ink-grab')) setSelectedInk(null);
+      if (!event.target.closest?.('.ink-grab') && !event.target.closest?.('.ink-actions')) setSelectedInk(null);
       if (!event.target.closest?.('.paper-clip') && !event.target.closest?.('.clip-actions')) setSelectedClipId(null);
     };
     document.addEventListener('pointerdown', clearInkSelection, true);
@@ -1033,25 +1072,11 @@ export default function App() {
     // the reader is looking at and its paint action should not follow them.
     window.getSelection()?.removeAllRanges();
     setSelectionPaint(null);
-    try {
-      if (localStorage.getItem(LEARN_LINK_NAVIGATION_KEY) !== 'seen') {
-        localStorage.setItem(LEARN_LINK_NAVIGATION_KEY, 'seen');
-        setLearnLinkNavigation(true);
-      }
-    } catch {
-      // Storage can be unavailable in a locked-down browser. The lesson is
-      // still useful for this visit, even if it cannot be remembered.
-      setLearnLinkNavigation(true);
-    }
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
     if (!scroller || !pageEl) return;
     const from = scroller.scrollTop;
-    const viewBeforeJump = {
-      top: from,
-      left: scroller.scrollLeft,
-      scale,
-    };
+    const viewBeforeJump = currentView();
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
     // A little above what was linked to, rather than flush against the top
@@ -1069,14 +1094,29 @@ export default function App() {
       linkHistory.current.back.push(viewBeforeJump);
       linkHistory.current.forward = [];
       renderLinkHistory((version) => version + 1);
+      // The lesson on getting back belongs to the first time there is
+      // somewhere to get back to, beside the pill that does it.
+      // Where storage is unavailable the lesson cannot be remembered, but it
+      // is still useful for this visit.
+      if (!isFeatureStateSet(LINK_NAVIGATION_TIP)) {
+        setFeatureState(LINK_NAVIGATION_TIP, true);
+        setLearnLinkNavigation(true);
+      }
     }
   };
 
+  // A place in the document: where it was scrolled, at what zoom, and the
+  // page being read there, so the way back to it can be named by its page.
   const currentView = () => {
     const scroller = scrollerRef.current;
-    return scroller
-      ? { top: scroller.scrollTop, left: scroller.scrollLeft, scale }
-      : null;
+    if (!scroller) return null;
+    const box = scroller.getBoundingClientRect();
+    const pages = [...scroller.querySelectorAll('.pdf-page[data-page]')].map((el) => {
+      const rect = el.getBoundingClientRect();
+      return { page: Number(el.dataset.page), top: rect.top, bottom: rect.bottom };
+    });
+    const page = pageAtLine(box.top + box.height * 0.3, pages);
+    return { top: scroller.scrollTop, left: scroller.scrollLeft, scale, page };
   };
 
   const restoreView = (view) => {
@@ -1104,6 +1144,24 @@ export default function App() {
     if (here) to.push(here);
     renderLinkHistory((version) => version + 1);
     restoreView(destination);
+  };
+
+  // Hiding the return pill is for good, in this browser: the reader has
+  // said they do not want it, so later jumps do not bring it back. What
+  // they lose is only the button — [ and ] still move through the jumps,
+  // and the note that confirms the choice says so.
+  const hideReturnPill = () => {
+    setReturnPillHidden(true);
+    setReturnPillNotice(true);
+    setLearnLinkNavigation(false);
+    // Unremembered, the choice still holds for this visit.
+    setFeatureState(RETURN_PILL_HIDDEN, true);
+  };
+
+  const showReturnPill = () => {
+    setReturnPillHidden(false);
+    setReturnPillNotice(false);
+    setFeatureState(RETURN_PILL_HIDDEN, false);
   };
 
   const closeReference = () => {
@@ -1322,6 +1380,102 @@ export default function App() {
     };
   }, [doc, scale, paper?.edition_id, source]);
 
+  // Every stroke of the paint mark in hand.
+  const selectedStrokes = useMemo(() => (selectedInk
+    ? ink.filter((stroke) => (
+      selectedInk.groupId ? stroke.group_id === selectedInk.groupId : stroke.id === selectedInk.id
+    ))
+    : []), [ink, selectedInk]);
+
+  // A selected paint mark offers to be removed, or to send the text under it
+  // to a board. The text is worked out from the mark's shape and the text
+  // layers of its pages (paintText.js); PdfPage builds those for a selected
+  // mark even where scrolling has kept them waiting, so this waits for them.
+  const [inkActions, setInkActions] = useState(null);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!selectedStrokes.length || !scroller) {
+      setInkActions(null);
+      return undefined;
+    }
+    let cancelled = false;
+    let frame = null;
+    const pageElement = (n) => scroller.querySelector(`.pdf-page[data-page="${n}"]`);
+    const pageSize = (el) => ({ width: Number(el.dataset.pageWidth), height: Number(el.dataset.pageHeight) });
+
+    // Beside the end of the mark: above it where there is room, as a
+    // selection's actions sit.
+    const last = selectedStrokes[selectedStrokes.length - 1];
+    const lastPage = pageElement(last.page);
+    if (!lastPage) {
+      setInkActions(null);
+      return undefined;
+    }
+    const size = pageSize(lastPage);
+    const pageBox = lastPage.getBoundingClientRect();
+    const bounds = markBounds(last, size);
+    const right = pageBox.left + (bounds.right / size.width) * pageBox.width;
+    const top = pageBox.top + (bounds.top / size.height) * pageBox.height;
+    const bottom = pageBox.top + (bounds.bottom / size.height) * pageBox.height;
+    const scrollerBox = scroller.getBoundingClientRect();
+    const above = top - 38;
+    const position = {
+      left: Math.max(22, Math.min(window.innerWidth - 22, right)) - scrollerBox.left + scroller.scrollLeft,
+      top: (above >= 8 ? above : Math.min(window.innerHeight - 44, bottom + 8)) - scrollerBox.top + scroller.scrollTop,
+    };
+    setInkActions({ ...position, text: null, bands: [] });
+
+    const pageNumbers = [...new Set(selectedStrokes.map((stroke) => stroke.page))].sort((a, b) => a - b);
+    const began = performance.now();
+    const readText = () => {
+      if (cancelled) return;
+      const elements = pageNumbers.map(pageElement);
+      if (!elements.every((el) => el?.dataset.text) && performance.now() - began < 4000) {
+        frame = requestAnimationFrame(readText);
+        return;
+      }
+      const pages = new Map();
+      const characters = [];
+      pageNumbers.forEach((n, index) => {
+        const el = elements[index];
+        if (!el?.dataset.text) return;
+        const pageUnits = pageSize(el);
+        pages.set(n, pageUnits);
+        const within = selectedStrokes
+          .filter((stroke) => stroke.page === n)
+          .map((stroke) => markBounds(stroke, pageUnits))
+          .reduce((a, b) => ({
+            left: Math.min(a.left, b.left),
+            right: Math.max(a.right, b.right),
+            top: Math.min(a.top, b.top),
+            bottom: Math.max(a.bottom, b.bottom),
+          }));
+        characters.push(...pageCharacters(el, within));
+      });
+      const { text, bands } = textUnderMarks(characters, selectedStrokes, pages);
+      setInkActions((current) => current && { ...current, text: cleanExcerptText(text), bands });
+    };
+    readText();
+    return () => {
+      cancelled = true;
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  }, [selectedStrokes, scale]);
+
+  const removeSelectedInk = () => {
+    const [first] = selectedStrokes;
+    if (!first) return;
+    setSelectedInk(null);
+    eraseStroke(first.id);
+  };
+
+  const openSendPaint = () => {
+    if (!inkActions?.text || !inkActions.bands.length) return;
+    const { text, bands } = inkActions;
+    setSelectedInk(null);
+    openSendText(text, bands);
+  };
+
   const paintSelection = async () => {
     if (!selectionPaint) return;
     const groupId = crypto.randomUUID();
@@ -1358,20 +1512,28 @@ export default function App() {
     setSendComplete(false);
   };
 
-  const openSendSelection = async () => {
+  const openSendSelection = () => {
     if (!selectionPaint?.text) return;
-    const first = selectionPaint.strokes[0];
+    const { text, strokes } = selectionPaint;
+    window.getSelection()?.removeAllRanges();
+    setSelectionPaint(null);
+    openSendText(text, strokes);
+  };
+
+  // The send sheet for text and the line bands it sits in: what a selection,
+  // or a paint mark, sends to a board. The bands become the backlink's
+  // highlight.
+  const openSendText = async (text, strokes) => {
+    const first = strokes[0];
     setSendSelection({
-      text: cleanExcerptText(selectionPaint.text),
+      text: cleanExcerptText(text),
       comment: '',
       page: first.page,
       y: first.points[0]?.y ?? 0.5,
-      strokes: selectionPaint.strokes,
+      strokes,
     });
     setSendError(null);
     setSendComplete(false);
-    window.getSelection()?.removeAllRanges();
-    setSelectionPaint(null);
     try {
       const boards = await listBoards();
       setSendBoards(boards);
@@ -1385,7 +1547,15 @@ export default function App() {
     if (!sendSelection || !sendBoardGuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
     setSendBusy(true);
     setSendError(null);
-    const backlink = new URL(window.location.href);
+    // The desktop viewer itself has a tauri:// URL, which the backend rejects
+    // (and which would be useless outside this Mac). Keep board backlinks on
+    // the canonical hosted viewer while preserving the current paper query.
+    const viewerPath = window.location.pathname.includes('/demo/viewer')
+      ? '/demo/viewer/'
+      : '/viewer/';
+    const backlink = new URL(backendPath(viewerPath), window.location.href);
+    backlink.search = window.location.search;
+    backlink.hash = window.location.hash;
     backlink.searchParams.delete('note');
     backlink.searchParams.set('page', String(sendSelection.page));
     backlink.searchParams.set('y', String(sendSelection.y));
@@ -1794,39 +1964,37 @@ export default function App() {
     const cx = at ? at.x : box.left + box.width / 2;
     const cy = at ? at.y : box.top + box.height / 2;
 
-    // Usually the pointer is directly over a page, which the browser can
-    // answer without us measuring document layout at all. In an inter-page
-    // gap, binary-search the vertically ordered sheets. The old linear scan
-    // forced a rectangle read for every page on every trackpad event.
-    const hit = document.elementFromPoint(cx, cy)?.closest?.('.pdf-page');
-    let pageEl = hit && el.contains(hit) ? hit : null;
-    if (!pageEl) {
-      const pages = el.querySelectorAll('.pdf-page');
-      const boxes = new Map();
-      const boxFor = (index) => {
-        if (!boxes.has(index)) boxes.set(index, pages[index].getBoundingClientRect());
-        return boxes.get(index);
-      };
-      let low = 0;
-      let high = pages.length - 1;
-      while (low <= high) {
-        const middle = (low + high) >> 1;
-        const r = boxFor(middle);
-        if (cy < r.top) high = middle - 1;
-        else if (cy > r.bottom) low = middle + 1;
-        else {
-          pageEl = pages[middle];
-          break;
-        }
+    // Binary-search the vertically ordered sheets: a handful of rectangle
+    // reads. Asking the browser what is under the pointer instead
+    // (elementFromPoint) hit-tests every span of every text layer — about
+    // 4ms a zoom frame in WebKit on a text-dense paper, against almost
+    // nothing for the reads.
+    const pages = el.querySelectorAll('.pdf-page');
+    const boxes = new Map();
+    const boxFor = (index) => {
+      if (!boxes.has(index)) boxes.set(index, pages[index].getBoundingClientRect());
+      return boxes.get(index);
+    };
+    let pageEl = null;
+    let low = 0;
+    let high = pages.length - 1;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      const r = boxFor(middle);
+      if (cy < r.top) high = middle - 1;
+      else if (cy > r.bottom) low = middle + 1;
+      else {
+        pageEl = pages[middle];
+        break;
       }
-      if (!pageEl && pages.length) {
-        const candidates = [low - 1, low].filter((index) => index >= 0 && index < pages.length);
-        pageEl = candidates.reduce((nearest, index) => {
-          const r = boxFor(index);
-          const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
-          return !nearest || gap < nearest.gap ? { el: pages[index], gap } : nearest;
-        }, null)?.el;
-      }
+    }
+    if (!pageEl && pages.length) {
+      const candidates = [low - 1, low].filter((index) => index >= 0 && index < pages.length);
+      pageEl = candidates.reduce((nearest, index) => {
+        const r = boxFor(index);
+        const gap = cy < r.top ? r.top - cy : Math.max(0, cy - r.bottom);
+        return !nearest || gap < nearest.gap ? { el: pages[index], gap } : nearest;
+      }, null)?.el;
     }
     if (!pageEl) return null;
 
@@ -1840,6 +2008,76 @@ export default function App() {
     };
   };
 
+  // The zoom a gesture has reached. While fingers move it runs ahead of
+  // `scale`: each frame goes straight into the pages' geometry, and the rest
+  // of the viewer — React, and every effect that reads the zoom — hears of
+  // it once, when the gesture pauses, which is also when the pages are
+  // redrawn sharp.
+  const liveScale = useRef(null);
+  const zoomCommit = useRef(null);
+  // The spot a gesture zooms about, held while the pointer stays put:
+  // measured again every frame, each scroll position's rounding would be
+  // taken for movement and the page would creep out from under the pointer.
+  const gestureFocus = useRef(null);
+
+  // Page geometry for a zoom: three style values a page, straight onto the
+  // DOM, so React does not reconcile every stroke, pin, clip and link on
+  // every sheet for a scale-only change. PdfPage's memo comparator mirrors
+  // this boundary.
+  const applyScale = (value) => {
+    const el = scrollerRef.current;
+    if (!el || value == null) return;
+    el.dataset.scale = String(value);
+    for (const pageEl of el.querySelectorAll('.pdf-page')) {
+      const width = Number(pageEl.dataset.pageWidth);
+      const height = Number(pageEl.dataset.pageHeight);
+      const drawnAt = Number(pageEl.dataset.renderScale);
+      if (!width || !height) continue;
+      pageEl.style.width = `${width * value}px`;
+      pageEl.style.height = `${height * value}px`;
+      const inner = pageEl.querySelector(':scope > .page-inner');
+      if (inner && drawnAt) inner.style.transform = value === drawnAt ? '' : `scale(${value / drawnAt})`;
+    }
+  };
+
+  // Scroll so a spot captured by captureFocus is back under the point it
+  // was taken at.
+  const keepFocus = (f) => {
+    const el = scrollerRef.current;
+    const pageEl = f && el?.querySelector(`[data-page="${f.page}"]`);
+    if (!pageEl) return;
+    const r = pageEl.getBoundingClientRect();
+    el.scrollLeft += r.left + f.fx * r.width - f.cx;
+    el.scrollTop += r.top + f.fy * r.height - f.cy;
+  };
+
+  // Commits the zoom a gesture reached once input has paused for
+  // ZOOM_SETTLE_MS — counted from the last event, not the last frame, so one
+  // slow frame in the middle of a pinch is not taken for the fingers
+  // stopping.
+  const armZoomCommit = () => {
+    window.clearTimeout(zoomCommit.current);
+    zoomCommit.current = window.setTimeout(function commit() {
+      if (pendingZoom.current.frame != null) {
+        zoomCommit.current = window.setTimeout(commit, ZOOM_SETTLE_MS);
+        return;
+      }
+      zoomCommit.current = null;
+      gestureFocus.current = null;
+      // Text comes back once the view is still. There is nothing in it to
+      // see, and showing a dense paper's text again repaints it — tens of
+      // milliseconds, which here fall where nothing is moving.
+      pageRenderQueue().quiet().then(() => {
+        if (zoomCommit.current == null) scrollerRef.current?.classList.remove('zooming');
+      });
+      if (liveScale.current == null) return;
+      // The gesture has paused: the viewer takes the zoom, and the pages
+      // are redrawn sharp now rather than after a further wait.
+      setScale(liveScale.current);
+      setRenderScale(liveScale.current);
+    }, ZOOM_SETTLE_MS);
+  };
+
   const zoomBy = (factor, at) => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -1847,44 +2085,44 @@ export default function App() {
     const pending = pendingZoom.current;
     pending.factor *= factor;
     pending.at = at;
+    armZoomCommit();
+    // A pinch is the reader moving the page as much as a scroll is: work
+    // that waits for stillness (text layers, detail) waits for this too.
+    pageRenderQueue().scrolled();
     if (pending.frame != null) return;
     // Browsers can deliver several wheel events inside one display frame.
-    // Accumulate them and commit one layout/React update for that frame.
+    // Accumulate them and apply one geometry change for that frame.
     pending.frame = requestAnimationFrame(() => {
       pending.frame = null;
       const combinedFactor = pending.factor;
       const latestAt = pending.at;
       pending.factor = 1;
       pending.at = null;
-      const captured = captureFocus(latestAt);
+      const from = liveScale.current;
+      const next = from == null ? null : clampScale(from * combinedFactor);
+      if (next == null || next === from) return;
+      const held = gestureFocus.current;
+      const captured = held && latestAt && Math.abs(held.cx - latestAt.x) < 2 && Math.abs(held.cy - latestAt.y) < 2
+        ? held
+        : captureFocus(latestAt);
       if (!captured) return;
-      setScale((prev) => {
-        const next = clampScale(prev * combinedFactor);
-        if (next === prev) return prev;
-        focus.current = captured;
-        return next;
-      });
+      gestureFocus.current = captured;
+      liveScale.current = next;
+      // Text layers are hidden until the gesture pauses (.zooming, styles.js).
+      el.classList.add('zooming');
+      applyScale(next);
+      keepFocus(captured);
     });
   };
 
-  // A transient zoom changes only page geometry. Apply those three style
-  // values directly before paint so React does not have to reconcile every
-  // stroke, pin, clip and link on every visible sheet for a scale-only
-  // update. PdfPage's memo comparator deliberately mirrors this boundary.
+  useEffect(() => () => window.clearTimeout(zoomCommit.current), []);
+
   useLayoutEffect(() => {
-    const el = scrollerRef.current;
-    if (!el || scale == null) return;
-    el.dataset.scale = String(scale);
-    for (const pageEl of el.querySelectorAll('.pdf-page')) {
-      const width = Number(pageEl.dataset.pageWidth);
-      const height = Number(pageEl.dataset.pageHeight);
-      const drawnAt = Number(pageEl.dataset.renderScale);
-      if (!width || !height || !drawnAt) continue;
-      pageEl.style.width = `${width * scale}px`;
-      pageEl.style.height = `${height * scale}px`;
-      const inner = pageEl.querySelector(':scope > .page-inner');
-      if (inner) inner.style.transform = scale === drawnAt ? '' : `scale(${scale / drawnAt})`;
-    }
+    // A gesture still under way owns the geometry, and this commit is
+    // already behind it.
+    if (zoomCommit.current != null || scale == null) return;
+    liveScale.current = scale;
+    applyScale(scale);
   }, [scale]);
 
   useLayoutEffect(() => {
@@ -1897,12 +2135,7 @@ export default function App() {
       el.scrollTo({ top: restore.top, left: restore.left, behavior: 'auto' });
       return;
     }
-    if (!f || !el) return;
-    const pageEl = el.querySelector(`[data-page="${f.page}"]`);
-    if (!pageEl) return;
-    const r = pageEl.getBoundingClientRect();
-    el.scrollLeft += r.left + f.fx * r.width - f.cx;
-    el.scrollTop += r.top + f.fy * r.height - f.cy;
+    keepFocus(f);
   }, [scale, railOpen]);
 
   // While a wheel or pinch gesture is moving, PdfPage stretches the current
@@ -2179,13 +2412,17 @@ export default function App() {
         title="Click to name this anchor"
         onClick={(e) => {
           e.stopPropagation();
-          setNameDraft(note.name || '');
-          setNaming(note.id);
+          startNaming(note);
         }}
       >
         {note.name || (note.anchor ? `page ${note.page}` : 'not placed on the page')}
       </button>
     );
+
+  const startNaming = (note) => {
+    setNameDraft(note.name || '');
+    setNaming(note.id);
+  };
 
   // Clicking an anchor on the page says which entry it is: the row lights
   // up, scrolls into view, and fades back on its own.
@@ -2297,6 +2534,22 @@ export default function App() {
     }
   };
 
+  const noteContextMenu = (event, note) => openContextMenu(event, [
+    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
+    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => startWriting(note) },
+    { label: 'Rename Anchor…', onSelect: () => startNaming(note) },
+    { separator: true },
+    { label: 'Delete Anchor', onSelect: () => removeNote(note.id) },
+    { separator: true },
+    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
+    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
+  ]);
+
+  const pageContextMenu = contextMenuHandler((event) => event.target.closest?.('.pdf-page') ? [
+    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
+    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
+  ] : []);
+
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
@@ -2342,9 +2595,12 @@ export default function App() {
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
+  // Once for the document: a later zoom must not pull the reader back.
+  const revealedWantedPage = useRef(null);
   useEffect(() => {
     const pageNumber = Number(wantedPage);
     if (!pageNumber || !doc || !scale || pageNumber > doc.numPages) return undefined;
+    if (revealedWantedPage.current === doc) return undefined;
     let frame = null;
     let cancelled = false;
     const reveal = () => {
@@ -2361,6 +2617,7 @@ export default function App() {
         - box.top - box.height / 2;
       scroller.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
       readingViewRestored.current = true;
+      revealedWantedPage.current = doc;
     };
     reveal();
     return () => {
@@ -2369,10 +2626,13 @@ export default function App() {
     };
   }, [doc, scale, wantedPage, wantedY]);
 
+  // Subscribed once the pages have a zoom, not again at every zoom: a zoom
+  // moves the scroll position, and that is what saves.
+  const hasScale = scale != null;
   useEffect(() => {
     const scroller = scrollerRef.current;
     const key = readingView.current.key;
-    if (!scroller || !key || !doc || !scale) return undefined;
+    if (!scroller || !key || !doc || !hasScale) return undefined;
     let timer = null;
     const save = () => {
       if (!readingViewRestored.current && !wantedNoteId) return;
@@ -2391,7 +2651,7 @@ export default function App() {
         page: Number(nearest.pageEl.dataset.page),
         x: Math.max(0, Math.min(1, (cx - nearest.rect.left) / nearest.rect.width)),
         y: Math.max(0, Math.min(1, (cy - nearest.rect.top) / nearest.rect.height)),
-        scale,
+        scale: liveScale.current,
       };
       readingView.current.view = view;
       localStorage.setItem(key, JSON.stringify(view));
@@ -2407,7 +2667,7 @@ export default function App() {
       window.clearTimeout(timer);
       save();
     };
-  }, [doc, scale, wantedNoteId]);
+  }, [doc, hasScale, wantedNoteId]);
 
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
@@ -2515,9 +2775,20 @@ export default function App() {
         <style>{styles}</style>
         <div className="shell">
           <div className="error">{error}</div>
-          <p className="hint">
-            <a href={source?.backHref || appPath('/')} onClick={markReturnToPapol}>Back to Papol</a>
-          </p>
+          {!DOCUMENT_WINDOW && <p className="hint">
+            <a
+              href={source?.backHref || appPath('/')}
+              onClick={(event) => {
+                if (closeDesktopDocumentWindow()) {
+                  event.preventDefault();
+                } else {
+                  markReturnToPapol();
+                }
+              }}
+            >
+              Back to Papol
+            </a>
+          </p>}
         </div>
       </>
     );
@@ -2534,11 +2805,53 @@ export default function App() {
       : null;
   const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page) || null;
 
+  // Arriving from Papol, going back is a step back in history, not a new
+  // entry — otherwise Papol's own Back walks the reader straight into the
+  // viewer again. A direct visit has no Papol behind it, so it goes to the
+  // paper's page instead.
+  const returnToPapol = () => {
+    // Papol Desktop opens papers as document windows. Closing that window
+    // returns to the library that has remained mounted behind it.
+    if (closeDesktopDocumentWindow()) return;
+    markReturnToPapol();
+    if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.assign(source?.backHref || appPath('/'));
+    }
+  };
+  // The document's own history, kept apart from the window's Back: the return
+  // pill over the pages names the page each way leads to.
+  const returnView = linkHistory.current.back[linkHistory.current.back.length - 1] || null;
+  const onwardView = linkHistory.current.forward[linkHistory.current.forward.length - 1] || null;
+
+  const learnLinkTip = learnLinkNavigation && (
+    <span className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
+      <span className="learn-papol-kicker">Learn Papol</span>
+      <strong id="learn-link-title">Jump back to where you were</strong>
+      <span>
+        Use this pill after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>
+        {' '}to move back and forward.
+      </span>
+      <button
+        type="button"
+        className="learn-papol-close"
+        onClick={() => setLearnLinkNavigation(false)}
+        aria-label="Dismiss this tip"
+      >
+        Got it
+      </button>
+    </span>
+  );
+
   return (
     <>
       <style>{styles}</style>
       <header
         className="viewer-bar"
+        // Empty stretches of the bar move the window in Papol Desktop;
+        // everywhere else the attribute is inert.
+        data-tauri-drag-region="deep"
         // A tool taken with the pointer should not be left holding keyboard
         // focus. Nothing shows while the pointer is what moved, but the
         // moment a key is pressed the browser promotes that parked focus to
@@ -2551,74 +2864,27 @@ export default function App() {
           e.target.closest?.('button')?.blur();
         }}
       >
-        {/* Arriving from Papol, going back is a step back in history, not a
-            new entry — otherwise Papol's own Back button walks the reader
-            straight into the viewer again. The href stays for a direct
-            visit, and for opening in a new tab. */}
-        <a
-          className="back"
-          href={source?.backHref || appPath('/')}
-          onClick={(e) => {
-            markReturnToPapol();
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-            if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
+        {/* The bar is the window's navigation: back to Papol and nothing
+            else. Jumps inside the PDF are the return pill's, over the pages. */}
+        {DESKTOP && !DOCUMENT_WINDOW ? (
+          <DesktopNav back={{ onClick: returnToPapol, label: 'Back to Papol' }} />
+        ) : !DESKTOP ? (
+          // The href stays for a direct visit, and for opening in a new tab.
+          <a
+            className="back"
+            href={source?.backHref || appPath('/')}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+                markReturnToPapol();
+                return;
+              }
               e.preventDefault();
-              window.history.back();
-            }
-          }}
-        >
-          ← <span className="back-word">Back to </span>Papol
-        </a>
-        <span
-          className={`link-navigation${learnLinkNavigation ? ' learning' : ''}`}
-          role="group"
-          aria-label="Link navigation"
-        >
-          <button
-            type="button"
-            className="history-arrow"
-            disabled={linkHistory.current.back.length === 0}
-            onClick={() => moveThroughLinks('back')}
-            aria-label="Back through followed links"
-            title="Back through followed links ([)"
+              returnToPapol();
+            }}
           >
-            <svg className="history-arrow-glyph" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 12H4m6-6-6 6 6 6" />
-            </svg>
-            <span className="history-key" aria-hidden="true">[</span>
-          </button>
-          <button
-            type="button"
-            className="history-arrow"
-            disabled={linkHistory.current.forward.length === 0}
-            onClick={() => moveThroughLinks('forward')}
-            aria-label="Forward through followed links"
-            title="Forward through followed links (])"
-          >
-            <svg className="history-arrow-glyph" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 12h16m-6-6 6 6-6 6" />
-            </svg>
-            <span className="history-key" aria-hidden="true">]</span>
-          </button>
-          {learnLinkNavigation && (
-            <span className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
-              <span className="learn-papol-kicker">Learn Papol</span>
-              <strong id="learn-link-title">Jump back to where you were</strong>
-              <span>
-                Use these buttons after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>
-                {' '}to move back and forward.
-              </span>
-              <button
-                type="button"
-                className="learn-papol-close"
-                onClick={() => setLearnLinkNavigation(false)}
-                aria-label="Dismiss this tip"
-              >
-                Got it
-              </button>
-            </span>
-          )}
-        </span>
+            ← <span className="back-word">Back to </span>Papol
+          </a>
+        ) : null}
         <span className="spacer" />
         <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
           <button type="button" className="search-button" onClick={() => setSearchOpen((open) => !open)} title="Search PDF (Ctrl/Command+F)" aria-label="Search PDF" aria-expanded={searchOpen}>
@@ -3040,9 +3306,23 @@ export default function App() {
         >
           {railOpen ? '›' : '‹'}
         </button>
+        <ReturnPill
+          returnView={returnView}
+          onwardView={onwardView}
+          hidden={returnPillHidden}
+          notice={returnPillNotice}
+          onBack={() => moveThroughLinks('back')}
+          onForward={() => moveThroughLinks('forward')}
+          onHide={hideReturnPill}
+          onUndo={showReturnPill}
+          onDismiss={() => setReturnPillNotice(false)}
+        >
+          {learnLinkTip}
+        </ReturnPill>
         <div
           className="pages"
           ref={scrollerRef}
+          onContextMenu={pageContextMenu}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
             const pages = [...e.currentTarget.querySelectorAll('.pdf-page')];
@@ -3103,7 +3383,7 @@ export default function App() {
               doc={doc}
               pageNumber={n}
               scale={scale}
-              renderScale={renderScale}
+              renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}
               activeNoteId={notesByPage.get(n)?.some((note) => note.id === activeNoteId) ? activeNoteId : null}
               analysis={analysis}
@@ -3143,6 +3423,7 @@ export default function App() {
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
               onDragNote={setDraggingNoteId}
+              onContextNote={noteContextMenu}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}
@@ -3205,6 +3486,42 @@ export default function App() {
                 title="Send selected text to a board"
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={openSendSelection}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 17 17 7M9 7h8v8" />
+                </svg>
+              </button>
+            </span>
+          )}
+          {inkActions && (
+            <span
+              className="selection-actions ink-actions"
+              style={{ left: inkActions.left, top: inkActions.top }}
+            >
+              <button
+                type="button"
+                className="selection-action ink-remove"
+                aria-label="Remove paint"
+                title="Remove paint (Delete)"
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={removeSelectedInk}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 11v5M13.5 11v5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="selection-action selection-send"
+                aria-label="Send painted text to a board"
+                title={inkActions.text == null
+                  ? 'Reading the text under this paint…'
+                  : inkActions.text
+                    ? 'Send painted text to a board'
+                    : 'No text under this paint'}
+                disabled={!inkActions.text}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={openSendPaint}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M7 17 17 7M9 7h8v8" />
@@ -3449,6 +3766,7 @@ export default function App() {
                   note.id === flashId ? ' flash' : ''
                 }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
+                onContextMenu={(event) => noteContextMenu(event, note)}
               >
                 <span className="row-glyph">
                   <GlyphFor note={note} />
@@ -3483,6 +3801,7 @@ export default function App() {
                   note.id === flashId ? ' flash' : ''
                 }${note.id === draggingNoteId ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
+                onContextMenu={(event) => noteContextMenu(event, note)}
               >
                 <button
                   className="card-x"

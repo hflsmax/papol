@@ -152,6 +152,36 @@ button.link.danger { color: var(--red); }
   border-bottom: 1px solid var(--line);
 }
 
+/* In Papol Desktop the bar is the window's title bar: the same height as
+   the app's toolbar, draggable, and clear of the macOS traffic lights. */
+[data-shell='desktop'] .viewer-bar {
+  min-height: 52px;
+  padding-block: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[data-shell='desktop'][data-platform='mac'] .viewer-bar {
+  padding-left: 88px;
+}
+
+/* Every control in the bar keeps its size; only the spacer gives way. */
+[data-shell='desktop'] .viewer-bar > :not(.spacer) {
+  flex-shrink: 0;
+}
+
+/* Only the bar's own controls keep to one line. Its wrappers also hold
+   pop-ups (the paper's info, search, the brush), whose text must wrap. */
+[data-shell='desktop'] .viewer-bar > :is(button, a),
+[data-shell='desktop'] .viewer-bar > * > :is(button, a) {
+  white-space: nowrap;
+}
+
+/* Feedback lives in the app's sidebar. */
+[data-shell='desktop'] .feedback-fab {
+  display: none;
+}
+
 .viewer-bar .back {
   color: var(--accent);
   text-decoration: none;
@@ -160,18 +190,6 @@ button.link.danger { color: var(--red); }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.link-navigation {
-  position: relative;
-  flex: none;
-  display: flex;
-  gap: 2px;
-}
-
-.link-navigation.learning .history-arrow {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .learn-papol {
@@ -235,64 +253,6 @@ button.link.danger { color: var(--red); }
   border-color: var(--accent);
   background: var(--accent);
   color: var(--ink-inverse);
-}
-
-.history-arrow {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: inherit;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.history-arrow-glyph {
-  display: block;
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.history-key {
-  position: absolute;
-  left: 3px;
-  bottom: 1px;
-  color: var(--ink-faint);
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.history-arrow:not(:disabled) { border-color: var(--accent-line); }
-.history-arrow:hover:not(:disabled),
-.history-arrow:focus-visible:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--ink-inverse);
-  outline: none;
-}
-.history-arrow:hover:not(:disabled) .history-key,
-.history-arrow:focus-visible:not(:disabled) .history-key { color: var(--ink-inverse); }
-.history-arrow:focus-visible:not(:disabled) { box-shadow: 0 0 0 2px var(--accent-soft); }
-.history-arrow:active:not(:disabled) { transform: translateY(1px); }
-.history-arrow:disabled {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--muted);
-  opacity: 0.38;
-  cursor: default;
 }
 
 .viewer-bar .spacer { flex: 1; }
@@ -662,6 +622,185 @@ button.link.danger { color: var(--red); }
 
 .viewer-body.rail-hidden { grid-template-columns: minmax(0, 1fr); }
 
+/* ---------- Return pill ---------- */
+
+/* Where a followed link ("see Section 3") left the reader: a pill over the
+   pages naming the page to go back to, the document's own history. It is
+   kept apart from the bar, whose navigation only leaves for Papol, and it
+   exists only while there is somewhere to return to. Centred over the pages,
+   not the window. */
+.link-return {
+  position: absolute;
+  z-index: 36;
+  bottom: 20px;
+  left: calc((100% - var(--rail-w)) / 2);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  box-shadow: 0 6px 20px rgba(29, 33, 41, 0.16), 0 1px 3px rgba(29, 33, 41, 0.1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.viewer-body.rail-hidden .link-return { left: 50%; }
+
+.link-return .link-return-button,
+.link-return .link-return-button:hover:not(:disabled) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.link-return .link-return-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.link-return-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.link-return kbd {
+  min-width: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink-faint);
+  font: 600 var(--fs-xs) var(--font-ui);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.link-return-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 5px 1px;
+  background: var(--line);
+}
+
+/* The pill's own way out: quiet until pointed at, like a tab's close box. */
+.link-return .link-return-hide,
+.link-return .link-return-hide:hover:not(:disabled) {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.link-return .link-return-hide:hover:not(:disabled) {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.link-return-hide svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Where the pill stood, the Learn Papol card that explains hiding it: the
+   same card as the pill's own lesson, drawn in place rather than hung off an
+   anchor, since the pill it would point at is gone. */
+.link-return-notice {
+  position: absolute;
+  z-index: 42;
+  bottom: 20px;
+  left: calc((100% - var(--rail-w)) / 2);
+  transform: translateX(-50%);
+}
+
+.viewer-body.rail-hidden .link-return-notice { left: 50%; }
+
+.link-return-notice .learn-papol {
+  position: static;
+  transform: none;
+}
+
+.link-return-notice .learn-papol::before { display: none; }
+
+.learn-papol-actions {
+  display: flex;
+  align-self: stretch;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.learn-papol .learn-papol-actions .learn-papol-close { margin-top: 0; }
+
+.learn-papol .learn-papol-undo {
+  padding: 4px 9px;
+  border-color: var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* The card's buttons keep their own colours under the pointer. The viewer's
+   general button hover turns text accent, which on Got it's accent fill made
+   the label vanish. */
+.learn-papol .learn-papol-close:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--ink-inverse);
+}
+
+.learn-papol .learn-papol-undo:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--card);
+  color: var(--accent);
+}
+
+/* The lesson on getting back opens above the pill it is about. */
+.link-return .learn-papol {
+  top: auto;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: normal;
+}
+
+.link-return .learn-papol::before {
+  top: auto;
+  bottom: -7px;
+  left: calc(50% - 6px);
+  border: 0;
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+}
+
 .rail-handle {
   position: absolute;
   z-index: 35;
@@ -801,7 +940,13 @@ button.link.danger { color: var(--red); }
 }
 
 .pdf-page canvas { display: block; }
-.pdf-page-blank { width: 100%; height: 100%; background: var(--card); }
+/* The drawing fills the page whatever scale it was made at, so between a
+   zoom and the sharp redraw the last one stretches rather than jumps. */
+.page-canvas { position: absolute; inset: 0; }
+.page-canvas canvas { width: 100%; height: 100%; }
+/* Over a limited drawing, the part on screen at full sharpness; placed in
+   fractions of the page by PdfPage. */
+.page-canvas .page-detail { position: absolute; }
 
 .page-number {
   position: absolute;
@@ -814,7 +959,17 @@ button.link.danger { color: var(--red); }
 
 /* Papol's own touches on pdf.js's text layer; the layout rules come from
    the library's stylesheet. */
-.textLayer { z-index: 2; }
+/* Where PdfPage puts the text layer, above the drawing: laid out at one zoom
+   and scaled to the zoom shown. */
+.text-host { position: absolute; inset: 0; z-index: 2; }
+.text-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* While a pinch is under way. The spans are invisible anyway, but WebKit
+   still paints them, and resizing pages under a dense paper's text layers
+   cost about 10ms a frame; hidden, pinching out went from about 22 to 54
+   frames a second. Every page's text, not only the text on screen: hiding
+   just that measured slower, because text beside the view still repaints.
+   Selection and search highlights come back once the view is still. */
+.pages.zooming .text-host { visibility: hidden; }
 .textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
 .provenance-box {
   position: absolute;
@@ -881,6 +1036,20 @@ button.link.danger { color: var(--red); }
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* A selected paint mark's actions: the same round buttons as a selection's. */
+.ink-remove { color: var(--red); }
+.ink-remove svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.selection-action:disabled { opacity: 0.45; cursor: default; background: var(--card); }
 
 .provenance-highlight {
   pointer-events: none;
@@ -1801,6 +1970,9 @@ button.link.danger { color: var(--red); }
    the viewer scrolls the .pages element, so a layout where the window
    scrolled instead would quietly break going to an anchor. */
 @media (max-width: 860px) {
+  /* The rail lies over the pages here, so the pill centres on the window. */
+  .viewer-body .link-return,
+  .viewer-body .link-return-notice { left: 50%; }
   .viewer-body {
     --rail-w: min(320px, 86vw);
     grid-template-columns: minmax(0, 1fr);

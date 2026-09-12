@@ -14,6 +14,7 @@ import {
 import Avatar from './Avatar';
 import HintPop from './HintPop';
 import { SEMINAR_STYLES, styleLabel, roomStyleDesc } from '../seminarStyles';
+import { confirmAction } from '../../../shared/confirmAction';
 
 function formatWhen(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -230,12 +231,13 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               !announcePlatform.trim() ||
               !chosenStyle
             }
-            onClick={() => {
+            onClick={async () => {
               if (
                 editingAnnounce &&
-                !confirm(
-                  'Are you sure you want to save? Everyone in the cohort and every reader of this paper will be notified of the change.'
-                )
+                !(await confirmAction(
+                  'Are you sure you want to save? Everyone in the cohort and every reader of this paper will be notified of the change.',
+                  { confirmLabel: 'Save and notify' },
+                ))
               ) {
                 return;
               }

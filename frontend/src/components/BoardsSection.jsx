@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createBoard, listBoards, updateBoard } from '../api';
 import ExperimentalBadge from './ExperimentalBadge';
+import { subscribeNativeData } from '../nativeData';
 
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: new Date(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
@@ -19,6 +20,9 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
     if (initialBoards) { setBoards(initialBoards); return; }
     listBoards().then(setBoards).catch((err) => setError(err.message));
   }, [initialBoards]);
+  useEffect(() => subscribeNativeData(() => {
+    if (!initialBoards) listBoards().then(setBoards).catch((err) => setError(err.message));
+  }), [initialBoards]);
   useEffect(() => {
     if (!shelfId && shelves.length) setShelfId(shelves.find((shelf) => shelf.is_default)?.id || shelves[0].id);
   }, [shelves, shelfId]);
@@ -28,7 +32,8 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
     if (!name.trim()) return;
     setError(null);
     try {
-      const board = await createBoard({ name: name.trim(), description: description.trim() || null, shelf_id: Number(shelfId) });
+      const selectedShelf = shelves.find((shelf) => String(shelf.id) === String(shelfId));
+      const board = await createBoard({ name: name.trim(), description: description.trim() || null, shelf_id: selectedShelf?.id ?? null });
       onSelectBoard(board.guid);
     } catch (err) {
       setError(err.message);
@@ -74,7 +79,7 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
             <span className="board-list-title">{board.name}</span>
             {board.description && <span className="board-list-description">{board.description}</span>}
             <span className="board-list-meta"><span>{board.item_count} {board.item_count === 1 ? 'item' : 'items'}</span><time dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time></span>
-            {isOwn && <select className="board-list-shelf" aria-label={`Shelf for ${board.name}`} value={board.shelf_id || ''} onClick={(event) => event.stopPropagation()} onChange={async (event) => { event.stopPropagation(); await updateBoard(board.guid, { shelf_id: Number(event.target.value) }); setBoards((current) => current.map((item) => item.guid === board.guid ? { ...item, shelf_id: Number(event.target.value) } : item)); onChanged?.(); }}>
+            {isOwn && <select className="board-list-shelf" aria-label={`Shelf for ${board.name}`} value={board.shelf_id || ''} onClick={(event) => event.stopPropagation()} onChange={async (event) => { event.stopPropagation(); const selected = shelves.find((shelf) => String(shelf.id) === event.target.value); if (!selected) return; await updateBoard(board.guid, { shelf_id: selected.id }); setBoards((current) => current.map((item) => item.guid === board.guid ? { ...item, shelf_id: selected.id } : item)); onChanged?.(); }}>
               {shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}
             </select>}
           </div>

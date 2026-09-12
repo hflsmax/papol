@@ -1,0 +1,33 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Least-privilege native access for Papol's permanent library window.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-open-document-window",
+    "allow-data-query",
+    "allow-data-mutate",
+    "allow-blob-import",
+    "allow-blob-read",
+    "allow-blob-ensure",
+    "allow-blob-clear-cache",
+    "allow-blob-discard",
+    "allow-local-setting-get",
+    "allow-local-setting-set",
+    "allow-local-account-set",
+    "allow-local-recovery-export",
+    "allow-credential-get",
+    "allow-credential-set",
+    "allow-sync-now",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://mc-pony.com/**" },
+        { "url": "http://localhost:**" },
+        { "url": "http://127.0.0.1:**" }
+      ]
+    }
+  ]
+}

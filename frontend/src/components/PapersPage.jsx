@@ -5,25 +5,7 @@ import Avatar from './Avatar';
 import StatePill from './StatePill';
 import PaperUpload from './PaperUpload';
 import { appPath } from '../base';
-
-function parseAuthors(authorsJson) {
-  if (!authorsJson) return '';
-  try {
-    const authors = JSON.parse(authorsJson);
-    if (authors.length <= 2) return authors.join(', ');
-    return `${authors[0]} et al.`;
-  } catch {
-    return authorsJson;
-  }
-}
-
-// Active calls first, then scheduled seminars, then the rest
-const seminarRank = (p) =>
-  p.room_status === 'open' || p.room_status === 'planning'
-    ? 0
-    : p.room_status === 'scheduled'
-      ? 1
-      : 2;
+import { formatAuthors, newestFirst as newest, seminarRank } from '../paperFormat';
 
 const avgMerit = (p) => {
   const rated = (p.readers || [])
@@ -34,7 +16,6 @@ const avgMerit = (p) => {
     : null;
 };
 
-const newest = (a, b) => new Date(b.created_at) - new Date(a.created_at);
 
 const SORTS = {
   activity: {
@@ -187,7 +168,7 @@ export default function PapersPage({ currentUser, onSelectPaper, onSelectBoard }
                     )}
                   </div>
                   <p className="paper-meta">
-                    {parseAuthors(paper.authors)}
+                    {formatAuthors(paper.authors)}
                     {paper.year && ` (${paper.year})`}
                     {paper.journal && ` - ${paper.journal}`}
                   </p>

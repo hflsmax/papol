@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-blob-discard"
+description = "Enables the blob_discard command without any pre-configured scope."
+commands.allow = ["blob_discard"]
+
+[[permission]]
+identifier = "deny-blob-discard"
+description = "Denies the blob_discard command without any pre-configured scope."
+commands.deny = ["blob_discard"]

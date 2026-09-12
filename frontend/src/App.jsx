@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  getMe, getToken, setToken, logout, getNotifications, sendPresence,
+  getMe, getToken, setToken, logout, pendingLocalChanges, getNotifications, sendPresence, updatePaper,
 } from './api';
 import AuthPage from './components/AuthPage';
 import Space from './components/Space';
@@ -15,7 +15,17 @@ import HomePage from './components/HomePage';
 import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
+import {
+  DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
+  useDesktopShortcuts,
+} from './components/DesktopChrome';
+import { DesktopBrowser, useNookSpace } from './components/DesktopLibrary';
+import { isBrowsing, lastShownSource, resolveSource } from './desktopSources';
+import { desktopStyles } from './desktopStyles';
+import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
+import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
+import { confirmAction } from '../../shared/confirmAction';
 
 export const styles = `
 * {
@@ -97,6 +107,12 @@ export const styles = `
   --radius: 3px;
   --radius-lg: 10px;
   --radius-pill: 999px;
+
+  /* Desktop chrome — the sidebar and toolbars of Papol Desktop only */
+  --chrome: #eaedf1;
+  --chrome-hover: rgba(29, 33, 41, 0.06);
+  --chrome-selected: rgba(29, 33, 41, 0.1);
+  --chrome-radius: 6px;
 }
 
 body {
@@ -3005,6 +3021,7 @@ h4 .state-pill {
 .profile-page,
 .profile-page input,
 .profile-page label,
+.profile-page select,
 .profile-page button {
   font-family: var(--font-ui);
 }
@@ -3039,6 +3056,39 @@ h4 .state-pill {
 .profile-page .panel-note,
 .profile-page .avatar-hint {
   font-style: normal;
+}
+
+.local-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+}
+
+.local-setting-row label {
+  display: block;
+}
+
+.local-setting-row select {
+  min-width: 120px;
+  padding: 7px 28px 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+
+.local-storage-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.local-storage-totals {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }
 
 .panel-head-row {
@@ -3775,6 +3825,27 @@ a.btn:hover {
   background: var(--accent-soft);
 }
 
+/* The whole notification is its button: it keeps the row's look, and only
+   gains the ability to be reached from the keyboard. */
+.notif-toggle,
+.notif-toggle:hover:not(:disabled) {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notif-toggle .notif-content,
+.notif-toggle .notif-date {
+  display: block;
+}
+
 .notif-item.unread {
   background: var(--accent-soft);
   border-left: 3px solid var(--accent);
@@ -4222,6 +4293,44 @@ a.btn:hover {
   margin-top: 12px;
 }
 
+.feature-state-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feature-state {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.feature-state:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.feature-state-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feature-state-body span {
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.feature-state-body code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--ink-faint);
+}
+
 /* ---------- Comments ---------- */
 
 .comment-section h4 {
@@ -4457,6 +4566,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
 .board-image-loading { display: grid; width: 100%; aspect-ratio: 4 / 3; place-items: center; background: var(--paper); }
 .board-canvas-card.youtube .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
+.board-link-placeholder { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--paper-soft); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.board-link-placeholder > span:first-child { color: var(--accent); font-size: 24px; }
 .board-canvas-card.webpage img,
 .board-canvas-card.youtube img { height: auto; max-height: none; object-fit: initial; background: transparent; }
 .board-canvas-card p { margin: 0; padding: 14px; white-space: pre-wrap; user-select: text; cursor: text; }
@@ -4702,6 +4813,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     width: 100%;
   }
 }
+${desktopStyles}
 `;
 
 function parseRoute() {
@@ -4742,7 +4854,7 @@ const SIGN_IN_PAGES = new Set([
   'space', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
-function navigate(path) {
+function navigate(path, { replace = false } = {}) {
   const destination = demoActive() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
     ? demoPath(path)
@@ -4751,16 +4863,29 @@ function navigate(path) {
   // to do nothing.
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
-  window.history.pushState(
-    { ...(window.history.state || {}), papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
-    '',
-    mountedDestination,
-  );
+  if (replace) {
+    // Moving a selection through a list is not a step worth a Back.
+    window.history.replaceState(
+      { ...(window.history.state || {}), papolNavigation: true },
+      '',
+      mountedDestination,
+    );
+  } else {
+    window.history.pushState(
+      { ...(window.history.state || {}), papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
+      '',
+      mountedDestination,
+    );
+  }
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 function openBoard(guid) {
   const path = demoActive() ? `/demo/boards/${guid}` : `/boards/${guid}`;
+  if (DESKTOP) {
+    openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
+    return;
+  }
   window.sessionStorage.setItem(
     'papol.boardReturn',
     `${window.location.pathname}${window.location.search}`,
@@ -4813,7 +4938,7 @@ export default function App() {
           try {
             setUser(await getMe());
           } catch {
-            setToken(null);
+            await setToken(null);
             setUser(null);
           }
         } else {
@@ -4854,7 +4979,7 @@ export default function App() {
       .catch(async () => {
         // A stale session becomes an ordinary guest session. Demo is only
         // entered by a URL that explicitly contains /demo.
-        setToken(null);
+        await setToken(null);
         setUser(null);
       })
       .finally(() => setAuthChecked(true));
@@ -4878,6 +5003,21 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [user]);
 
+  const [managingNook, setManagingNook] = useState(false);
+  const [desktopNotice, setDesktopNotice] = useState(null);
+  const [syncRefresh, setSyncRefresh] = useState(0);
+  // The desktop sidebar lists the reader's shelves and tags, so the desktop
+  // app keeps their nook loaded beside whatever is open.
+  const nook = useNookSpace(DESKTOP && user ? user.id : null, route);
+  const desktopSource = resolveSource(route, user, {
+    search: window.location.search,
+    lastShown: lastShownSource(),
+  });
+  const desktopGroups = desktopNavigation({
+    user, route, unreadCount, space: nook.space, source: desktopSource,
+  });
+  useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
+
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
     const currentPath = stripAppBase(window.location.pathname || '/');
@@ -4886,7 +5026,7 @@ export default function App() {
       ? candidate
       : '/';
     exitDemo();
-    setToken(token);
+    // login/register already persisted the credential for this account.
     setUser(user);
     if (returnTo.startsWith('/boards/')) {
       window.location.replace(appPath(returnTo));
@@ -4902,7 +5042,7 @@ export default function App() {
     try {
       setUser(await getMe());
     } catch {
-      setToken(null);
+      await setToken(null);
       setUser(null);
     }
   };
@@ -4916,23 +5056,34 @@ export default function App() {
       // Leaving the demo is a navigation, not a state teardown — the demo
       // stays alive underneath so Back returns into it. Signing in for
       // real (handleAuth) is what actually ends the demo.
-      if (
-        !confirm(
-          'This leaves the demo and takes you to the sign-in page of the ' +
-            'real Papol. Continue?'
-        )
-      ) {
-        return;
-      }
+      const leave = await confirmAction(
+        'This leaves the demo and takes you to the sign-in page of the ' +
+          'real Papol. Continue?',
+        { confirmLabel: 'Leave demo' },
+      );
+      if (!leave) return;
       navigate('/signin');
       return;
+    }
+    try {
+      const pending = await pendingLocalChanges();
+      if (pending > 0) {
+        const leave = await confirmAction(
+          `${pending} ${pending === 1 ? 'change has' : 'changes have'} not synced yet. ` +
+            'They will stay on this Mac for this account, but will not be available elsewhere. Sign out?',
+          { confirmLabel: 'Sign out' },
+        );
+        if (!leave) return;
+      }
+    } catch {
+      // A damaged status read must not make an account impossible to leave.
     }
     try {
       await logout();
     } catch {
       // best effort
     }
-    setToken(null);
+    await setToken(null);
     exitDemo();
     setUser(null);
     navigate('/');
@@ -4958,83 +5109,286 @@ export default function App() {
 
   const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
 
+  const routeAppLinks = (event) => {
+    const anchor = event.target.closest?.('a[href^="/"]');
+    const href = anchor?.getAttribute('href');
+    // A control inside a link (the × that leaves a seminar cohort sits on the
+    // reader's chip) is its own action. This runs on the way down, before
+    // that control's handler could stop the click, so it has to step aside.
+    const control = event.target.closest?.('button, input, select, textarea');
+    if (control && anchor?.contains(control)) return;
+    if (
+      !href ||
+      anchor.hasAttribute('download') ||
+      anchor.hasAttribute('data-document') ||
+      (anchor.target && anchor.target !== '_self')
+    ) return;
+    const destination = new URL(href, window.location.origin);
+    if (destination.origin !== window.location.origin) return;
+    const routePath = stripAppBase(destination.pathname);
+    event.preventDefault();
+    navigate(`${routePath}${destination.search}`);
+  };
+
+  const demoIntro = demoIntroVisible && (
+    <div className="modal-overlay" onClick={dismissDemoIntro}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="panel demo-intro">
+          <h3>Welcome to Papol</h3>
+          <p>
+            Papol is a place to keep the papers you read and call
+            spontaneous seminars on them with other readers.
+          </p>
+          <p>
+            You are looking at the demo: you play as SpongeBob among
+            fictional readers. Everything happens in your browser and
+            nothing is saved.
+          </p>
+          <p>
+            Register an account to have your own nook
+            and keep your papers and notes.
+          </p>
+          <div className="form-actions">
+            <button
+              className="primary"
+              onClick={() => {
+                dismissDemoIntro();
+                navigate('/join');
+              }}
+            >
+              Register
+            </button>
+            <button
+              onClick={() => {
+                dismissDemoIntro();
+                navigate('/signin');
+              }}
+            >
+              Sign in
+            </button>
+            <button onClick={dismissDemoIntro}>Explore the demo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const demoBanner = user && demoActive() && (
+    <div className="demo-banner">
+      <span>
+        Demo mode — everything here is fictional and happens in your
+        browser. Nothing is saved.
+      </span>
+      {getToken() ? (
+        <a className="demo-banner-btn" href={appPath('/')} onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+          event.preventDefault();
+          handleBackToAccount();
+        }}>
+          Back to my account
+        </a>
+      ) : (
+        <span className="demo-banner-actions">
+          <button
+            className="demo-banner-btn"
+            onClick={() => navigate('/join')}
+          >
+            Create a real account
+          </button>
+          <button
+            className="link-btn demo-banner-link"
+            onClick={() => navigate('/signin')}
+          >
+            Sign in
+          </button>
+        </span>
+      )}
+    </div>
+  );
+
+  const feedbackDialog = feedbackOpen && (
+    <FeedbackDialog
+      // A demo visitor with no real token is a stranger to the backend,
+      // so the dialog asks them for an address to reply to.
+      currentUser={getToken() ? user : null}
+      onClose={() => setFeedbackOpen(false)}
+    />
+  );
+
+  // Keyed by world and identity: leaving or entering the demo, or changing
+  // real accounts, remounts every page so no nook or private paper state can
+  // survive an identity boundary.
+  const pages = (
+    <main className="main-content" key={`${mode}:${user?.id ?? 'none'}`}>
+      {guestNeedsSignIn ? (
+        <AuthPage onAuth={handleAuth} initialMode="login" />
+      ) : (
+      <>
+      {route.page === 'home' &&
+        (user ? (
+          <Space
+            userId={user.id}
+            currentUser={user}
+            onSelectPaper={(id) => navigate(`/paper/${id}`)}
+            onSelectBoard={openBoard}
+          />
+        ) : DESKTOP ? (
+          // The desktop app opens on signing in, not on a pitch for Papol.
+          <AuthPage onAuth={handleAuth} initialMode="login" />
+        ) : (
+          <HomePage
+            currentUser={user}
+            onDemo={demoActive() ? undefined : handleDemo}
+          />
+        ))}
+      {route.page === 'space' && (
+        <Space
+          userId={route.id}
+          currentUser={user}
+          onSelectPaper={(id) => navigate(`/paper/${id}`)}
+          onSelectBoard={openBoard}
+          initialSection={route.section}
+          onBack={goBack}
+          backHref={backHref}
+        />
+      )}
+      {route.page === 'paper' && (
+        <PaperDetail
+          paperId={route.id}
+          currentUser={user}
+          onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
+          onBack={goBack}
+          backHref={backHref}
+          hideBack={
+            mode !== 'demo' &&
+            !window.history.state?.papolNavigation
+          }
+          onSelectPaper={(id) => navigate(`/paper/${id}`)}
+        />
+      )}
+      {route.page === 'papers' && (
+        <PapersPage
+          currentUser={user}
+          onSelectPaper={(id) => navigate(`/paper/${id}`)}
+          onSelectBoard={openBoard}
+        />
+      )}
+      {route.page === 'room' && (
+        <RoomPage roomId={route.id} currentUser={user} onBack={goBack} backHref={backHref} />
+      )}
+      {route.page === 'inbox' && (
+        <InboxPage
+          onOpenRoom={(id) => navigate(`/room/${id}`)}
+          onUnread={setUnreadCount}
+        />
+      )}
+      {route.page === 'admin' &&
+        (user && user.is_admin ? (
+          <AdminPage />
+        ) : (
+          <div className="panel">
+            <p className="panel-note">Admin access only.</p>
+          </div>
+        ))}
+      {route.page === 'about' && (
+        <HomePage
+          currentUser={user}
+          onDemo={demoActive() ? undefined : handleDemo}
+        />
+      )}
+      {route.page === 'learn' && <LearnPage />}
+      {route.page === 'join' && (
+        <AuthPage onAuth={handleAuth} initialMode="register" />
+      )}
+      {route.page === 'signin' && (
+        <AuthPage onAuth={handleAuth} initialMode="login" />
+      )}
+      {route.page === 'profile' &&
+        (user ? (
+          <ProfilePage
+            user={user}
+            onUserUpdated={setUser}
+            onLogout={handleLogout}
+          />
+        ) : null)}
+      </>
+      )}
+    </main>
+  );
+
+  // Papol Desktop: a source-list sidebar in place of the website masthead.
+  // Reading happens in a three-pane browser — source, list, paper — and every
+  // other page fills the space beside the sidebar.
+  if (DESKTOP) {
+    const movePaperToShelf = async (paperId, shelfId) => {
+      try {
+        await updatePaper(paperId, { shelf_id: shelfId });
+      } catch (err) {
+        setDesktopNotice(err.message);
+        window.setTimeout(() => setDesktopNotice(null), 5000);
+      }
+      nook.reload();
+    };
+    return (
+      <>
+        <style>{styles}</style>
+        {demoIntro}
+        {feedbackDialog}
+        {managingNook && nook.space && (
+          <NookManager
+            space={nook.space}
+            setSpace={nook.setSpace}
+            onChanged={nook.reload}
+            onClose={() => setManagingNook(false)}
+            onTagDeleted={(tagId) => { if (desktopSource === `tag:${tagId}`) navigate('/'); }}
+          />
+        )}
+        <div className="desktop-app" onClickCapture={routeAppLinks}>
+          <DesktopSidebar
+            groups={desktopGroups}
+            user={user}
+            profileActive={route.page === 'profile'}
+            onFeedback={() => setFeedbackOpen(true)}
+            onManageNook={nook.space ? () => setManagingNook(true) : undefined}
+            onMovePaper={nook.space ? movePaperToShelf : undefined}
+            onNavigate={navigate}
+            onSync={() => {
+              nook.reload();
+              setSyncRefresh((revision) => revision + 1);
+            }}
+            notice={desktopNotice}
+          />
+          {isBrowsing(route, user) ? (
+            <DesktopBrowser
+              key={`${mode}:${user.id}`}
+              source={desktopSource}
+              route={route}
+              currentUser={user}
+              nook={nook}
+              onNavigate={navigate}
+              onOpenBoard={openBoard}
+              onSyncRefresh={syncRefresh}
+              banner={demoBanner}
+            />
+          ) : (
+            <div className="desktop-pane">
+              <DesktopToolbar title={desktopTitle(route, user)} />
+              {demoBanner}
+              <div className="desktop-scroll">
+                <div className="desktop-content">{pages}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <style>{styles}</style>
-      {demoIntroVisible && (
-        <div className="modal-overlay" onClick={dismissDemoIntro}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="panel demo-intro">
-              <h3>Welcome to Papol</h3>
-              <p>
-                Papol is a place to keep the papers you read and call
-                spontaneous seminars on them with other readers.
-              </p>
-              <p>
-                You are looking at the demo: you play as SpongeBob among
-                fictional readers. Everything happens in your browser and
-                nothing is saved.
-              </p>
-              <p>
-                Register an account to have your own nook 
-                and keep your papers and notes.
-              </p>
-              <div className="form-actions">
-                <button
-                  className="primary"
-                  onClick={() => {
-                    dismissDemoIntro();
-                    navigate('/join');
-                  }}
-                >
-                  Register
-                </button>
-                <button
-                  onClick={() => {
-                    dismissDemoIntro();
-                    navigate('/signin');
-                  }}
-                >
-                  Sign in
-                </button>
-                <button onClick={dismissDemoIntro}>Explore the demo</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {user && demoActive() && (
-        <div className="demo-banner">
-          <span>
-            Demo mode — everything here is fictional and happens in your
-            browser. Nothing is saved.
-          </span>
-          {getToken() ? (
-            <a className="demo-banner-btn" href={appPath('/')} onClick={(event) => {
-              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-              event.preventDefault();
-              handleBackToAccount();
-            }}>
-              Back to my account
-            </a>
-          ) : (
-            <span className="demo-banner-actions">
-              <button
-                className="demo-banner-btn"
-                onClick={() => navigate('/join')}
-              >
-                Create a real account
-              </button>
-              <button
-                className="link-btn demo-banner-link"
-                onClick={() => navigate('/signin')}
-              >
-                Sign in
-              </button>
-            </span>
-          )}
-        </div>
-      )}
+      {demoIntro}
+      {demoBanner}
       <button
         type="button"
         className="feedback-fab"
@@ -5043,32 +5397,8 @@ export default function App() {
       >
         Feedback
       </button>
-      {feedbackOpen && (
-        <FeedbackDialog
-          // A demo visitor with no real token is a stranger to the backend,
-          // so the dialog asks them for an address to reply to.
-          currentUser={getToken() ? user : null}
-          onClose={() => setFeedbackOpen(false)}
-        />
-      )}
-      <div
-        className="app"
-        onClickCapture={(event) => {
-          const anchor = event.target.closest?.('a[href^="/"]');
-          const href = anchor?.getAttribute('href');
-          if (
-            !href ||
-            anchor.hasAttribute('download') ||
-            anchor.hasAttribute('data-document') ||
-            (anchor.target && anchor.target !== '_self')
-          ) return;
-          const destination = new URL(href, window.location.origin);
-          if (destination.origin !== window.location.origin) return;
-          const routePath = stripAppBase(destination.pathname);
-          event.preventDefault();
-          navigate(`${routePath}${destination.search}`);
-        }}
-      >
+      {feedbackDialog}
+      <div className="app" onClickCapture={routeAppLinks}>
         <header className="topnav">
           <a className="brand" href={appPath('/')}>Papol</a>
           <nav>
@@ -5140,101 +5470,7 @@ export default function App() {
             </button>
           ) : null}
         </header>
-
-        {/* Keyed by world and identity: leaving or entering the demo, or
-            changing real accounts, remounts every page so no nook or private
-            paper state can survive an identity boundary. */}
-        <main className="main-content" key={`${mode}:${user?.id ?? 'none'}`}>
-          {guestNeedsSignIn ? (
-            <AuthPage onAuth={handleAuth} initialMode="login" />
-          ) : (
-          <>
-          {route.page === 'home' &&
-            (user ? (
-              <Space
-                userId={user.id}
-                currentUser={user}
-                onSelectPaper={(id) => navigate(`/paper/${id}`)}
-                onSelectBoard={openBoard}
-              />
-            ) : (
-              <HomePage
-                currentUser={user}
-                onDemo={demoActive() ? undefined : handleDemo}
-              />
-            ))}
-          {route.page === 'space' && (
-            <Space
-              userId={route.id}
-              currentUser={user}
-              onSelectPaper={(id) => navigate(`/paper/${id}`)}
-              onSelectBoard={openBoard}
-              initialSection={route.section}
-              onBack={goBack}
-              backHref={backHref}
-            />
-          )}
-          {route.page === 'paper' && (
-            <PaperDetail
-              paperId={route.id}
-              currentUser={user}
-              onBack={goBack}
-              backHref={backHref}
-              hideBack={
-                mode !== 'demo' &&
-                !window.history.state?.papolNavigation
-              }
-              onSelectPaper={(id) => navigate(`/paper/${id}`)}
-            />
-          )}
-          {route.page === 'papers' && (
-            <PapersPage
-              currentUser={user}
-              onSelectPaper={(id) => navigate(`/paper/${id}`)}
-              onSelectBoard={openBoard}
-            />
-          )}
-          {route.page === 'room' && (
-            <RoomPage roomId={route.id} currentUser={user} onBack={goBack} backHref={backHref} />
-          )}
-          {route.page === 'inbox' && (
-            <InboxPage
-              onOpenRoom={(id) => navigate(`/room/${id}`)}
-              onUnread={setUnreadCount}
-            />
-          )}
-          {route.page === 'admin' &&
-            (user && user.is_admin ? (
-              <AdminPage />
-            ) : (
-              <div className="panel">
-                <p className="panel-note">Admin access only.</p>
-              </div>
-            ))}
-          {route.page === 'about' && (
-            <HomePage
-              currentUser={user}
-              onDemo={demoActive() ? undefined : handleDemo}
-            />
-          )}
-          {route.page === 'learn' && <LearnPage />}
-          {route.page === 'join' && (
-            <AuthPage onAuth={handleAuth} initialMode="register" />
-          )}
-          {route.page === 'signin' && (
-            <AuthPage onAuth={handleAuth} initialMode="login" />
-          )}
-          {route.page === 'profile' &&
-            (user ? (
-              <ProfilePage
-                user={user}
-                onUserUpdated={setUser}
-                onLogout={handleLogout}
-              />
-            ) : null)}
-          </>
-          )}
-        </main>
+        {pages}
       </div>
     </>
   );
