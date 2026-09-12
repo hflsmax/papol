@@ -99,8 +99,8 @@ export default function DesktopNav({ back = {}, library = {} }) {
         title={libraryLabel}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2.5 13.25h11" />
-          <path d="M3.25 12.5V4.25h2.25v8.25M6.875 12.5V2.75h2.25v9.75M10.5 12.5V5.25h2.25v7.25" />
+          <path d="m2.25 7.25 5.75-4.5 5.75 4.5" />
+          <path d="M3.75 6.5v6.75h8.5V6.5M6.5 13.25V9h3v4.25" />
         </svg>
       </button>
     </div>
