@@ -112,8 +112,9 @@ export function pdfHref(paper) {
 }
 
 export async function cachedPdfHref(paper) {
-  if (nativeDataActive() && paper?.edition_sha256) {
-    try { return await nativeBlobUrl(paper.edition_sha256, 'application/pdf'); } catch { /* fetch below */ }
+  if (nativeDataActive()) {
+    if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
+    return nativeBlobUrl(paper.edition_sha256, 'application/pdf');
   }
   return offlinePdfUrl(pdfHref(paper));
 }
@@ -144,7 +145,7 @@ export async function stageBoardClip(boardGuid, { blob, comment, sourceUrl, sour
       table: 'board_items', id: uuid(), operation: 'upsert',
       values: {
         board_id: boardGuid, kind: 'image', content: comment || null,
-        blob_sha256: stored.sha256, original_filename: 'paper-clip.png',
+        sha256: stored.sha256, original_filename: 'paper-clip.png',
         mime_type: 'image/png', source_url: sourceUrl,
         source_label: sourceLabel, staged: true,
       },

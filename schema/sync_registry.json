@@ -19,12 +19,12 @@
       "owner": "board.user_id",
       "client_writable": [
         "board_id", "group_id", "kind", "content", "excerpt_text",
-        "blob_sha256", "original_filename", "mime_type", "source_url",
+        "sha256", "original_filename", "mime_type", "source_url",
         "source_label", "staged", "text_align", "position", "x", "y",
         "width", "deleted_at"
       ],
       "conflict": "field_patch",
-      "blob_columns": ["blob_sha256"],
+      "blob_columns": ["sha256"],
       "compatibility_columns": ["id", "board_id", "group_id"],
       "column_aliases": {
         "sync_id": "id",

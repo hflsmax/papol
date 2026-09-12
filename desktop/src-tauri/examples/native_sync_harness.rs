@@ -23,11 +23,11 @@ async fn main() {
     let item_id = Uuid::new_v4().to_string();
     let clip_id = Uuid::new_v4().to_string();
     let clip_bytes = b"native viewer clip bytes";
-    let blob_sha256;
+    let sha256;
 
     {
         let store = LocalStore::open(Path::new(database)).expect("open local database");
-        blob_sha256 = store
+        sha256 = store
             .import_blob(clip_bytes, Some("image/png".into()))
             .expect("import offline clip")
             .sha256;
@@ -61,7 +61,7 @@ async fn main() {
                             ("board_id".into(), json!(board_id)),
                             ("kind".into(), json!("image")),
                             ("content".into(), json!("Clipped offline")),
-                            ("blob_sha256".into(), json!(blob_sha256)),
+                            ("sha256".into(), json!(sha256)),
                             ("original_filename".into(), json!("paper-clip.png")),
                             ("mime_type".into(), json!("image/png")),
                             ("source_url".into(), json!("https://example.test/paper")),
@@ -80,7 +80,7 @@ async fn main() {
         .expect("offline board survives restart");
     assert_eq!(
         seeded
-            .read_blob(&blob_sha256)
+            .read_blob(&sha256)
             .expect("offline clip survives restart"),
         clip_bytes,
     );
@@ -217,7 +217,7 @@ async fn main() {
             "board_id": board_id,
             "item_id": item_id,
             "clip_id": clip_id,
-            "blob_sha256": blob_sha256,
+            "sha256": sha256,
             "note_id": note_id,
             "ink_id": ink_id,
             "paper_clip_id": paper_clip_id,

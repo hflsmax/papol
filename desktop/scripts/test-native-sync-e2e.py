@@ -134,7 +134,7 @@ def main():
             assert [item["content"] for item in board["items"]] == ["Survived restart and sync"]
             assert [item["content"] for item in board["staged_items"]] == ["Clipped offline"]
             clip_request = urllib.request.Request(
-                f"{backend}/api/sync/blobs/{result['blob_sha256']}",
+                f"{backend}/api/sync/blobs/{result['sha256']}",
                 headers={"Authorization": f"Bearer {auth['token']}"},
             )
             with urllib.request.urlopen(clip_request, timeout=5) as response:

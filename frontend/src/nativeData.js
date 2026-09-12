@@ -87,19 +87,9 @@ export async function nativeBlobImport(blob) {
 }
 
 export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream') {
-  let bytes;
-  try {
-    bytes = await invoke('blob_read', { sha256 });
-  } catch (readError) {
-    const token = currentCredential();
-    if (!token) throw readError;
-    await invoke('blob_ensure', {
-      backendUrl: nativeBackendUrl(),
-      token,
-      sha256,
-    });
-    bytes = await invoke('blob_read', { sha256 });
-  }
+  // Rendering is strictly local. Synchronization hydrates every referenced
+  // blob before it reports success; views must never initiate network I/O.
+  const bytes = await invoke('blob_read', { sha256 });
   return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType }));
 }
 

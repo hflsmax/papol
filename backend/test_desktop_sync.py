@@ -125,6 +125,22 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual({item["id"] for item in fetched["items"]}, {first["id"], second["id"]})
         self.assertEqual(fetched["groups"][0]["id"], group["id"])
 
+    def test_board_files_are_private_immutable_resources(self):
+        board = self.request("POST", "/api/boards", json={"name": "Image cache"}).json()
+        item = self.request(
+            "POST",
+            f"/api/boards/{board['guid']}/files",
+            files={"file": ("diagram.png", b"image bytes", "image/png")},
+        ).json()
+
+        response = self.request("GET", f"/api/board-items/{item['id']}/file")
+
+        self.assertEqual(response.content, b"image bytes")
+        self.assertEqual(
+            response.headers.get("cache-control"),
+            "private, max-age=31536000, immutable",
+        )
+
     def test_replay_requires_a_live_account_token(self):
         response = self.client.post("/api/boards", json={"name": "No credentials"})
         self.assertEqual(response.status_code, 401)
@@ -376,7 +392,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                     "table": "board_items", "id": item_id, "operation": "upsert",
                     "values": {
                         "board_id": board_id, "kind": "image",
-                        "blob_sha256": digest, "mime_type": "image/png",
+                        "sha256": digest, "mime_type": "image/png",
                         "original_filename": "clip.png",
                     },
                 },

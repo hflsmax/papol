@@ -21,7 +21,7 @@ global.sessionStorage = { getItem: () => null };
 Object.defineProperty(global, 'navigator', { configurable: true, value: { onLine: true } });
 
 const {
-  configureReplayAuthorization, getSyncStatus, offlineFetch, refreshSyncStatus,
+  cachedBlobUrl, configureReplayAuthorization, getSyncStatus, offlineFetch, refreshSyncStatus,
   setLocalSyncPreference, syncOfflineQueue,
 } = await import('../../shared/offlineStore.js');
 
@@ -37,6 +37,27 @@ function reset() {
   settings.clear();
   setLocalSyncPreference('manual');
 }
+
+test('cached blobs are read locally before the network loader', async () => {
+  reset();
+  let loads = 0;
+  const loader = async () => {
+    loads += 1;
+    return new Blob(['board image'], { type: 'image/png' });
+  };
+
+  const key = 'https://backend.test/api/board-items/7/file';
+  const [first, simultaneous] = await Promise.all([
+    cachedBlobUrl(key, loader),
+    cachedBlobUrl(key, loader),
+  ]);
+  URL.revokeObjectURL(first);
+  URL.revokeObjectURL(simultaneous);
+  const second = await cachedBlobUrl(key, loader);
+  URL.revokeObjectURL(second);
+
+  assert.equal(loads, 1);
+});
 
 test('desktop queue replays dependent board operations against the backend in order', async () => {
   reset();

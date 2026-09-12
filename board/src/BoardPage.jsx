@@ -59,7 +59,7 @@ const itemTypeIcons = {
 };
 
 function hasCardPreview(item) {
-  return item.kind === 'image' || Boolean(item.blob_sha256 || item.file_path);
+  return item.kind === 'image' || Boolean(item.sha256 || item.file_path);
 }
 const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
@@ -83,6 +83,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [imageUrls, setImageUrls] = useState({});
+  const [imageErrors, setImageErrors] = useState({});
+  const imageUrlsRef = useRef({});
+  const [imageRevision, setImageRevision] = useState(0);
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedBooklet, setSelectedBooklet] = useState(null);
@@ -181,6 +184,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
   useEffect(() => subscribeNativeData((change) => {
+    setImageRevision((current) => current + 1);
     if (!change?.scope || change.scope === 'boards') load();
   }), [boardId]);
   const raiseCards = (itemIds) => {
@@ -276,23 +280,54 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const imageItems = board ? [...board.items, ...(board.staged_items || [])]
     .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind) && hasCardPreview(item)) : [];
   const imageIds = imageItems.map((item) => item.id).join(',');
+  useEffect(() => {
+    imageUrlsRef.current = imageUrls;
+  }, [imageUrls]);
   // Toggling a paint-affecting property invalidates each card's composited
   // layer without remounting it or discarding editors and loaded images.
   const cardPaintState = viewRevision % 2 ? 'hidden' : 'visible';
   useEffect(() => {
     if (!board) return undefined;
-    let active = true; const urls = [];
-    setImageUrls({});
+    let active = true;
+    const wanted = new Set(imageItems.map((item) => item.id));
+    const staleUrls = Object.entries(imageUrlsRef.current)
+      .filter(([id]) => !wanted.has(dataId(id)))
+      .map(([, url]) => url);
+    if (staleUrls.length) {
+      staleUrls.forEach((url) => URL.revokeObjectURL(url));
+      setImageUrls((current) => Object.fromEntries(
+        Object.entries(current).filter(([id]) => wanted.has(dataId(id))),
+      ));
+      setImageErrors((current) => Object.fromEntries(
+        Object.entries(current).filter(([id]) => wanted.has(dataId(id))),
+      ));
+    }
     imageItems.forEach(async (item) => {
+      if (imageUrlsRef.current[item.id]) return;
+      setImageErrors((current) => {
+        if (!current[item.id]) return current;
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
       try {
         const url = await boardFileBlob(item);
         if (!active) { URL.revokeObjectURL(url); return; }
-        urls.push(url);
-        setImageUrls((current) => ({ ...current, [item.id]: url }));
-      } catch { /* the card remains as its visible loading box */ }
+        setImageUrls((current) => {
+          const next = { ...current, [item.id]: url };
+          imageUrlsRef.current = next;
+          return next;
+        });
+      } catch (error) {
+        console.warn('Could not load board image', item.id, error);
+        setImageErrors((current) => ({ ...current, [item.id]: true }));
+      }
     });
-    return () => { active = false; urls.forEach((url) => URL.revokeObjectURL(url)); };
-  }, [imageIds]);
+    return () => { active = false; };
+  }, [imageIds, imageRevision]);
+  useEffect(() => () => {
+    Object.values(imageUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+  }, []);
   const bookletKey = board?.groups?.map((group) => `${group.id}:${group.kind}:${group.title}:${group.header}:${group.auto_arrange}:${group.item_ids.join(',')}`).join('|') || '';
   useEffect(() => {
     if (!board?.groups?.length || !stageRef.current) { setBookletLayouts([]); return undefined; }
@@ -1873,6 +1908,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
                 </div>
                 {item.kind === 'image' && imageUrls[item.id]
                   ? <img src={imageUrls[item.id]} alt="Clipped paper content" draggable="false" />
+                  : item.kind === 'image' && imageErrors[item.id]
+                    ? <div className="board-image-error" role="status">Image unavailable</div>
                   : item.kind === 'image'
                     ? <div className="board-staging-image-loading"><span className="board-loading-spinner" /></div>
                     : <blockquote>{item.excerpt_text}</blockquote>}
@@ -1910,7 +1947,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
             {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setSelectedBooklet(null); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
           </header>
           <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
-          {hasCardPreview(item) && !imageUrls[item.id] && <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>}
+          {hasCardPreview(item) && !imageUrls[item.id] && (imageErrors[item.id]
+            ? <div className="board-image-error" role="status">Image unavailable</div>
+            : <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>)}
           {hasCardPreview(item) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {!hasCardPreview(item) && ['youtube', 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{item.kind === 'youtube' ? '▶' : '↗'}</span><span>{item.kind === 'youtube' ? 'Video saved offline' : 'Page saved offline'}</span></div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}

@@ -100,7 +100,7 @@ This gives one actual schema source without first creating a bespoke code genera
       "position", "x", "y", "width", "deleted_at"
     ],
     "conflict": "field_patch",
-    "blob_columns": ["blob_sha256"]
+    "blob_columns": ["sha256"]
   }
 }
 ```
@@ -287,7 +287,7 @@ Do not expose `sql:allow-execute` to every window. If the official Tauri SQL plu
 Files are addressed by SHA-256 on both sides.
 
 - `_local_blobs` stores metadata and durability; bytes live on disk.
-- A mutation refers to `blob_sha256`, never embeds duplicate bytes.
+- A mutation refers to `sha256`, never embeds duplicate bytes.
 - Before pushing a dependent mutation, the coordinator checks `HEAD /api/sync/blobs/{sha256}`.
 - Missing content uploads with an idempotent `PUT /api/sync/blobs/{sha256}`.
 - The server verifies the digest before making it available.
@@ -472,7 +472,7 @@ Start with board data, not with every table and not with a storage-engine-only r
 ```text
 boards
   ├── board_groups
-  └── board_items ── blob_sha256
+  └── board_items ── sha256
 ```
 
 The first slice should include:

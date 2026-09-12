@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 from database import (
     engine, get_db, Base, migrate, normalize_papers, backfill_copy_edition_hashes,
+    backfill_board_file_hashes,
     backfill_shelves, backfill_favourite_tags,
     backfill_annotation_sync_identity, backfill_board_guids, backfill_board_sync_identity,
     backfill_nook_sync_identity,
@@ -114,6 +115,7 @@ BOARDS_DIR = Path(os.environ.get(
     "PAPOL_BOARD_FILES_DIR", Path(__file__).parent.parent / "board_uploads",
 ))
 BOARDS_DIR.mkdir(exist_ok=True)
+backfill_board_file_hashes(BOARDS_DIR)
 
 
 def _install_demo_pdfs() -> set[str]:
@@ -880,7 +882,7 @@ async def stage_board_clip(
         kind="image",
         content=caption.strip() or None,
         file_path=str(relative),
-        blob_sha256=digest.hexdigest(),
+        sha256=digest.hexdigest(),
         original_filename="paper-clip.png",
         mime_type="image/png",
         source_url=source_url.strip(),
@@ -955,7 +957,7 @@ async def add_board_file(
         kind="image" if mime.startswith("image/") else "file",
         content=caption.strip() or None,
         file_path=str(relative),
-        blob_sha256=digest.hexdigest(),
+        sha256=digest.hexdigest(),
         original_filename=original,
         mime_type=mime,
         x=x if x is not None else (len(board.items) % 4) * 340,
@@ -1179,7 +1181,7 @@ async def add_youtube_to_board(
         kind="youtube",
         content=title,
         file_path=str(relative),
-        blob_sha256=hashlib.sha256(image).hexdigest(),
+        sha256=hashlib.sha256(image).hexdigest(),
         original_filename=f"youtube-{video_id}{suffix}",
         mime_type=mime,
         source_url=data.url.strip(),
@@ -1217,7 +1219,7 @@ async def add_webpage_to_board(
         kind="webpage",
         content=hostname,
         file_path=str(relative),
-        blob_sha256=hashlib.sha256(image).hexdigest(),
+        sha256=hashlib.sha256(image).hexdigest(),
         original_filename=f"webpage-{hostname[:80]}.png",
         mime_type="image/png",
         source_url=url,
@@ -1471,6 +1473,10 @@ async def get_board_item_file(
         stored,
         media_type=item.mime_type or "application/octet-stream",
         filename=item.original_filename,
+        # Board files are write-once: edits change card metadata, never the
+        # bytes at this URL. Keep private files in the reader's own cache and
+        # avoid revalidating immutable previews on every board visit.
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
 
 

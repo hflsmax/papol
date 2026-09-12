@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS board_items (
   content TEXT,
   excerpt_text TEXT,
   file_path TEXT,
-  blob_sha256 TEXT,
+  sha256 TEXT,
   original_filename TEXT,
   mime_type TEXT,
   source_url TEXT,
@@ -55,4 +55,4 @@ CREATE TABLE IF NOT EXISTS board_items (
 
 CREATE INDEX IF NOT EXISTS ix_board_items_board_id ON board_items(board_id);
 CREATE INDEX IF NOT EXISTS ix_board_items_group_id ON board_items(group_id);
-CREATE INDEX IF NOT EXISTS ix_board_items_blob_sha256 ON board_items(blob_sha256);
+CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256);

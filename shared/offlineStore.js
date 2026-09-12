@@ -14,6 +14,7 @@ const LOCAL_SYNC_CLIENT_ID_KEY = 'papol.syncClientId';
 const CLIENT_ID_HEADER = 'X-Papol-Client-ID';
 const MUTATION_ID_HEADER = 'X-Papol-Mutation-ID';
 let syncing = null;
+const pendingBlobLoads = new Map();
 let remoteNetworkFetch = (...args) => globalThis.fetch(...args);
 let replayAuthorization = () => {
   try {
@@ -774,16 +775,32 @@ export async function cachedBlobUrl(key, loader = null) {
     const blob = await getStored('files', key);
     return blob ? URL.createObjectURL(blob) : null;
   }
+
+  // Blobs are immutable at their Papol URLs. Prefer the durable local copy so
+  // reopening a board or paper does not download the same bytes again. The
+  // network is only responsible for filling a cache miss.
   try {
-    if (!loader) throw new Error('No online loader');
-    const blob = await loader();
-    await putStored('files', blob, key);
-    return URL.createObjectURL(blob);
-  } catch (error) {
     const blob = await getStored('files', key);
     if (blob) return URL.createObjectURL(blob);
-    throw error;
+  } catch { /* IndexedDB is best effort; the network may still be available */ }
+
+  if (!loader) throw new Error('No cached blob or online loader');
+  let pending = pendingBlobLoads.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const loaded = await loader();
+      try {
+        await putStored('files', loaded, key);
+      } catch { /* a full or unavailable cache must not hide fetched content */ }
+      return loaded;
+    })();
+    pendingBlobLoads.set(key, pending);
+    pending.finally(() => {
+      if (pendingBlobLoads.get(key) === pending) pendingBlobLoads.delete(key);
+    }).catch(() => {});
   }
+  const blob = await pending;
+  return URL.createObjectURL(blob);
 }
 
 export function offlinePdfUrl(url) {

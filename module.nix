@@ -34,9 +34,8 @@ let
   proxyTo = port: {
     proxyPass = "http://127.0.0.1:${toString port}";
     extraConfig = ''
-      add_header Cache-Control "no-cache, no-store, must-revalidate";
-      add_header Pragma "no-cache";
-      add_header Expires "0";
+      # Preserve the backend's route-specific cache policy: entry-point HTML
+      # revalidates, while immutable user files can be served cache-first.
 
       # A paper is the whole point and nginx stops at 10 MB by default.
       # Scoped here rather than set globally: other vhosts on this host

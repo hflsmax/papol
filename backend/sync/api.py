@@ -436,8 +436,8 @@ def _assign_values(db: Session, record, values: dict, user: User):
         group = _owned_group(db, values["group_id"], record.board)
         record.group = group
         record.group_sync_id = group.sync_id if group else None
-    if isinstance(record, BoardItem) and values.get("blob_sha256"):
-        digest = values["blob_sha256"]
+    if isinstance(record, BoardItem) and values.get("sha256"):
+        digest = values["sha256"]
         if not isinstance(digest, str) or len(digest) != 64 or not (BLOBS_DIR / digest).is_file():
             raise HTTPException(status_code=409, detail="Referenced blob has not been uploaded")
         record.file_path = str(Path("blobs") / digest)
@@ -777,7 +777,7 @@ def get_blob(
     db: Session = Depends(get_db),
 ):
     item = db.query(BoardItem).join(Board).filter(
-        BoardItem.blob_sha256 == sha256,
+        BoardItem.sha256 == sha256,
         Board.user_id == user.id,
         BoardItem.deleted_at.is_(None),
     ).first()

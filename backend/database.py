@@ -398,6 +398,47 @@ def backfill_copy_edition_hashes():
         ))
 
 
+def backfill_board_file_hashes(board_files: Path | None = None):
+    """Give board files created before blob sync a content identity."""
+    directory = (board_files or Path(__file__).parent.parent / "board_uploads").resolve()
+    with engine.begin() as conn:
+        if not _table_exists(conn, "board_items"):
+            return
+        columns = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(board_items)"))
+        }
+        if "sha256" not in columns or "file_path" not in columns:
+            return
+        if "blob_sha256" in columns:
+            conn.execute(text(
+                "UPDATE board_items SET sha256=blob_sha256 "
+                "WHERE sha256 IS NULL AND blob_sha256 IS NOT NULL"
+            ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items (sha256)"
+        ))
+        missing = conn.execute(text(
+            "SELECT id, file_path FROM board_items "
+            "WHERE file_path IS NOT NULL AND sha256 IS NULL"
+        )).all()
+        for item_id, file_path in missing:
+            candidate = (directory / file_path).resolve()
+            try:
+                candidate.relative_to(directory)
+            except ValueError:
+                continue
+            if not candidate.is_file():
+                continue
+            digest = hashlib.sha256()
+            with candidate.open("rb") as stored:
+                for chunk in iter(lambda: stored.read(1 << 20), b""):
+                    digest.update(chunk)
+            conn.execute(
+                text("UPDATE board_items SET sha256=:sha WHERE id=:id"),
+                {"sha": digest.hexdigest(), "id": item_id},
+            )
+
+
 def backfill_shelves():
     """Create Display/Personal shelves and place every legacy copy."""
     with engine.begin() as conn:

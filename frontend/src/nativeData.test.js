@@ -108,15 +108,16 @@ test('native blob import transfers exact bytes and metadata', async () => {
   assert.equal(call[1].mimeType, 'image/png');
 });
 
-test('a missing synchronized file downloads through the native authenticated cache', async () => {
+test('native blob reads are local-only and never trigger a download', async () => {
   remoteBlobReady = false;
   const digest = 'b'.repeat(64);
+  const ensuresBefore = calls.filter(([command]) => command === 'blob_ensure').length;
+  await assert.rejects(nativeBlobUrl(digest, 'application/pdf'), /not available offline/);
+  assert.equal(calls.filter(([command]) => command === 'blob_ensure').length, ensuresBefore);
+
+  remoteBlobReady = true;
   const url = await nativeBlobUrl(digest, 'application/pdf');
   assert.match(url, /^blob:/);
-  const ensure = calls.find(([command, args]) => command === 'blob_ensure'
-    && args.sha256 === digest);
-  assert.equal(ensure[1].token, 'secret-token');
-  assert.equal(ensure[1].backendUrl, 'http://127.0.0.1:5173');
 });
 
 test('native board rows are shaped for the existing board UI without ID remapping', () => {

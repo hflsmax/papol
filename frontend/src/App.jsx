@@ -4617,6 +4617,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-card-content { position: relative; z-index: 1; overflow: hidden; border-radius: 0 0 9px 9px; background: var(--card); }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
 .board-image-loading { display: grid; width: 100%; aspect-ratio: 4 / 3; place-items: center; background: var(--paper); }
+.board-image-error { display: grid; width: 100%; min-height: 96px; place-items: center; color: var(--ink-muted); background: var(--paper); font: var(--fs-sm) var(--font-ui); }
 .board-canvas-card.youtube .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
 .board-link-placeholder { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--paper-soft); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .board-link-placeholder > span:first-child { color: var(--accent); font-size: 24px; }

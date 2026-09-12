@@ -98,15 +98,7 @@ impl Coordinator {
         while let Some(mutation) = store.next_outbox(account_id)? {
             let attempted: Result<PushResponse, SyncFailure> = async {
                 for change in &mutation.changes {
-                    let Some(sha256) = change
-                        .values
-                        .get(if change.table == "paper_editions" {
-                            "sha256"
-                        } else {
-                            "blob_sha256"
-                        })
-                        .and_then(Value::as_str)
-                    else {
+                    let Some(sha256) = change.values.get("sha256").and_then(Value::as_str) else {
                         continue;
                     };
                     let url = backend

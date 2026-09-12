@@ -138,14 +138,7 @@ impl LocalStore {
                 return Err(format!("Client cannot write {}.{field}", change.table));
             }
             validate_domain_values(&change)?;
-            let blob_digest = change
-                .values
-                .get(if change.table == "paper_editions" {
-                    "sha256"
-                } else {
-                    "blob_sha256"
-                })
-                .and_then(Value::as_str);
+            let blob_digest = change.values.get("sha256").and_then(Value::as_str);
             if blob_digest.is_some_and(|digest| !self.has_blob(digest)) {
                 return Err("A local file mutation must reference an imported blob".into());
             }
@@ -420,18 +413,11 @@ impl LocalStore {
                 .and_then(Value::as_str)
                 .ok_or("Push result row is missing its id")?
                 .to_owned();
-            let blob_sha256 = row
-                .get(if table == "paper_editions" {
-                    "sha256"
-                } else {
-                    "blob_sha256"
-                })
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            let sha256 = row.get("sha256").and_then(Value::as_str).map(str::to_owned);
             validate_remote_ownership(&transaction, account_id, &table, &row)?;
             apply_remote_row(&transaction, &table, row)?;
             refresh_blob_reference(&transaction, &table, &row_id)?;
-            if let Some(sha256) = blob_sha256 {
+            if let Some(sha256) = sha256 {
                 transaction
                     .execute(
                         "UPDATE _local_blobs SET durability='cache' WHERE sha256=?1",
@@ -710,11 +696,11 @@ impl LocalStore {
                    WHERE c.user_id=?1 AND c.deleted_at IS NULL
                      AND pe.deleted_at IS NULL AND pe.sha256 IS NOT NULL
                    UNION ALL
-                   SELECT bi.blob_sha256 AS digest
+                   SELECT bi.sha256 AS digest
                    FROM board_items bi
                    JOIN boards b ON b.id=bi.board_id
                    WHERE b.user_id=?1 AND b.deleted_at IS NULL
-                     AND bi.deleted_at IS NULL AND bi.blob_sha256 IS NOT NULL
+                     AND bi.deleted_at IS NULL AND bi.sha256 IS NOT NULL
                  )
                  ORDER BY digest"#,
             )
@@ -1041,10 +1027,8 @@ impl LocalStore {
                         recovery_rows.insert(format!("{table}:{id}"), row);
                     }
                 }
-                for field in ["blob_sha256", "sha256"] {
-                    if let Some(digest) = change["values"][field].as_str() {
-                        digests.insert(digest.to_owned());
-                    }
+                if let Some(digest) = change["values"]["sha256"].as_str() {
+                    digests.insert(digest.to_owned());
                 }
             }
         }
@@ -1881,11 +1865,10 @@ fn refresh_blob_reference(
     table: &str,
     row_id: &str,
 ) -> Result<(), String> {
-    let blob_column = match table {
-        "board_items" => "blob_sha256",
-        "paper_editions" => "sha256",
+    match table {
+        "board_items" | "paper_editions" => {}
         _ => return Ok(()),
-    };
+    }
     connection
         .execute(
             "DELETE FROM _local_blob_refs WHERE table_name=?1 AND row_id=?2",
@@ -1894,7 +1877,7 @@ fn refresh_blob_reference(
         .map_err(|error| error.to_string())?;
     let reference: Option<(Option<String>, Option<String>)> = connection
         .query_row(
-            &format!("SELECT {blob_column},deleted_at FROM {table} WHERE id=?1"),
+            &format!("SELECT sha256,deleted_at FROM {table} WHERE id=?1"),
             [row_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -1949,8 +1932,8 @@ fn refresh_blob_references_for_digest(connection: &Connection, sha256: &str) -> 
     connection
         .execute(
             "INSERT OR REPLACE INTO _local_blob_refs(table_name,row_id,sha256) \
-             SELECT 'board_items',id,blob_sha256 FROM board_items \
-             WHERE blob_sha256=?1 AND deleted_at IS NULL",
+             SELECT 'board_items',id,sha256 FROM board_items \
+             WHERE sha256=?1 AND deleted_at IS NULL",
             [sha256],
         )
         .map_err(|error| error.to_string())?;
@@ -2968,7 +2951,7 @@ mod tests {
                     values: Map::from_iter([
                         ("board_id".into(), json!(board_id)),
                         ("kind".into(), json!("image")),
-                        ("blob_sha256".into(), json!(record.sha256.clone())),
+                        ("sha256".into(), json!(record.sha256.clone())),
                     ]),
                 }],
             )
@@ -3069,7 +3052,7 @@ mod tests {
                     params![board, account, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO board_items(id,board_id,kind,blob_sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
+                    "INSERT INTO board_items(id,board_id,kind,sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
                     params![item, board, digest, now],
                 ).unwrap();
             }
@@ -3198,7 +3181,7 @@ mod tests {
                     params![board, account, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO board_items(id,board_id,kind,blob_sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
+                    "INSERT INTO board_items(id,board_id,kind,sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
                     params![item, board, blob, now],
                 ).unwrap();
                 connection.execute(
@@ -3308,7 +3291,7 @@ mod tests {
                     values: Map::from_iter([
                         ("board_id".into(), json!(board_id)),
                         ("kind".into(), json!("file")),
-                        ("blob_sha256".into(), json!(digest)),
+                        ("sha256".into(), json!(digest)),
                     ]),
                 }],
             )
@@ -3345,7 +3328,7 @@ mod tests {
                     values: Map::from_iter([
                         ("board_id".into(), json!(board_id)),
                         ("kind".into(), json!("file")),
-                        ("blob_sha256".into(), json!(retained.sha256)),
+                        ("sha256".into(), json!(retained.sha256)),
                     ]),
                 }],
             )
@@ -3426,7 +3409,7 @@ mod tests {
                         values: Map::from_iter([
                             ("board_id".into(), json!(board_id)),
                             ("kind".into(), json!("file")),
-                            ("blob_sha256".into(), json!(blob.sha256)),
+                            ("sha256".into(), json!(blob.sha256)),
                         ]),
                     },
                 ],
@@ -3492,7 +3475,7 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap()
             .iter()
-            .any(|column| column == "blob_sha256");
+            .any(|column| column == "sha256");
         assert_eq!(migration_count, 12);
         assert!(has_blob_column);
         drop(connection);

@@ -494,7 +494,7 @@ class BoardItem(Base):
     content = Column(Text, nullable=True)
     excerpt_text = Column(Text, nullable=True)
     file_path = Column(Text, nullable=True)
-    blob_sha256 = Column(String(64), nullable=True, index=True)
+    sha256 = Column(String(64), nullable=True, index=True)
     original_filename = Column(Text, nullable=True)
     mime_type = Column(String(255), nullable=True)
     source_url = Column(Text, nullable=True)

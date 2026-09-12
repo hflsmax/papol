@@ -101,7 +101,7 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
 
-    apply_legacy_board_blob_column(&transaction)?;
+    apply_board_sha256_column(&transaction)?;
     apply_sql(
         &transaction,
         "202609120001_domain_board_sync",
@@ -184,8 +184,8 @@ fn apply_sql(transaction: &Transaction<'_>, migration_id: &str, sql: &str) -> Re
     record(transaction, migration_id)
 }
 
-fn apply_legacy_board_blob_column(transaction: &Transaction<'_>) -> Result<(), String> {
-    const MIGRATION_ID: &str = "202609120000_legacy_board_item_blob_sha256";
+fn apply_board_sha256_column(transaction: &Transaction<'_>) -> Result<(), String> {
+    const MIGRATION_ID: &str = "202609120008_board_item_sha256";
     if applied(transaction, MIGRATION_ID)? {
         return Ok(());
     }
@@ -196,9 +196,25 @@ fn apply_legacy_board_blob_column(transaction: &Transaction<'_>) -> Result<(), S
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
-    if !columns.is_empty() && !columns.iter().any(|column| column == "blob_sha256") {
+    if !columns.is_empty() && !columns.iter().any(|column| column == "sha256") {
         transaction
-            .execute("ALTER TABLE board_items ADD COLUMN blob_sha256 TEXT", [])
+            .execute("ALTER TABLE board_items ADD COLUMN sha256 TEXT", [])
+            .map_err(|error| format!("Migration {MIGRATION_ID} failed: {error}"))?;
+    }
+    if columns.iter().any(|column| column == "blob_sha256") {
+        transaction
+            .execute(
+                "UPDATE board_items SET sha256=blob_sha256 WHERE sha256 IS NULL",
+                [],
+            )
+            .map_err(|error| format!("Migration {MIGRATION_ID} failed: {error}"))?;
+    }
+    if !columns.is_empty() {
+        transaction
+            .execute(
+                "CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256)",
+                [],
+            )
             .map_err(|error| format!("Migration {MIGRATION_ID} failed: {error}"))?;
     }
     record(transaction, MIGRATION_ID)

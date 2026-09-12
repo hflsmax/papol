@@ -165,7 +165,7 @@ board_items (
   kind TEXT NOT NULL,
   content TEXT,
   excerpt_text TEXT,
-  blob_sha256 TEXT,
+  sha256 TEXT,
   original_filename TEXT,
   mime_type TEXT,
   source_url TEXT,

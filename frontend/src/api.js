@@ -482,7 +482,7 @@ export async function addBoardFile(id, file, caption = '', position = null) {
           board_id: id,
           kind: file.type?.startsWith('image/') ? 'image' : 'file',
           content: caption || null,
-          blob_sha256: blob.sha256,
+          sha256: blob.sha256,
           original_filename: file.name || 'file',
           mime_type: file.type || 'application/octet-stream',
           x: position?.x ?? 0,
@@ -571,8 +571,9 @@ export function placeStagedBoardItem(id, x, y) {
 }
 
 export async function boardFileBlob(item) {
-  if (nativeDataActive() && item.blob_sha256) {
-    return nativeBlobUrl(item.blob_sha256, item.mime_type);
+  if (nativeDataActive()) {
+    if (!item.sha256) throw new Error('Board image is not available in the local replica');
+    return nativeBlobUrl(item.sha256, item.mime_type);
   }
   if (item.file_path?.startsWith('offline-file:')) return cachedBlobUrl(item.file_path);
   const key = `${API_BASE}/board-items/${item.id}/file`;

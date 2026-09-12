@@ -347,7 +347,7 @@ class BoardItemOut(BaseModel):
     content: Optional[str] = None
     excerpt_text: Optional[str] = None
     file_path: Optional[str] = None
-    blob_sha256: Optional[str] = None
+    sha256: Optional[str] = None
     original_filename: Optional[str] = None
     mime_type: Optional[str] = None
     source_url: Optional[str] = None
