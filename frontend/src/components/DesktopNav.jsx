@@ -55,8 +55,8 @@ const STYLE = `
   outline-offset: -2px;
 }
 .desktop-nav-button svg {
-  width: 16px;
-  height: 16px;
+  width: 19px;
+  height: 19px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.9;
