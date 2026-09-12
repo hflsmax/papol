@@ -31,7 +31,9 @@ const shelfSyncIds = new Map();
 const serverShelfIds = new Map();
 const tagSyncIds = new Map();
 const pendingPaperBlobs = new Map();
-const DESKTOP_AUTH_TIMEOUT_MS = 4_000;
+// A developer backend may arrive through an SSH/IDE port forward. Keep auth
+// bounded without treating a healthy forwarded request as offline too early.
+const DESKTOP_AUTH_TIMEOUT_MS = 10_000;
 
 function rememberPaperIdentity(paper) {
   if (paper?.id != null && paper.sync_id) paperSyncIds.set(String(paper.id), paper.sync_id);
