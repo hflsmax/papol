@@ -2,7 +2,8 @@ use crate::data::{LocalStore, RemoteChange};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::time::Duration;
+use std::collections::VecDeque;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +45,156 @@ pub struct SyncResult {
     pub pushed: usize,
     pub pulled: usize,
     pub cursor: i64,
+}
+
+/// The four stages of a sync, in the order they run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncPhase {
+    Uploading,
+    Snapshot,
+    Pulling,
+    Downloading,
+}
+
+impl SyncPhase {
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncProgress {
+    pub phase: SyncPhase,
+    /// Items finished in this phase: mutations, pull pages or files.
+    pub completed: usize,
+    /// Items in this phase, when known in advance. Pull pages are not.
+    pub total: Option<usize>,
+    /// Whole-sync progress in [0, 1]. Each phase is an equal quarter, so the
+    /// value only moves forward even when a later phase discovers more work.
+    pub fraction: f64,
+    /// Bytes sent and received during this sync.
+    pub bytes: u64,
+    pub bytes_per_second: f64,
+}
+
+const SPEED_WINDOW: Duration = Duration::from_secs(3);
+const REPORT_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Counts transferred bytes and reports throttled progress for one sync.
+struct Meter<'a> {
+    report: &'a (dyn Fn(SyncProgress) + Send + Sync),
+    phase: SyncPhase,
+    completed: usize,
+    total: Option<usize>,
+    /// Progress through the item currently transferring, from Content-Length.
+    item_fraction: f64,
+    fraction: f64,
+    bytes: u64,
+    samples: VecDeque<(Instant, u64)>,
+    last_report: Option<Instant>,
+}
+
+impl<'a> Meter<'a> {
+    fn new(report: &'a (dyn Fn(SyncProgress) + Send + Sync)) -> Self {
+        Self {
+            report,
+            phase: SyncPhase::Uploading,
+            completed: 0,
+            total: None,
+            item_fraction: 0.0,
+            fraction: 0.0,
+            bytes: 0,
+            samples: VecDeque::from([(Instant::now(), 0)]),
+            last_report: None,
+        }
+    }
+
+    fn begin(&mut self, phase: SyncPhase, total: Option<usize>) {
+        self.phase = phase;
+        self.completed = 0;
+        self.total = total;
+        self.item_fraction = 0.0;
+        self.emit(true);
+    }
+
+    fn transferred(&mut self, bytes: u64, item_fraction: Option<f64>) {
+        self.bytes += bytes;
+        if let Some(fraction) = item_fraction {
+            self.item_fraction = fraction.clamp(0.0, 1.0);
+        }
+        self.emit(false);
+    }
+
+    fn item_done(&mut self) {
+        self.completed += 1;
+        self.item_fraction = 0.0;
+        self.emit(true);
+    }
+
+    fn finish(&mut self) {
+        self.fraction = 1.0;
+        self.emit(true);
+    }
+
+    fn bytes_per_second(&mut self, now: Instant) -> f64 {
+        self.samples.push_back((now, self.bytes));
+        while self.samples.len() > 2 && now.duration_since(self.samples[0].0) > SPEED_WINDOW {
+            self.samples.pop_front();
+        }
+        let (since, bytes) = self.samples[0];
+        let elapsed = now.duration_since(since).as_secs_f64();
+        if elapsed < 0.2 {
+            return 0.0;
+        }
+        (self.bytes - bytes) as f64 / elapsed
+    }
+
+    fn emit(&mut self, force: bool) {
+        let now = Instant::now();
+        if !force
+            && self
+                .last_report
+                .is_some_and(|last| now.duration_since(last) < REPORT_INTERVAL)
+        {
+            return;
+        }
+        self.last_report = Some(now);
+        let phase_fraction = match self.total {
+            Some(0) => 1.0,
+            Some(total) => ((self.completed as f64 + self.item_fraction) / total as f64).min(1.0),
+            None => 0.0,
+        };
+        let overall = (self.phase.index() as f64 + phase_fraction) / 4.0;
+        self.fraction = self.fraction.max(overall);
+        let bytes_per_second = self.bytes_per_second(now);
+        (self.report)(SyncProgress {
+            phase: self.phase,
+            completed: self.completed,
+            total: self.total.map(|total| total.max(self.completed)),
+            fraction: self.fraction,
+            bytes: self.bytes,
+            bytes_per_second,
+        });
+    }
+}
+
+/// Reads a response body chunk by chunk so the meter sees bytes as they
+/// arrive rather than once the whole file is in memory.
+async fn read_body(
+    mut response: reqwest::Response,
+    meter: &mut Meter<'_>,
+) -> Result<Vec<u8>, reqwest::Error> {
+    let length = response.content_length().filter(|length| *length > 0);
+    let mut body = Vec::with_capacity(length.unwrap_or(0).min(64 << 20) as usize);
+    while let Some(chunk) = response.chunk().await? {
+        body.extend_from_slice(&chunk);
+        meter.transferred(
+            chunk.len() as u64,
+            length.map(|length| body.len() as f64 / length as f64),
+        );
+    }
+    Ok(body)
 }
 
 #[derive(Deserialize)]
@@ -89,13 +240,34 @@ impl Coordinator {
         backend_url: &str,
         token: &str,
     ) -> Result<SyncResult, String> {
+        let ignore = |_: SyncProgress| {};
+        self.synchronize_with_progress(store, account_id, backend_url, token, &ignore)
+            .await
+    }
+
+    pub async fn synchronize_with_progress(
+        &self,
+        store: &LocalStore,
+        account_id: i64,
+        backend_url: &str,
+        token: &str,
+        report: &(dyn Fn(SyncProgress) + Send + Sync),
+    ) -> Result<SyncResult, String> {
         let _guard = self.gate.lock().await;
         let backend = validated_backend(backend_url)?;
         if token.trim().is_empty() {
             return Err("Sync requires a signed-in account".into());
         }
+        let mut meter = Meter::new(report);
+        let outbox = store
+            .query(account_id, "sync_status", serde_json::json!({}))?
+            .get("pending")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as usize;
+        meter.begin(SyncPhase::Uploading, Some(outbox));
         let mut pushed = 0;
         while let Some(mutation) = store.next_outbox(account_id)? {
+            let meter = &mut meter;
             let attempted: Result<PushResponse, SyncFailure> = async {
                 for change in &mutation.changes {
                     let Some(sha256) = change.values.get("sha256").and_then(Value::as_str) else {
@@ -113,6 +285,7 @@ impl Coordinator {
                         .map_err(SyncFailure::transient)?;
                     if present.status() == reqwest::StatusCode::NOT_FOUND {
                         let bytes = store.read_blob(sha256).map_err(SyncFailure::permanent)?;
+                        let size = bytes.len() as u64;
                         let mime = change
                             .values
                             .get("mime_type")
@@ -130,6 +303,7 @@ impl Coordinator {
                         if !uploaded.status().is_success() {
                             return Err(http_error(uploaded).await);
                         }
+                        meter.transferred(size, None);
                     } else if !present.status().is_success() {
                         return Err(http_error(present).await);
                     }
@@ -137,18 +311,25 @@ impl Coordinator {
                 let url = backend
                     .join("api/sync/push")
                     .map_err(SyncFailure::transient)?;
+                let body = serde_json::to_vec(&mutation).map_err(SyncFailure::permanent)?;
+                let size = body.len() as u64;
                 let response = self
                     .client
                     .post(url)
                     .bearer_auth(token)
-                    .json(&mutation)
+                    .header(reqwest::header::CONTENT_TYPE, "application/json")
+                    .body(body)
                     .send()
                     .await
                     .map_err(SyncFailure::transient)?;
                 if !response.status().is_success() {
                     return Err(http_error(response).await);
                 }
-                response.json().await.map_err(SyncFailure::transient)
+                meter.transferred(size, None);
+                let body = read_body(response, meter)
+                    .await
+                    .map_err(SyncFailure::transient)?;
+                serde_json::from_slice(&body).map_err(SyncFailure::transient)
             }
             .await;
             let result = match attempted {
@@ -177,10 +358,12 @@ impl Coordinator {
                 )
                 .map_err(|error| format!("Applying pushed rows failed: {error}"))?;
             pushed += 1;
+            meter.item_done();
         }
 
         // Push first so aliases can collapse a temporary offline import
         // before a snapshot introduces the same paper or edition UUID.
+        meter.begin(SyncPhase::Snapshot, Some(1));
         let snapshot_url = backend
             .join("api/sync/snapshot")
             .map_err(|error| error.to_string())?;
@@ -194,14 +377,17 @@ impl Coordinator {
         if !snapshot_response.status().is_success() {
             return Err(http_error(snapshot_response).await.message);
         }
-        let snapshot: SnapshotResponse = snapshot_response
-            .json()
+        let snapshot = read_body(snapshot_response, &mut meter)
             .await
             .map_err(|error| error.to_string())?;
+        let snapshot: SnapshotResponse =
+            serde_json::from_slice(&snapshot).map_err(|error| error.to_string())?;
         store
             .apply_snapshot(account_id, snapshot.rows)
             .map_err(|error| format!("Applying snapshot failed: {error}"))?;
+        meter.item_done();
 
+        meter.begin(SyncPhase::Pulling, None);
         let mut pulled = 0;
         let mut cursor = store.pull_cursor(account_id)?;
         let client_id = store.client_id()?;
@@ -223,22 +409,31 @@ impl Coordinator {
             if !response.status().is_success() {
                 return Err(http_error(response).await.message);
             }
-            let page: PullResponse = response.json().await.map_err(|error| error.to_string())?;
+            let page = read_body(response, &mut meter)
+                .await
+                .map_err(|error| error.to_string())?;
+            let page: PullResponse =
+                serde_json::from_slice(&page).map_err(|error| error.to_string())?;
             pulled += page.changes.len();
             cursor = page.cursor;
             store
                 .apply_pull(account_id, page.changes, cursor)
                 .map_err(|error| format!("Applying pull page failed: {error}"))?;
+            meter.item_done();
             if !page.has_more {
                 break;
             }
         }
         // A successful sync is a complete offline replica: hydrate every PDF
         // and board file referenced by the account before reporting success.
-        for sha256 in store.missing_blob_digests(account_id)? {
-            self.download_blob(store, backend_url, token, &sha256)
+        let missing = store.missing_blob_digests(account_id)?;
+        meter.begin(SyncPhase::Downloading, Some(missing.len()));
+        for sha256 in missing {
+            self.download_blob(store, backend_url, token, &sha256, &mut meter)
                 .await?;
+            meter.item_done();
         }
+        meter.finish();
         Ok(SyncResult {
             pushed,
             pulled,
@@ -254,7 +449,9 @@ impl Coordinator {
         sha256: &str,
     ) -> Result<(), String> {
         let _guard = self.gate.lock().await;
-        self.download_blob(store, backend_url, token, sha256).await
+        let ignore = |_: SyncProgress| {};
+        self.download_blob(store, backend_url, token, sha256, &mut Meter::new(&ignore))
+            .await
     }
 
     async fn download_blob(
@@ -263,6 +460,7 @@ impl Coordinator {
         backend_url: &str,
         token: &str,
         sha256: &str,
+        meter: &mut Meter<'_>,
     ) -> Result<(), String> {
         if store.has_blob(sha256) {
             return Ok(());
@@ -296,7 +494,9 @@ impl Coordinator {
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
-        let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+        let bytes = read_body(response, meter)
+            .await
+            .map_err(|error| error.to_string())?;
         store.import_remote_blob(sha256, &bytes, mime)
     }
 }
@@ -351,6 +551,36 @@ mod tests {
         assert!(validated_backend("https://example.test/papol").is_ok());
         assert!(validated_backend("file:///tmp/server").is_err());
         assert!(validated_backend("https://user:secret@example.test").is_err());
+    }
+
+    #[test]
+    fn progress_advances_through_phases_and_counts_bytes() {
+        let reports = std::sync::Mutex::new(Vec::new());
+        let record = |progress: SyncProgress| reports.lock().unwrap().push(progress);
+        let mut meter = Meter::new(&record);
+        meter.begin(SyncPhase::Uploading, Some(2));
+        meter.item_done();
+        meter.begin(SyncPhase::Downloading, Some(4));
+        meter.transferred(1000, Some(0.5));
+        meter.item_done();
+        meter.begin(SyncPhase::Pulling, None);
+        meter.finish();
+
+        let reports = reports.into_inner().unwrap();
+        let uploaded = &reports[1];
+        assert_eq!(uploaded.completed, 1);
+        assert_eq!(uploaded.fraction, 0.125);
+        let downloaded = reports
+            .iter()
+            .find(|progress| progress.phase == SyncPhase::Downloading && progress.completed == 1)
+            .unwrap();
+        assert_eq!(downloaded.bytes, 1000);
+        assert_eq!(downloaded.total, Some(4));
+        assert_eq!(downloaded.fraction, 0.8125);
+        assert!(reports
+            .windows(2)
+            .all(|pair| pair[0].fraction <= pair[1].fraction));
+        assert_eq!(reports.last().unwrap().fraction, 1.0);
     }
 
     #[test]

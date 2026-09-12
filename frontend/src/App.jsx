@@ -3131,6 +3131,51 @@ h4 .state-pill {
   font-size: var(--fs-sm);
 }
 
+.local-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.local-sync-progress {
+  margin-top: 14px;
+}
+
+.local-sync-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+.local-sync-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .2s ease;
+}
+
+.local-sync-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+
+.local-sync-detail.error {
+  color: var(--red);
+}
+
+.local-sync-speed {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .local-storage-row {
   margin-top: 16px;
   padding-top: 16px;
@@ -5449,6 +5494,10 @@ export default function App() {
             user={user}
             onUserUpdated={setUser}
             onLogout={handleLogout}
+            onSync={() => {
+              nook.reload();
+              setSyncRefresh((revision) => revision + 1);
+            }}
           />
         ) : null)}
       </>

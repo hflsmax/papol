@@ -169,8 +169,12 @@ async fn sync_now(
     if ACTIVE_SYNCS.fetch_add(1, Ordering::SeqCst) == 0 {
         let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": true}));
     }
+    let progress_app = app.clone();
+    let report = move |progress: sync::SyncProgress| {
+        let _ = progress_app.emit("papol://sync-progress", progress);
+    };
     let result = coordinator
-        .synchronize(&store, account_id, &backend_url, &token)
+        .synchronize_with_progress(&store, account_id, &backend_url, &token, &report)
         .await;
     if ACTIVE_SYNCS.fetch_sub(1, Ordering::SeqCst) == 1 {
         let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": false}));

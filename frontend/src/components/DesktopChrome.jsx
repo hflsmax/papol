@@ -6,11 +6,10 @@ import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import {
-  getSyncStatus, refreshSyncStatus, syncOfflineQueue,
+  getSyncStatus, refreshSyncStatus,
 } from '../../../shared/offlineStore';
 import {
-  activateNativeAfterLegacyDrain, nativeDataActive, nativeQuery, nativeSyncNow,
-  subscribeNativeData,
+  nativeDataActive, nativeQuery, subscribeNativeData, syncAllNow,
 } from '../nativeData';
 
 // The sidebar and toolbar that stand in for the website masthead inside
@@ -148,15 +147,9 @@ function SyncControl({ onSynced }) {
 
   const syncNow = async () => {
     setStatus((current) => ({ ...current, syncing: true, error: null }));
-    const compatibility = await Promise.allSettled([syncOfflineQueue()]);
-    await activateNativeAfterLegacyDrain().catch(() => false);
-    const native = await Promise.allSettled([
-      nativeDataActive() ? nativeSyncNow() : Promise.resolve(),
-    ]);
-    const results = [...compatibility, ...native];
-    const nativeFailure = results.find((result) => result.status === 'rejected');
+    const failure = await syncAllNow();
     const latest = { ...getSyncStatus(), syncing: false };
-    if (nativeFailure) latest.error = nativeFailure.reason?.message || String(nativeFailure.reason);
+    if (failure) latest.error = failure;
     if (nativeDataActive()) {
       try {
         const local = await nativeQuery('sync_status');
@@ -167,10 +160,7 @@ function SyncControl({ onSynced }) {
       } catch { /* IndexedDB status still remains useful */ }
     }
     setStatus(latest);
-    if (!latest.error && latest.pending === 0) {
-      try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
-      onSynced?.();
-    }
+    if (!latest.error && latest.pending === 0) onSynced?.();
   };
 
   const summary = status.error || status.conflicts ? 'Needs attention' : (status.syncing

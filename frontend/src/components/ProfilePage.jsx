@@ -15,21 +15,68 @@ import {
 } from '../../../shared/offlineStore';
 import {
   clearNativeData, hydrateNativeSyncPreference, nativeStorageStatus,
-  persistNativeSyncPreference,
+  persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress,
+  syncAllNow,
 } from '../nativeData';
+
+const SYNC_PHASES = {
+  uploading: 'Sending changes',
+  snapshot: 'Checking library',
+  pulling: 'Receiving changes',
+  downloading: 'Downloading files',
+};
+
+function syncProgressLabel(progress) {
+  if (!progress) return 'Starting…';
+  const label = SYNC_PHASES[progress.phase] || 'Syncing';
+  if (!progress.total) return label;
+  return `${label} · ${Math.min(progress.completed + 1, progress.total)} of ${progress.total}`;
+}
 
 // Unlike the account fields below, these settings belong to this installation
 // only. Keeping the component and storage API explicitly local prevents a new
 // device preference from accidentally becoming part of updateProfile().
-function LocalDeviceSettings() {
+function LocalDeviceSettings({ onSynced }) {
   const [syncPreference, setSyncPreferenceState] = useState(getLocalSyncPreference);
   const [storage, setStorage] = useState(null);
   const [clearingData, setClearingData] = useState(false);
+  // Progress arrives for every native sync, whether started here, from the
+  // sidebar, or automatically, so the bar reflects whatever is running.
+  const [sync, setSync] = useState({ running: false, progress: null, error: null, lastBytes: null });
 
   useEffect(() => {
     hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
     nativeStorageStatus().then(setStorage).catch(() => {});
+    const stopProgress = subscribeNativeSyncProgress((progress) => {
+      setSync((current) => ({ ...current, running: true, error: null, progress }));
+    });
+    const stopStatus = subscribeNativeData((payload) => {
+      if (payload?.syncing === true) {
+        setSync((current) => ({ ...current, running: true, error: null, progress: null }));
+      } else if (payload?.syncing === false) {
+        setSync((current) => ({
+          ...current,
+          running: false,
+          progress: null,
+          lastBytes: current.progress?.bytes ?? current.lastBytes,
+        }));
+        nativeStorageStatus().then(setStorage).catch(() => {});
+      } else if (typeof payload?.error === 'string') {
+        setSync((current) => ({ ...current, error: payload.error }));
+      }
+    });
+    return () => {
+      stopProgress();
+      stopStatus();
+    };
   }, []);
+
+  const syncNow = async () => {
+    setSync((current) => ({ ...current, running: true, error: null, progress: null }));
+    const failure = await syncAllNow();
+    setSync((current) => ({ ...current, running: false, progress: null, error: failure }));
+    if (!failure) onSynced?.();
+  };
 
   const chooseSyncPreference = (preference) => {
     setLocalSyncPreference(preference);
@@ -57,15 +104,49 @@ function LocalDeviceSettings() {
       <h2 className="panel-title">Settings</h2>
       <div className="local-setting-row">
         <label htmlFor="local-sync-preference"><strong>Sync</strong></label>
-        <select
-          id="local-sync-preference"
-          value={syncPreference}
-          onChange={(event) => chooseSyncPreference(event.target.value)}
-        >
-          <option value="automatic">Automatic</option>
-          <option value="manual">Manual</option>
-        </select>
+        <div className="local-sync-actions">
+          <select
+            id="local-sync-preference"
+            value={syncPreference}
+            onChange={(event) => chooseSyncPreference(event.target.value)}
+          >
+            <option value="automatic">Automatic</option>
+            <option value="manual">Manual</option>
+          </select>
+          <button type="button" disabled={sync.running} onClick={syncNow}>
+            {sync.running ? 'Syncing…' : 'Sync now'}
+          </button>
+        </div>
       </div>
+      {sync.running && (
+        <div className="local-sync-progress">
+          <div
+            className="local-sync-bar"
+            role="progressbar"
+            aria-label="Sync progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round((sync.progress?.fraction || 0) * 100)}
+          >
+            <span style={{ width: `${(sync.progress?.fraction || 0) * 100}%` }} />
+          </div>
+          <div className="local-sync-detail">
+            <span>{syncProgressLabel(sync.progress)}</span>
+            {sync.progress && (
+              <span className="local-sync-speed">
+                {formatSize(Math.round(sync.progress.bytes_per_second))}/s
+                {' · '}
+                {formatSize(sync.progress.bytes)}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {!sync.running && (sync.error || sync.lastBytes != null) && (
+        <div className={`local-sync-detail${sync.error ? ' error' : ''}`} role="status">
+          {sync.error || `Sync finished · ${formatSize(sync.lastBytes)} transferred`}
+        </div>
+      )}
       {storage && (
         <div className="local-setting-row local-storage-row">
           <div>
@@ -88,7 +169,7 @@ function LocalDeviceSettings() {
   );
 }
 
-export default function ProfilePage({ user, onUserUpdated, onLogout }) {
+export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   // Account settings in this component are global: their handlers call the
   // backend and the resulting values follow the reader to every device.
   const [displayName, setDisplayName] = useState(user.display_name);
@@ -376,7 +457,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
         )}
       </div>
 
-      {DESKTOP && <LocalDeviceSettings />}
+      {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
 
       {/* Notes you cannot leave with are not really yours. */}
       <div className="panel">

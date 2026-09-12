@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   clearOfflineData, getLocalSyncPreference, refreshSyncStatus, setLocalSyncPreference,
+  syncOfflineQueue,
 } from '../../shared/offlineStore.js';
 import { BACKEND_BASE } from './base.js';
 import { currentCredential } from '../../shared/credentials.js';
@@ -134,6 +135,21 @@ export async function nativeSyncNow() {
   }
 }
 
+// A user-initiated sync, from the sidebar or Settings: drain the IndexedDB
+// compatibility queue first, then the native replica. Resolves to the first
+// failure message, or null.
+export async function syncAllNow() {
+  const compatibility = await Promise.allSettled([syncOfflineQueue()]);
+  await activateNativeAfterLegacyDrain().catch(() => false);
+  const native = await Promise.allSettled([
+    nativeDataActive() ? nativeSyncNow() : Promise.resolve(),
+  ]);
+  const failure = [...compatibility, ...native].find((result) => result.status === 'rejected');
+  if (failure) return failure.reason?.message || String(failure.reason);
+  try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
+  return null;
+}
+
 export function scheduleNativeSync() {
   if (scheduledSync) return scheduledSync;
   scheduledSync = Promise.resolve()
@@ -166,10 +182,19 @@ export async function hydrateNativeSyncPreference() {
 }
 
 export function subscribeNativeData(listener) {
+  return subscribeNativeEvents(['papol://data-changed', 'papol://sync-status'], listener);
+}
+
+// Payload: { phase, completed, total, fraction, bytes, bytes_per_second }.
+export function subscribeNativeSyncProgress(listener) {
+  return subscribeNativeEvents(['papol://sync-progress'], listener);
+}
+
+function subscribeNativeEvents(eventNames, listener) {
   if (!IS_DESKTOP) return () => {};
   let disposed = false;
   const unlisteners = [];
-  for (const eventName of ['papol://data-changed', 'papol://sync-status']) {
+  for (const eventName of eventNames) {
     listen(eventName, (event) => listener(event.payload)).then((stop) => {
       if (disposed) stop();
       else unlisteners.push(stop);

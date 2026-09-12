@@ -1,3 +1,3 @@
 mod coordinator;
 
-pub use coordinator::{Coordinator, SyncResult};
+pub use coordinator::{Coordinator, SyncPhase, SyncProgress, SyncResult};
