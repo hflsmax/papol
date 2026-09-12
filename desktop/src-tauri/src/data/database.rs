@@ -9,8 +9,7 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 const REGISTRY: &str = include_str!("../../../../schema/sync_registry.json");
-pub const DEFAULT_CACHE_LIMIT_BYTES: i64 = 2 * 1024 * 1024 * 1024;
-const MAX_PENDING_BLOB_BYTES: usize = 25 * 1024 * 1024;
+const MAX_UNSYNCED_BLOB_BYTES: usize = 25 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DataChange {
@@ -435,7 +434,7 @@ impl LocalStore {
             if let Some(sha256) = blob_sha256 {
                 transaction
                     .execute(
-                        "UPDATE _local_blobs SET durability='pinned' WHERE sha256=?1",
+                        "UPDATE _local_blobs SET durability='cache' WHERE sha256=?1",
                         [sha256],
                     )
                     .map_err(|error| error.to_string())?;
@@ -596,10 +595,10 @@ impl LocalStore {
         bytes: &[u8],
         mime_type: Option<String>,
     ) -> Result<BlobRecord, String> {
-        if bytes.len() > MAX_PENDING_BLOB_BYTES {
+        if bytes.len() > MAX_UNSYNCED_BLOB_BYTES {
             return Err("Offline files may be at most 25 MB".into());
         }
-        self.store_blob(bytes, mime_type, "pending")
+        self.store_blob(bytes, mime_type, "unsynced")
     }
 
     pub fn import_remote_blob(
@@ -621,8 +620,6 @@ impl LocalStore {
             .lock()
             .map_err(|_| "Local database lock failed")?;
         refresh_blob_references_for_digest(&connection, expected_sha256)?;
-        drop(connection);
-        self.prune_cache(DEFAULT_CACHE_LIMIT_BYTES)?;
         Ok(())
     }
 
@@ -653,7 +650,7 @@ impl LocalStore {
             .lock()
             .map_err(|_| "Local database lock failed")?;
         let recorded = connection.execute(
-            "INSERT INTO _local_blobs(sha256,relative_path,size,mime_type,durability,last_accessed_at) VALUES (?1,?1,?2,?3,?4,?5) ON CONFLICT(sha256) DO UPDATE SET size=excluded.size,mime_type=COALESCE(excluded.mime_type,_local_blobs.mime_type),last_accessed_at=excluded.last_accessed_at,durability=CASE WHEN _local_blobs.durability IN ('pending','pinned') THEN _local_blobs.durability ELSE excluded.durability END",
+            "INSERT INTO _local_blobs(sha256,relative_path,size,mime_type,durability,last_accessed_at) VALUES (?1,?1,?2,?3,?4,?5) ON CONFLICT(sha256) DO UPDATE SET size=excluded.size,mime_type=COALESCE(excluded.mime_type,_local_blobs.mime_type),last_accessed_at=excluded.last_accessed_at,durability=CASE WHEN _local_blobs.durability='unsynced' THEN _local_blobs.durability ELSE excluded.durability END",
             params![sha256, bytes.len() as i64, mime_type, durability, chrono_text()],
         );
         if let Err(error) = recorded {
@@ -696,82 +693,43 @@ impl LocalStore {
         self.blob_directory.join(sha256).is_file()
     }
 
-    pub fn prune_cache(&self, max_bytes: i64) -> Result<usize, String> {
-        if max_bytes < 0 {
-            return Err("Cache limit cannot be negative".into());
-        }
-        let mut connection = self
+    /// Return every active file referenced by this account that is not yet
+    /// present in the local blob store. PDFs are owned indirectly through the
+    /// account's copies; board files are owned by their board.
+    pub fn missing_blob_digests(&self, account_id: i64) -> Result<Vec<String>, String> {
+        let connection = self
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
-        let total: i64 = connection
-            .query_row(
-                "SELECT COALESCE(SUM(size),0) FROM _local_blobs WHERE durability='cache'",
-                [],
-                |row| row.get(0),
+        let mut statement = connection
+            .prepare(
+                r#"SELECT DISTINCT digest FROM (
+                   SELECT pe.sha256 AS digest
+                   FROM paper_editions pe
+                   JOIN copies c ON c.paper_id=pe.paper_id
+                   WHERE c.user_id=?1 AND c.deleted_at IS NULL
+                     AND pe.deleted_at IS NULL AND pe.sha256 IS NOT NULL
+                   UNION ALL
+                   SELECT bi.blob_sha256 AS digest
+                   FROM board_items bi
+                   JOIN boards b ON b.id=bi.board_id
+                   WHERE b.user_id=?1 AND b.deleted_at IS NULL
+                     AND bi.deleted_at IS NULL AND bi.blob_sha256 IS NOT NULL
+                 )
+                 ORDER BY digest"#,
             )
             .map_err(|error| error.to_string())?;
-        if total <= max_bytes {
-            return Ok(0);
-        }
-        let candidates = {
-            let mut statement = connection
-                .prepare(
-                    "SELECT sha256,size FROM _local_blobs WHERE durability='cache' \
-                     ORDER BY COALESCE(last_accessed_at,created_at),created_at,sha256",
-                )
-                .map_err(|error| error.to_string())?;
-            let rows = statement
-                .query_map([], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-                })
-                .map_err(|error| error.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| error.to_string())?;
-            rows
-        };
-        let mut remaining = total;
-        let mut removed = Vec::new();
-        for (sha256, size) in candidates {
-            if remaining <= max_bytes {
-                break;
-            }
-            remaining -= size;
-            removed.push(sha256);
-        }
-        let mut staged = Vec::new();
-        for sha256 in &removed {
-            match stage_blob_removal(&self.blob_directory, sha256) {
-                Ok(Some(path)) => staged.push((sha256.clone(), path)),
-                Ok(None) => {}
-                Err(error) => {
-                    restore_staged_blobs(&self.blob_directory, &staged);
-                    return Err(error);
-                }
-            }
-        }
-        let database_result = (|| {
-            let transaction = connection
-                .transaction()
-                .map_err(|error| error.to_string())?;
-            for sha256 in &removed {
-                transaction
-                    .execute("DELETE FROM _local_blob_refs WHERE sha256=?1", [sha256])
-                    .map_err(|error| error.to_string())?;
-                transaction
-                    .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
-                    .map_err(|error| error.to_string())?;
-            }
-            transaction.commit().map_err(|error| error.to_string())
-        })();
-        if let Err(error) = database_result {
-            restore_staged_blobs(&self.blob_directory, &staged);
-            return Err(error);
-        }
-        for (_, path) in staged {
-            let _ = std::fs::remove_file(path);
-        }
-        Ok(removed.len())
+        let digests = statement
+            .query_map([account_id], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        drop(statement);
+        drop(connection);
+        Ok(digests
+            .into_iter()
+            .filter(|sha256| !self.has_blob(sha256))
+            .collect())
     }
 
     pub fn clear_data(&self) -> Result<usize, String> {
@@ -965,7 +923,7 @@ impl LocalStore {
             )
             .optional()
             .map_err(|error| error.to_string())?;
-        if durability.as_deref() != Some("pending") {
+        if durability.as_deref() != Some("unsynced") {
             return Ok(false);
         }
         let referenced: i64 = connection
@@ -2622,7 +2580,7 @@ fn query_storage_status(connection: &Connection) -> Result<Value, String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     let mut totals = Map::new();
-    for durability in ["pending", "pinned", "cache"] {
+    for durability in ["unsynced", "cache"] {
         let (bytes, files) = rows
             .iter()
             .find(|(name, _, _)| name == durability)
@@ -2630,10 +2588,7 @@ fn query_storage_status(connection: &Connection) -> Result<Value, String> {
             .unwrap_or((0, 0));
         totals.insert(durability.into(), json!({"bytes": bytes, "files": files}));
     }
-    Ok(json!({
-        "classes": totals,
-        "cache_limit_bytes": DEFAULT_CACHE_LIMIT_BYTES,
-    }))
+    Ok(json!({"classes": totals}))
 }
 
 fn query_local_account(connection: &Connection, account_id: i64) -> Result<Value, String> {
@@ -3044,7 +2999,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(durability, "pinned");
+        assert_eq!(durability, "cache");
         assert_eq!(references, 1);
         drop(connection);
         drop(store);
@@ -3075,36 +3030,61 @@ mod tests {
     }
 
     #[test]
-    fn cache_eviction_never_removes_pending_or_pinned_files() {
-        use sha2::Digest;
-
+    fn missing_blobs_include_every_account_pdf_and_board_file() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let cached_bytes = b"replaceable remote file";
-        let cached_sha = format!("{:x}", sha2::Sha256::digest(cached_bytes));
-        store
-            .import_remote_blob(&cached_sha, cached_bytes, Some("application/pdf".into()))
-            .unwrap();
-        let pending = store
-            .import_blob(b"unsynchronized user file", Some("application/pdf".into()))
-            .unwrap();
+        let paper_id = Uuid::new_v4().to_string();
+        let edition_id = Uuid::new_v4().to_string();
+        let copy_id = Uuid::new_v4().to_string();
+        let board_id = Uuid::new_v4().to_string();
+        let board_item_id = Uuid::new_v4().to_string();
+        let foreign_board_id = Uuid::new_v4().to_string();
+        let foreign_item_id = Uuid::new_v4().to_string();
+        let pdf = "a".repeat(64);
+        let board_file = "b".repeat(64);
+        let foreign_file = "c".repeat(64);
+        let now = "2026-09-12T00:00:00Z";
         {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "UPDATE _local_blobs SET durability='pinned' WHERE sha256=?1",
-                    [&pending.sha256],
+                    "INSERT INTO papers(id,title,created_at,updated_at) VALUES (?1,'Paper',?2,?2)",
+                    params![paper_id, now],
                 )
                 .unwrap();
+            connection.execute(
+                "INSERT INTO paper_editions(id,paper_id,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
+                params![edition_id, paper_id, pdf, now],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO copies(id,paper_id,user_id,edition_id,created_at,updated_at) VALUES (?1,?2,7,?3,?4,?4)",
+                params![copy_id, paper_id, edition_id, now],
+            ).unwrap();
+            for (board, item, digest, account) in [
+                (&board_id, &board_item_id, &board_file, 7),
+                (&foreign_board_id, &foreign_item_id, &foreign_file, 8),
+            ] {
+                connection.execute(
+                    "INSERT INTO boards(id,user_id,name,created_at,updated_at) VALUES (?1,?2,'Board',?3,?3)",
+                    params![board, account, now],
+                ).unwrap();
+                connection.execute(
+                    "INSERT INTO board_items(id,board_id,kind,blob_sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
+                    params![item, board, digest, now],
+                ).unwrap();
+            }
+            // A metadata row without its bytes is still missing and must be
+            // repaired by the next complete synchronization.
+            connection.execute(
+                "INSERT INTO _local_blobs(sha256,relative_path,size,mime_type,durability) VALUES (?1,?1,1,'application/pdf','cache')",
+                [&pdf],
+            ).unwrap();
         }
 
-        assert_eq!(store.prune_cache(0).unwrap(), 1);
-        assert!(!store.has_blob(&cached_sha));
-        assert!(store.has_blob(&pending.sha256));
-        let status = store.query(7, "storage_status", json!({})).unwrap();
-        assert_eq!(status["classes"]["cache"]["bytes"], 0);
-        assert_eq!(status["classes"]["pinned"]["files"], 1);
-        assert_eq!(status["cache_limit_bytes"], DEFAULT_CACHE_LIMIT_BYTES);
+        assert_eq!(
+            store.missing_blob_digests(7).unwrap(),
+            vec![pdf, board_file]
+        );
     }
 
     #[test]
@@ -3281,37 +3261,6 @@ mod tests {
         assert!(!store.has_blob(&first_board_blob.sha256));
         assert!(store.has_blob(&shared_blob.sha256));
         assert!(store.has_blob(&second_board_blob.sha256));
-    }
-
-    #[test]
-    fn cache_eviction_keeps_metadata_when_file_staging_fails() {
-        use sha2::Digest;
-
-        let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let bytes = b"cached file";
-        let sha256 = format!("{:x}", sha2::Sha256::digest(bytes));
-        store
-            .import_remote_blob(&sha256, bytes, Some("application/pdf".into()))
-            .unwrap();
-
-        let backup = directory.path().join("blobs-backup");
-        std::fs::rename(&store.blob_directory, &backup).unwrap();
-        std::fs::write(&store.blob_directory, b"not a directory").unwrap();
-        assert!(store.prune_cache(0).is_err());
-        std::fs::remove_file(&store.blob_directory).unwrap();
-        std::fs::rename(backup, &store.blob_directory).unwrap();
-
-        assert!(store.has_blob(&sha256));
-        let connection = store.connection.lock().unwrap();
-        let count: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM _local_blobs WHERE sha256=?1",
-                [&sha256],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(count, 1);
     }
 
     #[test]
@@ -3544,7 +3493,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|column| column == "blob_sha256");
-        assert_eq!(migration_count, 11);
+        assert_eq!(migration_count, 12);
         assert!(has_blob_column);
         drop(connection);
         drop(store);
@@ -3556,7 +3505,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(migration_count, 11);
+        assert_eq!(migration_count, 12);
     }
 
     #[test]

@@ -241,6 +241,12 @@ impl Coordinator {
                 break;
             }
         }
+        // A successful sync is a complete offline replica: hydrate every PDF
+        // and board file referenced by the account before reporting success.
+        for sha256 in store.missing_blob_digests(account_id)? {
+            self.download_blob(store, backend_url, token, &sha256)
+                .await?;
+        }
         Ok(SyncResult {
             pushed,
             pulled,
@@ -256,6 +262,16 @@ impl Coordinator {
         sha256: &str,
     ) -> Result<(), String> {
         let _guard = self.gate.lock().await;
+        self.download_blob(store, backend_url, token, sha256).await
+    }
+
+    async fn download_blob(
+        &self,
+        store: &LocalStore,
+        backend_url: &str,
+        token: &str,
+        sha256: &str,
+    ) -> Result<(), String> {
         if store.has_blob(sha256) {
             return Ok(());
         }

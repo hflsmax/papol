@@ -412,14 +412,14 @@ Exit criterion: every approved user-owned operation works across restart and syn
 ### Stage E — storage lifecycle and migration
 
 Implementation status (2026-09-12): complete for the native rollout baseline.
-Blobs have pending/pinned/cache classes, lazy verified downloads, a replaceable
-cache limit, reference protection, storage diagnostics, sign-out protection,
-and a portable recovery export. The legacy IndexedDB queue uses a restart-safe,
+Blobs have unsynced/cache classes, verified downloads retained without an
+automatic size limit, reference protection, storage diagnostics, sign-out
+protection, and a portable recovery export. The legacy IndexedDB queue uses a restart-safe,
 idempotent drain-before-cutover bridge and remains intact for one rollback
 release; direct byte-for-byte database import was intentionally avoided because
 the old cache overlays are not the canonical domain schema.
 
-- implement pending/pinned/cache file classes and limits;
+- implement unsynced/cache file classes without automatic eviction;
 - import existing IndexedDB queue and files with digest verification;
 - add diagnostics/export and unsynced-work logout protection;
 - soak-test before enabling native storage by default;

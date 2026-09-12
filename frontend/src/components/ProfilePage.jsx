@@ -71,8 +71,7 @@ function LocalDeviceSettings() {
           <div>
             <strong>Storage</strong>
             <div className="local-storage-totals">
-              {formatSize(storage.classes.pending.bytes)} unsynced ·{' '}
-              {formatSize(storage.classes.pinned.bytes)} offline ·{' '}
+              {formatSize(storage.classes.unsynced.bytes)} unsynced ·{' '}
               {formatSize(storage.classes.cache.bytes)} cache
             </div>
           </div>

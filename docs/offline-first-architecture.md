@@ -46,7 +46,7 @@ The safest architecture begins by classifying operations by ownership, not by HT
 
 | Class | Examples | Offline behavior |
 | --- | --- | --- |
-| Local device settings | sync mode, cache limit, window state, downloaded/pinned status | Save locally; never upload |
+| Local device settings | sync mode and window state | Save locally; never upload |
 | Private user-owned records | summary, private note, ink, clip, private tags, private shelf organization | Save locally and queue for sync |
 | Private board state | board creation/deletion, cards, files, excerpts sent from the viewer, layout, groups, staging | Save locally and queue for sync |
 | Visibility-changing state | publishing a shelf, exposing or unexposing content | Require online confirmation unless a later product decision defines delayed publication semantics |
@@ -110,7 +110,7 @@ The bearer token appears in response keys and queued request headers, while file
 
 ### Storage has no lifecycle
 
-There is no quota policy, LRU eviction, reference counting, download management, or distinction between irreplaceable pending files and replaceable cached files. Those categories must not share one eviction policy.
+There is no reference counting, download management, or distinction between irreplaceable unsynced files and server-backed cached files. Those categories must not share one deletion policy.
 
 ## Recommended target architecture
 
@@ -141,12 +141,12 @@ Use Tauri's app data and app cache directories derived from the configured bundl
 
 The current implementation keeps all content-addressed bytes in one managed
 application-data `blobs/` directory and records their lifecycle class in
-SQLite. Only rows classified `cache` are ever evicted. Conceptually:
+SQLite. Files are removed only by explicit data clearing, account removal, or deletion of their referencing content. Conceptually:
 
 ```text
 Application Support/com.mc-pony.papol/
   papol.sqlite3                 durable replica, outbox, settings, sync state
-  blobs/<sha256>                pending, pinned, or cache per SQLite metadata
+  blobs/<sha256>                unsynced or cache per SQLite metadata
 ```
 
 The exact paths should be resolved through Tauri at runtime rather than constructed as string literals. WAL mode is appropriate for responsive reads while the sync actor writes, but backup/export code must treat the database, WAL, and shared-memory state correctly. SQLite notes that a WAL file is part of persistent state while active and must not be separated carelessly from the database.[^sqlite-wal]
@@ -231,7 +231,7 @@ _local_blobs (
   sha256 TEXT PRIMARY KEY,
   byte_size INTEGER NOT NULL,
   mime_type TEXT,
-  durability TEXT NOT NULL,       -- pending | pinned | cache
+  durability TEXT NOT NULL,       -- unsynced | cache
   upload_state TEXT NOT NULL,
   last_accessed_at TEXT NOT NULL
 );
@@ -274,7 +274,7 @@ Repeated high-frequency operations should be coalesced when safe. Ten board drag
 
 Files are named by SHA-256. The outbox contains the hash and metadata, not a second copy of the bytes. Before applying a mutation that references a blob, sync asks whether the backend already has that hash, uploads it if necessary using an idempotent content-addressed endpoint, and then sends the record mutation.
 
-A pending blob is user data and is never subject to cache eviction. Once the server confirms it and no pending mutation references it, it may become pinned or replaceable according to the user's local download choice.
+An unsynced blob is user data that has not yet been confirmed by the server. Synced and downloaded blobs are retained locally without an automatic size limit; they are removed only through explicit local-data clearing, account removal, or deletion of the content that references them.
 
 ### 3. Idempotent push
 
@@ -395,12 +395,11 @@ The status model should be small and truthful: `Saved on this Mac`, `N changes t
 Call things by their durability:
 
 - **Replica data** is durable application data. Keep it until the user removes the account from the device.
-- **Pending files** are unsynchronized user data. Never evict them automatically.
-- **Pinned files** were explicitly kept for offline use. Never evict them automatically; expose their size and a remove-download action.
-- **Cache files** are replaceable remote PDFs, thumbnails, and previews. Evict them by least-recently-used policy.
+- **Unsynced files** are user data the server has not confirmed yet.
+- **Cache files** are server-backed local PDFs, attachments, thumbnails, and previews.
 - **Bundled UI** is part of the signed app bundle and is neither replica nor cache.
 
-A reasonable first cache policy is a configurable 2 GiB cap for replaceable files, subject to available disk space. The number is a product default, not a correctness limit. Show separate totals for pending, downloaded, and cached data. Clear Cache may remove only replaceable data. Removing an account should offer a clear choice if unsynced changes exist: sync first, export local work, or explicitly discard it.
+Cache files have no automatic size limit and remain on the device until their referencing content is deleted, the account is removed, or local data is explicitly cleared. Show separate totals for unsynced and cached data. Removing an account should offer a clear choice if unsynced changes exist: sync first, export local work, or explicitly discard it.
 
 The database should retain compact tombstones and mutation deduplication records long enough for every supported offline horizon. Do not prune solely by age without a per-device acknowledgement or a full-resync strategy.
 

@@ -82,6 +82,12 @@ CREATE INDEX IF NOT EXISTS ix_local_outbox_account_state_sequence
   ON _local_outbox(account_id, state, local_sequence);
 "#;
 
+const LOCAL_BLOB_TWO_STATE_MODEL: &str = r#"
+UPDATE _local_blobs SET durability='unsynced' WHERE durability='pending';
+UPDATE _local_blobs SET durability='cache' WHERE durability='pinned';
+DROP INDEX IF EXISTS ix_local_blobs_eviction;
+"#;
+
 pub fn run(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection
         .transaction()
@@ -137,6 +143,11 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         &transaction,
         "202609120006_local_outbox_state",
         LOCAL_OUTBOX_STATE,
+    )?;
+    apply_sql(
+        &transaction,
+        "202609120007_local_blob_two_state_model",
+        LOCAL_BLOB_TWO_STATE_MODEL,
     )?;
     transaction.commit().map_err(|error| error.to_string())
 }
