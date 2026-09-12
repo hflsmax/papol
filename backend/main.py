@@ -2511,7 +2511,7 @@ async def add_paper_edition(
     # dedupes onto an older edition must not leave the reader being offered
     # a newer one they made themselves and moved off.
     user_copy.ignored_edition_id = _latest_edition(paper).id
-    db.commit()
+    commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
 
@@ -2539,7 +2539,7 @@ async def ignore_paper_edition(
     paper = _get_paper_or_404(paper_id, db)
     user_copy = _require_copy(paper, current_user)
     user_copy.ignored_edition_id = _named_edition_or_404(paper, data.edition_id).id
-    db.commit()
+    commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
 
@@ -2563,7 +2563,7 @@ async def adopt_paper_edition(
     # Adopting settles every edition that exists now, including ones older
     # than the latest if that is what they picked.
     user_copy.ignored_edition_id = _latest_edition(paper).id
-    db.commit()
+    commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
 

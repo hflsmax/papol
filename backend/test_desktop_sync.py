@@ -728,6 +728,51 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(db.query(InkStroke).count(), 1)
             self.assertEqual(db.query(PaperClip).count(), 1)
 
+    def test_edition_choices_are_published_to_cursor_sync(self):
+        with self.sessions() as db:
+            paper = Paper(title="Edition sync")
+            db.add(paper)
+            db.flush()
+            first = PaperEdition(
+                paper=paper, paper_sync_id=paper.sync_id,
+                file_path="first.pdf", sha256="1" * 64, uploaded_by=1,
+            )
+            second = PaperEdition(
+                paper=paper, paper_sync_id=paper.sync_id,
+                file_path="second.pdf", sha256="2" * 64, uploaded_by=1,
+            )
+            db.add_all([first, second])
+            db.flush()
+            copy = Copy(
+                paper=paper, user_id=1, edition=first,
+                edition_sha256=first.sha256, marketed=False,
+            )
+            db.add(copy)
+            db.commit()
+            paper_id = paper.id
+            second_id = second.id
+            copy_sync_id = copy.sync_id
+
+        self.request(
+            "POST", f"/api/papers/{paper_id}/ignore-edition",
+            json={"edition_id": second_id},
+        )
+        with self.sessions() as db:
+            change = db.query(ServerChange).one()
+            self.assertEqual(change.table_name, "copies")
+            self.assertEqual(change.row_sync_id, copy_sync_id)
+            db.query(ServerChange).delete()
+            db.commit()
+
+        self.request(
+            "POST", f"/api/papers/{paper_id}/adopt-edition",
+            json={"edition_id": second_id},
+        )
+        with self.sessions() as db:
+            change = db.query(ServerChange).one()
+            self.assertEqual(change.table_name, "copies")
+            self.assertEqual(change.row_sync_id, copy_sync_id)
+
     def test_nook_rows_sync_together_with_uuid_relationships(self):
         with self.sessions() as db:
             default_shelf = db.query(Shelf).filter(Shelf.user_id == 1).first()

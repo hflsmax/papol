@@ -127,13 +127,17 @@ export async function nativeSyncNow() {
   const accountId = nativeAccountId();
   const token = currentCredential();
   if (!IS_DESKTOP || accountId == null || !token) return null;
-  const result = await invoke('sync_now', {
-    accountId,
-    backendUrl: nativeBackendUrl(),
-    token,
-  });
-  window.dispatchEvent(new Event('papol-offline-status'));
-  return result;
+  try {
+    return await invoke('sync_now', {
+      accountId,
+      backendUrl: nativeBackendUrl(),
+      token,
+    });
+  } finally {
+    // Failed automatic syncs are caught by the scheduler, but status still
+    // needs to refresh in the window that initiated them.
+    window.dispatchEvent(new Event('papol-offline-status'));
+  }
 }
 
 export function scheduleNativeSync() {
@@ -170,14 +174,16 @@ export async function hydrateNativeSyncPreference() {
 export function subscribeNativeData(listener) {
   if (!IS_DESKTOP) return () => {};
   let disposed = false;
-  let unlisten = () => {};
-  listen('papol://data-changed', (event) => listener(event.payload)).then((stop) => {
-    if (disposed) stop();
-    else unlisten = stop;
-  });
+  const unlisteners = [];
+  for (const eventName of ['papol://data-changed', 'papol://sync-status']) {
+    listen(eventName, (event) => listener(event.payload)).then((stop) => {
+      if (disposed) stop();
+      else unlisteners.push(stop);
+    });
+  }
   return () => {
     disposed = true;
-    unlisten();
+    unlisteners.splice(0).forEach((stop) => stop());
   };
 }
 

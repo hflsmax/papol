@@ -88,6 +88,7 @@ impl LocalStore {
             .execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;")
             .map_err(|error| error.to_string())?;
         super::migrations::run(&mut connection)?;
+        recover_staged_blob_removals(&connection, &blob_directory)?;
         Ok(Self {
             connection: Mutex::new(connection),
             blob_directory,
@@ -174,14 +175,26 @@ impl LocalStore {
             )?;
             validate_local_row(&transaction, &change.table, &change.id)?;
             refresh_blob_reference(&transaction, &change.table, &change.id)?;
+            let row = read_row(&transaction, &change.table, &change.id)?;
+            let values =
+                if rule["conflict"].as_str() == Some("whole_row") && change.operation != "delete" {
+                    row.as_object()
+                        .ok_or("Local synchronized row is not an object")?
+                        .iter()
+                        .filter(|(field, _)| writable.contains(field.as_str()))
+                        .map(|(field, value)| (field.clone(), value.clone()))
+                        .collect()
+                } else {
+                    change.values.clone()
+                };
             queued.push(QueuedChange {
                 table: change.table.clone(),
                 id: change.id.clone(),
                 base_revision,
                 operation: change.operation.clone(),
-                values: change.values.clone(),
+                values,
             });
-            rows.push(read_row(&transaction, &change.table, &change.id)?);
+            rows.push(row);
         }
 
         let changes_json = serde_json::to_string(&queued).map_err(|error| error.to_string())?;
@@ -562,11 +575,14 @@ impl LocalStore {
         bytes: &[u8],
         mime_type: Option<String>,
     ) -> Result<(), String> {
-        let stored = self.store_blob(bytes, mime_type, "cache")?;
-        if stored.sha256 != expected_sha256 {
-            let _ = std::fs::remove_file(self.blob_directory.join(&stored.sha256));
+        use sha2::{Digest, Sha256};
+
+        let actual_sha256 = format!("{:x}", Sha256::digest(bytes));
+        if actual_sha256 != expected_sha256 {
             return Err("Downloaded blob failed SHA-256 verification".into());
         }
+        let stored = self.store_blob(bytes, mime_type, "cache")?;
+        debug_assert_eq!(stored.sha256, expected_sha256);
         let connection = self
             .connection
             .lock()
@@ -592,8 +608,12 @@ impl LocalStore {
             let temporary = self
                 .blob_directory
                 .join(format!(".{sha256}.{}.tmp", Uuid::new_v4()));
-            std::fs::write(&temporary, bytes).map_err(|error| error.to_string())?;
-            std::fs::rename(&temporary, &destination).map_err(|error| error.to_string())?;
+            if let Err(error) = std::fs::write(&temporary, bytes)
+                .and_then(|()| std::fs::rename(&temporary, &destination))
+            {
+                let _ = std::fs::remove_file(&temporary);
+                return Err(error.to_string());
+            }
         }
         let connection = self
             .connection
@@ -677,31 +697,46 @@ impl LocalStore {
                 .map_err(|error| error.to_string())?;
             rows
         };
-        let transaction = connection
-            .transaction()
-            .map_err(|error| error.to_string())?;
         let mut remaining = total;
         let mut removed = Vec::new();
         for (sha256, size) in candidates {
             if remaining <= max_bytes {
                 break;
             }
-            transaction
-                .execute("DELETE FROM _local_blob_refs WHERE sha256=?1", [&sha256])
-                .map_err(|error| error.to_string())?;
-            transaction
-                .execute("DELETE FROM _local_blobs WHERE sha256=?1", [&sha256])
-                .map_err(|error| error.to_string())?;
             remaining -= size;
             removed.push(sha256);
         }
-        transaction.commit().map_err(|error| error.to_string())?;
+        let mut staged = Vec::new();
         for sha256 in &removed {
-            match std::fs::remove_file(self.blob_directory.join(sha256)) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error.to_string()),
+            match stage_blob_removal(&self.blob_directory, sha256) {
+                Ok(Some(path)) => staged.push((sha256.clone(), path)),
+                Ok(None) => {}
+                Err(error) => {
+                    restore_staged_blobs(&self.blob_directory, &staged);
+                    return Err(error);
+                }
             }
+        }
+        let database_result = (|| {
+            let transaction = connection
+                .transaction()
+                .map_err(|error| error.to_string())?;
+            for sha256 in &removed {
+                transaction
+                    .execute("DELETE FROM _local_blob_refs WHERE sha256=?1", [sha256])
+                    .map_err(|error| error.to_string())?;
+                transaction
+                    .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
+                    .map_err(|error| error.to_string())?;
+            }
+            transaction.commit().map_err(|error| error.to_string())
+        })();
+        if let Err(error) = database_result {
+            restore_staged_blobs(&self.blob_directory, &staged);
+            return Err(error);
+        }
+        for (_, path) in staged {
+            let _ = std::fs::remove_file(path);
         }
         Ok(removed.len())
     }
@@ -752,15 +787,19 @@ impl LocalStore {
         if referenced > 0 || queued {
             return Ok(false);
         }
-        connection
-            .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
-            .map_err(|error| error.to_string())?;
-        drop(connection);
-        match std::fs::remove_file(self.blob_directory.join(sha256)) {
-            Ok(()) => Ok(true),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
-            Err(error) => Err(error.to_string()),
+        let staged = stage_blob_removal(&self.blob_directory, sha256)?;
+        if let Err(error) = connection.execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
+        {
+            if let Some(path) = staged.as_ref() {
+                restore_staged_blobs(&self.blob_directory, &[(sha256.to_owned(), path.clone())]);
+            }
+            return Err(error.to_string());
         }
+        drop(connection);
+        if let Some(path) = staged {
+            let _ = std::fs::remove_file(path);
+        }
+        Ok(true)
     }
 
     pub fn export_recovery(
@@ -878,9 +917,9 @@ impl LocalStore {
                 .map_err(|error| error.to_string())?;
             let mut files = 0;
             for digest in digests {
-                let Ok(bytes) = self.read_blob(&digest) else {
-                    continue;
-                };
+                let bytes = self
+                    .read_blob(&digest)
+                    .map_err(|error| format!("Recovery file {digest} is missing: {error}"))?;
                 archive
                     .start_file(format!("blobs/{digest}"), options)
                     .map_err(|error| error.to_string())?;
@@ -2373,6 +2412,63 @@ fn query_local_account(connection: &Connection, account_id: i64) -> Result<Value
     serde_json::from_str(&encoded).map_err(|_| "Local account profile is invalid".into())
 }
 
+fn stage_blob_removal(directory: &Path, sha256: &str) -> Result<Option<PathBuf>, String> {
+    let source = directory.join(sha256);
+    let staged = directory.join(format!(".{sha256}.{}.delete", Uuid::new_v4()));
+    match std::fs::rename(source, &staged) {
+        Ok(()) => Ok(Some(staged)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn restore_staged_blobs(directory: &Path, staged: &[(String, PathBuf)]) {
+    for (sha256, path) in staged {
+        let _ = std::fs::rename(path, directory.join(sha256));
+    }
+}
+
+fn recover_staged_blob_removals(connection: &Connection, directory: &Path) -> Result<(), String> {
+    for entry in std::fs::read_dir(directory).map_err(|error| error.to_string())? {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let Some(body) = name
+            .strip_prefix('.')
+            .and_then(|name| name.strip_suffix(".delete"))
+        else {
+            continue;
+        };
+        let Some((sha256, _nonce)) = body.split_once('.') else {
+            continue;
+        };
+        if sha256.len() != 64
+            || !sha256
+                .chars()
+                .all(|character| character.is_ascii_hexdigit() && !character.is_ascii_uppercase())
+        {
+            continue;
+        }
+        let recorded = connection
+            .query_row(
+                "SELECT 1 FROM _local_blobs WHERE sha256=?1",
+                [sha256],
+                |_| Ok(true),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .unwrap_or(false);
+        let destination = directory.join(sha256);
+        if recorded && !destination.exists() {
+            std::fs::rename(path, destination).map_err(|error| error.to_string())?;
+        } else {
+            std::fs::remove_file(path).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 fn chrono_text() -> String {
     chrono::Utc::now().to_rfc3339()
 }
@@ -2422,6 +2518,65 @@ mod tests {
             reopened.query(7, "board", json!({"id": id})).unwrap()["name"],
             "Offline"
         );
+    }
+
+    #[test]
+    fn whole_row_conflicts_enqueue_the_complete_writable_row() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let paper_id = Uuid::new_v4().to_string();
+        let edition_id = Uuid::new_v4().to_string();
+        let stroke_id = Uuid::new_v4().to_string();
+        let now = chrono_text();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO papers(id,title,created_at,updated_at,revision) VALUES (?1,'Paper',?2,?2,1)",
+                    params![paper_id, now],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO paper_editions(id,paper_id,file_path,created_at,updated_at,revision) VALUES (?1,?2,'paper.pdf',?3,?3,1)",
+                    params![edition_id, paper_id, now],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO ink_strokes(id,edition_id,user_id,page,points,color,width,opacity,shape,created_at,updated_at,revision) VALUES (?1,?2,7,2,'[{\"x\":0.1,\"y\":0.2}]','#111111',0.01,0.8,'flat',?3,?3,1)",
+                    params![stroke_id, edition_id, now],
+                )
+                .unwrap();
+        }
+
+        store
+            .mutate(
+                7,
+                vec![DataChange {
+                    table: "ink_strokes".into(),
+                    id: stroke_id,
+                    operation: "patch".into(),
+                    values: Map::from_iter([("color".into(), json!("#222222"))]),
+                }],
+            )
+            .unwrap();
+        let queued = store.next_outbox(7).unwrap().unwrap();
+        let values = &queued.changes[0].values;
+        for field in [
+            "edition_id",
+            "group_id",
+            "page",
+            "points",
+            "color",
+            "width",
+            "opacity",
+            "shape",
+            "deleted_at",
+        ] {
+            assert!(values.contains_key(field), "missing {field}");
+        }
+        assert_eq!(values["color"], "#222222");
     }
 
     #[test]
@@ -2665,6 +2820,26 @@ mod tests {
     }
 
     #[test]
+    fn rejected_remote_blob_leaves_no_file_or_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let expected = "a".repeat(64);
+        assert!(store
+            .import_remote_blob(
+                &expected,
+                b"different bytes",
+                Some("application/pdf".into())
+            )
+            .is_err());
+        assert!(!store.has_blob(&expected));
+        let connection = store.connection.lock().unwrap();
+        let count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM _local_blobs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
     fn cache_eviction_never_removes_pending_or_pinned_files() {
         use sha2::Digest;
 
@@ -2695,6 +2870,58 @@ mod tests {
         assert_eq!(status["classes"]["cache"]["bytes"], 0);
         assert_eq!(status["classes"]["pinned"]["files"], 1);
         assert_eq!(status["cache_limit_bytes"], DEFAULT_CACHE_LIMIT_BYTES);
+    }
+
+    #[test]
+    fn cache_eviction_keeps_metadata_when_file_staging_fails() {
+        use sha2::Digest;
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let bytes = b"cached file";
+        let sha256 = format!("{:x}", sha2::Sha256::digest(bytes));
+        store
+            .import_remote_blob(&sha256, bytes, Some("application/pdf".into()))
+            .unwrap();
+
+        let backup = directory.path().join("blobs-backup");
+        std::fs::rename(&store.blob_directory, &backup).unwrap();
+        std::fs::write(&store.blob_directory, b"not a directory").unwrap();
+        assert!(store.prune_cache(0).is_err());
+        std::fs::remove_file(&store.blob_directory).unwrap();
+        std::fs::rename(backup, &store.blob_directory).unwrap();
+
+        assert!(store.has_blob(&sha256));
+        let connection = store.connection.lock().unwrap();
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM _local_blobs WHERE sha256=?1",
+                [&sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn startup_restores_a_blob_staged_before_an_interrupted_eviction() {
+        use sha2::Digest;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        let bytes = b"interrupted cache eviction";
+        let sha256 = format!("{:x}", sha2::Sha256::digest(bytes));
+        let store = LocalStore::open(&path).unwrap();
+        store
+            .import_remote_blob(&sha256, bytes, Some("application/pdf".into()))
+            .unwrap();
+        let staged = store.blob_directory.join(format!(".{sha256}.crash.delete"));
+        std::fs::rename(store.blob_directory.join(&sha256), &staged).unwrap();
+        drop(store);
+
+        let reopened = LocalStore::open(&path).unwrap();
+        assert_eq!(reopened.read_blob(&sha256).unwrap(), bytes);
+        assert!(!staged.exists());
     }
 
     #[test]
@@ -2816,6 +3043,42 @@ mod tests {
         assert_eq!(manifest["mutations"][0]["changes"][0]["id"], board_id);
         assert_eq!(manifest["rows"][0]["id"], board_id);
         assert_eq!(manifest["rows"][0]["name"], "Recover me");
+    }
+
+    #[test]
+    fn recovery_export_rejects_a_missing_pending_file_without_leaving_an_archive() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board_id = Uuid::new_v4().to_string();
+        let item_id = Uuid::new_v4().to_string();
+        let blob = store
+            .import_blob(b"queued user file", Some("application/pdf".into()))
+            .unwrap();
+        store
+            .mutate(
+                7,
+                vec![
+                    board_change(&board_id, "Missing file recovery"),
+                    DataChange {
+                        table: "board_items".into(),
+                        id: item_id,
+                        operation: "upsert".into(),
+                        values: Map::from_iter([
+                            ("board_id".into(), json!(board_id)),
+                            ("kind".into(), json!("file")),
+                            ("blob_sha256".into(), json!(blob.sha256)),
+                        ]),
+                    },
+                ],
+            )
+            .unwrap();
+        std::fs::remove_file(store.blob_directory.join(&blob.sha256)).unwrap();
+
+        let destination = directory.path().join("recovery.zip");
+        let error = store.export_recovery(7, &destination).unwrap_err();
+        assert!(error.contains("Recovery file"), "{error}");
+        assert!(!destination.exists());
+        assert!(!destination.with_extension("zip.partial").exists());
     }
 
     #[test]

@@ -24,10 +24,14 @@ fn data_mutate(
 ) -> Result<data::MutationReceipt, String> {
     use tauri::Emitter;
 
+    let tables = changes
+        .iter()
+        .map(|change| change.table.clone())
+        .collect::<std::collections::BTreeSet<_>>();
     let receipt = store.mutate(account_id, changes)?;
     let _ = app.emit(
         "papol://data-changed",
-        serde_json::json!({"scope": "boards"}),
+        serde_json::json!({"tables": tables}),
     );
     Ok(receipt)
 }
@@ -169,7 +173,7 @@ async fn sync_now(
         Ok(status) => {
             let _ = app.emit(
                 "papol://data-changed",
-                serde_json::json!({"scope": "boards"}),
+                serde_json::json!({"scope": "synchronized-data"}),
             );
             let _ = app.emit("papol://sync-status", status);
         }

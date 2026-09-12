@@ -13,7 +13,9 @@ const values = new Map([
   ['papol_token', 'secret-token'],
 ]);
 const calls = [];
+const dispatchedEvents = [];
 let remoteBlobReady = false;
+let syncFailure = null;
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -43,12 +45,13 @@ global.window = {
         return [37, 80, 68, 70];
       }
       if (command === 'local_setting_get') return 'manual';
+      if (command === 'sync_now' && syncFailure) throw syncFailure;
       return null;
     },
     transformCallback: () => 1,
   },
   addEventListener() {},
-  dispatchEvent() {},
+  dispatchEvent(event) { dispatchedEvents.push(event.type); },
 };
 global.Event = class Event { constructor(type) { this.type = type; } };
 
@@ -58,7 +61,8 @@ await credentials.hydrateCredential();
 
 const {
   activateNativeAfterLegacyDrain, boardView, hydrateNativeSyncPreference,
-  nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, prepareNativeAccount,
+  nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
+  prepareNativeAccount,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
 const {
@@ -76,6 +80,14 @@ test('manual mode never starts background native network traffic', async () => {
   const before = calls.filter(([command]) => command === 'sync_now').length;
   assert.equal(await scheduleAutomaticNativeSync(), null);
   assert.equal(calls.filter(([command]) => command === 'sync_now').length, before);
+});
+
+test('a failed native sync still refreshes offline status', async () => {
+  dispatchedEvents.length = 0;
+  syncFailure = new Error('network unavailable');
+  await assert.rejects(nativeSyncNow(), /network unavailable/);
+  syncFailure = null;
+  assert.deepEqual(dispatchedEvents, ['papol-offline-status']);
 });
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {

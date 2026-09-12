@@ -249,6 +249,10 @@ export function listUsers() {
   return request('/users');
 }
 
+function isMissingLocalAccountProfile(error) {
+  return (error?.message || String(error)) === 'Local account profile is not available';
+}
+
 export async function getUserSpace(userId) {
   if (nativeDataActive() && Number(userId) === nativeAccountId()) {
     try {
@@ -262,9 +266,10 @@ export async function getUserSpace(userId) {
         shelves: nook.shelves.map(shelfView),
         tags: nook.tags,
       };
-    } catch {
+    } catch (error) {
       // One upgrade release retains the response cache as a fallback until
       // the account profile has been written into SQLite.
+      if (!isMissingLocalAccountProfile(error)) throw error;
     }
   }
   const space = await request(`/users/${userId}/space`);

@@ -4,6 +4,35 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio::sync::Mutex;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FailureKind {
+    Transient,
+    Authentication,
+    Permanent,
+}
+
+#[derive(Debug)]
+struct SyncFailure {
+    kind: FailureKind,
+    message: String,
+}
+
+impl SyncFailure {
+    fn transient(error: impl ToString) -> Self {
+        Self {
+            kind: FailureKind::Transient,
+            message: error.to_string(),
+        }
+    }
+
+    fn permanent(error: impl ToString) -> Self {
+        Self {
+            kind: FailureKind::Permanent,
+            message: error.to_string(),
+        }
+    }
+}
+
 pub struct Coordinator {
     client: Client,
     gate: Mutex<()>,
@@ -63,7 +92,7 @@ impl Coordinator {
         }
         let mut pushed = 0;
         while let Some(mutation) = store.next_outbox(account_id)? {
-            let attempted: Result<PushResponse, String> = async {
+            let attempted: Result<PushResponse, SyncFailure> = async {
                 for change in &mutation.changes {
                     let Some(sha256) = change
                         .values
@@ -78,16 +107,16 @@ impl Coordinator {
                     };
                     let url = backend
                         .join(&format!("api/sync/blobs/{sha256}"))
-                        .map_err(|error| error.to_string())?;
+                        .map_err(SyncFailure::transient)?;
                     let present = self
                         .client
                         .head(url.clone())
                         .bearer_auth(token)
                         .send()
                         .await
-                        .map_err(|error| error.to_string())?;
+                        .map_err(SyncFailure::transient)?;
                     if present.status() == reqwest::StatusCode::NOT_FOUND {
-                        let bytes = store.read_blob(sha256)?;
+                        let bytes = store.read_blob(sha256).map_err(SyncFailure::permanent)?;
                         let mime = change
                             .values
                             .get("mime_type")
@@ -101,7 +130,7 @@ impl Coordinator {
                             .body(bytes)
                             .send()
                             .await
-                            .map_err(|error| error.to_string())?;
+                            .map_err(SyncFailure::transient)?;
                         if !uploaded.status().is_success() {
                             return Err(http_error(uploaded).await);
                         }
@@ -111,7 +140,7 @@ impl Coordinator {
                 }
                 let url = backend
                     .join("api/sync/push")
-                    .map_err(|error| error.to_string())?;
+                    .map_err(SyncFailure::transient)?;
                 let response = self
                     .client
                     .post(url)
@@ -119,27 +148,27 @@ impl Coordinator {
                     .json(&mutation)
                     .send()
                     .await
-                    .map_err(|error| error.to_string())?;
+                    .map_err(SyncFailure::transient)?;
                 if !response.status().is_success() {
                     return Err(http_error(response).await);
                 }
-                response.json().await.map_err(|error| error.to_string())
+                response.json().await.map_err(SyncFailure::transient)
             }
             .await;
             let result = match attempted {
                 Ok(result) => result,
-                Err(error) => {
-                    let blocked = is_permanent_rejection(&error);
+                Err(failure) => {
+                    let blocked = failure.kind == FailureKind::Permanent;
                     store.record_outbox_error(
                         account_id,
                         mutation.local_sequence,
-                        &error,
+                        &failure.message,
                         blocked,
                     )?;
                     if blocked {
                         continue;
                     }
-                    return Err(error);
+                    return Err(failure.message);
                 }
             };
             store
@@ -167,7 +196,7 @@ impl Coordinator {
             .await
             .map_err(|error| error.to_string())?;
         if !snapshot_response.status().is_success() {
-            return Err(http_error(snapshot_response).await);
+            return Err(http_error(snapshot_response).await.message);
         }
         let snapshot: SnapshotResponse = snapshot_response
             .json()
@@ -196,7 +225,7 @@ impl Coordinator {
                 .await
                 .map_err(|error| error.to_string())?;
             if !response.status().is_success() {
-                return Err(http_error(response).await);
+                return Err(http_error(response).await.message);
             }
             let page: PullResponse = response.json().await.map_err(|error| error.to_string())?;
             pulled += page.changes.len();
@@ -248,7 +277,7 @@ impl Coordinator {
             .await
             .map_err(|error| error.to_string())?;
         if !response.status().is_success() {
-            return Err(http_error(response).await);
+            return Err(http_error(response).await.message);
         }
         let mime = response
             .headers()
@@ -273,25 +302,26 @@ fn validated_backend(value: &str) -> Result<Url, String> {
     Ok(url)
 }
 
-async fn http_error(response: reqwest::Response) -> String {
+async fn http_error(response: reqwest::Response) -> SyncFailure {
     let status = response.status();
     let detail = response.text().await.unwrap_or_default();
-    if detail.is_empty() {
+    let message = if detail.is_empty() {
         format!("Sync server returned {status}")
     } else {
         format!("Sync server returned {status}: {detail}")
+    };
+    SyncFailure {
+        kind: classify_status(status.as_u16()),
+        message,
     }
 }
 
-fn is_permanent_rejection(error: &str) -> bool {
-    [
-        "400 Bad Request",
-        "403 Forbidden",
-        "404 Not Found",
-        "422 Unprocessable Entity",
-    ]
-    .iter()
-    .any(|status| error.contains(status))
+fn classify_status(status: u16) -> FailureKind {
+    match status {
+        401 => FailureKind::Authentication,
+        400 | 403 | 404 | 422 => FailureKind::Permanent,
+        _ => FailureKind::Transient,
+    }
 }
 
 #[cfg(test)]
@@ -312,17 +342,12 @@ mod tests {
     }
 
     #[test]
-    fn only_permanent_client_rejections_enter_the_dead_letter_state() {
-        assert!(is_permanent_rejection(
-            "Sync server returned 422 Unprocessable Entity: invalid field"
-        ));
-        assert!(is_permanent_rejection("Sync server returned 403 Forbidden"));
-        assert!(!is_permanent_rejection(
-            "Sync server returned 401 Unauthorized"
-        ));
-        assert!(!is_permanent_rejection(
-            "Sync server returned 503 Service Unavailable"
-        ));
+    fn retryability_uses_structured_http_status_not_rendered_text() {
+        assert_eq!(FailureKind::Permanent, classify_status(422));
+        assert_eq!(FailureKind::Permanent, classify_status(403));
+        assert_eq!(FailureKind::Authentication, classify_status(401));
+        assert_eq!(FailureKind::Transient, classify_status(409));
+        assert_eq!(FailureKind::Transient, classify_status(503));
     }
 
     fn read_request(stream: &mut TcpStream) -> String {
