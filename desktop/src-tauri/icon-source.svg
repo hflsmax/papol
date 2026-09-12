@@ -3,15 +3,15 @@
   <desc id="desc">A sleek geometric capital letter P.</desc>
   <defs>
     <linearGradient id="mark" x1="42" y1="28" x2="130" y2="145" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#63e6ff"/>
-      <stop offset="1" stop-color="#7867ff"/>
+      <stop stop-color="#f4f7fa"/>
+      <stop offset="1" stop-color="#8f9aab"/>
     </linearGradient>
     <linearGradient id="mark-highlight" x1="88" y1="28" x2="88" y2="132" gradientUnits="userSpaceOnUse">
       <stop stop-color="#ffffff" stop-opacity=".26"/>
       <stop offset=".48" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
     <pattern id="mark-texture" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(28)">
-      <path d="M0 0v7" stroke="#ffffff" stroke-opacity=".16" stroke-width=".7"/>
+      <path d="M0 0v7" stroke="#ffffff" stroke-opacity=".24" stroke-width=".8"/>
     </pattern>
     <clipPath id="p-clip">
       <path clip-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
@@ -22,9 +22,11 @@
   </defs>
   <g clip-path="url(#tile-clip)">
     <rect x="5" y="5" width="170" height="170" rx="38" fill="#17233b"/>
-    <path transform="translate(0 5)" fill="#392f9d" fill-opacity=".58" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
-    <path fill="url(#mark)" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
-    <path fill="url(#mark-highlight)" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
-    <rect x="38" y="24" width="112" height="133" fill="url(#mark-texture)" clip-path="url(#p-clip)"/>
+    <g transform="translate(13.5 13.5) scale(.85)">
+      <path transform="translate(0 5)" fill="#586273" fill-opacity=".72" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
+      <path fill="url(#mark)" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
+      <path fill="url(#mark-highlight)" fill-rule="evenodd" d="M40 154V26h54c33 0 53 19 53 50 0 32-20 51-53 51H71v13l-14 14H40Zm31-102v49h21c17 0 26-9 26-25 0-15-9-24-26-24H71Z"/>
+      <rect x="38" y="24" width="112" height="133" fill="url(#mark-texture)" clip-path="url(#p-clip)"/>
+    </g>
   </g>
 </svg>
