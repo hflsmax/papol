@@ -34,3 +34,16 @@ test('does not join text across a wide column gap', () => {
 
   assert.equal(selectionStrokes(rects, pageBoxes).length, 2);
 });
+
+test('stores selection geometry relative to the page so scrolling cannot move it', () => {
+  const beforeScroll = selectionStrokes(
+    [{ left: 120, right: 360, top: 340, bottom: 356, width: 240, height: 16 }],
+    [{ page: 3, box: { left: 80, right: 680, top: 100, bottom: 900, width: 600, height: 800 } }],
+  );
+  const afterScroll = selectionStrokes(
+    [{ left: 120, right: 360, top: -460, bottom: -444, width: 240, height: 16 }],
+    [{ page: 3, box: { left: 80, right: 680, top: -700, bottom: 100, width: 600, height: 800 } }],
+  );
+
+  assert.deepEqual(afterScroll, beforeScroll);
+});

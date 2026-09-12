@@ -340,6 +340,7 @@ function PdfPage({
   tool,
   ink,
   provenanceHighlights = [],
+  selectionHighlights = [],
   provenanceBox = null,
   selectedInk,
   hoveredInkObjects,
@@ -1665,6 +1666,18 @@ function PdfPage({
             preserveAspectRatio="none"
             aria-hidden="true"
           >
+            {selectionHighlights.length > 0 && (
+              <g className="text-selection-highlight">
+                {selectionHighlights.map((stroke, index) => (
+                  <React.Fragment key={`${stroke.page}-${index}`}>
+                    {markFor(stroke.points, stroke.width * size.width, 'flat', {
+                      fill: '#2b4a6f',
+                      opacity: 0.3,
+                    })}
+                  </React.Fragment>
+                ))}
+              </g>
+            )}
             {provenanceHighlights.length > 0 && (
               <g className="provenance-highlight">
                 {provenanceHighlights.map((stroke, index) => (

@@ -887,6 +887,10 @@ button.link.danger { color: var(--red); }
   animation: provenance-highlight-fade 6s 0.8s ease-out forwards;
 }
 
+.text-selection-highlight {
+  pointer-events: none;
+}
+
 @keyframes provenance-highlight-fade {
   0%, 18% { opacity: 1; }
   100% { opacity: 0; }

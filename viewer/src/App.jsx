@@ -347,6 +347,13 @@ export default function App() {
   // re-render of every visible page.
   const [renderScale, setRenderScale] = useState(null);
   const [selectionPaint, setSelectionPaint] = useState(null);
+  const selectionHighlightsByPage = useMemo(() => {
+    const byPage = new Map();
+    for (const stroke of selectionPaint?.strokes || []) {
+      byPage.set(stroke.page, [...(byPage.get(stroke.page) || []), stroke]);
+    }
+    return byPage;
+  }, [selectionPaint]);
   const [sendSelection, setSendSelection] = useState(null);
   const [sendBoards, setSendBoards] = useState([]);
   const [sendBoardGuid, setSendBoardGuid] = useState('');
@@ -1244,41 +1251,31 @@ export default function App() {
   };
 
   // A browser selection is a collection of visual line fragments, sometimes
-  // spanning columns or pages. Keep that geometry while the selection exists
-  // and offer one small action beside its final fragment.
+  // spanning columns or pages. Capture it into page-relative geometry as soon
+  // as the drag finishes. Off-screen PDF text layers are rebuilt while the
+  // reader scrolls, which invalidates a native Range; Papol's snapshot remains
+  // selected until the reader starts another selection or uses an action.
   useEffect(() => {
     let pointerSelecting = false;
     let finishFrame = null;
     const update = () => {
       const selection = window.getSelection();
       const scroller = scrollerRef.current;
-      if (!selection || selection.isCollapsed || !selection.rangeCount || !scroller) {
-        setSelectionPaint(null);
-        return;
-      }
+      if (!selection || selection.isCollapsed || !selection.rangeCount || !scroller) return;
       const elementFor = (node) =>
         node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
       const anchor = elementFor(selection.anchorNode);
       const focusNode = elementFor(selection.focusNode);
-      if (!anchor?.closest('.textLayer') || !focusNode?.closest('.textLayer')) {
-        setSelectionPaint(null);
-        return;
-      }
+      if (!anchor?.closest('.textLayer') || !focusNode?.closest('.textLayer')) return;
       const rects = [...selection.getRangeAt(0).getClientRects()];
       const usable = rects.filter((rect) => rect.width > 0.5 && rect.height > 1);
-      if (!usable.length) {
-        setSelectionPaint(null);
-        return;
-      }
+      if (!usable.length) return;
       const pageBoxes = [...scroller.querySelectorAll('.pdf-page')].map((page) => ({
         page: Number(page.dataset.page),
         box: page.getBoundingClientRect(),
       }));
       const strokes = selectionStrokes(usable, pageBoxes);
-      if (!strokes.length) {
-        setSelectionPaint(null);
-        return;
-      }
+      if (!strokes.length) return;
       const last = usable[usable.length - 1];
       const above = last.top - 38;
       const scrollerBox = scroller.getBoundingClientRect();
@@ -1290,6 +1287,10 @@ export default function App() {
         left: viewportLeft - scrollerBox.left + scroller.scrollLeft,
         top: viewportTop - scrollerBox.top + scroller.scrollTop,
       });
+      // The snapshot above now owns both the text and its page geometry. Do
+      // not leave the browser Range attached to text-layer nodes that will be
+      // discarded when this page scrolls out of the render window.
+      selection.removeAllRanges();
     };
     const selectionChanged = () => {
       if (!pointerSelecting) update();
@@ -3114,6 +3115,7 @@ export default function App() {
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
               provenanceHighlights={wantedSelectionByPage.get(n) || EMPTY_INK}
+              selectionHighlights={selectionHighlightsByPage.get(n) || EMPTY_INK}
               provenanceBox={wantedBox?.page === n ? wantedBox : null}
               selectedInk={selectedInkPages.has(n) ? selectedInk : null}
               hoveredInkObjects={hoveredInk.pages.has(n) ? hoveredInk.objects : EMPTY_INK}
