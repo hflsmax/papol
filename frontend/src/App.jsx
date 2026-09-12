@@ -4558,7 +4558,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-toolbar { position: absolute; z-index: 38; inset: 0 0 auto; min-height: 55px; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--card); font-family: var(--font-ui); }
 .board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
 .board-toolbar .board-back { min-width: 0; overflow: hidden; border: 0; padding-left: 0; background: transparent; color: var(--accent); font-family: var(--font-serif); font-size: var(--fs-base); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
-.board-toolbar-title { min-width: 100px; max-width: 280px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
+.board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
 .board-toolbar-title[readonly]:focus { border-color: transparent; background: transparent; }
