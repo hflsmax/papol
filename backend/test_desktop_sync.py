@@ -728,6 +728,39 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(db.query(InkStroke).count(), 1)
             self.assertEqual(db.query(PaperClip).count(), 1)
 
+    def test_viewer_reference_boundary_accepts_a_synced_edition_uuid(self):
+        digest = "3" * 64
+        with self.sessions() as db:
+            paper = Paper(title="Desktop viewer references")
+            db.add(paper)
+            db.flush()
+            edition = PaperEdition(
+                paper=paper,
+                paper_sync_id=paper.sync_id,
+                file_path="viewer.pdf",
+                sha256=digest,
+                uploaded_by=1,
+                references_status="unavailable",
+            )
+            db.add(edition)
+            db.flush()
+            db.add(Copy(
+                paper=paper,
+                paper_sync_id=paper.sync_id,
+                user_id=1,
+                edition=edition,
+                edition_sync_id=edition.sync_id,
+                edition_sha256=digest,
+            ))
+            db.commit()
+            sync_id = edition.sync_id
+            server_id = edition.id
+
+        response = self.request(
+            "GET", f"/api/viewer-references/{digest}?edition_id={sync_id}",
+        )
+        self.assertEqual(response.json()["edition_id"], server_id)
+
     def test_edition_choices_are_published_to_cursor_sync(self):
         with self.sessions() as db:
             paper = Paper(title="Edition sync")

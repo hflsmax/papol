@@ -2917,14 +2917,18 @@ async def preview_pdf_reference(
 @app.get("/api/viewer-references/{pdf_sha256}", response_model=EditionReferences)
 async def viewer_references(
     pdf_sha256: str,
-    edition_id: int,
+    edition_id: str,
     background: BackgroundTasks,
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     digest = pdf_sha256.strip().lower()
     if _public_pdf_path(digest) is not None:
-        return await _bundled_edition_references(edition_id, digest, background)
+        # Bundled demo editions still use their small in-memory integer IDs.
+        # A desktop-owned edition uses its sync UUID; the stored-PDF branch
+        # below resolves that UUID-independent hash to the server row.
+        bundled_id = int(edition_id) if edition_id.isdecimal() else 0
+        return await _bundled_edition_references(bundled_id, digest, background)
     edition = _viewer_edition_or_404(digest, current_user, db)
     return await edition_references(
         edition.id, background, current_user=current_user, db=db,
