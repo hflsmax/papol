@@ -4,11 +4,12 @@ Run in the repository's development environment with:
     cd backend && python -m unittest test_desktop_sync.py
 """
 
+import hashlib
+import json
+import shutil
+import tempfile
 import unittest
 import uuid
-import tempfile
-import hashlib
-import shutil
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ from sqlalchemy.pool import StaticPool
 
 import main
 import sync.api as sync_api
-from sync.changes import commit_sync
+from sync.changes import commit_sync, seed_board_change_log
 from database import Base, PapolSession, current_request_session, get_db
 from models import (
     AppliedMutation, Board, BoardItem, Comment, Copy, CopyTagLink, InkStroke, Paper,
@@ -140,6 +141,32 @@ class DesktopSyncContractTests(unittest.TestCase):
             response.headers.get("cache-control"),
             "private, max-age=31536000, immutable",
         )
+
+    def test_startup_publishes_board_repairs_to_existing_sync_cursors(self):
+        board = self.request("POST", "/api/boards", json={"name": "Repair log"}).json()
+        item = self.request(
+            "POST",
+            f"/api/boards/{board['guid']}/files",
+            files={"file": ("diagram.png", b"image bytes", "image/png")},
+        ).json()
+        with self.sessions() as db:
+            change = db.query(ServerChange).filter(
+                ServerChange.table_name == "board_items",
+                ServerChange.row_sync_id == db.get(BoardItem, item["id"]).sync_id,
+            ).order_by(ServerChange.sequence.desc()).first()
+            stale = json.loads(change.row_json)
+            stale.pop("sha256")
+            change.row_json = json.dumps(stale, separators=(",", ":"), sort_keys=True)
+            db.commit()
+            previous_sequence = change.sequence
+
+            self.assertEqual(seed_board_change_log(db), 1)
+            repaired = db.query(ServerChange).filter(
+                ServerChange.sequence > previous_sequence,
+                ServerChange.table_name == "board_items",
+                ServerChange.row_sync_id == db.get(BoardItem, item["id"]).sync_id,
+            ).one()
+            self.assertEqual(json.loads(repaired.row_json)["sha256"], item["sha256"])
 
     def test_replay_requires_a_live_account_token(self):
         response = self.client.post("/api/boards", json={"name": "No credentials"})
