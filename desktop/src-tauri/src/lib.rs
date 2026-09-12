@@ -386,9 +386,25 @@ fn open_document_window(
     }
 }
 
+#[cfg(target_os = "macos")]
+fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
+    if matches!(event, tauri::RunEvent::Reopen { .. }) {
+        if let Some(window) = app.get_webview_window("main") {
+            if !matches!(window.is_visible(), Ok(true)) {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn handle_run_event(_app: &tauri::AppHandle, _event: tauri::RunEvent) {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .menu(|app| {
             let menu = Menu::default(app)?;
@@ -399,6 +415,14 @@ pub fn run() {
                 }
             }
             Ok(menu)
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             close_document_window,
@@ -467,8 +491,9 @@ pub fn run() {
                 .build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Papol");
+        .build(tauri::generate_context!())
+        .expect("error while building Papol");
+    app.run(handle_run_event);
 }
 
 /// Hands a web or mail link to the system's default handler. Other schemes
