@@ -97,7 +97,10 @@ export default function PapersPage({
     <div className={reviewingUpload ? 'library-page upload-review-mode' : 'library-page'}>
       {currentUser && (
         <PaperUpload
-          onPaperCreated={load}
+          onPaperCreated={(paper) => {
+            if (paper?.id != null) onSelectPaper(paper.id);
+            else load();
+          }}
           onReviewChange={setReviewingUpload}
           incomingFile={incomingPaperFile}
           onIncomingFileHandled={onIncomingPaperFileHandled}

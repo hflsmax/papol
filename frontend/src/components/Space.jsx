@@ -114,7 +114,10 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
               </button>
               <PaperUpload
                 compact
-                onPaperCreated={loadSpace}
+                onPaperCreated={(paper) => {
+                  if (paper?.id != null && onSelectPaper) onSelectPaper(paper.id);
+                  else loadSpace();
+                }}
                 onReviewChange={setReviewingUpload}
               />
             </div>

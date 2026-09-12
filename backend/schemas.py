@@ -220,7 +220,7 @@ class CommentUpdate(BaseModel):
 class Comment(BaseModel):
     id: int
     sync_id: Optional[str] = None
-    paper_id: int
+    paper_id: str
     content: str
     created_at: datetime
     user: Optional[UserPublic] = None
@@ -423,13 +423,13 @@ class RoomAvailabilityOut(BaseModel):
 
 class RoomDetail(RoomSummary):
     paper_title: str
-    paper_id: Optional[int] = None
+    paper_id: Optional[str] = None
     messages: List[RoomMessageOut] = []
     availabilities: List[RoomAvailabilityOut] = []
     viewer_can_lead: bool = False
     viewer_is_participant: bool = False
     viewer_is_reader: bool = False
-    viewer_hidden_entry_id: Optional[int] = None  # paper id, if viewer's copy is hidden
+    viewer_hidden_entry_id: Optional[str] = None  # paper UUID, if viewer's copy is hidden
 
 
 class RoomMessageCreate(BaseModel):
@@ -589,7 +589,7 @@ class ShelfUpdate(BaseModel):
 
 class ReaderEntry(BaseModel):
     """A reader's displayed copy of a paper."""
-    paper_id: int
+    paper_id: str
     user: UserPublic
     is_author: bool = False  # this reader wrote the paper
     thought: Optional[str] = None  # the reader's public one-sentence take
@@ -635,7 +635,7 @@ class ReferenceOut(BaseModel):
     resolution: Optional[ResolvedWork] = None
     # A paper already in Papol that this reference names, when there is
     # one: the reader can go straight to it instead of out to a publisher.
-    papol_paper_id: Optional[int] = None
+    papol_paper_id: Optional[str] = None
 
 
 class ReferencePreviewIn(BaseModel):
@@ -697,8 +697,7 @@ class PaperEditionOut(BaseModel):
 
 
 class PaperList(PaperBase):
-    id: int
-    sync_id: Optional[str] = None
+    id: str
     # The file the viewer's own copy reads, falling back to the latest
     # edition for a paper they do not have.
     file_path: str
@@ -726,8 +725,7 @@ class PaperList(PaperBase):
 
 class Paper(PaperBase):
     """Paper detail, merged with the viewer's own copy when they have one."""
-    id: int
-    sync_id: Optional[str] = None
+    id: str
     file_path: str
     created_at: datetime
     summary: Optional[str] = None

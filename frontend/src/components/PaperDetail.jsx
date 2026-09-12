@@ -3,6 +3,7 @@ import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../api';
+import { nativeBlobUrl, nativeDataActive } from '../nativeData';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
@@ -244,7 +245,7 @@ export default function PaperDetail({
       window.history.replaceState(
         window.history.state,
         '',
-        appPath(`${modePrefix}/paper/${added.doi || added.id}`),
+        appPath(`${modePrefix}/paper/${added.id}`),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
       // the nook needs the reader's shelves for its shelf menu.
@@ -255,7 +256,7 @@ export default function PaperDetail({
   };
 
   const handleShare = async () => {
-    const link = `${window.location.origin}${appPath(`/paper/${paper.doi || paper.id}`)}`;
+    const link = `${window.location.origin}${appPath(`/paper/${paper.id}`)}`;
     let copied = false;
     try {
       if (navigator.clipboard?.writeText) {
@@ -407,9 +408,29 @@ export default function PaperDetail({
     if (onRead) onRead(href);
     else window.location.assign(href);
   };
+  // Papol Desktop keeps the reader's PDF in its local store. Save that copy,
+  // which needs no network and exists before the paper syncs, and read it
+  // only when asked, since a PDF can be large.
+  const localPdf = nativeDataActive() && Boolean(paper.edition_sha256);
+  const saveLocalPdf = async () => {
+    try {
+      const href = await nativeBlobUrl(paper.edition_sha256, 'application/pdf');
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = pdfFileName(paper);
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
   const paperContextMenu = contextMenuHandler(() => [
     hasEntry && viewerHref() && { label: 'Read', onSelect: openViewer },
     paper.file_path && { label: 'Download PDF', onSelect: () => {
+      if (localPdf) {
+        saveLocalPdf();
+        return;
+      }
       const link = document.createElement('a');
       link.href = pdfHref(paper);
       link.download = pdfFileName(paper);
@@ -509,6 +530,11 @@ export default function PaperDetail({
                   href={pdfHref(paper)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(event) => {
+                    if (!localPdf) return;
+                    event.preventDefault();
+                    openViewer();
+                  }}
                 >
                   View PDF
                 </a>
@@ -694,7 +720,7 @@ export default function PaperDetail({
                     </a>
                     <a
                       role="menuitem"
-                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.doi || paper.id}`)}`)}
+                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.id}`)}`)}
                       title="Sign in to use the built-in viewer"
                     >
                       <strong>Use built-in viewer</strong>
@@ -729,6 +755,11 @@ export default function PaperDetail({
                 className="btn"
                 href={pdfHref(paper)}
                 download={pdfFileName(paper)}
+                onClick={(event) => {
+                  if (!localPdf) return;
+                  event.preventDefault();
+                  saveLocalPdf();
+                }}
                 {...(pdfHref(paper).startsWith('http')
                   ? { target: '_blank', rel: 'noopener noreferrer' }
                   : {})}
@@ -762,7 +793,7 @@ export default function PaperDetail({
                       <input
                         id="canonical-share-url"
                         ref={shareUrlRef}
-                        value={`${window.location.origin}${appPath(`/paper/${paper.doi || paper.id}`)}`}
+                        value={`${window.location.origin}${appPath(`/paper/${paper.id}`)}`}
                         readOnly
                         onFocus={(event) => event.target.select()}
                       />

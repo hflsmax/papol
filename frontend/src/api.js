@@ -25,7 +25,6 @@ configureReplayAuthorization(() => {
 // under a proxied subpath like mc-pony.com/papol/.
 const API_BASE = backendPath('/api');
 
-const paperSyncIds = new Map();
 const copySyncIds = new Map();
 const shelfSyncIds = new Map();
 const serverShelfIds = new Map();
@@ -34,9 +33,9 @@ const pendingPaperBlobs = new Map();
 // A developer backend may arrive through an SSH/IDE port forward. Keep auth
 // bounded without treating a healthy forwarded request as offline too early.
 const DESKTOP_AUTH_TIMEOUT_MS = 10_000;
+const DESKTOP_EXTRACT_TIMEOUT_MS = 15_000;
 
 function forgetAccountData() {
-  paperSyncIds.clear();
   copySyncIds.clear();
   shelfSyncIds.clear();
   serverShelfIds.clear();
@@ -45,7 +44,6 @@ function forgetAccountData() {
 }
 
 function rememberPaperIdentity(paper) {
-  if (paper?.id != null && paper.sync_id) paperSyncIds.set(String(paper.id), paper.sync_id);
   if (paper?.id != null && paper.copy_sync_id) copySyncIds.set(String(paper.id), paper.copy_sync_id);
   if (paper?.shelf_id != null && paper.shelf_sync_id) shelfSyncIds.set(String(paper.shelf_id), paper.shelf_sync_id);
   for (const tag of paper?.tags || []) {
@@ -124,6 +122,25 @@ function jsonRequest(path, method, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+// Some changes exist only on the server: publishing, seminars, shared
+// metadata, new PDFs. Papol Desktop names rows by sync UUID, which those
+// routes accept once the row exists there, so push local work first and pull
+// the result back into the replica after.
+async function onServer(send, { pull = true } = {}) {
+  if (!nativeDataActive()) return send();
+  if (globalThis.navigator?.onLine === false) {
+    throw new Error('This change needs a connection to Papol.');
+  }
+  try {
+    await nativeSyncNow();
+  } catch (error) {
+    throw new Error(`This change needs a connection to Papol. ${error?.message || error}`);
+  }
+  const result = await send();
+  if (pull) await nativeSyncNow().catch(() => {});
+  return result;
 }
 
 async function desktopAuthRequest(requester) {
@@ -331,9 +348,9 @@ export async function getUserSpace(userId) {
 
 // ---------- Papers ----------
 
-// Papers are addressed by DOI when they have one, else by numeric id.
+// Papers are addressed by their UUID, and only by it.
 export function paperHref(paper) {
-  return appPath(`/paper/${paper.doi || paper.id}`);
+  return appPath(`/paper/${paper.id}`);
 }
 
 // Uploaded PDFs live in uploads/. Demo papers link to each paper's
@@ -593,20 +610,38 @@ export async function downloadBoardFile(item) {
   URL.revokeObjectURL(href);
 }
 
-export function extractPaperMetadata(file) {
+// The server reads the PDF's DOI or arXiv identifier and looks it up. On
+// desktop this is best-effort: the file is already safe in the local replica,
+// so being offline or a slow backend only costs the prefilled fields.
+async function remotePaperMetadata(file) {
+  if (globalThis.navigator?.onLine === false) return null;
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    return await withAbortTimeout(async (signal) => handleResponse(
+      await runtimeFetch(`${API_BASE}/papers/extract`, {
+        method: 'POST', headers: authHeaders(), body: formData, signal,
+      }),
+    ), DESKTOP_EXTRACT_TIMEOUT_MS);
+  } catch {
+    return null;
+  }
+}
+
+export async function extractPaperMetadata(file) {
   if (nativeDataActive()) {
-    return nativeBlobImport(file).then((blob) => {
-      pendingPaperBlobs.set(blob.sha256, blob);
-      return {
-        doi: null,
-        title: file.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim(),
-        authors: null,
-        journal: null,
-        year: null,
-        file_path: `${blob.sha256}.pdf`,
-        sha256: blob.sha256,
-      };
-    });
+    const blob = await nativeBlobImport(file);
+    pendingPaperBlobs.set(blob.sha256, blob);
+    const remote = await remotePaperMetadata(file);
+    return {
+      doi: remote?.doi || null,
+      title: remote?.title || file.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim(),
+      authors: remote?.authors || null,
+      journal: remote?.journal || null,
+      year: remote?.year || null,
+      file_path: `${blob.sha256}.pdf`,
+      sha256: blob.sha256,
+    };
   }
   const formData = new FormData();
   formData.append('file', file);
@@ -621,7 +656,10 @@ export async function discardPaperImport(extractedData) {
 }
 
 export function reextractPaperMetadata(paperId) {
-  return request(`/papers/${paperId}/extract-metadata`, { method: 'POST' });
+  return onServer(
+    () => request(`/papers/${paperId}/extract-metadata`, { method: 'POST' }),
+    { pull: false },
+  );
 }
 
 export async function createPaper(paperData) {
@@ -675,19 +713,26 @@ export async function createPaper(paperData) {
 }
 
 export async function getPaper(id) {
-  if (nativeDataActive() && typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)) {
-    const paper = paperView(await nativeQuery('paper', { id }));
-    paper.comments = (await nativeQuery('comments', { parent_id: id })).map(noteView);
-    copySyncIds.set(id, paper.copy_sync_id);
-    return paper;
+  if (nativeDataActive()) {
+    // A nook paper is read from the replica: the server may not have it yet,
+    // or may be out of reach.
+    try {
+      const paper = paperView(await nativeQuery('paper', { id }));
+      paper.comments = (await nativeQuery('comments', { parent_id: id })).map(noteView);
+      copySyncIds.set(id, paper.copy_sync_id);
+      return paper;
+    } catch (error) {
+      // A paper outside this nook, opened from the library, comes from the service.
+      if (String(error?.message ?? error) !== 'Paper not found') throw error;
+    }
   }
   const paper = rememberPaperIdentity(await request(`/papers/${id}`));
-  if (nativeDataActive() && paper.sync_id) {
+  if (nativeDataActive()) {
     const [comments, nook] = await Promise.all([
-      nativeQuery('comments', { parent_id: paper.sync_id }), nativeQuery('nook'),
+      nativeQuery('comments', { parent_id: paper.id }), nativeQuery('nook'),
     ]);
     paper.comments = comments.map(noteView);
-    const copy = nook.copies.find((candidate) => candidate.paper_id === paper.sync_id);
+    const copy = nook.copies.find((candidate) => candidate.paper_id === paper.id);
     if (copy) {
       Object.assign(paper, {
         copy_sync_id: copy.id,
@@ -715,24 +760,27 @@ export function addToNook(paperId) {
 export function addPaperEdition(id, file) {
   const formData = new FormData();
   formData.append('file', file);
-  return request(`/papers/${id}/editions`, { method: 'POST', body: formData });
+  return onServer(() => request(`/papers/${id}/editions`, { method: 'POST', body: formData }));
 }
 
 export function adoptEdition(id, editionId) {
-  return jsonRequest(`/papers/${id}/adopt-edition`, 'POST', {
+  return onServer(() => jsonRequest(`/papers/${id}/adopt-edition`, 'POST', {
     edition_id: editionId ?? null,
-  });
+  }));
 }
 
 export function ignoreEdition(id, editionId) {
-  return jsonRequest(`/papers/${id}/ignore-edition`, 'POST', {
+  return onServer(() => jsonRequest(`/papers/${id}/ignore-edition`, 'POST', {
     edition_id: editionId ?? null,
-  });
+  }));
 }
 
 export async function updatePaper(id, data) {
   const copyId = copySyncIds.get(String(id));
-  const localFields = new Set(['summary', 'shelf_id', 'tag_ids']);
+  const localFields = new Set([
+    'summary', 'shelf_id', 'tag_ids',
+    'rating_expertise', 'rating_reading', 'rating_liking',
+  ]);
   if (nativeDataActive() && copyId && Object.keys(data).every((key) => localFields.has(key))) {
     const values = { ...data };
     if ('shelf_id' in values) values.shelf_id = localShelfId(values.shelf_id);
@@ -760,7 +808,7 @@ export async function updatePaper(id, data) {
     const receipt = await nativeMutate(changes);
     return receipt.rows[0];
   }
-  return rememberPaperIdentity(await jsonRequest(`/papers/${id}`, 'PUT', data));
+  return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${id}`, 'PUT', data)));
 }
 
 export function deletePaper(id) {
@@ -809,11 +857,7 @@ export function createShelf(data) {
       values: { name: data.name, color: data.color, position: data.position || 0 },
     }]).then((receipt) => shelfView(receipt.rows[0]));
   }
-  return jsonRequest('/shelves', 'POST', data).then(async (shelf) => {
-    rememberShelfIdentity(shelf);
-    if (nativeDataActive()) await nativeSyncNow();
-    return shelf;
-  });
+  return onServer(() => jsonRequest('/shelves', 'POST', data)).then(rememberShelfIdentity);
 }
 
 export function updateShelf(id, data) {
@@ -823,27 +867,23 @@ export function updateShelf(id, data) {
       operation: 'patch', values: data,
     }]).then((receipt) => shelfView(receipt.rows[0]));
   }
-  return jsonRequest(`/shelves/${serverShelfIds.get(String(id)) || id}`, 'PUT', data)
-    .then(async (shelf) => {
-      rememberShelfIdentity(shelf);
-      if (nativeDataActive()) await nativeSyncNow();
-      return shelf;
-    });
+  return onServer(() => jsonRequest(`/shelves/${serverShelfIds.get(String(id)) || id}`, 'PUT', data))
+    .then(rememberShelfIdentity);
 }
 
-export async function deleteShelf(id) {
-  const result = await request(`/shelves/${serverShelfIds.get(String(id)) || id}`, { method: 'DELETE' });
-  if (nativeDataActive()) await nativeSyncNow();
-  return result;
+// Deleting moves the shelf's papers and boards to another shelf, which may
+// publish or hide them, so it happens on the server.
+export function deleteShelf(id) {
+  return onServer(() => request(`/shelves/${serverShelfIds.get(String(id)) || id}`, { method: 'DELETE' }));
 }
 
 // ---------- Comments ----------
 
 export function addComment(paperId, content) {
-  if (nativeDataActive() && paperSyncIds.has(String(paperId))) {
+  if (nativeDataActive()) {
     return nativeMutate([{
       table: 'comments', id: uuid(), operation: 'upsert',
-      values: { paper_id: paperSyncIds.get(String(paperId)), content },
+      values: { paper_id: paperId, content },
     }]).then((receipt) => noteView(receipt.rows[0]));
   }
   return jsonRequest(`/papers/${paperId}/comments`, 'POST', { content });
@@ -869,7 +909,7 @@ export function deleteComment(commentId) {
 // ---------- Seminar rooms ----------
 
 export function callSeminar(paperId) {
-  return request(`/papers/${paperId}/room`, { method: 'POST' });
+  return onServer(() => request(`/papers/${paperId}/room`, { method: 'POST' }), { pull: false });
 }
 
 export function getRoom(roomId) {

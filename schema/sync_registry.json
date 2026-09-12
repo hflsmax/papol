@@ -98,7 +98,8 @@
       "owner": "user_id",
       "client_writable": [
         "paper_id", "shelf_id", "edition_id", "edition_sha256",
-        "ignored_edition_id", "summary", "deleted_at"
+        "ignored_edition_id", "summary", "rating_expertise",
+        "rating_reading", "rating_liking", "deleted_at"
       ],
       "conflict": "field_patch",
       "compatibility_columns": [

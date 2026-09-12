@@ -23,7 +23,7 @@ from sync.changes import commit_sync, seed_board_change_log
 from database import Base, PapolSession, current_request_session, get_db
 from models import (
     AppliedMutation, Board, BoardItem, Comment, Copy, CopyTagLink, InkStroke, Paper,
-    PaperClip, PaperEdition, ServerChange, Shelf, SyncClient, Tag,
+    PaperClip, PaperEdition, Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
 )
 
 
@@ -825,7 +825,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             )
             db.add(copy)
             db.commit()
-            paper_id = paper.id
+            paper_id = paper.sync_id
             second_id = second.id
             copy_sync_id = copy.sync_id
 
@@ -877,7 +877,10 @@ class DesktopSyncContractTests(unittest.TestCase):
                 {
                     "table": "copies", "id": copy_id, "operation": "patch",
                     "base_revision": 1,
-                    "values": {"shelf_id": shelf_id, "summary": "Saved without a network"},
+                    "values": {
+                        "shelf_id": shelf_id, "summary": "Saved without a network",
+                        "rating_reading": 4,
+                    },
                 },
                 {
                     "table": "copy_tags", "id": link_id, "operation": "upsert",
@@ -894,12 +897,101 @@ class DesktopSyncContractTests(unittest.TestCase):
         with self.sessions() as db:
             saved = db.query(Copy).filter(Copy.sync_id == copy_id).one()
             self.assertEqual(saved.summary, "Saved without a network")
+            self.assertEqual(saved.rating_reading, 4)
             self.assertEqual(saved.shelf.sync_id, shelf_id)
             self.assertEqual(db.query(Tag).filter(Tag.sync_id == tag_id).one().name, "distributed")
             self.assertEqual(
                 db.query(CopyTagLink).filter(CopyTagLink.sync_id == link_id).one().copy_id,
                 saved.id,
             )
+
+        rejected = self.client.request("POST", "/api/sync/push", headers=self.headers, json={
+            "client_id": payload["client_id"],
+            "mutation_id": str(uuid.uuid4()),
+            "local_sequence": 2,
+            "changes": [{
+                "table": "copies", "id": copy_id, "operation": "patch",
+                "base_revision": 2,
+                "values": {"rating_liking": 6},
+            }],
+        })
+        self.assertEqual(rejected.status_code, 422, rejected.text)
+
+    def test_desktop_shelf_moves_publish_and_hide_like_online_moves(self):
+        with self.sessions() as db:
+            public = Shelf(user_id=1, name="Offline public", color="#123456", is_public=True)
+            private = Shelf(user_id=1, name="Offline private", color="#654321", is_public=False)
+            paper = Paper(title="Shelved offline")
+            db.add_all([public, private, paper])
+            db.flush()
+            copy = Copy(paper=paper, shelf=public, user_id=1, marketed=True)
+            db.add(copy)
+            commit_sync(db)
+            public_id, private_id, copy_id = public.sync_id, private.sync_id, copy.sync_id
+            revision = copy.revision
+
+        client_id = str(uuid.uuid4())
+
+        def move(shelf_id, sequence):
+            return self.client.request("POST", "/api/sync/push", headers=self.headers, json={
+                "client_id": client_id,
+                "mutation_id": str(uuid.uuid4()),
+                "local_sequence": sequence,
+                "changes": [{
+                    "table": "copies", "id": copy_id, "operation": "patch",
+                    "base_revision": revision, "values": {"shelf_id": shelf_id},
+                }],
+            })
+
+        def marketed():
+            with self.sessions() as db:
+                return db.query(Copy).filter(Copy.sync_id == copy_id).one().marketed
+
+        self.assertLess(move(private_id, 1).status_code, 400)
+        self.assertFalse(marketed())
+        self.assertLess(move(public_id, 2).status_code, 400)
+        self.assertTrue(marketed())
+
+        with self.sessions() as db:
+            room = Room(paper_key="title:shelved offline", paper_title="Shelved offline", created_by=1)
+            db.add(room)
+            db.flush()
+            db.add(RoomParticipant(room_id=room.id, user_id=1))
+            db.commit()
+        refused = move(private_id, 3)
+        self.assertEqual(refused.status_code, 422, refused.text)
+        self.assertTrue(marketed())
+
+    def test_server_only_actions_accept_desktop_sync_ids(self):
+        with self.sessions() as db:
+            shelf = Shelf(user_id=1, name="Desktop shelf", color="#123456", is_public=False)
+            paper = Paper(title="Desktop paper")
+            db.add_all([shelf, paper])
+            db.flush()
+            db.add(Copy(paper=paper, shelf=shelf, user_id=1, marketed=False))
+            commit_sync(db)
+            shelf_id, paper_id = shelf.sync_id, paper.sync_id
+
+        self.request("PUT", f"/api/papers/{paper_id}", json={"thought": "Read on the train"})
+        self.request("PUT", f"/api/shelves/{shelf_id}", json={"is_public": True})
+        with self.sessions() as db:
+            copy = db.query(Copy).join(Paper).filter(Paper.sync_id == paper_id).one()
+            self.assertEqual(copy.thought, "Read on the train")
+            self.assertTrue(copy.marketed)
+        self.request("DELETE", f"/api/shelves/{shelf_id}")
+        with self.sessions() as db:
+            self.assertIsNotNone(db.query(Shelf).filter(Shelf.sync_id == shelf_id).one().deleted_at)
+        missing = self.client.request(
+            "PUT", f"/api/shelves/{uuid.uuid4()}", headers=self.headers, json={"is_public": True},
+        )
+        self.assertEqual(missing.status_code, 404, missing.text)
+        paper = self.request("GET", f"/api/papers/{paper_id}").json()
+        self.assertEqual(paper["id"], paper_id)
+        self.assertNotIn("sync_id", paper)
+        with self.sessions() as db:
+            numeric_id = db.query(Paper).filter(Paper.sync_id == paper_id).one().id
+        gone = self.client.request("GET", f"/api/papers/{numeric_id}", headers=self.headers)
+        self.assertEqual(gone.status_code, 404, gone.text)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,17 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
 
+  // Publishing and default changes need the server, so any of these can fail.
+  const attempt = async (action) => {
+    setError(null);
+    try {
+      await action();
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="modal-overlay shelf-manager-overlay" onMouseDown={() => onClose()}>
       <div className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -39,7 +50,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   type="color"
                   value={shelf.color}
                   aria-label={`Color for ${shelf.name}`}
-                  onChange={async (e) => { await updateShelf(shelf.id, { color: e.target.value }); onChanged(); }}
+                  onChange={(e) => attempt(() => updateShelf(shelf.id, { color: e.target.value }))}
                 />
               </label>
               <div className="shelf-name-block">
@@ -48,7 +59,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   value={shelf.name}
                   aria-label="Shelf name"
                   onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.id === shelf.id ? { ...item, name: e.target.value } : item) }))}
-                  onBlur={async (e) => { if (e.target.value.trim()) { await updateShelf(shelf.id, { name: e.target.value.trim() }); onChanged(); } }}
+                  onBlur={(e) => { if (e.target.value.trim()) attempt(() => updateShelf(shelf.id, { name: e.target.value.trim() })); }}
                 />
                 <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
               </div>
@@ -57,7 +68,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                 role="switch"
                 aria-checked={shelf.is_public}
                 aria-label={`${shelf.name} is ${shelf.is_public ? 'public' : 'private'}`}
-                onClick={async () => { await updateShelf(shelf.id, { is_public: !shelf.is_public }); onChanged(); }}
+                onClick={() => attempt(() => updateShelf(shelf.id, { is_public: !shelf.is_public }))}
               >
                 <span className="switch">
                   <span className="switch-knob" />
@@ -69,7 +80,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   type="radio"
                   name="default-shelf"
                   checked={shelf.is_default}
-                  onChange={async () => { if (!shelf.is_default) { await updateShelf(shelf.id, { is_default: true }); onChanged(); } }}
+                  onChange={() => { if (!shelf.is_default) attempt(() => updateShelf(shelf.id, { is_default: true })); }}
                 />
                 <span>Default</span>
               </label>
@@ -99,10 +110,9 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
           ))}
         </div>
         {space.shelves.length < 5 && (
-          <button className="link-btn shelf-add" onClick={async () => {
+          <button className="link-btn shelf-add" onClick={() => {
             const colors = ['#b3923d', '#6b3f5e', '#35606b'];
-            await createShelf({ name: `Shelf ${space.shelves.length + 1}`, color: colors[(space.shelves.length - 2) % colors.length], is_public: false });
-            onChanged();
+            attempt(() => createShelf({ name: `Shelf ${space.shelves.length + 1}`, color: colors[(space.shelves.length - 2) % colors.length], is_public: false }));
           }}>Add another shelf</button>
         )}
         <section className="nook-manager-section" aria-labelledby="manage-tags-title">

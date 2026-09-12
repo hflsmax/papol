@@ -274,7 +274,6 @@ export function paperView(row) {
   const bool = (value) => value === true || value === 1;
   return {
     ...row,
-    sync_id: row.id,
     marketed: bool(row.marketed),
     is_author: bool(row.is_author),
     viewer_has_entry: true,

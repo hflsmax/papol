@@ -144,8 +144,10 @@ class Paper(Base):
     Copy."""
     __tablename__ = "papers"
 
+    # The integer is an internal join key only; a paper's identity, in every
+    # route, response and link, is its UUID.
     id = Column(Integer, primary_key=True, index=True)
-    sync_id = Column(String(36), unique=True, nullable=True, index=True, default=lambda: str(uuid.uuid4()))
+    sync_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     doi = Column(Text, nullable=True)
     title = Column(Text, nullable=False)
     authors = Column(Text, nullable=True)  # JSON array stored as text

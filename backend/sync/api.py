@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
+from cohorts import in_active_cohort, paper_key_for
 from database import get_db
 from models import (
     AppliedMutation, Board, BoardGroup, BoardItem, Comment, Copy, CopyTagLink, InkStroke,
@@ -403,8 +404,19 @@ def _assign_values(db: Session, record, values: dict, user: User):
             record.paper = _visible_paper(db, values["paper_id"], user.id)
             record.paper_sync_id = record.paper.sync_id
         if "shelf_id" in values:
-            record.shelf = _owned_shelf(db, values["shelf_id"], user.id)
-            record.shelf_sync_id = record.shelf.sync_id if record.shelf else None
+            shelf = _owned_shelf(db, values["shelf_id"], user.id)
+            # Visibility belongs to the shelf: moving a copy publishes or
+            # hides it exactly as the online move in update_paper does.
+            if shelf is not None:
+                if (record.marketed and not shelf.is_public and record.paper is not None
+                        and in_active_cohort(db, user, paper_key_for(record.paper))):
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Leave the seminar before moving this paper to a private shelf",
+                    )
+                record.marketed = bool(shelf.is_public)
+            record.shelf = shelf
+            record.shelf_sync_id = shelf.sync_id if shelf else None
         if "edition_id" in values:
             record.edition = _owned_edition(db, values["edition_id"], user.id) if values["edition_id"] else None
             record.edition_sync_id = record.edition.sync_id if record.edition else None
@@ -418,6 +430,13 @@ def _assign_values(db: Session, record, values: dict, user: User):
         if (record.edition is not None
                 and record.edition.paper.sync_id != record.paper.sync_id):
             raise HTTPException(status_code=409, detail="Copy edition belongs to another paper")
+        # The same limits PaperUpdate enforces for the online edit form.
+        for key in ("rating_expertise", "rating_reading", "rating_liking"):
+            rating = values.get(key)
+            if rating is not None and (
+                isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5
+            ):
+                raise HTTPException(status_code=422, detail="Ratings must be whole numbers from 1 to 5")
         return
     if isinstance(record, CopyTagLink):
         if "copy_id" in values:

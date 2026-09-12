@@ -49,13 +49,6 @@ export function useNookSpace(userId, refreshKey) {
   return { space, setSpace, reload };
 }
 
-const paperKey = (paper) => String(paper.doi || paper.id);
-
-function decoded(id) {
-  try { return decodeURIComponent(id); }
-  catch { return id; }
-}
-
 export function DesktopBrowser({
   source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner,
   incomingPaperFile, onIncomingPaperFileHandled,
@@ -68,7 +61,8 @@ export function DesktopBrowser({
   const [actionError, setActionError] = useState(null);
   const listRef = useRef(null);
   const paperId = route.page === 'paper' ? route.id : null;
-  const selectedKey = paperId == null ? null : decoded(paperId);
+  const selectedKey = paperId;
+  const isSelected = (paper) => selectedKey != null && paper.id === selectedKey;
 
   useEffect(() => {
     if (route.page !== 'paper') rememberSource(source);
@@ -144,7 +138,7 @@ export function DesktopBrowser({
     setActionError(null);
     try {
       await deletePaper(paper.id);
-      if (paperKey(paper) === selectedKey) sourceHome();
+      if (isSelected(paper)) sourceHome();
       reload();
     } catch (error) { setActionError(error.message); }
   };
@@ -161,11 +155,11 @@ export function DesktopBrowser({
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     if (event.target.closest?.('input, textarea') || shownPapers.length === 0) return;
     event.preventDefault();
-    const index = shownPapers.findIndex((paper) => paperKey(paper) === selectedKey);
+    const index = shownPapers.findIndex((paper) => isSelected(paper));
     const step = event.key === 'ArrowDown' ? 1 : -1;
     const next = index < 0 ? 0 : Math.min(shownPapers.length - 1, Math.max(0, index + step));
     if (next === index) return;
-    onNavigate(`/paper/${paperKey(shownPapers[next])}`, { replace: route.page === 'paper' });
+    onNavigate(`/paper/${shownPapers[next].id}`, { replace: route.page === 'paper' });
   };
 
   let emptyList = null;
@@ -189,7 +183,11 @@ export function DesktopBrowser({
             <button type="button" onClick={() => setComposer(null)}>Cancel</button>
           </div>
           <PaperUpload
-            onPaperCreated={() => { setComposer(null); reload(); }}
+            onPaperCreated={(paper) => {
+              setComposer(null);
+              reload();
+              if (paper?.id != null) onNavigate(`/paper/${paper.id}`);
+            }}
             incomingFile={incomingPaperFile}
             onIncomingFileHandled={onIncomingPaperFileHandled}
           />
@@ -215,7 +213,7 @@ export function DesktopBrowser({
           <PaperDetail
             // Moving the paper to another shelf from the sidebar reloads it,
             // so its own shelf control never shows the old shelf.
-            key={`${paperId}:${(space?.papers || []).find((paper) => paperKey(paper) === selectedKey)?.shelf_id ?? ''}`}
+            key={`${paperId}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_id ?? ''}`}
             paperId={paperId}
             currentUser={currentUser}
             hideBack
@@ -315,7 +313,7 @@ export function DesktopBrowser({
             ))
           ) : (
             shownPapers.map((paper) => {
-              const selected = paperKey(paper) === selectedKey;
+              const selected = isSelected(paper);
               const shelfColor = libraryView ? null : shelves.find((item) => item.id === paper.shelf_id)?.color;
               const readers = paper.readers?.length || 0;
               return (
@@ -335,7 +333,7 @@ export function DesktopBrowser({
                   }}
                   onDragEnd={() => setDraggingId(null)}
                   onContextMenu={contextMenuHandler(() => [
-                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperKey(paper)}`) },
+                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paper.id}`) },
                     !libraryView && shelves.length > 0 && { separator: true },
                     !libraryView && shelves.length > 0 && {
                       label: 'Move to Shelf',

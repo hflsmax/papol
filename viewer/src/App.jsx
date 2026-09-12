@@ -3244,6 +3244,19 @@ export default function App() {
               className="bar-link"
               href={pdfHref(paper)}
               download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
+              onClick={(event) => {
+                // Desktop saves the copy already in its local store.
+                if (!nativeDataActive()) return;
+                event.preventDefault();
+                const name = event.currentTarget.getAttribute('download');
+                cachedPdfHref(paper).then((href) => {
+                  const link = document.createElement('a');
+                  link.href = href;
+                  link.download = name;
+                  link.click();
+                  setTimeout(() => URL.revokeObjectURL(href), 60_000);
+                }).catch(() => {});
+              }}
             >
               Download
             </a>

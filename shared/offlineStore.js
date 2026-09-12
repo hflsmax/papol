@@ -290,7 +290,7 @@ async function optimisticValue(path, method, body) {
       ? data.file_path.slice(OFFLINE_FILE.length)
       : null;
     return {
-      id, ...data, created_at: now, comments: [], readers: [],
+      id: uuid(), ...data, created_at: now, comments: [], readers: [],
       sha256: digest, edition_sha256: digest, edition_id: id,
       editions: digest ? [{ id, sha256: digest, file_path: data.file_path, created_at: now }] : [],
     };

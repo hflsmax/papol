@@ -4,7 +4,9 @@
 // into the viewer and back, but an explicit refresh resets it. The URL
 // remains the sole authority for whether demo mode is active.
 
-import { demoPapers, demoNotes, demoEditionFor, noteAsComment } from '../../shared/demoWorld';
+import {
+  demoPapers, demoNotes, demoEditionFor, demoPaperId, noteAsComment,
+} from '../../shared/demoWorld';
 import { stripAppBase } from './base';
 
 export function demoActive() {
@@ -53,8 +55,9 @@ function seed() {
   }));
 
   let cid = 1;
-  const copy = (paper_id, user_id, extra = {}) => ({
-    id: cid++, paper_id, user_id, summary: null, thought: null, marketed: true, is_author: false,
+  // Seeds name a paper by its place in demoPapers.
+  const copy = (paper, user_id, extra = {}) => ({
+    id: cid++, paper_id: demoPaperId(paper), user_id, summary: null, thought: null, marketed: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     tag_ids: [], created_at: daysAgo(5), ...extra,
   });
@@ -110,8 +113,8 @@ function seed() {
   // Spread SpongeBob's papers across the shelves so every shelf demonstrates
   // real membership, color, visibility, and counts.
   for (const item of copies.filter((copyItem) => copyItem.user_id === ME)) {
-    if (item.paper_id === 1 || item.paper_id === 10) item.shelf_id = 3;
-    if (item.paper_id === 9) item.shelf_id = 4;
+    if (item.paper_id === demoPaperId(1) || item.paper_id === demoPaperId(10)) item.shelf_id = 3;
+    if (item.paper_id === demoPaperId(9)) item.shelf_id = 4;
     item.marketed = shelves.find((shelf) => shelf.id === item.shelf_id).is_public;
   }
 
@@ -168,7 +171,7 @@ function seed() {
 }
 
 let db = null;
-const STORAGE_KEY = 'papol.demoWorld.v2';
+const STORAGE_KEY = 'papol.demoWorld.v3';
 const navigation = window.performance.getEntriesByType('navigation')[0];
 if (navigation?.type === 'reload') {
   window.sessionStorage.removeItem(STORAGE_KEY);
@@ -355,10 +358,7 @@ function requireReaderOf(room) {
 }
 
 function findPaper(ref) {
-  const d = ensure();
-  const p = /^\d+$/.test(ref)
-    ? d.papers.find((x) => x.id === parseInt(ref))
-    : d.papers.find((x) => (x.doi || '').toLowerCase() === ref.toLowerCase());
+  const p = ensure().papers.find((x) => x.id === ref.toLowerCase());
   if (!p) throw demoError('Paper not found', 404);
   return p;
 }
@@ -487,7 +487,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers/extract') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/extract-metadata$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/extract-metadata$/))) {
     const paper = findPaper(m[1]);
     return {
       doi: paper.doi,
@@ -500,7 +500,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers' && method === 'POST') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/add-to-nook$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/add-to-nook$/))) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     const defaultShelf = d.shelves.find((shelf) => shelf.is_default) || d.shelves[0];
@@ -511,10 +511,10 @@ async function routeDemoRequest(path, options = {}) {
       created_at: now() });
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/editions$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/editions$/))) {
     throw demoError('Not available in the demo — create a real account to upload PDFs.');
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/ignore-edition$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/ignore-edition$/))) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
@@ -522,7 +522,7 @@ async function routeDemoRequest(path, options = {}) {
     mine.ignored_edition_id = body.edition_id || editions[editions.length - 1].id;
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/adopt-edition$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/adopt-edition$/))) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
@@ -530,7 +530,7 @@ async function routeDemoRequest(path, options = {}) {
     mine.edition_id = body.edition_id || editions[editions.length - 1].id;
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/comments$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/comments$/))) {
     const paper = findPaper(m[1]);
     if (!copyOf(paper, ME)) throw demoError('Add this paper to your nook first', 403);
     const c = { id: d.nextId.comment++, paper_id: paper.id, user_id: ME,
@@ -550,7 +550,7 @@ async function routeDemoRequest(path, options = {}) {
     d.comments.splice(i, 1);
     return { message: 'Comment deleted' };
   }
-  if ((m = path.match(/^\/papers\/(\d+)\/room$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/room$/))) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine || !mine.marketed) {
@@ -567,7 +567,7 @@ async function routeDemoRequest(path, options = {}) {
     ensureParticipant(room);
     return roomSummary(room);
   }
-  if ((m = path.match(/^\/papers\/(\d+)$/)) && method === 'PUT') {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const paper = findPaper(m[1]);
     const personal = ['summary', 'thought', 'marketed', 'is_author', 'rating_expertise', 'rating_reading', 'rating_liking'];
     const metadata = ['title', 'authors', 'journal', 'year', 'doi'];
@@ -600,7 +600,7 @@ async function routeDemoRequest(path, options = {}) {
     for (const k of metadata) if (k in body) paper[k] = body[k];
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/(\d+)$/)) && method === 'DELETE') {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
@@ -611,7 +611,7 @@ async function routeDemoRequest(path, options = {}) {
     }
     return { message: 'Paper removed from your nook' };
   }
-  if ((m = path.match(/^\/papers\/(.+)$/)) && method === 'GET') {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})$/)) && method === 'GET') {
     return paperDetail(findPaper(m[1]));
   }
 

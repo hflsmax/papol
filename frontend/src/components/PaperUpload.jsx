@@ -121,7 +121,7 @@ export default function PaperUpload({
         .map((a) => a.trim())
         .filter((a) => a);
 
-      await createPaper({
+      const paper = await createPaper({
         title: formData.title,
         authors: JSON.stringify(authorsList),
         journal: formData.journal || null,
@@ -142,7 +142,7 @@ export default function PaperUpload({
       setFormData({});
       setSelectedTags([]);
       onReviewChange(false);
-      onPaperCreated();
+      onPaperCreated(paper);
     } catch (err) {
       setError(err.message);
     } finally {

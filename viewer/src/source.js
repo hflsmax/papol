@@ -34,7 +34,7 @@ function apiSource(pdfHash) {
     async load() {
       const paper = await getPaperByPdf(pdfHash);
       paperId = paper.id;
-      source.backHref = appPath(`/paper/${paper.doi || paper.id}`);
+      source.backHref = appPath(`/paper/${paper.id}`);
       return { doc: paper, notes: paper.comments || [] };
     },
     notes: {
@@ -72,7 +72,7 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 
 function seedFor(paperId) {
   return demoNotes
-    .filter((n) => n.paperId === Number(paperId))
+    .filter((n) => n.paperId === paperId)
     .map((n) => ({
       id: n.id,
       page: n.page,

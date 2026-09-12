@@ -87,6 +87,7 @@ from pdf_parser import (
 import grobid
 import biblio
 import metadata_lookup
+from cohorts import in_active_cohort as _in_active_cohort, paper_key_for as _paper_key_for
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
 )
@@ -1531,7 +1532,7 @@ def _default_shelf(user: User) -> Shelf:
 
 def _reader_entry(user_copy: Copy) -> ReaderEntry:
     return ReaderEntry(
-        paper_id=user_copy.paper_id,
+        paper_id=user_copy.paper.sync_id,
         user=UserPublic.model_validate(user_copy.user),
         is_author=bool(user_copy.is_author),
         thought=user_copy.thought,
@@ -1627,7 +1628,7 @@ def _paper_list_entry(
     """One list row: the canonical paper, plus the personal fields of the
     given user_copy (a nook's own entry), plus every displayed copy."""
     entry = PaperList(
-        id=paper.id,
+        id=paper.sync_id,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
@@ -1782,11 +1783,6 @@ async def extract_paper_metadata(
     return ExtractedMetadata(**metadata)
 
 
-def _paper_key_for(paper: Paper) -> str:
-    """Canonical identity of a paper: its DOI, falling back to its title."""
-    if paper.doi:
-        return "doi:" + paper.doi.strip().lower()
-    return "title:" + paper.title.strip().lower()
 
 
 def _papers_for_key(db: Session, key: str) -> list[Paper]:
@@ -1800,19 +1796,6 @@ def _reader_ids(db: Session, key: str, public_only: bool = True) -> set[int]:
         for r in p.copies
         if r.marketed or not public_only
     }
-
-
-def _in_active_cohort(db: Session, user: User, key: str) -> bool:
-    """True if the user is in the cohort of a still-active seminar (anything
-    but finished) on this paper."""
-    rooms = (
-        db.query(Room)
-        .filter(Room.paper_key == key, Room.status != "finished")
-        .all()
-    )
-    return any(
-        p.user_id == user.id for room in rooms for p in room.participants
-    )
 
 
 def _notify(db: Session, user_ids, room: Room, content: str):
@@ -1848,7 +1831,7 @@ def _comment_out(c: Comment) -> CommentSchema:
     return CommentSchema(
         id=c.id,
         sync_id=c.sync_id,
-        paper_id=c.paper_id,
+        paper_id=c.paper_sync_id,
         content=c.content,
         created_at=c.created_at,
         user=UserPublic.model_validate(c.user) if c.user else None,
@@ -1877,8 +1860,7 @@ def _paper_detail(
     ratings, display, private notes) when they have one."""
     user_copy = _copy_of(paper, viewer)
     detail = PaperSchema(
-        id=paper.id,
-        sync_id=paper.sync_id,
+        id=paper.sync_id,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
@@ -1928,21 +1910,35 @@ def _paper_detail(
     return detail
 
 
-def _get_paper_or_404(paper_id: int, db: Session) -> Paper:
-    paper = db.query(Paper).filter(Paper.id == paper_id).first()
+# Papol Desktop knows papers and shelves by their sync UUID, so the actions
+# that exist only here (publishing, seminars, shared metadata, new PDFs)
+# accept one wherever they accept a numeric id. A paper has no other public
+# identity: every route and response names it by UUID.
+_SYNC_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+
+
+def _get_paper_or_404(paper_id: str, db: Session) -> Paper:
+    ref = paper_id.strip()
+    paper = (
+        db.query(Paper).filter(Paper.sync_id == ref.lower()).first()
+        if _SYNC_ID.match(ref) else None
+    )
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     return paper
 
 
-def _resolve_paper_or_404(ref: str, db: Session) -> Paper:
-    """Look a paper up by numeric id or by DOI."""
-    if ref.isdigit():
-        return _get_paper_or_404(int(ref), db)
-    paper = next(iter(_papers_for_key(db, "doi:" + ref.strip().lower())), None)
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found")
-    return paper
+def _own_shelf_or_404(shelf_id: str, user: User, db: Session) -> Shelf:
+    ref = shelf_id.strip()
+    query = db.query(Shelf).filter(Shelf.user_id == user.id)
+    shelf = None
+    if ref.isdecimal():
+        shelf = query.filter(Shelf.id == int(ref)).first()
+    elif _SYNC_ID.match(ref):
+        shelf = query.filter(Shelf.sync_id == ref.lower()).first()
+    if not shelf:
+        raise HTTPException(status_code=404, detail="Shelf not found")
+    return shelf
 
 
 def _require_visible(paper: Paper, viewer: User | None):
@@ -2061,6 +2057,7 @@ async def create_paper(
     if paper.initial_comment and paper.initial_comment.strip():
         db.add(Comment(
             paper_id=db_paper.id,
+            paper_sync_id=db_paper.sync_id,
             user_id=current_user.id,
             content=paper.initial_comment.strip(),
         ))
@@ -2081,31 +2078,31 @@ async def create_paper(
     return _paper_detail(db, db_paper, current_user)
 
 
-@app.get("/api/papers/{paper_ref:path}", response_model=PaperSchema)
+@app.get("/api/papers/{paper_id}", response_model=PaperSchema)
 async def get_paper(
-    paper_ref: str,
+    paper_id: str,
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    """Get a paper by id or DOI, merged with the viewer's own copy and notes.
+    """Get a paper by UUID, merged with the viewer's own copy and notes.
     Publicly displayed papers may be opened from a shared canonical URL;
     signed-in readers additionally receive their own nook fields and notes."""
-    paper = _resolve_paper_or_404(paper_ref, db)
+    paper = _get_paper_or_404(paper_id, db)
     _require_visible(paper, current_user)
     return _paper_detail(db, paper, current_user)
 
 
 @app.post(
-    "/api/papers/{paper_ref:path}/extract-metadata",
+    "/api/papers/{paper_id}/extract-metadata",
     response_model=ReextractedMetadata,
 )
 async def reextract_paper_metadata(
-    paper_ref: str,
+    paper_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Re-read a paper's selected PDF metadata for the edit form."""
-    paper = _resolve_paper_or_404(paper_ref, db)
+    paper = _get_paper_or_404(paper_id, db)
     _require_visible(paper, current_user)
     edition = _edition_for(paper, _copy_of(paper, current_user)) or _latest_edition(paper)
     path = _edition_pdf_path(edition) if edition else None
@@ -2213,7 +2210,7 @@ _PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", 
 
 @app.put("/api/papers/{paper_id}", response_model=PaperSchema)
 async def update_paper(
-    paper_id: int,
+    paper_id: str,
     paper_update: PaperUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2363,14 +2360,12 @@ async def create_shelf(
 
 @app.put("/api/shelves/{shelf_id}", response_model=ShelfOut)
 async def update_shelf(
-    shelf_id: int,
+    shelf_id: str,
     data: ShelfUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    shelf = db.query(Shelf).filter(Shelf.id == shelf_id, Shelf.user_id == current_user.id).first()
-    if not shelf:
-        raise HTTPException(status_code=404, detail="Shelf not found")
+    shelf = _own_shelf_or_404(shelf_id, current_user, db)
     changes = data.model_dump(exclude_unset=True)
     if "name" in changes:
         name = " ".join(changes["name"].split())
@@ -2403,13 +2398,11 @@ async def update_shelf(
 
 @app.delete("/api/shelves/{shelf_id}", status_code=204)
 async def delete_shelf(
-    shelf_id: int,
+    shelf_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    shelf = db.query(Shelf).filter(Shelf.id == shelf_id, Shelf.user_id == current_user.id).first()
-    if not shelf:
-        raise HTTPException(status_code=404, detail="Shelf not found")
+    shelf = _own_shelf_or_404(shelf_id, current_user, db)
     remaining = [item for item in current_user.shelves
                  if item.id != shelf.id and item.deleted_at is None]
     if not remaining:
@@ -2438,7 +2431,7 @@ async def delete_shelf(
 
 @app.delete("/api/papers/{paper_id}")
 async def delete_paper(
-    paper_id: int,
+    paper_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2460,7 +2453,7 @@ async def delete_paper(
 
 @app.post("/api/papers/{paper_id}/add-to-nook", response_model=PaperSchema)
 async def add_to_nook(
-    paper_id: int,
+    paper_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2488,7 +2481,7 @@ async def add_to_nook(
 
 @app.post("/api/papers/{paper_id}/editions", response_model=PaperSchema)
 async def add_paper_edition(
-    paper_id: int,
+    paper_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2534,7 +2527,7 @@ def _named_edition_or_404(paper: Paper, edition_id: int | None) -> PaperEdition:
 
 @app.post("/api/papers/{paper_id}/ignore-edition", response_model=PaperSchema)
 async def ignore_paper_edition(
-    paper_id: int,
+    paper_id: str,
     data: EditionAdopt,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2552,7 +2545,7 @@ async def ignore_paper_edition(
 
 @app.post("/api/papers/{paper_id}/adopt-edition", response_model=PaperSchema)
 async def adopt_paper_edition(
-    paper_id: int,
+    paper_id: str,
     data: EditionAdopt,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2969,13 +2962,13 @@ async def preview_viewer_reference(
     return await preview_pdf_reference(edition.id, data, current_user, db)
 
 
-def _reference_out(reference: EditionReference, papol_paper_id: int | None) -> ReferenceOut:
+def _reference_out(reference: EditionReference, papol_paper_id: str | None) -> ReferenceOut:
     answer = reference_out(reference)
     answer.papol_paper_id = papol_paper_id
     return answer
 
 
-def _papol_papers_for(db: Session, references) -> dict[int, int]:
+def _papol_papers_for(db: Session, references) -> dict[int, str]:
     """Which of these references name a paper Papol already holds.
 
     A reference is worth more when the paper it names is one someone here
@@ -2984,7 +2977,7 @@ def _papol_papers_for(db: Session, references) -> dict[int, int]:
     when two papers are the same paper."""
     by_key = {}
     for paper in db.query(Paper).all():
-        by_key.setdefault(_paper_key_for(paper), paper.id)
+        by_key.setdefault(_paper_key_for(paper), paper.sync_id)
 
     found = {}
     for reference in references:
@@ -3225,7 +3218,7 @@ async def delete_clip(
 
 @app.post("/api/papers/{paper_id}/comments", response_model=CommentSchema)
 async def add_comment(
-    paper_id: int,
+    paper_id: str,
     comment: CommentCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -3244,7 +3237,8 @@ async def add_comment(
         edition = _edition_for(paper, user_copy)
         edition_id = edition.id if edition else None
     db_comment = Comment(
-        paper_id=paper_id,
+        paper_id=paper.id,
+        paper_sync_id=paper.sync_id,
         user_id=current_user.id,
         content=comment.content.strip(),
         page=comment.page,
@@ -3281,7 +3275,7 @@ async def edit_comment(
         db_comment.anchor_type = payload.pop("type")
         db_comment.anchor = json.dumps(payload)
         db_comment.page = comment.page
-        paper = _get_paper_or_404(db_comment.paper_id, db)
+        paper = db.get(Paper, db_comment.paper_id)
         edition = _edition_for(paper, _copy_of(paper, current_user))
         db_comment.edition_id = edition.id if edition else None
     if comment.name is not None:
@@ -3351,7 +3345,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     return RoomDetail(
         **summary.model_dump(),
         paper_title=room.paper_title,
-        paper_id=link_paper.id if link_paper else None,
+        paper_id=link_paper.sync_id if link_paper else None,
         messages=[
             RoomMessageOut.model_validate(m)
             for m in sorted(room.messages, key=lambda m: (m.created_at, m.id))
@@ -3362,13 +3356,13 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
         and any(p.user_id == viewer.id for p in room.participants),
         viewer_is_participant=any(p.user_id == viewer.id for p in room.participants),
         viewer_is_reader=viewer.id in public_readers,
-        viewer_hidden_entry_id=hidden_entry.id if hidden_entry else None,
+        viewer_hidden_entry_id=hidden_entry.sync_id if hidden_entry else None,
     )
 
 
 @app.post("/api/papers/{paper_id}/room", response_model=RoomSummary)
 async def call_seminar(
-    paper_id: int,
+    paper_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

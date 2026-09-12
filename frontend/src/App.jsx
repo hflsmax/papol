@@ -4945,10 +4945,9 @@ function parseRoute() {
   if (match) return routed({ page: 'space', id: parseInt(match[1]), section: 'boards' });
   match = path.match(/^\/u\/(\d+)\/?$/);
   if (match) return routed({ page: 'space', id: parseInt(match[1]) });
-  // Papers are addressed by DOI when they have one (DOIs contain slashes),
-  // falling back to the numeric id.
-  match = path.match(/^\/paper\/(.+)\/?$/);
-  if (match) return routed({ page: 'paper', id: match[1] });
+  // Papers are addressed by their UUID, and only by it.
+  match = path.match(/^\/paper\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
+  if (match) return routed({ page: 'paper', id: match[1].toLowerCase() });
   match = path.match(/^\/room\/(\d+)\/?$/);
   if (match) return routed({ page: 'room', id: parseInt(match[1]) });
   if (path === '/profile') return routed({ page: 'profile' });

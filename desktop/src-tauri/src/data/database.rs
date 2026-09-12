@@ -1343,6 +1343,17 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
                 return Err("Tag name must be 1–60 characters".into());
             }
         }
+    } else if change.table == "copies" {
+        for field in ["rating_expertise", "rating_reading", "rating_liking"] {
+            match change.values.get(field) {
+                None | Some(Value::Null) => {}
+                Some(value)
+                    if value
+                        .as_i64()
+                        .is_some_and(|rating| (1..=5).contains(&rating)) => {}
+                Some(_) => return Err("Ratings must be whole numbers from 1 to 5".into()),
+            }
+        }
     }
     Ok(())
 }
@@ -2800,6 +2811,21 @@ mod tests {
         assert_eq!(status["pending"], 2);
         assert_eq!(status["blocked"], 1);
         assert_eq!(status["attempts"], 1);
+    }
+
+    #[test]
+    fn copy_ratings_are_validated_locally() {
+        let change = |values: Value| DataChange {
+            table: "copies".into(),
+            id: Uuid::new_v4().to_string(),
+            operation: "patch".into(),
+            values: values.as_object().unwrap().clone(),
+        };
+        assert!(validate_domain_values(&change(json!({"rating_reading": 5}))).is_ok());
+        assert!(validate_domain_values(&change(json!({"rating_liking": null}))).is_ok());
+        assert!(validate_domain_values(&change(json!({"rating_liking": 6}))).is_err());
+        assert!(validate_domain_values(&change(json!({"rating_expertise": 2.5}))).is_err());
+        assert!(validate_domain_values(&change(json!({"rating_reading": true}))).is_err());
     }
 
     #[test]

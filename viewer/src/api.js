@@ -25,7 +25,6 @@ configureReplayAuthorization(() => {
 });
 
 const API_BASE = backendPath('/api');
-const paperSyncIds = new Map();
 const editionSyncIds = new Map();
 const activeEditionByPaper = new Map();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -36,7 +35,6 @@ function nativeEditionId(editionId) {
 }
 
 export function rememberPaperIdentity(paper) {
-  if (paper?.id != null && paper.sync_id) paperSyncIds.set(String(paper.id), paper.sync_id);
   for (const edition of paper?.editions || []) {
     if (edition?.id != null && edition.sync_id) editionSyncIds.set(String(edition.id), edition.sync_id);
   }
@@ -85,15 +83,15 @@ export async function getPaperByPdf(hash) {
   if (nativeDataActive()) {
     try {
       const paper = rememberPaperIdentity(paperView(await nativeQuery('paper_by_pdf', { sha256: hash })));
-      paper.comments = (await nativeQuery('comments', { parent_id: paper.sync_id })).map(noteView);
+      paper.comments = (await nativeQuery('comments', { parent_id: paper.id })).map(noteView);
       return paper;
     } catch {
       // A public paper that has not been retained locally still comes from the service.
     }
   }
   const paper = rememberPaperIdentity(await request(`/viewer/${hash}`));
-  if (nativeDataActive() && paper.sync_id) {
-    paper.comments = (await nativeQuery('comments', { parent_id: paper.sync_id })).map(noteView);
+  if (nativeDataActive()) {
+    paper.comments = (await nativeQuery('comments', { parent_id: paper.id })).map(noteView);
   }
   return paper;
 }
@@ -163,14 +161,14 @@ export async function stageBoardClip(boardGuid, { blob, comment, sourceUrl, sour
 // A located note is a note: the same endpoints Papol's own notes use, with
 // a page and an anchor attached.
 export function createNote(paperId, { page, anchor, content }) {
-  if (nativeDataActive() && paperSyncIds.has(String(paperId))) {
+  if (nativeDataActive()) {
     const payload = anchor ? { ...anchor } : null;
     const anchorType = payload?.type || null;
     if (payload) delete payload.type;
     return nativeMutate([{
       table: 'comments', id: uuid(), operation: 'upsert',
       values: {
-        paper_id: paperSyncIds.get(String(paperId)),
+        paper_id: paperId,
         edition_id: activeEditionByPaper.get(String(paperId)) || null,
         page: page ?? null, anchor_type: anchorType,
         anchor: payload ? JSON.stringify(payload) : null, content,

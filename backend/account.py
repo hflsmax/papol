@@ -81,7 +81,7 @@ def _when(value) -> str | None:
 
 def _paper_ref(paper: Paper) -> dict:
     return {
-        "id": paper.id,
+        "id": paper.sync_id,
         "title": paper.title,
         "authors": _authors(paper),
         "journal": paper.journal,

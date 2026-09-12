@@ -38,14 +38,13 @@ const {
 } = await import('./api.js');
 
 rememberPaperIdentity({
-  id: 11,
-  sync_id: '11111111-1111-4111-8111-111111111111',
+  id: '11111111-1111-4111-8111-111111111111',
   edition_sync_id: '22222222-2222-4222-8222-222222222222',
   editions: [{ id: 22, sync_id: '22222222-2222-4222-8222-222222222222' }],
 });
 
 test('viewer notes use native UUID relationships and serialized anchors', async () => {
-  const note = await createNote(11, {
+  const note = await createNote('11111111-1111-4111-8111-111111111111', {
     page: 3, anchor: { type: 'point', x: 0.25, y: 0.5 }, content: 'Offline',
   });
   const call = calls.find(([command, args]) => command === 'data_mutate'
