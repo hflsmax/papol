@@ -4562,7 +4562,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
 .board-toolbar-title[readonly]:focus { border-color: transparent; background: transparent; }
-.board-toolbar-edited { position: absolute; left: 50%; transform: translateX(-50%); color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); user-select: none; white-space: nowrap; }
+.board-toolbar-edited { position: absolute; left: 50%; transform: translateX(-50%); color: var(--ink-faint); cursor: default; font: var(--fs-2xs) var(--font-ui); user-select: none; white-space: nowrap; }
 .board-readonly-badge { padding: 3px 7px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--ink-soft); background: var(--paper); font: 600 var(--fs-2xs) var(--font-ui); text-transform: uppercase; letter-spacing: .04em; }
 .board-toolbar-spacer { flex: 1; }
 .board-toolbar .board-tidy-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink-soft); }
