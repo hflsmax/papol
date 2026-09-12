@@ -1,9 +1,12 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
 
 pub mod data;
 pub mod sync;
+
+static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);
 
 #[tauri::command]
 fn data_query(
@@ -136,9 +139,15 @@ async fn sync_now(
 ) -> Result<sync::SyncResult, String> {
     use tauri::Emitter;
 
+    if ACTIVE_SYNCS.fetch_add(1, Ordering::SeqCst) == 0 {
+        let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": true}));
+    }
     let result = coordinator
         .synchronize(&store, account_id, &backend_url, &token)
         .await;
+    if ACTIVE_SYNCS.fetch_sub(1, Ordering::SeqCst) == 1 {
+        let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": false}));
+    }
     match &result {
         Ok(status) => {
             let _ = app.emit(

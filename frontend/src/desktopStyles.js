@@ -239,6 +239,7 @@ export const desktopStyles = `
 }
 
 .desktop-sync-mark {
+  display: inline-block;
   width: 16px;
   color: var(--accent);
   font-size: 18px;

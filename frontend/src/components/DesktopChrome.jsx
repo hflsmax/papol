@@ -117,6 +117,7 @@ function SyncControl({ onSynced }) {
   const [status, setStatus] = useState(getSyncStatus);
 
   useEffect(() => {
+    let nativeSyncing = false;
     const update = async () => {
       const web = getSyncStatus();
       if (!nativeDataActive()) { setStatus(web); return; }
@@ -124,15 +125,19 @@ function SyncControl({ onSynced }) {
         const local = await nativeQuery('sync_status');
         setStatus({
           ...web,
+          syncing: web.syncing || nativeSyncing,
           pending: web.pending + local.pending,
           error: web.error || local.error || local.outbox_error || null,
           conflicts: local.conflicts || 0,
           lastSynced: local.last_synced_at || web.lastSynced,
         });
-      } catch { setStatus(web); }
+      } catch { setStatus({ ...web, syncing: web.syncing || nativeSyncing }); }
     };
     window.addEventListener('papol-offline-status', update);
-    const unsubscribeNative = subscribeNativeData(update);
+    const unsubscribeNative = subscribeNativeData((nativeStatus) => {
+      if (typeof nativeStatus?.syncing === 'boolean') nativeSyncing = nativeStatus.syncing;
+      update();
+    });
     refreshSyncStatus().then(update).catch(() => {});
     document.getElementById('papol-offline-status')?.remove();
     return () => {
