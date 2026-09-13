@@ -5,20 +5,20 @@ import AutoTextarea from './AutoTextarea';
 import { confirmAction } from '../../../shared/confirmAction';
 
 export default function CommentSection({
-  noteHref, onOpenNote, paperId, comments, currentUser, onCommentChange }) {
+  noteHref, onOpenNote, paperUuid, comments, currentUser, onCommentChange }) {
   const [newComment, setNewComment] = useState('');
   const [composing, setComposing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [editingId, setEditingId] = useState(null);
+  const [editingUuid, setEditingUuid] = useState(null);
   const [draft, setDraft] = useState('');
 
   const saveEdit = async () => {
     if (!draft.trim()) return;
     setError(null);
     try {
-      await updateComment(editingId, draft.trim());
-      setEditingId(null);
+      await updateComment(editingUuid, draft.trim());
+      setEditingUuid(null);
       onCommentChange();
     } catch (err) {
       setError(err.message);
@@ -33,7 +33,7 @@ export default function CommentSection({
     setError(null);
 
     try {
-      await addComment(paperId, newComment.trim());
+      await addComment(paperUuid, newComment.trim());
       setNewComment('');
       setComposing(false);
       onCommentChange();
@@ -44,11 +44,11 @@ export default function CommentSection({
     }
   };
 
-  const handleDelete = async (commentId) => {
+  const handleDelete = async (commentUuid) => {
     if (!(await confirmAction('Delete this comment?', { confirmLabel: 'Delete', destructive: true }))) return;
 
     try {
-      await deleteComment(commentId);
+      await deleteComment(commentUuid);
       onCommentChange();
     } catch (err) {
       setError(err.message);
@@ -114,8 +114,8 @@ export default function CommentSection({
       <div className="comments-list">
         {comments.length > 0 &&
           comments.map((comment) => (
-            <div key={comment.id} className="comment">
-              {editingId === comment.id ? (
+            <div key={comment.uuid} className="comment">
+              {editingUuid === comment.uuid ? (
                 <div className="inline-edit">
                   <AutoTextarea
                     className="inline-edit-box"
@@ -124,7 +124,7 @@ export default function CommentSection({
                     autoFocus
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Escape') setEditingId(null);
+                      if (e.key === 'Escape') setEditingUuid(null);
                     }}
                   />
                   <MarkdownHint />
@@ -132,7 +132,7 @@ export default function CommentSection({
                     <button className="primary" onClick={saveEdit}>
                       Save
                     </button>
-                    <button onClick={() => setEditingId(null)}>Cancel</button>
+                    <button onClick={() => setEditingUuid(null)}>Cancel</button>
                   </div>
                 </div>
               ) : (
@@ -159,13 +159,13 @@ export default function CommentSection({
                       </a>
                     )}
                     <span className="comment-date">{formatDate(comment.created_at)}</span>
-                    {currentUser && comment.user && comment.user.id === currentUser.id && (
+                    {currentUser && comment.user && comment.user.uuid === currentUser.uuid && (
                       <span className="comment-actions">
                         <button
                           className="delete-comment-btn"
                           onClick={() => {
                             setDraft(comment.content);
-                            setEditingId(comment.id);
+                            setEditingUuid(comment.uuid);
                           }}
                           title="Edit note"
                         >
@@ -173,7 +173,7 @@ export default function CommentSection({
                         </button>
                         <button
                           className="delete-comment-btn"
-                          onClick={() => handleDelete(comment.id)}
+                          onClick={() => handleDelete(comment.uuid)}
                           title="Delete note"
                         >
                           Delete

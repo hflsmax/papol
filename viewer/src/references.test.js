@@ -25,17 +25,17 @@ test('consolidates linked range endpoints into one navigable citation', async ()
     getPageIndex: async () => 0,
   };
   const references = Array.from({ length: 7 }, (_, index) => ({
-    id: index + 100, index, page: 1, y: index === 0 ? 0.01 : index === 6 ? 0.07 : 0.04,
+    uuid: index + 100, index, page: 1, y: index === 0 ? 0.01 : index === 6 ? 0.07 : 0.04,
   }));
 
   const overlays = await pageOverlays(doc, 1, { references, citations: [], links: [] });
   assert.equal(overlays.citations.length, 1);
-  assert.deepEqual(overlays.citations[0].referenceIds, [100, 101, 102, 103, 104, 105, 106]);
+  assert.deepEqual(overlays.citations[0].referenceUuids, [100, 101, 102, 103, 104, 105, 106]);
 });
 
 test('consolidates analyzer rows for one continuous citation range', () => {
   const citations = Array.from({ length: 19 }, (_, index) => ({
-    referenceId: 700 + index,
+    referenceUuid: 700 + index,
     label: `[${7 + index}]`,
     x: index === 0 ? 0.4605 : index === 18 ? 0.4688 : 0.4647,
     y: 0.7126,
@@ -47,10 +47,10 @@ test('consolidates analyzer rows for one continuous citation range', () => {
   const consolidated = consolidateCitations(citations);
   assert.equal(consolidated.length, 1);
   assert.deepEqual(
-    consolidated[0].referenceIds,
+    consolidated[0].referenceUuids,
     Array.from({ length: 19 }, (_, index) => 700 + index),
   );
-  assert.equal(consolidated[0].referenceId, 700);
+  assert.equal(consolidated[0].referenceUuid, 700);
 });
 
 test('reads the vertical position from each PDF destination shape', () => {
@@ -64,16 +64,16 @@ test('reads the vertical position from each PDF destination shape', () => {
 
 test('distinguishes tightly spaced references using the raised-link offset', () => {
   const references = [
-    { id: 407, page: 15, y: 0.5584217171717172, title: 'CodeT5' },
-    { id: 398, page: 15, y: 0.5622474747474747, title: 'Synchromesh' },
+    { uuid: 407, page: 15, y: 0.5584217171717172, title: 'CodeT5' },
+    { uuid: 398, page: 15, y: 0.5622474747474747, title: 'Synchromesh' },
   ];
 
   assert.equal(
-    referenceAt(references, { page: 15, y: 0.5515151515151515 }).id,
+    referenceAt(references, { page: 15, y: 0.5515151515151515 }).uuid,
     407,
   );
   assert.equal(
-    referenceAt(references, { page: 15, y: 0.5553472222222222 }).id,
+    referenceAt(references, { page: 15, y: 0.5553472222222222 }).uuid,
     398,
   );
 });

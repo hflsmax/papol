@@ -69,7 +69,7 @@ export default function PapersPage({
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
-    (selectedUser == null || (p.readers || []).some((r) => r.user.id === selectedUser)) &&
+    (selectedUser == null || (p.readers || []).some((r) => r.user.uuid === selectedUser)) &&
     (p.title.toLowerCase().includes(searchLower) ||
       (p.authors && p.authors.toLowerCase().includes(searchLower)) ||
       (p.journal && p.journal.toLowerCase().includes(searchLower)) ||
@@ -82,13 +82,13 @@ export default function PapersPage({
       [
         ...papers.flatMap((paper) => paper.readers || []).map((entry) => entry.user),
         ...boards.map((board) => board.owner).filter(Boolean),
-      ].map((reader) => [reader.id, reader])
+      ].map((reader) => [reader.uuid, reader])
     ).values()
   ).sort((a, b) => a.display_name.localeCompare(b.display_name));
 
   const shown = [...papers.filter(matches)].sort(SORTS[sortBy].cmp);
   const shownBoards = boards.filter((board) =>
-    (selectedUser == null || board.user_id === selectedUser) &&
+    (selectedUser == null || board.user_uuid === selectedUser) &&
     (board.name.toLowerCase().includes(searchLower) ||
       (board.owner?.display_name || '').toLowerCase().includes(searchLower))
   ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
@@ -98,7 +98,7 @@ export default function PapersPage({
       {currentUser && (
         <PaperUpload
           onPaperCreated={(paper) => {
-            if (paper?.id != null) onSelectPaper(paper.id);
+            if (paper?.uuid != null) onSelectPaper(paper.uuid);
             else load();
           }}
           onReviewChange={setReviewingUpload}
@@ -113,7 +113,7 @@ export default function PapersPage({
             <div className="library-reader-filters" aria-label="Filter papers by reader">
               <button className={selectedUser == null ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(null)}>All readers</button>
               {readers.map((reader) => (
-                <button key={reader.id} className={selectedUser === reader.id ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(reader.id)}>
+                <button key={reader.uuid} className={selectedUser === reader.uuid ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(reader.uuid)}>
                   <Avatar user={reader} className="reader-filter-avatar" />
                   <span>{reader.display_name}</span>
                 </button>
@@ -145,20 +145,20 @@ export default function PapersPage({
         ) : (
           <ul className="grouped-papers">
             {shownBoards.map((board) => (
-              <li key={`board-${board.guid}`} className="paper-group nook-board-row library-board-row">
+              <li key={`board-${board.uuid}`} className="paper-group nook-board-row library-board-row">
                 <a
                   className="paper-group-head library-board-link"
-                  href={appPath(`/boards/${board.guid}`)}
+                  href={appPath(`/boards/${board.uuid}`)}
                   data-document
-                  onClick={(event) => { event.preventDefault(); onSelectBoard(board.guid); }}
+                  onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}
                 >
                   <div className="paper-title-row"><h4>{board.name}</h4></div>
                 </a>
-                {board.owner && <a className="avatar-chip has-pop" href={appPath(`/u/${board.owner.id}`)}><Avatar user={board.owner} className="nook-chip-avatar" /><span className="chip-pop"><span className="chip-pop-name">{board.owner.display_name}</span>{board.owner.affiliation && <span className="chip-pop-aff">{board.owner.affiliation}</span>}</span></a>}
+                {board.owner && <a className="avatar-chip has-pop" href={appPath(`/u/${board.owner.uuid}`)}><Avatar user={board.owner} className="nook-chip-avatar" /><span className="chip-pop"><span className="chip-pop-name">{board.owner.display_name}</span>{board.owner.affiliation && <span className="chip-pop-aff">{board.owner.affiliation}</span>}</span></a>}
               </li>
             ))}
             {shown.map((paper) => (
-              <li key={paper.id} className="paper-group">
+              <li key={paper.uuid} className="paper-group">
                 <div className="paper-group-head">
                   {/* Same arrangement as the nook's rows: the pill beside
                       the title rather than inside the heading, so it sits
@@ -184,13 +184,13 @@ export default function PapersPage({
                 <div className="entry-chips">
                   {(paper.readers || []).map((entry) => (
                     <a
-                      key={entry.user.id}
+                      key={entry.user.uuid}
                       className={
                         entry.is_author
                           ? 'avatar-chip has-pop author'
                           : 'avatar-chip has-pop'
                       }
-                      href={appPath(`/u/${entry.user.id}`)}
+                      href={appPath(`/u/${entry.user.uuid}`)}
                     >
                       <Avatar user={entry.user} className="nook-chip-avatar" />
                       <span className="chip-pop">

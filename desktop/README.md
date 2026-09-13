@@ -15,7 +15,7 @@ Files use content-addressed SHA-256 names in a `blobs` directory beside that
 database. A local row change and its outbox entry commit in one SQLite
 transaction; one process-wide coordinator uploads blobs, pushes mutations,
 refreshes bounded paper dependencies, then pulls the server cursor. Remote PDFs
-download lazily when opened. Pending and pinned files are durable; only the
+download lazily when opened. Unsynchronized files are durable; only the
 replaceable cache is subject to the 2 GiB LRU limit and Clear cache.
 
 Offline writes are deliberately limited to data owned by that reader: adding
@@ -23,9 +23,7 @@ or removing a personal PDF, private paper fields, notes, ink, clips, tags, and
 private shelves. All operations on the reader's own boards are supported too,
 including board creation, cards, files, notes, groups, layout, staging, and
 sending excerpts or clips from the viewer. These rows use permanent UUIDs and
-the same synchronized schema locally and remotely. The previous IndexedDB queue
-is a one-release upgrade bridge: it drains through the retry-safe legacy
-protocol before native storage activates and remains intact for rollback.
+the same synchronized schema locally and remotely.
 Shared actions—seminars, public shelf/profile changes, feedback, and administration—show an
 online-required message instead of being queued.
 
@@ -78,7 +76,7 @@ formatting and Clippy's warning-denying lint pass. The release workflow runs
 both before signing and publishing.
 
 The synchronization boundary has two focused suites. From `desktop/`, run
-`npm run test:sync` for the compatibility IndexedDB queue. Run
+`npm run test:sync` for the IndexedDB request queue. Run
 `npm run test:backend-contract` inside the repository's Python development
 environment to exercise the same dependent board operations against FastAPI
 and an isolated in-memory SQLite database. `npm run test:e2e:native-sync`

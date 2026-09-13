@@ -5,15 +5,15 @@ import StatePill from './StatePill';
 import { appPath } from '../base';
 import BackLink from './BackLink';
 
-export default function RoomPage({ roomId, currentUser, onBack, backHref }) {
+export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
   const [room, setRoom] = useState(null);
   const [error, setError] = useState(null);
 
   const load = useCallback(() => {
-    getRoom(roomId)
+    getRoom(roomUuid)
       .then(setRoom)
       .catch((e) => setError(e.message));
-  }, [roomId]);
+  }, [roomUuid]);
 
   useEffect(() => {
     setRoom(null);
@@ -42,8 +42,8 @@ export default function RoomPage({ roomId, currentUser, onBack, backHref }) {
         </div>
         <div className="seminar-head">
           <h2 className="room-title">
-            {room.paper_id ? (
-              <a href={appPath(`/paper/${room.paper_id}`)} title="Open the paper">
+            {room.paper_uuid ? (
+              <a href={appPath(`/paper/${room.paper_uuid}`)} title="Open the paper">
                 {room.paper_title}
               </a>
             ) : (

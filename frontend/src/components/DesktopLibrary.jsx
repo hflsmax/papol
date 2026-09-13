@@ -23,19 +23,19 @@ import { subscribeNativeData } from '../nativeData';
 // The reader's nook, kept loaded for the sidebar and the list. Reloaded on
 // every navigation and whenever the window comes back to the front, since
 // the paper pane edits it underneath.
-export function useNookSpace(userId, refreshKey) {
+export function useNookSpace(userUuid, refreshKey) {
   const [space, setSpace] = useState(null);
-  const currentUserId = useRef(userId);
-  currentUserId.current = userId;
+  const currentUserUuid = useRef(userUuid);
+  currentUserUuid.current = userUuid;
 
   const reload = useCallback(() => {
-    if (!userId) return;
-    getUserSpace(userId)
-      .then((data) => { if (currentUserId.current === userId) setSpace(data); })
+    if (!userUuid) return;
+    getUserSpace(userUuid)
+      .then((data) => { if (currentUserUuid.current === userUuid) setSpace(data); })
       .catch(() => {});
-  }, [userId]);
+  }, [userUuid]);
 
-  useEffect(() => { setSpace(null); }, [userId]);
+  useEffect(() => { setSpace(null); }, [userUuid]);
   useEffect(() => { reload(); }, [reload, refreshKey]);
   useEffect(() => {
     window.addEventListener('focus', reload);
@@ -57,19 +57,19 @@ export function DesktopBrowser({
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
-  const [draggingId, setDraggingId] = useState(null);
+  const [draggingUuid, setDraggingUuid] = useState(null);
   const [actionError, setActionError] = useState(null);
   const listRef = useRef(null);
-  const paperId = route.page === 'paper' ? route.id : null;
-  const selectedKey = paperId;
-  const isSelected = (paper) => selectedKey != null && paper.id === selectedKey;
+  const paperUuid = route.page === 'paper' ? route.uuid : null;
+  const selectedKey = paperUuid;
+  const isSelected = (paper) => selectedKey != null && paper.uuid === selectedKey;
 
   useEffect(() => {
     if (route.page !== 'paper') rememberSource(source);
   }, [route.page, source]);
 
   useEffect(() => { setSearch(''); }, [source]);
-  useEffect(() => { setComposer(null); }, [paperId, source]);
+  useEffect(() => { setComposer(null); }, [paperUuid, source]);
   useEffect(() => {
     if (incomingPaperFile) setComposer('paper');
   }, [incomingPaperFile]);
@@ -119,17 +119,17 @@ export function DesktopBrowser({
 
   const canCompose = Boolean(space) && !libraryView;
   const sourceHome = () => onNavigate(sourcePath(source));
-  const movePaper = async (paper, shelfId) => {
+  const movePaper = async (paper, shelfUuid) => {
     setActionError(null);
     try {
-      await updatePaper(paper.id, { shelf_id: shelfId });
+      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
       reload();
     } catch (error) { setActionError(error.message); }
   };
-  const moveBoard = async (board, shelfId) => {
+  const moveBoard = async (board, shelfUuid) => {
     setActionError(null);
     try {
-      await updateBoard(board.guid, { shelf_id: shelfId });
+      await updateBoard(board.uuid, { shelf_uuid: shelfUuid });
       reload();
     } catch (error) { setActionError(error.message); }
   };
@@ -137,7 +137,7 @@ export function DesktopBrowser({
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     setActionError(null);
     try {
-      await deletePaper(paper.id);
+      await deletePaper(paper.uuid);
       if (isSelected(paper)) sourceHome();
       reload();
     } catch (error) { setActionError(error.message); }
@@ -146,7 +146,7 @@ export function DesktopBrowser({
     if (!(await confirmAction(`Delete “${board.name}”? This cannot be undone.`, { confirmLabel: 'Delete board', destructive: true }))) return;
     setActionError(null);
     try {
-      await deleteBoard(board.guid);
+      await deleteBoard(board.uuid);
       reload();
     } catch (error) { setActionError(error.message); }
   };
@@ -159,7 +159,7 @@ export function DesktopBrowser({
     const step = event.key === 'ArrowDown' ? 1 : -1;
     const next = index < 0 ? 0 : Math.min(shownPapers.length - 1, Math.max(0, index + step));
     if (next === index) return;
-    onNavigate(`/paper/${shownPapers[next].id}`, { replace: route.page === 'paper' });
+    onNavigate(`/paper/${shownPapers[next].uuid}`, { replace: route.page === 'paper' });
   };
 
   let emptyList = null;
@@ -186,7 +186,7 @@ export function DesktopBrowser({
             onPaperCreated={(paper) => {
               setComposer(null);
               reload();
-              if (paper?.id != null) onNavigate(`/paper/${paper.id}`);
+              if (paper?.uuid != null) onNavigate(`/paper/${paper.uuid}`);
             }}
             incomingFile={incomingPaperFile}
             onIncomingFileHandled={onIncomingPaperFileHandled}
@@ -200,27 +200,27 @@ export function DesktopBrowser({
         <div className="desktop-content">
           <BoardCreateForm
             shelves={shelves}
-            onCreated={(board) => onOpenBoard(board.guid)}
+            onCreated={(board) => onOpenBoard(board.uuid)}
             onCancel={() => setComposer(null)}
           />
         </div>
       </div>
     );
-  } else if (paperId != null) {
+  } else if (paperUuid != null) {
     detail = (
       <div className="desktop-scroll">
         <div className="desktop-content">
           <PaperDetail
             // Moving the paper to another shelf from the sidebar reloads it,
             // so its own shelf control never shows the old shelf.
-            key={`${paperId}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_id ?? ''}`}
-            paperId={paperId}
+            key={`${paperUuid}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_uuid ?? ''}`}
+            paperUuid={paperUuid}
             currentUser={currentUser}
             hideBack
             onBack={sourceHome}
             onChanged={reload}
             onRead={openReader}
-            onSelectPaper={(id) => onNavigate(`/paper/${id}`)}
+            onSelectPaper={(uuid) => onNavigate(`/paper/${uuid}`)}
           />
         </div>
       </div>
@@ -276,21 +276,21 @@ export function DesktopBrowser({
           ) : boardsView ? (
             shownBoards.map((board) => (
               <a
-                key={board.guid}
+                key={board.uuid}
                 className="desktop-row"
-                href={appPath(`/boards/${board.guid}`)}
+                href={appPath(`/boards/${board.uuid}`)}
                 data-document
                 draggable="false"
-                onClick={(event) => { event.preventDefault(); onOpenBoard(board.guid); }}
+                onClick={(event) => { event.preventDefault(); onOpenBoard(board.uuid); }}
                 onContextMenu={contextMenuHandler(() => [
-                  { label: 'Open Board', onSelect: () => onOpenBoard(board.guid) },
+                  { label: 'Open Board', onSelect: () => onOpenBoard(board.uuid) },
                   shelves.length > 0 && { separator: true },
                   shelves.length > 0 && {
                     label: 'Move to Shelf',
                     submenu: shelves.map((item) => ({
                       label: item.name,
-                      checked: item.id === board.shelf_id,
-                      onSelect: () => item.id !== board.shelf_id && moveBoard(board, item.id),
+                      checked: item.uuid === board.shelf_uuid,
+                      onSelect: () => item.uuid !== board.shelf_uuid && moveBoard(board, item.uuid),
                     })),
                   },
                   { separator: true },
@@ -299,7 +299,7 @@ export function DesktopBrowser({
               >
                 <span
                   className="desktop-row-swatch"
-                  style={{ background: shelves.find((item) => item.id === board.shelf_id)?.color || 'var(--line-strong)' }}
+                  style={{ background: shelves.find((item) => item.uuid === board.shelf_uuid)?.color || 'var(--line-strong)' }}
                   aria-hidden="true"
                 />
                 <span className="desktop-row-body">
@@ -314,12 +314,12 @@ export function DesktopBrowser({
           ) : (
             shownPapers.map((paper) => {
               const selected = isSelected(paper);
-              const shelfColor = libraryView ? null : shelves.find((item) => item.id === paper.shelf_id)?.color;
+              const shelfColor = libraryView ? null : shelves.find((item) => item.uuid === paper.shelf_uuid)?.color;
               const readers = paper.readers?.length || 0;
               return (
                 <a
-                  key={paper.id}
-                  className={`desktop-row${selected ? ' selected' : ''}${draggingId === paper.id ? ' dragging' : ''}`}
+                  key={paper.uuid}
+                  className={`desktop-row${selected ? ' selected' : ''}${draggingUuid === paper.uuid ? ' dragging' : ''}`}
                   href={paperHref(paper)}
                   aria-current={selected ? 'true' : undefined}
                   // A paper in the reader's own nook can be dropped on one of
@@ -327,20 +327,20 @@ export function DesktopBrowser({
                   draggable={libraryView ? 'false' : 'true'}
                   onDragStart={libraryView ? undefined : (event) => {
                     event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ id: paper.id, shelfId: paper.shelf_id }));
+                    event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ uuid: paper.uuid, shelfUuid: paper.shelf_uuid }));
                     event.dataTransfer.setData('text/plain', paper.title);
-                    setDraggingId(paper.id);
+                    setDraggingUuid(paper.uuid);
                   }}
-                  onDragEnd={() => setDraggingId(null)}
+                  onDragEnd={() => setDraggingUuid(null)}
                   onContextMenu={contextMenuHandler(() => [
-                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paper.id}`) },
+                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paper.uuid}`) },
                     !libraryView && shelves.length > 0 && { separator: true },
                     !libraryView && shelves.length > 0 && {
                       label: 'Move to Shelf',
                       submenu: shelves.map((item) => ({
                         label: item.name,
-                        checked: item.id === paper.shelf_id,
-                        onSelect: () => item.id !== paper.shelf_id && movePaper(paper, item.id),
+                        checked: item.uuid === paper.shelf_uuid,
+                        onSelect: () => item.uuid !== paper.shelf_uuid && movePaper(paper, item.uuid),
                       })),
                     },
                     !libraryView && { separator: true },

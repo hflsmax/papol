@@ -2,14 +2,14 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  clearOfflineData, getLocalSyncPreference, refreshSyncStatus, setLocalSyncPreference,
-  syncOfflineQueue,
+  clearOfflineData, getLocalSyncPreference, setLocalSyncPreference, syncOfflineQueue,
 } from '../../shared/offlineStore.js';
 import { BACKEND_BASE } from './base.js';
 import { currentCredential } from '../../shared/credentials.js';
 
-const ACCOUNT_KEY = 'papol.localAccountId';
-const PENDING_ACCOUNT_KEY = 'papol.pendingNativeAccountId';
+const ACCOUNT_KEY = 'papol.localAccountUuid';
+// Accounts are named by UUID; anything else in storage is not an account.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let scheduledSync = null;
 
 function nativeBackendUrl() {
@@ -22,60 +22,37 @@ function nativeBackendUrl() {
 
 export function setNativeAccount(user) {
   if (!IS_DESKTOP) return;
-  if (user?.id != null) localStorage.setItem(ACCOUNT_KEY, String(user.id));
-  else {
-    localStorage.removeItem(ACCOUNT_KEY);
-    localStorage.removeItem(PENDING_ACCOUNT_KEY);
-  }
+  if (user?.uuid != null) localStorage.setItem(ACCOUNT_KEY, String(user.uuid));
+  else localStorage.removeItem(ACCOUNT_KEY);
 }
 
 export async function prepareNativeAccount(user) {
-  if (!IS_DESKTOP || user?.id == null) return false;
-  await invoke('local_account_set', { accountId: user.id, profile: user });
-  const compatibility = await refreshSyncStatus();
-  if (compatibility.pending > 0) {
-    localStorage.setItem(PENDING_ACCOUNT_KEY, String(user.id));
-    localStorage.removeItem(ACCOUNT_KEY);
-    return false;
-  }
+  if (!IS_DESKTOP || user?.uuid == null) return false;
+  await invoke('local_account_set', { accountUuid: user.uuid, profile: user });
   setNativeAccount(user);
-  localStorage.removeItem(PENDING_ACCOUNT_KEY);
   return true;
 }
 
-export async function activateNativeAfterLegacyDrain() {
-  if (!IS_DESKTOP || nativeDataActive()) return nativeDataActive();
-  const pendingAccount = Number(localStorage.getItem(PENDING_ACCOUNT_KEY));
-  if (!Number.isSafeInteger(pendingAccount) || pendingAccount < 1) return false;
-  const compatibility = await refreshSyncStatus();
-  if (compatibility.pending > 0) return false;
-  localStorage.setItem(ACCOUNT_KEY, String(pendingAccount));
-  localStorage.removeItem(PENDING_ACCOUNT_KEY);
-  await nativeSyncNow();
-  window.dispatchEvent(new Event('papol-offline-status'));
-  return true;
-}
-
-export function nativeAccountId() {
+export function nativeAccountUuid() {
   if (!IS_DESKTOP) return null;
-  const value = Number(localStorage.getItem(ACCOUNT_KEY));
-  return Number.isSafeInteger(value) && value > 0 ? value : null;
+  const value = localStorage.getItem(ACCOUNT_KEY);
+  return UUID.test(value || '') ? value : null;
 }
 
 export function nativeDataActive() {
-  return nativeAccountId() != null;
+  return nativeAccountUuid() != null;
 }
 
 export async function nativeQuery(queryName, parameters = {}) {
-  const accountId = nativeAccountId();
-  if (accountId == null) throw new Error('Local data requires a signed-in account');
-  return invoke('data_query', { accountId, queryName, parameters });
+  const accountUuid = nativeAccountUuid();
+  if (accountUuid == null) throw new Error('Local data requires a signed-in account');
+  return invoke('data_query', { accountUuid, queryName, parameters });
 }
 
 export async function nativeMutate(changes) {
-  const accountId = nativeAccountId();
-  if (accountId == null) throw new Error('Local data requires a signed-in account');
-  const receipt = await invoke('data_mutate', { accountId, changes });
+  const accountUuid = nativeAccountUuid();
+  if (accountUuid == null) throw new Error('Local data requires a signed-in account');
+  const receipt = await invoke('data_mutate', { accountUuid, changes });
   window.dispatchEvent(new Event('papol-offline-status'));
   if (getLocalSyncPreference() === 'automatic') scheduleNativeSync();
   return receipt;
@@ -105,12 +82,12 @@ export async function clearNativeData() {
   return removed;
 }
 
-export async function removeNativeAccount(accountId) {
-  if (!IS_DESKTOP || !Number.isSafeInteger(Number(accountId))) return 0;
-  // IndexedDB is only an upgrade bridge and is not reliably account-keyed.
-  // Clear it in full so no response or queued mutation survives sign-out.
+export async function removeNativeAccount(accountUuid) {
+  if (!IS_DESKTOP || !UUID.test(accountUuid || '')) return 0;
+  // IndexedDB is not keyed by account. Clear it in full so no response or
+  // queued request survives sign-out.
   await clearOfflineData();
-  const removed = await invoke('local_account_remove', { accountId: Number(accountId) });
+  const removed = await invoke('local_account_remove', { accountUuid });
   return removed;
 }
 
@@ -119,12 +96,12 @@ export function discardNativeBlob(sha256) {
 }
 
 export async function nativeSyncNow() {
-  const accountId = nativeAccountId();
+  const accountUuid = nativeAccountUuid();
   const token = currentCredential();
-  if (!IS_DESKTOP || accountId == null || !token) return null;
+  if (!IS_DESKTOP || accountUuid == null || !token) return null;
   try {
     return await invoke('sync_now', {
-      accountId,
+      accountUuid,
       backendUrl: nativeBackendUrl(),
       token,
     });
@@ -136,15 +113,14 @@ export async function nativeSyncNow() {
 }
 
 // A user-initiated sync, from the sidebar or Settings: drain the IndexedDB
-// compatibility queue first, then the native replica. Resolves to the first
+// request queue first, then the native replica. Resolves to the first
 // failure message, or null.
 export async function syncAllNow() {
-  const compatibility = await Promise.allSettled([syncOfflineQueue()]);
-  await activateNativeAfterLegacyDrain().catch(() => false);
+  const queued = await Promise.allSettled([syncOfflineQueue()]);
   const native = await Promise.allSettled([
     nativeDataActive() ? nativeSyncNow() : Promise.resolve(),
   ]);
-  const failure = [...compatibility, ...native].find((result) => result.status === 'rejected');
+  const failure = [...queued, ...native].find((result) => result.status === 'rejected');
   if (failure) return failure.reason?.message || String(failure.reason);
   try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
   return null;
@@ -206,7 +182,7 @@ function subscribeNativeEvents(eventNames, listener) {
   };
 }
 
-export function uuid() {
+export function newUuid() {
   return globalThis.crypto.randomUUID();
 }
 
@@ -220,7 +196,6 @@ export function boardView(row, detail = false) {
   const stagedItems = (row.staged_items || []).map(item);
   return {
     ...row,
-    guid: row.id,
     can_edit: true,
     item_count: detail ? items.length : (row.item_count || 0),
     items: detail ? items : [],
@@ -285,9 +260,6 @@ if (typeof window !== 'undefined' && IS_DESKTOP) {
   hydrateNativeSyncPreference().catch(() => {});
   window.addEventListener('online', () => {
     scheduleAutomaticNativeSync();
-  });
-  window.addEventListener('papol-offline-status', () => {
-    activateNativeAfterLegacyDrain().catch(() => {});
   });
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {

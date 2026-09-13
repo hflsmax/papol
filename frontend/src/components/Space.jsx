@@ -7,7 +7,7 @@ import BackLink from './BackLink';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
 
-export default function Space({ userId, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
+export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
   const [space, setSpace] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,43 +17,43 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [section, setSection] = useState(() => {
     if (initialSection) return initialSection;
-    try { return sessionStorage.getItem(`papol_nook_section_${userId}`) || 'papers'; }
+    try { return sessionStorage.getItem(`papol_nook_section_${userUuid}`) || 'papers'; }
     catch { return 'papers'; }
   });
 
-  const isOwn = currentUser != null && currentUser.id === userId;
+  const isOwn = currentUser != null && currentUser.uuid === userUuid;
   const selectSection = (next) => {
     setSection(next);
-    try { sessionStorage.setItem(`papol_nook_section_${userId}`, next); }
+    try { sessionStorage.setItem(`papol_nook_section_${userUuid}`, next); }
     catch { /* session storage may be disabled */ }
   };
 
   useEffect(() => {
     const next = initialSection || (() => {
-      try { return sessionStorage.getItem(`papol_nook_section_${userId}`); }
+      try { return sessionStorage.getItem(`papol_nook_section_${userUuid}`); }
       catch { return null; }
     })() || 'papers';
     setSection(next);
     if (initialSection) {
-      try { sessionStorage.setItem(`papol_nook_section_${userId}`, initialSection); }
+      try { sessionStorage.setItem(`papol_nook_section_${userUuid}`, initialSection); }
       catch { /* session storage may be disabled */ }
     }
-  }, [userId, initialSection]);
+  }, [userUuid, initialSection]);
 
   const loadSpace = useCallback(() => {
     setError(null);
-    getUserSpace(userId)
+    getUserSpace(userUuid)
       .then(setSpace)
       .catch((err) => setError(err.message))
       .finally(() => setIsLoading(false));
-  }, [userId]);
+  }, [userUuid]);
 
   useEffect(() => {
     let active = true;
     setIsLoading(true);
     setSpace(null);
     setError(null);
-    getUserSpace(userId)
+    getUserSpace(userUuid)
       .then((data) => {
         if (active) setSpace(data);
       })
@@ -66,7 +66,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userUuid]);
 
   if (isLoading) return <div className="loading">Loading nook…</div>;
   if (error) return <div className="error">{error}</div>;
@@ -115,7 +115,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
               <PaperUpload
                 compact
                 onPaperCreated={(paper) => {
-                  if (paper?.id != null && onSelectPaper) onSelectPaper(paper.id);
+                  if (paper?.uuid != null && onSelectPaper) onSelectPaper(paper.uuid);
                   else loadSpace();
                 }}
                 onReviewChange={setReviewingUpload}
@@ -129,7 +129,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
         <BoardCreateForm
           className="nook-inline-board-create"
           shelves={space.shelves}
-          onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.guid); }}
+          onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.uuid); }}
           onCancel={() => setCreatingBoard(false)}
         />
       )}
@@ -140,7 +140,7 @@ export default function Space({ userId, currentUser, onSelectPaper, onSelectBoar
           setSpace={setSpace}
           onChanged={loadSpace}
           onClose={() => setManagingShelves(false)}
-          onTagDeleted={(tagId) => { if (selectedTag === tagId) setSelectedTag(null); }}
+          onTagDeleted={(tagUuid) => { if (selectedTag === tagUuid) setSelectedTag(null); }}
         />
       )}
 

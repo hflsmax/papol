@@ -30,7 +30,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
   const [actionError, setActionError] = useState(null);
   const [message, setMessage] = useState('');
   const [availability, setAvailability] = useState(() => {
-    const mine = room.availabilities.find((a) => a.user.id === currentUser.id);
+    const mine = room.availabilities.find((a) => a.user.uuid === currentUser.uuid);
     return mine ? mine.availability : '';
   });
   const [announceTime, setAnnounceTime] = useState('');
@@ -63,7 +63,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leadWarning, setLeadWarning] = useState(null);
   const [joinWarning, setJoinWarning] = useState(null);
-  const [successorId, setSuccessorId] = useState('');
+  const [successorUuid, setSuccessorUuid] = useState('');
 
   const run = (fn) => async () => {
     setActionError(null);
@@ -78,10 +78,10 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
     }
   };
 
-  const isLeader = room.leader && room.leader.id === currentUser.id;
-  const myAvail = room.availabilities.find((a) => a.user.id === currentUser.id);
+  const isLeader = room.leader && room.leader.uuid === currentUser.uuid;
+  const myAvail = room.availabilities.find((a) => a.user.uuid === currentUser.uuid);
 
-  const leadsRoom = (u) => room.leader && u.id === room.leader.id;
+  const leadsRoom = (u) => room.leader && u.uuid === room.leader.uuid;
   const participants = [...room.participants].sort(
     (a, b) => leadsRoom(b) - leadsRoom(a)
   );
@@ -109,7 +109,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                   setLeadWarning(null);
                   setIsBusy(true);
                   try {
-                    onRoomChange(await leadRoom(room.id));
+                    onRoomChange(await leadRoom(room.uuid));
                   } catch (e) {
                     setLeadWarning(e.message);
                   } finally {
@@ -243,7 +243,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               }
               run(async () => {
                 const updated = await announceRoom(
-                  room.id,
+                  room.uuid,
                   announceTime.trim(),
                   announcePlatform.trim(),
                   chosenStyle,
@@ -262,7 +262,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
             <button
               disabled={isBusy}
               title="Return the seminar to waiting for a host"
-              onClick={run(() => unhostRoom(room.id))}
+              onClick={run(() => unhostRoom(room.uuid))}
             >
               Step back from hosting
             </button>
@@ -291,7 +291,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               <button
                 className="stage-action"
                 disabled={isBusy}
-                onClick={run(() => finishRoom(room.id))}
+                onClick={run(() => finishRoom(room.uuid))}
               >
                 Mark as finished
               </button>
@@ -311,7 +311,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
         </div>
       )}
 
-      {room.viewer_hidden_entry_id && (
+      {room.viewer_hidden_entry_uuid && (
         <div className="room-hidden-note">
           Your entry is hidden.{' '}
           <button
@@ -321,7 +321,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               setActionError(null);
               setIsBusy(true);
               try {
-                await updatePaper(room.viewer_hidden_entry_id, { marketed: true });
+                await updatePaper(room.viewer_hidden_entry_uuid, { marketed: true });
                 onReload();
               } catch (e) {
                 setActionError(e.message);
@@ -342,9 +342,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
         <div className="participant-chips">
           {participants.map((u) => (
             <a
-              key={u.id}
+              key={u.uuid}
               className={leadsRoom(u) ? 'participant-chip leader' : 'participant-chip'}
-              href={appPath(`/u/${u.id}`)}
+              href={appPath(`/u/${u.uuid}`)}
               title={
                 leadsRoom(u)
                   ? `${u.display_name} hosts this seminar`
@@ -354,7 +354,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               <Avatar user={u} className="entry-avatar" />
               <span>{u.display_name}</span>
               {leadsRoom(u) && <span className="leader-star">★</span>}
-              {u.id === currentUser.id && room.viewer_is_participant && (
+              {u.uuid === currentUser.uuid && room.viewer_is_participant && (
                 <button
                   className="chip-x"
                   title="Leave the cohort"
@@ -366,7 +366,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                     if (isLeader && room.status !== 'finished') {
                       setLeaveOpen((v) => !v);
                     } else {
-                      run(() => leaveRoom(room.id))();
+                      run(() => leaveRoom(room.uuid))();
                     }
                   }}
                 >
@@ -385,7 +385,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                   setJoinWarning(null);
                   setIsBusy(true);
                   try {
-                    onRoomChange(await joinRoom(room.id));
+                    onRoomChange(await joinRoom(room.uuid));
                   } catch (e) {
                     setJoinWarning(e.message);
                   } finally {
@@ -406,7 +406,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
         </div>
         {leaveOpen && isLeader && room.status !== 'finished' && (
           <div className="leave-handoff">
-            {participants.filter((u) => u.id !== currentUser.id).length === 0 ? (
+            {participants.filter((u) => u.uuid !== currentUser.uuid).length === 0 ? (
               <p className="stage-hint">
                 You host this seminar and no one else is in the cohort — there
                 is no one to hand hosting to, so you cannot leave yet.
@@ -415,22 +415,22 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               <>
                 <label>Hand hosting to</label>
                 <select
-                  value={successorId}
-                  onChange={(e) => setSuccessorId(e.target.value)}
+                  value={successorUuid}
+                  onChange={(e) => setSuccessorUuid(e.target.value)}
                 >
                   <option value=""></option>
                   {participants
-                    .filter((u) => u.id !== currentUser.id)
+                    .filter((u) => u.uuid !== currentUser.uuid)
                     .map((u) => (
-                      <option key={u.id} value={u.id}>
+                      <option key={u.uuid} value={u.uuid}>
                         {u.display_name}
                       </option>
                     ))}
                 </select>
                 <button
                   className="primary"
-                  disabled={isBusy || !successorId}
-                  onClick={run(() => leaveRoom(room.id, parseInt(successorId)))}
+                  disabled={isBusy || !successorUuid}
+                  onClick={run(() => leaveRoom(room.uuid, successorUuid))}
                 >
                   Hand over &amp; leave
                 </button>
@@ -447,10 +447,10 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
 
           <ul className="availability-all">
             {participants.map((u) => {
-              const entry = room.availabilities.find((a) => a.user.id === u.id);
-              const isMe = u.id === currentUser.id && room.viewer_is_participant;
+              const entry = room.availabilities.find((a) => a.user.uuid === u.uuid);
+              const isMe = u.uuid === currentUser.uuid && room.viewer_is_participant;
               return (
-                <li key={u.id}>
+                <li key={u.uuid}>
                   <Avatar user={u} className="entry-avatar" />
                   <div className="avail-body">
                     <strong>
@@ -473,7 +473,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                             availability.trim() === (entry?.availability || '')
                           }
                           onClick={run(() =>
-                            setRoomAvailability(room.id, availability.trim())
+                            setRoomAvailability(room.uuid, availability.trim())
                           )}
                         >
                           {entry ? 'Update' : 'Save'}
@@ -504,7 +504,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
             <p className="no-comments">No messages yet.</p>
           ) : (
             room.messages.map((m) => (
-              <div key={m.id} className="room-message">
+              <div key={m.uuid} className="room-message">
                 <Avatar user={m.user} className="entry-avatar" />
                 <div className="room-message-body">
                   <p className="room-message-meta">
@@ -532,7 +532,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               className="primary"
               disabled={isBusy || !message.trim()}
               onClick={run(async () => {
-                const updated = await postRoomMessage(room.id, message.trim());
+                const updated = await postRoomMessage(room.uuid, message.trim());
                 setMessage('');
                 return updated;
               })}

@@ -40,7 +40,7 @@ def verify_password(password: str, stored: str) -> bool:
 
 def create_token(db: Session, user: User) -> str:
     token = secrets.token_hex(32)
-    db.add(AuthToken(token=token, user_id=user.id))
+    db.add(AuthToken(token=token, user_uuid=user.uuid))
     db.commit()
     return token
 

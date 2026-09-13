@@ -403,9 +403,9 @@ function PdfPage({
   scale,
   renderScaleStore,
   notes,
-  activeNoteId,
+  activeNoteUuid,
   analysis,
-  openReferenceId,
+  openReferenceUuid,
   onOpenReference,
   onFollowLink,
   onSelectNote,
@@ -434,7 +434,7 @@ function PdfPage({
   onUpdateClip,
   onCommitClip,
   onRemoveClip,
-  selectedClipId,
+  selectedClipUuid,
   onSelectClip,
   onSendClip,
   onMoveStroke,
@@ -1061,7 +1061,7 @@ function PdfPage({
       y: page.top + (1 - note.anchor.y) * page.height,
     };
     dragRef.current = {
-      id: note.id,
+      uuid: note.uuid,
       from: { x: e.clientX, y: e.clientY },
       anchor: note.anchor,
       page: pageNumber,
@@ -1071,7 +1071,7 @@ function PdfPage({
       pointer: { x: e.clientX, y: e.clientY },
       moved: false,
     };
-    setDrag({ id: note.id, anchor: note.anchor, moved: false });
+    setDrag({ uuid: note.uuid, anchor: note.anchor, moved: false });
   };
 
   const updateDraggedAnchor = (d) => {
@@ -1086,7 +1086,7 @@ function PdfPage({
       d.anchor = spot.anchor;
     }
     d.screen = { x: d.pointer.x - d.grab.x, y: d.pointer.y - d.grab.y };
-    setDrag({ id: d.id, page: d.page, anchor: d.anchor, screen: d.screen, moved: d.moved });
+    setDrag({ uuid: d.uuid, page: d.page, anchor: d.anchor, screen: d.screen, moved: d.moved });
   };
 
   const scrollWhileDragging = () => {
@@ -1127,7 +1127,7 @@ function PdfPage({
     if (d.moved && dragScrollRef.current == null) {
       dragScrollRef.current = requestAnimationFrame(scrollWhileDragging);
     }
-    if (d.moved) onDragNote(d.id);
+    if (d.moved) onDragNote(d.uuid);
   };
 
   const endDrag = (e, note) => {
@@ -1144,7 +1144,7 @@ function PdfPage({
     if (!d) return;
     draggedRef.current = d.moved;
     if (d.moved) {
-      onMoveNote(note.id, d.spot);
+      onMoveNote(note.uuid, d.spot);
       onSelectNote(null);
     }
     // A click that did not drag opens the menu — and it is left to the
@@ -1360,16 +1360,16 @@ function PdfPage({
     const inkObjects = new Set();
     for (const stroke of ink) {
       if (nearStroke(stroke.points, at, ERASE_REACH)) {
-        inkObjects.add(stroke.group_id ? `group:${stroke.group_id}` : `stroke:${stroke.id}`);
+        inkObjects.add(stroke.group_uuid ? `group:${stroke.group_uuid}` : `stroke:${stroke.uuid}`);
       }
     }
     for (const stroke of ink) {
-      const object = stroke.group_id ? `group:${stroke.group_id}` : `stroke:${stroke.id}`;
-      if (inkObjects.has(object)) found.ink.push(stroke.id);
+      const object = stroke.group_uuid ? `group:${stroke.group_uuid}` : `stroke:${stroke.uuid}`;
+      if (inkObjects.has(object)) found.ink.push(stroke.uuid);
     }
     for (const note of notes) {
       if (note.content || !note.anchor) continue;
-      if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.id);
+      if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.uuid);
     }
     for (const animalRecord of animals) {
       if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) found.animals.push(animalRecord.id);
@@ -1379,7 +1379,7 @@ function PdfPage({
 
   const eraseUnder = (at) => {
     for (const stroke of ink) {
-      if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.id);
+      if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.uuid);
     }
     // An anchor is a mark on the page, so the eraser takes it. What it does
     // not take is a note with words in it: that is
@@ -1387,7 +1387,7 @@ function PdfPage({
     // lose it. Those are still deleted from the pin's own menu.
     for (const note of notes) {
       if (note.content || !note.anchor) continue;
-      if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.id);
+      if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.uuid);
     }
     for (const animalRecord of animals) {
       if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) onEraseAnimal(animalRecord.id);
@@ -1644,14 +1644,14 @@ function PdfPage({
     onSelectInk(stroke);
     e.currentTarget.setPointerCapture(e.pointerId);
     inkDragRef.current = {
-      id: stroke.id,
-      groupId: stroke.group_id,
+      uuid: stroke.uuid,
+      groupUuid: stroke.group_uuid,
       points: stroke.points,
       from: anchorAt(e.clientX, e.clientY),
       by: { x: 0, y: 0 },
       moved: false,
     };
-    setInkDrag({ id: stroke.id, groupId: stroke.group_id, by: { x: 0, y: 0 } });
+    setInkDrag({ uuid: stroke.uuid, groupUuid: stroke.group_uuid, by: { x: 0, y: 0 } });
   };
 
   // No slop here, unlike the pin's drag. A pin needs one because a click on
@@ -1669,7 +1669,7 @@ function PdfPage({
     if (by.x === 0 && by.y === 0) return;
     d.moved = true;
     d.by = by;
-    setInkDrag({ id: d.id, groupId: d.groupId, by });
+    setInkDrag({ uuid: d.uuid, groupUuid: d.groupUuid, by });
   };
 
   const endInkDrag = (e) => {
@@ -1680,7 +1680,7 @@ function PdfPage({
     e.stopPropagation();
     const clamp = (v) => Math.min(1, Math.max(0, v));
     onMoveStroke(
-      d.id,
+      d.uuid,
       d.points.map((pt) => ({ x: clamp(pt.x + d.by.x), y: clamp(pt.y + d.by.y) }))
     );
     onSelectInk(null);
@@ -1689,9 +1689,9 @@ function PdfPage({
   // Where a stroke is being drawn right now: its own points, plus however
   // far it has been carried.
   const shifted = (stroke) =>
-    (inkDrag?.groupId
-      ? inkDrag.groupId === stroke.group_id
-      : inkDrag?.id === stroke.id)
+    (inkDrag?.groupUuid
+      ? inkDrag.groupUuid === stroke.group_uuid
+      : inkDrag?.uuid === stroke.uuid)
       ? stroke.points.map((pt) => ({ x: pt.x + inkDrag.by.x, y: pt.y + inkDrag.by.y }))
       : stroke.points;
 
@@ -1983,7 +1983,7 @@ function PdfPage({
       draggedRef.current = false;
       return;
     }
-    onSelectNote(note.id);
+    onSelectNote(note.uuid);
   };
 
   const stretch = scale / renderScale;
@@ -2043,7 +2043,7 @@ function PdfPage({
         const cite = citations[index];
         const anchor = holderRef.current.querySelector(`[data-citation-index="${index}"]`);
         if (!anchor) return;
-        onOpenReference(cite.referenceId, anchor, cite.reference || null, cite.referenceIds);
+        onOpenReference(cite.referenceUuid, anchor, cite.reference || null, cite.referenceUuids);
       }}
       data-page={pageNumber}
       data-page-width={size.width || undefined}
@@ -2101,29 +2101,29 @@ function PdfPage({
               </g>
             )}
             {ink.map((stroke) => {
-              const going = doomed.ink.includes(stroke.id);
-              const object = stroke.group_id
-                ? `group:${stroke.group_id}`
-                : `stroke:${stroke.id}`;
+              const going = doomed.ink.includes(stroke.uuid);
+              const object = stroke.group_uuid
+                ? `group:${stroke.group_uuid}`
+                : `stroke:${stroke.uuid}`;
               const eraserSelected = hoveredInkObjects.includes(object);
               const selected = selectedInk && (
-                selectedInk.groupId
-                  ? selectedInk.groupId === stroke.group_id
-                  : selectedInk.id === stroke.id
+                selectedInk.groupUuid
+                  ? selectedInk.groupUuid === stroke.group_uuid
+                  : selectedInk.uuid === stroke.uuid
               );
               const points = shifted(stroke);
               return (
                 <g
-                  key={stroke.id}
-                  // The id, on the mark. Ink that would not rub out has
+                  key={stroke.uuid}
+                  // The uuid, on the mark. Ink that would not rub out has
                   // been hard to catch precisely because there was no way
                   // to ask the page which stroke it was looking at.
-                  data-ink={stroke.id}
+                  data-ink={stroke.uuid}
                   className={[
                     selected ? 'selected' : '',
-                    (inkDrag?.groupId
-                      ? inkDrag.groupId === stroke.group_id
-                      : inkDrag?.id === stroke.id) ? 'carrying' : '',
+                    (inkDrag?.groupUuid
+                      ? inkDrag.groupUuid === stroke.group_uuid
+                      : inkDrag?.uuid === stroke.uuid) ? 'carrying' : '',
                   ].filter(Boolean).join(' ') || undefined}
                 >
                   {/* Lit from behind in its own colour, so a stroke about
@@ -2332,12 +2332,12 @@ function PdfPage({
         <div className="cite-layer">
           {citations.map((cite, i) => (
             <button
-              key={`${cite.referenceId}-${i}`}
+              key={`${cite.referenceUuid}-${i}`}
               type="button"
               data-citation-index={i}
-              data-reference-id={cite.referenceId}
+              data-reference-uuid={cite.referenceUuid}
               className={`cite${i === hoveredCitation ? ' hovered' : ''}${
-                (cite.referenceIds || [cite.referenceId]).includes(openReferenceId) ? ' open' : ''}${
+                (cite.referenceUuids || [cite.referenceUuid]).includes(openReferenceUuid) ? ' open' : ''}${
                 cite.exact ? '' : ' guessed'
               }`}
               style={{
@@ -2351,10 +2351,10 @@ function PdfPage({
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenReference(
-                  cite.referenceId,
+                  cite.referenceUuid,
                   e.currentTarget,
                   cite.reference || null,
-                  cite.referenceIds
+                  cite.referenceUuids
                 );
               }}
             />
@@ -2363,16 +2363,16 @@ function PdfPage({
         <div className="pin-layer">
           {notes.map((note) => (
             <button
-              key={note.id}
+              key={note.uuid}
               type="button"
-              className={`pin${doomed.notes.includes(note.id) ? ' going' : ''}${
-                note.id === activeNoteId ? ' active' : ''
+              className={`pin${doomed.notes.includes(note.uuid) ? ' going' : ''}${
+                note.uuid === activeNoteUuid ? ' active' : ''
               }${
                 note.drifted ? ' drifted' : ''
               }${note.content ? '' : ' bare'}${
-                drag?.id === note.id && drag.moved ? ' dragging' : ''
+                drag?.uuid === note.uuid && drag.moved ? ' dragging' : ''
               }`}
-              style={drag?.id === note.id && drag.moved ? {
+              style={drag?.uuid === note.uuid && drag.moved ? {
                 position: 'fixed',
                 left: drag.screen.x,
                 top: drag.screen.y,
@@ -2380,8 +2380,8 @@ function PdfPage({
               } : {
                 // The y fraction is measured from the bottom in PDF space and
                 // drawn from the top in CSS.
-                left: `${(drag?.id === note.id ? drag.anchor : note.anchor).x * 100}%`,
-                top: `${(1 - (drag?.id === note.id ? drag.anchor : note.anchor).y) * 100}%`,
+                left: `${(drag?.uuid === note.uuid ? drag.anchor : note.anchor).x * 100}%`,
+                top: `${(1 - (drag?.uuid === note.uuid ? drag.anchor : note.anchor).y) * 100}%`,
               }}
               title={note.content || 'An anchor with no note yet'}
               onPointerDown={(e) => startDrag(e, note)}
@@ -2397,14 +2397,14 @@ function PdfPage({
       </div>
       {clips.map((clip) => (
         <ClipBox
-          key={clip.id}
+          key={clip.uuid}
           clip={clip}
           doc={doc}
-          selected={selectedClipId === clip.id}
-          onChange={(change) => onUpdateClip(clip.id, change)}
-          onCommit={(frame) => onCommitClip(clip.id, frame)}
-          onRemove={() => onRemoveClip(clip.id)}
-          onSelect={() => onSelectClip(clip.id)}
+          selected={selectedClipUuid === clip.uuid}
+          onChange={(change) => onUpdateClip(clip.uuid, change)}
+          onCommit={(frame) => onCommitClip(clip.uuid, frame)}
+          onRemove={() => onRemoveClip(clip.uuid)}
+          onSelect={() => onSelectClip(clip.uuid)}
           onSend={(blob) => onSendClip(clip, blob)}
         />
       ))}

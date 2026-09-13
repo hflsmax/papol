@@ -36,6 +36,7 @@ PDF_FILES_DIR = Path(os.environ.get(
     "PAPOL_UPLOADS_DIR", Path(__file__).parents[2] / "uploads",
 ))
 BLOB_LIMIT = 25 * 1024 * 1024
+PROTOCOL_VERSION = 1
 
 
 class RowChange(BaseModel):
@@ -46,16 +47,16 @@ class RowChange(BaseModel):
         "shelves", "tags", "copies",
         "copy_tags",
     ]
-    id: UUID
+    uuid: UUID
     base_revision: int | None = Field(default=None, ge=0)
     operation: Literal["upsert", "patch", "delete"]
     values: dict[str, Any] = Field(default_factory=dict)
 
 
 class PushRequest(BaseModel):
-    protocol_version: Literal[1] = 1
-    client_id: UUID
-    mutation_id: UUID
+    protocol_version: Literal[1] = PROTOCOL_VERSION
+    client_uuid: UUID
+    mutation_uuid: UUID
     local_sequence: int = Field(ge=0)
     changes: list[RowChange] = Field(min_length=1, max_length=250)
 
@@ -66,54 +67,47 @@ def _canonical_payload(payload: PushRequest) -> bytes:
     ).encode()
 
 
-def _find_owned(db: Session, model, sync_id: str, user_id: int):
+def _find_owned(db: Session, model, row_uuid: str, user_uuid: str):
     for pending in db.new:
-        if isinstance(pending, model) and pending.sync_id == sync_id:
+        if isinstance(pending, model) and pending.uuid == row_uuid:
             if isinstance(pending, (Paper, PaperEdition)):
                 return pending
             if isinstance(pending, (Board, Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag)):
-                return pending if pending.user_id == user_id else None
-            return pending if pending.board.user_id == user_id else None
-    query = db.query(model).filter(model.sync_id == sync_id)
+                return pending if pending.user_uuid == user_uuid else None
+            return pending if pending.board.user_uuid == user_uuid else None
+    query = db.query(model).filter(model.uuid == row_uuid)
     if model in {Paper, PaperEdition}:
         return query.first()
-    if model is Board:
-        return query.filter(Board.user_id == user_id).first()
-    if model in {Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag}:
-        return query.filter(model.user_id == user_id).first()
-    return query.join(Board).filter(Board.user_id == user_id).first()
+    if model in {Board, Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag}:
+        return query.filter(model.user_uuid == user_uuid).first()
+    return query.join(Board).filter(Board.user_uuid == user_uuid).first()
 
 
-def _owned_paper(db: Session, sync_id: str, user_id: int) -> Paper:
+def _owned_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
     paper = db.query(Paper).join(Copy).filter(
-        Paper.sync_id == sync_id, Copy.user_id == user_id,
+        Paper.uuid == paper_uuid, Copy.user_uuid == user_uuid,
     ).first()
     if not paper:
         raise HTTPException(status_code=409, detail="Referenced paper is unavailable")
     return paper
 
 
-def _paper_by_sync(db: Session, sync_id: str) -> Paper:
+def _paper_by_uuid(db: Session, paper_uuid: str) -> Paper:
     for pending in db.new:
-        if isinstance(pending, Paper) and pending.sync_id == sync_id:
+        if isinstance(pending, Paper) and pending.uuid == paper_uuid:
             return pending
-    paper = db.query(Paper).filter(Paper.sync_id == sync_id).first()
+    paper = db.get(Paper, paper_uuid) if isinstance(paper_uuid, str) else None
     if not paper or paper.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Referenced paper is unavailable")
     return paper
 
 
-def _visible_paper(db: Session, sync_id: str, user_id: int) -> Paper:
-    for pending in db.new:
-        if isinstance(pending, Paper) and pending.sync_id == sync_id:
-            return pending
-    paper = db.query(Paper).filter(Paper.sync_id == sync_id).first()
-    if not paper or paper.deleted_at is not None:
-        raise HTTPException(status_code=409, detail="Referenced paper is unavailable")
-    if getattr(paper, "_sync_import_user", None) == user_id:
+def _visible_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
+    paper = _paper_by_uuid(db, paper_uuid)
+    if paper in db.new or getattr(paper, "_sync_import_user", None) == user_uuid:
         return paper
     visible = any(
-        copy.deleted_at is None and (copy.user_id == user_id or copy.marketed)
+        copy.deleted_at is None and (copy.user_uuid == user_uuid or copy.marketed)
         for copy in paper.copies
     )
     if not visible:
@@ -121,73 +115,74 @@ def _visible_paper(db: Session, sync_id: str, user_id: int) -> Paper:
     return paper
 
 
-def _owned_edition(db: Session, sync_id: str, user_id: int) -> PaperEdition:
+def _owned_edition(db: Session, edition_uuid: str, user_uuid: str) -> PaperEdition:
     for pending in db.new:
-        if (isinstance(pending, PaperEdition) and pending.sync_id == sync_id
-                and pending.uploaded_by == user_id):
+        if (isinstance(pending, PaperEdition) and pending.uuid == edition_uuid
+                and pending.uploaded_by == user_uuid):
             return pending
     edition = db.query(PaperEdition).join(Paper).join(Copy).filter(
-        PaperEdition.sync_id == sync_id, Copy.user_id == user_id,
+        PaperEdition.uuid == edition_uuid, Copy.user_uuid == user_uuid,
     ).first()
     if edition is None:
-        edition = db.query(PaperEdition).filter(PaperEdition.sync_id == sync_id).first()
-        if edition is not None and getattr(edition, "_sync_import_user", None) == user_id:
+        edition = db.get(PaperEdition, edition_uuid) if isinstance(edition_uuid, str) else None
+        if edition is not None and getattr(edition, "_sync_import_user", None) == user_uuid:
             return edition
+        edition = None
     if not edition:
         raise HTTPException(status_code=409, detail="Referenced edition is unavailable")
     return edition
 
 
-def _owned_shelf(db: Session, sync_id: str | None, user_id: int) -> Shelf | None:
-    if sync_id is None:
+def _owned_shelf(db: Session, shelf_uuid: str | None, user_uuid: str) -> Shelf | None:
+    if shelf_uuid is None:
         return None
     for pending in db.new:
-        if (isinstance(pending, Shelf) and pending.sync_id == sync_id
-                and pending.user_id == user_id and pending.deleted_at is None):
+        if (isinstance(pending, Shelf) and pending.uuid == shelf_uuid
+                and pending.user_uuid == user_uuid and pending.deleted_at is None):
             return pending
-    shelf = db.query(Shelf).filter(Shelf.sync_id == sync_id, Shelf.user_id == user_id).first()
+    shelf = db.query(Shelf).filter(Shelf.uuid == shelf_uuid, Shelf.user_uuid == user_uuid).first()
     if not shelf or shelf.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Referenced shelf is unavailable")
     return shelf
 
 
-def _owned_copy(db: Session, sync_id: str, user_id: int) -> Copy:
-    copy = _find_owned(db, Copy, sync_id, user_id)
+def _owned_copy(db: Session, copy_uuid: str, user_uuid: str) -> Copy:
+    copy = _find_owned(db, Copy, copy_uuid, user_uuid)
     if not copy or copy.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Referenced copy is unavailable")
     return copy
 
 
-def _owned_tag(db: Session, sync_id: str, user_id: int) -> Tag:
-    tag = _find_owned(db, Tag, sync_id, user_id)
+def _owned_tag(db: Session, tag_uuid: str, user_uuid: str) -> Tag:
+    tag = _find_owned(db, Tag, tag_uuid, user_uuid)
     if not tag or tag.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Referenced tag is unavailable")
     return tag
 
 
-def _owned_board(db: Session, sync_id: str, user_id: int) -> Board:
+def _owned_board(db: Session, board_uuid: str, user_uuid: str) -> Board:
     for pending in db.new:
-        if (isinstance(pending, Board) and pending.sync_id == sync_id
-                and pending.user_id == user_id and pending.deleted_at is None):
+        if (isinstance(pending, Board) and pending.uuid == board_uuid
+                and pending.user_uuid == user_uuid and pending.deleted_at is None):
             return pending
     board = db.query(Board).filter(
-        Board.sync_id == sync_id, Board.user_id == user_id,
+        Board.uuid == board_uuid, Board.user_uuid == user_uuid,
     ).first()
     if not board or board.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Referenced board is unavailable")
     return board
 
 
-def _owned_group(db: Session, sync_id: str | None, board: Board) -> BoardGroup | None:
-    if sync_id is None:
+def _owned_group(db: Session, group_uuid: str | None, board: Board) -> BoardGroup | None:
+    if group_uuid is None:
         return None
     for pending in db.new:
-        if (isinstance(pending, BoardGroup) and pending.sync_id == sync_id
+        if (isinstance(pending, BoardGroup) and pending.uuid == group_uuid
                 and pending.board is board and pending.deleted_at is None):
             return pending
     group = db.query(BoardGroup).filter(
-        BoardGroup.sync_id == sync_id,
-        BoardGroup.board_id == board.id,
+        BoardGroup.uuid == group_uuid,
+        BoardGroup.board_uuid == board.uuid,
         BoardGroup.deleted_at.is_(None),
     ).first()
     if not group:
@@ -196,14 +191,14 @@ def _owned_group(db: Session, sync_id: str | None, board: Board) -> BoardGroup |
 
 
 def _new_record(db: Session, change: RowChange, user: User, values: dict):
-    sync_id = str(change.id)
+    row_uuid = str(change.uuid)
     if change.table == "papers":
-        return Paper(sync_id=sync_id, title="")
+        return Paper(uuid=row_uuid, title="")
     if change.table == "paper_editions":
-        paper_id = values.get("paper_id")
+        paper_uuid = values.get("paper_uuid")
         sha256 = values.get("sha256")
-        if not isinstance(paper_id, str) or not isinstance(sha256, str):
-            raise HTTPException(status_code=422, detail="Paper edition needs paper_id and sha256")
+        if not isinstance(paper_uuid, str) or not isinstance(sha256, str):
+            raise HTTPException(status_code=422, detail="Paper edition needs paper_uuid and sha256")
         source = BLOBS_DIR / sha256
         if not source.is_file():
             raise HTTPException(status_code=409, detail="Edition blob has not been uploaded")
@@ -212,43 +207,34 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         destination = PDF_FILES_DIR / filename
         if not destination.exists():
             shutil.copyfile(source, destination)
-        paper = _paper_by_sync(db, paper_id)
         return PaperEdition(
-            sync_id=sync_id, paper=paper, paper_sync_id=paper.sync_id,
-            file_path=filename, sha256=sha256, uploaded_by=user.id,
+            uuid=row_uuid, paper=_paper_by_uuid(db, paper_uuid),
+            file_path=filename, sha256=sha256, uploaded_by=user.uuid,
         )
     if change.table == "boards":
-        shelf_sync_id = values.get("shelf_id")
-        shelf = _owned_shelf(db, shelf_sync_id, user.id) if shelf_sync_id else None
+        shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Board(
-            sync_id=sync_id, guid=sync_id, user_id=user.id, shelf=shelf,
-            shelf_sync_id=shelf.sync_id if shelf else None,
-            name="", description=None,
+            uuid=row_uuid, user_uuid=user.uuid, shelf=shelf, name="", description=None,
         )
     if change.table == "comments":
-        paper_id = values.get("paper_id")
-        if not isinstance(paper_id, str):
-            raise HTTPException(status_code=422, detail="comments.paper_id is required")
-        paper = _owned_paper(db, paper_id, user.id)
+        paper_uuid = values.get("paper_uuid")
+        if not isinstance(paper_uuid, str):
+            raise HTTPException(status_code=422, detail="comments.paper_uuid is required")
+        paper = _owned_paper(db, paper_uuid, user.uuid)
         edition = None
-        if values.get("edition_id") is not None:
-            edition = _owned_edition(db, values["edition_id"], user.id)
-            if edition.paper_id != paper.id:
+        if values.get("edition_uuid") is not None:
+            edition = _owned_edition(db, values["edition_uuid"], user.uuid)
+            if edition.paper is not paper:
                 raise HTTPException(status_code=409, detail="Note edition belongs to another paper")
         return Comment(
-            sync_id=sync_id, paper=paper, paper_sync_id=paper.sync_id,
-            edition=edition, edition_sync_id=edition.sync_id if edition else None,
-            user_id=user.id, content="",
+            uuid=row_uuid, paper=paper, edition=edition, user_uuid=user.uuid, content="",
         )
     if change.table in {"ink_strokes", "paper_clips"}:
-        edition_id = values.get("edition_id")
-        if not isinstance(edition_id, str):
-            raise HTTPException(status_code=422, detail=f"{change.table}.edition_id is required")
-        edition = _owned_edition(db, edition_id, user.id)
-        common = {
-            "sync_id": sync_id, "edition": edition,
-            "edition_sync_id": edition.sync_id, "user_id": user.id,
-        }
+        edition_uuid = values.get("edition_uuid")
+        if not isinstance(edition_uuid, str):
+            raise HTTPException(status_code=422, detail=f"{change.table}.edition_uuid is required")
+        edition = _owned_edition(db, edition_uuid, user.uuid)
+        common = {"uuid": row_uuid, "edition": edition, "user_uuid": user.uuid}
         if change.table == "ink_strokes":
             return InkStroke(
                 **common, page=1, points="[]", color="#b3923d", width=0.004,
@@ -257,46 +243,38 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         return PaperClip(**common, page=1, source="{}", frame="{}", floating=False)
     if change.table == "shelves":
         return Shelf(
-            sync_id=sync_id, user_id=user.id, name="", color="#7f8c8d",
+            uuid=row_uuid, user_uuid=user.uuid, name="", color="#7f8c8d",
             is_public=False, is_default=False, position=0,
         )
     if change.table == "tags":
-        return Tag(sync_id=sync_id, user_id=user.id, name="")
+        return Tag(uuid=row_uuid, user_uuid=user.uuid, name="")
     if change.table == "copies":
-        paper_id = values.get("paper_id")
-        if not isinstance(paper_id, str):
-            raise HTTPException(status_code=422, detail="copies.paper_id is required")
-        paper = _visible_paper(db, paper_id, user.id)
-        edition = _owned_edition(db, values["edition_id"], user.id) if values.get("edition_id") else None
-        shelf = _owned_shelf(db, values.get("shelf_id"), user.id)
+        paper_uuid = values.get("paper_uuid")
+        if not isinstance(paper_uuid, str):
+            raise HTTPException(status_code=422, detail="copies.paper_uuid is required")
+        paper = _visible_paper(db, paper_uuid, user.uuid)
+        edition = _owned_edition(db, values["edition_uuid"], user.uuid) if values.get("edition_uuid") else None
+        shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Copy(
-            sync_id=sync_id, paper=paper, paper_sync_id=paper.sync_id,
-            edition=edition, edition_sync_id=edition.sync_id if edition else None,
-            shelf=shelf, shelf_sync_id=shelf.sync_id if shelf else None,
-            user_id=user.id, marketed=False, is_author=False,
+            uuid=row_uuid, paper=paper, edition=edition, shelf=shelf,
+            user_uuid=user.uuid, marketed=False, is_author=False,
         )
     if change.table == "copy_tags":
-        copy_id, tag_id = values.get("copy_id"), values.get("tag_id")
-        if not isinstance(copy_id, str) or not isinstance(tag_id, str):
-            raise HTTPException(status_code=422, detail="copy_tags needs copy_id and tag_id")
-        copy, tag = _owned_copy(db, copy_id, user.id), _owned_tag(db, tag_id, user.id)
-        return CopyTagLink(
-            sync_id=sync_id, copy=copy, copy_sync_id=copy.sync_id,
-            tag=tag, tag_sync_id=tag.sync_id, user_id=user.id,
-        )
-    board_id = values.get("board_id")
-    if not isinstance(board_id, str):
-        raise HTTPException(status_code=422, detail=f"{change.table}.board_id is required")
-    board = _owned_board(db, board_id, user.id)
+        copy_uuid, tag_uuid = values.get("copy_uuid"), values.get("tag_uuid")
+        if not isinstance(copy_uuid, str) or not isinstance(tag_uuid, str):
+            raise HTTPException(status_code=422, detail="copy_tags needs copy_uuid and tag_uuid")
+        copy, tag = _owned_copy(db, copy_uuid, user.uuid), _owned_tag(db, tag_uuid, user.uuid)
+        return CopyTagLink(uuid=row_uuid, copy=copy, tag=tag, user_uuid=user.uuid)
+    board_uuid = values.get("board_uuid")
+    if not isinstance(board_uuid, str):
+        raise HTTPException(status_code=422, detail=f"{change.table}.board_uuid is required")
+    board = _owned_board(db, board_uuid, user.uuid)
     if change.table == "board_groups":
         return BoardGroup(
-            sync_id=sync_id, board=board, board_sync_id=board.sync_id,
-            kind="booklet", title="", auto_arrange=False,
+            uuid=row_uuid, board=board, kind="booklet", title="", auto_arrange=False,
         )
-    group = _owned_group(db, values.get("group_id"), board)
     return BoardItem(
-        sync_id=sync_id, board=board, board_sync_id=board.sync_id,
-        group=group, group_sync_id=group.sync_id if group else None,
+        uuid=row_uuid, board=board, group=_owned_group(db, values.get("group_uuid"), board),
         kind="comment", staged=False, text_align="left", position=0,
         x=0, y=0, width=300,
     )
@@ -312,19 +290,16 @@ def _assign_values(db: Session, record, values: dict, user: User):
             raise HTTPException(status_code=422, detail="Paper title must be 1–500 characters")
         return
     if isinstance(record, PaperEdition):
-        if "paper_id" in values:
-            record.paper = _paper_by_sync(db, values["paper_id"])
-            record.paper_sync_id = record.paper.sync_id
+        if "paper_uuid" in values:
+            record.paper = _paper_by_uuid(db, values["paper_uuid"])
         if "sha256" in values and values["sha256"] != record.sha256:
             raise HTTPException(status_code=422, detail="Edition content cannot change")
         return
     if isinstance(record, Board):
-        if "shelf_id" in values:
-            shelf = _owned_shelf(db, values["shelf_id"], user.id)
-            record.shelf = shelf
-            record.shelf_sync_id = shelf.sync_id if shelf else None
+        if "shelf_uuid" in values:
+            record.shelf = _owned_shelf(db, values["shelf_uuid"], user.uuid)
         for key, value in values.items():
-            if key not in {"shelf_id", "deleted_at"}:
+            if key not in {"shelf_uuid", "deleted_at"}:
                 setattr(record, key, value)
         if not record.name or len(record.name.strip()) > 120:
             raise HTTPException(status_code=422, detail="Board name must be 1–120 characters")
@@ -332,17 +307,15 @@ def _assign_values(db: Session, record, values: dict, user: User):
         return
 
     if isinstance(record, Comment):
-        if "paper_id" in values:
-            record.paper = _owned_paper(db, values["paper_id"], user.id)
-            record.paper_sync_id = record.paper.sync_id
-        if "edition_id" in values:
-            edition_id = values["edition_id"]
-            record.edition = _owned_edition(db, edition_id, user.id) if edition_id else None
-            record.edition_sync_id = record.edition.sync_id if record.edition else None
-        if record.edition is not None and record.edition.paper_id != record.paper.id:
+        if "paper_uuid" in values:
+            record.paper = _owned_paper(db, values["paper_uuid"], user.uuid)
+        if "edition_uuid" in values:
+            edition_uuid = values["edition_uuid"]
+            record.edition = _owned_edition(db, edition_uuid, user.uuid) if edition_uuid else None
+        if record.edition is not None and record.edition.paper is not record.paper:
             raise HTTPException(status_code=409, detail="Note edition belongs to another paper")
         for key, value in values.items():
-            if key not in {"paper_id", "edition_id", "deleted_at"}:
+            if key not in {"paper_uuid", "edition_uuid", "deleted_at"}:
                 setattr(record, key, value)
         anchor = None
         if record.anchor is not None:
@@ -358,16 +331,15 @@ def _assign_values(db: Session, record, values: dict, user: User):
             raise HTTPException(status_code=422, detail=error.errors())
         return
     if isinstance(record, (InkStroke, PaperClip)):
-        if "edition_id" in values:
-            record.edition = _owned_edition(db, values["edition_id"], user.id)
-            record.edition_sync_id = record.edition.sync_id
+        if "edition_uuid" in values:
+            record.edition = _owned_edition(db, values["edition_uuid"], user.uuid)
         for key, value in values.items():
-            if key not in {"edition_id", "deleted_at"}:
+            if key not in {"edition_uuid", "deleted_at"}:
                 setattr(record, key, value)
         try:
             if isinstance(record, InkStroke):
                 InkStrokeCreate(
-                    group_id=record.group_id, page=record.page,
+                    group_uuid=record.group_uuid, page=record.page,
                     points=json.loads(record.points), color=record.color,
                     width=record.width, opacity=record.opacity, shape=record.shape,
                 )
@@ -400,11 +372,10 @@ def _assign_values(db: Session, record, values: dict, user: User):
             raise HTTPException(status_code=422, detail="Tag name must be 1–60 characters")
         return
     if isinstance(record, Copy):
-        if "paper_id" in values:
-            record.paper = _visible_paper(db, values["paper_id"], user.id)
-            record.paper_sync_id = record.paper.sync_id
-        if "shelf_id" in values:
-            shelf = _owned_shelf(db, values["shelf_id"], user.id)
+        if "paper_uuid" in values:
+            record.paper = _visible_paper(db, values["paper_uuid"], user.uuid)
+        if "shelf_uuid" in values:
+            shelf = _owned_shelf(db, values["shelf_uuid"], user.uuid)
             # Visibility belongs to the shelf: moving a copy publishes or
             # hides it exactly as the online move in update_paper does.
             if shelf is not None:
@@ -416,19 +387,18 @@ def _assign_values(db: Session, record, values: dict, user: User):
                     )
                 record.marketed = bool(shelf.is_public)
             record.shelf = shelf
-            record.shelf_sync_id = shelf.sync_id if shelf else None
-        if "edition_id" in values:
-            record.edition = _owned_edition(db, values["edition_id"], user.id) if values["edition_id"] else None
-            record.edition_sync_id = record.edition.sync_id if record.edition else None
-        if "ignored_edition_id" in values:
-            ignored = _owned_edition(db, values["ignored_edition_id"], user.id) if values["ignored_edition_id"] else None
-            record.ignored_edition_id = ignored.id if ignored else None
-            record.ignored_edition_sync_id = ignored.sync_id if ignored else None
+        if "edition_uuid" in values:
+            edition_uuid = values["edition_uuid"]
+            record.edition = _owned_edition(db, edition_uuid, user.uuid) if edition_uuid else None
+        if "ignored_edition_uuid" in values:
+            ignored_uuid = values["ignored_edition_uuid"]
+            record.ignored_edition = _owned_edition(db, ignored_uuid, user.uuid) if ignored_uuid else None
         for key, value in values.items():
-            if key not in {"paper_id", "shelf_id", "edition_id", "ignored_edition_id", "deleted_at"}:
+            if key not in {
+                "paper_uuid", "shelf_uuid", "edition_uuid", "ignored_edition_uuid", "deleted_at",
+            }:
                 setattr(record, key, value)
-        if (record.edition is not None
-                and record.edition.paper.sync_id != record.paper.sync_id):
+        if record.edition is not None and record.edition.paper is not record.paper:
             raise HTTPException(status_code=409, detail="Copy edition belongs to another paper")
         # The same limits PaperUpdate enforces for the online edit form.
         for key in ("rating_expertise", "rating_reading", "rating_liking"):
@@ -439,22 +409,16 @@ def _assign_values(db: Session, record, values: dict, user: User):
                 raise HTTPException(status_code=422, detail="Ratings must be whole numbers from 1 to 5")
         return
     if isinstance(record, CopyTagLink):
-        if "copy_id" in values:
-            copy = _owned_copy(db, values["copy_id"], user.id)
-            record.copy, record.copy_sync_id = copy, copy.sync_id
-        if "tag_id" in values:
-            tag = _owned_tag(db, values["tag_id"], user.id)
-            record.tag, record.tag_sync_id = tag, tag.sync_id
+        if "copy_uuid" in values:
+            record.copy = _owned_copy(db, values["copy_uuid"], user.uuid)
+        if "tag_uuid" in values:
+            record.tag = _owned_tag(db, values["tag_uuid"], user.uuid)
         return
 
-    if "board_id" in values:
-        board = _owned_board(db, values["board_id"], user.id)
-        record.board = board
-        record.board_sync_id = board.sync_id
-    if isinstance(record, BoardItem) and "group_id" in values:
-        group = _owned_group(db, values["group_id"], record.board)
-        record.group = group
-        record.group_sync_id = group.sync_id if group else None
+    if "board_uuid" in values:
+        record.board = _owned_board(db, values["board_uuid"], user.uuid)
+    if isinstance(record, BoardItem) and "group_uuid" in values:
+        record.group = _owned_group(db, values["group_uuid"], record.board)
     if isinstance(record, BoardItem) and values.get("sha256"):
         digest = values["sha256"]
         if not isinstance(digest, str) or len(digest) != 64 or not (BLOBS_DIR / digest).is_file():
@@ -467,7 +431,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
                 or not source.hostname or source.username or source.password):
             raise HTTPException(status_code=422, detail="Board links must use http or https")
     for key, value in values.items():
-        if key not in {"board_id", "group_id", "deleted_at"}:
+        if key not in {"board_uuid", "group_uuid", "deleted_at"}:
             setattr(record, key, value)
     if isinstance(record, BoardGroup):
         if record.kind not in {"booklet", "collection"}:
@@ -493,15 +457,15 @@ def _apply_change(db: Session, change: RowChange, user: User):
             detail=f"Client cannot write {change.table}: {', '.join(sorted(unknown))}",
         )
     model = MODELS[change.table]
-    record = _find_owned(db, model, str(change.id), user.id)
+    row_uuid = str(change.uuid)
+    record = _find_owned(db, model, row_uuid, user.uuid)
     if rule.get("create_only") and record is not None:
         raise HTTPException(status_code=409, detail=f"{change.table} rows are create-only")
     if record is None:
         collision = next((pending for pending in db.new
-                          if isinstance(pending, model)
-                          and pending.sync_id == str(change.id)), None)
+                          if isinstance(pending, model) and pending.uuid == row_uuid), None)
         if collision is None:
-            collision = db.query(model).filter(model.sync_id == str(change.id)).first()
+            collision = db.get(model, row_uuid)
         if collision is not None:
             raise HTTPException(status_code=404, detail="Synchronized row not found")
         if change.operation in {"patch", "delete"}:
@@ -516,7 +480,7 @@ def _apply_change(db: Session, change: RowChange, user: User):
     if record.deleted_at is not None and change.operation != "delete":
         return record, {
             "table": change.table,
-            "id": str(change.id),
+            "uuid": row_uuid,
             "strategy": rule.get("conflict", "whole_row"),
             "resolution": "server_won",
             "reason": "row_deleted",
@@ -528,7 +492,7 @@ def _apply_change(db: Session, change: RowChange, user: User):
     if change.base_revision is not None and record.revision != change.base_revision:
         conflict = {
             "table": change.table,
-            "id": str(change.id),
+            "uuid": row_uuid,
             "strategy": rule.get("conflict", "whole_row"),
             "resolution": "client_won",
             "server_revision": record.revision,
@@ -547,7 +511,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         elif isinstance(record, BoardGroup):
             for item in record.items:
                 item.group = None
-                item.group_sync_id = None
         elif isinstance(record, Shelf):
             if record.is_default or any(copy.deleted_at is None for copy in record.copies):
                 raise HTTPException(status_code=409, detail="Move shelf contents before deleting it")
@@ -560,26 +523,26 @@ def _apply_change(db: Session, change: RowChange, user: User):
 
 
 def _validate_import_batch(changes: list[RowChange]):
-    papers = {str(change.id) for change in changes if change.table == "papers"}
-    editions = {str(change.id) for change in changes if change.table == "paper_editions"}
+    papers = {str(change.uuid) for change in changes if change.table == "papers"}
+    editions = {str(change.uuid) for change in changes if change.table == "paper_editions"}
     if not papers and not editions:
         return
     if any(change.operation != "upsert" or change.base_revision not in {None, 0}
            for change in changes if change.table in {"papers", "paper_editions"}):
         raise HTTPException(status_code=422, detail="Paper imports are create-only")
-    for paper_id in papers:
+    for paper_uuid in papers:
         edition = next((change for change in changes
                         if change.table == "paper_editions"
-                        and change.values.get("paper_id") == paper_id), None)
+                        and change.values.get("paper_uuid") == paper_uuid), None)
         if edition is None or not any(
             change.table == "copies"
-            and change.values.get("paper_id") == paper_id
-            and change.values.get("edition_id") == str(edition.id)
+            and change.values.get("paper_uuid") == paper_uuid
+            and change.values.get("edition_uuid") == str(edition.uuid)
             for change in changes
         ):
             raise HTTPException(status_code=422, detail="Paper import needs an owned edition and copy")
-    for edition_id in editions:
-        if not any(change.table == "copies" and change.values.get("edition_id") == edition_id
+    for edition_uuid in editions:
+        if not any(change.table == "copies" and change.values.get("edition_uuid") == edition_uuid
                    for change in changes):
             raise HTTPException(status_code=422, detail="Edition import needs an owned copy")
 
@@ -597,17 +560,17 @@ def _canonical_import_paper(db: Session, change: RowChange) -> Paper | None:
 
 @router.post("/push")
 def push(payload: PushRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    client_id = str(payload.client_id)
-    mutation_id = str(payload.mutation_id)
+    client_uuid = str(payload.client_uuid)
+    mutation_uuid = str(payload.mutation_uuid)
     fingerprint = hashlib.sha256(_canonical_payload(payload)).hexdigest()
     existing = db.query(AppliedMutation).filter(
-        AppliedMutation.user_id == user.id,
-        AppliedMutation.client_id == client_id,
-        AppliedMutation.mutation_id == mutation_id,
+        AppliedMutation.user_uuid == user.uuid,
+        AppliedMutation.client_uuid == client_uuid,
+        AppliedMutation.mutation_uuid == mutation_uuid,
     ).first()
     if existing:
         if existing.request_hash != fingerprint:
-            raise HTTPException(status_code=409, detail="Mutation ID has different content")
+            raise HTTPException(status_code=409, detail="Mutation UUID has different content")
         return json.loads(existing.response_body)
 
     conflicts = []
@@ -621,22 +584,22 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
                 key: aliases.get(value, value) if isinstance(value, str) else value
                 for key, value in change.values.items()
             }
-            requested_id = str(change.id)
+            requested_uuid = str(change.uuid)
             if change.table == "papers":
                 canonical = _canonical_import_paper(db, change)
-                if canonical is not None and canonical.sync_id != requested_id:
-                    aliases[requested_id] = canonical.sync_id
-                    canonical._sync_import_user = user.id
+                if canonical is not None and canonical.uuid != requested_uuid:
+                    aliases[requested_uuid] = canonical.uuid
+                    canonical._sync_import_user = user.uuid
                     touched.append(canonical)
                     continue
             if change.table == "paper_editions":
-                paper = _paper_by_sync(db, change.values.get("paper_id"))
+                paper = _paper_by_uuid(db, change.values.get("paper_uuid"))
                 digest = change.values.get("sha256")
                 canonical = next((edition for edition in paper.editions
                                   if edition.sha256 == digest and edition.deleted_at is None), None)
-                if canonical is not None and canonical.sync_id != requested_id:
-                    aliases[requested_id] = canonical.sync_id
-                    canonical._sync_import_user = user.id
+                if canonical is not None and canonical.uuid != requested_uuid:
+                    aliases[requested_uuid] = canonical.uuid
+                    canonical._sync_import_user = user.uuid
                     source = BLOBS_DIR / digest
                     destination = PDF_FILES_DIR / canonical.file_path
                     PDF_FILES_DIR.mkdir(exist_ok=True)
@@ -645,24 +608,24 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
                     touched.append(canonical)
                     continue
             if change.table == "copies" and change.base_revision in {None, 0}:
-                paper = _visible_paper(db, change.values.get("paper_id"), user.id)
+                paper = _visible_paper(db, change.values.get("paper_uuid"), user.uuid)
                 canonical = db.query(Copy).filter(
-                    Copy.user_id == user.id, Copy.paper_id == paper.id,
+                    Copy.user_uuid == user.uuid, Copy.paper_uuid == paper.uuid,
                 ).first()
-                if canonical is not None and canonical.sync_id != requested_id:
-                    aliases[requested_id] = canonical.sync_id
-                    change.id = UUID(canonical.sync_id)
+                if canonical is not None and canonical.uuid != requested_uuid:
+                    aliases[requested_uuid] = canonical.uuid
+                    change.uuid = UUID(canonical.uuid)
             if change.table == "copy_tags" and change.base_revision in {None, 0}:
-                copy = _owned_copy(db, change.values.get("copy_id"), user.id)
-                tag = _owned_tag(db, change.values.get("tag_id"), user.id)
+                copy = _owned_copy(db, change.values.get("copy_uuid"), user.uuid)
+                tag = _owned_tag(db, change.values.get("tag_uuid"), user.uuid)
                 canonical = db.query(CopyTagLink).filter(
-                    CopyTagLink.user_id == user.id,
-                    CopyTagLink.copy_id == copy.id,
-                    CopyTagLink.tag_id == tag.id,
+                    CopyTagLink.user_uuid == user.uuid,
+                    CopyTagLink.copy_uuid == copy.uuid,
+                    CopyTagLink.tag_uuid == tag.uuid,
                 ).first()
-                if canonical is not None and canonical.sync_id != requested_id:
-                    aliases[requested_id] = canonical.sync_id
-                    change.id = UUID(canonical.sync_id)
+                if canonical is not None and canonical.uuid != requested_uuid:
+                    aliases[requested_uuid] = canonical.uuid
+                    change.uuid = UUID(canonical.uuid)
             record, conflict = _apply_change(db, change, user)
             touched.append(record)
             if conflict:
@@ -673,8 +636,8 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
             record.updated_at = datetime.utcnow()
     prepare_sync_changes(db)
     result = {
-        "protocol_version": 1,
-        "mutation_id": mutation_id,
+        "protocol_version": PROTOCOL_VERSION,
+        "mutation_uuid": mutation_uuid,
         "local_sequence": payload.local_sequence,
         "rows": [row_snapshot(record) | {"table": record.__table__.name} for record in touched],
         "conflicts": conflicts,
@@ -682,9 +645,9 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
     }
     body = json.dumps(result, separators=(",", ":"), sort_keys=True).encode()
     db.add(AppliedMutation(
-        user_id=user.id,
-        client_id=client_id,
-        mutation_id=mutation_id,
+        user_uuid=user.uuid,
+        client_uuid=client_uuid,
+        mutation_uuid=mutation_uuid,
         request_hash=fingerprint,
         method="POST",
         path="/api/sync/push",
@@ -697,9 +660,9 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
     except IntegrityError:
         db.rollback()
         winner = db.query(AppliedMutation).filter(
-            AppliedMutation.user_id == user.id,
-            AppliedMutation.client_id == client_id,
-            AppliedMutation.mutation_id == mutation_id,
+            AppliedMutation.user_uuid == user.uuid,
+            AppliedMutation.client_uuid == client_uuid,
+            AppliedMutation.mutation_uuid == mutation_uuid,
         ).first()
         if not winner or winner.request_hash != fingerprint:
             raise
@@ -715,46 +678,26 @@ def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_d
     pretending globally shared paper metadata belongs in one user's change
     log while still giving the offline viewer complete foreign-key parents.
     """
-    copies = db.query(Copy).filter(Copy.user_id == user.id).all()
-    paper_ids = {copy.paper_id for copy in copies}
-    papers = db.query(Paper).filter(Paper.id.in_(paper_ids)).all() if paper_ids else []
+    copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
+    paper_uuids = {copy.paper_uuid for copy in copies}
+    papers = db.query(Paper).filter(Paper.uuid.in_(paper_uuids)).all() if paper_uuids else []
     editions = (
-        db.query(PaperEdition).filter(PaperEdition.paper_id.in_(paper_ids)).all()
-        if paper_ids else []
+        db.query(PaperEdition).filter(PaperEdition.paper_uuid.in_(paper_uuids)).all()
+        if paper_uuids else []
     )
-    repaired = False
-    for edition in editions:
-        if not edition.paper_sync_id:
-            edition.paper_sync_id = edition.paper.sync_id
-            repaired = True
-    if repaired:
-        db.commit()
     records = [
         *papers,
         *editions,
-        *db.query(Comment).filter(Comment.user_id == user.id).all(),
-        *db.query(InkStroke).filter(InkStroke.user_id == user.id).all(),
-        *db.query(PaperClip).filter(PaperClip.user_id == user.id).all(),
-        *db.query(Shelf).filter(Shelf.user_id == user.id).all(),
-        *db.query(Tag).filter(Tag.user_id == user.id).all(),
-        *db.query(Copy).filter(Copy.user_id == user.id).all(),
-        *db.query(CopyTagLink).filter(CopyTagLink.user_id == user.id).all(),
+        *db.query(Comment).filter(Comment.user_uuid == user.uuid).all(),
+        *db.query(InkStroke).filter(InkStroke.user_uuid == user.uuid).all(),
+        *db.query(PaperClip).filter(PaperClip.user_uuid == user.uuid).all(),
+        *db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all(),
+        *db.query(Tag).filter(Tag.user_uuid == user.uuid).all(),
+        *copies,
+        *db.query(CopyTagLink).filter(CopyTagLink.user_uuid == user.uuid).all(),
     ]
-    for copy in records:
-        if not isinstance(copy, Copy):
-            continue
-        expected = (
-            copy.paper.sync_id,
-            copy.shelf.sync_id if copy.shelf else None,
-            copy.edition.sync_id if copy.edition else None,
-        )
-        if (copy.paper_sync_id, copy.shelf_sync_id, copy.edition_sync_id) != expected:
-            copy.paper_sync_id, copy.shelf_sync_id, copy.edition_sync_id = expected
-            repaired = True
-    if repaired:
-        db.commit()
     return {
-        "protocol_version": 1,
+        "protocol_version": PROTOCOL_VERSION,
         "rows": [row_snapshot(record) | {"table": record.__table__.name}
                  for record in records],
     }
@@ -797,7 +740,7 @@ def get_blob(
 ):
     item = db.query(BoardItem).join(Board).filter(
         BoardItem.sha256 == sha256,
-        Board.user_id == user.id,
+        Board.user_uuid == user.uuid,
         BoardItem.deleted_at.is_(None),
     ).first()
     if item and item.file_path:
@@ -805,7 +748,7 @@ def get_blob(
         media_type = item.mime_type or "application/octet-stream"
     else:
         edition = db.query(PaperEdition).join(Paper).join(Copy).filter(
-            PaperEdition.sha256 == sha256, Copy.user_id == user.id,
+            PaperEdition.sha256 == sha256, Copy.user_uuid == user.uuid,
             Copy.deleted_at.is_(None),
         ).first()
         if not edition:
@@ -821,34 +764,34 @@ def get_blob(
 def pull(
     cursor: int = Query(default=0, ge=0),
     limit: int = Query(default=250, ge=1, le=1000),
-    client_id: UUID | None = Query(default=None),
+    client_uuid: UUID | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if client_id is not None:
+    if client_uuid is not None:
         client = db.query(SyncClient).filter(
-            SyncClient.user_id == user.id,
-            SyncClient.client_id == str(client_id),
+            SyncClient.user_uuid == user.uuid,
+            SyncClient.client_uuid == str(client_uuid),
         ).first()
         if client is None:
-            client = SyncClient(user_id=user.id, client_id=str(client_id))
+            client = SyncClient(user_uuid=user.uuid, client_uuid=str(client_uuid))
             db.add(client)
         client.acknowledged_cursor = max(client.acknowledged_cursor or 0, cursor)
         client.last_seen_at = datetime.utcnow()
         db.commit()
     records = db.query(ServerChange).filter(
-        ServerChange.user_id == user.id,
+        ServerChange.user_uuid == user.uuid,
         ServerChange.sequence > cursor,
     ).order_by(ServerChange.sequence).limit(limit + 1).all()
     page = records[:limit]
     return {
-        "protocol_version": 1,
+        "protocol_version": PROTOCOL_VERSION,
         "cursor": page[-1].sequence if page else cursor,
         "has_more": len(records) > limit,
         "changes": [{
             "sequence": record.sequence,
             "table": record.table_name,
-            "id": record.row_sync_id,
+            "uuid": record.row_uuid,
             "revision": record.revision,
             "operation": record.operation,
             "row": json.loads(record.row_json),

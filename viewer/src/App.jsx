@@ -321,7 +321,7 @@ function savedReadingView() {
 export default function App() {
   const source = useMemo(resolveSource, []);
   // Papol's Notes list links straight to one note: ?paper=9&note=42.
-  const wantedNoteId = numberParam('note');
+  const wantedNoteUuid = new URLSearchParams(window.location.search).get('note');
   const wantedPage = numberParam('page');
   const wantedY = fractionParam('y');
   const wantedSelection = useMemo(selectionParam, []);
@@ -373,13 +373,13 @@ export default function App() {
   }, [selectionPaint]);
   const [sendSelection, setSendSelection] = useState(null);
   const [sendBoards, setSendBoards] = useState([]);
-  const [sendBoardGuid, setSendBoardGuid] = useState('');
+  const [sendBoardUuid, setSendBoardUuid] = useState('');
   const [sendBusy, setSendBusy] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [sendComplete, setSendComplete] = useState(false);
-  const [activeNoteId, setActiveNoteId] = useState(null);
+  const [activeNoteUuid, setActiveNoteUuid] = useState(null);
   // The anchor just pointed at: its entry in the rail lights up briefly.
-  const [flashId, setFlashId] = useState(null);
+  const [flashUuid, setFlashUuid] = useState(null);
   // The rail can be put away to give the page the whole window; the choice
   // is remembered, since it is about how this reader likes to read.
   const [railOpen, setRailOpen] = useState(() => {
@@ -424,7 +424,7 @@ export default function App() {
   // Private views cut from this edition. Their source and placement use
   // page fractions, so they survive zoom and are restored with the paper.
   const [clips, setClips] = useState([]);
-  const [selectedClipId, setSelectedClipId] = useState(null);
+  const [selectedClipUuid, setSelectedClipUuid] = useState(null);
   const clipSaving = useRef(new Map());
   const [helpOpen, setHelpOpen] = useState(false);
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
@@ -441,7 +441,7 @@ export default function App() {
   // The anchor being carried across the page, so its row in the rail can
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
-  const [draggingNoteId, setDraggingNoteId] = useState(null);
+  const [draggingNoteUuid, setDraggingNoteUuid] = useState(null);
   // Cows. Nowhere near the server and gone on reload, like the laser's
   // trail: they are not a mark on the paper, they are company.
   const [placedAnimals, setPlacedAnimals] = useState([]);
@@ -488,11 +488,11 @@ export default function App() {
   // ever in hand.
   const [sheet, setSheet] = useState(null);
   const brushOpen = sheet === 'brush';
-  const tempInkId = useRef(0);
-  const tempNoteId = useRef(0);
+  const tempInkUuid = useRef(0);
+  const tempNoteUuid = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
-  // Strokes still being saved, by the temporary id they are wearing until
+  // Strokes still being saved, by the temporary uuid they are wearing until
   // the server gives them a real one.
   const inkSaving = useRef(new Map());
   const history = useRef({ undo: [], redo: [], running: false });
@@ -541,8 +541,8 @@ export default function App() {
   const [, renderLinkHistory] = useState(0);
   const restoringView = useRef(null);
   const [referenceError, setReferenceError] = useState(null);
-  const [editing, setEditing] = useState(null); // note id being reworded
-  const [naming, setNaming] = useState(null); // note id being renamed
+  const [editing, setEditing] = useState(null); // note uuid being reworded
+  const [naming, setNaming] = useState(null); // note uuid being renamed
   const [nameDraft, setNameDraft] = useState('');
   const [editText, setEditText] = useState('');
   const scrollerRef = useRef(null);
@@ -718,9 +718,9 @@ export default function App() {
   // the first reader of an edition starts that pass and everyone after
   // them gets the stored answer straight away.
   useEffect(() => {
-    const editionId = paper?.edition_id;
+    const editionUuid = paper?.edition_uuid;
     const pdfHash = paper?.edition_sha256 || paper?.sha256;
-    if (!editionId || !pdfHash) return undefined;
+    if (!editionUuid || !pdfHash) return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -730,7 +730,7 @@ export default function App() {
     let wait = 1500;
 
     const ask = () => {
-      getViewerReferences(pdfHash, editionId)
+      getViewerReferences(pdfHash, editionUuid)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -841,9 +841,9 @@ export default function App() {
         closeSendSelection();
         return;
       }
-      if (e.key === 'Escape' && selectedClipId != null) {
+      if (e.key === 'Escape' && selectedClipUuid != null) {
         e.preventDefault();
-        setSelectedClipId(null);
+        setSelectedClipUuid(null);
         return;
       }
       // Escape closes the help sheet first, before anything else looks at
@@ -908,9 +908,9 @@ export default function App() {
         takeTool('arrow');
         return;
       }
-      if (selectedClipId != null && (e.key === 'Delete' || e.key === 'Backspace')) {
+      if (selectedClipUuid != null && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
-        removeClip(selectedClipId);
+        removeClip(selectedClipUuid);
         return;
       }
       if (selectedInk && (
@@ -919,14 +919,14 @@ export default function App() {
         e.key === 'Backspace'
       )) {
         const selected = inkRef.current.find((stroke) => (
-          selectedInk.groupId
-            ? stroke.group_id === selectedInk.groupId
-            : stroke.id === selectedInk.id
+          selectedInk.groupUuid
+            ? stroke.group_uuid === selectedInk.groupUuid
+            : stroke.uuid === selectedInk.uuid
         ));
         if (selected) {
           e.preventDefault();
           setSelectedInk(null);
-          eraseStroke(selected.id);
+          eraseStroke(selected.uuid);
         }
         return;
       }
@@ -962,20 +962,20 @@ export default function App() {
   useEffect(() => {
     const clearInkSelection = (event) => {
       if (!event.target.closest?.('.ink-grab') && !event.target.closest?.('.ink-actions')) setSelectedInk(null);
-      if (!event.target.closest?.('.paper-clip') && !event.target.closest?.('.clip-actions')) setSelectedClipId(null);
+      if (!event.target.closest?.('.paper-clip') && !event.target.closest?.('.clip-actions')) setSelectedClipUuid(null);
     };
     document.addEventListener('pointerdown', clearInkSelection, true);
     return () => document.removeEventListener('pointerdown', clearInkSelection, true);
   }, []);
 
   useEffect(() => {
-    if (!paper?.edition_id || !source?.clips) return undefined;
+    if (!paper?.edition_uuid || !source?.clips) return undefined;
     let cancelled = false;
-    source.clips.list(paper.edition_id)
+    source.clips.list(paper.edition_uuid)
       .then((loaded) => { if (!cancelled) setClips(loaded); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [paper?.edition_id, source]);
+  }, [paper?.edition_uuid, source]);
 
   // The ink already on this edition. Like the references, it belongs to
   // the file rather than to the paper, so it is asked for once the paper
@@ -984,7 +984,7 @@ export default function App() {
     if (!paper || !source?.ink) return undefined;
     let cancelled = false;
     source.ink
-      .list(paper.edition_id)
+      .list(paper.edition_uuid)
       .then((loaded) => {
         if (!cancelled) setInk(loaded);
       })
@@ -998,71 +998,69 @@ export default function App() {
     };
   }, [paper, source]);
 
-  const referencesById = useMemo(
-    () => new Map((analysis?.references || []).map((r) => [r.id, r])),
+  const referencesByUuid = useMemo(
+    () => new Map((analysis?.references || []).map((r) => [r.uuid, r])),
     [analysis]
   );
 
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
   // reference before — and the lookup fills the rest in.
-  const openReference = (referenceId, anchor, inlineReference = null, referenceIds = null) => {
-    const known = referencesById.get(referenceId) || inlineReference || null;
-    const ids = referenceIds?.length ? referenceIds : [referenceId];
-    setOpenCite({ referenceId, referenceIds: ids, index: Math.max(0, ids.indexOf(referenceId)), anchor });
+  const openReference = (referenceUuid, anchor, inlineReference = null, referenceUuids = null) => {
+    const known = referencesByUuid.get(referenceUuid) || inlineReference || null;
+    const ids = referenceUuids?.length ? referenceUuids : [referenceUuid];
+    setOpenCite({ referenceUuid, referenceUuids: ids, index: Math.max(0, ids.indexOf(referenceUuid)), anchor });
     setReference(known);
     setReferenceError(null);
     // A PDF-native `cite.*` destination is recognizable before server-side
-    // analysis has assigned it a database id. Read the printed bibliography
+    // analysis has assigned it a database uuid. Read the printed bibliography
     // entry straight from the PDF so its card is useful without waiting for
     // that analysis or an external metadata service.
-    if (typeof referenceId !== 'number') {
+    if (String(referenceUuid).startsWith('pdf:')) {
       if (doc && inlineReference?.dest) {
         readNamedReference(doc, inlineReference.dest)
           .then(async (raw) => {
             if (!raw) {
-              setReference((current) => current?.id === referenceId
+              setReference((current) => current?.uuid === referenceUuid
                 ? { ...current, resolved_status: 'error' }
                 : current);
               setReferenceError('Reference unreadable.');
               return;
             }
-            setReference((current) => current?.id === referenceId
+            setReference((current) => current?.uuid === referenceUuid
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);
-            if (!paper?.edition_id) return;
+            if (!paper?.edition_uuid) return;
             const pdfHash = paper.edition_sha256 || paper.sha256;
             const full = await resolveViewerReference(pdfHash, {
               key: inlineReference.key,
               raw,
             });
-            setReference((current) => current?.id === referenceId ? full : current);
+            setReference((current) => current?.uuid === referenceUuid ? full : current);
           })
           .catch(() => {
             // The card is already open. An unusual PDF text layout should
             // not turn a citation click into an error or a bibliography jump.
-            setReference((current) => current?.id === referenceId
+            setReference((current) => current?.uuid === referenceUuid
               ? { ...current, resolved_status: current.raw ? 'pdf_text' : 'error' }
               : current);
           });
       }
       return;
     }
-    // Show a cached answer immediately, but still ask the item endpoint.
-    // The backend cheaply returns valid stored data and can invalidate a
-    // match made under older consolidation rules. Trusting the bundle
-    // forever made a corrected matcher unable to repair existing popups.
-    getViewerReference(referenceId)
+    // Show a cached answer immediately, and ask the item endpoint, which
+    // looks the reference up the first time anyone opens it.
+    getViewerReference(referenceUuid)
       .then((full) => {
         setReference((current) =>
-          current && current.id !== referenceId ? current : full
+          current && current.uuid !== referenceUuid ? current : full
         );
         // Keep it, so opening the same marker again costs nothing.
         setAnalysis((prev) =>
           prev
             ? {
                 ...prev,
-                references: prev.references.map((r) => (r.id === full.id ? full : r)),
+                references: prev.references.map((r) => (r.uuid === full.uuid ? full : r)),
               }
             : prev
         );
@@ -1233,13 +1231,13 @@ export default function App() {
         .map((n) => ({
           ...n,
           drifted:
-            n.anchor != null && paper != null && n.edition_id !== paper.edition_id,
+            n.anchor != null && paper != null && n.edition_uuid !== paper.edition_uuid,
         }))
         .sort(
           (a, b) =>
             (a.page ?? Infinity) - (b.page ?? Infinity) ||
             String(a.created_at).localeCompare(String(b.created_at)) ||
-            a.id - b.id
+            String(a.uuid).localeCompare(String(b.uuid))
         ),
     [notes, paper]
   );
@@ -1275,9 +1273,9 @@ export default function App() {
   const selectedInkPages = useMemo(() => {
     if (!selectedInk) return new Set();
     return new Set(ink.filter((stroke) => (
-      selectedInk.groupId
-        ? stroke.group_id === selectedInk.groupId
-        : stroke.id === selectedInk.id
+      selectedInk.groupUuid
+        ? stroke.group_uuid === selectedInk.groupUuid
+        : stroke.uuid === selectedInk.uuid
     )).map((stroke) => stroke.page));
   }, [ink, selectedInk]);
 
@@ -1287,26 +1285,26 @@ export default function App() {
   // which is the honest thing to do with a mark that was not kept.
   const drawStroke = async (stroke, record = true) => {
     if (!source?.ink) return;
-    const provisional = `wet-${++tempInkId.current}`;
-    setInk((all) => [...all, { ...stroke, id: provisional }]);
-    const saving = source.ink.create(paper?.edition_id, stroke);
+    const provisional = `wet-${++tempInkUuid.current}`;
+    setInk((all) => [...all, { ...stroke, uuid: provisional }]);
+    const saving = source.ink.create(paper?.edition_uuid, stroke);
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
-      setInk((all) => all.map((s) => (s.id === provisional ? saved : s)));
+      setInk((all) => all.map((s) => (s.uuid === provisional ? saved : s)));
       if (record && saved) {
-        const entry = { id: saved.id, stroke };
+        const entry = { uuid: saved.uuid, stroke };
         remember({
-          undo: async () => eraseStroke(entry.id, false),
+          undo: async () => eraseStroke(entry.uuid, false),
           redo: async () => {
             const restored = await drawStroke(entry.stroke, false);
-            entry.id = restored.id;
+            entry.uuid = restored.uuid;
           },
         });
       }
       return saved;
     } catch (err) {
-      setInk((all) => all.filter((s) => s.id !== provisional));
+      setInk((all) => all.filter((s) => s.uuid !== provisional));
       setError(err.message || 'Stroke not saved.');
     } finally {
       inkSaving.current.delete(provisional);
@@ -1384,12 +1382,12 @@ export default function App() {
       document.removeEventListener('pointercancel', pointerFinished);
       window.removeEventListener('resize', update);
     };
-  }, [doc, scale, paper?.edition_id, source]);
+  }, [doc, scale, paper?.edition_uuid, source]);
 
   // Every stroke of the paint mark in hand.
   const selectedStrokes = useMemo(() => (selectedInk
     ? ink.filter((stroke) => (
-      selectedInk.groupId ? stroke.group_id === selectedInk.groupId : stroke.id === selectedInk.id
+      selectedInk.groupUuid ? stroke.group_uuid === selectedInk.groupUuid : stroke.uuid === selectedInk.uuid
     ))
     : []), [ink, selectedInk]);
 
@@ -1472,7 +1470,7 @@ export default function App() {
     const [first] = selectedStrokes;
     if (!first) return;
     setSelectedInk(null);
-    eraseStroke(first.id);
+    eraseStroke(first.uuid);
   };
 
   const openSendPaint = () => {
@@ -1484,10 +1482,10 @@ export default function App() {
 
   const paintSelection = async () => {
     if (!selectionPaint) return;
-    const groupId = crypto.randomUUID();
+    const groupUuid = crypto.randomUUID();
     const specs = selectionPaint.strokes.map((fragment) => ({
         ...fragment,
-        group_id: groupId,
+        group_uuid: groupUuid,
         color: inkColor,
         opacity: inkOpacity,
         shape: 'flat',
@@ -1496,16 +1494,16 @@ export default function App() {
     setSelectionPaint(null);
     const results = await Promise.all(specs.map((stroke) => drawStroke(stroke, false)));
     const entries = results
-      .map((stroke, index) => stroke && ({ id: stroke.id, stroke: specs[index] }))
+      .map((stroke, index) => stroke && ({ uuid: stroke.uuid, stroke: specs[index] }))
       .filter(Boolean);
     if (!entries.length) return;
     remember({
-      undo: async () => Promise.all(entries.map((entry) => eraseStroke(entry.id, false))),
+      undo: async () => Promise.all(entries.map((entry) => eraseStroke(entry.uuid, false))),
       redo: async () => {
         const restored = await Promise.all(
           entries.map((entry) => drawStroke(entry.stroke, false))
         );
-        restored.forEach((stroke, index) => { entries[index].id = stroke.id; });
+        restored.forEach((stroke, index) => { entries[index].uuid = stroke.uuid; });
       },
     });
   };
@@ -1513,7 +1511,7 @@ export default function App() {
   const closeSendSelection = () => {
     setSendSelection(null);
     setSendBoards([]);
-    setSendBoardGuid('');
+    setSendBoardUuid('');
     setSendError(null);
     setSendComplete(false);
   };
@@ -1543,14 +1541,14 @@ export default function App() {
     try {
       const boards = await listBoards();
       setSendBoards(boards);
-      setSendBoardGuid(boards[0]?.guid || '');
+      setSendBoardUuid(boards[0]?.uuid || '');
     } catch (e) {
       setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
     }
   };
 
   const sendSelectionToBoard = async () => {
-    if (!sendSelection || !sendBoardGuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
+    if (!sendSelection || !sendBoardUuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
     setSendBusy(true);
     setSendError(null);
     // The desktop viewer itself has a tauri:// URL, which the backend rejects
@@ -1584,14 +1582,14 @@ export default function App() {
     try {
       const sourceLabel = `${paper?.title || 'Paper'}, page ${sendSelection.page}`;
       if (sendSelection.kind === 'clip') {
-        await stageBoardClip(sendBoardGuid, {
+        await stageBoardClip(sendBoardUuid, {
           blob: sendSelection.blob,
           comment: sendSelection.comment.trim(),
           sourceUrl: backlink.href,
           sourceLabel,
         });
       } else {
-        await stageBoardExcerpt(sendBoardGuid, {
+        await stageBoardExcerpt(sendBoardUuid, {
           excerpt_text: sendSelection.text.trim(),
           content: sendSelection.comment.trim() || null,
           source_url: backlink.href,
@@ -1606,22 +1604,22 @@ export default function App() {
     }
   };
 
-  // The id the server knows this stroke by, waiting for it if the stroke is
+  // The uuid the server knows this stroke by, waiting for it if the stroke is
   // still on its way there.
   //
-  // Rubbing out a stroke drawn a moment ago used to send its temporary id
+  // Rubbing out a stroke drawn a moment ago used to send its temporary uuid
   // to the server, which refused it — and refusing is not a 404, so the
   // stroke was put back. Worse, the save landing in the meantime tried to
-  // swap the temporary id for the real one on a list the stroke had already
+  // swap the temporary uuid for the real one on a list the stroke had already
   // been taken out of, so it came back wearing a name the server had never
   // heard of and could not be erased again until the page was reloaded.
   // Which is exactly what it looked like from the outside.
-  const settledInkId = async (id) => {
-    if (typeof id === 'number') return id;
-    const saving = inkSaving.current.get(id);
+  const settledInkUuid = async (uuid) => {
+    if (!String(uuid).startsWith('wet-')) return uuid;
+    const saving = inkSaving.current.get(uuid);
     if (!saving) return null;
     try {
-      return (await saving)?.id ?? null;
+      return (await saving)?.uuid ?? null;
     } catch {
       return null; // it was never saved, so there is nothing to erase
     }
@@ -1629,61 +1627,61 @@ export default function App() {
 
   // Carried on screen as it is dragged and written down when it is put
   // down, so the page keeps up with the hand and the server hears once.
-  const moveStroke = async (id, points, record = true) => {
+  const moveStroke = async (uuid, points, record = true) => {
     if (!source?.ink?.move) return;
-    const was = inkRef.current.find((s) => s.id === id);
+    const was = inkRef.current.find((s) => s.uuid === uuid);
     if (!was) return;
-    const members = was.group_id
-      ? inkRef.current.filter((s) => s.group_id === was.group_id)
+    const members = was.group_uuid
+      ? inkRef.current.filter((s) => s.group_uuid === was.group_uuid)
       : [was];
     const dx = points[0].x - was.points[0].x;
     const dy = points[0].y - was.points[0].y;
     const clamp = (value) => Math.min(1, Math.max(0, value));
     const moves = members.map((stroke) => ({
-      id: stroke.id,
+      uuid: stroke.uuid,
       before: stroke.points,
-      after: stroke.id === id
+      after: stroke.uuid === uuid
         ? points
         : stroke.points.map((point) => ({
             x: clamp(point.x + dx),
             y: clamp(point.y + dy),
           })),
     }));
-    const movedById = new Map(moves.map((move) => [move.id, move.after]));
+    const movedByUuid = new Map(moves.map((move) => [move.uuid, move.after]));
     setInk((all) => all.map((stroke) => (
-      movedById.has(stroke.id)
-        ? { ...stroke, points: movedById.get(stroke.id) }
+      movedByUuid.has(stroke.uuid)
+        ? { ...stroke, points: movedByUuid.get(stroke.uuid) }
         : stroke
     )));
     try {
       const saved = await Promise.all(moves.map(async (move) => {
-        const real = await settledInkId(move.id);
+        const real = await settledInkUuid(move.uuid);
         return real == null ? null : source.ink.move(real, move.after);
       }));
-      const savedById = new Map(
-        saved.map((stroke, index) => stroke && [moves[index].id, stroke]).filter(Boolean)
+      const savedByUuid = new Map(
+        saved.map((stroke, index) => stroke && [moves[index].uuid, stroke]).filter(Boolean)
       );
-      setInk((all) => all.map((stroke) => savedById.get(stroke.id) || stroke));
+      setInk((all) => all.map((stroke) => savedByUuid.get(stroke.uuid) || stroke));
       if (record && saved.some(Boolean)) {
         const first = moves[0];
         remember({
-          undo: () => moveStroke(first.id, first.before, false),
-          redo: () => moveStroke(first.id, first.after, false),
+          undo: () => moveStroke(first.uuid, first.before, false),
+          redo: () => moveStroke(first.uuid, first.after, false),
         });
       }
-      return saved.find((stroke) => stroke?.id === id) || saved.find(Boolean);
+      return saved.find((stroke) => stroke?.uuid === uuid) || saved.find(Boolean);
     } catch (err) {
-      const beforeById = new Map(moves.map((move) => [move.id, move.before]));
+      const beforeByUuid = new Map(moves.map((move) => [move.uuid, move.before]));
       setInk((all) => all.map((stroke) => (
-        beforeById.has(stroke.id)
-          ? { ...stroke, points: beforeById.get(stroke.id) }
+        beforeByUuid.has(stroke.uuid)
+          ? { ...stroke, points: beforeByUuid.get(stroke.uuid) }
           : stroke
       )));
       setError(err.message || 'Stroke not moved.');
     }
   };
 
-  const eraseStroke = async (id, record = true) => {
+  const eraseStroke = async (uuid, record = true) => {
     if (!source?.ink) return;
     // The eraser asks on every movement of the pointer, several times in a
     // frame, and `ink` is whatever it was when this render began — so the
@@ -1698,41 +1696,41 @@ export default function App() {
     // stroke", and the error path puts the stroke back.
     //
     // It has to be let go of afterwards, and for a while it was not: ids
-    // stayed in here for the life of the page. SQLite hands out the id of
+    // stayed in here for the life of the page. SQLite hands out the uuid of
     // the last row again when that row has been deleted, so the next stroke
     // drawn after erasing one is very often given the same number — and
     // arrived already on the list of things not to erase. It could not be
     // rubbed out at all until the page was reloaded, which emptied the set.
-    // That is the bug this looked like from the outside, and an id is the
+    // That is the bug this looked like from the outside, and an uuid is the
     // server's business anyway: nothing here should assume one is never
     // used twice.
-    if (erasing.current.has(id)) return;
+    if (erasing.current.has(uuid)) return;
     // Whatever the eraser was over, it was over: the page is rendering it,
     // which is a better witness than this render's copy of the list.
-    const target = inkRef.current.find((s) => s.id === id);
-    const gone = target?.group_id
-      ? inkRef.current.filter((s) => s.group_id === target.group_id)
+    const target = inkRef.current.find((s) => s.uuid === uuid);
+    const gone = target?.group_uuid
+      ? inkRef.current.filter((s) => s.group_uuid === target.group_uuid)
       : target ? [target] : [];
     if (!gone.length) return;
-    const goneIds = new Set(gone.map((stroke) => stroke.id));
-    gone.forEach((stroke) => erasing.current.add(stroke.id));
-    setInk((all) => all.filter((s) => !goneIds.has(s.id)));
+    const goneUuids = new Set(gone.map((stroke) => stroke.uuid));
+    gone.forEach((stroke) => erasing.current.add(stroke.uuid));
+    setInk((all) => all.filter((s) => !goneUuids.has(s.uuid)));
     try {
-      const realIds = await Promise.all(gone.map((stroke) => settledInkId(stroke.id)));
-      await Promise.all(realIds.filter((real) => real != null).map((real) => source.ink.remove(real)));
+      const realUuids = await Promise.all(gone.map((stroke) => settledInkUuid(stroke.uuid)));
+      await Promise.all(realUuids.filter((real) => real != null).map((real) => source.ink.remove(real)));
       if (record) {
         const entries = gone.map((stroke, index) => ({
-          id: realIds[index],
-          stroke: (({ id: _id, ...spec }) => spec)(stroke),
+          uuid: realUuids[index],
+          stroke: (({ uuid: _id, ...spec }) => spec)(stroke),
         }));
         remember({
           undo: async () => {
             const restored = await Promise.all(
               entries.map((entry) => drawStroke(entry.stroke, false))
             );
-            restored.forEach((stroke, index) => { entries[index].id = stroke.id; });
+            restored.forEach((stroke, index) => { entries[index].uuid = stroke.uuid; });
           },
-          redo: () => eraseStroke(entries[0].id, false),
+          redo: () => eraseStroke(entries[0].uuid, false),
         });
       }
     } catch (err) {
@@ -1742,7 +1740,7 @@ export default function App() {
       setInk((all) => [...all, ...gone]);
       setError(err.message || 'Stroke not erased.');
     } finally {
-      gone.forEach((stroke) => erasing.current.delete(stroke.id));
+      gone.forEach((stroke) => erasing.current.delete(stroke.uuid));
     }
   };
 
@@ -2202,46 +2200,46 @@ export default function App() {
   // server's.
   const handlePlace = (spot) => {
     // Counted, not clocked. This was -Date.now(), so two anchors dropped in
-    // the same millisecond took the same temporary id: two notes with one
+    // the same millisecond took the same temporary uuid: two notes with one
     // key, and a `pending` entry for the second standing in for the first,
-    // whose real id could then never be found — leaving an anchor that
+    // whose real uuid could then never be found — leaving an anchor that
     // could not be moved, renamed or deleted until the page was reloaded.
     // Negative still, so it can never be mistaken for one of the server's.
-    const tempId = -(tempNoteId.current += 1);
+    const tempUuid = -(tempNoteUuid.current += 1);
     const optimistic = {
-      id: tempId,
+      uuid: tempUuid,
       ...spot,
       anchor_type: spot.anchor.type,
       content: '',
       created_at: new Date().toISOString(),
     };
     setNotes((prev) => [...prev, optimistic]);
-    setActiveNoteId(tempId);
+    setActiveNoteUuid(tempUuid);
 
     const saving = source.notes
       .create({ ...spot, content: '' })
       .then((saved) => {
-        setNotes((prev) => prev.map((n) => (n.id === tempId ? saved : n)));
-        setActiveNoteId((id) => (id === tempId ? saved.id : id));
-        const entry = { id: saved.id, snapshot: saved };
+        setNotes((prev) => prev.map((n) => (n.uuid === tempUuid ? saved : n)));
+        setActiveNoteUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
+        const entry = { uuid: saved.uuid, snapshot: saved };
         remember({
-          undo: () => removeNote(entry.id, false),
+          undo: () => removeNote(entry.uuid, false),
           redo: async () => {
             const restored = await restoreNote(entry.snapshot);
-            entry.id = restored.id;
+            entry.uuid = restored.uuid;
           },
         });
         return saved;
       })
       .catch((e) => {
         // Nothing was saved, so the mark should not linger.
-        setNotes((prev) => prev.filter((n) => n.id !== tempId));
-        pending.current.delete(tempId);
+        setNotes((prev) => prev.filter((n) => n.uuid !== tempUuid));
+        pending.current.delete(tempUuid);
         setError(e.message);
         return null;
       });
-    pending.current.set(tempId, saving);
-    return tempId;
+    pending.current.set(tempUuid, saving);
+    return tempUuid;
   };
 
   // Picking up an anchor remembers what was put down for it, so that
@@ -2269,56 +2267,56 @@ export default function App() {
 
   const createClip = async (clip) => {
     const provisional = `clip-${Date.now()}`;
-    setClips((all) => [...all, { ...clip, id: provisional }]);
+    setClips((all) => [...all, { ...clip, uuid: provisional }]);
     // A clipper is a one-shot form of the reading cursor. Put it down as
     // soon as the rectangle lands; persistence must not keep it in hand.
     setTool('arrow');
     toolBefore.current = null;
     try {
-      const saving = source.clips.create(paper.edition_id, clip);
+      const saving = source.clips.create(paper.edition_uuid, clip);
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
-        candidate.id === provisional ? { ...saved, frame: candidate.frame } : candidate
+        candidate.uuid === provisional ? { ...saved, frame: candidate.frame } : candidate
       )));
-      setSelectedClipId((selected) => (selected === provisional ? saved.id : selected));
+      setSelectedClipUuid((selected) => (selected === provisional ? saved.uuid : selected));
     } catch (e) {
-      setClips((all) => all.filter((candidate) => candidate.id !== provisional));
+      setClips((all) => all.filter((candidate) => candidate.uuid !== provisional));
       setError(e.message);
     } finally {
       clipSaving.current.delete(provisional);
     }
   };
 
-  const settledClipId = async (id) => {
-    const saving = clipSaving.current.get(id);
-    return saving ? (await saving).id : id;
+  const settledClipUuid = async (uuid) => {
+    const saving = clipSaving.current.get(uuid);
+    return saving ? (await saving).uuid : uuid;
   };
 
-  const updateClip = (id, change) => {
-    setClips((all) => all.map((clip) => (clip.id === id ? { ...clip, ...change } : clip)));
+  const updateClip = (uuid, change) => {
+    setClips((all) => all.map((clip) => (clip.uuid === uuid ? { ...clip, ...change } : clip)));
   };
 
-  const commitClip = async (id, change) => {
+  const commitClip = async (uuid, change) => {
     try {
-      const realId = await settledClipId(id);
-      const current = clips.find((clip) => clip.id === id || clip.id === realId);
+      const realUuid = await settledClipUuid(uuid);
+      const current = clips.find((clip) => clip.uuid === uuid || clip.uuid === realUuid);
       const frame = change.frame || current?.frame;
       const floating = change.floating ?? current?.floating ?? false;
-      const saved = await source.clips.move(realId, frame, floating);
+      const saved = await source.clips.move(realUuid, frame, floating);
       setClips((all) => all.map((clip) => (
-        clip.id === id || clip.id === realId ? saved : clip
+        clip.uuid === uuid || clip.uuid === realUuid ? saved : clip
       )));
     } catch (e) {
       setError(e.message);
     }
   };
 
-  const removeClip = async (id) => {
-    setSelectedClipId((selected) => (selected === id ? null : selected));
-    setClips((all) => all.filter((clip) => clip.id !== id));
+  const removeClip = async (uuid) => {
+    setSelectedClipUuid((selected) => (selected === uuid ? null : selected));
+    setClips((all) => all.filter((clip) => clip.uuid !== uuid));
     try {
-      await source.clips.remove(await settledClipId(id));
+      await source.clips.remove(await settledClipUuid(uuid));
     } catch (e) {
       setError(e.message);
     }
@@ -2340,33 +2338,34 @@ export default function App() {
     try {
       const boards = await listBoards();
       setSendBoards(boards);
-      setSendBoardGuid(boards[0]?.guid || '');
+      setSendBoardUuid(boards[0]?.uuid || '');
     } catch (e) {
       setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
     }
   };
 
   // Editing, moving or deleting an anchor that is still in flight waits for
-  // its real id rather than failing.
-  const settledId = async (id) => {
-    if (id >= 0) return id;
-    const saved = await pending.current.get(id);
-    return saved ? saved.id : null;
+  // its real uuid rather than failing.
+  const settledUuid = async (uuid) => {
+    // Temporary anchors wear negative numbers; saved ones, their UUID.
+    if (typeof uuid !== 'number') return uuid;
+    const saved = await pending.current.get(uuid);
+    return saved ? saved.uuid : null;
   };
 
   // Dragging a pin moves the anchor; the words it carries are untouched.
-  const moveNote = async (id, spot, record = true) => {
-    const was = notesRef.current.find((note) => note.id === id);
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...spot } : n)));
+  const moveNote = async (uuid, spot, record = true) => {
+    const was = notesRef.current.find((note) => note.uuid === uuid);
+    setNotes((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, ...spot } : n)));
     try {
-      const real = await settledId(id);
+      const real = await settledUuid(uuid);
       if (real == null) return;
       const saved = await source.notes.move(real, spot);
-      if (saved) setNotes((prev) => prev.map((n) => (n.id === real ? saved : n)));
+      if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && was && saved) {
         remember({
-          undo: () => moveNote(saved.id, { page: was.page, anchor: was.anchor }, false),
-          redo: () => moveNote(saved.id, spot, false),
+          undo: () => moveNote(saved.uuid, { page: was.page, anchor: was.anchor }, false),
+          redo: () => moveNote(saved.uuid, spot, false),
         });
       }
     } catch (e) {
@@ -2380,16 +2379,16 @@ export default function App() {
     const name = nameDraft.trim();
     setNaming(null);
     if (name === (note.name || '')) return;
-    setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, name } : n)));
+    setNotes((prev) => prev.map((n) => (n.uuid === note.uuid ? { ...n, name } : n)));
     try {
-      const real = await settledId(note.id);
+      const real = await settledUuid(note.uuid);
       if (real == null) return;
       const saved = await source.notes.rename(real, name);
-      if (saved) setNotes((prev) => prev.map((n) => (n.id === real ? saved : n)));
+      if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && saved) {
         remember({
-          undo: () => renameNote(saved.id, note.name || '', false),
-          redo: () => renameNote(saved.id, name, false),
+          undo: () => renameNote(saved.uuid, note.name || '', false),
+          redo: () => renameNote(saved.uuid, name, false),
         });
       }
     } catch (e) {
@@ -2398,7 +2397,7 @@ export default function App() {
   };
 
   const label = (note) =>
-    naming === note.id ? (
+    naming === note.uuid ? (
       <input
         className="name-input"
         autoFocus
@@ -2427,73 +2426,73 @@ export default function App() {
 
   const startNaming = (note) => {
     setNameDraft(note.name || '');
-    setNaming(note.id);
+    setNaming(note.uuid);
   };
 
   // Clicking an anchor on the page says which entry it is: the row lights
   // up, scrolls into view, and fades back on its own.
   const flashTimer = useRef(null);
-  const pointAtNote = (id) => {
-    if (id == null) {
-      setActiveNoteId(null);
-      setFlashId(null);
+  const pointAtNote = (uuid) => {
+    if (uuid == null) {
+      setActiveNoteUuid(null);
+      setFlashUuid(null);
       clearTimeout(flashTimer.current);
       return;
     }
-    setActiveNoteId(id);
+    setActiveNoteUuid(uuid);
     setRailOpen(true);
-    setFlashId(id);
+    setFlashUuid(uuid);
     clearTimeout(flashTimer.current);
     // A shade longer than the 5s fade in styles.js, so the class outlives
     // the animation rather than cutting it short.
-    flashTimer.current = setTimeout(() => setFlashId(null), 6100);
+    flashTimer.current = setTimeout(() => setFlashUuid(null), 6100);
     requestAnimationFrame(() => {
       document
-        .querySelector(`.rail [data-note="${id}"]`)
+        .querySelector(`.rail [data-note="${uuid}"]`)
         ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   };
 
   const startWriting = (note) => {
-    setEditing(note.id);
+    setEditing(note.uuid);
     setEditText(note.content || '');
     goToNote(note);
   };
 
-  const updateNoteContent = async (id, content) => {
-    const real = await settledId(id);
+  const updateNoteContent = async (uuid, content) => {
+    const real = await settledUuid(uuid);
     if (real == null) return null;
     const updated = await source.notes.update(real, content);
-    setNotes((prev) => prev.map((note) => (note.id === real ? updated : note)));
+    setNotes((prev) => prev.map((note) => (note.uuid === real ? updated : note)));
     return updated;
   };
 
-  const renameNote = async (id, name, record = false) => {
-    const note = notesRef.current.find((candidate) => candidate.id === id);
-    const real = await settledId(id);
+  const renameNote = async (uuid, name, record = false) => {
+    const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
+    const real = await settledUuid(uuid);
     if (real == null) return null;
     const saved = await source.notes.rename(real, name);
-    if (saved) setNotes((prev) => prev.map((n) => (n.id === real ? saved : n)));
+    if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
     if (record && note && saved) {
       remember({
-        undo: () => renameNote(saved.id, note.name || '', false),
-        redo: () => renameNote(saved.id, name, false),
+        undo: () => renameNote(saved.uuid, note.name || '', false),
+        redo: () => renameNote(saved.uuid, name, false),
       });
     }
     return saved;
   };
 
-  const saveEdit = async (id, record = true) => {
+  const saveEdit = async (uuid, record = true) => {
     if (!editText.trim()) return;
-    const before = notesRef.current.find((note) => note.id === id)?.content || '';
+    const before = notesRef.current.find((note) => note.uuid === uuid)?.content || '';
     const content = editText.trim();
     try {
-      const updated = await updateNoteContent(id, content);
+      const updated = await updateNoteContent(uuid, content);
       setEditing(null);
       if (record && updated) {
         remember({
-          undo: () => updateNoteContent(updated.id, before),
-          redo: () => updateNoteContent(updated.id, content),
+          undo: () => updateNoteContent(updated.uuid, before),
+          redo: () => updateNoteContent(updated.uuid, content),
         });
       }
     } catch (e) {
@@ -2507,32 +2506,32 @@ export default function App() {
       anchor: snapshot.anchor,
       content: snapshot.content || '',
     });
-    if (snapshot.name) restored = await source.notes.rename(restored.id, snapshot.name);
+    if (snapshot.name) restored = await source.notes.rename(restored.uuid, snapshot.name);
     setNotes((prev) => [...prev, restored]);
     return restored;
   };
 
-  const removeNote = async (id, record = true) => {
-    const gone = notesRef.current.find((note) => note.id === id);
-    setNotes((prev) => prev.filter((n) => n.id !== id));
-    // Let go of it everywhere. SQLite hands out a deleted row's id again,
+  const removeNote = async (uuid, record = true) => {
+    const gone = notesRef.current.find((note) => note.uuid === uuid);
+    setNotes((prev) => prev.filter((n) => n.uuid !== uuid));
+    // Let go of it everywhere. SQLite hands out a deleted row's uuid again,
     // so a number kept here after the note it named has gone will one day
     // name a different note — and open its card, or light its row, for no
     // reason anyone could see.
-    setActiveNoteId((open) => (open === id ? null : open));
-    setFlashId((lit) => (lit === id ? null : lit));
-    setDraggingNoteId((carried) => (carried === id ? null : carried));
+    setActiveNoteUuid((open) => (open === uuid ? null : open));
+    setFlashUuid((lit) => (lit === uuid ? null : lit));
+    setDraggingNoteUuid((carried) => (carried === uuid ? null : carried));
     try {
-      const real = await settledId(id);
+      const real = await settledUuid(uuid);
       if (real != null) await source.notes.remove(real);
       if (record && gone) {
-        const entry = { id: real, snapshot: gone };
+        const entry = { uuid: real, snapshot: gone };
         remember({
           undo: async () => {
             const restored = await restoreNote(entry.snapshot);
-            entry.id = restored.id;
+            entry.uuid = restored.uuid;
           },
-          redo: () => removeNote(entry.id, false),
+          redo: () => removeNote(entry.uuid, false),
         });
       }
     } catch (e) {
@@ -2545,7 +2544,7 @@ export default function App() {
     { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => startWriting(note) },
     { label: 'Rename Anchor…', onSelect: () => startNaming(note) },
     { separator: true },
-    { label: 'Delete Anchor', onSelect: () => removeNote(note.id) },
+    { label: 'Delete Anchor', onSelect: () => removeNote(note.uuid) },
     { separator: true },
     { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
@@ -2560,7 +2559,7 @@ export default function App() {
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
   useLayoutEffect(() => {
-    if (readingViewRestored.current || wantedNoteId || wantedPage || !doc || !scale) return;
+    if (readingViewRestored.current || wantedNoteUuid || wantedPage || !doc || !scale) return;
     const saved = readingView.current.view;
     if (!saved) {
       readingViewRestored.current = true;
@@ -2597,7 +2596,7 @@ export default function App() {
       cancelled = true;
       if (frame != null) cancelAnimationFrame(frame);
     };
-  }, [doc, scale, wantedNoteId, wantedPage]);
+  }, [doc, scale, wantedNoteUuid, wantedPage]);
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
@@ -2641,7 +2640,7 @@ export default function App() {
     if (!scroller || !key || !doc || !hasScale) return undefined;
     let timer = null;
     const save = () => {
-      if (!readingViewRestored.current && !wantedNoteId) return;
+      if (!readingViewRestored.current && !wantedNoteUuid) return;
       const box = scroller.getBoundingClientRect();
       const cx = box.left + box.width / 2;
       const cy = box.top + box.height / 2;
@@ -2673,14 +2672,14 @@ export default function App() {
       window.clearTimeout(timer);
       save();
     };
-  }, [doc, hasScale, wantedNoteId]);
+  }, [doc, hasScale, wantedNoteUuid]);
 
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
-    if (!wantedNoteId || !doc || notes.length === 0) return;
-    const note = notes.find((n) => String(n.id) === wantedNoteId);
+    if (!wantedNoteUuid || !doc || notes.length === 0) return;
+    const note = notes.find((n) => String(n.uuid) === wantedNoteUuid);
     if (note) goToNoteWhenLaid(note);
-  }, [wantedNoteId, doc, notes]);
+  }, [wantedNoteUuid, doc, notes]);
 
   // Each page learns its size from pdf.js a moment after the document
   // opens, so scrolling to a note on load has to wait for the page to have
@@ -2698,7 +2697,7 @@ export default function App() {
   // Go to the note's own place on the page, not merely the page: the
   // anchor lands in the middle of the view.
   const goToNote = (note) => {
-    setActiveNoteId(note.id);
+    setActiveNoteUuid(note.uuid);
     if (!note.anchor) return;
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${note.page}"]`);
@@ -2749,14 +2748,14 @@ export default function App() {
   const pageMoveNote = useEvent(moveNote);
   const pageDrawStroke = useEvent(drawStroke);
   const pageSelectInk = useEvent((stroke) => setSelectedInk(stroke ? {
-    id: stroke.id,
-    groupId: stroke.group_id || null,
+    uuid: stroke.uuid,
+    groupUuid: stroke.group_uuid || null,
   } : null));
   const pageHoverInk = useEvent((_page, objects) => {
     const wanted = new Set(objects);
     const pages = new Set();
     for (const stroke of inkRef.current) {
-      const object = stroke.group_id ? `group:${stroke.group_id}` : `stroke:${stroke.id}`;
+      const object = stroke.group_uuid ? `group:${stroke.group_uuid}` : `stroke:${stroke.uuid}`;
       if (wanted.has(object)) pages.add(stroke.page);
     }
     setHoveredInk({ pages, objects });
@@ -3283,7 +3282,7 @@ export default function App() {
                 {paperInfoError && <p className="ref-unmatched">Details unavailable.</p>}
                 {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
                 <div className="ref-links">
-                  <a className="ref-link here" href={appPath(`/paper/${paper.id}`)}>In Papol</a>
+                  <a className="ref-link here" href={appPath(`/paper/${paper.uuid}`)}>In Papol</a>
                   {paperInfo?.pdf_url && (
                     <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
                   )}
@@ -3406,9 +3405,9 @@ export default function App() {
               scale={scale}
               renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}
-              activeNoteId={notesByPage.get(n)?.some((note) => note.id === activeNoteId) ? activeNoteId : null}
+              activeNoteUuid={notesByPage.get(n)?.some((note) => note.uuid === activeNoteUuid) ? activeNoteUuid : null}
               analysis={analysis}
-              openReferenceId={openReferencePage === n ? openCite?.referenceId ?? null : null}
+              openReferenceUuid={openReferencePage === n ? openCite?.referenceUuid ?? null : null}
               onOpenReference={pageOpenReference}
               onFollowLink={pageFollowLink}
               onSelectNote={pageSelectNote}
@@ -3437,13 +3436,13 @@ export default function App() {
               onUpdateClip={pageUpdateClip}
               onCommitClip={pageCommitClip}
               onRemoveClip={pageRemoveClip}
-              selectedClipId={clipsByPage.get(n)?.some((clip) => clip.id === selectedClipId)
-                ? selectedClipId
+              selectedClipUuid={clipsByPage.get(n)?.some((clip) => clip.uuid === selectedClipUuid)
+                ? selectedClipUuid
                 : null}
-              onSelectClip={setSelectedClipId}
+              onSelectClip={setSelectedClipUuid}
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
-              onDragNote={setDraggingNoteId}
+              onDragNote={setDraggingNoteUuid}
               onContextNote={noteContextMenu}
               animal={animal}
               animalSpeed={animalSpeed}
@@ -3466,18 +3465,18 @@ export default function App() {
               error={referenceError}
               onClose={closeReference}
               position={openCite.index}
-              count={openCite.referenceIds.length}
+              count={openCite.referenceUuids.length}
               onPrevious={openCite.index > 0 ? () => openReference(
-                openCite.referenceIds[openCite.index - 1],
+                openCite.referenceUuids[openCite.index - 1],
                 openCite.anchor,
                 null,
-                openCite.referenceIds
+                openCite.referenceUuids
               ) : null}
-              onNext={openCite.index < openCite.referenceIds.length - 1 ? () => openReference(
-                openCite.referenceIds[openCite.index + 1],
+              onNext={openCite.index < openCite.referenceUuids.length - 1 ? () => openReference(
+                openCite.referenceUuids[openCite.index + 1],
                 openCite.anchor,
                 null,
-                openCite.referenceIds
+                openCite.referenceUuids
               ) : null}
             />
           )}
@@ -3710,13 +3709,13 @@ export default function App() {
                   <label className="send-selection-field">
                     <span>Board</span>
                     <select
-                      value={sendBoardGuid}
-                      onChange={(event) => setSendBoardGuid(event.target.value)}
+                      value={sendBoardUuid}
+                      onChange={(event) => setSendBoardUuid(event.target.value)}
                       disabled={!sendBoards.length}
                     >
                       {!sendBoards.length && <option value="">No boards available</option>}
                       {sendBoards.map((candidate) => (
-                        <option key={candidate.guid} value={candidate.guid}>{candidate.name}</option>
+                        <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
                       ))}
                     </select>
                   </label>
@@ -3741,7 +3740,7 @@ export default function App() {
                     <button
                       type="button"
                       className="primary"
-                      disabled={sendBusy || !sendBoardGuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())}
+                      disabled={sendBusy || !sendBoardUuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())}
                       onClick={sendSelectionToBoard}
                     >
                       {sendBusy ? 'Sending…' : 'Send to board'}
@@ -3779,13 +3778,13 @@ export default function App() {
           {numbered.map((note) =>
             // An anchor with nothing written on it is a mark, not a note:
             // one quiet line, until there are words to show.
-            !note.content && editing !== note.id ? (
+            !note.content && editing !== note.uuid ? (
               <div
-                key={note.id}
-                data-note={note.id}
+                key={note.uuid}
+                data-note={note.uuid}
                 className={`anchor-row${
-                  note.id === flashId ? ' flash' : ''
-                }${note.id === draggingNoteId ? ' carrying' : ''}`}
+                  note.uuid === flashUuid ? ' flash' : ''
+                }${note.uuid === draggingNoteUuid ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
                 onContextMenu={(event) => noteContextMenu(event, note)}
               >
@@ -3808,7 +3807,7 @@ export default function App() {
                   aria-label="Delete this anchor"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeNote(note.id);
+                    removeNote(note.uuid);
                   }}
                 >
                   ×
@@ -3816,11 +3815,11 @@ export default function App() {
               </div>
             ) : (
               <div
-                key={note.id}
-                data-note={note.id}
+                key={note.uuid}
+                data-note={note.uuid}
                 className={`note-card${
-                  note.id === flashId ? ' flash' : ''
-                }${note.id === draggingNoteId ? ' carrying' : ''}`}
+                  note.uuid === flashUuid ? ' flash' : ''
+                }${note.uuid === draggingNoteUuid ? ' carrying' : ''}`}
                 onClick={() => goToNote(note)}
                 onContextMenu={(event) => noteContextMenu(event, note)}
               >
@@ -3830,7 +3829,7 @@ export default function App() {
                   aria-label="Delete this anchor"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeNote(note.id);
+                    removeNote(note.uuid);
                   }}
                 >
                   ×
@@ -3846,7 +3845,7 @@ export default function App() {
                     </span>
                   )}
                 </p>
-                {editing === note.id ? (
+                {editing === note.uuid ? (
                   <>
                     <textarea
                       autoFocus
@@ -3864,7 +3863,7 @@ export default function App() {
                         className="primary"
                         onClick={(e) => {
                           e.stopPropagation();
-                          saveEdit(note.id);
+                          saveEdit(note.uuid);
                         }}
                       >
                         Save

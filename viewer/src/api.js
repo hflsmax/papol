@@ -11,7 +11,7 @@ import {
 } from '../../shared/offlineStore.js';
 import {
   boardView, clipView, inkView, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate,
-  nativeQuery, noteView, paperView, uuid,
+  nativeQuery, noteView, paperView, newUuid,
 } from '../../frontend/src/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 
@@ -25,22 +25,11 @@ configureReplayAuthorization(() => {
 });
 
 const API_BASE = backendPath('/api');
-const editionSyncIds = new Map();
+// The edition a paper's located notes are placed on.
 const activeEditionByPaper = new Map();
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function nativeEditionId(editionId) {
-  const key = String(editionId);
-  return editionSyncIds.get(key) || (UUID.test(key) ? key : null);
-}
 
 export function rememberPaperIdentity(paper) {
-  for (const edition of paper?.editions || []) {
-    if (edition?.id != null && edition.sync_id) editionSyncIds.set(String(edition.id), edition.sync_id);
-  }
-  if (paper?.id != null && paper.edition_sync_id) {
-    activeEditionByPaper.set(String(paper.id), paper.edition_sync_id);
-  }
+  if (paper?.uuid != null && paper.edition_uuid) activeEditionByPaper.set(paper.uuid, paper.edition_uuid);
   return paper;
 }
 
@@ -83,7 +72,7 @@ export async function getPaperByPdf(hash) {
   if (nativeDataActive()) {
     try {
       const paper = rememberPaperIdentity(paperView(await nativeQuery('paper_by_pdf', { sha256: hash })));
-      paper.comments = (await nativeQuery('comments', { parent_id: paper.id })).map(noteView);
+      paper.comments = (await nativeQuery('comments', { parent_uuid: paper.uuid })).map(noteView);
       return paper;
     } catch {
       // A public paper that has not been retained locally still comes from the service.
@@ -91,7 +80,7 @@ export async function getPaperByPdf(hash) {
   }
   const paper = rememberPaperIdentity(await request(`/viewer/${hash}`));
   if (nativeDataActive()) {
-    paper.comments = (await nativeQuery('comments', { parent_id: paper.id })).map(noteView);
+    paper.comments = (await nativeQuery('comments', { parent_uuid: paper.uuid })).map(noteView);
   }
   return paper;
 }
@@ -104,8 +93,6 @@ export function pdfHref(paper) {
   if (!paper?.file_path) return null;
   if (paper.file_path.startsWith('http')) return paper.file_path;
   if (paper.file_path.startsWith('offline-file:')) return paper.file_path;
-  // Demo papers are shipped with the app; uploaded ones live in /uploads.
-  if (paper.file_path.startsWith('assets/')) return appPath(`/${paper.file_path}`);
   return backendPath(`/uploads/${paper.file_path}`);
 }
 
@@ -122,27 +109,27 @@ export function listBoards() {
   return request('/boards');
 }
 
-export function stageBoardExcerpt(boardGuid, data) {
+export function stageBoardExcerpt(boardUuid, data) {
   if (nativeDataActive()) {
     return nativeMutate([{
-      table: 'board_items', id: uuid(), operation: 'upsert',
+      table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: {
-        board_id: boardGuid, kind: 'excerpt', excerpt_text: data.excerpt_text,
+        board_uuid: boardUuid, kind: 'excerpt', excerpt_text: data.excerpt_text,
         content: data.content, source_url: data.source_url,
         source_label: data.source_label, staged: true,
       },
     }]).then((receipt) => receipt.rows[0]);
   }
-  return jsonRequest(`/boards/${boardGuid}/staging`, 'POST', data);
+  return jsonRequest(`/boards/${boardUuid}/staging`, 'POST', data);
 }
 
-export async function stageBoardClip(boardGuid, { blob, comment, sourceUrl, sourceLabel }) {
+export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sourceLabel }) {
   if (nativeDataActive()) {
     const stored = await nativeBlobImport(blob);
     const receipt = await nativeMutate([{
-      table: 'board_items', id: uuid(), operation: 'upsert',
+      table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: {
-        board_id: boardGuid, kind: 'image', content: comment || null,
+        board_uuid: boardUuid, kind: 'image', content: comment || null,
         sha256: stored.sha256, original_filename: 'paper-clip.png',
         mime_type: 'image/png', source_url: sourceUrl,
         source_label: sourceLabel, staged: true,
@@ -155,61 +142,61 @@ export async function stageBoardClip(boardGuid, { blob, comment, sourceUrl, sour
   body.append('caption', comment || '');
   body.append('source_url', sourceUrl);
   body.append('source_label', sourceLabel);
-  return request(`/boards/${boardGuid}/staging/clip`, { method: 'POST', body });
+  return request(`/boards/${boardUuid}/staging/clip`, { method: 'POST', body });
 }
 
 // A located note is a note: the same endpoints Papol's own notes use, with
 // a page and an anchor attached.
-export function createNote(paperId, { page, anchor, content }) {
+export function createNote(paperUuid, { page, anchor, content }) {
   if (nativeDataActive()) {
     const payload = anchor ? { ...anchor } : null;
     const anchorType = payload?.type || null;
     if (payload) delete payload.type;
     return nativeMutate([{
-      table: 'comments', id: uuid(), operation: 'upsert',
+      table: 'comments', uuid: newUuid(), operation: 'upsert',
       values: {
-        paper_id: paperId,
-        edition_id: activeEditionByPaper.get(String(paperId)) || null,
+        paper_uuid: paperUuid,
+        edition_uuid: activeEditionByPaper.get(paperUuid) || null,
         page: page ?? null, anchor_type: anchorType,
         anchor: payload ? JSON.stringify(payload) : null, content,
       },
     }]).then((receipt) => noteView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperId}/comments`, 'POST', { page, anchor, content });
+  return jsonRequest(`/papers/${paperUuid}/comments`, 'POST', { page, anchor, content });
 }
 
-export function updateNote(id, content) {
-  if (nativeDataActive() && typeof id === 'string') {
-    return nativeMutate([{ table: 'comments', id, operation: 'patch', values: { content } }])
+export function updateNote(uuid, content) {
+  if (nativeDataActive() && typeof uuid === 'string') {
+    return nativeMutate([{ table: 'comments', uuid, operation: 'patch', values: { content } }])
       .then((receipt) => noteView(receipt.rows[0]));
   }
-  return jsonRequest(`/comments/${id}`, 'PUT', { content });
+  return jsonRequest(`/comments/${uuid}`, 'PUT', { content });
 }
 
-export function moveNote(id, { page, anchor }) {
-  if (nativeDataActive() && typeof id === 'string') {
+export function moveNote(uuid, { page, anchor }) {
+  if (nativeDataActive() && typeof uuid === 'string') {
     const payload = { ...anchor }; const anchorType = payload.type; delete payload.type;
     return nativeMutate([{
-      table: 'comments', id, operation: 'patch',
+      table: 'comments', uuid, operation: 'patch',
       values: { page, anchor_type: anchorType, anchor: JSON.stringify(payload) },
     }]).then((receipt) => noteView(receipt.rows[0]));
   }
-  return jsonRequest(`/comments/${id}`, 'PUT', { page, anchor });
+  return jsonRequest(`/comments/${uuid}`, 'PUT', { page, anchor });
 }
 
-export function renameNote(id, name) {
-  if (nativeDataActive() && typeof id === 'string') {
-    return nativeMutate([{ table: 'comments', id, operation: 'patch', values: { name } }])
+export function renameNote(uuid, name) {
+  if (nativeDataActive() && typeof uuid === 'string') {
+    return nativeMutate([{ table: 'comments', uuid, operation: 'patch', values: { name } }])
       .then((receipt) => noteView(receipt.rows[0]));
   }
-  return jsonRequest(`/comments/${id}`, 'PUT', { name });
+  return jsonRequest(`/comments/${uuid}`, 'PUT', { name });
 }
 
-export function deleteNote(id) {
-  if (nativeDataActive() && typeof id === 'string') {
-    return nativeMutate([{ table: 'comments', id, operation: 'delete', values: {} }]).then(() => null);
+export function deleteNote(uuid) {
+  if (nativeDataActive() && typeof uuid === 'string') {
+    return nativeMutate([{ table: 'comments', uuid, operation: 'delete', values: {} }]).then(() => null);
   }
-  return request(`/comments/${id}`, { method: 'DELETE' });
+  return request(`/comments/${uuid}`, { method: 'DELETE' });
 }
 
 // ---- References ----
@@ -217,13 +204,13 @@ export function deleteNote(id) {
 // The bibliography of the PDF being read, and where each work is cited in
 // it. The first ask may answer `pending`: reading a PDF's references takes
 // a pass over the whole document, which happens once and is then kept.
-export function getViewerReferences(pdfHash, editionId) {
-  return request(`/viewer-references/${pdfHash}?edition_id=${editionId}`);
+export function getViewerReferences(pdfHash, editionUuid) {
+  return request(`/viewer-references/${pdfHash}?edition_uuid=${editionUuid}`);
 }
 
 // One reference, looked up the first time anyone opens it.
-export function getViewerReference(id) {
-  return request(`/viewer-references/item/${id}`);
+export function getViewerReference(uuid) {
+  return request(`/viewer-references/item/${uuid}`);
 }
 
 export function resolveViewerReference(pdfHash, { key, raw }) {
@@ -234,82 +221,78 @@ export function resolveViewerReference(pdfHash, { key, raw }) {
 
 // What the reader has drawn on this edition. Kept per edition, like the
 // references: the marks were made over a particular PDF.
-export function getInk(editionId) {
-  const localEditionId = nativeEditionId(editionId);
-  if (nativeDataActive() && localEditionId) {
-    return nativeQuery('ink', { parent_id: localEditionId })
+export function getInk(editionUuid) {
+  if (nativeDataActive()) {
+    return nativeQuery('ink', { parent_uuid: editionUuid })
       .then((rows) => rows.map(inkView));
   }
-  return request(`/editions/${editionId}/ink`);
+  return request(`/editions/${editionUuid}/ink`);
 }
 
-export function addInk(editionId, stroke) {
-  const localEditionId = nativeEditionId(editionId);
-  if (nativeDataActive() && localEditionId) {
+export function addInk(editionUuid, stroke) {
+  if (nativeDataActive()) {
     return nativeMutate([{
-      table: 'ink_strokes', id: uuid(), operation: 'upsert',
-      values: { ...stroke, edition_id: localEditionId, points: JSON.stringify(stroke.points) },
+      table: 'ink_strokes', uuid: newUuid(), operation: 'upsert',
+      values: { ...stroke, edition_uuid: editionUuid, points: JSON.stringify(stroke.points) },
     }]).then((receipt) => inkView(receipt.rows[0]));
   }
-  return jsonRequest(`/editions/${editionId}/ink`, 'POST', stroke);
+  return jsonRequest(`/editions/${editionUuid}/ink`, 'POST', stroke);
 }
 
-export function moveInk(strokeId, points) {
-  if (nativeDataActive() && typeof strokeId === 'string') {
+export function moveInk(strokeUuid, points) {
+  if (nativeDataActive() && typeof strokeUuid === 'string') {
     return nativeMutate([{
-      table: 'ink_strokes', id: strokeId, operation: 'patch', values: { points: JSON.stringify(points) },
+      table: 'ink_strokes', uuid: strokeUuid, operation: 'patch', values: { points: JSON.stringify(points) },
     }]).then((receipt) => inkView(receipt.rows[0]));
   }
-  return jsonRequest(`/ink/${strokeId}`, 'PUT', { points });
+  return jsonRequest(`/ink/${strokeUuid}`, 'PUT', { points });
 }
 
-export function eraseInk(strokeId) {
-  if (nativeDataActive() && typeof strokeId === 'string') {
-    return nativeMutate([{ table: 'ink_strokes', id: strokeId, operation: 'delete', values: {} }]).then(() => null);
+export function eraseInk(strokeUuid) {
+  if (nativeDataActive() && typeof strokeUuid === 'string') {
+    return nativeMutate([{ table: 'ink_strokes', uuid: strokeUuid, operation: 'delete', values: {} }]).then(() => null);
   }
-  return request(`/ink/${strokeId}`, { method: 'DELETE' });
+  return request(`/ink/${strokeUuid}`, { method: 'DELETE' });
 }
 
 // ---- Clips ----
 
-export function getClips(editionId) {
-  const localEditionId = nativeEditionId(editionId);
-  if (nativeDataActive() && localEditionId) {
-    return nativeQuery('clips', { parent_id: localEditionId })
+export function getClips(editionUuid) {
+  if (nativeDataActive()) {
+    return nativeQuery('clips', { parent_uuid: editionUuid })
       .then((rows) => rows.map(clipView));
   }
-  return request(`/editions/${editionId}/clips`);
+  return request(`/editions/${editionUuid}/clips`);
 }
 
-export function addClip(editionId, clip) {
-  const localEditionId = nativeEditionId(editionId);
-  if (nativeDataActive() && localEditionId) {
+export function addClip(editionUuid, clip) {
+  if (nativeDataActive()) {
     return nativeMutate([{
-      table: 'paper_clips', id: uuid(), operation: 'upsert',
+      table: 'paper_clips', uuid: newUuid(), operation: 'upsert',
       values: {
-        ...clip, edition_id: localEditionId,
+        ...clip, edition_uuid: editionUuid,
         source: JSON.stringify(clip.source), frame: JSON.stringify(clip.frame),
       },
     }]).then((receipt) => clipView(receipt.rows[0]));
   }
-  return jsonRequest(`/editions/${editionId}/clips`, 'POST', clip);
+  return jsonRequest(`/editions/${editionUuid}/clips`, 'POST', clip);
 }
 
-export function moveClip(clipId, frame, floating) {
-  if (nativeDataActive() && typeof clipId === 'string') {
+export function moveClip(clipUuid, frame, floating) {
+  if (nativeDataActive() && typeof clipUuid === 'string') {
     return nativeMutate([{
-      table: 'paper_clips', id: clipId, operation: 'patch',
+      table: 'paper_clips', uuid: clipUuid, operation: 'patch',
       values: { frame: JSON.stringify(frame), floating },
     }]).then((receipt) => clipView(receipt.rows[0]));
   }
-  return jsonRequest(`/clips/${clipId}`, 'PUT', { frame, floating });
+  return jsonRequest(`/clips/${clipUuid}`, 'PUT', { frame, floating });
 }
 
-export function eraseClip(clipId) {
-  if (nativeDataActive() && typeof clipId === 'string') {
-    return nativeMutate([{ table: 'paper_clips', id: clipId, operation: 'delete', values: {} }]).then(() => null);
+export function eraseClip(clipUuid) {
+  if (nativeDataActive() && typeof clipUuid === 'string') {
+    return nativeMutate([{ table: 'paper_clips', uuid: clipUuid, operation: 'delete', values: {} }]).then(() => null);
   }
-  return request(`/clips/${clipId}`, { method: 'DELETE' });
+  return request(`/clips/${clipUuid}`, { method: 'DELETE' });
 }
 
 // ---- Feedback ----

@@ -43,14 +43,14 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
         {error && <p className="nook-manager-error" role="alert">{error}</p>}
         <div className="shelf-manager-list">
           {space.shelves.map((shelf) => (
-            <div className="shelf-manager-row" key={shelf.id}>
+            <div className="shelf-manager-row" key={shelf.uuid}>
               <label className="shelf-color-control" title="Shelf color">
                 <input
                   className="shelf-color-input"
                   type="color"
                   value={shelf.color}
                   aria-label={`Color for ${shelf.name}`}
-                  onChange={(e) => attempt(() => updateShelf(shelf.id, { color: e.target.value }))}
+                  onChange={(e) => attempt(() => updateShelf(shelf.uuid, { color: e.target.value }))}
                 />
               </label>
               <div className="shelf-name-block">
@@ -58,8 +58,8 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   className="shelf-name-input"
                   value={shelf.name}
                   aria-label="Shelf name"
-                  onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.id === shelf.id ? { ...item, name: e.target.value } : item) }))}
-                  onBlur={(e) => { if (e.target.value.trim()) attempt(() => updateShelf(shelf.id, { name: e.target.value.trim() })); }}
+                  onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.uuid === shelf.uuid ? { ...item, name: e.target.value } : item) }))}
+                  onBlur={(e) => { if (e.target.value.trim()) attempt(() => updateShelf(shelf.uuid, { name: e.target.value.trim() })); }}
                 />
                 <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
               </div>
@@ -68,7 +68,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                 role="switch"
                 aria-checked={shelf.is_public}
                 aria-label={`${shelf.name} is ${shelf.is_public ? 'public' : 'private'}`}
-                onClick={() => attempt(() => updateShelf(shelf.id, { is_public: !shelf.is_public }))}
+                onClick={() => attempt(() => updateShelf(shelf.uuid, { is_public: !shelf.is_public }))}
               >
                 <span className="switch">
                   <span className="switch-knob" />
@@ -80,7 +80,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   type="radio"
                   name="default-shelf"
                   checked={shelf.is_default}
-                  onChange={() => { if (!shelf.is_default) attempt(() => updateShelf(shelf.id, { is_default: true })); }}
+                  onChange={() => { if (!shelf.is_default) attempt(() => updateShelf(shelf.uuid, { is_default: true })); }}
                 />
                 <span>Default</span>
               </label>
@@ -97,7 +97,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   const papers = shelf.paper_count === 1 ? '1 paper' : `${shelf.paper_count} papers`;
                   if (!(await confirmAction(`Delete ${shelf.name}? Its ${papers} will move to another shelf.`, { confirmLabel: 'Delete', destructive: true }))) return;
                   try {
-                    await deleteShelf(shelf.id);
+                    await deleteShelf(shelf.uuid);
                     onChanged();
                   } catch (err) {
                     setError(err.message);
@@ -125,7 +125,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
           {space.tags.length > 0 && (
             <div className="manage-tag-list">
               {space.tags.map((tag) => (
-                <div className="manage-tag-row" key={tag.id}>
+                <div className="manage-tag-row" key={tag.uuid}>
                   <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
                   <button
                     className="icon-btn tag-delete-btn"
@@ -133,8 +133,8 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                     aria-label={`Delete tag ${tag.name}`}
                     onClick={async () => {
                       if (!(await confirmAction(`Delete #${tag.name} from every paper?`, { confirmLabel: 'Delete', destructive: true }))) return;
-                      await deleteTag(tag.id);
-                      onTagDeleted?.(tag.id);
+                      await deleteTag(tag.uuid);
+                      onTagDeleted?.(tag.uuid);
                       onChanged();
                     }}
                   >

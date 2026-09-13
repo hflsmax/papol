@@ -11,18 +11,18 @@ static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);
 #[tauri::command]
 fn data_query(
     store: tauri::State<'_, data::LocalStore>,
-    account_id: i64,
+    account_uuid: String,
     query_name: String,
     parameters: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    store.query(account_id, &query_name, parameters)
+    store.query(&account_uuid, &query_name, parameters)
 }
 
 #[tauri::command]
 fn data_mutate(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
-    account_id: i64,
+    account_uuid: String,
     changes: Vec<data::DataChange>,
 ) -> Result<data::MutationReceipt, String> {
     use tauri::Emitter;
@@ -31,7 +31,7 @@ fn data_mutate(
         .iter()
         .map(|change| change.table.clone())
         .collect::<std::collections::BTreeSet<_>>();
-    let receipt = store.mutate(account_id, changes)?;
+    let receipt = store.mutate(&account_uuid, changes)?;
     let _ = app.emit(
         "papol://data-changed",
         serde_json::json!({"tables": tables}),
@@ -104,17 +104,17 @@ fn local_setting_set(
 #[tauri::command]
 fn local_account_set(
     store: tauri::State<'_, data::LocalStore>,
-    account_id: i64,
+    account_uuid: String,
     profile: serde_json::Value,
 ) -> Result<(), String> {
-    store.set_local_account(account_id, profile)
+    store.set_local_account(&account_uuid, profile)
 }
 
 #[tauri::command]
 fn local_account_remove(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
-    account_id: i64,
+    account_uuid: String,
 ) -> Result<usize, String> {
     use tauri::Emitter;
 
@@ -125,14 +125,14 @@ fn local_account_remove(
             let _ = window.close();
         }
     }
-    let removed = store.remove_account(account_id)?;
+    let removed = store.remove_account(&account_uuid)?;
     let _ = app.emit(
         "papol://data-changed",
-        serde_json::json!({"accountRemoved": account_id}),
+        serde_json::json!({"accountRemoved": account_uuid}),
     );
     let _ = app.emit(
         "papol://sync-status",
-        serde_json::json!({"accountRemoved": account_id}),
+        serde_json::json!({"accountRemoved": account_uuid}),
     );
     Ok(removed)
 }
@@ -141,7 +141,7 @@ fn local_account_remove(
 fn local_recovery_export(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
-    account_id: i64,
+    account_uuid: String,
 ) -> Result<data::RecoveryExport, String> {
     let directory = app
         .path()
@@ -152,7 +152,7 @@ fn local_recovery_export(
         chrono::Local::now().format("%Y-%m-%d %H-%M-%S"),
         uuid::Uuid::new_v4().simple(),
     );
-    store.export_recovery(account_id, &directory.join(filename))
+    store.export_recovery(&account_uuid, &directory.join(filename))
 }
 
 #[tauri::command]
@@ -160,7 +160,7 @@ async fn sync_now(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     coordinator: tauri::State<'_, sync::Coordinator>,
-    account_id: i64,
+    account_uuid: String,
     backend_url: String,
     token: String,
 ) -> Result<sync::SyncResult, String> {
@@ -174,7 +174,7 @@ async fn sync_now(
         let _ = progress_app.emit("papol://sync-progress", progress);
     };
     let result = coordinator
-        .synchronize_with_progress(&store, account_id, &backend_url, &token, &report)
+        .synchronize_with_progress(&store, &account_uuid, &backend_url, &token, &report)
         .await;
     if ACTIVE_SYNCS.fetch_sub(1, Ordering::SeqCst) == 1 {
         let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": false}));
@@ -188,7 +188,7 @@ async fn sync_now(
             let _ = app.emit("papol://sync-status", status);
         }
         Err(error) => {
-            let _ = store.record_sync_error(account_id, error);
+            let _ = store.record_sync_error(&account_uuid, error);
             let _ = app.emit("papol://sync-status", serde_json::json!({"error": error}));
         }
     }

@@ -19,11 +19,12 @@ from sqlalchemy.pool import StaticPool
 
 import main
 import sync.api as sync_api
-from sync.changes import commit_sync, seed_board_change_log
+from sync.changes import commit_sync
 from database import Base, PapolSession, current_request_session, get_db
 from models import (
     AppliedMutation, Board, BoardItem, Comment, Copy, CopyTagLink, InkStroke, Paper,
     PaperClip, PaperEdition, Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
+    User,
 )
 
 
@@ -92,6 +93,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 200, response.text)
         self.headers = {"Authorization": f"Bearer {response.json()['token']}"}
+        self.user_uuid = response.json()["user"]["uuid"]
 
     def request(self, method, path, **kwargs):
         response = self.client.request(method, path, headers=self.headers, **kwargs)
@@ -102,71 +104,45 @@ class DesktopSyncContractTests(unittest.TestCase):
         """Every ID-bearing response supports the client's ordered remapping."""
         board = self.request("POST", "/api/boards", json={"name": "Offline board"}).json()
         first = self.request(
-            "POST", f"/api/boards/{board['guid']}/comments",
+            "POST", f"/api/boards/{board['uuid']}/comments",
             json={"content": "first", "x": 1, "y": 2},
         ).json()
         second = self.request(
-            "POST", f"/api/boards/{board['guid']}/comments",
+            "POST", f"/api/boards/{board['uuid']}/comments",
             json={"content": "second", "x": 10, "y": 20},
         ).json()
         moved = self.request(
-            "PUT", f"/api/board-items/{first['id']}", json={"x": 30, "y": 40},
+            "PUT", f"/api/board-items/{first['uuid']}", json={"x": 30, "y": 40},
         ).json()
         group = self.request(
-            "POST", f"/api/boards/{board['guid']}/groups",
-            json={"kind": "collection", "title": "Synced", "item_ids": [first["id"], second["id"]]},
+            "POST", f"/api/boards/{board['uuid']}/groups",
+            json={"kind": "collection", "title": "Synced", "item_uuids": [first["uuid"], second["uuid"]]},
         ).json()
 
         self.assertEqual((moved["x"], moved["y"]), (30, 40))
-        self.assertIsInstance(board["guid"], str)
-        self.assertIsInstance(first["id"], int)
-        self.assertEqual(group["item_ids"], [first["id"], second["id"]])
+        uuid.UUID(board["uuid"])
+        uuid.UUID(first["uuid"])
+        self.assertEqual(group["item_uuids"], [first["uuid"], second["uuid"]])
 
-        fetched = self.request("GET", f"/api/boards/{board['guid']}").json()
-        self.assertEqual({item["id"] for item in fetched["items"]}, {first["id"], second["id"]})
-        self.assertEqual(fetched["groups"][0]["id"], group["id"])
+        fetched = self.request("GET", f"/api/boards/{board['uuid']}").json()
+        self.assertEqual({item["uuid"] for item in fetched["items"]}, {first["uuid"], second["uuid"]})
+        self.assertEqual(fetched["groups"][0]["uuid"], group["uuid"])
 
     def test_board_files_are_private_immutable_resources(self):
         board = self.request("POST", "/api/boards", json={"name": "Image cache"}).json()
         item = self.request(
             "POST",
-            f"/api/boards/{board['guid']}/files",
+            f"/api/boards/{board['uuid']}/files",
             files={"file": ("diagram.png", b"image bytes", "image/png")},
         ).json()
 
-        response = self.request("GET", f"/api/board-items/{item['id']}/file")
+        response = self.request("GET", f"/api/board-items/{item['uuid']}/file")
 
         self.assertEqual(response.content, b"image bytes")
         self.assertEqual(
             response.headers.get("cache-control"),
             "private, max-age=31536000, immutable",
         )
-
-    def test_startup_publishes_board_repairs_to_existing_sync_cursors(self):
-        board = self.request("POST", "/api/boards", json={"name": "Repair log"}).json()
-        item = self.request(
-            "POST",
-            f"/api/boards/{board['guid']}/files",
-            files={"file": ("diagram.png", b"image bytes", "image/png")},
-        ).json()
-        with self.sessions() as db:
-            change = db.query(ServerChange).filter(
-                ServerChange.table_name == "board_items",
-                ServerChange.row_sync_id == db.get(BoardItem, item["id"]).sync_id,
-            ).order_by(ServerChange.sequence.desc()).first()
-            stale = json.loads(change.row_json)
-            stale.pop("sha256")
-            change.row_json = json.dumps(stale, separators=(",", ":"), sort_keys=True)
-            db.commit()
-            previous_sequence = change.sequence
-
-            self.assertEqual(seed_board_change_log(db), 1)
-            repaired = db.query(ServerChange).filter(
-                ServerChange.sequence > previous_sequence,
-                ServerChange.table_name == "board_items",
-                ServerChange.row_sync_id == db.get(BoardItem, item["id"]).sync_id,
-            ).one()
-            self.assertEqual(json.loads(repaired.row_json)["sha256"], item["sha256"])
 
     def test_replay_requires_a_live_account_token(self):
         response = self.client.post("/api/boards", json={"name": "No credentials"})
@@ -179,8 +155,8 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_identified_mutation_is_applied_once_and_replays_its_response(self):
         sync_headers = {
             **self.headers,
-            "X-Papol-Client-ID": str(uuid.uuid4()),
-            "X-Papol-Mutation-ID": str(uuid.uuid4()),
+            "X-Papol-Client-UUID": str(uuid.uuid4()),
+            "X-Papol-Mutation-UUID": str(uuid.uuid4()),
         }
         first = self.client.post(
             "/api/boards", headers=sync_headers, json={"name": "Exactly once"},
@@ -200,8 +176,8 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_reusing_a_mutation_id_for_different_content_is_rejected(self):
         sync_headers = {
             **self.headers,
-            "X-Papol-Client-ID": str(uuid.uuid4()),
-            "X-Papol-Mutation-ID": str(uuid.uuid4()),
+            "X-Papol-Client-UUID": str(uuid.uuid4()),
+            "X-Papol-Mutation-UUID": str(uuid.uuid4()),
         }
         first = self.client.post(
             "/api/boards", headers=sync_headers, json={"name": "Original"},
@@ -219,12 +195,12 @@ class DesktopSyncContractTests(unittest.TestCase):
         board = self.request("POST", "/api/boards", json={"name": "Files"}).json()
         sync_headers = {
             **self.headers,
-            "X-Papol-Client-ID": str(uuid.uuid4()),
-            "X-Papol-Mutation-ID": str(uuid.uuid4()),
+            "X-Papol-Client-UUID": str(uuid.uuid4()),
+            "X-Papol-Mutation-UUID": str(uuid.uuid4()),
         }
         def upload():
             return self.client.post(
-                f"/api/boards/{board['guid']}/files",
+                f"/api/boards/{board['uuid']}/files",
                 headers=sync_headers,
                 files={"file": ("diagram.png", b"same bytes", "image/png")},
                 data={"caption": "same caption", "x": "1", "y": "2"},
@@ -244,32 +220,32 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_identified_mutation_requires_uuid_headers(self):
         response = self.client.post(
             "/api/boards",
-            headers={**self.headers, "X-Papol-Client-ID": "not-a-uuid"},
+            headers={**self.headers, "X-Papol-Client-UUID": "not-a-uuid"},
             json={"name": "Invalid identity"},
         )
         self.assertEqual(response.status_code, 400, response.text)
 
     def test_uuid_push_pull_retry_and_delete_round_trip(self):
-        client_id = str(uuid.uuid4())
-        board_id = str(uuid.uuid4())
-        item_id = str(uuid.uuid4())
-        mutation_id = str(uuid.uuid4())
+        client_uuid = str(uuid.uuid4())
+        board_uuid = str(uuid.uuid4())
+        item_uuid = str(uuid.uuid4())
+        mutation_uuid = str(uuid.uuid4())
         create = {
             "protocol_version": 1,
-            "client_id": client_id,
-            "mutation_id": mutation_id,
+            "client_uuid": client_uuid,
+            "mutation_uuid": mutation_uuid,
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "boards", "id": board_id,
+                    "table": "boards", "uuid": board_uuid,
                     "base_revision": 0, "operation": "upsert",
                     "values": {"name": "Native board", "description": "offline"},
                 },
                 {
-                    "table": "board_items", "id": item_id,
+                    "table": "board_items", "uuid": item_uuid,
                     "base_revision": 0, "operation": "upsert",
                     "values": {
-                        "board_id": board_id, "kind": "comment",
+                        "board_uuid": board_uuid, "kind": "comment",
                         "content": "written offline", "x": 12, "y": 34,
                     },
                 },
@@ -278,32 +254,32 @@ class DesktopSyncContractTests(unittest.TestCase):
         first = self.request("POST", "/api/sync/push", json=create).json()
         replay = self.request("POST", "/api/sync/push", json=create).json()
         self.assertEqual(replay, first)
-        self.assertEqual({row["id"] for row in first["rows"]}, {board_id, item_id})
+        self.assertEqual({row["uuid"] for row in first["rows"]}, {board_uuid, item_uuid})
 
         pulled = self.request(
-            "GET", f"/api/sync/pull?cursor=0&limit=10&client_id={client_id}",
+            "GET", f"/api/sync/pull?cursor=0&limit=10&client_uuid={client_uuid}",
         ).json()
         self.assertFalse(pulled["has_more"])
         self.assertEqual(
-            {(change["table"], change["id"]) for change in pulled["changes"]},
-            {("boards", board_id), ("board_items", item_id)},
+            {(change["table"], change["uuid"]) for change in pulled["changes"]},
+            {("boards", board_uuid), ("board_items", item_uuid)},
         )
         cursor = pulled["cursor"]
 
         delete = {
             "protocol_version": 1,
-            "client_id": client_id,
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": client_uuid,
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{
-                "table": "board_items", "id": item_id,
+                "table": "board_items", "uuid": item_uuid,
                 "base_revision": 1, "operation": "delete", "values": {},
             }],
         }
         deleted = self.request("POST", "/api/sync/push", json=delete).json()
         self.assertEqual(deleted["rows"][0]["revision"], 2)
         tail = self.request(
-            "GET", f"/api/sync/pull?cursor={cursor}&client_id={client_id}",
+            "GET", f"/api/sync/pull?cursor={cursor}&client_uuid={client_uuid}",
         ).json()
         item_delete = [
             change for change in tail["changes"]
@@ -311,7 +287,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         ]
         self.assertEqual(len(item_delete), 1)
         self.assertEqual(item_delete[0]["operation"], "delete")
-        self.assertEqual(item_delete[0]["id"], item_id)
+        self.assertEqual(item_delete[0]["uuid"], item_uuid)
 
         with self.sessions() as db:
             self.assertEqual(db.query(Board).count(), 1)
@@ -319,7 +295,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(db.query(ServerChange).count(), 4)
             self.assertEqual(db.query(AppliedMutation).count(), 2)
             sync_client = db.query(SyncClient).one()
-            self.assertEqual(sync_client.client_id, client_id)
+            self.assertEqual(sync_client.client_uuid, client_uuid)
             self.assertEqual(sync_client.acknowledged_cursor, cursor)
 
     def test_sync_pull_is_account_isolated(self):
@@ -336,19 +312,19 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual(pulled.status_code, 200, pulled.text)
         self.assertEqual(pulled.json()["changes"], [])
         own = self.request("GET", "/api/sync/pull").json()
-        self.assertEqual(own["changes"][0]["id"], board["guid"])
+        self.assertEqual(own["changes"][0]["uuid"], board["uuid"])
 
     def test_closing_an_account_removes_its_private_sync_bookkeeping(self):
-        board_id = str(uuid.uuid4())
-        client_id = str(uuid.uuid4())
+        board_uuid = str(uuid.uuid4())
+        client_uuid = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
-            "client_id": client_id, "mutation_id": str(uuid.uuid4()),
+            "client_uuid": client_uuid, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 0,
+                "table": "boards", "uuid": board_uuid, "base_revision": 0,
                 "operation": "upsert", "values": {"name": "Before closing"},
             }],
         })
-        self.request("GET", f"/api/sync/pull?cursor=0&client_id={client_id}")
+        self.request("GET", f"/api/sync/pull?cursor=0&client_uuid={client_uuid}")
         closed = self.client.request(
             "DELETE", "/api/auth/account", headers=self.headers,
             json={"confirm_email": "desktop@example.test"},
@@ -371,15 +347,15 @@ class DesktopSyncContractTests(unittest.TestCase):
             "/api/boards", headers=foreign_headers, json={"name": "Foreign"},
         ).json()
         payload = {
-            "client_id": str(uuid.uuid4()),
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [{
-                "table": "board_items", "id": str(uuid.uuid4()),
+                "table": "board_items", "uuid": str(uuid.uuid4()),
                 "operation": "upsert",
                 "values": {
-                    "board_id": foreign_board["guid"], "kind": "comment",
-                    "content": "not mine", "user_id": 1,
+                    "board_uuid": foreign_board["uuid"], "kind": "comment",
+                    "content": "not mine", "user_uuid": 1,
                 },
             }],
         }
@@ -404,21 +380,21 @@ class DesktopSyncContractTests(unittest.TestCase):
             200,
         )
 
-        board_id = str(uuid.uuid4())
-        item_id = str(uuid.uuid4())
+        board_uuid = str(uuid.uuid4())
+        item_uuid = str(uuid.uuid4())
         payload = {
-            "client_id": str(uuid.uuid4()),
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "boards", "id": board_id, "operation": "upsert",
+                    "table": "boards", "uuid": board_uuid, "operation": "upsert",
                     "values": {"name": "Blob board"},
                 },
                 {
-                    "table": "board_items", "id": item_id, "operation": "upsert",
+                    "table": "board_items", "uuid": item_uuid, "operation": "upsert",
                     "values": {
-                        "board_id": board_id, "kind": "image",
+                        "board_uuid": board_uuid, "kind": "image",
                         "sha256": digest, "mime_type": "image/png",
                         "original_filename": "clip.png",
                     },
@@ -439,37 +415,37 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add(canonical_paper)
             db.flush()
             canonical_edition = PaperEdition(
-                paper=canonical_paper, paper_sync_id=canonical_paper.sync_id,
-                file_path=f"{digest}.pdf", sha256=digest, uploaded_by=1,
+                paper=canonical_paper, paper_uuid=canonical_paper.uuid,
+                file_path=f"{digest}.pdf", sha256=digest, uploaded_by=self.user_uuid,
             )
             db.add(canonical_edition)
             db.commit()
-            canonical_paper_db_id = canonical_paper.id
-            canonical_paper_id = canonical_paper.sync_id
-            canonical_edition_id = canonical_edition.sync_id
+            canonical_paper_db_uuid = canonical_paper.uuid
+            canonical_paper_uuid = canonical_paper.uuid
+            canonical_edition_uuid = canonical_edition.uuid
         upload = self.client.put(
             f"/api/sync/blobs/{digest}", headers=self.headers, content=content,
         )
         self.assertEqual(upload.status_code, 204, upload.text)
-        paper_id, edition_id, copy_id = (str(uuid.uuid4()) for _ in range(3))
+        paper_uuid, edition_uuid, copy_uuid = (str(uuid.uuid4()) for _ in range(3))
         payload = {
-            "client_id": str(uuid.uuid4()), "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "papers", "id": paper_id, "operation": "upsert",
+                    "table": "papers", "uuid": paper_uuid, "operation": "upsert",
                     "values": {"title": "Imported while offline", "doi": None},
                 },
                 {
-                    "table": "paper_editions", "id": edition_id, "operation": "upsert",
+                    "table": "paper_editions", "uuid": edition_uuid, "operation": "upsert",
                     "values": {
-                        "paper_id": paper_id, "file_path": f"{digest}.pdf", "sha256": digest,
+                        "paper_uuid": paper_uuid, "file_path": f"{digest}.pdf", "sha256": digest,
                     },
                 },
                 {
-                    "table": "copies", "id": copy_id, "operation": "upsert",
+                    "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                     "values": {
-                        "paper_id": paper_id, "edition_id": edition_id,
+                        "paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
                         "edition_sha256": digest, "summary": "Local first",
                     },
                 },
@@ -480,10 +456,10 @@ class DesktopSyncContractTests(unittest.TestCase):
             "papers", "paper_editions", "copies",
         ])
         self.assertEqual(result["aliases"], {
-            paper_id: canonical_paper_id, edition_id: canonical_edition_id,
+            paper_uuid: canonical_paper_uuid, edition_uuid: canonical_edition_uuid,
         })
-        self.assertEqual(result["rows"][0]["id"], canonical_paper_id)
-        self.assertEqual(result["rows"][1]["id"], canonical_edition_id)
+        self.assertEqual(result["rows"][0]["uuid"], canonical_paper_uuid)
+        self.assertEqual(result["rows"][1]["uuid"], canonical_edition_uuid)
         self.assertEqual(result["rows"][1]["sha256"], digest)
         downloaded = self.client.get(f"/api/sync/blobs/{digest}", headers=self.headers)
         self.assertEqual(downloaded.status_code, 200, downloaded.text)
@@ -493,56 +469,56 @@ class DesktopSyncContractTests(unittest.TestCase):
             str(uuid.uuid4()) for _ in range(3)
         )
         duplicate = self.request("POST", "/api/sync/push", json={
-            "client_id": str(uuid.uuid4()), "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [
                 {
-                    "table": "papers", "id": duplicate_paper, "operation": "upsert",
+                    "table": "papers", "uuid": duplicate_paper, "operation": "upsert",
                     "values": {"title": "Imported while offline", "doi": None},
                 },
                 {
-                    "table": "paper_editions", "id": duplicate_edition,
+                    "table": "paper_editions", "uuid": duplicate_edition,
                     "operation": "upsert", "values": {
-                        "paper_id": duplicate_paper, "file_path": f"{digest}.pdf",
+                        "paper_uuid": duplicate_paper, "file_path": f"{digest}.pdf",
                         "sha256": digest,
                     },
                 },
                 {
-                    "table": "copies", "id": duplicate_copy, "operation": "upsert",
+                    "table": "copies", "uuid": duplicate_copy, "operation": "upsert",
                     "values": {
-                        "paper_id": duplicate_paper, "edition_id": duplicate_edition,
+                        "paper_uuid": duplicate_paper, "edition_uuid": duplicate_edition,
                         "edition_sha256": digest, "summary": "Updated offline",
                     },
                 },
             ],
         }).json()
         self.assertEqual(duplicate["aliases"], {
-            duplicate_paper: canonical_paper_id,
-            duplicate_edition: canonical_edition_id,
-            duplicate_copy: copy_id,
+            duplicate_paper: canonical_paper_uuid,
+            duplicate_edition: canonical_edition_uuid,
+            duplicate_copy: copy_uuid,
         })
         with self.sessions() as db:
-            copies = db.query(Copy).filter(Copy.paper_id == canonical_paper_db_id).all()
+            copies = db.query(Copy).filter(Copy.paper_uuid == canonical_paper_db_uuid).all()
             self.assertEqual(len(copies), 1)
             self.assertEqual(copies[0].summary, "Updated offline")
 
     def test_sync_rejects_active_or_credentialed_board_links(self):
-        board_id = str(uuid.uuid4())
+        board_uuid = str(uuid.uuid4())
         for source_url in ("javascript:alert(1)", "https://user:secret@example.test/page"):
             payload = {
-                "client_id": str(uuid.uuid4()),
-                "mutation_id": str(uuid.uuid4()),
+                "client_uuid": str(uuid.uuid4()),
+                "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": 1,
                 "changes": [
                     {
-                        "table": "boards", "id": board_id, "operation": "upsert",
+                        "table": "boards", "uuid": board_uuid, "operation": "upsert",
                         "values": {"name": "Safe links"},
                     },
                     {
-                        "table": "board_items", "id": str(uuid.uuid4()),
+                        "table": "board_items", "uuid": str(uuid.uuid4()),
                         "operation": "upsert",
                         "values": {
-                            "board_id": board_id, "kind": "webpage",
+                            "board_uuid": board_uuid, "kind": "webpage",
                             "source_url": source_url,
                         },
                     },
@@ -552,34 +528,34 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(response.status_code, 422, response.text)
 
     def test_stale_field_patch_reports_a_recoverable_conflict(self):
-        board_id = str(uuid.uuid4())
+        board_uuid = str(uuid.uuid4())
         first_client = str(uuid.uuid4())
         create = {
-            "client_id": first_client,
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": first_client,
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 0,
+                "table": "boards", "uuid": board_uuid, "base_revision": 0,
                 "operation": "upsert", "values": {"name": "Original"},
             }],
         }
         self.request("POST", "/api/sync/push", json=create)
         winning = {
-            "client_id": first_client,
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": first_client,
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 1,
+                "table": "boards", "uuid": board_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"name": "First edit"},
             }],
         }
         self.request("POST", "/api/sync/push", json=winning)
         stale = {
-            "client_id": str(uuid.uuid4()),
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 1,
+                "table": "boards", "uuid": board_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"name": "Later edit"},
             }],
         }
@@ -591,26 +567,26 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual(result["conflicts"][0]["resolution"], "client_won")
 
     def test_delete_wins_over_a_stale_update_and_preserves_recovery_values(self):
-        board_id = str(uuid.uuid4())
+        board_uuid = str(uuid.uuid4())
         client = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
-            "client_id": client, "mutation_id": str(uuid.uuid4()),
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 0,
+                "table": "boards", "uuid": board_uuid, "base_revision": 0,
                 "operation": "upsert", "values": {"name": "Original"},
             }],
         })
         self.request("POST", "/api/sync/push", json={
-            "client_id": client, "mutation_id": str(uuid.uuid4()),
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2, "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 1,
+                "table": "boards", "uuid": board_uuid, "base_revision": 1,
                 "operation": "delete", "values": {},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
-            "client_id": str(uuid.uuid4()), "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
-                "table": "boards", "id": board_id, "base_revision": 1,
+                "table": "boards", "uuid": board_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"name": "Unsynced edit"},
             }],
         }).json()
@@ -623,30 +599,30 @@ class DesktopSyncContractTests(unittest.TestCase):
         )
 
     def test_stale_compound_membership_uses_the_declared_client_wins_policy(self):
-        board_id, group_id = str(uuid.uuid4()), str(uuid.uuid4())
+        board_uuid, group_uuid = str(uuid.uuid4()), str(uuid.uuid4())
         client = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
-            "client_id": client, "mutation_id": str(uuid.uuid4()), "local_sequence": 1,
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 1,
             "changes": [
-                {"table": "boards", "id": board_id, "base_revision": 0,
+                {"table": "boards", "uuid": board_uuid, "base_revision": 0,
                  "operation": "upsert", "values": {"name": "Board"}},
-                {"table": "board_groups", "id": group_id, "base_revision": 0,
+                {"table": "board_groups", "uuid": group_uuid, "base_revision": 0,
                  "operation": "upsert", "values": {
-                     "board_id": board_id, "kind": "booklet", "title": "Original",
+                     "board_uuid": board_uuid, "kind": "booklet", "title": "Original",
                  }},
             ],
         })
         self.request("POST", "/api/sync/push", json={
-            "client_id": client, "mutation_id": str(uuid.uuid4()), "local_sequence": 2,
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
-                "table": "board_groups", "id": group_id, "base_revision": 1,
+                "table": "board_groups", "uuid": group_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"title": "Device one"},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
-            "client_id": str(uuid.uuid4()), "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
-                "table": "board_groups", "id": group_id, "base_revision": 1,
+                "table": "board_groups", "uuid": group_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"title": "Device two"},
             }],
         }).json()
@@ -660,41 +636,41 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add(paper)
             db.flush()
             edition = PaperEdition(
-                paper=paper, paper_sync_id=paper.sync_id,
-                file_path="conflict.pdf", sha256="2" * 64, uploaded_by=1,
+                paper=paper, paper_uuid=paper.uuid,
+                file_path="conflict.pdf", sha256="2" * 64, uploaded_by=self.user_uuid,
             )
             db.add(edition)
             db.flush()
             db.add(Copy(
-                paper=paper, paper_sync_id=paper.sync_id, user_id=1,
-                edition=edition, edition_sync_id=edition.sync_id,
+                paper=paper, paper_uuid=paper.uuid, user_uuid=self.user_uuid,
+                edition=edition, edition_uuid=edition.uuid,
                 edition_sha256=edition.sha256,
             ))
             db.commit()
-            edition_id = edition.sync_id
-        ink_id, client = str(uuid.uuid4()), str(uuid.uuid4())
+            edition_uuid = edition.uuid
+        ink_uuid, client = str(uuid.uuid4()), str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
-            "client_id": client, "mutation_id": str(uuid.uuid4()), "local_sequence": 1,
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 1,
             "changes": [{
-                "table": "ink_strokes", "id": ink_id, "base_revision": 0,
+                "table": "ink_strokes", "uuid": ink_uuid, "base_revision": 0,
                 "operation": "upsert", "values": {
-                    "edition_id": edition_id, "page": 1,
+                    "edition_uuid": edition_uuid, "page": 1,
                     "points": '[{"x":0.1,"y":0.2}]', "color": "#111111",
                     "width": 0.004, "opacity": 1, "shape": "flat",
                 },
             }],
         })
         self.request("POST", "/api/sync/push", json={
-            "client_id": client, "mutation_id": str(uuid.uuid4()), "local_sequence": 2,
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
-                "table": "ink_strokes", "id": ink_id, "base_revision": 1,
+                "table": "ink_strokes", "uuid": ink_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"color": "#222222"},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
-            "client_id": str(uuid.uuid4()), "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
-                "table": "ink_strokes", "id": ink_id, "base_revision": 1,
+                "table": "ink_strokes", "uuid": ink_uuid, "base_revision": 1,
                 "operation": "patch", "values": {"color": "#333333"},
             }],
         }).json()
@@ -709,50 +685,50 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add(paper)
             db.flush()
             edition = PaperEdition(
-                paper=paper, paper_sync_id=paper.sync_id,
-                file_path="offline.pdf", sha256="1" * 64, uploaded_by=1,
+                paper=paper, paper_uuid=paper.uuid,
+                file_path="offline.pdf", sha256="1" * 64, uploaded_by=self.user_uuid,
             )
             db.add(edition)
             db.flush()
             db.add(Copy(
-                paper_id=paper.id, user_id=1, edition_id=edition.id,
+                paper_uuid=paper.uuid, user_uuid=self.user_uuid, edition_uuid=edition.uuid,
                 edition_sha256=edition.sha256,
             ))
             db.commit()
-            paper_id, edition_id = paper.sync_id, edition.sync_id
+            paper_uuid, edition_uuid = paper.uuid, edition.uuid
 
         initial = self.request("GET", "/api/sync/snapshot").json()
-        identities = {(row["table"], row["id"]) for row in initial["rows"]}
-        self.assertIn(("papers", paper_id), identities)
-        self.assertIn(("paper_editions", edition_id), identities)
+        identities = {(row["table"], row["uuid"]) for row in initial["rows"]}
+        self.assertIn(("papers", paper_uuid), identities)
+        self.assertIn(("paper_editions", edition_uuid), identities)
         self.assertTrue(any(table == "copies" for table, _ in identities))
         self.assertTrue(any(table == "shelves" for table, _ in identities))
         ids = [str(uuid.uuid4()) for _ in range(3)]
         payload = {
-            "client_id": str(uuid.uuid4()),
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "comments", "id": ids[0], "operation": "upsert",
+                    "table": "comments", "uuid": ids[0], "operation": "upsert",
                     "values": {
-                        "paper_id": paper_id, "edition_id": edition_id,
+                        "paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
                         "content": "offline note", "page": 1,
                         "anchor_type": "point", "anchor": '{"x":0.2,"y":0.3}',
                     },
                 },
                 {
-                    "table": "ink_strokes", "id": ids[1], "operation": "upsert",
+                    "table": "ink_strokes", "uuid": ids[1], "operation": "upsert",
                     "values": {
-                        "edition_id": edition_id, "page": 1,
+                        "edition_uuid": edition_uuid, "page": 1,
                         "points": '[{"x":0.1,"y":0.2}]', "color": "#b3923d",
                         "width": 0.004, "opacity": 1, "shape": "flat",
                     },
                 },
                 {
-                    "table": "paper_clips", "id": ids[2], "operation": "upsert",
+                    "table": "paper_clips", "uuid": ids[2], "operation": "upsert",
                     "values": {
-                        "edition_id": edition_id, "page": 1,
+                        "edition_uuid": edition_uuid, "page": 1,
                         "source": '{"x":0.1,"y":0.1,"w":0.2,"h":0.2}',
                         "frame": '{"x":0.1,"y":0.1,"w":0.2,"h":0.2}',
                         "floating": False,
@@ -761,7 +737,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             ],
         }
         pushed = self.request("POST", "/api/sync/push", json=payload).json()
-        self.assertEqual({row["id"] for row in pushed["rows"]}, set(ids))
+        self.assertEqual({row["uuid"] for row in pushed["rows"]}, set(ids))
         refreshed = self.request("GET", "/api/sync/snapshot").json()
         self.assertTrue({
             "papers", "paper_editions", "comments", "ink_strokes", "paper_clips",
@@ -779,30 +755,29 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.flush()
             edition = PaperEdition(
                 paper=paper,
-                paper_sync_id=paper.sync_id,
+                paper_uuid=paper.uuid,
                 file_path="viewer.pdf",
                 sha256=digest,
-                uploaded_by=1,
+                uploaded_by=self.user_uuid,
                 references_status="unavailable",
             )
             db.add(edition)
             db.flush()
             db.add(Copy(
                 paper=paper,
-                paper_sync_id=paper.sync_id,
-                user_id=1,
+                paper_uuid=paper.uuid,
+                user_uuid=self.user_uuid,
                 edition=edition,
-                edition_sync_id=edition.sync_id,
+                edition_uuid=edition.uuid,
                 edition_sha256=digest,
             ))
             db.commit()
-            sync_id = edition.sync_id
-            server_id = edition.id
+            edition_uuid = edition.uuid
 
         response = self.request(
-            "GET", f"/api/viewer-references/{digest}?edition_id={sync_id}",
+            "GET", f"/api/viewer-references/{digest}?edition_uuid={edition_uuid}",
         )
-        self.assertEqual(response.json()["edition_id"], server_id)
+        self.assertEqual(response.json()["edition_uuid"], edition_uuid)
 
     def test_edition_choices_are_published_to_cursor_sync(self):
         with self.sessions() as db:
@@ -810,81 +785,81 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add(paper)
             db.flush()
             first = PaperEdition(
-                paper=paper, paper_sync_id=paper.sync_id,
-                file_path="first.pdf", sha256="1" * 64, uploaded_by=1,
+                paper=paper, paper_uuid=paper.uuid,
+                file_path="first.pdf", sha256="1" * 64, uploaded_by=self.user_uuid,
             )
             second = PaperEdition(
-                paper=paper, paper_sync_id=paper.sync_id,
-                file_path="second.pdf", sha256="2" * 64, uploaded_by=1,
+                paper=paper, paper_uuid=paper.uuid,
+                file_path="second.pdf", sha256="2" * 64, uploaded_by=self.user_uuid,
             )
             db.add_all([first, second])
             db.flush()
             copy = Copy(
-                paper=paper, user_id=1, edition=first,
+                paper=paper, user_uuid=self.user_uuid, edition=first,
                 edition_sha256=first.sha256, marketed=False,
             )
             db.add(copy)
             db.commit()
-            paper_id = paper.sync_id
-            second_id = second.id
-            copy_sync_id = copy.sync_id
+            paper_uuid = paper.uuid
+            second_uuid = second.uuid
+            copy_uuid = copy.uuid
 
         self.request(
-            "POST", f"/api/papers/{paper_id}/ignore-edition",
-            json={"edition_id": second_id},
+            "POST", f"/api/papers/{paper_uuid}/ignore-edition",
+            json={"edition_uuid": second_uuid},
         )
         with self.sessions() as db:
             change = db.query(ServerChange).one()
             self.assertEqual(change.table_name, "copies")
-            self.assertEqual(change.row_sync_id, copy_sync_id)
+            self.assertEqual(change.row_uuid, copy_uuid)
             db.query(ServerChange).delete()
             db.commit()
 
         self.request(
-            "POST", f"/api/papers/{paper_id}/adopt-edition",
-            json={"edition_id": second_id},
+            "POST", f"/api/papers/{paper_uuid}/adopt-edition",
+            json={"edition_uuid": second_uuid},
         )
         with self.sessions() as db:
             change = db.query(ServerChange).one()
             self.assertEqual(change.table_name, "copies")
-            self.assertEqual(change.row_sync_id, copy_sync_id)
+            self.assertEqual(change.row_uuid, copy_uuid)
 
     def test_nook_rows_sync_together_with_uuid_relationships(self):
         with self.sessions() as db:
-            default_shelf = db.query(Shelf).filter(Shelf.user_id == 1).first()
+            default_shelf = db.query(Shelf).filter(Shelf.user_uuid == self.user_uuid).first()
             paper = Paper(title="Offline nook")
             db.add(paper)
             db.flush()
-            copy = Copy(paper=paper, shelf=default_shelf, user_id=1, marketed=False)
+            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid, marketed=False)
             db.add(copy)
             commit_sync(db)
-            paper_id, copy_id = paper.sync_id, copy.sync_id
+            paper_uuid, copy_uuid = paper.uuid, copy.uuid
 
-        shelf_id, tag_id, link_id = (str(uuid.uuid4()) for _ in range(3))
+        shelf_uuid, tag_uuid, link_uuid = (str(uuid.uuid4()) for _ in range(3))
         payload = {
-            "client_id": str(uuid.uuid4()),
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "shelves", "id": shelf_id, "operation": "upsert",
+                    "table": "shelves", "uuid": shelf_uuid, "operation": "upsert",
                     "values": {"name": "Methods", "color": "#123456", "position": 2},
                 },
                 {
-                    "table": "tags", "id": tag_id, "operation": "upsert",
+                    "table": "tags", "uuid": tag_uuid, "operation": "upsert",
                     "values": {"name": "distributed"},
                 },
                 {
-                    "table": "copies", "id": copy_id, "operation": "patch",
+                    "table": "copies", "uuid": copy_uuid, "operation": "patch",
                     "base_revision": 1,
                     "values": {
-                        "shelf_id": shelf_id, "summary": "Saved without a network",
+                        "shelf_uuid": shelf_uuid, "summary": "Saved without a network",
                         "rating_reading": 4,
                     },
                 },
                 {
-                    "table": "copy_tags", "id": link_id, "operation": "upsert",
-                    "values": {"copy_id": copy_id, "tag_id": tag_id},
+                    "table": "copy_tags", "uuid": link_uuid, "operation": "upsert",
+                    "values": {"copy_uuid": copy_uuid, "tag_uuid": tag_uuid},
                 },
             ],
         }
@@ -892,25 +867,25 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual([row["table"] for row in result["rows"]], [
             "shelves", "tags", "copies", "copy_tags",
         ])
-        self.assertEqual(result["rows"][2]["paper_id"], paper_id)
-        self.assertEqual(result["rows"][2]["shelf_id"], shelf_id)
+        self.assertEqual(result["rows"][2]["paper_uuid"], paper_uuid)
+        self.assertEqual(result["rows"][2]["shelf_uuid"], shelf_uuid)
         with self.sessions() as db:
-            saved = db.query(Copy).filter(Copy.sync_id == copy_id).one()
+            saved = db.query(Copy).filter(Copy.uuid == copy_uuid).one()
             self.assertEqual(saved.summary, "Saved without a network")
             self.assertEqual(saved.rating_reading, 4)
-            self.assertEqual(saved.shelf.sync_id, shelf_id)
-            self.assertEqual(db.query(Tag).filter(Tag.sync_id == tag_id).one().name, "distributed")
+            self.assertEqual(saved.shelf.uuid, shelf_uuid)
+            self.assertEqual(db.query(Tag).filter(Tag.uuid == tag_uuid).one().name, "distributed")
             self.assertEqual(
-                db.query(CopyTagLink).filter(CopyTagLink.sync_id == link_id).one().copy_id,
-                saved.id,
+                db.query(CopyTagLink).filter(CopyTagLink.uuid == link_uuid).one().copy_uuid,
+                saved.uuid,
             )
 
         rejected = self.client.request("POST", "/api/sync/push", headers=self.headers, json={
-            "client_id": payload["client_id"],
-            "mutation_id": str(uuid.uuid4()),
+            "client_uuid": payload["client_uuid"],
+            "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{
-                "table": "copies", "id": copy_id, "operation": "patch",
+                "table": "copies", "uuid": copy_uuid, "operation": "patch",
                 "base_revision": 2,
                 "values": {"rating_liking": 6},
             }],
@@ -919,79 +894,104 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_desktop_shelf_moves_publish_and_hide_like_online_moves(self):
         with self.sessions() as db:
-            public = Shelf(user_id=1, name="Offline public", color="#123456", is_public=True)
-            private = Shelf(user_id=1, name="Offline private", color="#654321", is_public=False)
+            public = Shelf(user_uuid=self.user_uuid, name="Offline public", color="#123456", is_public=True)
+            private = Shelf(user_uuid=self.user_uuid, name="Offline private", color="#654321", is_public=False)
             paper = Paper(title="Shelved offline")
             db.add_all([public, private, paper])
             db.flush()
-            copy = Copy(paper=paper, shelf=public, user_id=1, marketed=True)
+            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid, marketed=True)
             db.add(copy)
             commit_sync(db)
-            public_id, private_id, copy_id = public.sync_id, private.sync_id, copy.sync_id
+            public_uuid, private_uuid, copy_uuid = public.uuid, private.uuid, copy.uuid
             revision = copy.revision
 
-        client_id = str(uuid.uuid4())
+        client_uuid = str(uuid.uuid4())
 
-        def move(shelf_id, sequence):
+        def move(shelf_uuid, sequence):
             return self.client.request("POST", "/api/sync/push", headers=self.headers, json={
-                "client_id": client_id,
-                "mutation_id": str(uuid.uuid4()),
+                "client_uuid": client_uuid,
+                "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": sequence,
                 "changes": [{
-                    "table": "copies", "id": copy_id, "operation": "patch",
-                    "base_revision": revision, "values": {"shelf_id": shelf_id},
+                    "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                    "base_revision": revision, "values": {"shelf_uuid": shelf_uuid},
                 }],
             })
 
         def marketed():
             with self.sessions() as db:
-                return db.query(Copy).filter(Copy.sync_id == copy_id).one().marketed
+                return db.query(Copy).filter(Copy.uuid == copy_uuid).one().marketed
 
-        self.assertLess(move(private_id, 1).status_code, 400)
+        self.assertLess(move(private_uuid, 1).status_code, 400)
         self.assertFalse(marketed())
-        self.assertLess(move(public_id, 2).status_code, 400)
+        self.assertLess(move(public_uuid, 2).status_code, 400)
         self.assertTrue(marketed())
 
         with self.sessions() as db:
-            room = Room(paper_key="title:shelved offline", paper_title="Shelved offline", created_by=1)
+            room = Room(paper_key="title:shelved offline", paper_title="Shelved offline", created_by=self.user_uuid)
             db.add(room)
             db.flush()
-            db.add(RoomParticipant(room_id=room.id, user_id=1))
+            db.add(RoomParticipant(room_uuid=room.uuid, user_uuid=self.user_uuid))
             db.commit()
-        refused = move(private_id, 3)
+        refused = move(private_uuid, 3)
         self.assertEqual(refused.status_code, 422, refused.text)
         self.assertTrue(marketed())
 
-    def test_server_only_actions_accept_desktop_sync_ids(self):
+    def assert_no_id_fields(self, value):
+        """Rows are named by `uuid` and refer to each other by `<name>_uuid`."""
+        if isinstance(value, dict):
+            for key, child in value.items():
+                self.assertFalse(key == "id" or key.endswith(("_id", "_ids")), key)
+                self.assert_no_id_fields(child)
+        elif isinstance(value, list):
+            for child in value:
+                self.assert_no_id_fields(child)
+
+    def test_every_identity_is_a_uuid(self):
+        me = self.request("GET", "/api/auth/me").json()
+        uuid.UUID(me["uuid"])
+        space = self.request("GET", f"/api/users/{me['uuid']}/space").json()
+        self.assertEqual(space["user"]["uuid"], me["uuid"])
+        for shelf in space["shelves"]:
+            uuid.UUID(shelf["uuid"])
+        for tag in self.request("GET", "/api/tags").json():
+            uuid.UUID(tag["uuid"])
+        self.assert_no_id_fields(space)
+
+        welcome = self.request("GET", "/api/notifications").json()["notifications"][0]
+        uuid.UUID(welcome["uuid"])
+        self.request("POST", f"/api/notifications/{welcome['uuid']}/read")
+
+        snapshot = self.request("GET", "/api/sync/snapshot").json()
+        owners = {row["user_uuid"] for row in snapshot["rows"] if row.get("user_uuid")}
+        self.assertEqual(owners, {me["uuid"]})
+
+    def test_server_only_actions_accept_desktop_sync_uuids(self):
         with self.sessions() as db:
-            shelf = Shelf(user_id=1, name="Desktop shelf", color="#123456", is_public=False)
+            shelf = Shelf(user_uuid=self.user_uuid, name="Desktop shelf", color="#123456", is_public=False)
             paper = Paper(title="Desktop paper")
             db.add_all([shelf, paper])
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_id=1, marketed=False))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid, marketed=False))
             commit_sync(db)
-            shelf_id, paper_id = shelf.sync_id, paper.sync_id
+            shelf_uuid, paper_uuid = shelf.uuid, paper.uuid
 
-        self.request("PUT", f"/api/papers/{paper_id}", json={"thought": "Read on the train"})
-        self.request("PUT", f"/api/shelves/{shelf_id}", json={"is_public": True})
+        self.request("PUT", f"/api/papers/{paper_uuid}", json={"thought": "Read on the train"})
+        self.request("PUT", f"/api/shelves/{shelf_uuid}", json={"is_public": True})
         with self.sessions() as db:
-            copy = db.query(Copy).join(Paper).filter(Paper.sync_id == paper_id).one()
+            copy = db.query(Copy).join(Paper).filter(Paper.uuid == paper_uuid).one()
             self.assertEqual(copy.thought, "Read on the train")
             self.assertTrue(copy.marketed)
-        self.request("DELETE", f"/api/shelves/{shelf_id}")
+        self.request("DELETE", f"/api/shelves/{shelf_uuid}")
         with self.sessions() as db:
-            self.assertIsNotNone(db.query(Shelf).filter(Shelf.sync_id == shelf_id).one().deleted_at)
+            self.assertIsNotNone(db.query(Shelf).filter(Shelf.uuid == shelf_uuid).one().deleted_at)
         missing = self.client.request(
             "PUT", f"/api/shelves/{uuid.uuid4()}", headers=self.headers, json={"is_public": True},
         )
         self.assertEqual(missing.status_code, 404, missing.text)
-        paper = self.request("GET", f"/api/papers/{paper_id}").json()
-        self.assertEqual(paper["id"], paper_id)
-        self.assertNotIn("sync_id", paper)
-        with self.sessions() as db:
-            numeric_id = db.query(Paper).filter(Paper.sync_id == paper_id).one().id
-        gone = self.client.request("GET", f"/api/papers/{numeric_id}", headers=self.headers)
-        self.assertEqual(gone.status_code, 404, gone.text)
+        paper = self.request("GET", f"/api/papers/{paper_uuid}").json()
+        self.assertEqual(paper["uuid"], paper_uuid)
+        self.assert_no_id_fields(paper)
 
 
 if __name__ == "__main__":

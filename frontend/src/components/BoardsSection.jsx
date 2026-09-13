@@ -14,7 +14,7 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
-  const [shelfId, setShelfId] = useState(() => shelves.find((shelf) => shelf.is_default)?.id || shelves[0]?.id || '');
+  const [shelfUuid, setShelfUuid] = useState(() => shelves.find((shelf) => shelf.is_default)?.uuid || shelves[0]?.uuid || '');
 
   useEffect(() => {
     if (initialBoards) { setBoards(initialBoards); return; }
@@ -24,17 +24,17 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
     if (!initialBoards) listBoards().then(setBoards).catch((err) => setError(err.message));
   }), [initialBoards]);
   useEffect(() => {
-    if (!shelfId && shelves.length) setShelfId(shelves.find((shelf) => shelf.is_default)?.id || shelves[0].id);
-  }, [shelves, shelfId]);
+    if (!shelfUuid && shelves.length) setShelfUuid(shelves.find((shelf) => shelf.is_default)?.uuid || shelves[0].uuid);
+  }, [shelves, shelfUuid]);
 
   const submit = async (event) => {
     event.preventDefault();
     if (!name.trim()) return;
     setError(null);
     try {
-      const selectedShelf = shelves.find((shelf) => String(shelf.id) === String(shelfId));
-      const board = await createBoard({ name: name.trim(), description: description.trim() || null, shelf_id: selectedShelf?.id ?? null });
-      onSelectBoard(board.guid);
+      const selectedShelf = shelves.find((shelf) => String(shelf.uuid) === String(shelfUuid));
+      const board = await createBoard({ name: name.trim(), description: description.trim() || null, shelf_uuid: selectedShelf?.uuid ?? null });
+      onSelectBoard(board.uuid);
     } catch (err) {
       setError(err.message);
     }
@@ -58,8 +58,8 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
           </div>
           <div className="form-group">
             <label htmlFor="board-shelf">Shelf</label>
-            <select id="board-shelf" value={shelfId} onChange={(event) => setShelfId(event.target.value)} required>
-              {shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}
+            <select id="board-shelf" value={shelfUuid} onChange={(event) => setShelfUuid(event.target.value)} required>
+              {shelves.map((shelf) => <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -75,12 +75,12 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
       {!creating && boards.length === 0 && <div className="panel"><p className="panel-note">No boards yet.</p></div>}
       <div className="board-list">
         {boards.map((board) => (
-          <div className="board-list-card board-list-card-board" role="button" tabIndex="0" key={board.guid} style={{ '--shelf-color': shelves.find((shelf) => shelf.id === board.shelf_id)?.color || 'var(--line-strong)' }} onClick={() => onSelectBoard(board.guid)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectBoard(board.guid); }}>
+          <div className="board-list-card board-list-card-board" role="button" tabIndex="0" key={board.uuid} style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === board.shelf_uuid)?.color || 'var(--line-strong)' }} onClick={() => onSelectBoard(board.uuid)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectBoard(board.uuid); }}>
             <span className="board-list-title">{board.name}</span>
             {board.description && <span className="board-list-description">{board.description}</span>}
             <span className="board-list-meta"><span>{board.item_count} {board.item_count === 1 ? 'item' : 'items'}</span><time dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time></span>
-            {isOwn && <select className="board-list-shelf" aria-label={`Shelf for ${board.name}`} value={board.shelf_id || ''} onClick={(event) => event.stopPropagation()} onChange={async (event) => { event.stopPropagation(); const selected = shelves.find((shelf) => String(shelf.id) === event.target.value); if (!selected) return; await updateBoard(board.guid, { shelf_id: selected.id }); setBoards((current) => current.map((item) => item.guid === board.guid ? { ...item, shelf_id: selected.id } : item)); onChanged?.(); }}>
-              {shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}
+            {isOwn && <select className="board-list-shelf" aria-label={`Shelf for ${board.name}`} value={board.shelf_uuid || ''} onClick={(event) => event.stopPropagation()} onChange={async (event) => { event.stopPropagation(); const selected = shelves.find((shelf) => String(shelf.uuid) === event.target.value); if (!selected) return; await updateBoard(board.uuid, { shelf_uuid: selected.uuid }); setBoards((current) => current.map((item) => item.uuid === board.uuid ? { ...item, shelf_uuid: selected.uuid } : item)); onChanged?.(); }}>
+              {shelves.map((shelf) => <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>)}
             </select>}
           </div>
         ))}

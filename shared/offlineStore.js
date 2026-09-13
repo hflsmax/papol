@@ -2,7 +2,7 @@
 // cached in IndexedDB. Safe private mutations are queued after a network
 // failure and replayed in order when the backend becomes reachable again.
 
-const DB_NAME = 'papol-offline-v1';
+const DB_NAME = 'papol-offline';
 const DB_VERSION = 1;
 const OFFLINE_FILE = 'offline-file:';
 // Device settings live only in this installation's webview storage. They are
@@ -10,9 +10,9 @@ const OFFLINE_FILE = 'offline-file:';
 // for account settings persisted by the backend and shared across devices.
 const LOCAL_SYNC_PREFERENCE_KEY = 'papol.syncPreference';
 const LAST_SYNC_KEY = 'papol.lastSync';
-const LOCAL_SYNC_CLIENT_ID_KEY = 'papol.syncClientId';
-const CLIENT_ID_HEADER = 'X-Papol-Client-ID';
-const MUTATION_ID_HEADER = 'X-Papol-Mutation-ID';
+const LOCAL_SYNC_CLIENT_UUID_KEY = 'papol.syncClientUuid';
+const CLIENT_UUID_HEADER = 'X-Papol-Client-UUID';
+const MUTATION_UUID_HEADER = 'X-Papol-Mutation-UUID';
 let syncing = null;
 const pendingBlobLoads = new Map();
 let remoteNetworkFetch = (...args) => globalThis.fetch(...args);
@@ -57,7 +57,7 @@ function storedSetting(key, fallback = null) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
 }
 
-function uuid() {
+function newUuid() {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -66,20 +66,20 @@ function uuid() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export function getLocalSyncClientId() {
-  const existing = storedSetting(LOCAL_SYNC_CLIENT_ID_KEY);
+export function getLocalSyncClientUuid() {
+  const existing = storedSetting(LOCAL_SYNC_CLIENT_UUID_KEY);
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing || '')) {
     return existing;
   }
-  const created = uuid();
-  try { localStorage.setItem(LOCAL_SYNC_CLIENT_ID_KEY, created); } catch { /* queue also retains it */ }
+  const created = newUuid();
+  try { localStorage.setItem(LOCAL_SYNC_CLIENT_UUID_KEY, created); } catch { /* queue also retains it */ }
   return created;
 }
 
 function identifiedMutationOptions(options = {}) {
   const headers = new Headers(options.headers || {});
-  if (!headers.has(CLIENT_ID_HEADER)) headers.set(CLIENT_ID_HEADER, getLocalSyncClientId());
-  if (!headers.has(MUTATION_ID_HEADER)) headers.set(MUTATION_ID_HEADER, uuid());
+  if (!headers.has(CLIENT_UUID_HEADER)) headers.set(CLIENT_UUID_HEADER, getLocalSyncClientUuid());
+  if (!headers.has(MUTATION_UUID_HEADER)) headers.set(MUTATION_UUID_HEADER, newUuid());
   return { ...options, headers };
 }
 
@@ -146,7 +146,6 @@ async function transact(storeName, mode, action) {
 const getStored = (store, key) => transact(store, 'readonly', (s) => s.get(key));
 const putStored = (store, value, key) => transact(store, 'readwrite', (s) => s.put(value, key));
 const addStored = (store, value) => transact(store, 'readwrite', (s) => s.add(value));
-const putInlineStored = (store, value) => transact(store, 'readwrite', (s) => s.put(value));
 const deleteStored = (store, key) => transact(store, 'readwrite', (s) => s.delete(key));
 
 async function allStored(store) {
@@ -234,7 +233,7 @@ export function isSafeOfflineMutation(method, path, body = null) {
     method.toUpperCase() === allowedMethod && pattern.test(path))) return false;
   const data = bodyObject(body) || {};
   if (method.toUpperCase() === 'PUT' && /^\/papers\/[^/]+$/.test(path)) {
-    const privateFields = new Set(['summary', 'shelf_id', 'tag_ids']);
+    const privateFields = new Set(['summary', 'shelf_uuid', 'tag_uuids']);
     return Object.keys(data).every((key) => privateFields.has(key));
   }
   if (/^\/shelves(?:\/[^/]+)?$/.test(path) && data.is_public === true) return false;
@@ -255,15 +254,6 @@ function deserializeBody(body) {
   return form;
 }
 
-function temporaryId() {
-  return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
-}
-
-function temporaryGuid() {
-  if (typeof crypto.randomUUID === 'function') return `offline-${crypto.randomUUID()}`;
-  return `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 async function sha256(blob) {
   const bytes = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -271,7 +261,8 @@ async function sha256(blob) {
 
 async function optimisticValue(path, method, body) {
   const data = bodyObject(body) || {};
-  const id = temporaryId();
+  // A queued row is named by a UUID of its own until the server names it.
+  const uuid = newUuid();
   const now = new Date().toISOString();
   if (path === '/papers/extract') {
     const file = data.file;
@@ -290,19 +281,19 @@ async function optimisticValue(path, method, body) {
       ? data.file_path.slice(OFFLINE_FILE.length)
       : null;
     return {
-      id: uuid(), ...data, created_at: now, comments: [], readers: [],
-      sha256: digest, edition_sha256: digest, edition_id: id,
-      editions: digest ? [{ id, sha256: digest, file_path: data.file_path, created_at: now }] : [],
+      uuid: newUuid(), ...data, created_at: now, comments: [], readers: [],
+      sha256: digest, edition_sha256: digest, edition_uuid: uuid,
+      editions: digest ? [{ uuid, sha256: digest, file_path: data.file_path, created_at: now }] : [],
     };
   }
-  if (/\/comments$/.test(path)) return { id, ...data, created_at: now };
-  if (/\/ink$/.test(path)) return { id, ...data };
-  if (/\/clips$/.test(path)) return { id, ...data };
-  if (path === '/tags') return { id, name: data.name };
-  if (path === '/shelves') return { id, ...data, is_default: false };
+  if (/\/comments$/.test(path)) return { uuid, ...data, created_at: now };
+  if (/\/ink$/.test(path)) return { uuid, ...data };
+  if (/\/clips$/.test(path)) return { uuid, ...data };
+  if (path === '/tags') return { uuid, name: data.name };
+  if (path === '/shelves') return { uuid, ...data, is_default: false };
   if (path === '/boards' && method === 'POST') {
     return {
-      id, guid: temporaryGuid(), ...data, can_edit: true, items: [], staged_items: [], groups: [],
+      uuid, ...data, can_edit: true, items: [], staged_items: [], groups: [],
       created_at: now, updated_at: now,
     };
   }
@@ -320,7 +311,7 @@ async function optimisticValue(path, method, body) {
       : requestedKind === 'staging' ? (file ? 'image' : (data.kind || 'excerpt'))
       : requestedKind;
     return {
-      id, board_guid: boardItem[1], kind, ...data,
+      uuid, board_uuid: boardItem[1], kind, ...data,
       content: data.content || data.caption || (['youtube', 'webpage'].includes(kind) ? data.url : null),
       source_url: data.source_url || data.url || null,
       file_path: filePath,
@@ -331,13 +322,12 @@ async function optimisticValue(path, method, body) {
     };
   }
   if (/^\/boards\/[^/]+\/groups$/.test(path)) {
-    return { id, ...data, item_ids: data.item_ids || [], x: data.x || 0, y: data.y || 0 };
+    return { uuid, ...data, item_uuids: data.item_uuids || [], x: data.x || 0, y: data.y || 0 };
   }
-  const boardEntity = path.match(/^\/board-(?:items|groups)\/(-?\d+)/);
-  if (boardEntity) return { id: Number(boardEntity[1]), ...data };
+  const boardEntity = path.match(/^\/board-(?:items|groups)\/([^/]+)/);
+  if (boardEntity) return { uuid: boardEntity[1], ...data };
   const routeParts = path.split('/').filter(Boolean);
-  const routeId = decodeURIComponent(routeParts[routeParts.length - 1] || '');
-  return { id: /^-?\d+$/.test(routeId) ? Number(routeId) : routeId, ...data };
+  return { uuid: decodeURIComponent(routeParts[routeParts.length - 1] || ''), ...data };
 }
 
 function jsonResponse(value) {
@@ -399,14 +389,14 @@ async function queueMutation(url, path, method, options) {
     optimistic,
     queuedAt: new Date().toISOString(),
   });
-  if (path === '/papers' && optimistic?.id != null) {
-    await putStored('responses', optimistic, responseKey(`/papers/${optimistic.id}`, options));
+  if (path === '/papers' && optimistic?.uuid != null) {
+    await putStored('responses', optimistic, responseKey(`/papers/${optimistic.uuid}`, options));
     if (optimistic.sha256) {
       await putStored('responses', optimistic, responseKey(`/viewer/${optimistic.sha256}`, options));
     }
   }
-  if (path === '/boards' && optimistic?.guid) {
-    await putStored('responses', optimistic, responseKey(`/boards/${optimistic.guid}`, options));
+  if (path === '/boards' && optimistic?.uuid) {
+    await putStored('responses', optimistic, responseKey(`/boards/${optimistic.uuid}`, options));
   }
   notify({
     offline: typeof navigator !== 'undefined' ? navigator.onLine === false : true,
@@ -421,16 +411,15 @@ function clone(value) {
 
 function applyCollection(items, operations, kind) {
   let result = Array.isArray(items) ? clone(items) : [];
-  const identifier = (item) => kind === 'boards' ? item.guid : item.id;
   for (const operation of operations) {
     const bits = operation.path.split('/').filter(Boolean);
     const body = bodyObject(deserializeBody(operation.body)) || {};
     if (operation.method === 'POST' && operation.path.endsWith(`/${kind}`)) {
       result.push(operation.optimistic);
     } else if (bits[0] === kind && bits.length === 2) {
-      const id = String(bits[1]);
-      if (operation.method === 'DELETE') result = result.filter((item) => String(identifier(item)) !== id);
-      if (operation.method === 'PUT') result = result.map((item) => String(identifier(item)) === id ? { ...item, ...body } : item);
+      const uuid = String(bits[1]);
+      if (operation.method === 'DELETE') result = result.filter((item) => String(item.uuid) !== uuid);
+      if (operation.method === 'PUT') result = result.map((item) => String(item.uuid) === uuid ? { ...item, ...body } : item);
     }
   }
   return result;
@@ -444,59 +433,59 @@ function applyBoardQueue(board, operations) {
   for (const operation of operations) {
     const bits = operation.path.split('/').filter(Boolean);
     const body = bodyObject(deserializeBody(operation.body)) || {};
-    if (bits[0] === 'boards' && bits.length === 2 && bits[1] === String(next.guid)) {
+    if (bits[0] === 'boards' && bits.length === 2 && bits[1] === String(next.uuid)) {
       if (operation.method === 'PUT') next = { ...next, ...body };
       if (operation.method === 'DELETE') next.__offlineDeleted = true;
     }
-    if (bits[0] === 'boards' && bits[1] === String(next.guid) && operation.method === 'POST') {
+    if (bits[0] === 'boards' && bits[1] === String(next.uuid) && operation.method === 'POST') {
       if (bits[2] === 'groups') {
         groups.push(operation.optimistic);
-        const members = new Set((operation.optimistic.item_ids || []).map(String));
-        items = items.map((item) => members.has(String(item.id))
-          ? { ...item, group_id: operation.optimistic.id }
+        const members = new Set((operation.optimistic.item_uuids || []).map(String));
+        items = items.map((item) => members.has(String(item.uuid))
+          ? { ...item, group_uuid: operation.optimistic.uuid }
           : item);
       }
       else if (bits[2] === 'staging') staged.push(operation.optimistic);
       else if (['comments', 'files', 'youtube', 'webpage'].includes(bits[2])) items.push(operation.optimistic);
     }
     if (bits[0] === 'board-items') {
-      const itemId = bits[1];
+      const itemUuid = bits[1];
       const patch = (collection) => collection.map((item) =>
-        String(item.id) === itemId ? { ...item, ...body } : item);
+        String(item.uuid) === itemUuid ? { ...item, ...body } : item);
       if (operation.method === 'PUT') { items = patch(items); staged = patch(staged); }
       if (operation.method === 'DELETE') {
-        items = items.map((item) => String(item.id) === itemId ? { ...item, __offlineDeleted: true } : item);
-        staged = staged.map((item) => String(item.id) === itemId ? { ...item, __offlineDeleted: true } : item);
+        items = items.map((item) => String(item.uuid) === itemUuid ? { ...item, __offlineDeleted: true } : item);
+        staged = staged.map((item) => String(item.uuid) === itemUuid ? { ...item, __offlineDeleted: true } : item);
       }
       if (bits[2] === 'restore') {
-        items = items.map((item) => String(item.id) === itemId ? { ...item, __offlineDeleted: false } : item);
-        staged = staged.map((item) => String(item.id) === itemId ? { ...item, __offlineDeleted: false } : item);
+        items = items.map((item) => String(item.uuid) === itemUuid ? { ...item, __offlineDeleted: false } : item);
+        staged = staged.map((item) => String(item.uuid) === itemUuid ? { ...item, __offlineDeleted: false } : item);
       }
       if (bits[2] === 'place') {
-        const found = staged.find((item) => String(item.id) === itemId);
-        staged = staged.filter((item) => String(item.id) !== itemId);
+        const found = staged.find((item) => String(item.uuid) === itemUuid);
+        staged = staged.filter((item) => String(item.uuid) !== itemUuid);
         if (found) items.push({ ...found, ...body, staged: false });
       }
     }
     if (bits[0] === 'board-groups') {
-      const groupId = bits[1];
+      const groupUuid = bits[1];
       if (operation.method === 'PUT') groups = groups.map((group) =>
-        String(group.id) === groupId ? { ...group, ...body } : group);
+        String(group.uuid) === groupUuid ? { ...group, ...body } : group);
       if (bits[2] === 'move') {
-        groups = groups.map((group) => String(group.id) === groupId
+        groups = groups.map((group) => String(group.uuid) === groupUuid
           ? { ...group, x: (group.x || 0) + Number(body.dx || 0), y: (group.y || 0) + Number(body.dy || 0) }
           : group);
-        items = items.map((item) => String(item.group_id) === groupId
+        items = items.map((item) => String(item.group_uuid) === groupUuid
           ? { ...item, x: (item.x || 0) + Number(body.dx || 0), y: (item.y || 0) + Number(body.dy || 0) }
           : item);
       }
       if (['layout', 'ungroup'].includes(bits[2]) && Array.isArray(body.items)) {
-        const changes = new Map(body.items.map((item) => [String(item.id), item]));
-        items = items.map((item) => changes.has(String(item.id)) ? { ...item, ...changes.get(String(item.id)) } : item);
+        const changes = new Map(body.items.map((item) => [String(item.uuid), item]));
+        items = items.map((item) => changes.has(String(item.uuid)) ? { ...item, ...changes.get(String(item.uuid)) } : item);
       }
       if (bits[2] === 'ungroup') {
-        groups = groups.filter((group) => String(group.id) !== groupId);
-        items = items.map((item) => String(item.group_id) === groupId ? { ...item, group_id: null } : item);
+        groups = groups.filter((group) => String(group.uuid) !== groupUuid);
+        items = items.map((item) => String(item.group_uuid) === groupUuid ? { ...item, group_uuid: null } : item);
       }
     }
   }
@@ -524,7 +513,7 @@ export function applyOfflineQueue(path, value, operations) {
     if (Array.isArray(next.papers)) {
       for (const operation of operations) {
         if (operation.path === '/papers' && operation.method === 'POST' &&
-            !next.papers.some((paper) => String(paper.id) === String(operation.optimistic.id))) {
+            !next.papers.some((paper) => String(paper.uuid) === String(operation.optimistic.uuid))) {
           next.papers = [operation.optimistic, ...next.papers];
         }
       }
@@ -532,13 +521,13 @@ export function applyOfflineQueue(path, value, operations) {
     if (Array.isArray(next.boards)) {
       for (const operation of operations) {
         if (operation.path === '/boards' && operation.method === 'POST' &&
-            !next.boards.some((board) => board.guid === operation.optimistic.guid)) {
+            !next.boards.some((board) => board.uuid === operation.optimistic.uuid)) {
           next.boards = [operation.optimistic, ...next.boards];
         }
         const bits = operation.path.split('/').filter(Boolean);
         if (bits[0] === 'boards' && bits.length === 2) {
-          if (operation.method === 'DELETE') next.boards = next.boards.filter((board) => String(board.guid) !== bits[1]);
-          if (operation.method === 'PUT') next.boards = next.boards.map((board) => String(board.guid) === bits[1] ? { ...board, ...bodyObject(deserializeBody(operation.body)) } : board);
+          if (operation.method === 'DELETE') next.boards = next.boards.filter((board) => String(board.uuid) !== bits[1]);
+          if (operation.method === 'PUT') next.boards = next.boards.map((board) => String(board.uuid) === bits[1] ? { ...board, ...bodyObject(deserializeBody(operation.body)) } : board);
         }
       }
     }
@@ -547,16 +536,16 @@ export function applyOfflineQueue(path, value, operations) {
     for (const operation of operations) {
       const bits = operation.path.split('/').filter(Boolean);
       const body = bodyObject(deserializeBody(operation.body)) || {};
-      if (bits[0] === 'papers' && bits.length === 2 && String(next.id) === bits[1]) {
+      if (bits[0] === 'papers' && bits.length === 2 && String(next.uuid) === bits[1]) {
         if (operation.method === 'PUT') next = { ...next, ...body };
         if (operation.method === 'DELETE') next.__offlineDeleted = true;
       }
-      if (bits[0] === 'papers' && bits[2] === 'comments' && String(next.id) === bits[1]) {
+      if (bits[0] === 'papers' && bits[2] === 'comments' && String(next.uuid) === bits[1]) {
         next.comments = [...(next.comments || []), operation.optimistic];
       }
       if (bits[0] === 'comments' && Array.isArray(next.comments)) {
-        if (operation.method === 'DELETE') next.comments = next.comments.filter((item) => String(item.id) !== bits[1]);
-        if (operation.method === 'PUT') next.comments = next.comments.map((item) => String(item.id) === bits[1] ? { ...item, ...body } : item);
+        if (operation.method === 'DELETE') next.comments = next.comments.filter((item) => String(item.uuid) !== bits[1]);
+        if (operation.method === 'PUT') next.comments = next.comments.map((item) => String(item.uuid) === bits[1] ? { ...item, ...body } : item);
       }
     }
     for (const [key, child] of Object.entries(next)) {
@@ -575,7 +564,7 @@ async function cachedResponse(path, options) {
   if (cached === undefined) return null;
   const scope = authScope(options);
   const operations = (await allStored('queue')).filter((operation) =>
-    (operation.accountScope || authScope({ headers: operation.headers })) === scope);
+    operation.accountScope === scope);
   return jsonResponse(applyOfflineQueue(path, cached, operations));
 }
 
@@ -587,9 +576,9 @@ async function rememberResponse(path, response, options) {
 }
 
 function replaceMappings(value, mappings, field = '') {
-  const identifierField = field === 'id' || field === 'file_path' ||
-    field.endsWith('_id') || field.endsWith('_ids');
-  if ((typeof value === 'number' || (typeof value === 'string' && identifierField)) &&
+  const identifierField = field === 'uuid' || field === 'file_path' ||
+    field.endsWith('_uuid') || field.endsWith('_uuids');
+  if (typeof value === 'string' && identifierField &&
       Object.prototype.hasOwnProperty.call(mappings, String(value))) {
     return mappings[String(value)];
   }
@@ -644,27 +633,11 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
     const mappings = (await getStored('mappings', 'ids')) || {};
     let syncError = null;
     for (const operation of operations) {
-      const previousHeaders = new Headers(operation.headers || {});
-      const legacyAuthorization = previousHeaders.get('authorization');
-      const operationScope = operation.accountScope || authScope({ headers: previousHeaders });
-      previousHeaders.delete('authorization');
       const authorization = replayAuthorization() || latestAuthorization;
       const currentScope = authScope({
         headers: authorization ? { Authorization: authorization } : {},
       });
-      if (operationScope !== currentScope) continue;
-      const needsIdentity = !previousHeaders.has(CLIENT_ID_HEADER) ||
-        !previousHeaders.has(MUTATION_ID_HEADER);
-      const identified = identifiedMutationOptions({ headers: previousHeaders });
-      if (authorization) identified.headers.set('Authorization', authorization);
-      operation.headers = Object.fromEntries(identified.headers.entries());
-      delete operation.headers.authorization;
-      operation.accountScope = operationScope;
-      // Upgrade queues written by pre-idempotency desktop releases before
-      // their first attempt. The identity must be durable before networking.
-      if (needsIdentity || legacyAuthorization || !operation.accountScope) {
-        await putInlineStored('queue', operation);
-      }
+      if (operation.accountScope !== currentScope) continue;
       const url = mappedUrl(operation.url, mappings);
       const rawBody = deserializeBody(operation.body);
       let body = rawBody;
@@ -686,8 +659,7 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
       }
       let actual = null;
       try { actual = await response.clone().json(); } catch { /* empty response */ }
-      if (operation.optimistic?.id != null && actual?.id != null) mappings[String(operation.optimistic.id)] = actual.id;
-      if (operation.optimistic?.guid && actual?.guid) mappings[operation.optimistic.guid] = actual.guid;
+      if (operation.optimistic?.uuid != null && actual?.uuid != null) mappings[String(operation.optimistic.uuid)] = actual.uuid;
       if (operation.optimistic?.file_path?.startsWith?.(OFFLINE_FILE) && actual?.file_path) {
         mappings[operation.optimistic.file_path] = actual.file_path;
       }

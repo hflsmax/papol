@@ -23,12 +23,12 @@ export default function UserDirectory({ currentUser, onVisit }) {
       {error && <div className="error">{error}</div>}
       <ul className="user-list">
         {users.map((user) => (
-          <li key={user.id} onClick={() => onVisit(user.id)}>
+          <li key={user.uuid} onClick={() => onVisit(user.uuid)}>
             <span className="user-cell">
               <Avatar user={user} className="entry-avatar" />
               <span className="user-name">
                 {user.display_name}
-                {currentUser && user.id === currentUser.id && (
+                {currentUser && user.uuid === currentUser.uuid && (
                   <span className="you-tag"> (you)</span>
                 )}
               </span>

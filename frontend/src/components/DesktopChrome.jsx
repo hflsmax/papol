@@ -51,13 +51,13 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
       items: [
         { key: 'all', label: 'All papers', path: sourcePath('all'), glyph: 'papers', shortcut: '1', active: at('all'), count: space?.papers.length },
         ...shelves.map((shelf) => ({
-          key: `shelf:${shelf.id}`,
+          key: `shelf:${shelf.uuid}`,
           label: shelf.name,
           title: `${shelf.name} · ${shelf.is_public ? 'Public' : 'Private'}`,
-          path: sourcePath(`shelf:${shelf.id}`),
-          shelfId: shelf.id,
+          path: sourcePath(`shelf:${shelf.uuid}`),
+          shelfUuid: shelf.uuid,
           swatch: shelf.color,
-          active: at(`shelf:${shelf.id}`),
+          active: at(`shelf:${shelf.uuid}`),
           count: shelf.paper_count,
         })),
         { key: 'boards', label: 'Boards', path: sourcePath('boards'), glyph: 'boards', active: at('boards'), count: space?.boards?.length },
@@ -66,11 +66,11 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
     ...(tags.length > 0 ? [{
       label: 'Tags',
       items: tags.map((tag) => ({
-        key: `tag:${tag.id}`,
+        key: `tag:${tag.uuid}`,
         label: tag.name,
-        path: sourcePath(`tag:${tag.id}`),
+        path: sourcePath(`tag:${tag.uuid}`),
         hash: true,
-        active: at(`tag:${tag.id}`),
+        active: at(`tag:${tag.uuid}`),
       })),
     }] : []),
     {
@@ -196,7 +196,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
   // accepts files: the shelf lights up under the pointer and takes the paper
   // on release.
   const shelfDropProps = (item) => {
-    if (item.shelfId == null || !onMovePaper) return {};
+    if (item.shelfUuid == null || !onMovePaper) return {};
     const carriesPaper = (event) => Array.from(event.dataTransfer.types).includes(PAPER_DRAG_TYPE);
     const over = (event) => {
       if (!carriesPaper(event)) return;
@@ -215,8 +215,8 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
         if (!carriesPaper(event)) return;
         event.preventDefault();
         setDropKey(null);
-        const { id, shelfId } = JSON.parse(event.dataTransfer.getData(PAPER_DRAG_TYPE));
-        if (shelfId !== item.shelfId) onMovePaper(id, item.shelfId);
+        const { uuid, shelfUuid } = JSON.parse(event.dataTransfer.getData(PAPER_DRAG_TYPE));
+        if (shelfUuid !== item.shelfUuid) onMovePaper(uuid, item.shelfUuid);
       },
     };
   };
@@ -253,8 +253,8 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
               draggable="false"
               onContextMenu={contextMenuHandler(() => [
                 { label: 'Open', shortcut: item.shortcut ? `${MOD}${item.shortcut}` : undefined, onSelect: () => openPath(item.path) },
-                item.shelfId != null && onManageNook && { separator: true },
-                item.shelfId != null && onManageNook && { label: 'Manage Shelves…', onSelect: onManageNook },
+                item.shelfUuid != null && onManageNook && { separator: true },
+                item.shelfUuid != null && onManageNook && { label: 'Manage Shelves…', onSelect: onManageNook },
               ])}
               {...shelfDropProps(item)}
             >

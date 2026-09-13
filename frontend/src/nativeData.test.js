@@ -7,8 +7,9 @@ Object.defineProperty(globalThis, 'navigator', {
   value: { onLine: true }, configurable: true, writable: true,
 });
 
+const ACCOUNT = '77777777-7777-4777-8777-777777777777';
 const values = new Map([
-  ['papol.localAccountId', '7'],
+  ['papol.localAccountUuid', ACCOUNT],
   ['papol.syncPreference', 'manual'],
   ['papol_token', 'secret-token'],
 ]);
@@ -30,7 +31,7 @@ global.window = {
     invoke: async (command, arguments_) => {
       calls.push([command, arguments_]);
       if (command === 'data_mutate') {
-        return { local_sequence: 1, rows: [{ id: arguments_.changes[0].id }] };
+        return { local_sequence: 1, rows: [{ uuid: arguments_.changes[0].uuid }] };
       }
       if (command === 'blob_import') {
         return { sha256: 'a'.repeat(64), size: arguments_.bytes.length, mime_type: arguments_.mimeType };
@@ -59,14 +60,11 @@ const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
 
 const {
-  activateNativeAfterLegacyDrain, boardView, hydrateNativeSyncPreference,
+  boardView, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
   prepareNativeAccount, removeNativeAccount,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
-const {
-  configureNetworkFetch, offlineFetch, syncOfflineQueue,
-} = await import('../../shared/offlineStore.js');
 
 test('native SQLite is authoritative for the local sync preference', async () => {
   values.set('papol.syncPreference', 'automatic');
@@ -92,11 +90,11 @@ test('a failed native sync still refreshes offline status', async () => {
 test('desktop native mutations carry the local account into Tauri IPC', async () => {
   assert.equal(nativeDataActive(), true);
   await nativeMutate([{
-    table: 'boards', id: 'f5e4f3f9-a614-40a0-95d0-bad753642e2a',
+    table: 'boards', uuid: 'f5e4f3f9-a614-40a0-95d0-bad753642e2a',
     operation: 'upsert', values: { name: 'Offline' },
   }]);
   const call = calls.find(([command]) => command === 'data_mutate');
-  assert.equal(call[1].accountId, 7);
+  assert.equal(call[1].accountUuid, ACCOUNT);
   assert.equal(call[1].changes[0].values.name, 'Offline');
 });
 
@@ -122,42 +120,28 @@ test('native blob reads are local-only and never trigger a download', async () =
 
 test('native board rows are shaped for the existing board UI without ID remapping', () => {
   const row = boardView({
-    id: 'board-uuid', name: 'Local', item_count: 2,
-    items: [{ id: 'item-uuid', staged: 0 }],
-    staged_items: [{ id: 'staged-uuid', staged: 1 }],
-    groups: [{ id: 'group-uuid', auto_arrange: 0, item_ids: ['item-uuid'] }],
+    uuid: 'board-uuid', name: 'Local', item_count: 2,
+    items: [{ uuid: 'item-uuid', staged: 0 }],
+    staged_items: [{ uuid: 'staged-uuid', staged: 1 }],
+    groups: [{ uuid: 'group-uuid', auto_arrange: 0, item_uuids: ['item-uuid'] }],
   }, true);
-  assert.equal(row.guid, 'board-uuid');
-  assert.equal(row.items[0].id, 'item-uuid');
+  assert.equal(row.uuid, 'board-uuid');
+  assert.equal(row.items[0].uuid, 'item-uuid');
   assert.equal(row.staged_items[0].staged, true);
   assert.equal(row.groups[0].auto_arrange, false);
 });
 
-test('an upgrade stays on IndexedDB until legacy work drains, then activates SQLite', async () => {
+test('signing in activates the native replica for that account', async () => {
   setNativeAccount(null);
-  navigator.onLine = false;
-  configureNetworkFetch(async () => { throw new TypeError('offline'); });
-  await offlineFetch('https://example.test/api/boards', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer secret-token', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Legacy offline board' }),
-  });
-  assert.equal(await prepareNativeAccount({ id: 7 }), false);
   assert.equal(nativeDataActive(), false);
-
-  navigator.onLine = true;
-  configureNetworkFetch(async () => new Response(JSON.stringify({
-    id: 1, guid: '33333333-3333-4333-8333-333333333333', name: 'Legacy offline board',
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-  await syncOfflineQueue();
-  assert.equal(await activateNativeAfterLegacyDrain(), true);
+  assert.equal(await prepareNativeAccount({ uuid: ACCOUNT }), true);
   assert.equal(nativeDataActive(), true);
 });
 
 test('sign-out removes only the active native account replica', async () => {
   dispatchedEvents.length = 0;
-  assert.equal(await removeNativeAccount(7), 2);
+  assert.equal(await removeNativeAccount(ACCOUNT), 2);
   const call = calls.find(([command]) => command === 'local_account_remove');
-  assert.deepEqual(call[1], { accountId: 7 });
+  assert.deepEqual(call[1], { accountUuid: ACCOUNT });
   assert.deepEqual(dispatchedEvents, ['papol-offline-status']);
 });

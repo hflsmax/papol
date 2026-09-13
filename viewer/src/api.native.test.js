@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const values = new Map([
-  ['papol.localAccountId', '7'],
+  ['papol.localAccountUuid', '77777777-7777-4777-8777-777777777777'],
   ['papol.syncPreference', 'manual'],
   ['papol_token', 'token'],
 ]);
@@ -22,7 +22,7 @@ global.window = {
       if (command === 'local_setting_get') return 'manual';
       if (command === 'data_query') return [];
       if (command === 'data_mutate') {
-        return { rows: [{ id: arguments_.changes[0].id, ...arguments_.changes[0].values }] };
+        return { rows: [{ uuid: arguments_.changes[0].uuid, ...arguments_.changes[0].values }] };
       }
       return null;
     },
@@ -38,9 +38,8 @@ const {
 } = await import('./api.js');
 
 rememberPaperIdentity({
-  id: '11111111-1111-4111-8111-111111111111',
-  edition_sync_id: '22222222-2222-4222-8222-222222222222',
-  editions: [{ id: 22, sync_id: '22222222-2222-4222-8222-222222222222' }],
+  uuid: '11111111-1111-4111-8111-111111111111',
+  edition_uuid: '22222222-2222-4222-8222-222222222222',
 });
 
 test('viewer notes use native UUID relationships and serialized anchors', async () => {
@@ -49,18 +48,18 @@ test('viewer notes use native UUID relationships and serialized anchors', async 
   });
   const call = calls.find(([command, args]) => command === 'data_mutate'
     && args.changes[0].table === 'comments');
-  assert.equal(call[1].changes[0].values.paper_id, '11111111-1111-4111-8111-111111111111');
-  assert.equal(call[1].changes[0].values.edition_id, '22222222-2222-4222-8222-222222222222');
+  assert.equal(call[1].changes[0].values.paper_uuid, '11111111-1111-4111-8111-111111111111');
+  assert.equal(call[1].changes[0].values.edition_uuid, '22222222-2222-4222-8222-222222222222');
   assert.deepEqual(note.anchor, { type: 'point', x: 0.25, y: 0.5 });
 });
 
 test('ink and clips enter the native transactional outbox', async () => {
-  const stroke = await addInk(22, {
+  const stroke = await addInk('22222222-2222-4222-8222-222222222222', {
     page: 1, points: [{ x: 0.1, y: 0.2 }], color: '#b3923d',
     width: 0.004, opacity: 1, shape: 'flat',
   });
   assert.deepEqual(stroke.points, [{ x: 0.1, y: 0.2 }]);
-  const clip = await addClip(22, {
+  const clip = await addClip('22222222-2222-4222-8222-222222222222', {
     page: 1,
     source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
     frame: { x: 0.2, y: 0.2, w: 0.3, h: 0.3 },
@@ -70,18 +69,18 @@ test('ink and clips enter the native transactional outbox', async () => {
   const inkCall = calls.find(([command, args]) => command === 'data_mutate'
     && args.changes[0].table === 'ink_strokes');
   assert.equal(typeof inkCall[1].changes[0].values.points, 'string');
-  await eraseInk(stroke.id);
+  await eraseInk(stroke.uuid);
   const deleteCall = calls.find(([, args]) => args?.changes?.[0]?.operation === 'delete');
   assert.equal(deleteCall[1].changes[0].table, 'ink_strokes');
 });
 
 test('a local edition UUID reads annotations without falling through to integer REST routes', async () => {
-  const localEditionId = '6e13e900-fece-4d91-8eaa-f8e0c48a75cc';
-  await getInk(localEditionId);
-  await getClips(localEditionId);
+  const localEditionUuid = '6e13e900-fece-4d91-8eaa-f8e0c48a75cc';
+  await getInk(localEditionUuid);
+  await getClips(localEditionUuid);
   const reads = calls.filter(([command, args]) => command === 'data_query'
     && ['ink', 'clips'].includes(args.queryName));
-  assert.deepEqual(reads.map(([, args]) => args.parameters.parent_id), [
-    localEditionId, localEditionId,
+  assert.deepEqual(reads.map(([, args]) => args.parameters.parent_uuid), [
+    localEditionUuid, localEditionUuid,
   ]);
 });

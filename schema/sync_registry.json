@@ -2,123 +2,84 @@
   "protocol_version": 1,
   "tables": {
     "boards": {
-      "owner": "user_id",
-      "client_writable": ["name", "description", "shelf_id", "deleted_at"],
-      "conflict": "field_patch",
-      "compatibility_columns": ["id", "guid", "shelf_id"],
-      "column_aliases": {"sync_id": "id", "shelf_sync_id": "shelf_id"}
+      "owner": "user_uuid",
+      "client_writable": ["name", "description", "shelf_uuid", "deleted_at"],
+      "conflict": "field_patch"
     },
     "board_groups": {
-      "owner": "board.user_id",
-      "client_writable": ["board_id", "kind", "title", "header", "auto_arrange", "deleted_at"],
-      "conflict": "compound_membership",
-      "compatibility_columns": ["id", "board_id"],
-      "column_aliases": {"sync_id": "id", "board_sync_id": "board_id"}
+      "owner": "board.user_uuid",
+      "client_writable": ["board_uuid", "kind", "title", "header", "auto_arrange", "deleted_at"],
+      "conflict": "compound_membership"
     },
     "board_items": {
-      "owner": "board.user_id",
+      "owner": "board.user_uuid",
       "client_writable": [
-        "board_id", "group_id", "kind", "content", "excerpt_text",
+        "board_uuid", "group_uuid", "kind", "content", "excerpt_text",
         "sha256", "original_filename", "mime_type", "source_url",
         "source_label", "staged", "text_align", "position", "x", "y",
         "width", "deleted_at"
       ],
       "conflict": "field_patch",
-      "blob_columns": ["sha256"],
-      "compatibility_columns": ["id", "board_id", "group_id"],
-      "column_aliases": {
-        "sync_id": "id",
-        "board_sync_id": "board_id",
-        "group_sync_id": "group_id"
-      }
+      "blob_columns": ["sha256"]
     },
     "papers": {
       "create_only": true,
-      "client_writable": ["doi", "title", "authors", "journal", "year"],
-      "compatibility_columns": ["id"],
-      "column_aliases": {"sync_id": "id"}
+      "client_writable": ["doi", "title", "authors", "journal", "year"]
     },
     "paper_editions": {
       "create_only": true,
-      "client_writable": ["paper_id", "file_path", "sha256"],
+      "client_writable": ["paper_uuid", "file_path", "sha256"],
       "blob_columns": ["sha256"],
-      "compatibility_columns": [
-        "id", "paper_id", "uploaded_by", "references_status",
-        "references_error", "references_at"
-      ],
-      "column_aliases": {"sync_id": "id", "paper_sync_id": "paper_id"}
+      "server_columns": [
+        "uploaded_by", "references_status", "references_error", "references_at"
+      ]
     },
     "comments": {
-      "owner": "user_id",
+      "owner": "user_uuid",
       "client_writable": [
-        "paper_id", "edition_id", "content", "page", "anchor_type",
+        "paper_uuid", "edition_uuid", "content", "page", "anchor_type",
         "anchor", "name", "deleted_at"
       ],
-      "conflict": "field_patch",
-      "compatibility_columns": ["id", "paper_id", "edition_id"],
-      "column_aliases": {
-        "sync_id": "id", "paper_sync_id": "paper_id",
-        "edition_sync_id": "edition_id"
-      }
+      "conflict": "field_patch"
     },
     "ink_strokes": {
-      "owner": "user_id",
+      "owner": "user_uuid",
       "client_writable": [
-        "edition_id", "group_id", "page", "points", "color", "width",
+        "edition_uuid", "group_uuid", "page", "points", "color", "width",
         "opacity", "shape", "deleted_at"
       ],
-      "conflict": "whole_row",
-      "compatibility_columns": ["id", "edition_id"],
-      "column_aliases": {"sync_id": "id", "edition_sync_id": "edition_id"}
+      "conflict": "whole_row"
     },
     "paper_clips": {
-      "owner": "user_id",
+      "owner": "user_uuid",
       "client_writable": [
-        "edition_id", "page", "source", "frame", "floating", "deleted_at"
+        "edition_uuid", "page", "source", "frame", "floating", "deleted_at"
       ],
-      "conflict": "field_patch",
-      "compatibility_columns": ["id", "edition_id"],
-      "column_aliases": {"sync_id": "id", "edition_sync_id": "edition_id"}
+      "conflict": "field_patch"
     },
     "shelves": {
-      "owner": "user_id",
+      "owner": "user_uuid",
       "client_writable": ["name", "color", "position", "deleted_at"],
-      "conflict": "field_patch",
-      "compatibility_columns": ["id"],
-      "column_aliases": {"sync_id": "id"}
+      "conflict": "field_patch"
     },
     "tags": {
-      "owner": "user_id",
+      "owner": "user_uuid",
       "client_writable": ["name", "deleted_at"],
-      "conflict": "field_patch",
-      "compatibility_columns": ["id"],
-      "column_aliases": {"sync_id": "id"}
+      "conflict": "field_patch"
     },
     "copies": {
-      "owner": "user_id",
+      "owner": "user_uuid",
       "client_writable": [
-        "paper_id", "shelf_id", "edition_id", "edition_sha256",
-        "ignored_edition_id", "summary", "rating_expertise",
+        "paper_uuid", "shelf_uuid", "edition_uuid", "edition_sha256",
+        "ignored_edition_uuid", "summary", "rating_expertise",
         "rating_reading", "rating_liking", "deleted_at"
       ],
-      "conflict": "field_patch",
-      "compatibility_columns": [
-        "id", "paper_id", "shelf_id", "edition_id", "ignored_edition_id"
-      ],
-      "column_aliases": {
-        "sync_id": "id", "paper_sync_id": "paper_id",
-        "shelf_sync_id": "shelf_id", "edition_sync_id": "edition_id",
-        "ignored_edition_sync_id": "ignored_edition_id"
-      }
+      "conflict": "field_patch"
     },
     "copy_tags": {
-      "owner": "user_id",
-      "client_writable": ["copy_id", "tag_id", "deleted_at"],
-      "conflict": "whole_row",
-      "compatibility_columns": ["copy_id", "tag_id"],
-      "column_aliases": {
-        "sync_id": "id", "copy_sync_id": "copy_id", "tag_sync_id": "tag_id"
-      }
+      "owner": "user_uuid",
+      "client_writable": ["copy_uuid", "tag_uuid", "deleted_at"],
+      "conflict": "whole_row"
     }
   }
 }

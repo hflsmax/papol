@@ -6,7 +6,7 @@ const configuredBase = (viteEnvironment.BASE_URL || '/').replace(/\/$/, '');
 
 // The standalone board's asset base (/boards/ in development, relative in a
 // build) is not the API mount. Derive Papol's actual prefix from its URL so
-// /boards/<guid> calls /api, while /papol/boards/<guid> calls /papol/api.
+// /boards/<uuid> calls /api, while /papol/boards/<uuid> calls /papol/api.
 const pathname = window.location.pathname;
 const boardMarker = pathname.includes('/demo/boards/') ? '/demo/boards/' : '/boards/';
 const boardAt = pathname.indexOf(boardMarker);

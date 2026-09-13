@@ -14,38 +14,38 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   const [browserOpen, setBrowserOpen] = useState(
     () => window.sessionStorage.getItem('papol.paperBrowserOpen') === 'true'
   );
-  const [toggleWarning, setToggleWarning] = useState(null); // { id, text }
+  const [toggleWarning, setToggleWarning] = useState(null); // { uuid, text }
   const [openShelfPicker, setOpenShelfPicker] = useState(null);
 
   useEffect(() => {
     window.sessionStorage.setItem('papol.paperBrowserOpen', String(browserOpen));
   }, [browserOpen]);
 
-  const handleShelfMove = async (paper, shelfId) => {
+  const handleShelfMove = async (paper, shelfUuid) => {
     setToggleWarning(null);
     try {
-      await updatePaper(paper.id, { shelf_id: shelfId });
+      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
       setOpenShelfPicker(null);
       onChanged();
     } catch (err) {
-      setToggleWarning({ id: paper.id, text: err.message });
+      setToggleWarning({ uuid: paper.uuid, text: err.message });
     }
   };
-  const handleBoardShelfMove = async (board, shelfId) => {
-    const pickerId = `board:${board.guid}`;
+  const handleBoardShelfMove = async (board, shelfUuid) => {
+    const pickerUuid = `board:${board.uuid}`;
     try {
-      await updateBoard(board.guid, { shelf_id: shelfId });
+      await updateBoard(board.uuid, { shelf_uuid: shelfUuid });
       setOpenShelfPicker(null);
       onChanged();
     } catch (err) {
-      setToggleWarning({ id: pickerId, text: err.message });
+      setToggleWarning({ uuid: pickerUuid, text: err.message });
     }
   };
 
   const filteredPapers = papers.filter((paper) => {
     const searchLower = search.toLowerCase();
-    return (selectedShelf == null || paper.shelf_id === selectedShelf) &&
-      (selectedTag == null || (paper.tags || []).some((tag) => tag.id === selectedTag)) && (
+    return (selectedShelf == null || paper.shelf_uuid === selectedShelf) &&
+      (selectedTag == null || (paper.tags || []).some((tag) => tag.uuid === selectedTag)) && (
       paper.title.toLowerCase().includes(searchLower) ||
       (paper.authors && paper.authors.toLowerCase().includes(searchLower)) ||
       (paper.journal && paper.journal.toLowerCase().includes(searchLower))
@@ -54,7 +54,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   const filteredBoards = boards.filter((board) => {
     const searchLower = search.toLowerCase();
     return selectedTag == null &&
-      (selectedShelf == null || board.shelf_id === selectedShelf) &&
+      (selectedShelf == null || board.shelf_uuid === selectedShelf) &&
       (board.name.toLowerCase().includes(searchLower) || (board.description || '').toLowerCase().includes(searchLower));
   });
 
@@ -68,8 +68,8 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
     ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
   ].sort((a, b) => (isOwn ? 0 : a.rank - b.rank) || new Date(b.at) - new Date(a.at));
 
-  const activeShelf = shelves.find((shelf) => shelf.id === selectedShelf);
-  const activeTag = tags.find((tag) => tag.id === selectedTag);
+  const activeShelf = shelves.find((shelf) => shelf.uuid === selectedShelf);
+  const activeTag = tags.find((tag) => tag.uuid === selectedTag);
   const filterSummary = [
     activeShelf?.name,
     activeTag ? `#${activeTag.name}` : null,
@@ -101,12 +101,12 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             <div className="shelf-filter-case">
               {shelves.map((shelf) => (
                 <button
-                  key={shelf.id}
-                  className={selectedShelf === shelf.id ? 'shelf-filter-cubby selected' : 'shelf-filter-cubby'}
+                  key={shelf.uuid}
+                  className={selectedShelf === shelf.uuid ? 'shelf-filter-cubby selected' : 'shelf-filter-cubby'}
                   style={{ '--shelf-color': shelf.color }}
-                  onClick={() => setSelectedShelf(selectedShelf === shelf.id ? null : shelf.id)}
-                  aria-pressed={selectedShelf === shelf.id}
-                  title={selectedShelf === shelf.id
+                  onClick={() => setSelectedShelf(selectedShelf === shelf.uuid ? null : shelf.uuid)}
+                  aria-pressed={selectedShelf === shelf.uuid}
+                  title={selectedShelf === shelf.uuid
                     ? `Clear ${shelf.name} shelf filter`
                     : `${shelf.name}: ${shelf.paper_count + (shelf.board_count || 0)} items`}
                 >
@@ -136,7 +136,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                       </span>
                     </span>
                   </span>
-                  {selectedShelf === shelf.id && (
+                  {selectedShelf === shelf.uuid && (
                     <span className="shelf-filter-x" aria-hidden="true" />
                   )}
                 </button>
@@ -148,7 +148,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
           <div className="search-tag-filters" aria-label="Filter papers by tag">
             <button className={selectedTag == null ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(null)}>All</button>
             {tags.map((tag) => (
-              <button key={tag.id} className={selectedTag === tag.id ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(tag.id)}>
+              <button key={tag.uuid} className={selectedTag === tag.uuid ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(tag.uuid)}>
                 <span aria-hidden="true">#</span> {tag.name}
               </button>
             ))}
@@ -180,42 +180,42 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
           {entries.map((entry) => {
             if (entry.kind === 'board') {
               const board = entry.value;
-              const pickerId = `board:${board.guid}`;
-              return <li key={pickerId} className="nook-board-row" onContextMenu={contextMenuHandler(() => [
-                { label: 'Open Board', onSelect: () => onSelectBoard(board.guid) },
+              const pickerUuid = `board:${board.uuid}`;
+              return <li key={pickerUuid} className="nook-board-row" onContextMenu={contextMenuHandler(() => [
+                { label: 'Open Board', onSelect: () => onSelectBoard(board.uuid) },
                 isOwn && shelves.length > 0 && { separator: true },
                 isOwn && shelves.length > 0 && {
                   label: 'Move to Shelf',
                   submenu: shelves.map((shelf) => ({
                     label: shelf.name,
-                    checked: board.shelf_id === shelf.id,
-                    onSelect: () => board.shelf_id !== shelf.id && handleBoardShelfMove(board, shelf.id),
+                    checked: board.shelf_uuid === shelf.uuid,
+                    onSelect: () => board.shelf_uuid !== shelf.uuid && handleBoardShelfMove(board, shelf.uuid),
                   })),
                 },
               ])}>
-                {isOwn && <span className="hint-anchor bar-anchor shelf-bar" onMouseEnter={() => setOpenShelfPicker(pickerId)} onMouseLeave={() => setOpenShelfPicker((current) => current === pickerId ? null : current)}>
-                  <button className="shelf-current" style={{ '--shelf-color': shelves.find((shelf) => shelf.id === board.shelf_id)?.color || 'var(--line-strong)' }} onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === pickerId ? null : pickerId); }} title="Move to another shelf" aria-label="Choose shelf" aria-expanded={openShelfPicker === pickerId} />
-                  {openShelfPicker === pickerId && <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
-                    {shelves.map((shelf) => <button key={shelf.id} className={board.shelf_id === shelf.id ? 'active' : ''} onClick={() => board.shelf_id === shelf.id ? setOpenShelfPicker(null) : handleBoardShelfMove(board, shelf.id)} title={`${shelf.name} — ${shelf.is_public ? 'Public' : 'Private'}`} aria-label={`Move to ${shelf.name}`} aria-pressed={board.shelf_id === shelf.id}><span style={{ background: shelf.color }} />{shelf.name}</button>)}
+                {isOwn && <span className="hint-anchor bar-anchor shelf-bar" onMouseEnter={() => setOpenShelfPicker(pickerUuid)} onMouseLeave={() => setOpenShelfPicker((current) => current === pickerUuid ? null : current)}>
+                  <button className="shelf-current" style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === board.shelf_uuid)?.color || 'var(--line-strong)' }} onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === pickerUuid ? null : pickerUuid); }} title="Move to another shelf" aria-label="Choose shelf" aria-expanded={openShelfPicker === pickerUuid} />
+                  {openShelfPicker === pickerUuid && <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
+                    {shelves.map((shelf) => <button key={shelf.uuid} className={board.shelf_uuid === shelf.uuid ? 'active' : ''} onClick={() => board.shelf_uuid === shelf.uuid ? setOpenShelfPicker(null) : handleBoardShelfMove(board, shelf.uuid)} title={`${shelf.name} — ${shelf.is_public ? 'Public' : 'Private'}`} aria-label={`Move to ${shelf.name}`} aria-pressed={board.shelf_uuid === shelf.uuid}><span style={{ background: shelf.color }} />{shelf.name}</button>)}
                   </span>}
-                  {toggleWarning?.id === pickerId && <HintPop text={toggleWarning.text} onClose={() => setToggleWarning(null)} />}
+                  {toggleWarning?.uuid === pickerUuid && <HintPop text={toggleWarning.text} onClose={() => setToggleWarning(null)} />}
                 </span>}
-                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/boards/${board.guid}`)} data-document onClick={(event) => { event.preventDefault(); onSelectBoard(board.guid); }}>{board.name}</a></h4></div></div>
+                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/boards/${board.uuid}`)} data-document onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4></div></div>
               </li>;
             }
             const paper = entry.value;
-            return <React.Fragment key={`paper-${paper.id}`}>
+            return <React.Fragment key={`paper-${paper.uuid}`}>
             <li
               className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
               onContextMenu={contextMenuHandler(() => [
-                { label: 'Open Paper', onSelect: () => onSelectPaper(paper.id) },
+                { label: 'Open Paper', onSelect: () => onSelectPaper(paper.uuid) },
                 isOwn && shelves.length > 0 && { separator: true },
                 isOwn && shelves.length > 0 && {
                   label: 'Move to Shelf',
                   submenu: shelves.map((shelf) => ({
                     label: shelf.name,
-                    checked: paper.shelf_id === shelf.id,
-                    onSelect: () => paper.shelf_id !== shelf.id && handleShelfMove(paper, shelf.id),
+                    checked: paper.shelf_uuid === shelf.uuid,
+                    onSelect: () => paper.shelf_uuid !== shelf.uuid && handleShelfMove(paper, shelf.uuid),
                   })),
                 },
               ])}
@@ -225,27 +225,27 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
               {isOwn && (
                 <span
                   className="hint-anchor bar-anchor shelf-bar"
-                  onMouseEnter={() => setOpenShelfPicker(paper.id)}
-                  onMouseLeave={() => setOpenShelfPicker((current) => current === paper.id ? null : current)}
+                  onMouseEnter={() => setOpenShelfPicker(paper.uuid)}
+                  onMouseLeave={() => setOpenShelfPicker((current) => current === paper.uuid ? null : current)}
                 >
                   <button
                     className="shelf-current"
-                    style={{ '--shelf-color': shelves.find((shelf) => shelf.id === paper.shelf_id)?.color || 'var(--line-strong)' }}
-                    onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === paper.id ? null : paper.id); }}
+                    style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === paper.shelf_uuid)?.color || 'var(--line-strong)' }}
+                    onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === paper.uuid ? null : paper.uuid); }}
                     title="Move to another shelf"
                     aria-label="Choose shelf"
-                    aria-expanded={openShelfPicker === paper.id}
+                    aria-expanded={openShelfPicker === paper.uuid}
                   />
-                  {openShelfPicker === paper.id && (
+                  {openShelfPicker === paper.uuid && (
                     <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
                       {shelves.map((shelf) => (
                         <button
-                          key={shelf.id}
-                          className={paper.shelf_id === shelf.id ? 'active' : ''}
-                          onClick={() => paper.shelf_id === shelf.id ? setOpenShelfPicker(null) : handleShelfMove(paper, shelf.id)}
+                          key={shelf.uuid}
+                          className={paper.shelf_uuid === shelf.uuid ? 'active' : ''}
+                          onClick={() => paper.shelf_uuid === shelf.uuid ? setOpenShelfPicker(null) : handleShelfMove(paper, shelf.uuid)}
                           title={`${shelf.name} — ${shelf.is_public ? 'Public' : 'Private'}`}
                           aria-label={`Move to ${shelf.name}`}
-                          aria-pressed={paper.shelf_id === shelf.id}
+                          aria-pressed={paper.shelf_uuid === shelf.uuid}
                         >
                           <span style={{ background: shelf.color }} />
                           {shelf.name}
@@ -253,7 +253,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                       ))}
                     </span>
                   )}
-                  {toggleWarning?.id === paper.id && (
+                  {toggleWarning?.uuid === paper.uuid && (
                     <HintPop
                       text={toggleWarning.text}
                       onClose={() => setToggleWarning(null)}
@@ -293,13 +293,13 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   <div className="row-readers">
                     {paper.readers.map((entry) => (
                       <a
-                        key={entry.user.id}
+                        key={entry.user.uuid}
                         className={
                           entry.is_author
                             ? 'avatar-chip has-pop mini author'
                             : 'avatar-chip has-pop mini'
                         }
-                        href={appPath(`/u/${entry.user.id}`)}
+                        href={appPath(`/u/${entry.user.uuid}`)}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Avatar user={entry.user} className="mini-avatar" />

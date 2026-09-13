@@ -42,9 +42,7 @@ def validate_registry():
         if model is None:
             raise RuntimeError(f"Sync registry has no model for {table_name}")
         columns = set(model.__table__.columns.keys())
-        aliases = rule.get("column_aliases", {})
-        exposed = (columns - set(rule.get("compatibility_columns", [])))
-        exposed = {aliases.get(name, name) for name in exposed}
+        exposed = columns - set(rule.get("server_columns", []))
         missing = set(rule.get("client_writable", [])) - exposed
         if missing:
             raise RuntimeError(

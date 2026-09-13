@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import re
+import uuid
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,9 +23,9 @@ from schemas import CitationOut, DocumentLinkOut, EditionReferences, ReferenceOu
 logger = logging.getLogger(__name__)
 
 
-def reference_id(namespace: str, key: str) -> int:
-    """A stable id small enough to remain exact in a JavaScript number."""
-    return int(hashlib.sha256(f"{namespace}\n{key}".encode()).hexdigest()[:12], 16)
+def reference_uuid(namespace: str, key: str) -> str:
+    """A stable UUID for a reference that has no database row."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"papol-reference:{namespace}\n{key}"))
 
 
 def reference_out(reference) -> ReferenceOut:
@@ -34,25 +35,12 @@ def reference_out(reference) -> ReferenceOut:
             resolution = ResolvedWork(**json.loads(reference.resolution))
         except Exception:
             pass
-    title = reference.title
-    journal = getattr(reference, "journal", None)
-    # Analyses made before the parser distinguished an absent article title
-    # from a journal title have the same value in both columns. Keep those
-    # stored editions honest without forcing every PDF to be re-analyzed.
-    if title and journal and title.strip().casefold() == journal.strip().casefold():
-        title = None
-        if (
-            resolution
-            and resolution.source == "bibliography"
-            and resolution.title.strip().casefold() == journal.strip().casefold()
-        ):
-            resolution.title = reference.raw or "Cited reference"
     return ReferenceOut(
-        id=reference.id,
+        uuid=reference.uuid,
         key=reference.key,
         index=reference.index,
         raw=reference.raw,
-        title=title,
+        title=reference.title,
         year=reference.year,
         page=getattr(reference, "page", None),
         y=getattr(reference, "y", None),
@@ -63,47 +51,11 @@ def reference_out(reference) -> ReferenceOut:
 
 async def resolve(reference) -> ReferenceOut:
     """Resolve and cache metadata on a database row or ephemeral row."""
-    journal = getattr(reference, "journal", None)
-    legacy_venue_title = bool(
-        reference.title
-        and journal
-        and reference.title.strip().casefold() == journal.strip().casefold()
-    )
-    if legacy_venue_title:
-        # Retry analyses produced before journal-only entries were represented
-        # with a missing title. Crossref can identify these from the remaining
-        # bibliographic coordinates.
-        reference.title = None
-        if reference.resolved_status == "bibliography":
-            reference.resolved_status = None
-            reference.resolution = None
-    if reference.resolved_status == "ok" and reference.resolution:
-        try:
-            cached = json.loads(reference.resolution)
-        except (TypeError, ValueError):
-            cached = None
-        if cached and not biblio.ReferenceContext.from_reference(reference).accepts(cached):
-            reference.resolved_status = None
-            reference.resolution = None
-    # Older analyses may have cached a search miss even though the printed
-    # reference contains an exact arXiv URL that GROBID did not put in an
-    # idno. An exact identifier is materially new evidence, so retry that
-    # miss instead of preserving an answer produced by a broad title search.
-    if (
-        reference.resolved_status == "miss"
-        and not reference.arxiv_id
-        and extract_arxiv_id(reference.raw or "")
-    ):
-        reference.resolved_status = None
-    if reference.resolved_status == "miss":
-        reference.resolved_status = "bibliography"
-        reference.resolution = json.dumps(_bibliography_summary(reference))
-        reference.resolved_at = datetime.utcnow()
     if reference.resolved_status is None:
         try:
             status, summary = await biblio.resolve(reference)
         except Exception as exc:
-            logger.warning("Could not resolve reference %s: %s", reference.id, exc)
+            logger.warning("Could not resolve reference %s: %s", reference.uuid, exc)
             status, summary = "error", None
         if status in {"miss", "error"}:
             # Crossref/OpenAlex enrichment is useful, but it is not the
@@ -183,7 +135,7 @@ class EphemeralReferenceEngine:
 
     def __init__(self):
         self._analyses: dict[str, dict] = {}
-        self._references: dict[int, SimpleNamespace] = {}
+        self._references: dict[str, SimpleNamespace] = {}
         self._previews: dict[str, ReferenceOut] = {}
 
     def begin(self, digest: str) -> bool:
@@ -195,10 +147,10 @@ class EphemeralReferenceEngine:
         }
         return True
 
-    def response(self, digest: str, edition_id: int) -> EditionReferences:
+    def response(self, digest: str, edition_uuid: str) -> EditionReferences:
         state = self._analyses[digest]
         return EditionReferences(
-            edition_id=edition_id,
+            edition_uuid=edition_uuid,
             status=state["status"],
             detail=state.get("detail"),
             references=state.get("references", []),
@@ -209,22 +161,22 @@ class EphemeralReferenceEngine:
     async def analyze(self, digest: str, path: Path):
         try:
             result = await grobid.analyze(str(path))
-            ids = {ref.key: reference_id(digest, ref.key) for ref in result.references}
+            ids = {ref.key: reference_uuid(digest, ref.key) for ref in result.references}
             references = []
             for ref in result.references:
                 row = SimpleNamespace(
-                    id=ids[ref.key], key=ref.key, index=ref.index, raw=ref.raw,
+                    uuid=ids[ref.key], key=ref.key, index=ref.index, raw=ref.raw,
                     title=ref.title,
                     authors=json.dumps(ref.authors) if ref.authors else None,
                     year=ref.year, journal=ref.journal, doi=ref.doi,
                     arxiv_id=ref.arxiv_id, page=ref.page, y=ref.y,
                     resolved_status=None, resolution=None, resolved_at=None,
                 )
-                self._references[row.id] = row
+                self._references[row.uuid] = row
                 references.append(reference_out(row))
             citations = [
                 CitationOut(
-                    reference_id=ids[cite.key], label=cite.label, page=cite.page,
+                    reference_uuid=ids[cite.key], label=cite.label, page=cite.page,
                     x=cite.x, y=cite.y, w=cite.w, h=cite.h,
                     inferred=cite.inferred,
                 )
@@ -253,7 +205,7 @@ class EphemeralReferenceEngine:
                 "references": [], "citations": [], "links": [],
             }
 
-    async def open(self, reference_id_value: int) -> ReferenceOut | None:
+    async def open(self, reference_id_value: str) -> ReferenceOut | None:
         reference = self._references.get(reference_id_value)
         return await resolve(reference) if reference else None
 
@@ -263,7 +215,7 @@ class EphemeralReferenceEngine:
         if cache_key in self._previews:
             return self._previews[cache_key]
         row = SimpleNamespace(
-            id=int(cache_key[:12], 16), key=key, index=0, raw=raw,
+            uuid=reference_uuid("preview", cache_key), key=key, index=0, raw=raw,
             title=None, year=None, doi=None, arxiv_id=None,
             page=None, y=None, resolved_status=None, resolution=None,
             resolved_at=None,

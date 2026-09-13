@@ -98,15 +98,15 @@ function RoomCard({ room, paper, currentUser }) {
           </span>
           {room.participants.map((u) => (
             <a
-              key={u.id}
+              key={u.uuid}
               className="avatar-chip has-pop mini"
-              href={appPath(`/u/${u.id}`)}
+              href={appPath(`/u/${u.uuid}`)}
             >
               <Avatar user={u} className="mini-avatar" />
               <span className="chip-pop">
                 <span className="chip-pop-name">
                   {u.display_name}
-                  {currentUser && u.id === currentUser.id ? ' (you)' : ''}
+                  {currentUser && u.uuid === currentUser.uuid ? ' (you)' : ''}
                 </span>
                 {u.affiliation && (
                   <span className="chip-pop-aff">{u.affiliation}</span>
@@ -118,7 +118,7 @@ function RoomCard({ room, paper, currentUser }) {
       )}
       {currentUser ? (
         <p className="room-enter">
-          <a className="btn" href={appPath(`/room/${room.id}`)}>
+          <a className="btn" href={appPath(`/room/${room.uuid}`)}>
             Open the room
           </a>
         </p>
@@ -139,7 +139,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
     setCallWarning(null);
     setIsBusy(true);
     try {
-      await callSeminar(paper.id);
+      await callSeminar(paper.uuid);
       if (onChanged) onChanged();
     } catch (err) {
       setCallWarning(err.message);
@@ -165,7 +165,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
 
       {rooms.map((room) => (
         <RoomCard
-          key={room.id}
+          key={room.uuid}
           room={room}
           paper={paper}
           currentUser={currentUser}

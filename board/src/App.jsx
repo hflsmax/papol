@@ -30,7 +30,7 @@ function returnToPapol() {
 }
 
 export default function App() {
-  const boardId = route();
+  const boardUuid = route();
   const inDemo = window.location.pathname.includes('/demo/boards/') ||
     new URLSearchParams(window.location.search).get('demo') === '1';
   if (!inDemo && !getToken()) {
@@ -42,8 +42,8 @@ export default function App() {
   }
   return <>
     <style>{styles}</style>
-    {boardId
-      ? <BoardPage boardId={boardId} onBack={returnToPapol} backHref={boardReturnPath()} />
+    {boardUuid
+      ? <BoardPage boardUuid={boardUuid} onBack={returnToPapol} backHref={boardReturnPath()} />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;
 }

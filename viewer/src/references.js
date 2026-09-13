@@ -35,7 +35,7 @@ const EXPECTED_DROP = 0.007;
 
 /**
  * Citation boxes for one page, in fractions of the page from its
- * top-left corner: [{ referenceId, label, x, y, w, h, exact }].
+ * top-left corner: [{ referenceUuid, label, x, y, w, h, exact }].
  *
  * `analysis` is what the backend returned; `doc` and `pageNumber` are the
  * open PDF. Returns the analyzer's boxes when the PDF offers nothing
@@ -57,7 +57,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   const fromAnalyzer = consolidateCitations((analysis?.citations || [])
     .filter((c) => c.page === pageNumber)
     .map((c) => ({
-      referenceId: c.reference_id,
+      referenceUuid: c.reference_uuid,
       label: c.label,
       x: c.x,
       y: c.y,
@@ -91,7 +91,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
         // PDFs commonly link only the two endpoint digits in "[1–7]".
         // Selectable text is the only place where the range itself survives,
         // so let that complete group replace those incomplete native boxes.
-        if (candidate.referenceIds.length > 1 && covered.length) {
+        if (candidate.referenceUuids.length > 1 && covered.length) {
           citations = citations.filter((known) => !overlaps(known, candidate));
           citations.push(candidate);
         } else if (!covered.length) {
@@ -143,8 +143,8 @@ async function numberedCitations(doc, pageNumber, references) {
         h: height / viewport.height,
       };
       found.push({
-        referenceId: targets[0].id,
-        referenceIds: targets.map((reference) => reference.id),
+        referenceUuid: targets[0].uuid,
+        referenceUuids: targets.map((reference) => reference.uuid),
         label: match[0],
         ...box,
         exact: false,
@@ -194,7 +194,7 @@ export function consolidateCitations(citations) {
     if (!group) {
       groups.push({
         ...citation,
-        referenceIds: [citation.referenceId],
+        referenceUuids: [citation.referenceUuid],
       });
       continue;
     }
@@ -206,8 +206,8 @@ export function consolidateCitations(citations) {
     group.w = groupRight - group.x;
     group.h = bottom - group.y;
     group.exact = group.exact && citation.exact;
-    if (!group.referenceIds.includes(citation.referenceId)) {
-      group.referenceIds.push(citation.referenceId);
+    if (!group.referenceUuids.includes(citation.referenceUuid)) {
+      group.referenceUuids.push(citation.referenceUuid);
     }
   }
 
@@ -266,7 +266,7 @@ async function fromAnnotations(doc, pageNumber, references) {
     const spot = link.dest ? await destinationSpot(doc, link.dest) : null;
     const reference = spot && references.length ? referenceAt(references, spot) : null;
     if (reference) {
-      citations.push({ referenceId: reference.id, label: null, ...box, exact: true });
+      citations.push({ referenceUuid: reference.uuid, label: null, ...box, exact: true });
       continue;
     }
     // LaTeX/hyperref gives bibliography jumps stable names even before
@@ -297,10 +297,10 @@ function isNamedCitation(dest) {
 function namedCitation(dest, box) {
   const key = String(dest).replace(/^cite\./i, '');
   return {
-    referenceId: `pdf:${dest}`,
+    referenceUuid: `pdf:${dest}`,
     label: null,
     reference: {
-      id: `pdf:${dest}`,
+      uuid: `pdf:${dest}`,
       key,
       dest,
       raw: null,

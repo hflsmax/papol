@@ -75,9 +75,9 @@ export default function PaperUpload({
         doi: data.doi || '',
         thought: '',
         summary: '',
-        shelf_id: (nativeDataActive()
+        shelf_uuid: (nativeDataActive()
           ? shelfData.find((shelf) => !shelf.is_public)
-          : shelfData.find((shelf) => shelf.is_default))?.id || shelfData[0]?.id || '',
+          : shelfData.find((shelf) => shelf.is_default))?.uuid || shelfData[0]?.uuid || '',
         is_author: false,
         rating_expertise: null,
         rating_reading: null,
@@ -94,8 +94,8 @@ export default function PaperUpload({
   };
 
   useEffect(() => {
-    if (!incomingFile || handledIncomingFile.current === incomingFile.id) return;
-    handledIncomingFile.current = incomingFile.id;
+    if (!incomingFile || handledIncomingFile.current === incomingFile.uuid) return;
+    handledIncomingFile.current = incomingFile.uuid;
     onIncomingFileHandled();
     if (isPdfFile(incomingFile.file)) handleFile(incomingFile.file);
     else setError('Papol’s library only supports PDF files.');
@@ -130,12 +130,12 @@ export default function PaperUpload({
         thought: formData.thought || null,
         summary: formData.summary || null,
         file_path: extractedData.file_path,
-        shelf_id: shelves.find((shelf) => String(shelf.id) === String(formData.shelf_id))?.id,
+        shelf_uuid: shelves.find((shelf) => String(shelf.uuid) === String(formData.shelf_uuid))?.uuid,
         is_author: !!formData.is_author,
         rating_expertise: formData.rating_expertise,
         rating_reading: formData.rating_reading,
         rating_liking: formData.rating_liking,
-        tag_ids: selectedTags.map((tag) => tag.id),
+        tag_uuids: selectedTags.map((tag) => tag.uuid),
       });
 
       setExtractedData(null);
@@ -161,15 +161,15 @@ export default function PaperUpload({
   };
 
   if (extractedData) {
-    const selectedIds = new Set(selectedTags.map((tag) => tag.id));
+    const selectedUuids = new Set(selectedTags.map((tag) => tag.uuid));
     const query = tagDraft.trim().toLowerCase();
     const suggestions = availableTags.filter(
-      (tag) => !selectedIds.has(tag.id) && (!query || tag.name.toLowerCase().includes(query))
+      (tag) => !selectedUuids.has(tag.uuid) && (!query || tag.name.toLowerCase().includes(query))
     );
     const exactTagExists = availableTags.some((tag) => tag.name.toLowerCase() === query);
     const selectTag = (tag) => {
-      setSelectedTags((current) => current.some((item) => item.id === tag.id) ? current : [...current, tag]);
-      setAvailableTags((current) => current.some((item) => item.id === tag.id) ? current : [...current, tag]);
+      setSelectedTags((current) => current.some((item) => item.uuid === tag.uuid) ? current : [...current, tag]);
+      setAvailableTags((current) => current.some((item) => item.uuid === tag.uuid) ? current : [...current, tag]);
       setTagDraft('');
       setTagMenuOpen(false);
     };
@@ -256,9 +256,9 @@ export default function PaperUpload({
           <div className="form-group upload-private-field upload-shelf-field">
             <label>Shelf</label>
             <div className="upload-shelf-select">
-              <select name="shelf_id" value={formData.shelf_id} onChange={handleInputChange}>
+              <select name="shelf_uuid" value={formData.shelf_uuid} onChange={handleInputChange}>
                 {shelves.map((shelf) => (
-                  <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                  <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
                 ))}
               </select>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg>
@@ -271,7 +271,7 @@ export default function PaperUpload({
               <div className="tag-picker">
                 <div className="tag-editor">
                   {selectedTags.map((tag) => (
-                    <button type="button" className="tag-chip selected" key={tag.id} onClick={() => setSelectedTags((current) => current.filter((item) => item.id !== tag.id))}>
+                    <button type="button" className="tag-chip selected" key={tag.uuid} onClick={() => setSelectedTags((current) => current.filter((item) => item.uuid !== tag.uuid))}>
                       {tag.name} ×
                     </button>
                   ))}
@@ -288,7 +288,7 @@ export default function PaperUpload({
                   <div className="tag-dropdown">
                     {suggestions.length > 0 && <div className="tag-dropdown-label">Your tags</div>}
                     {suggestions.map((tag) => (
-                      <button type="button" key={tag.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectTag(tag)}>
+                      <button type="button" key={tag.uuid} onMouseDown={(e) => e.preventDefault()} onClick={() => selectTag(tag)}>
                         <span className="tag-option-mark">#</span><span>{tag.name}</span><span className="tag-option-hint">Add</span>
                       </button>
                     ))}

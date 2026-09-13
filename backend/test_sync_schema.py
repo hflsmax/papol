@@ -30,16 +30,15 @@ class SharedSyncSchemaTests(unittest.TestCase):
             for table_name, rule in registry()["tables"].items():
                 local_info = list(connection.execute(f"PRAGMA table_info({table_name})"))
                 local = {row[1]: row[2].upper() for row in local_info}
-                aliases = rule.get("column_aliases", {})
-                skipped = set(rule.get("compatibility_columns", []))
+                skipped = set(rule.get("server_columns", []))
                 server = {
-                    aliases.get(column.name, column.name): sqlite_type(column)
+                    column.name: sqlite_type(column)
                     for column in MODELS[table_name].__table__.columns
                     if column.name not in skipped
                 }
                 self.assertEqual(local, server, table_name)
                 primary_keys = {row[1] for row in local_info if row[5]}
-                self.assertEqual(primary_keys, {"id"}, table_name)
+                self.assertEqual(primary_keys, {"uuid"}, table_name)
         finally:
             connection.close()
 

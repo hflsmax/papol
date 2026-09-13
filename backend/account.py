@@ -81,7 +81,7 @@ def _when(value) -> str | None:
 
 def _paper_ref(paper: Paper) -> dict:
     return {
-        "id": paper.sync_id,
+        "uuid": paper.uuid,
         "title": paper.title,
         "authors": _authors(paper),
         "journal": paper.journal,
@@ -96,55 +96,55 @@ def _paper_ref(paper: Paper) -> dict:
 def gather(db: Session, user: User) -> dict:
     """Everything Papol holds about this reader, as plain data."""
     copies = (
-        db.query(Copy).filter(Copy.user_id == user.id).order_by(Copy.created_at).all()
+        db.query(Copy).filter(Copy.user_uuid == user.uuid).order_by(Copy.created_at).all()
     )
     notes = (
         db.query(Comment)
-        .filter(Comment.user_id == user.id)
-        .order_by(Comment.paper_id, Comment.page, Comment.created_at)
+        .filter(Comment.user_uuid == user.uuid)
+        .order_by(Comment.paper_uuid, Comment.page, Comment.created_at)
         .all()
     )
     rooms = (
         db.query(Room)
-        .join(RoomParticipant, RoomParticipant.room_id == Room.id)
-        .filter(RoomParticipant.user_id == user.id)
+        .join(RoomParticipant, RoomParticipant.room_uuid == Room.uuid)
+        .filter(RoomParticipant.user_uuid == user.uuid)
         .order_by(Room.created_at)
         .all()
     )
     messages = (
         db.query(RoomMessage)
-        .filter(RoomMessage.user_id == user.id)
+        .filter(RoomMessage.user_uuid == user.uuid)
         .order_by(RoomMessage.created_at)
         .all()
     )
     notifications = (
         db.query(Notification)
-        .filter(Notification.user_id == user.id)
+        .filter(Notification.user_uuid == user.uuid)
         .order_by(Notification.created_at)
         .all()
     )
     uploads = (
         db.query(PaperEdition)
-        .filter(PaperEdition.uploaded_by == user.id)
+        .filter(PaperEdition.uploaded_by == user.uuid)
         .order_by(PaperEdition.created_at)
         .all()
     )
     ink = (
         db.query(InkStroke)
-        .filter(InkStroke.user_id == user.id)
-        .order_by(InkStroke.id)
+        .filter(InkStroke.user_uuid == user.uuid)
+        .order_by(InkStroke.created_at)
         .all()
     )
     boards = (
         db.query(Board)
-        .filter(Board.user_id == user.id)
+        .filter(Board.user_uuid == user.uuid)
         .order_by(Board.created_at)
         .all()
     )
 
     return {
         "profile": {
-            "id": user.id,
+            "uuid": user.uuid,
             "email": user.email,
             "display_name": user.display_name,
             "affiliation": user.affiliation,
@@ -173,7 +173,7 @@ def gather(db: Session, user: User) -> dict:
         ],
         "notes": [
             {
-                "id": n.id,
+                "uuid": n.uuid,
                 "paper": _paper_ref(n.paper) if n.paper else None,
                 "name": n.name,
                 "content": n.content,
@@ -186,9 +186,9 @@ def gather(db: Session, user: User) -> dict:
         ],
         "ink": [
             {
-                "id": i.id,
+                "uuid": i.uuid,
                 "paper": _paper_ref(i.edition.paper) if i.edition and i.edition.paper else None,
-                "edition_id": i.edition_id,
+                "edition_uuid": i.edition.uuid if i.edition else None,
                 "page": i.page,
                 # Fractions of the page, y from the bottom — the same
                 # coordinates a note's anchor uses.
@@ -203,17 +203,17 @@ def gather(db: Session, user: User) -> dict:
         ],
         "seminars": [
             {
-                "id": r.id,
+                "uuid": r.uuid,
                 "paper_title": r.paper_title,
                 "status": r.status,
                 "scheduled_time": r.scheduled_time,
                 "platform": r.platform,
-                "i_started_it": r.created_by == user.id,
-                "i_am_leading": r.leader_id == user.id,
+                "i_started_it": r.created_by == user.uuid,
+                "i_am_leading": r.leader_uuid == user.uuid,
                 "my_messages": [
                     {"content": m.content, "sent": _when(m.created_at)}
                     for m in messages
-                    if m.room_id == r.id
+                    if m.room_uuid == r.uuid
                 ],
             }
             for r in rooms
@@ -232,27 +232,27 @@ def gather(db: Session, user: User) -> dict:
         ],
         "boards": [
             {
-                "guid": board.guid,
-                "shelf_id": board.shelf_id,
+                "uuid": board.uuid,
+                "shelf_uuid": board.shelf.uuid if board.shelf else None,
                 "name": board.name,
                 "description": board.description,
                 "created": _when(board.created_at),
                 "updated": _when(board.updated_at),
                 "groups": [
                     {
-                        "id": group.id,
+                        "uuid": group.uuid,
                         "kind": group.kind,
                         "title": group.title,
                         "header": group.header,
                         "auto_arrange": group.auto_arrange,
-                        "item_ids": [item.id for item in group.items if item.deleted_at is None],
+                        "item_uuids": [item.uuid for item in group.items if item.deleted_at is None],
                     }
                     for group in board.groups
                 ],
                 "items": [
                     {
-                        "id": item.id,
-                        "group_id": item.group_id,
+                        "uuid": item.uuid,
+                        "group_uuid": item.group.uuid if item.group else None,
                         "kind": item.kind,
                         "content": item.content,
                         "file": item.file_path,
@@ -352,7 +352,7 @@ def write_zip(
     stamp = f"{datetime.utcnow():%Y-%m-%d}"
     root = f"papol-export-{stamp}"
 
-    copies = db.query(Copy).filter(Copy.user_id == user.id).all()
+    copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
 
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
         avatar_line = ""
@@ -412,7 +412,7 @@ def write_zip(
                 if not source.is_file():
                     continue
                 filename = Path(item["original_filename"] or source.name).name
-                zf.write(source, f"{root}/board-files/{board['guid']}/{item['id']}-{filename}")
+                zf.write(source, f"{root}/board-files/{board['uuid']}/{item['uuid']}-{filename}")
 
     return out_path
 
@@ -428,7 +428,7 @@ FORMER_READER = "A former reader"
 UNUSABLE_PASSWORD = "closed-account-no-password"
 
 
-def _hand_on_seminars(db: Session, user_id: int, eligible_hosts, notify):
+def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
     """Give away the seminars this reader was hosting.
 
     A seminar without a host is not merely untidy, it is stuck: hosting can
@@ -448,26 +448,26 @@ def _hand_on_seminars(db: Session, user_id: int, eligible_hosts, notify):
     handed = reopened = 0
     rooms = (
         db.query(Room)
-        .filter(Room.leader_id == user_id, Room.status != "finished")
+        .filter(Room.leader_uuid == user_uuid, Room.status != "finished")
         .all()
     )
     for room in rooms:
         cohort = (
             db.query(RoomParticipant)
             .filter(
-                RoomParticipant.room_id == room.id,
-                RoomParticipant.user_id != user_id,
+                RoomParticipant.room_uuid == room.uuid,
+                RoomParticipant.user_uuid != user_uuid,
             )
-            .order_by(RoomParticipant.created_at, RoomParticipant.id)
+            .order_by(RoomParticipant.created_at, RoomParticipant.uuid)
             .all()
         )
         allowed = eligible_hosts(room) if eligible_hosts else None
         successor = next(
-            (p.user_id for p in cohort if allowed is None or p.user_id in allowed),
+            (p.user_uuid for p in cohort if allowed is None or p.user_uuid in allowed),
             None,
         )
         if successor is not None:
-            room.leader_id = successor
+            room.leader_uuid = successor
             handed += 1
             if notify:
                 notify(
@@ -479,13 +479,13 @@ def _hand_on_seminars(db: Session, user_id: int, eligible_hosts, notify):
         else:
             # Back to the state a seminar is in before anyone leads it, so
             # it can be answered rather than sitting there unhostable.
-            room.leader_id = None
+            room.leader_uuid = None
             room.status = "open"
             reopened += 1
             if notify and cohort:
                 notify(
                     room,
-                    {p.user_id for p in cohort},
+                    {p.user_uuid for p in cohort},
                     "The host of the seminar on \u201c%s\u201d has closed their "
                     "account. It is open again for someone to host." % room.paper_title,
                 )
@@ -513,68 +513,68 @@ def tombstone(
     theirs alone — are deleted outright. What is left is a shape that a
     foreign key can point at.
 
-    `eligible_hosts(room) -> set[int]` and `notify(room, user_ids, message)`
+    `eligible_hosts(room) -> set[str]` and `notify(room, user_uuids, message)`
     come from main.py, which is where the rules about who may host and how
     a reader is told live. Both are optional so that this module can be
     exercised without dragging the whole app in behind it.
     """
     removed = {}
-    user_id = user.id
+    user_uuid = user.uuid
 
     # Private, and theirs alone.
     removed["notes"] = (
-        db.query(Comment).filter(Comment.user_id == user_id).delete(synchronize_session=False)
+        db.query(Comment).filter(Comment.user_uuid == user_uuid).delete(synchronize_session=False)
     )
     removed["ink"] = (
-        db.query(InkStroke).filter(InkStroke.user_id == user_id).delete(
+        db.query(InkStroke).filter(InkStroke.user_uuid == user_uuid).delete(
             synchronize_session=False
         )
     )
-    copy_ids = [row[0] for row in db.query(Copy.id).filter(Copy.user_id == user_id).all()]
-    if copy_ids:
-        db.execute(copy_tags.delete().where(copy_tags.c.copy_id.in_(copy_ids)))
+    copy_uuids = [row[0] for row in db.query(Copy.uuid).filter(Copy.user_uuid == user_uuid).all()]
+    if copy_uuids:
+        db.execute(copy_tags.delete().where(copy_tags.c.copy_uuid.in_(copy_uuids)))
     removed["papers_in_nook"] = (
-        db.query(Copy).filter(Copy.user_id == user_id).delete(synchronize_session=False)
+        db.query(Copy).filter(Copy.user_uuid == user_uuid).delete(synchronize_session=False)
     )
     removed["tags"] = (
-        db.query(Tag).filter(Tag.user_id == user_id).delete(synchronize_session=False)
+        db.query(Tag).filter(Tag.user_uuid == user_uuid).delete(synchronize_session=False)
     )
-    board_ids = [row[0] for row in db.query(Board.id).filter(Board.user_id == user_id).all()]
-    if board_ids:
+    board_uuids = [row[0] for row in db.query(Board.uuid).filter(Board.user_uuid == user_uuid).all()]
+    if board_uuids:
         removed["board_items"] = db.query(BoardItem).filter(
-            BoardItem.board_id.in_(board_ids)
+            BoardItem.board_uuid.in_(board_uuids)
         ).delete(synchronize_session=False)
         removed["board_groups"] = db.query(BoardGroup).filter(
-            BoardGroup.board_id.in_(board_ids)
+            BoardGroup.board_uuid.in_(board_uuids)
         ).delete(synchronize_session=False)
     else:
         removed["board_items"] = 0
         removed["board_groups"] = 0
     removed["boards"] = db.query(Board).filter(
-        Board.user_id == user_id
+        Board.user_uuid == user_uuid
     ).delete(synchronize_session=False)
     removed["shelves"] = (
-        db.query(Shelf).filter(Shelf.user_id == user_id).delete(synchronize_session=False)
+        db.query(Shelf).filter(Shelf.user_uuid == user_uuid).delete(synchronize_session=False)
     )
     removed["notifications"] = (
         db.query(Notification)
-        .filter(Notification.user_id == user_id)
+        .filter(Notification.user_uuid == user_uuid)
         .delete(synchronize_session=False)
     )
     # Signed out of everywhere, and no way back in.
     removed["sessions"] = (
-        db.query(AuthToken).filter(AuthToken.user_id == user_id).delete(
+        db.query(AuthToken).filter(AuthToken.user_uuid == user_uuid).delete(
             synchronize_session=False
         )
     )
     removed["sync_history"] = (
-        db.query(ServerChange).filter(ServerChange.user_id == user_id).delete(
+        db.query(ServerChange).filter(ServerChange.user_uuid == user_uuid).delete(
             synchronize_session=False
         )
-        + db.query(AppliedMutation).filter(AppliedMutation.user_id == user_id).delete(
+        + db.query(AppliedMutation).filter(AppliedMutation.user_uuid == user_uuid).delete(
             synchronize_session=False
         )
-        + db.query(SyncClient).filter(SyncClient.user_id == user_id).delete(
+        + db.query(SyncClient).filter(SyncClient.user_uuid == user_uuid).delete(
             synchronize_session=False
         )
     )
@@ -582,16 +582,16 @@ def tombstone(
     # Out of the cohorts: someone who has closed their account is not going
     # to turn up to the seminar, and their free times mean nothing now.
     db.query(RoomAvailability).filter(
-        RoomAvailability.user_id == user_id
+        RoomAvailability.user_uuid == user_uuid
     ).delete(synchronize_session=False)
     removed["seminars_left"] = (
         db.query(RoomParticipant)
-        .filter(RoomParticipant.user_id == user_id)
+        .filter(RoomParticipant.user_uuid == user_uuid)
         .delete(synchronize_session=False)
     )
     db.flush()  # so the cohorts below no longer contain this reader
 
-    handed, reopened = _hand_on_seminars(db, user_id, eligible_hosts, notify)
+    handed, reopened = _hand_on_seminars(db, user_uuid, eligible_hosts, notify)
     removed["seminars_handed_on"] = handed
     removed["seminars_reopened"] = reopened
 
@@ -599,10 +599,10 @@ def tombstone(
     # "A former reader". Rooms they started stay too, and keep working,
     # because created_by still resolves.
     removed["messages_kept"] = (
-        db.query(RoomMessage).filter(RoomMessage.user_id == user_id).count()
+        db.query(RoomMessage).filter(RoomMessage.user_uuid == user_uuid).count()
     )
     removed["pdfs_kept"] = (
-        db.query(PaperEdition).filter(PaperEdition.uploaded_by == user_id).count()
+        db.query(PaperEdition).filter(PaperEdition.uploaded_by == user_uuid).count()
     )
 
     avatar = user.avatar_path
@@ -610,7 +610,7 @@ def tombstone(
     # Now scrub the reader out of the row. The email has to stay unique and
     # must not be a real address anyone could reach or re-register into;
     # .invalid is reserved by RFC 2606 for exactly this.
-    user.email = f"deleted-{user_id}@papol.invalid"
+    user.email = f"deleted-{user_uuid}@papol.invalid"
     user.display_name = FORMER_READER
     user.affiliation = None
     user.avatar_path = None

@@ -190,7 +190,7 @@ function ActiveUsersPanel() {
             </thead>
             <tbody>
               {presence.users.map((reader) => (
-                <tr key={reader.id}>
+                <tr key={reader.uuid}>
                   <td>{reader.display_name}</td>
                   <td>{reader.email}</td>
                   <td>{new Date(`${reader.last_seen_at}Z`).toLocaleTimeString()}</td>
@@ -302,8 +302,8 @@ function FeedbackPanel() {
 
   const toggle = async (fb) => {
     try {
-      const updated = await adminSetFeedbackResolved(fb.id, !fb.resolved);
-      setItems((list) => list.map((x) => (x.id === fb.id ? updated : x)));
+      const updated = await adminSetFeedbackResolved(fb.uuid, !fb.resolved);
+      setItems((list) => list.map((x) => (x.uuid === fb.uuid ? updated : x)));
     } catch (e) {
       setError(e.message);
     }
@@ -341,7 +341,7 @@ function FeedbackPanel() {
         <ul className="feedback-list">
           {shown.map((fb) => (
             <li
-              key={fb.id}
+              key={fb.uuid}
               className={fb.resolved ? 'feedback-item resolved' : 'feedback-item'}
             >
               <p className="feedback-head">
@@ -619,7 +619,7 @@ export default function AdminPage() {
           rows="3"
           value={sql}
           onChange={(e) => setSql(e.target.value)}
-          placeholder="e.g. UPDATE papers SET year = 2025 WHERE id = 3;  (also use for INSERTs)"
+          placeholder="e.g. UPDATE papers SET year = 2025 WHERE uuid = '…';  (also use for INSERTs)"
         />
         <button className="primary" disabled={!sql.trim()} onClick={runSql}>
           Run

@@ -1,10 +1,9 @@
 import json
-import uuid
 from datetime import date, datetime
 
 from models import (
-    Board, BoardGroup, BoardItem, Comment, Copy, CopyTagLink, InkStroke, PaperClip,
-    PaperEdition, ServerChange, Shelf, Tag,
+    Board, Comment, Copy, CopyTagLink, InkStroke, PaperClip,
+    ServerChange, Shelf, Tag, new_uuid,
 )
 from sync.registry import WRITABLE_MODELS, registry, validate_registry
 
@@ -16,13 +15,11 @@ def _json_value(value):
 
 
 def row_snapshot(record):
-    """Serialize mapped columns using the final shared-schema names."""
-    table_name = record.__table__.name
-    rule = registry()["tables"][table_name]
-    aliases = rule.get("column_aliases", {})
-    skipped = set(rule.get("compatibility_columns", []))
+    """Serialize a synchronized row exactly as every replica stores it."""
+    rule = registry()["tables"][record.__table__.name]
+    skipped = set(rule.get("server_columns", []))
     return {
-        aliases.get(column.name, column.name): _json_value(getattr(record, column.name))
+        column.name: _json_value(getattr(record, column.name))
         for column in record.__table__.columns
         if column.name not in skipped
     }
@@ -30,66 +27,28 @@ def row_snapshot(record):
 
 def _board_for(db, record):
     board = record.board
-    if board is None and record.board_id is not None:
-        board = db.get(Board, record.board_id)
+    if board is None and record.board_uuid is not None:
+        board = db.get(Board, record.board_uuid)
     if board is None:
         raise RuntimeError(f"{record.__tablename__} has no board")
     return board
 
 
-def _owner_id(db, record):
-    if isinstance(record, Board):
-        return record.user_id
-    if isinstance(record, (Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag)):
-        return record.user_id
-    return _board_for(db, record).user_id
+def _owner_uuid(db, record):
+    if isinstance(record, (Board, Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag)):
+        return record.user_uuid
+    return _board_for(db, record).user_uuid
 
 
 def _prepare_identity(db, record):
-    if not record.sync_id:
-        record.sync_id = str(uuid.uuid4())
-    if isinstance(record, Board):
-        if not record.guid:
-            record.guid = record.sync_id
-        record.shelf_sync_id = record.shelf.sync_id if record.shelf else None
-    elif isinstance(record, BoardGroup):
-        record.board_sync_id = _board_for(db, record).sync_id
-    elif isinstance(record, BoardItem):
-        record.board_sync_id = _board_for(db, record).sync_id
-        group = record.group
-        if group is None and record.group_id is not None:
-            group = db.get(BoardGroup, record.group_id)
-        record.group_sync_id = group.sync_id if group else None
-    elif isinstance(record, Comment):
-        record.paper_sync_id = record.paper.sync_id
-        record.edition_sync_id = record.edition.sync_id if record.edition else None
-    elif isinstance(record, (InkStroke, PaperClip)):
-        record.edition_sync_id = record.edition.sync_id
-    elif isinstance(record, Copy):
-        if not record.paper.sync_id:
-            record.paper.sync_id = str(uuid.uuid4())
-        if record.shelf and not record.shelf.sync_id:
-            record.shelf.sync_id = str(uuid.uuid4())
-        if record.edition and not record.edition.sync_id:
-            record.edition.sync_id = str(uuid.uuid4())
-        record.paper_sync_id = record.paper.sync_id
-        record.shelf_sync_id = record.shelf.sync_id if record.shelf else None
-        record.edition_sync_id = record.edition.sync_id if record.edition else None
-        ignored = db.get(PaperEdition, record.ignored_edition_id) \
-            if record.ignored_edition_id else None
-        record.ignored_edition_sync_id = ignored.sync_id if ignored else None
-    elif isinstance(record, CopyTagLink):
-        copy = record.copy or db.get(Copy, record.copy_id)
-        tag = record.tag or db.get(Tag, record.tag_id)
-        if copy is None or tag is None or copy.user_id != tag.user_id:
+    if not record.uuid:
+        record.uuid = new_uuid()
+    if isinstance(record, CopyTagLink):
+        copy = record.copy or db.get(Copy, record.copy_uuid)
+        tag = record.tag or db.get(Tag, record.tag_uuid)
+        if copy is None or tag is None or copy.user_uuid != tag.user_uuid:
             raise RuntimeError("copy tag link has invalid parents")
-        if not copy.sync_id:
-            copy.sync_id = str(uuid.uuid4())
-        if not tag.sync_id:
-            tag.sync_id = str(uuid.uuid4())
-        record.copy_sync_id = copy.sync_id
-        record.tag_sync_id = tag.sync_id
-        record.user_id = copy.user_id
+        record.user_uuid = copy.user_uuid
 
 
 def prepare_sync_changes(db):
@@ -119,9 +78,9 @@ def prepare_sync_changes(db):
         row = row_snapshot(record)
         operation = "delete" if record.deleted_at is not None else "upsert"
         change = ServerChange(
-            user_id=_owner_id(db, record),
+            user_uuid=_owner_uuid(db, record),
             table_name=record.__table__.name,
-            row_sync_id=record.sync_id,
+            row_uuid=record.uuid,
             revision=record.revision,
             operation=operation,
             row_json=json.dumps(row, separators=(",", ":"), sort_keys=True),
@@ -137,38 +96,3 @@ def commit_sync(db):
     db.commit()
     return snapshots
 
-
-def seed_board_change_log(db):
-    """Publish legacy rows and repairs missing from the cursor change log."""
-    latest = {}
-    for change in db.query(ServerChange).filter(
-        ServerChange.table_name.in_(("boards", "board_groups", "board_items")),
-    ).order_by(ServerChange.sequence).all():
-        latest[(change.table_name, change.row_sync_id)] = change
-    records = []
-    for model in (Board, BoardGroup, BoardItem):
-        records.extend(db.query(model).all())
-    changes = 0
-    for record in records:
-        _prepare_identity(db, record)
-        key = (record.__tablename__, record.sync_id)
-        if not record.revision:
-            record.revision = 1
-        row = row_snapshot(record)
-        row_json = json.dumps(row, separators=(",", ":"), sort_keys=True)
-        operation = "delete" if record.deleted_at is not None else "upsert"
-        previous = latest.get(key)
-        if (previous is not None and previous.operation == operation
-                and previous.row_json == row_json):
-            continue
-        db.add(ServerChange(
-            user_id=_owner_id(db, record),
-            table_name=record.__tablename__,
-            row_sync_id=record.sync_id,
-            revision=record.revision,
-            operation=operation,
-            row_json=row_json,
-        ))
-        changes += 1
-    db.commit()
-    return changes

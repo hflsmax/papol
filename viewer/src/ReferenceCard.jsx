@@ -192,10 +192,10 @@ export default function ReferenceCard({
           )}
 
           <div className="ref-links">
-            {reference.papol_paper_id && (
+            {reference.papol_paper_uuid && (
               // Papol already holds this paper: the reader can go to it
               // rather than out to a publisher.
-              <a className="ref-link here" href={appPath(`/paper/${reference.papol_paper_id}`)}>
+              <a className="ref-link here" href={appPath(`/paper/${reference.papol_paper_uuid}`)}>
                 In Papol
               </a>
             )}

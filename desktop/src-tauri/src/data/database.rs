@@ -14,7 +14,7 @@ const MAX_UNSYNCED_BLOB_BYTES: usize = 25 * 1024 * 1024;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DataChange {
     pub table: String,
-    pub id: String,
+    pub uuid: String,
     pub operation: String,
     #[serde(default)]
     pub values: Map<String, Value>,
@@ -23,7 +23,7 @@ pub struct DataChange {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QueuedChange {
     pub table: String,
-    pub id: String,
+    pub uuid: String,
     pub base_revision: i64,
     pub operation: String,
     pub values: Map<String, Value>,
@@ -31,8 +31,8 @@ pub struct QueuedChange {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MutationReceipt {
-    pub client_id: String,
-    pub mutation_id: String,
+    pub client_uuid: String,
+    pub mutation_uuid: String,
     pub local_sequence: i64,
     pub rows: Vec<Value>,
 }
@@ -55,8 +55,8 @@ pub struct RecoveryExport {
 #[derive(Debug, Clone, Serialize)]
 pub struct OutboxMutation {
     pub protocol_version: i64,
-    pub client_id: String,
-    pub mutation_id: String,
+    pub client_uuid: String,
+    pub mutation_uuid: String,
     pub local_sequence: i64,
     pub changes: Vec<QueuedChange>,
 }
@@ -64,7 +64,7 @@ pub struct OutboxMutation {
 #[derive(Debug, Clone, Deserialize)]
 pub struct RemoteChange {
     pub table: String,
-    pub id: String,
+    pub uuid: String,
     pub revision: i64,
     pub operation: String,
     pub row: Map<String, Value>,
@@ -96,7 +96,7 @@ impl LocalStore {
 
     pub fn mutate(
         &self,
-        account_id: i64,
+        account_uuid: &str,
         changes: Vec<DataChange>,
     ) -> Result<MutationReceipt, String> {
         if changes.is_empty() {
@@ -111,13 +111,13 @@ impl LocalStore {
         let transaction = connection
             .transaction()
             .map_err(|error| error.to_string())?;
-        let client_id = local_client_id(&transaction)?;
-        let mutation_id = Uuid::new_v4().to_string();
+        let client_uuid = local_client_uuid(&transaction)?;
+        let mutation_uuid = Uuid::new_v4().to_string();
         let mut queued = Vec::new();
         let mut rows = Vec::new();
 
         for change in changes {
-            Uuid::parse_str(&change.id).map_err(|_| "Synchronized row IDs must be UUIDs")?;
+            Uuid::parse_str(&change.uuid).map_err(|_| "Synchronized row IDs must be UUIDs")?;
             let rule = registry["tables"]
                 .get(&change.table)
                 .ok_or_else(|| format!("{} is not synchronized", change.table))?;
@@ -142,11 +142,11 @@ impl LocalStore {
             if blob_digest.is_some_and(|digest| !self.has_blob(digest)) {
                 return Err("A local file mutation must reference an imported blob".into());
             }
-            validate_ownership(&transaction, account_id, &change)?;
+            validate_ownership(&transaction, account_uuid, &change)?;
             let old_revision: Option<i64> = transaction
                 .query_row(
-                    &format!("SELECT revision FROM {} WHERE id=?1", change.table),
-                    [&change.id],
+                    &format!("SELECT revision FROM {} WHERE uuid=?1", change.table),
+                    [&change.uuid],
                     |row| row.get(0),
                 )
                 .optional()
@@ -160,14 +160,14 @@ impl LocalStore {
             let revision = base_revision + 1;
             apply_local_change(
                 &transaction,
-                account_id,
+                account_uuid,
                 &change,
                 revision,
                 old_revision.is_none(),
             )?;
-            validate_local_row(&transaction, &change.table, &change.id)?;
-            refresh_blob_reference(&transaction, &change.table, &change.id)?;
-            let row = read_row(&transaction, &change.table, &change.id)?;
+            validate_local_row(&transaction, &change.table, &change.uuid)?;
+            refresh_blob_reference(&transaction, &change.table, &change.uuid)?;
+            let row = read_row(&transaction, &change.table, &change.uuid)?;
             let values =
                 if rule["conflict"].as_str() == Some("whole_row") && change.operation != "delete" {
                     row.as_object()
@@ -181,7 +181,7 @@ impl LocalStore {
                 };
             queued.push(QueuedChange {
                 table: change.table.clone(),
-                id: change.id.clone(),
+                uuid: change.uuid.clone(),
                 base_revision,
                 operation: change.operation.clone(),
                 values,
@@ -192,77 +192,77 @@ impl LocalStore {
         let changes_json = serde_json::to_string(&queued).map_err(|error| error.to_string())?;
         transaction
             .execute(
-                "INSERT INTO _local_outbox(account_id,client_id,mutation_id,changes_json) VALUES (?1,?2,?3,?4)",
-                params![account_id, client_id, mutation_id, changes_json],
+                "INSERT INTO _local_outbox(account_uuid,client_uuid,mutation_uuid,changes_json) VALUES (?1,?2,?3,?4)",
+                params![account_uuid, client_uuid, mutation_uuid, changes_json],
             )
             .map_err(|error| error.to_string())?;
         let local_sequence = transaction.last_insert_rowid();
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(MutationReceipt {
-            client_id,
-            mutation_id,
+            client_uuid,
+            mutation_uuid,
             local_sequence,
             rows,
         })
     }
 
-    pub fn query(&self, account_id: i64, name: &str, parameters: Value) -> Result<Value, String> {
+    pub fn query(&self, account_uuid: &str, name: &str, parameters: Value) -> Result<Value, String> {
         let connection = self
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
         match name {
-            "boards" => query_boards(&connection, account_id),
+            "boards" => query_boards(&connection, account_uuid),
             "board" => {
-                let id = parameters["id"]
+                let uuid = parameters["uuid"]
                     .as_str()
-                    .ok_or("board query requires an id")?;
-                query_board(&connection, account_id, id)
+                    .ok_or("board query requires a uuid")?;
+                query_board(&connection, account_uuid, uuid)
             }
             "board_group" => {
-                let id = parameters["id"]
+                let uuid = parameters["uuid"]
                     .as_str()
-                    .ok_or("board_group query requires an id")?;
-                query_board_group(&connection, account_id, id)
+                    .ok_or("board_group query requires a uuid")?;
+                query_board_group(&connection, account_uuid, uuid)
             }
             "comments" => {
-                query_annotations(&connection, account_id, "comments", "paper_id", parameters)
+                query_annotations(&connection, account_uuid, "comments", "paper_uuid", parameters)
             }
             "ink" => query_annotations(
                 &connection,
-                account_id,
+                account_uuid,
                 "ink_strokes",
-                "edition_id",
+                "edition_uuid",
                 parameters,
             ),
             "clips" => query_annotations(
                 &connection,
-                account_id,
+                account_uuid,
                 "paper_clips",
-                "edition_id",
+                "edition_uuid",
                 parameters,
             ),
-            "shelves" => query_owned_rows(&connection, account_id, "shelves", "position,name,id"),
-            "tags" => query_owned_rows(&connection, account_id, "tags", "name,id"),
-            "copies" => query_owned_rows(&connection, account_id, "copies", "updated_at DESC,id"),
-            "copy_tags" => query_owned_rows(&connection, account_id, "copy_tags", "created_at,id"),
-            "nook" => query_nook(&connection, account_id),
-            "papers" => query_papers(&connection, account_id),
+            "shelves" => query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid"),
+            "tags" => query_owned_rows(&connection, account_uuid, "tags", "name,uuid"),
+            "copies" => query_owned_rows(&connection, account_uuid, "copies", "updated_at DESC,uuid"),
+            "copy_tags" => query_owned_rows(&connection, account_uuid, "copy_tags", "created_at,uuid"),
+            "nook" => query_nook(&connection, account_uuid),
+            "papers" => query_papers(&connection, account_uuid),
             "paper" => {
-                let id = parameters["id"]
+                let uuid = parameters["uuid"]
                     .as_str()
-                    .ok_or("paper query requires an id")?;
-                query_paper(&connection, account_id, id)
+                    .ok_or("paper query requires a uuid")?;
+                query_paper(&connection, account_uuid, uuid)
             }
             "paper_by_pdf" => {
                 let sha256 = parameters["sha256"]
                     .as_str()
                     .ok_or("paper query requires sha256")?;
-                query_paper_by_pdf(&connection, account_id, sha256)
+                query_paper_by_pdf(&connection, account_uuid, sha256)
             }
-            "sync_status" => query_sync_status(&connection, account_id),
+            "sync_status" => query_sync_status(&connection, account_uuid),
             "storage_status" => query_storage_status(&connection),
-            "account" => query_local_account(&connection, account_id),
+            "account" => query_local_account(&connection, account_uuid),
             _ => Err(format!("Unknown local query: {name}")),
         }
     }
@@ -302,8 +302,8 @@ impl LocalStore {
         Ok(())
     }
 
-    pub fn set_local_account(&self, account_id: i64, profile: Value) -> Result<(), String> {
-        if account_id < 1 || profile["id"].as_i64() != Some(account_id) {
+    pub fn set_local_account(&self, account_uuid: &str, profile: Value) -> Result<(), String> {
+        if account_uuid.is_empty() || profile["uuid"].as_str() != Some(account_uuid) {
             return Err("Local account profile identity does not match".into());
         }
         let connection = self
@@ -311,23 +311,23 @@ impl LocalStore {
             .lock()
             .map_err(|_| "Local database lock failed")?;
         connection.execute(
-            "INSERT INTO _local_accounts(account_id,profile_json,updated_at) VALUES (?1,?2,?3) \
-             ON CONFLICT(account_id) DO UPDATE SET profile_json=excluded.profile_json,updated_at=excluded.updated_at",
-            params![account_id, profile.to_string(), chrono_text()],
+            "INSERT INTO _local_accounts(account_uuid,profile_json,updated_at) VALUES (?1,?2,?3) \
+             ON CONFLICT(account_uuid) DO UPDATE SET profile_json=excluded.profile_json,updated_at=excluded.updated_at",
+            params![account_uuid, profile.to_string(), chrono_text()],
         ).map_err(|error| error.to_string())?;
         Ok(())
     }
 
-    pub fn next_outbox(&self, account_id: i64) -> Result<Option<OutboxMutation>, String> {
+    pub fn next_outbox(&self, account_uuid: &str) -> Result<Option<OutboxMutation>, String> {
         let connection = self
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
         connection
             .query_row(
-                "SELECT local_sequence,client_id,mutation_id,changes_json FROM _local_outbox \
-                 WHERE account_id=?1 AND state='pending' ORDER BY local_sequence LIMIT 1",
-                [account_id],
+                "SELECT local_sequence,client_uuid,mutation_uuid,changes_json FROM _local_outbox \
+                 WHERE account_uuid=?1 AND state='pending' ORDER BY local_sequence LIMIT 1",
+                [account_uuid],
                 |row| {
                     let changes_json: String = row.get(3)?;
                     let changes = serde_json::from_str(&changes_json).map_err(|error| {
@@ -340,8 +340,8 @@ impl LocalStore {
                     Ok(OutboxMutation {
                         protocol_version: 1,
                         local_sequence: row.get(0)?,
-                        client_id: row.get(1)?,
-                        mutation_id: row.get(2)?,
+                        client_uuid: row.get(1)?,
+                        mutation_uuid: row.get(2)?,
                         changes,
                     })
                 },
@@ -352,7 +352,7 @@ impl LocalStore {
 
     pub fn record_outbox_error(
         &self,
-        account_id: i64,
+        account_uuid: &str,
         local_sequence: i64,
         message: &str,
         blocked: bool,
@@ -364,9 +364,9 @@ impl LocalStore {
         connection
             .execute(
                 "UPDATE _local_outbox SET attempts=attempts+1,last_error=?3,state=?4 \
-             WHERE account_id=?1 AND local_sequence=?2",
+             WHERE account_uuid=?1 AND local_sequence=?2",
                 params![
-                    account_id,
+                    account_uuid,
                     local_sequence,
                     message,
                     if blocked { "blocked" } else { "pending" }
@@ -376,17 +376,17 @@ impl LocalStore {
         Ok(())
     }
 
-    pub fn client_id(&self) -> Result<String, String> {
+    pub fn client_uuid(&self) -> Result<String, String> {
         let connection = self
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
-        local_client_id(&connection)
+        local_client_uuid(&connection)
     }
 
     pub fn accept_push(
         &self,
-        account_id: i64,
+        account_uuid: &str,
         local_sequence: i64,
         rows: Vec<Map<String, Value>>,
         conflicts: Vec<Value>,
@@ -402,21 +402,21 @@ impl LocalStore {
         transaction
             .execute_batch("PRAGMA defer_foreign_keys=ON;")
             .map_err(|error| error.to_string())?;
-        apply_identity_aliases(&transaction, account_id, &aliases)?;
+        apply_identity_aliases(&transaction, account_uuid, &aliases)?;
         for mut row in rows {
             let table = row
                 .remove("table")
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .ok_or("Push result row is missing its table")?;
-            let row_id = row
-                .get("id")
+            let row_uuid = row
+                .get("uuid")
                 .and_then(Value::as_str)
-                .ok_or("Push result row is missing its id")?
+                .ok_or("Push result row is missing its uuid")?
                 .to_owned();
             let sha256 = row.get("sha256").and_then(Value::as_str).map(str::to_owned);
-            validate_remote_ownership(&transaction, account_id, &table, &row)?;
+            validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
             apply_remote_row(&transaction, &table, row)?;
-            refresh_blob_reference(&transaction, &table, &row_id)?;
+            refresh_blob_reference(&transaction, &table, &row_uuid)?;
             if let Some(sha256) = sha256 {
                 transaction
                     .execute(
@@ -428,21 +428,21 @@ impl LocalStore {
         }
         for conflict in conflicts {
             let table = conflict["table"].as_str().unwrap_or("unknown");
-            let row_id = conflict["id"].as_str().unwrap_or("unknown");
+            let row_uuid = conflict["uuid"].as_str().unwrap_or("unknown");
             let resolved_at = matches!(
                 conflict["resolution"].as_str(),
                 Some("client_won" | "server_won")
             )
             .then(chrono_text);
             transaction.execute(
-                "INSERT INTO _local_conflicts(account_id,table_name,row_id,details_json,resolved_at) VALUES (?1,?2,?3,?4,?5)",
-                params![account_id, table, row_id, conflict.to_string(), resolved_at],
+                "INSERT INTO _local_conflicts(uuid,account_uuid,table_name,row_uuid,details_json,resolved_at) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![Uuid::new_v4().to_string(), account_uuid, table, row_uuid, conflict.to_string(), resolved_at],
             ).map_err(|error| error.to_string())?;
         }
         transaction
             .execute(
-                "DELETE FROM _local_outbox WHERE account_id=?1 AND local_sequence=?2",
-                params![account_id, local_sequence],
+                "DELETE FROM _local_outbox WHERE account_uuid=?1 AND local_sequence=?2",
+                params![account_uuid, local_sequence],
             )
             .map_err(|error| error.to_string())?;
         transaction.commit().map_err(|error| error.to_string())
@@ -450,7 +450,7 @@ impl LocalStore {
 
     pub fn apply_pull(
         &self,
-        account_id: i64,
+        account_uuid: &str,
         changes: Vec<RemoteChange>,
         cursor: i64,
     ) -> Result<(), String> {
@@ -462,7 +462,7 @@ impl LocalStore {
             .transaction()
             .map_err(|error| error.to_string())?;
         for change in changes {
-            if change.row.get("id").and_then(Value::as_str) != Some(change.id.as_str()) {
+            if change.row.get("uuid").and_then(Value::as_str) != Some(change.uuid.as_str()) {
                 return Err("Pulled row identity does not match its envelope".into());
             }
             if change.row.get("revision").and_then(Value::as_i64) != Some(change.revision) {
@@ -471,22 +471,22 @@ impl LocalStore {
             if change.operation != "upsert" && change.operation != "delete" {
                 return Err("Unknown pulled operation".into());
             }
-            validate_remote_ownership(&transaction, account_id, &change.table, &change.row)?;
+            validate_remote_ownership(&transaction, account_uuid, &change.table, &change.row)?;
             let table = change.table;
-            let id = change.id;
+            let uuid = change.uuid;
             apply_remote_row(&transaction, &table, change.row)?;
-            refresh_blob_reference(&transaction, &table, &id)?;
+            refresh_blob_reference(&transaction, &table, &uuid)?;
         }
         transaction.execute(
-            "INSERT INTO _local_sync_state(account_id,pull_cursor,last_synced_at,last_error) VALUES (?1,?2,?3,NULL) ON CONFLICT(account_id) DO UPDATE SET pull_cursor=excluded.pull_cursor,last_synced_at=excluded.last_synced_at,last_error=NULL",
-            params![account_id, cursor, chrono_text()],
+            "INSERT INTO _local_sync_state(account_uuid,pull_cursor,last_synced_at,last_error) VALUES (?1,?2,?3,NULL) ON CONFLICT(account_uuid) DO UPDATE SET pull_cursor=excluded.pull_cursor,last_synced_at=excluded.last_synced_at,last_error=NULL",
+            params![account_uuid, cursor, chrono_text()],
         ).map_err(|error| error.to_string())?;
         transaction.commit().map_err(|error| error.to_string())
     }
 
     pub fn apply_snapshot(
         &self,
-        account_id: i64,
+        account_uuid: &str,
         rows: Vec<Map<String, Value>>,
     ) -> Result<usize, String> {
         let mut connection = self
@@ -499,8 +499,8 @@ impl LocalStore {
         let count = rows.len();
         let pending: i64 = transaction
             .query_row(
-                "SELECT COUNT(*) FROM _local_outbox WHERE account_id=?1",
-                [account_id],
+                "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid=?1",
+                [account_uuid],
                 |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
@@ -523,9 +523,9 @@ impl LocalStore {
                 transaction
                     .execute(
                         &format!(
-                            "UPDATE {table} SET deleted_at=?1 WHERE user_id=?2 AND deleted_at IS NULL"
+                            "UPDATE {table} SET deleted_at=?1 WHERE user_uuid=?2 AND deleted_at IS NULL"
                         ),
-                        params![stale_at, account_id],
+                        params![stale_at, account_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
@@ -535,28 +535,28 @@ impl LocalStore {
                 .remove("table")
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .ok_or("Snapshot row is missing its table")?;
-            let id = row
-                .get("id")
+            let uuid = row
+                .get("uuid")
                 .and_then(Value::as_str)
-                .ok_or("Snapshot row is missing its id")?
+                .ok_or("Snapshot row is missing its uuid")?
                 .to_owned();
-            validate_remote_ownership(&transaction, account_id, &table, &row)?;
+            validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
             apply_remote_row(&transaction, &table, row)?;
-            refresh_blob_reference(&transaction, &table, &id)?;
+            refresh_blob_reference(&transaction, &table, &uuid)?;
         }
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(count)
     }
 
-    pub fn pull_cursor(&self, account_id: i64) -> Result<i64, String> {
+    pub fn pull_cursor(&self, account_uuid: &str) -> Result<i64, String> {
         let connection = self
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
         connection
             .query_row(
-                "SELECT pull_cursor FROM _local_sync_state WHERE account_id=?1",
-                [account_id],
+                "SELECT pull_cursor FROM _local_sync_state WHERE account_uuid=?1",
+                [account_uuid],
                 |row| row.get(0),
             )
             .optional()
@@ -564,14 +564,14 @@ impl LocalStore {
             .map_err(|error| error.to_string())
     }
 
-    pub fn record_sync_error(&self, account_id: i64, message: &str) -> Result<(), String> {
+    pub fn record_sync_error(&self, account_uuid: &str, message: &str) -> Result<(), String> {
         let connection = self
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
         connection.execute(
-            "INSERT INTO _local_sync_state(account_id,last_error) VALUES (?1,?2) ON CONFLICT(account_id) DO UPDATE SET last_error=excluded.last_error",
-            params![account_id, message],
+            "INSERT INTO _local_sync_state(account_uuid,last_error) VALUES (?1,?2) ON CONFLICT(account_uuid) DO UPDATE SET last_error=excluded.last_error",
+            params![account_uuid, message],
         ).map_err(|error| error.to_string())?;
         Ok(())
     }
@@ -682,7 +682,7 @@ impl LocalStore {
     /// Return every active file referenced by this account that is not yet
     /// present in the local blob store. PDFs are owned indirectly through the
     /// account's copies; board files are owned by their board.
-    pub fn missing_blob_digests(&self, account_id: i64) -> Result<Vec<String>, String> {
+    pub fn missing_blob_digests(&self, account_uuid: &str) -> Result<Vec<String>, String> {
         let connection = self
             .connection
             .lock()
@@ -692,21 +692,21 @@ impl LocalStore {
                 r#"SELECT DISTINCT digest FROM (
                    SELECT pe.sha256 AS digest
                    FROM paper_editions pe
-                   JOIN copies c ON c.paper_id=pe.paper_id
-                   WHERE c.user_id=?1 AND c.deleted_at IS NULL
+                   JOIN copies c ON c.paper_uuid=pe.paper_uuid
+                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL
                      AND pe.deleted_at IS NULL AND pe.sha256 IS NOT NULL
                    UNION ALL
                    SELECT bi.sha256 AS digest
                    FROM board_items bi
-                   JOIN boards b ON b.id=bi.board_id
-                   WHERE b.user_id=?1 AND b.deleted_at IS NULL
+                   JOIN boards b ON b.uuid=bi.board_uuid
+                   WHERE b.user_uuid=?1 AND b.deleted_at IS NULL
                      AND bi.deleted_at IS NULL AND bi.sha256 IS NOT NULL
                  )
                  ORDER BY digest"#,
             )
             .map_err(|error| error.to_string())?;
         let digests = statement
-            .query_map([account_id], |row| row.get::<_, String>(0))
+            .query_map([account_uuid], |row| row.get::<_, String>(0))
             .map_err(|error| error.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?;
@@ -783,7 +783,7 @@ impl LocalStore {
         Ok(blobs.len())
     }
 
-    pub fn remove_account(&self, account_id: i64) -> Result<usize, String> {
+    pub fn remove_account(&self, account_uuid: &str) -> Result<usize, String> {
         let mut connection = self
             .connection
             .lock()
@@ -799,31 +799,31 @@ impl LocalStore {
             // cascading deletes: sync normally uses tombstones instead.
             transaction
                 .execute(
-                    "DELETE FROM _local_blob_refs WHERE table_name='board_items' AND row_id IN (\
-                       SELECT board_items.id FROM board_items JOIN boards ON boards.id=board_items.board_id \
-                       WHERE boards.user_id=?1\
+                    "DELETE FROM _local_blob_refs WHERE table_name='board_items' AND row_uuid IN (\
+                       SELECT board_items.uuid FROM board_items JOIN boards ON boards.uuid=board_items.board_uuid \
+                       WHERE boards.user_uuid=?1\
                      )",
-                    [account_id],
+                    [account_uuid],
                 )
                 .map_err(|error| error.to_string())?;
             for statement in [
-                "DELETE FROM copy_tags WHERE user_id=?1",
-                "DELETE FROM board_items WHERE board_id IN (SELECT id FROM boards WHERE user_id=?1)",
-                "DELETE FROM board_groups WHERE board_id IN (SELECT id FROM boards WHERE user_id=?1)",
-                "DELETE FROM comments WHERE user_id=?1",
-                "DELETE FROM ink_strokes WHERE user_id=?1",
-                "DELETE FROM paper_clips WHERE user_id=?1",
-                "DELETE FROM copies WHERE user_id=?1",
-                "DELETE FROM boards WHERE user_id=?1",
-                "DELETE FROM tags WHERE user_id=?1",
-                "DELETE FROM shelves WHERE user_id=?1",
-                "DELETE FROM _local_outbox WHERE account_id=?1",
-                "DELETE FROM _local_conflicts WHERE account_id=?1",
-                "DELETE FROM _local_sync_state WHERE account_id=?1",
-                "DELETE FROM _local_accounts WHERE account_id=?1",
+                "DELETE FROM copy_tags WHERE user_uuid=?1",
+                "DELETE FROM board_items WHERE board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?1)",
+                "DELETE FROM board_groups WHERE board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?1)",
+                "DELETE FROM comments WHERE user_uuid=?1",
+                "DELETE FROM ink_strokes WHERE user_uuid=?1",
+                "DELETE FROM paper_clips WHERE user_uuid=?1",
+                "DELETE FROM copies WHERE user_uuid=?1",
+                "DELETE FROM boards WHERE user_uuid=?1",
+                "DELETE FROM tags WHERE user_uuid=?1",
+                "DELETE FROM shelves WHERE user_uuid=?1",
+                "DELETE FROM _local_outbox WHERE account_uuid=?1",
+                "DELETE FROM _local_conflicts WHERE account_uuid=?1",
+                "DELETE FROM _local_sync_state WHERE account_uuid=?1",
+                "DELETE FROM _local_accounts WHERE account_uuid=?1",
             ] {
                 transaction
-                    .execute(statement, [account_id])
+                    .execute(statement, [account_uuid])
                     .map_err(|error| error.to_string())?;
             }
 
@@ -832,22 +832,22 @@ impl LocalStore {
             transaction
                 .execute_batch(
                     "DELETE FROM _local_blob_refs
-                       WHERE table_name='paper_editions' AND row_id IN (
-                         SELECT paper_editions.id FROM paper_editions
-                         WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_id=paper_editions.paper_id)
-                           AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_id=paper_editions.paper_id)
-                           AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_id=paper_editions.id)
-                           AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_id=paper_editions.id)
+                       WHERE table_name='paper_editions' AND row_uuid IN (
+                         SELECT paper_editions.uuid FROM paper_editions
+                         WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=paper_editions.paper_uuid)
+                           AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_uuid=paper_editions.paper_uuid)
+                           AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_uuid=paper_editions.uuid)
+                           AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_uuid=paper_editions.uuid)
                        );
                      DELETE FROM paper_editions
-                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_id=paper_editions.paper_id)
-                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_id=paper_editions.paper_id)
-                         AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_id=paper_editions.id)
-                         AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_id=paper_editions.id);
+                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=paper_editions.paper_uuid)
+                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_uuid=paper_editions.paper_uuid)
+                         AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_uuid=paper_editions.uuid)
+                         AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_uuid=paper_editions.uuid);
                      DELETE FROM papers
-                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_id=papers.id)
-                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_id=papers.id)
-                         AND NOT EXISTS (SELECT 1 FROM paper_editions WHERE paper_editions.paper_id=papers.id);",
+                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=papers.uuid)
+                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_uuid=papers.uuid)
+                         AND NOT EXISTS (SELECT 1 FROM paper_editions WHERE paper_editions.paper_uuid=papers.uuid);",
                 )
                 .map_err(|error| error.to_string())?;
 
@@ -959,7 +959,7 @@ impl LocalStore {
 
     pub fn export_recovery(
         &self,
-        account_id: i64,
+        account_uuid: &str,
         destination: &Path,
     ) -> Result<RecoveryExport, String> {
         let connection = self
@@ -968,11 +968,11 @@ impl LocalStore {
             .map_err(|_| "Local database lock failed")?;
         let mutations = {
             let mut statement = connection.prepare(
-                "SELECT local_sequence,client_id,mutation_id,changes_json,created_at,attempts,last_error,state \
-                 FROM _local_outbox WHERE account_id=?1 ORDER BY local_sequence",
+                "SELECT local_sequence,client_uuid,mutation_uuid,changes_json,created_at,attempts,last_error,state \
+                 FROM _local_outbox WHERE account_uuid=?1 ORDER BY local_sequence",
             ).map_err(|error| error.to_string())?;
             let rows = statement
-                .query_map([account_id], |row| {
+                .query_map([account_uuid], |row| {
                     let encoded: String = row.get(3)?;
                     let changes: Value = serde_json::from_str(&encoded).map_err(|error| {
                         rusqlite::Error::FromSqlConversionFailure(
@@ -983,8 +983,8 @@ impl LocalStore {
                     })?;
                     Ok(json!({
                         "local_sequence": row.get::<_, i64>(0)?,
-                        "client_id": row.get::<_, String>(1)?,
-                        "mutation_id": row.get::<_, String>(2)?,
+                        "client_uuid": row.get::<_, String>(1)?,
+                        "mutation_uuid": row.get::<_, String>(2)?,
                         "changes": changes,
                         "created_at": row.get::<_, String>(4)?,
                         "attempts": row.get::<_, i64>(5)?,
@@ -1000,15 +1000,15 @@ impl LocalStore {
         let conflicts = {
             let mut statement = connection
                 .prepare(
-                    "SELECT table_name,row_id,details_json,created_at,resolved_at \
-                 FROM _local_conflicts WHERE account_id=?1 ORDER BY id",
+                    "SELECT table_name,row_uuid,details_json,created_at,resolved_at \
+                 FROM _local_conflicts WHERE account_uuid=?1 ORDER BY created_at",
                 )
                 .map_err(|error| error.to_string())?;
-            let rows = statement.query_map([account_id], |row| {
+            let rows = statement.query_map([account_uuid], |row| {
                 let details: String = row.get(2)?;
                 Ok(json!({
                     "table": row.get::<_, String>(0)?,
-                    "id": row.get::<_, String>(1)?,
+                    "uuid": row.get::<_, String>(1)?,
                     "details": serde_json::from_str::<Value>(&details).unwrap_or(json!(details)),
                     "created_at": row.get::<_, String>(3)?,
                     "resolved_at": row.get::<_, Option<String>>(4)?,
@@ -1022,9 +1022,9 @@ impl LocalStore {
         let mut recovery_rows = BTreeMap::new();
         for mutation in &mutations {
             for change in mutation["changes"].as_array().into_iter().flatten() {
-                if let (Some(table), Some(id)) = (change["table"].as_str(), change["id"].as_str()) {
-                    if let Ok(row) = read_row(&connection, table, id) {
-                        recovery_rows.insert(format!("{table}:{id}"), row);
+                if let (Some(table), Some(uuid)) = (change["table"].as_str(), change["uuid"].as_str()) {
+                    if let Ok(row) = read_row(&connection, table, uuid) {
+                        recovery_rows.insert(format!("{table}:{uuid}"), row);
                     }
                 }
                 if let Some(digest) = change["values"]["sha256"].as_str() {
@@ -1034,8 +1034,8 @@ impl LocalStore {
         }
         let account = connection
             .query_row(
-                "SELECT profile_json FROM _local_accounts WHERE account_id=?1",
-                [account_id],
+                "SELECT profile_json FROM _local_accounts WHERE account_uuid=?1",
+                [account_uuid],
                 |row| row.get::<_, String>(0),
             )
             .optional()
@@ -1044,7 +1044,7 @@ impl LocalStore {
         let manifest = json!({
             "format": "papol-offline-recovery-v1",
             "exported_at": chrono_text(),
-            "account_id": account_id,
+            "account_uuid": account_uuid,
             "account": account,
             "mutations": mutations,
             "rows": recovery_rows.into_values().collect::<Vec<_>>(),
@@ -1118,38 +1118,38 @@ fn validate_import_batch(changes: &[DataChange]) -> Result<(), String> {
     let new_papers: HashSet<&str> = changes
         .iter()
         .filter(|change| change.table == "papers")
-        .map(|change| change.id.as_str())
+        .map(|change| change.uuid.as_str())
         .collect();
     let new_editions: HashSet<&str> = changes
         .iter()
         .filter(|change| change.table == "paper_editions")
-        .map(|change| change.id.as_str())
+        .map(|change| change.uuid.as_str())
         .collect();
     if new_papers.is_empty() && new_editions.is_empty() {
         return Ok(());
     }
-    for paper_id in new_papers {
+    for paper_uuid in new_papers {
         let edition = changes
             .iter()
             .find(|change| {
                 change.table == "paper_editions"
-                    && change.values.get("paper_id").and_then(Value::as_str) == Some(paper_id)
+                    && change.values.get("paper_uuid").and_then(Value::as_str) == Some(paper_uuid)
             })
             .ok_or("A local paper import needs an edition")?;
         let owned_copy = changes.iter().any(|change| {
             change.table == "copies"
-                && change.values.get("paper_id").and_then(Value::as_str) == Some(paper_id)
-                && change.values.get("edition_id").and_then(Value::as_str)
-                    == Some(edition.id.as_str())
+                && change.values.get("paper_uuid").and_then(Value::as_str) == Some(paper_uuid)
+                && change.values.get("edition_uuid").and_then(Value::as_str)
+                    == Some(edition.uuid.as_str())
         });
         if !owned_copy {
             return Err("A local paper import needs an owned copy".into());
         }
     }
-    for edition_id in new_editions {
+    for edition_uuid in new_editions {
         if !changes.iter().any(|change| {
             change.table == "copies"
-                && change.values.get("edition_id").and_then(Value::as_str) == Some(edition_id)
+                && change.values.get("edition_uuid").and_then(Value::as_str) == Some(edition_uuid)
         }) {
             return Err("A local edition import must attach to an owned copy".into());
         }
@@ -1157,10 +1157,10 @@ fn validate_import_batch(changes: &[DataChange]) -> Result<(), String> {
     Ok(())
 }
 
-fn local_client_id(connection: &Connection) -> Result<String, String> {
+fn local_client_uuid(connection: &Connection) -> Result<String, String> {
     let existing: Option<String> = connection
         .query_row(
-            "SELECT value FROM _local_settings WHERE key='sync_client_id'",
+            "SELECT value FROM _local_settings WHERE key='sync_client_uuid'",
             [],
             |row| row.get(0),
         )
@@ -1172,7 +1172,7 @@ fn local_client_id(connection: &Connection) -> Result<String, String> {
     let value = Uuid::new_v4().to_string();
     connection
         .execute(
-            "INSERT INTO _local_settings(key,value) VALUES ('sync_client_id',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            "INSERT INTO _local_settings(key,value) VALUES ('sync_client_uuid',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             [&value],
         )
         .map_err(|error| error.to_string())?;
@@ -1181,12 +1181,12 @@ fn local_client_id(connection: &Connection) -> Result<String, String> {
 
 fn validate_ownership(
     connection: &Connection,
-    account_id: i64,
+    account_uuid: &str,
     change: &DataChange,
 ) -> Result<(), String> {
     if change.table == "copy_tags" {
-        for (field, table) in [("copy_id", "copies"), ("tag_id", "tags")] {
-            let parent_id = change
+        for (field, table) in [("copy_uuid", "copies"), ("tag_uuid", "tags")] {
+            let parent_uuid = change
                 .values
                 .get(field)
                 .and_then(Value::as_str)
@@ -1194,8 +1194,8 @@ fn validate_ownership(
                 .or_else(|| {
                     connection
                         .query_row(
-                            &format!("SELECT {field} FROM copy_tags WHERE id=?1"),
-                            [&change.id],
+                            &format!("SELECT {field} FROM copy_tags WHERE uuid=?1"),
+                            [&change.uuid],
                             |row| row.get::<_, String>(0),
                         )
                         .optional()
@@ -1203,30 +1203,30 @@ fn validate_ownership(
                         .flatten()
                 })
                 .ok_or_else(|| format!("copy_tags.{field} is required"))?;
-            let owner: Option<i64> = connection
+            let owner: Option<String> =connection
                 .query_row(
-                    &format!("SELECT user_id FROM {table} WHERE id=?1 AND deleted_at IS NULL"),
-                    [parent_id],
+                    &format!("SELECT user_uuid FROM {table} WHERE uuid=?1 AND deleted_at IS NULL"),
+                    [parent_uuid],
                     |row| row.get(0),
                 )
                 .optional()
                 .map_err(|error| error.to_string())?;
-            if owner != Some(account_id) {
+            if owner.as_deref() != Some(account_uuid) {
                 return Err("A copy tag can only join rows owned by this account".into());
             }
         }
     }
     if matches!(change.table.as_str(), "boards" | "copies") {
-        if let Some(shelf_id) = change.values.get("shelf_id").and_then(Value::as_str) {
-            let owner: Option<i64> = connection
+        if let Some(shelf_uuid) = change.values.get("shelf_uuid").and_then(Value::as_str) {
+            let owner: Option<String> =connection
                 .query_row(
-                    "SELECT user_id FROM shelves WHERE id=?1 AND deleted_at IS NULL",
-                    [shelf_id],
+                    "SELECT user_uuid FROM shelves WHERE uuid=?1 AND deleted_at IS NULL",
+                    [shelf_uuid],
                     |row| row.get(0),
                 )
                 .optional()
                 .map_err(|error| error.to_string())?;
-            if owner != Some(account_id) {
+            if owner.as_deref() != Some(account_uuid) {
                 return Err("A row can only use a shelf owned by this account".into());
             }
         }
@@ -1235,32 +1235,32 @@ fn validate_ownership(
         change.table.as_str(),
         "comments" | "ink_strokes" | "paper_clips" | "copies" | "copy_tags" | "shelves" | "tags"
     ) {
-        let owner: Option<i64> = connection
+        let owner: Option<String> =connection
             .query_row(
-                &format!("SELECT user_id FROM {} WHERE id=?1", change.table),
-                [&change.id],
+                &format!("SELECT user_uuid FROM {} WHERE uuid=?1", change.table),
+                [&change.uuid],
                 |row| row.get(0),
             )
             .optional()
             .map_err(|error| error.to_string())?;
-        if owner.is_some_and(|owner| owner != account_id) {
+        if owner.is_some_and(|owner| owner != account_uuid) {
             return Err("A local mutation cannot modify another account's row".into());
         }
         return Ok(());
     }
-    let board_id: Option<String> = if change.table == "boards" {
-        Some(change.id.clone())
+    let board_uuid: Option<String> = if change.table == "boards" {
+        Some(change.uuid.clone())
     } else {
         change
             .values
-            .get("board_id")
+            .get("board_uuid")
             .and_then(Value::as_str)
             .map(str::to_owned)
             .or_else(|| {
                 connection
                     .query_row(
-                        &format!("SELECT board_id FROM {} WHERE id=?1", change.table),
-                        [&change.id],
+                        &format!("SELECT board_uuid FROM {} WHERE uuid=?1", change.table),
+                        [&change.uuid],
                         |row| row.get::<_, String>(0),
                     )
                     .optional()
@@ -1268,16 +1268,16 @@ fn validate_ownership(
                     .flatten()
             })
     };
-    if let Some(board_id) = board_id.as_deref() {
-        let owner: Option<i64> = connection
+    if let Some(board_uuid) = board_uuid.as_deref() {
+        let owner: Option<String> =connection
             .query_row(
-                "SELECT user_id FROM boards WHERE id=?1",
-                [board_id],
+                "SELECT user_uuid FROM boards WHERE uuid=?1",
+                [board_uuid],
                 |row| row.get(0),
             )
             .optional()
             .map_err(|error| error.to_string())?;
-        if owner.is_some_and(|owner| owner != account_id) {
+        if owner.is_some_and(|owner| owner != account_uuid) {
             return Err("A local mutation cannot modify another account's board".into());
         }
     }
@@ -1306,7 +1306,7 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
         }
         if change
             .values
-            .get("paper_id")
+            .get("paper_uuid")
             .and_then(Value::as_str)
             .is_none()
         {
@@ -1358,11 +1358,11 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_local_row(connection: &Connection, table: &str, id: &str) -> Result<(), String> {
+fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Result<(), String> {
     if !matches!(table, "comments" | "ink_strokes" | "paper_clips") {
         return Ok(());
     }
-    let value = read_row(connection, table, id)?;
+    let value = read_row(connection, table, uuid)?;
     let row = value.as_object().ok_or("Invalid annotation row")?;
     if table == "comments" {
         if row
@@ -1506,12 +1506,12 @@ fn validate_local_row(connection: &Connection, table: &str, id: &str) -> Result<
 
 fn validate_remote_ownership(
     connection: &Connection,
-    account_id: i64,
+    account_uuid: &str,
     table: &str,
     row: &Map<String, Value>,
 ) -> Result<(), String> {
     if table == "boards" {
-        if row.get("user_id").and_then(Value::as_i64) != Some(account_id) {
+        if row.get("user_uuid").and_then(Value::as_str) != Some(account_uuid) {
             return Err("Server returned a board for a different account".into());
         }
         return Ok(());
@@ -1520,12 +1520,12 @@ fn validate_remote_ownership(
         return Ok(());
     }
     if table == "paper_editions" {
-        let paper_id = row
-            .get("paper_id")
+        let paper_uuid = row
+            .get("paper_uuid")
             .and_then(Value::as_str)
             .ok_or("Server edition row is missing its paper")?;
         let exists: Option<i64> = connection
-            .query_row("SELECT 1 FROM papers WHERE id=?1", [paper_id], |row| {
+            .query_row("SELECT 1 FROM papers WHERE uuid=?1", [paper_uuid], |row| {
                 row.get(0)
             })
             .optional()
@@ -1538,7 +1538,7 @@ fn validate_remote_ownership(
         table,
         "comments" | "ink_strokes" | "paper_clips" | "copies" | "copy_tags" | "shelves" | "tags"
     ) {
-        if row.get("user_id").and_then(Value::as_i64) != Some(account_id) {
+        if row.get("user_uuid").and_then(Value::as_str) != Some(account_uuid) {
             return Err("Server returned an annotation for a different account".into());
         }
         return Ok(());
@@ -1546,19 +1546,19 @@ fn validate_remote_ownership(
     if !matches!(table, "board_groups" | "board_items") {
         return Err(format!("Server sent an unregistered table: {table}"));
     }
-    let board_id = row
-        .get("board_id")
+    let board_uuid = row
+        .get("board_uuid")
         .and_then(Value::as_str)
         .ok_or("Server child row is missing its board")?;
-    let owner: Option<i64> = connection
+    let owner: Option<String> =connection
         .query_row(
-            "SELECT user_id FROM boards WHERE id=?1",
-            [board_id],
+            "SELECT user_uuid FROM boards WHERE uuid=?1",
+            [board_uuid],
             |row| row.get(0),
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    if owner != Some(account_id) {
+    if owner.as_deref() != Some(account_uuid) {
         return Err("Server returned a child row for a different account".into());
     }
     Ok(())
@@ -1580,18 +1580,18 @@ fn json_to_sql(value: &Value) -> Result<SqlValue, String> {
 
 fn apply_identity_aliases(
     transaction: &rusqlite::Transaction<'_>,
-    account_id: i64,
+    account_uuid: &str,
     aliases: &Map<String, Value>,
 ) -> Result<(), String> {
     // Collapse the most dependent identities first. A duplicate imported
     // copy may still point at the temporary paper ID; removing/merging it
-    // before the paper alias avoids violating UNIQUE(paper_id,user_id).
-    for (old_id, new_value) in aliases {
-        let new_id = new_value
+    // before the paper alias avoids violating UNIQUE(paper_uuid,user_uuid).
+    for (old_uuid, new_value) in aliases {
+        let new_uuid = new_value
             .as_str()
             .ok_or("Server alias target must be a UUID")?;
         let old_exists: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copy_tags WHERE id=?1", [old_id], |row| {
+            .query_row("SELECT 1 FROM copy_tags WHERE uuid=?1", [old_uuid], |row| {
                 row.get(0)
             })
             .optional()
@@ -1600,30 +1600,30 @@ fn apply_identity_aliases(
             continue;
         }
         let canonical_exists: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copy_tags WHERE id=?1", [new_id], |row| {
+            .query_row("SELECT 1 FROM copy_tags WHERE uuid=?1", [new_uuid], |row| {
                 row.get(0)
             })
             .optional()
             .map_err(|error| error.to_string())?;
         if canonical_exists.is_some() {
             transaction
-                .execute("DELETE FROM copy_tags WHERE id=?1", [old_id])
+                .execute("DELETE FROM copy_tags WHERE uuid=?1", [old_uuid])
                 .map_err(|error| error.to_string())?;
         } else {
             transaction
                 .execute(
-                    "UPDATE copy_tags SET id=?1 WHERE id=?2",
-                    params![new_id, old_id],
+                    "UPDATE copy_tags SET uuid=?1 WHERE uuid=?2",
+                    params![new_uuid, old_uuid],
                 )
                 .map_err(|error| error.to_string())?;
         }
     }
-    for (old_id, new_value) in aliases {
-        let new_id = new_value
+    for (old_uuid, new_value) in aliases {
+        let new_uuid = new_value
             .as_str()
             .ok_or("Server alias target must be a UUID")?;
         let old_exists: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copies WHERE id=?1", [old_id], |row| {
+            .query_row("SELECT 1 FROM copies WHERE uuid=?1", [old_uuid], |row| {
                 row.get(0)
             })
             .optional()
@@ -1632,7 +1632,7 @@ fn apply_identity_aliases(
             continue;
         }
         let canonical_exists: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copies WHERE id=?1", [new_id], |row| {
+            .query_row("SELECT 1 FROM copies WHERE uuid=?1", [new_uuid], |row| {
                 row.get(0)
             })
             .optional()
@@ -1640,45 +1640,45 @@ fn apply_identity_aliases(
         if canonical_exists.is_some() {
             transaction
                 .execute(
-                    "DELETE FROM copy_tags WHERE copy_id=?1 AND tag_id IN \
-                 (SELECT tag_id FROM copy_tags WHERE copy_id=?2)",
-                    params![old_id, new_id],
+                    "DELETE FROM copy_tags WHERE copy_uuid=?1 AND tag_uuid IN \
+                 (SELECT tag_uuid FROM copy_tags WHERE copy_uuid=?2)",
+                    params![old_uuid, new_uuid],
                 )
                 .map_err(|error| error.to_string())?;
         }
         transaction
             .execute(
-                "UPDATE copy_tags SET copy_id=?1 WHERE copy_id=?2",
-                params![new_id, old_id],
+                "UPDATE copy_tags SET copy_uuid=?1 WHERE copy_uuid=?2",
+                params![new_uuid, old_uuid],
             )
             .map_err(|error| error.to_string())?;
         if canonical_exists.is_some() {
             transaction
-                .execute("DELETE FROM copies WHERE id=?1", [old_id])
+                .execute("DELETE FROM copies WHERE uuid=?1", [old_uuid])
                 .map_err(|error| error.to_string())?;
         } else {
             transaction
                 .execute(
-                    "UPDATE copies SET id=?1 WHERE id=?2",
-                    params![new_id, old_id],
+                    "UPDATE copies SET uuid=?1 WHERE uuid=?2",
+                    params![new_uuid, old_uuid],
                 )
                 .map_err(|error| error.to_string())?;
         }
     }
-    for (old_id, new_value) in aliases {
-        let new_id = new_value
+    for (old_uuid, new_value) in aliases {
+        let new_uuid = new_value
             .as_str()
             .ok_or("Server alias target must be a UUID")?;
-        Uuid::parse_str(new_id).map_err(|_| "Server alias target must be a UUID")?;
+        Uuid::parse_str(new_uuid).map_err(|_| "Server alias target must be a UUID")?;
         let old_paper: Option<i64> = transaction
-            .query_row("SELECT 1 FROM papers WHERE id=?1", [old_id], |row| {
+            .query_row("SELECT 1 FROM papers WHERE uuid=?1", [old_uuid], |row| {
                 row.get(0)
             })
             .optional()
             .map_err(|error| error.to_string())?;
         if old_paper.is_some() {
             let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM papers WHERE id=?1", [new_id], |row| {
+                .query_row("SELECT 1 FROM papers WHERE uuid=?1", [new_uuid], |row| {
                     row.get(0)
                 })
                 .optional()
@@ -1686,34 +1686,34 @@ fn apply_identity_aliases(
             if canonical_exists.is_none() {
                 transaction
                     .execute(
-                        "UPDATE papers SET id=?1 WHERE id=?2",
-                        params![new_id, old_id],
+                        "UPDATE papers SET uuid=?1 WHERE uuid=?2",
+                        params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
             for (table, column) in [
-                ("paper_editions", "paper_id"),
-                ("copies", "paper_id"),
-                ("comments", "paper_id"),
+                ("paper_editions", "paper_uuid"),
+                ("copies", "paper_uuid"),
+                ("comments", "paper_uuid"),
             ] {
                 transaction
                     .execute(
                         &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
-                        params![new_id, old_id],
+                        params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
             if canonical_exists.is_some() {
                 transaction
-                    .execute("DELETE FROM papers WHERE id=?1", [old_id])
+                    .execute("DELETE FROM papers WHERE uuid=?1", [old_uuid])
                     .map_err(|error| error.to_string())?;
             }
             continue;
         }
         let old_edition: Option<i64> = transaction
             .query_row(
-                "SELECT 1 FROM paper_editions WHERE id=?1",
-                [old_id],
+                "SELECT 1 FROM paper_editions WHERE uuid=?1",
+                [old_uuid],
                 |row| row.get(0),
             )
             .optional()
@@ -1721,8 +1721,8 @@ fn apply_identity_aliases(
         if old_edition.is_some() {
             let canonical_exists: Option<i64> = transaction
                 .query_row(
-                    "SELECT 1 FROM paper_editions WHERE id=?1",
-                    [new_id],
+                    "SELECT 1 FROM paper_editions WHERE uuid=?1",
+                    [new_uuid],
                     |row| row.get(0),
                 )
                 .optional()
@@ -1730,45 +1730,45 @@ fn apply_identity_aliases(
             if canonical_exists.is_none() {
                 transaction
                     .execute(
-                        "UPDATE paper_editions SET id=?1 WHERE id=?2",
-                        params![new_id, old_id],
+                        "UPDATE paper_editions SET uuid=?1 WHERE uuid=?2",
+                        params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
             for (table, column) in [
-                ("copies", "edition_id"),
-                ("copies", "ignored_edition_id"),
-                ("comments", "edition_id"),
-                ("ink_strokes", "edition_id"),
-                ("paper_clips", "edition_id"),
+                ("copies", "edition_uuid"),
+                ("copies", "ignored_edition_uuid"),
+                ("comments", "edition_uuid"),
+                ("ink_strokes", "edition_uuid"),
+                ("paper_clips", "edition_uuid"),
             ] {
                 transaction
                     .execute(
                         &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
-                        params![new_id, old_id],
+                        params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
             transaction.execute(
-                "UPDATE _local_blob_refs SET row_id=?1 WHERE table_name='paper_editions' AND row_id=?2",
-                params![new_id, old_id],
+                "UPDATE _local_blob_refs SET row_uuid=?1 WHERE table_name='paper_editions' AND row_uuid=?2",
+                params![new_uuid, old_uuid],
             ).map_err(|error| error.to_string())?;
             if canonical_exists.is_some() {
                 transaction
-                    .execute("DELETE FROM paper_editions WHERE id=?1", [old_id])
+                    .execute("DELETE FROM paper_editions WHERE uuid=?1", [old_uuid])
                     .map_err(|error| error.to_string())?;
             }
             continue;
         }
         let old_copy: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copies WHERE id=?1", [old_id], |row| {
+            .query_row("SELECT 1 FROM copies WHERE uuid=?1", [old_uuid], |row| {
                 row.get(0)
             })
             .optional()
             .map_err(|error| error.to_string())?;
         if old_copy.is_some() {
             let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM copies WHERE id=?1", [new_id], |row| {
+                .query_row("SELECT 1 FROM copies WHERE uuid=?1", [new_uuid], |row| {
                     row.get(0)
                 })
                 .optional()
@@ -1776,64 +1776,64 @@ fn apply_identity_aliases(
             if canonical_exists.is_some() {
                 transaction
                     .execute(
-                        "DELETE FROM copy_tags WHERE copy_id=?1 AND tag_id IN \
-                     (SELECT tag_id FROM copy_tags WHERE copy_id=?2)",
-                        params![old_id, new_id],
+                        "DELETE FROM copy_tags WHERE copy_uuid=?1 AND tag_uuid IN \
+                     (SELECT tag_uuid FROM copy_tags WHERE copy_uuid=?2)",
+                        params![old_uuid, new_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
             transaction
                 .execute(
-                    "UPDATE copy_tags SET copy_id=?1 WHERE copy_id=?2",
-                    params![new_id, old_id],
+                    "UPDATE copy_tags SET copy_uuid=?1 WHERE copy_uuid=?2",
+                    params![new_uuid, old_uuid],
                 )
                 .map_err(|error| error.to_string())?;
             if canonical_exists.is_some() {
                 transaction
-                    .execute("DELETE FROM copies WHERE id=?1", [old_id])
+                    .execute("DELETE FROM copies WHERE uuid=?1", [old_uuid])
                     .map_err(|error| error.to_string())?;
             } else {
                 transaction
                     .execute(
-                        "UPDATE copies SET id=?1 WHERE id=?2",
-                        params![new_id, old_id],
+                        "UPDATE copies SET uuid=?1 WHERE uuid=?2",
+                        params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
             continue;
         }
         let old_copy_tag: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copy_tags WHERE id=?1", [old_id], |row| {
+            .query_row("SELECT 1 FROM copy_tags WHERE uuid=?1", [old_uuid], |row| {
                 row.get(0)
             })
             .optional()
             .map_err(|error| error.to_string())?;
         if old_copy_tag.is_some() {
             let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM copy_tags WHERE id=?1", [new_id], |row| {
+                .query_row("SELECT 1 FROM copy_tags WHERE uuid=?1", [new_uuid], |row| {
                     row.get(0)
                 })
                 .optional()
                 .map_err(|error| error.to_string())?;
             if canonical_exists.is_some() {
                 transaction
-                    .execute("DELETE FROM copy_tags WHERE id=?1", [old_id])
+                    .execute("DELETE FROM copy_tags WHERE uuid=?1", [old_uuid])
                     .map_err(|error| error.to_string())?;
             } else {
                 transaction
                     .execute(
-                        "UPDATE copy_tags SET id=?1 WHERE id=?2",
-                        params![new_id, old_id],
+                        "UPDATE copy_tags SET uuid=?1 WHERE uuid=?2",
+                        params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
         }
     }
     let mut statement = transaction
-        .prepare("SELECT local_sequence,changes_json FROM _local_outbox WHERE account_id=?1")
+        .prepare("SELECT local_sequence,changes_json FROM _local_outbox WHERE account_uuid=?1")
         .map_err(|error| error.to_string())?;
     let queued = statement
-        .query_map([account_id], |row| {
+        .query_map([account_uuid], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
         })
         .map_err(|error| error.to_string())?
@@ -1845,12 +1845,12 @@ fn apply_identity_aliases(
             serde_json::from_str(&encoded).map_err(|error| error.to_string())?;
         let mut changed = false;
         for change in &mut changes {
-            if let Some(target) = aliases.get(&change.id).and_then(Value::as_str) {
-                change.id = target.to_owned();
+            if let Some(target) = aliases.get(&change.uuid).and_then(Value::as_str) {
+                change.uuid = target.to_owned();
                 changed = true;
             }
             for value in change.values.values_mut() {
-                if let Some(target) = value.as_str().and_then(|id| aliases.get(id)) {
+                if let Some(target) = value.as_str().and_then(|uuid| aliases.get(uuid)) {
                     *value = target.clone();
                     changed = true;
                 }
@@ -1874,7 +1874,7 @@ fn apply_identity_aliases(
 fn refresh_blob_reference(
     connection: &Connection,
     table: &str,
-    row_id: &str,
+    row_uuid: &str,
 ) -> Result<(), String> {
     match table {
         "board_items" | "paper_editions" => {}
@@ -1882,14 +1882,14 @@ fn refresh_blob_reference(
     }
     connection
         .execute(
-            "DELETE FROM _local_blob_refs WHERE table_name=?1 AND row_id=?2",
-            params![table, row_id],
+            "DELETE FROM _local_blob_refs WHERE table_name=?1 AND row_uuid=?2",
+            params![table, row_uuid],
         )
         .map_err(|error| error.to_string())?;
     let reference: Option<(Option<String>, Option<String>)> = connection
         .query_row(
-            &format!("SELECT sha256,deleted_at FROM {table} WHERE id=?1"),
-            [row_id],
+            &format!("SELECT sha256,deleted_at FROM {table} WHERE uuid=?1"),
+            [row_uuid],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
@@ -1906,8 +1906,8 @@ fn refresh_blob_reference(
         if available.is_some() {
             connection
                 .execute(
-                    "INSERT INTO _local_blob_refs(table_name,row_id,sha256) VALUES (?1,?2,?3)",
-                    params![table, row_id, sha256],
+                    "INSERT INTO _local_blob_refs(table_name,row_uuid,sha256) VALUES (?1,?2,?3)",
+                    params![table, row_uuid, sha256],
                 )
                 .map_err(|error| error.to_string())?;
         }
@@ -1942,16 +1942,16 @@ fn queued_blob_digests(connection: &Connection) -> Result<HashSet<String>, Strin
 fn refresh_blob_references_for_digest(connection: &Connection, sha256: &str) -> Result<(), String> {
     connection
         .execute(
-            "INSERT OR REPLACE INTO _local_blob_refs(table_name,row_id,sha256) \
-             SELECT 'board_items',id,sha256 FROM board_items \
+            "INSERT OR REPLACE INTO _local_blob_refs(table_name,row_uuid,sha256) \
+             SELECT 'board_items',uuid,sha256 FROM board_items \
              WHERE sha256=?1 AND deleted_at IS NULL",
             [sha256],
         )
         .map_err(|error| error.to_string())?;
     connection
         .execute(
-            "INSERT OR REPLACE INTO _local_blob_refs(table_name,row_id,sha256) \
-             SELECT 'paper_editions',id,sha256 FROM paper_editions \
+            "INSERT OR REPLACE INTO _local_blob_refs(table_name,row_uuid,sha256) \
+             SELECT 'paper_editions',uuid,sha256 FROM paper_editions \
              WHERE sha256=?1 AND deleted_at IS NULL",
             [sha256],
         )
@@ -1978,8 +1978,8 @@ fn apply_remote_row(
     if let Some(field) = row.keys().find(|field| !columns.contains(*field)) {
         return Err(format!("Server sent unknown {table}.{field}"));
     }
-    if !row.contains_key("id") || !row.contains_key("revision") {
-        return Err("Server row is missing id or revision".into());
+    if !row.contains_key("uuid") || !row.contains_key("revision") {
+        return Err("Server row is missing uuid or revision".into());
     }
     let mut fields: BTreeMap<String, SqlValue> = row
         .iter()
@@ -1989,7 +1989,7 @@ fn apply_remote_row(
     let placeholders: Vec<_> = (1..=names.len()).map(|index| format!("?{index}")).collect();
     let updates: Vec<_> = names
         .iter()
-        .filter(|name| name.as_str() != "id")
+        .filter(|name| name.as_str() != "uuid")
         .map(|name| format!("{name}=excluded.{name}"))
         .collect();
     let values: Vec<_> = names
@@ -1998,7 +1998,7 @@ fn apply_remote_row(
         .collect();
     transaction.execute(
         &format!(
-            "INSERT INTO {table} ({}) VALUES ({}) ON CONFLICT(id) DO UPDATE SET {} WHERE excluded.revision >= {table}.revision",
+            "INSERT INTO {table} ({}) VALUES ({}) ON CONFLICT(uuid) DO UPDATE SET {} WHERE excluded.revision >= {table}.revision",
             names.join(","), placeholders.join(","), updates.join(","),
         ),
         params_from_iter(values),
@@ -2008,7 +2008,7 @@ fn apply_remote_row(
 
 fn apply_local_change(
     transaction: &rusqlite::Transaction<'_>,
-    account_id: i64,
+    account_uuid: &str,
     change: &DataChange,
     revision: i64,
     inserting: bool,
@@ -2021,10 +2021,10 @@ fn apply_local_change(
         transaction
             .execute(
                 &format!(
-                    "UPDATE {} SET deleted_at=?1,updated_at=?1,revision=?2 WHERE id=?3",
+                    "UPDATE {} SET deleted_at=?1,updated_at=?1,revision=?2 WHERE uuid=?3",
                     change.table
                 ),
-                params![now, revision, change.id],
+                params![now, revision, change.uuid],
             )
             .map_err(|error| error.to_string())?;
         touch_parent_board(transaction, change, &now)?;
@@ -2047,7 +2047,7 @@ fn apply_local_change(
     fields.insert("updated_at".into(), SqlValue::Text(now.clone()));
     fields.insert("deleted_at".into(), SqlValue::Null);
     if inserting {
-        fields.insert("id".into(), SqlValue::Text(change.id.clone()));
+        fields.insert("uuid".into(), SqlValue::Text(change.uuid.clone()));
         fields.insert("created_at".into(), SqlValue::Text(now));
         if matches!(
             change.table.as_str(),
@@ -2060,7 +2060,7 @@ fn apply_local_change(
                 | "shelves"
                 | "tags"
         ) {
-            fields.insert("user_id".into(), SqlValue::Integer(account_id));
+            fields.insert("user_uuid".into(), SqlValue::Text(account_uuid.to_owned()));
         }
         let columns: Vec<_> = fields.keys().cloned().collect();
         let placeholders: Vec<_> = (1..=columns.len())
@@ -2092,11 +2092,11 @@ fn apply_local_change(
             .iter()
             .map(|column| fields[column].clone())
             .collect();
-        values.push(SqlValue::Text(change.id.clone()));
+        values.push(SqlValue::Text(change.uuid.clone()));
         transaction
             .execute(
                 &format!(
-                    "UPDATE {} SET {} WHERE id=?{}",
+                    "UPDATE {} SET {} WHERE uuid=?{}",
                     change.table,
                     assignments.join(","),
                     values.len()
@@ -2120,18 +2120,18 @@ fn touch_parent_board(
     transaction
         .execute(
             &format!(
-                "UPDATE boards SET updated_at=?1 WHERE id=(SELECT board_id FROM {} WHERE id=?2)",
+                "UPDATE boards SET updated_at=?1 WHERE uuid=(SELECT board_uuid FROM {} WHERE uuid=?2)",
                 change.table
             ),
-            params![now, change.id],
+            params![now, change.uuid],
         )
         .map_err(|error| error.to_string())?;
     Ok(())
 }
 
-fn read_row(connection: &Connection, table: &str, id: &str) -> Result<Value, String> {
+fn read_row(connection: &Connection, table: &str, uuid: &str) -> Result<Value, String> {
     let mut statement = connection
-        .prepare(&format!("SELECT * FROM {table} WHERE id=?1"))
+        .prepare(&format!("SELECT * FROM {table} WHERE uuid=?1"))
         .map_err(|error| error.to_string())?;
     let names: Vec<String> = statement
         .column_names()
@@ -2139,7 +2139,7 @@ fn read_row(connection: &Connection, table: &str, id: &str) -> Result<Value, Str
         .map(|name| (*name).into())
         .collect();
     statement
-        .query_row([id], |row| {
+        .query_row([uuid], |row| {
             let mut value = Map::new();
             for (index, name) in names.iter().enumerate() {
                 let field = match row.get_ref(index)? {
@@ -2158,22 +2158,22 @@ fn read_row(connection: &Connection, table: &str, id: &str) -> Result<Value, Str
         .map_err(|error| error.to_string())
 }
 
-fn query_boards(connection: &Connection, account_id: i64) -> Result<Value, String> {
+fn query_boards(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let mut statement = connection
-        .prepare("SELECT id FROM boards WHERE user_id=?1 AND deleted_at IS NULL ORDER BY updated_at DESC,id")
+        .prepare("SELECT uuid FROM boards WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY updated_at DESC,uuid")
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map([account_id], |row| row.get::<_, String>(0))
+        .query_map([account_uuid], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     ids.into_iter()
-        .map(|id| {
-            let mut board = read_row(connection, "boards", &id)?;
+        .map(|uuid| {
+            let mut board = read_row(connection, "boards", &uuid)?;
             let count: i64 = connection
                 .query_row(
-                    "SELECT COUNT(*) FROM board_items WHERE board_id=?1 AND deleted_at IS NULL AND staged=0",
-                    [&id],
+                    "SELECT COUNT(*) FROM board_items WHERE board_uuid=?1 AND deleted_at IS NULL AND staged=0",
+                    [&uuid],
                     |row| row.get(0),
                 )
                 .map_err(|error| error.to_string())?;
@@ -2186,66 +2186,65 @@ fn query_boards(connection: &Connection, account_id: i64) -> Result<Value, Strin
         .map(Value::Array)
 }
 
-fn query_board(connection: &Connection, account_id: i64, id: &str) -> Result<Value, String> {
-    let owner: Option<i64> = connection
+fn query_board(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
+    let owner: Option<String> =connection
         .query_row(
-            "SELECT user_id FROM boards WHERE id=?1 AND deleted_at IS NULL",
-            [id],
+            "SELECT user_uuid FROM boards WHERE uuid=?1 AND deleted_at IS NULL",
+            [uuid],
             |row| row.get(0),
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    if owner != Some(account_id) {
+    if owner.as_deref() != Some(account_uuid) {
         return Err("Board not found".into());
     }
-    let mut board = read_row(connection, "boards", id)?;
+    let mut board = read_row(connection, "boards", uuid)?;
     let object = board.as_object_mut().ok_or("Invalid local board")?;
     object.insert("can_edit".into(), Value::Bool(true));
-    object.insert("guid".into(), Value::String(id.into()));
-    object.insert("items".into(), query_items(connection, id, false)?);
-    object.insert("staged_items".into(), query_items(connection, id, true)?);
-    object.insert("groups".into(), query_groups(connection, id)?);
+    object.insert("items".into(), query_items(connection, uuid, false)?);
+    object.insert("staged_items".into(), query_items(connection, uuid, true)?);
+    object.insert("groups".into(), query_groups(connection, uuid)?);
     Ok(board)
 }
 
-fn query_items(connection: &Connection, board_id: &str, staged: bool) -> Result<Value, String> {
+fn query_items(connection: &Connection, board_uuid: &str, staged: bool) -> Result<Value, String> {
     let mut statement = connection
-        .prepare("SELECT id FROM board_items WHERE board_id=?1 AND deleted_at IS NULL AND staged=?2 ORDER BY created_at,id")
+        .prepare("SELECT uuid FROM board_items WHERE board_uuid=?1 AND deleted_at IS NULL AND staged=?2 ORDER BY created_at,uuid")
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map(params![board_id, staged], |row| row.get::<_, String>(0))
+        .query_map(params![board_uuid, staged], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     ids.into_iter()
-        .map(|id| read_row(connection, "board_items", &id))
+        .map(|uuid| read_row(connection, "board_items", &uuid))
         .collect::<Result<Vec<_>, _>>()
         .map(Value::Array)
 }
 
-fn query_groups(connection: &Connection, board_id: &str) -> Result<Value, String> {
+fn query_groups(connection: &Connection, board_uuid: &str) -> Result<Value, String> {
     let mut statement = connection
-        .prepare("SELECT id FROM board_groups WHERE board_id=?1 AND deleted_at IS NULL ORDER BY created_at,id")
+        .prepare("SELECT uuid FROM board_groups WHERE board_uuid=?1 AND deleted_at IS NULL ORDER BY created_at,uuid")
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map([board_id], |row| row.get::<_, String>(0))
+        .query_map([board_uuid], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     ids.into_iter()
-        .map(|id| {
-            let mut group = read_row(connection, "board_groups", &id)?;
+        .map(|uuid| {
+            let mut group = read_row(connection, "board_groups", &uuid)?;
             let mut members = connection
-                .prepare("SELECT id FROM board_items WHERE group_id=?1 AND deleted_at IS NULL ORDER BY position,created_at,id")
+                .prepare("SELECT uuid FROM board_items WHERE group_uuid=?1 AND deleted_at IS NULL ORDER BY position,created_at,uuid")
                 .map_err(|error| error.to_string())?;
-            let item_ids = members
-                .query_map([&id], |row| row.get::<_, String>(0))
+            let item_uuids = members
+                .query_map([&uuid], |row| row.get::<_, String>(0))
                 .map_err(|error| error.to_string())?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| error.to_string())?;
             group.as_object_mut().ok_or("Invalid local group")?.insert(
-                "item_ids".into(),
-                Value::Array(item_ids.into_iter().map(Value::String).collect()),
+                "item_uuids".into(),
+                Value::Array(item_uuids.into_iter().map(Value::String).collect()),
             );
             Ok(group)
         })
@@ -2253,64 +2252,64 @@ fn query_groups(connection: &Connection, board_id: &str) -> Result<Value, String
         .map(Value::Array)
 }
 
-fn query_board_group(connection: &Connection, account_id: i64, id: &str) -> Result<Value, String> {
-    let board_id: Option<String> = connection
+fn query_board_group(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
+    let board_uuid: Option<String> = connection
         .query_row(
-            "SELECT board_id FROM board_groups WHERE id=?1 AND deleted_at IS NULL",
-            [id],
+            "SELECT board_uuid FROM board_groups WHERE uuid=?1 AND deleted_at IS NULL",
+            [uuid],
             |row| row.get(0),
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    let board_id = board_id.ok_or("Board group not found")?;
-    let owner: i64 = connection
+    let board_uuid = board_uuid.ok_or("Board group not found")?;
+    let owner: String = connection
         .query_row(
-            "SELECT user_id FROM boards WHERE id=?1",
-            [&board_id],
+            "SELECT user_uuid FROM boards WHERE uuid=?1",
+            [&board_uuid],
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
-    if owner != account_id {
+    if owner != account_uuid {
         return Err("Board group not found".into());
     }
     Ok(json!({
-        "group": read_row(connection, "board_groups", id)?,
-        "items": query_group_items(connection, id)?,
+        "group": read_row(connection, "board_groups", uuid)?,
+        "items": query_group_items(connection, uuid)?,
     }))
 }
 
-fn query_group_items(connection: &Connection, group_id: &str) -> Result<Value, String> {
+fn query_group_items(connection: &Connection, group_uuid: &str) -> Result<Value, String> {
     let mut statement = connection
-        .prepare("SELECT id FROM board_items WHERE group_id=?1 AND deleted_at IS NULL ORDER BY position,created_at,id")
+        .prepare("SELECT uuid FROM board_items WHERE group_uuid=?1 AND deleted_at IS NULL ORDER BY position,created_at,uuid")
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map([group_id], |row| row.get::<_, String>(0))
+        .query_map([group_uuid], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     ids.into_iter()
-        .map(|id| read_row(connection, "board_items", &id))
+        .map(|uuid| read_row(connection, "board_items", &uuid))
         .collect::<Result<Vec<_>, _>>()
         .map(Value::Array)
 }
 
 fn query_annotations(
     connection: &Connection,
-    account_id: i64,
+    account_uuid: &str,
     table: &str,
     parent_column: &str,
     parameters: Value,
 ) -> Result<Value, String> {
-    let parent_id = parameters["parent_id"]
+    let parent_uuid = parameters["parent_uuid"]
         .as_str()
-        .ok_or("Annotation query requires parent_id")?;
+        .ok_or("Annotation query requires parent_uuid")?;
     let mut statement = connection
         .prepare(&format!(
-            "SELECT id FROM {table} WHERE user_id=?1 AND {parent_column}=?2 AND deleted_at IS NULL ORDER BY created_at,id"
+            "SELECT uuid FROM {table} WHERE user_uuid=?1 AND {parent_column}=?2 AND deleted_at IS NULL ORDER BY created_at,uuid"
         ))
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map(params![account_id, parent_id], |row| {
+        .query_map(params![account_uuid, parent_uuid], |row| {
             row.get::<_, String>(0)
         })
         .map_err(|error| error.to_string())?
@@ -2318,8 +2317,8 @@ fn query_annotations(
         .map_err(|error| error.to_string())?;
     let rows = ids
         .into_iter()
-        .map(|id| {
-            let mut value = read_row(connection, table, &id)?;
+        .map(|uuid| {
+            let mut value = read_row(connection, table, &uuid)?;
             let row = value.as_object_mut().ok_or("Invalid annotation row")?;
             for field in match table {
                 "ink_strokes" => &["points"][..],
@@ -2357,7 +2356,7 @@ fn query_annotations(
 
 fn query_owned_rows(
     connection: &Connection,
-    account_id: i64,
+    account_uuid: &str,
     table: &str,
     order: &str,
 ) -> Result<Value, String> {
@@ -2366,44 +2365,44 @@ fn query_owned_rows(
     }
     let mut statement = connection
         .prepare(&format!(
-            "SELECT id FROM {table} WHERE user_id=?1 AND deleted_at IS NULL ORDER BY {order}"
+            "SELECT uuid FROM {table} WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY {order}"
         ))
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map([account_id], |row| row.get::<_, String>(0))
+        .query_map([account_uuid], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     ids.into_iter()
-        .map(|id| read_row(connection, table, &id))
+        .map(|uuid| read_row(connection, table, &uuid))
         .collect::<Result<Vec<_>, _>>()
         .map(Value::Array)
 }
 
-fn query_nook(connection: &Connection, account_id: i64) -> Result<Value, String> {
+fn query_nook(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     Ok(json!({
-        "shelves": query_owned_rows(connection, account_id, "shelves", "position,name,id")?,
-        "tags": query_owned_rows(connection, account_id, "tags", "name,id")?,
-        "copies": query_owned_rows(connection, account_id, "copies", "updated_at DESC,id")?,
-        "copy_tags": query_owned_rows(connection, account_id, "copy_tags", "created_at,id")?,
+        "shelves": query_owned_rows(connection, account_uuid, "shelves", "position,name,uuid")?,
+        "tags": query_owned_rows(connection, account_uuid, "tags", "name,uuid")?,
+        "copies": query_owned_rows(connection, account_uuid, "copies", "updated_at DESC,uuid")?,
+        "copy_tags": query_owned_rows(connection, account_uuid, "copy_tags", "created_at,uuid")?,
     }))
 }
 
-fn paper_view(connection: &Connection, account_id: i64, paper_id: &str) -> Result<Value, String> {
-    let copy_id: String = connection
+fn paper_view(connection: &Connection, account_uuid: &str, paper_uuid: &str) -> Result<Value, String> {
+    let copy_uuid: String = connection
         .query_row(
-            "SELECT id FROM copies WHERE user_id=?1 AND paper_id=?2 AND deleted_at IS NULL",
-            params![account_id, paper_id],
+            "SELECT uuid FROM copies WHERE user_uuid=?1 AND paper_uuid=?2 AND deleted_at IS NULL",
+            params![account_uuid, paper_uuid],
             |row| row.get(0),
         )
         .map_err(|_| "Paper not found".to_string())?;
-    let mut paper = read_row(connection, "papers", paper_id)?;
-    let copy = read_row(connection, "copies", &copy_id)?;
+    let mut paper = read_row(connection, "papers", paper_uuid)?;
+    let copy = read_row(connection, "copies", &copy_uuid)?;
     let object = paper.as_object_mut().ok_or("Invalid local paper")?;
     let copy = copy.as_object().ok_or("Invalid local copy")?;
-    object.insert("copy_sync_id".into(), json!(copy_id));
+    object.insert("copy_uuid".into(), json!(copy_uuid));
     for field in [
-        "shelf_id",
+        "shelf_uuid",
         "summary",
         "thought",
         "marketed",
@@ -2418,11 +2417,10 @@ fn paper_view(connection: &Connection, account_id: i64, paper_id: &str) -> Resul
             copy.get(field).cloned().unwrap_or(Value::Null),
         );
     }
-    if let Some(edition_id) = copy.get("edition_id").and_then(Value::as_str) {
-        let edition = read_row(connection, "paper_editions", edition_id)?;
+    if let Some(edition_uuid) = copy.get("edition_uuid").and_then(Value::as_str) {
+        let edition = read_row(connection, "paper_editions", edition_uuid)?;
         let edition_row = edition.as_object().ok_or("Invalid local edition")?;
-        object.insert("edition_id".into(), json!(edition_id));
-        object.insert("edition_sync_id".into(), json!(edition_id));
+        object.insert("edition_uuid".into(), json!(edition_uuid));
         object.insert(
             "file_path".into(),
             edition_row.get("file_path").cloned().unwrap_or(Value::Null),
@@ -2435,22 +2433,22 @@ fn paper_view(connection: &Connection, account_id: i64, paper_id: &str) -> Resul
     }
     let mut statement = connection
         .prepare(
-            "SELECT tags.id FROM copy_tags JOIN tags ON tags.id=copy_tags.tag_id \
-         WHERE copy_tags.copy_id=?1 AND copy_tags.deleted_at IS NULL AND tags.deleted_at IS NULL \
-         ORDER BY tags.name,tags.id",
+            "SELECT tags.uuid FROM copy_tags JOIN tags ON tags.uuid=copy_tags.tag_uuid \
+         WHERE copy_tags.copy_uuid=?1 AND copy_tags.deleted_at IS NULL AND tags.deleted_at IS NULL \
+         ORDER BY tags.name,tags.uuid",
         )
         .map_err(|error| error.to_string())?;
-    let tag_ids = statement
-        .query_map([&copy_id], |row| row.get::<_, String>(0))
+    let tag_uuids = statement
+        .query_map([&copy_uuid], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     object.insert(
         "tags".into(),
         Value::Array(
-            tag_ids
+            tag_uuids
                 .into_iter()
-                .map(|id| read_row(connection, "tags", &id))
+                .map(|uuid| read_row(connection, "tags", &uuid))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     );
@@ -2462,54 +2460,54 @@ fn paper_view(connection: &Connection, account_id: i64, paper_id: &str) -> Resul
     Ok(paper)
 }
 
-fn query_papers(connection: &Connection, account_id: i64) -> Result<Value, String> {
+fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let mut statement = connection.prepare(
-        "SELECT paper_id FROM copies WHERE user_id=?1 AND deleted_at IS NULL ORDER BY created_at DESC,id"
+        "SELECT paper_uuid FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY created_at DESC,uuid"
     ).map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map([account_id], |row| row.get::<_, String>(0))
+        .query_map([account_uuid], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     ids.into_iter()
-        .map(|id| paper_view(connection, account_id, &id))
+        .map(|uuid| paper_view(connection, account_uuid, &uuid))
         .collect::<Result<Vec<_>, _>>()
         .map(Value::Array)
 }
 
-fn query_paper(connection: &Connection, account_id: i64, id: &str) -> Result<Value, String> {
-    paper_view(connection, account_id, id)
+fn query_paper(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
+    paper_view(connection, account_uuid, uuid)
 }
 
 fn query_paper_by_pdf(
     connection: &Connection,
-    account_id: i64,
+    account_uuid: &str,
     sha256: &str,
 ) -> Result<Value, String> {
-    let paper_id: String = connection
+    let paper_uuid: String = connection
         .query_row(
-            "SELECT paper_editions.paper_id FROM paper_editions JOIN copies \
-         ON copies.edition_id=paper_editions.id WHERE copies.user_id=?1 \
+            "SELECT paper_editions.paper_uuid FROM paper_editions JOIN copies \
+         ON copies.edition_uuid=paper_editions.uuid WHERE copies.user_uuid=?1 \
          AND copies.deleted_at IS NULL AND paper_editions.sha256=?2 LIMIT 1",
-            params![account_id, sha256],
+            params![account_uuid, sha256],
             |row| row.get(0),
         )
         .map_err(|_| "Paper PDF not found".to_string())?;
-    paper_view(connection, account_id, &paper_id)
+    paper_view(connection, account_uuid, &paper_uuid)
 }
 
-fn query_sync_status(connection: &Connection, account_id: i64) -> Result<Value, String> {
+fn query_sync_status(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let pending: i64 = connection
         .query_row(
-            "SELECT COUNT(*) FROM _local_outbox WHERE account_id=?1",
-            [account_id],
+            "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid=?1",
+            [account_uuid],
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
     let cursor: i64 = connection
         .query_row(
-            "SELECT pull_cursor FROM _local_sync_state WHERE account_id=?1",
-            [account_id],
+            "SELECT pull_cursor FROM _local_sync_state WHERE account_uuid=?1",
+            [account_uuid],
             |row| row.get(0),
         )
         .optional()
@@ -2517,8 +2515,8 @@ fn query_sync_status(connection: &Connection, account_id: i64) -> Result<Value, 
         .unwrap_or(0);
     let details: Option<(Option<String>, Option<String>)> = connection
         .query_row(
-            "SELECT last_synced_at,last_error FROM _local_sync_state WHERE account_id=?1",
-            [account_id],
+            "SELECT last_synced_at,last_error FROM _local_sync_state WHERE account_uuid=?1",
+            [account_uuid],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
@@ -2526,17 +2524,17 @@ fn query_sync_status(connection: &Connection, account_id: i64) -> Result<Value, 
     let (last_synced_at, error) = details.unwrap_or((None, None));
     let blocked: Option<(i64, Option<String>)> = connection
         .query_row(
-            "SELECT attempts,last_error FROM _local_outbox WHERE account_id=?1 \
+            "SELECT attempts,last_error FROM _local_outbox WHERE account_uuid=?1 \
              AND last_error IS NOT NULL ORDER BY local_sequence LIMIT 1",
-            [account_id],
+            [account_uuid],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?;
     let conflicts: i64 = connection
         .query_row(
-            "SELECT COUNT(*) FROM _local_conflicts WHERE account_id=?1 AND resolved_at IS NULL",
-            [account_id],
+            "SELECT COUNT(*) FROM _local_conflicts WHERE account_uuid=?1 AND resolved_at IS NULL",
+            [account_uuid],
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
@@ -2549,8 +2547,8 @@ fn query_sync_status(connection: &Connection, account_id: i64) -> Result<Value, 
         "attempts": blocked.as_ref().map_or(0, |value| value.0),
         "outbox_error": blocked.and_then(|value| value.1),
         "blocked": connection.query_row(
-            "SELECT COUNT(*) FROM _local_outbox WHERE account_id=?1 AND state='blocked'",
-            [account_id], |row| row.get::<_, i64>(0),
+            "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid=?1 AND state='blocked'",
+            [account_uuid], |row| row.get::<_, i64>(0),
         ).map_err(|error| error.to_string())?,
     }))
 }
@@ -2585,11 +2583,11 @@ fn query_storage_status(connection: &Connection) -> Result<Value, String> {
     Ok(json!({"classes": totals}))
 }
 
-fn query_local_account(connection: &Connection, account_id: i64) -> Result<Value, String> {
+fn query_local_account(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let encoded: String = connection
         .query_row(
-            "SELECT profile_json FROM _local_accounts WHERE account_id=?1",
-            [account_id],
+            "SELECT profile_json FROM _local_accounts WHERE account_uuid=?1",
+            [account_uuid],
             |row| row.get(0),
         )
         .map_err(|_| "Local account profile is not available".to_string())?;
@@ -2661,20 +2659,20 @@ fn chrono_text() -> String {
 mod tests {
     use super::*;
 
-    fn board_change(id: &str, name: &str) -> DataChange {
+    fn board_change(uuid: &str, name: &str) -> DataChange {
         DataChange {
             table: "boards".into(),
-            id: id.into(),
+            uuid: uuid.into(),
             operation: "upsert".into(),
             values: Map::from_iter([("name".into(), Value::String(name.into()))]),
         }
     }
 
-    fn remote_board(id: &str, revision: i64, name: &str) -> Map<String, Value> {
+    fn remote_board(uuid: &str, revision: i64, name: &str) -> Map<String, Value> {
         Map::from_iter([
-            ("id".into(), json!(id)),
-            ("user_id".into(), json!(7)),
-            ("shelf_id".into(), Value::Null),
+            ("uuid".into(), json!(uuid)),
+            ("user_uuid".into(), json!("7")),
+            ("shelf_uuid".into(), Value::Null),
             ("name".into(), json!(name)),
             ("description".into(), Value::Null),
             ("created_at".into(), json!("2026-09-12T00:00:00Z")),
@@ -2688,18 +2686,18 @@ mod tests {
     fn local_mutation_commits_domain_row_and_outbox_together() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let id = Uuid::new_v4().to_string();
+        let uuid = Uuid::new_v4().to_string();
         let store = LocalStore::open(&path).unwrap();
-        let receipt = store.mutate(7, vec![board_change(&id, "Offline")]).unwrap();
+        let receipt = store.mutate("7",vec![board_change(&uuid, "Offline")]).unwrap();
         assert_eq!(receipt.local_sequence, 1);
         assert_eq!(store.outbox_count(), 1);
-        assert_eq!(store.query(7, "boards", json!({})).unwrap()[0]["id"], id);
+        assert_eq!(store.query("7","boards", json!({})).unwrap()[0]["uuid"], uuid);
 
         drop(store);
         let reopened = LocalStore::open(&path).unwrap();
         assert_eq!(reopened.outbox_count(), 1);
         assert_eq!(
-            reopened.query(7, "board", json!({"id": id})).unwrap()["name"],
+            reopened.query("7","board", json!({"uuid": uuid})).unwrap()["name"],
             "Offline"
         );
     }
@@ -2708,48 +2706,48 @@ mod tests {
     fn whole_row_conflicts_enqueue_the_complete_writable_row() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let paper_id = Uuid::new_v4().to_string();
-        let edition_id = Uuid::new_v4().to_string();
-        let stroke_id = Uuid::new_v4().to_string();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let edition_uuid = Uuid::new_v4().to_string();
+        let stroke_uuid = Uuid::new_v4().to_string();
         let now = chrono_text();
         {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(id,title,created_at,updated_at,revision) VALUES (?1,'Paper',?2,?2,1)",
-                    params![paper_id, now],
+                    "INSERT INTO papers(uuid,title,created_at,updated_at,revision) VALUES (?1,'Paper',?2,?2,1)",
+                    params![paper_uuid, now],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO paper_editions(id,paper_id,file_path,created_at,updated_at,revision) VALUES (?1,?2,'paper.pdf',?3,?3,1)",
-                    params![edition_id, paper_id, now],
+                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,created_at,updated_at,revision) VALUES (?1,?2,'paper.pdf',?3,?3,1)",
+                    params![edition_uuid, paper_uuid, now],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO ink_strokes(id,edition_id,user_id,page,points,color,width,opacity,shape,created_at,updated_at,revision) VALUES (?1,?2,7,2,'[{\"x\":0.1,\"y\":0.2}]','#111111',0.01,0.8,'flat',?3,?3,1)",
-                    params![stroke_id, edition_id, now],
+                    "INSERT INTO ink_strokes(uuid,edition_uuid,user_uuid,page,points,color,width,opacity,shape,created_at,updated_at,revision) VALUES (?1,?2,'7',2,'[{\"x\":0.1,\"y\":0.2}]','#111111',0.01,0.8,'flat',?3,?3,1)",
+                    params![stroke_uuid, edition_uuid, now],
                 )
                 .unwrap();
         }
 
         store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "ink_strokes".into(),
-                    id: stroke_id,
+                    uuid: stroke_uuid,
                     operation: "patch".into(),
                     values: Map::from_iter([("color".into(), json!("#222222"))]),
                 }],
             )
             .unwrap();
-        let queued = store.next_outbox(7).unwrap().unwrap();
+        let queued = store.next_outbox("7").unwrap().unwrap();
         let values = &queued.changes[0].values;
         for field in [
-            "edition_id",
-            "group_id",
+            "edition_uuid",
+            "group_uuid",
             "page",
             "points",
             "color",
@@ -2772,24 +2770,24 @@ mod tests {
         invalid
             .values
             .insert("server_secret".into(), Value::String("no".into()));
-        assert!(store.mutate(7, vec![first, invalid]).is_err());
+        assert!(store.mutate("7",vec![first, invalid]).is_err());
         assert_eq!(store.outbox_count(), 0);
-        assert_eq!(store.query(7, "boards", json!({})).unwrap(), json!([]));
+        assert_eq!(store.query("7","boards", json!({})).unwrap(), json!([]));
     }
 
     #[test]
     fn account_ownership_is_enforced_locally() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let id = Uuid::new_v4().to_string();
-        store.mutate(7, vec![board_change(&id, "Mine")]).unwrap();
+        let uuid = Uuid::new_v4().to_string();
+        store.mutate("7",vec![board_change(&uuid, "Mine")]).unwrap();
         let update = DataChange {
             table: "boards".into(),
-            id,
+            uuid,
             operation: "patch".into(),
             values: Map::from_iter([("name".into(), Value::String("Not mine".into()))]),
         };
-        assert!(store.mutate(8, vec![update]).is_err());
+        assert!(store.mutate("8",vec![update]).is_err());
     }
 
     #[test]
@@ -2797,17 +2795,17 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let first = store
-            .mutate(7, vec![board_change(&Uuid::new_v4().to_string(), "Bad")])
+            .mutate("7",vec![board_change(&Uuid::new_v4().to_string(), "Bad")])
             .unwrap();
         let second = store
-            .mutate(7, vec![board_change(&Uuid::new_v4().to_string(), "Good")])
+            .mutate("7",vec![board_change(&Uuid::new_v4().to_string(), "Good")])
             .unwrap();
         store
-            .record_outbox_error(7, first.local_sequence, "422 Unprocessable Entity", true)
+            .record_outbox_error("7",first.local_sequence, "422 Unprocessable Entity", true)
             .unwrap();
-        let next = store.next_outbox(7).unwrap().unwrap();
+        let next = store.next_outbox("7").unwrap().unwrap();
         assert_eq!(next.local_sequence, second.local_sequence);
-        let status = store.query(7, "sync_status", json!({})).unwrap();
+        let status = store.query("7","sync_status", json!({})).unwrap();
         assert_eq!(status["pending"], 2);
         assert_eq!(status["blocked"], 1);
         assert_eq!(status["attempts"], 1);
@@ -2817,7 +2815,7 @@ mod tests {
     fn copy_ratings_are_validated_locally() {
         let change = |values: Value| DataChange {
             table: "copies".into(),
-            id: Uuid::new_v4().to_string(),
+            uuid: Uuid::new_v4().to_string(),
             operation: "patch".into(),
             values: values.as_object().unwrap().clone(),
         };
@@ -2832,21 +2830,21 @@ mod tests {
     fn unsafe_board_links_are_rejected_before_entering_the_outbox() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let board_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate(7, vec![board_change(&board_id, "Links")])
+            .mutate("7",vec![board_change(&board_uuid, "Links")])
             .unwrap();
         let change = DataChange {
             table: "board_items".into(),
-            id: Uuid::new_v4().to_string(),
+            uuid: Uuid::new_v4().to_string(),
             operation: "upsert".into(),
             values: Map::from_iter([
-                ("board_id".into(), json!(board_id)),
+                ("board_uuid".into(), json!(board_uuid)),
                 ("kind".into(), json!("webpage")),
                 ("source_url".into(), json!("javascript:alert(1)")),
             ]),
         };
-        assert!(store.mutate(7, vec![change]).is_err());
+        assert!(store.mutate("7",vec![change]).is_err());
         assert_eq!(store.outbox_count(), 1);
     }
 
@@ -2854,17 +2852,17 @@ mod tests {
     fn accepted_push_replaces_row_and_removes_outbox_atomically() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let id = Uuid::new_v4().to_string();
-        let receipt = store.mutate(7, vec![board_change(&id, "Local")]).unwrap();
-        let mut row = remote_board(&id, 1, "Canonical");
+        let uuid = Uuid::new_v4().to_string();
+        let receipt = store.mutate("7",vec![board_change(&uuid, "Local")]).unwrap();
+        let mut row = remote_board(&uuid, 1, "Canonical");
         row.insert("table".into(), json!("boards"));
         store
             .accept_push(
-                7,
+                "7",
                 receipt.local_sequence,
                 vec![row],
                 vec![json!({
-                    "table": "boards", "id": id,
+                    "table": "boards", "uuid": uuid,
                     "strategy": "field_patch", "resolution": "client_won",
                     "server_revision": 1, "previous": {"name": "Remote"},
                 })],
@@ -2873,11 +2871,11 @@ mod tests {
             .unwrap();
         assert_eq!(store.outbox_count(), 0);
         assert_eq!(
-            store.query(7, "board", json!({"id": id})).unwrap()["name"],
+            store.query("7","board", json!({"uuid": uuid})).unwrap()["name"],
             "Canonical"
         );
         assert_eq!(
-            store.query(7, "sync_status", json!({})).unwrap()["conflicts"],
+            store.query("7","sync_status", json!({})).unwrap()["conflicts"],
             0
         );
         let connection = store.connection.lock().unwrap();
@@ -2895,35 +2893,35 @@ mod tests {
     fn pull_page_and_cursor_commit_together() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let id = Uuid::new_v4().to_string();
+        let uuid = Uuid::new_v4().to_string();
         store
             .apply_pull(
-                7,
+                "7",
                 vec![RemoteChange {
                     table: "boards".into(),
-                    id: id.clone(),
+                    uuid: uuid.clone(),
                     revision: 1,
                     operation: "upsert".into(),
-                    row: remote_board(&id, 1, "Remote"),
+                    row: remote_board(&uuid, 1, "Remote"),
                 }],
                 19,
             )
             .unwrap();
-        assert_eq!(store.pull_cursor(7).unwrap(), 19);
+        assert_eq!(store.pull_cursor("7").unwrap(), 19);
         assert_eq!(
-            store.query(7, "board", json!({"id": id})).unwrap()["name"],
+            store.query("7","board", json!({"uuid": uuid})).unwrap()["name"],
             "Remote"
         );
 
-        let bad_id = Uuid::new_v4().to_string();
-        let mut invalid = remote_board(&bad_id, 1, "Invalid");
+        let bad_uuid = Uuid::new_v4().to_string();
+        let mut invalid = remote_board(&bad_uuid, 1, "Invalid");
         invalid.insert("unknown_server_field".into(), json!(true));
         assert!(store
             .apply_pull(
-                7,
+                "7",
                 vec![RemoteChange {
                     table: "boards".into(),
-                    id: bad_id.clone(),
+                    uuid: bad_uuid.clone(),
                     revision: 1,
                     operation: "upsert".into(),
                     row: invalid,
@@ -2931,18 +2929,18 @@ mod tests {
                 20
             )
             .is_err());
-        assert_eq!(store.pull_cursor(7).unwrap(), 19);
-        assert!(store.query(7, "board", json!({"id": bad_id})).is_err());
+        assert_eq!(store.pull_cursor("7").unwrap(), 19);
+        assert!(store.query("7","board", json!({"uuid": bad_uuid})).is_err());
 
-        let foreign_id = Uuid::new_v4().to_string();
-        let mut foreign = remote_board(&foreign_id, 1, "Foreign");
-        foreign.insert("user_id".into(), json!(8));
+        let foreign_uuid = Uuid::new_v4().to_string();
+        let mut foreign = remote_board(&foreign_uuid, 1, "Foreign");
+        foreign.insert("user_uuid".into(), json!("8"));
         assert!(store
             .apply_pull(
-                7,
+                "7",
                 vec![RemoteChange {
                     table: "boards".into(),
-                    id: foreign_id,
+                    uuid: foreign_uuid,
                     revision: 1,
                     operation: "upsert".into(),
                     row: foreign,
@@ -2950,7 +2948,7 @@ mod tests {
                 20,
             )
             .is_err());
-        assert_eq!(store.pull_cursor(7).unwrap(), 19);
+        assert_eq!(store.pull_cursor("7").unwrap(), 19);
     }
 
     #[test]
@@ -2962,20 +2960,20 @@ mod tests {
         let record = store.import_blob(bytes, Some("image/png".into())).unwrap();
         assert_eq!(record.sha256.len(), 64);
         assert_eq!(store.read_blob(&record.sha256).unwrap(), bytes);
-        let board_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate(7, vec![board_change(&board_id, "Files")])
+            .mutate("7",vec![board_change(&board_uuid, "Files")])
             .unwrap();
-        let item_id = Uuid::new_v4().to_string();
+        let item_uuid = Uuid::new_v4().to_string();
         let receipt = store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "board_items".into(),
-                    id: item_id.clone(),
+                    uuid: item_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("board_id".into(), json!(board_id)),
+                        ("board_uuid".into(), json!(board_uuid)),
                         ("kind".into(), json!("image")),
                         ("sha256".into(), json!(record.sha256.clone())),
                     ]),
@@ -2986,7 +2984,7 @@ mod tests {
         canonical.insert("table".into(), json!("board_items"));
         store
             .accept_push(
-                7,
+                "7",
                 receipt.local_sequence,
                 vec![canonical],
                 vec![],
@@ -3003,8 +3001,8 @@ mod tests {
             .unwrap();
         let references: i64 = connection
             .query_row(
-                "SELECT COUNT(*) FROM _local_blob_refs WHERE row_id=?1 AND sha256=?2",
-                params![item_id, record.sha256],
+                "SELECT COUNT(*) FROM _local_blob_refs WHERE row_uuid=?1 AND sha256=?2",
+                params![item_uuid, record.sha256],
                 |row| row.get(0),
             )
             .unwrap();
@@ -3042,13 +3040,13 @@ mod tests {
     fn missing_blobs_include_every_account_pdf_and_board_file() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let paper_id = Uuid::new_v4().to_string();
-        let edition_id = Uuid::new_v4().to_string();
-        let copy_id = Uuid::new_v4().to_string();
-        let board_id = Uuid::new_v4().to_string();
-        let board_item_id = Uuid::new_v4().to_string();
-        let foreign_board_id = Uuid::new_v4().to_string();
-        let foreign_item_id = Uuid::new_v4().to_string();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let edition_uuid = Uuid::new_v4().to_string();
+        let copy_uuid = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
+        let board_item_uuid = Uuid::new_v4().to_string();
+        let foreign_board_uuid = Uuid::new_v4().to_string();
+        let foreign_item_uuid = Uuid::new_v4().to_string();
         let pdf = "a".repeat(64);
         let board_file = "b".repeat(64);
         let foreign_file = "c".repeat(64);
@@ -3057,28 +3055,28 @@ mod tests {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(id,title,created_at,updated_at) VALUES (?1,'Paper',?2,?2)",
-                    params![paper_id, now],
+                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Paper',?2,?2)",
+                    params![paper_uuid, now],
                 )
                 .unwrap();
             connection.execute(
-                "INSERT INTO paper_editions(id,paper_id,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
-                params![edition_id, paper_id, pdf, now],
+                "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
+                params![edition_uuid, paper_uuid, pdf, now],
             ).unwrap();
             connection.execute(
-                "INSERT INTO copies(id,paper_id,user_id,edition_id,created_at,updated_at) VALUES (?1,?2,7,?3,?4,?4)",
-                params![copy_id, paper_id, edition_id, now],
+                "INSERT INTO copies(uuid,paper_uuid,user_uuid,edition_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?4,?4)",
+                params![copy_uuid, paper_uuid, edition_uuid, now],
             ).unwrap();
             for (board, item, digest, account) in [
-                (&board_id, &board_item_id, &board_file, 7),
-                (&foreign_board_id, &foreign_item_id, &foreign_file, 8),
+                (&board_uuid, &board_item_uuid, &board_file, "7"),
+                (&foreign_board_uuid, &foreign_item_uuid, &foreign_file, "8"),
             ] {
                 connection.execute(
-                    "INSERT INTO boards(id,user_id,name,created_at,updated_at) VALUES (?1,?2,'Board',?3,?3)",
+                    "INSERT INTO boards(uuid,user_uuid,name,created_at,updated_at) VALUES (?1,?2,'Board',?3,?3)",
                     params![board, account, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO board_items(id,board_id,kind,sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
+                    "INSERT INTO board_items(uuid,board_uuid,kind,sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
                     params![item, board, digest, now],
                 ).unwrap();
             }
@@ -3091,7 +3089,7 @@ mod tests {
         }
 
         assert_eq!(
-            store.missing_blob_digests(7).unwrap(),
+            store.missing_blob_digests("7").unwrap(),
             vec![pdf, board_file]
         );
     }
@@ -3100,33 +3098,33 @@ mod tests {
     fn clear_data_removes_replica_pending_work_and_files_but_keeps_the_account() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let board_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
         let blob = store
             .import_blob(b"unsynchronized file", Some("application/pdf".into()))
             .unwrap();
         store
-            .set_local_account(7, json!({"id": 7, "display_name": "Reader"}))
+            .set_local_account("7", json!({"uuid": "7", "display_name": "Reader"}))
             .unwrap();
         store
-            .mutate(7, vec![board_change(&board_id, "Unsynced board")])
+            .mutate("7",vec![board_change(&board_uuid, "Unsynced board")])
             .unwrap();
         {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO _local_sync_state(account_id,pull_cursor) VALUES (7,42)",
+                    "INSERT INTO _local_sync_state(account_uuid,pull_cursor) VALUES ('7',42)",
                     [],
                 )
                 .unwrap();
         }
 
         assert_eq!(store.clear_data().unwrap(), 1);
-        assert_eq!(store.query(7, "boards", json!({})).unwrap(), json!([]));
+        assert_eq!(store.query("7","boards", json!({})).unwrap(), json!([]));
         assert_eq!(store.outbox_count(), 0);
-        assert_eq!(store.pull_cursor(7).unwrap(), 0);
+        assert_eq!(store.pull_cursor("7").unwrap(), 0);
         assert!(!store.has_blob(&blob.sha256));
         assert_eq!(
-            store.query(7, "account", json!({})).unwrap()["display_name"],
+            store.query("7","account", json!({})).unwrap()["display_name"],
             "Reader"
         );
     }
@@ -3159,10 +3157,10 @@ mod tests {
             .import_blob(b"second board file", Some("application/pdf".into()))
             .unwrap();
         store
-            .set_local_account(7, json!({"id": 7, "display_name": "First"}))
+            .set_local_account("7", json!({"uuid": "7", "display_name": "First"}))
             .unwrap();
         store
-            .set_local_account(8, json!({"id": 8, "display_name": "Second"}))
+            .set_local_account("8", json!({"uuid": "8", "display_name": "Second"}))
             .unwrap();
         {
             let connection = store.connection.lock().unwrap();
@@ -3170,7 +3168,7 @@ mod tests {
             for (paper, title) in [(&unique_paper, "Unique"), (&shared_paper, "Shared")] {
                 connection
                     .execute(
-                        "INSERT INTO papers(id,title,created_at,updated_at) VALUES (?1,?2,?3,?3)",
+                        "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,?2,?3,?3)",
                         params![paper, title, now],
                     )
                     .unwrap();
@@ -3180,62 +3178,62 @@ mod tests {
                 (&shared_edition, &shared_paper, &shared_blob.sha256),
             ] {
                 connection.execute(
-                    "INSERT INTO paper_editions(id,paper_id,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
+                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
                     params![edition, paper, blob, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO _local_blob_refs(table_name,row_id,sha256) VALUES ('paper_editions',?1,?2)",
+                    "INSERT INTO _local_blob_refs(table_name,row_uuid,sha256) VALUES ('paper_editions',?1,?2)",
                     params![edition, blob],
                 ).unwrap();
             }
             for (copy, paper, edition, account) in [
-                (&unique_copy, &unique_paper, &unique_edition, 7),
-                (&first_copy, &shared_paper, &shared_edition, 7),
-                (&second_copy, &shared_paper, &shared_edition, 8),
+                (&unique_copy, &unique_paper, &unique_edition, "7"),
+                (&first_copy, &shared_paper, &shared_edition, "7"),
+                (&second_copy, &shared_paper, &shared_edition, "8"),
             ] {
                 connection.execute(
-                    "INSERT INTO copies(id,paper_id,user_id,edition_id,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?5)",
+                    "INSERT INTO copies(uuid,paper_uuid,user_uuid,edition_uuid,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?5)",
                     params![copy, paper, account, edition, now],
                 ).unwrap();
             }
             for (board, item, blob, account) in [
-                (&first_board, &first_item, &first_board_blob.sha256, 7),
-                (&second_board, &second_item, &second_board_blob.sha256, 8),
+                (&first_board, &first_item, &first_board_blob.sha256, "7"),
+                (&second_board, &second_item, &second_board_blob.sha256, "8"),
             ] {
                 connection.execute(
-                    "INSERT INTO boards(id,user_id,name,created_at,updated_at) VALUES (?1,?2,'Board',?3,?3)",
+                    "INSERT INTO boards(uuid,user_uuid,name,created_at,updated_at) VALUES (?1,?2,'Board',?3,?3)",
                     params![board, account, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO board_items(id,board_id,kind,sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
+                    "INSERT INTO board_items(uuid,board_uuid,kind,sha256,created_at,updated_at) VALUES (?1,?2,'file',?3,?4,?4)",
                     params![item, board, blob, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO _local_blob_refs(table_name,row_id,sha256) VALUES ('board_items',?1,?2)",
+                    "INSERT INTO _local_blob_refs(table_name,row_uuid,sha256) VALUES ('board_items',?1,?2)",
                     params![item, blob],
                 ).unwrap();
             }
             connection.execute(
-                "INSERT INTO _local_outbox(account_id,client_id,mutation_id,changes_json) VALUES (7,'client-7','mutation-7','[]')",
+                "INSERT INTO _local_outbox(account_uuid,client_uuid,mutation_uuid,changes_json) VALUES ('7','client-7','mutation-7','[]')",
                 [],
             ).unwrap();
             connection.execute(
-                "INSERT INTO _local_outbox(account_id,client_id,mutation_id,changes_json) VALUES (8,'client-8','mutation-8','[]')",
+                "INSERT INTO _local_outbox(account_uuid,client_uuid,mutation_uuid,changes_json) VALUES ('8','client-8','mutation-8','[]')",
                 [],
             ).unwrap();
         }
 
-        assert_eq!(store.remove_account(7).unwrap(), 2);
+        assert_eq!(store.remove_account("7").unwrap(), 2);
         let connection = store.connection.lock().unwrap();
         for (query, expected) in [
-            ("SELECT COUNT(*) FROM _local_accounts WHERE account_id=7", 0),
-            ("SELECT COUNT(*) FROM _local_accounts WHERE account_id=8", 1),
-            ("SELECT COUNT(*) FROM copies WHERE user_id=7", 0),
-            ("SELECT COUNT(*) FROM copies WHERE user_id=8", 1),
-            ("SELECT COUNT(*) FROM boards WHERE user_id=7", 0),
-            ("SELECT COUNT(*) FROM boards WHERE user_id=8", 1),
-            ("SELECT COUNT(*) FROM _local_outbox WHERE account_id=7", 0),
-            ("SELECT COUNT(*) FROM _local_outbox WHERE account_id=8", 1),
+            ("SELECT COUNT(*) FROM _local_accounts WHERE account_uuid='7'", 0),
+            ("SELECT COUNT(*) FROM _local_accounts WHERE account_uuid='8'", 1),
+            ("SELECT COUNT(*) FROM copies WHERE user_uuid='7'", 0),
+            ("SELECT COUNT(*) FROM copies WHERE user_uuid='8'", 1),
+            ("SELECT COUNT(*) FROM boards WHERE user_uuid='7'", 0),
+            ("SELECT COUNT(*) FROM boards WHERE user_uuid='8'", 1),
+            ("SELECT COUNT(*) FROM _local_outbox WHERE account_uuid='7'", 0),
+            ("SELECT COUNT(*) FROM _local_outbox WHERE account_uuid='8'", 1),
         ] {
             assert_eq!(
                 connection
@@ -3248,7 +3246,7 @@ mod tests {
         assert_eq!(
             connection
                 .query_row(
-                    "SELECT COUNT(*) FROM papers WHERE id=?1",
+                    "SELECT COUNT(*) FROM papers WHERE uuid=?1",
                     [&unique_paper],
                     |row| row.get::<_, i64>(0)
                 )
@@ -3258,7 +3256,7 @@ mod tests {
         assert_eq!(
             connection
                 .query_row(
-                    "SELECT COUNT(*) FROM papers WHERE id=?1",
+                    "SELECT COUNT(*) FROM papers WHERE uuid=?1",
                     [&shared_paper],
                     |row| row.get::<_, i64>(0)
                 )
@@ -3303,19 +3301,19 @@ mod tests {
             .import_blob(b"cannot be written", Some("application/pdf".into()))
             .is_err());
         let digest = "a".repeat(64);
-        let board_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate(7, vec![board_change(&board_id, "Files")])
+            .mutate("7",vec![board_change(&board_uuid, "Files")])
             .unwrap();
         assert!(store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "board_items".into(),
-                    id: Uuid::new_v4().to_string(),
+                    uuid: Uuid::new_v4().to_string(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("board_id".into(), json!(board_id)),
+                        ("board_uuid".into(), json!(board_uuid)),
                         ("kind".into(), json!("file")),
                         ("sha256".into(), json!(digest)),
                     ]),
@@ -3340,19 +3338,19 @@ mod tests {
         assert!(!store.has_blob(&abandoned.sha256));
 
         let retained = store.import_blob(b"queued", None).unwrap();
-        let board_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate(7, vec![board_change(&board_id, "Files")])
+            .mutate("7",vec![board_change(&board_uuid, "Files")])
             .unwrap();
         store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "board_items".into(),
-                    id: Uuid::new_v4().to_string(),
+                    uuid: Uuid::new_v4().to_string(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("board_id".into(), json!(board_id)),
+                        ("board_uuid".into(), json!(board_uuid)),
                         ("kind".into(), json!("file")),
                         ("sha256".into(), json!(retained.sha256)),
                     ]),
@@ -3369,17 +3367,17 @@ mod tests {
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         store
             .set_local_account(
-                7,
-                json!({"id": 7, "email": "reader@example.test", "display_name": "Reader"}),
+                "7",
+                json!({"uuid": "7", "email": "reader@example.test", "display_name": "Reader"}),
             )
             .unwrap();
         assert_eq!(
-            store.query(7, "account", json!({})).unwrap()["display_name"],
+            store.query("7","account", json!({})).unwrap()["display_name"],
             "Reader"
         );
-        assert!(store.query(8, "account", json!({})).is_err());
+        assert!(store.query("8","account", json!({})).is_err());
         assert!(store
-            .set_local_account(8, json!({"id": 7, "display_name": "Wrong"}))
+            .set_local_account("8", json!({"uuid": "7", "display_name": "Wrong"}))
             .is_err());
     }
 
@@ -3389,12 +3387,12 @@ mod tests {
 
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let board_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate(7, vec![board_change(&board_id, "Recover me")])
+            .mutate("7",vec![board_change(&board_uuid, "Recover me")])
             .unwrap();
         let destination = directory.path().join("recovery.zip");
-        let exported = store.export_recovery(7, &destination).unwrap();
+        let exported = store.export_recovery("7",&destination).unwrap();
         assert_eq!(exported.mutations, 1);
         assert_eq!(exported.files, 0);
         assert!(exported.size > 0);
@@ -3408,9 +3406,9 @@ mod tests {
             .unwrap();
         let manifest: Value = serde_json::from_str(&manifest).unwrap();
         assert_eq!(manifest["format"], "papol-offline-recovery-v1");
-        assert_eq!(manifest["account_id"], 7);
-        assert_eq!(manifest["mutations"][0]["changes"][0]["id"], board_id);
-        assert_eq!(manifest["rows"][0]["id"], board_id);
+        assert_eq!(manifest["account_uuid"], "7");
+        assert_eq!(manifest["mutations"][0]["changes"][0]["uuid"], board_uuid);
+        assert_eq!(manifest["rows"][0]["uuid"], board_uuid);
         assert_eq!(manifest["rows"][0]["name"], "Recover me");
     }
 
@@ -3418,22 +3416,22 @@ mod tests {
     fn recovery_export_rejects_a_missing_pending_file_without_leaving_an_archive() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let board_id = Uuid::new_v4().to_string();
-        let item_id = Uuid::new_v4().to_string();
+        let board_uuid = Uuid::new_v4().to_string();
+        let item_uuid = Uuid::new_v4().to_string();
         let blob = store
             .import_blob(b"queued user file", Some("application/pdf".into()))
             .unwrap();
         store
             .mutate(
-                7,
+                "7",
                 vec![
-                    board_change(&board_id, "Missing file recovery"),
+                    board_change(&board_uuid, "Missing file recovery"),
                     DataChange {
                         table: "board_items".into(),
-                        id: item_id,
+                        uuid: item_uuid,
                         operation: "upsert".into(),
                         values: Map::from_iter([
-                            ("board_id".into(), json!(board_id)),
+                            ("board_uuid".into(), json!(board_uuid)),
                             ("kind".into(), json!("file")),
                             ("sha256".into(), json!(blob.sha256)),
                         ]),
@@ -3444,95 +3442,44 @@ mod tests {
         std::fs::remove_file(store.blob_directory.join(&blob.sha256)).unwrap();
 
         let destination = directory.path().join("recovery.zip");
-        let error = store.export_recovery(7, &destination).unwrap_err();
+        let error = store.export_recovery("7",&destination).unwrap_err();
         assert!(error.contains("Recovery file"), "{error}");
         assert!(!destination.exists());
         assert!(!destination.with_extension("zip.partial").exists());
     }
 
     #[test]
-    fn startup_migrates_an_existing_database_forward_once() {
+    fn startup_creates_the_schema_once() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let connection = Connection::open(&path).unwrap();
-        connection
-            .execute_batch(
-                r#"
-                CREATE TABLE boards (
-                  id TEXT PRIMARY KEY NOT NULL, user_id INTEGER NOT NULL,
-                  shelf_id INTEGER, name TEXT NOT NULL, description TEXT,
-                  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-                  revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
-                );
-                CREATE TABLE board_groups (
-                  id TEXT PRIMARY KEY NOT NULL, board_id TEXT NOT NULL REFERENCES boards(id),
-                  kind TEXT NOT NULL DEFAULT 'booklet', title TEXT NOT NULL, header TEXT,
-                  auto_arrange INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL,
-                  updated_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
-                  deleted_at TEXT
-                );
-                CREATE TABLE board_items (
-                  id TEXT PRIMARY KEY NOT NULL, board_id TEXT NOT NULL REFERENCES boards(id),
-                  group_id TEXT REFERENCES board_groups(id), kind TEXT NOT NULL, content TEXT,
-                  excerpt_text TEXT, file_path TEXT, original_filename TEXT, mime_type TEXT,
-                  source_url TEXT, source_label TEXT, staged INTEGER NOT NULL DEFAULT 0,
-                  text_align TEXT NOT NULL DEFAULT 'left', position INTEGER NOT NULL DEFAULT 0,
-                  x REAL NOT NULL DEFAULT 0, y REAL NOT NULL DEFAULT 0,
-                  width REAL NOT NULL DEFAULT 300, deleted_at TEXT, created_at TEXT NOT NULL,
-                  updated_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0
-                );
-                "#,
-            )
-            .unwrap();
-        drop(connection);
-
-        let store = LocalStore::open(&path).unwrap();
-        let connection = store.connection.lock().unwrap();
-        let migration_count: i64 = connection
-            .query_row("SELECT COUNT(*) FROM _local_schema_migrations", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        let has_blob_column = connection
-            .prepare("PRAGMA table_info(board_items)")
-            .unwrap()
-            .query_map([], |row| row.get::<_, String>(1))
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-            .iter()
-            .any(|column| column == "sha256");
-        assert_eq!(migration_count, 12);
-        assert!(has_blob_column);
-        drop(connection);
-        drop(store);
-
-        let reopened = LocalStore::open(&path).unwrap();
-        let connection = reopened.connection.lock().unwrap();
-        let migration_count: i64 = connection
-            .query_row("SELECT COUNT(*) FROM _local_schema_migrations", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        assert_eq!(migration_count, 12);
+        for _ in 0..2 {
+            let store = LocalStore::open(&path).unwrap();
+            let connection = store.connection.lock().unwrap();
+            let migration_count: i64 = connection
+                .query_row("SELECT COUNT(*) FROM _local_schema_migrations", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(migration_count, 2);
+        }
     }
 
     #[test]
     fn annotation_snapshot_enables_offline_editing_across_restart() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let paper_id = Uuid::new_v4().to_string();
-        let edition_id = Uuid::new_v4().to_string();
-        let duplicate_edition_id = Uuid::new_v4().to_string();
-        let note_id = Uuid::new_v4().to_string();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let edition_uuid = Uuid::new_v4().to_string();
+        let duplicate_edition_uuid = Uuid::new_v4().to_string();
+        let note_uuid = Uuid::new_v4().to_string();
         let store = LocalStore::open(&path).unwrap();
         store
             .apply_snapshot(
-                7,
+                "7",
                 vec![
                     Map::from_iter([
                         ("table".into(), json!("papers")),
-                        ("id".into(), json!(paper_id.clone())),
+                        ("uuid".into(), json!(paper_uuid.clone())),
                         ("doi".into(), Value::Null),
                         ("title".into(), json!("Paper")),
                         ("authors".into(), Value::Null),
@@ -3545,8 +3492,8 @@ mod tests {
                     ]),
                     Map::from_iter([
                         ("table".into(), json!("paper_editions")),
-                        ("id".into(), json!(edition_id.clone())),
-                        ("paper_id".into(), json!(paper_id.clone())),
+                        ("uuid".into(), json!(edition_uuid.clone())),
+                        ("paper_uuid".into(), json!(paper_uuid.clone())),
                         ("file_path".into(), json!("paper.pdf")),
                         ("sha256".into(), json!("1".repeat(64))),
                         ("created_at".into(), json!("2026-09-12T00:00:00Z")),
@@ -3556,8 +3503,8 @@ mod tests {
                     ]),
                     Map::from_iter([
                         ("table".into(), json!("paper_editions")),
-                        ("id".into(), json!(duplicate_edition_id)),
-                        ("paper_id".into(), json!(paper_id.clone())),
+                        ("uuid".into(), json!(duplicate_edition_uuid)),
+                        ("paper_uuid".into(), json!(paper_uuid.clone())),
                         ("file_path".into(), json!("duplicate.pdf")),
                         ("sha256".into(), json!("1".repeat(64))),
                         ("created_at".into(), json!("2026-09-12T00:00:00Z")),
@@ -3570,14 +3517,14 @@ mod tests {
             .unwrap();
         store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "comments".into(),
-                    id: note_id.clone(),
+                    uuid: note_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_id".into(), json!(paper_id.clone())),
-                        ("edition_id".into(), json!(edition_id.clone())),
+                        ("paper_uuid".into(), json!(paper_uuid.clone())),
+                        ("edition_uuid".into(), json!(edition_uuid.clone())),
                         ("content".into(), json!("Written offline")),
                         ("page".into(), json!(2)),
                         ("anchor_type".into(), json!("point")),
@@ -3590,9 +3537,9 @@ mod tests {
 
         let reopened = LocalStore::open(&path).unwrap();
         let notes = reopened
-            .query(7, "comments", json!({"parent_id": paper_id}))
+            .query("7","comments", json!({"parent_uuid": paper_uuid}))
             .unwrap();
-        assert_eq!(notes[0]["id"], note_id);
+        assert_eq!(notes[0]["uuid"], note_uuid);
         assert_eq!(notes[0]["content"], "Written offline");
         assert_eq!(notes[0]["anchor"]["type"], "point");
         assert_eq!(reopened.outbox_count(), 1);
@@ -3600,11 +3547,11 @@ mod tests {
 
     #[test]
     fn snapshot_replaces_the_account_mirror_without_erasing_pending_work() {
-        fn shelf(id: &str, name: &str) -> Map<String, Value> {
+        fn shelf(uuid: &str, name: &str) -> Map<String, Value> {
             Map::from_iter([
                 ("table".into(), json!("shelves")),
-                ("id".into(), json!(id)),
-                ("user_id".into(), json!(7)),
+                ("uuid".into(), json!(uuid)),
+                ("user_uuid".into(), json!("7")),
                 ("name".into(), json!(name)),
                 ("color".into(), json!("#123456")),
                 ("is_public".into(), json!(0)),
@@ -3619,28 +3566,28 @@ mod tests {
 
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let stale_id = Uuid::new_v4().to_string();
-        let current_id = Uuid::new_v4().to_string();
+        let stale_uuid = Uuid::new_v4().to_string();
+        let current_uuid = Uuid::new_v4().to_string();
         store
             .apply_snapshot(
-                7,
-                vec![shelf(&stale_id, "Old"), shelf(&current_id, "Current")],
+                "7",
+                vec![shelf(&stale_uuid, "Old"), shelf(&current_uuid, "Current")],
             )
             .unwrap();
         store
-            .apply_snapshot(7, vec![shelf(&current_id, "Current")])
+            .apply_snapshot("7",vec![shelf(&current_uuid, "Current")])
             .unwrap();
-        let nook = store.query(7, "nook", json!({})).unwrap();
+        let nook = store.query("7","nook", json!({})).unwrap();
         assert_eq!(nook["shelves"].as_array().unwrap().len(), 1);
-        assert_eq!(nook["shelves"][0]["id"], current_id);
+        assert_eq!(nook["shelves"][0]["uuid"], current_uuid);
 
-        let pending_id = Uuid::new_v4().to_string();
+        let pending_uuid = Uuid::new_v4().to_string();
         store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "shelves".into(),
-                    id: pending_id.clone(),
+                    uuid: pending_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("name".into(), json!("Offline")),
@@ -3650,34 +3597,34 @@ mod tests {
                 }],
             )
             .unwrap();
-        store.apply_snapshot(7, vec![]).unwrap();
-        let nook = store.query(7, "nook", json!({})).unwrap();
+        store.apply_snapshot("7",vec![]).unwrap();
+        let nook = store.query("7","nook", json!({})).unwrap();
         assert!(nook["shelves"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|row| row["id"] == pending_id));
+            .any(|row| row["uuid"] == pending_uuid));
     }
 
     #[test]
     fn nook_snapshot_supports_offline_organization_across_restart() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let paper_id = Uuid::new_v4().to_string();
-        let shelf_id = Uuid::new_v4().to_string();
-        let copy_id = Uuid::new_v4().to_string();
-        let tag_id = Uuid::new_v4().to_string();
-        let link_id = Uuid::new_v4().to_string();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let shelf_uuid = Uuid::new_v4().to_string();
+        let copy_uuid = Uuid::new_v4().to_string();
+        let tag_uuid = Uuid::new_v4().to_string();
+        let link_uuid = Uuid::new_v4().to_string();
         let timestamp = "2026-09-12T00:00:00Z";
         {
             let store = LocalStore::open(&path).unwrap();
             store
                 .apply_snapshot(
-                    7,
+                    "7",
                     vec![
                         Map::from_iter([
                             ("table".into(), json!("papers")),
-                            ("id".into(), json!(paper_id)),
+                            ("uuid".into(), json!(paper_uuid)),
                             ("doi".into(), Value::Null),
                             ("title".into(), json!("Offline systems")),
                             ("authors".into(), Value::Null),
@@ -3690,8 +3637,8 @@ mod tests {
                         ]),
                         Map::from_iter([
                             ("table".into(), json!("shelves")),
-                            ("id".into(), json!(shelf_id)),
-                            ("user_id".into(), json!(7)),
+                            ("uuid".into(), json!(shelf_uuid)),
+                            ("user_uuid".into(), json!("7")),
                             ("name".into(), json!("Reading")),
                             ("color".into(), json!("#123456")),
                             ("is_public".into(), json!(0)),
@@ -3704,13 +3651,13 @@ mod tests {
                         ]),
                         Map::from_iter([
                             ("table".into(), json!("copies")),
-                            ("id".into(), json!(copy_id)),
-                            ("paper_id".into(), json!(paper_id)),
-                            ("user_id".into(), json!(7)),
-                            ("shelf_id".into(), json!(shelf_id)),
-                            ("edition_id".into(), Value::Null),
+                            ("uuid".into(), json!(copy_uuid)),
+                            ("paper_uuid".into(), json!(paper_uuid)),
+                            ("user_uuid".into(), json!("7")),
+                            ("shelf_uuid".into(), json!(shelf_uuid)),
+                            ("edition_uuid".into(), Value::Null),
                             ("edition_sha256".into(), Value::Null),
-                            ("ignored_edition_id".into(), Value::Null),
+                            ("ignored_edition_uuid".into(), Value::Null),
                             ("summary".into(), Value::Null),
                             ("thought".into(), Value::Null),
                             ("marketed".into(), json!(0)),
@@ -3728,17 +3675,17 @@ mod tests {
                 .unwrap();
             store
                 .mutate(
-                    7,
+                    "7",
                     vec![
                         DataChange {
                             table: "copies".into(),
-                            id: copy_id.clone(),
+                            uuid: copy_uuid.clone(),
                             operation: "patch".into(),
                             values: Map::from_iter([("summary".into(), json!("Read locally"))]),
                         },
                         DataChange {
                             table: "tags".into(),
-                            id: tag_id.clone(),
+                            uuid: tag_uuid.clone(),
                             operation: "upsert".into(),
                             values: Map::from_iter([("name".into(), json!("methods"))]),
                         },
@@ -3747,24 +3694,24 @@ mod tests {
                 .unwrap();
             store
                 .mutate(
-                    7,
+                    "7",
                     vec![DataChange {
                         table: "copy_tags".into(),
-                        id: link_id,
+                        uuid: link_uuid,
                         operation: "upsert".into(),
                         values: Map::from_iter([
-                            ("copy_id".into(), json!(copy_id)),
-                            ("tag_id".into(), json!(tag_id)),
+                            ("copy_uuid".into(), json!(copy_uuid)),
+                            ("tag_uuid".into(), json!(tag_uuid)),
                         ]),
                     }],
                 )
                 .unwrap();
         }
         let reopened = LocalStore::open(&path).unwrap();
-        let nook = reopened.query(7, "nook", json!({})).unwrap();
+        let nook = reopened.query("7","nook", json!({})).unwrap();
         assert_eq!(nook["copies"][0]["summary"], "Read locally");
         assert_eq!(nook["tags"][0]["name"], "methods");
-        assert_eq!(nook["copy_tags"][0]["copy_id"], copy_id);
+        assert_eq!(nook["copy_tags"][0]["copy_uuid"], copy_uuid);
         assert_eq!(reopened.outbox_count(), 2);
     }
 
@@ -3772,11 +3719,11 @@ mod tests {
     fn pdf_import_commits_file_domain_rows_and_outbox_before_network() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let paper_id = Uuid::new_v4().to_string();
-        let edition_id = Uuid::new_v4().to_string();
-        let copy_id = Uuid::new_v4().to_string();
-        let canonical_paper_id = Uuid::new_v4().to_string();
-        let canonical_edition_id = Uuid::new_v4().to_string();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let edition_uuid = Uuid::new_v4().to_string();
+        let copy_uuid = Uuid::new_v4().to_string();
+        let canonical_paper_uuid = Uuid::new_v4().to_string();
+        let canonical_edition_uuid = Uuid::new_v4().to_string();
         {
             let store = LocalStore::open(&path).unwrap();
             let blob = store
@@ -3784,11 +3731,11 @@ mod tests {
                 .unwrap();
             let receipt = store
                 .mutate(
-                    7,
+                    "7",
                     vec![
                         DataChange {
                             table: "papers".into(),
-                            id: paper_id.clone(),
+                            uuid: paper_uuid.clone(),
                             operation: "upsert".into(),
                             values: Map::from_iter([
                                 ("title".into(), json!("Imported offline")),
@@ -3797,21 +3744,21 @@ mod tests {
                         },
                         DataChange {
                             table: "paper_editions".into(),
-                            id: edition_id.clone(),
+                            uuid: edition_uuid.clone(),
                             operation: "upsert".into(),
                             values: Map::from_iter([
-                                ("paper_id".into(), json!(paper_id)),
+                                ("paper_uuid".into(), json!(paper_uuid)),
                                 ("file_path".into(), json!(format!("{}.pdf", blob.sha256))),
                                 ("sha256".into(), json!(blob.sha256)),
                             ]),
                         },
                         DataChange {
                             table: "copies".into(),
-                            id: copy_id.clone(),
+                            uuid: copy_uuid.clone(),
                             operation: "upsert".into(),
                             values: Map::from_iter([
-                                ("paper_id".into(), json!(paper_id)),
-                                ("edition_id".into(), json!(edition_id)),
+                                ("paper_uuid".into(), json!(paper_uuid)),
+                                ("edition_uuid".into(), json!(edition_uuid)),
                                 ("edition_sha256".into(), json!(blob.sha256)),
                             ]),
                         },
@@ -3830,34 +3777,34 @@ mod tests {
             rows[0]
                 .as_object_mut()
                 .unwrap()
-                .insert("id".into(), json!(canonical_paper_id));
+                .insert("uuid".into(), json!(canonical_paper_uuid));
             let edition = rows[1].as_object_mut().unwrap();
-            edition.insert("id".into(), json!(canonical_edition_id));
-            edition.insert("paper_id".into(), json!(canonical_paper_id));
+            edition.insert("uuid".into(), json!(canonical_edition_uuid));
+            edition.insert("paper_uuid".into(), json!(canonical_paper_uuid));
             let copy = rows[2].as_object_mut().unwrap();
-            copy.insert("paper_id".into(), json!(canonical_paper_id));
-            copy.insert("edition_id".into(), json!(canonical_edition_id));
+            copy.insert("paper_uuid".into(), json!(canonical_paper_uuid));
+            copy.insert("edition_uuid".into(), json!(canonical_edition_uuid));
             store
                 .accept_push(
-                    7,
+                    "7",
                     receipt.local_sequence,
                     rows.into_iter()
                         .map(|row| row.as_object().unwrap().clone())
                         .collect(),
                     vec![],
                     Map::from_iter([
-                        (paper_id.clone(), json!(canonical_paper_id)),
-                        (edition_id.clone(), json!(canonical_edition_id)),
+                        (paper_uuid.clone(), json!(canonical_paper_uuid)),
+                        (edition_uuid.clone(), json!(canonical_edition_uuid)),
                     ]),
                 )
                 .unwrap();
         }
         let reopened = LocalStore::open(&path).unwrap();
         let paper = reopened
-            .query(7, "paper", json!({"id": canonical_paper_id}))
+            .query("7","paper", json!({"uuid": canonical_paper_uuid}))
             .unwrap();
         assert_eq!(paper["title"], "Imported offline");
-        assert_eq!(paper["edition_id"], canonical_edition_id);
+        assert_eq!(paper["edition_uuid"], canonical_edition_uuid);
         assert!(reopened.has_blob(paper["edition_sha256"].as_str().unwrap()));
         assert_eq!(reopened.outbox_count(), 0);
     }

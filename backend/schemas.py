@@ -21,7 +21,7 @@ class UserLogin(BaseModel):
 
 
 class UserBase(BaseModel):
-    id: int
+    uuid: str
     display_name: str
     affiliation: Optional[str] = None
     avatar_path: Optional[str] = None
@@ -104,7 +104,7 @@ class InkPoint(BaseModel):
 
 
 class InkStrokeCreate(BaseModel):
-    group_id: Optional[str] = Field(default=None, max_length=64)
+    group_uuid: Optional[str] = Field(default=None, max_length=36)
     page: int = Field(ge=1)
     # Two points is a dash and one is a dot; both are marks a reader meant
     # to make. The ceiling is what stops a stray gesture, or a script, from
@@ -125,9 +125,8 @@ class InkStrokeUpdate(BaseModel):
 
 
 class InkStrokeOut(BaseModel):
-    id: int
-    sync_id: Optional[str] = None
-    group_id: Optional[str] = None
+    uuid: str
+    group_uuid: Optional[str] = None
     page: int
     points: List[InkPoint]
     color: str
@@ -179,8 +178,7 @@ class PaperClipUpdate(BaseModel):
 
 
 class PaperClipOut(PaperClipCreate):
-    id: int
-    sync_id: Optional[str] = None
+    uuid: str
 
 
 class CommentCreate(BaseModel):
@@ -218,9 +216,8 @@ class CommentUpdate(BaseModel):
 
 
 class Comment(BaseModel):
-    id: int
-    sync_id: Optional[str] = None
-    paper_id: str
+    uuid: str
+    paper_uuid: str
     content: str
     created_at: datetime
     user: Optional[UserPublic] = None
@@ -228,7 +225,7 @@ class Comment(BaseModel):
     page: Optional[int] = None
     anchor_type: Optional[str] = None
     anchor: Optional[Anchor] = None
-    edition_id: Optional[int] = None
+    edition_uuid: Optional[str] = None
     name: Optional[str] = None
 
     class Config:
@@ -240,13 +237,13 @@ class Comment(BaseModel):
 class BoardCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=4000)
-    shelf_id: Optional[int] = None
+    shelf_uuid: Optional[str] = None
 
 
 class BoardUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=4000)
-    shelf_id: Optional[int] = None
+    shelf_uuid: Optional[str] = None
 
 
 class BoardItemCreate(BaseModel):
@@ -268,7 +265,7 @@ class BoardStagingPlace(BaseModel):
 
 
 class BoardItemUpdate(BaseModel):
-    group_id: Optional[int] = None
+    group_uuid: Optional[str] = None
     x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
     width: Optional[float] = Field(default=None, ge=120, le=1200)
@@ -278,18 +275,11 @@ class BoardItemUpdate(BaseModel):
 
 
 class BoardGroupCreate(BaseModel):
-    kind: Literal["booklet", "collection", "chapter"] = "booklet"
+    kind: Literal["booklet", "collection"] = "booklet"
     title: str = Field(default="", max_length=240)
     header: str = Field(default="", max_length=4000)
     auto_arrange: bool = False
-    item_ids: List[int] = Field(min_length=2, max_length=100)
-
-    @model_validator(mode="after")
-    def normalize_legacy_kind(self):
-        # Older board clients may still submit the former discriminator.
-        if self.kind == "chapter":
-            self.kind = "booklet"
-        return self
+    item_uuids: List[str] = Field(min_length=2, max_length=100)
 
 
 class BoardGroupUpdate(BaseModel):
@@ -304,8 +294,8 @@ class BoardGroupMove(BaseModel):
 
 
 class BoardGroupRestoreItem(BaseModel):
-    id: int
-    group_id: Optional[int] = None
+    uuid: str
+    group_uuid: Optional[str] = None
     x: float = Field(ge=-1000000, le=1000000)
     y: float = Field(ge=-1000000, le=1000000)
 
@@ -319,12 +309,12 @@ class BoardGroupLayout(BaseModel):
 
 
 class BoardGroupOut(BaseModel):
-    id: int
+    uuid: str
     kind: Literal["booklet", "collection"]
     title: str
     header: str = ""
     auto_arrange: bool = False
-    item_ids: List[int] = []
+    item_uuids: List[str] = []
 
     class Config:
         from_attributes = True
@@ -341,8 +331,8 @@ class BoardWebpageCreate(BoardYouTubeCreate):
 
 
 class BoardItemOut(BaseModel):
-    id: int
-    group_id: Optional[int] = None
+    uuid: str
+    group_uuid: Optional[str] = None
     kind: Literal["comment", "excerpt", "image", "file", "youtube", "webpage"]
     content: Optional[str] = None
     excerpt_text: Optional[str] = None
@@ -366,11 +356,10 @@ class BoardItemOut(BaseModel):
 
 
 class BoardOut(BaseModel):
-    id: int
-    guid: str
-    user_id: int
+    uuid: str
+    user_uuid: str
     owner: Optional[UserPublic] = None
-    shelf_id: Optional[int] = None
+    shelf_uuid: Optional[str] = None
     can_edit: bool = False
     name: str
     description: Optional[str] = None
@@ -388,7 +377,7 @@ class BoardOut(BaseModel):
 # ---------- Rooms ----------
 
 class RoomSummary(BaseModel):
-    id: int
+    uuid: str
     status: str  # open | planning | scheduled | finished
     scheduled_time: Optional[str] = None
     platform: Optional[str] = None
@@ -402,7 +391,7 @@ class RoomSummary(BaseModel):
 
 
 class RoomMessageOut(BaseModel):
-    id: int
+    uuid: str
     content: str
     created_at: datetime
     user: UserPublic
@@ -412,7 +401,7 @@ class RoomMessageOut(BaseModel):
 
 
 class RoomAvailabilityOut(BaseModel):
-    id: int
+    uuid: str
     availability: str
     created_at: datetime
     user: UserPublic
@@ -423,13 +412,13 @@ class RoomAvailabilityOut(BaseModel):
 
 class RoomDetail(RoomSummary):
     paper_title: str
-    paper_id: Optional[str] = None
+    paper_uuid: Optional[str] = None
     messages: List[RoomMessageOut] = []
     availabilities: List[RoomAvailabilityOut] = []
     viewer_can_lead: bool = False
     viewer_is_participant: bool = False
     viewer_is_reader: bool = False
-    viewer_hidden_entry_id: Optional[str] = None  # paper UUID, if viewer's copy is hidden
+    viewer_hidden_entry_uuid: Optional[str] = None  # paper UUID, if viewer's copy is hidden
 
 
 class RoomMessageCreate(BaseModel):
@@ -452,13 +441,13 @@ class RoomAnnounce(BaseModel):
 class RoomLeave(BaseModel):
     # Required when the departing member is the leader of an active seminar:
     # a cohort member they appoint to lead in their place.
-    successor_id: Optional[int] = None
+    successor_uuid: Optional[str] = None
 
 
 class NotificationOut(BaseModel):
-    id: int
+    uuid: str
     content: str
-    room_id: Optional[int] = None
+    room_uuid: Optional[str] = None
     read: bool
     created_at: datetime
 
@@ -482,7 +471,7 @@ class FeedbackCreate(BaseModel):
 
 
 class FeedbackOut(BaseModel):
-    id: int
+    uuid: str
     content: str
     page: Optional[str] = None
     contact: Optional[str] = None
@@ -521,13 +510,13 @@ class PaperCreate(PaperBase):
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
     rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
     initial_comment: Optional[str] = None
-    tag_ids: List[int] = []
-    shelf_id: Optional[int] = None
+    tag_uuids: List[str] = []
+    shelf_uuid: Optional[str] = None
 
 
 class EditionAdopt(BaseModel):
     # Which edition to move the viewer's copy to; the latest by default.
-    edition_id: Optional[int] = None
+    edition_uuid: Optional[str] = None
 
 
 class PaperUpdate(BaseModel):
@@ -545,13 +534,12 @@ class PaperUpdate(BaseModel):
     rating_expertise: Optional[int] = Field(default=None, ge=1, le=5)
     rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
     rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
-    tag_ids: Optional[List[int]] = None
-    shelf_id: Optional[int] = None
+    tag_uuids: Optional[List[str]] = None
+    shelf_uuid: Optional[str] = None
 
 
 class TagOut(BaseModel):
-    id: int
-    sync_id: Optional[str] = None
+    uuid: str
     name: str
 
     class Config:
@@ -563,8 +551,7 @@ class TagCreate(BaseModel):
 
 
 class ShelfOut(BaseModel):
-    id: int
-    sync_id: Optional[str] = None
+    uuid: str
     name: str
     color: str
     is_public: bool
@@ -589,7 +576,7 @@ class ShelfUpdate(BaseModel):
 
 class ReaderEntry(BaseModel):
     """A reader's displayed copy of a paper."""
-    paper_id: str
+    paper_uuid: str
     user: UserPublic
     is_author: bool = False  # this reader wrote the paper
     thought: Optional[str] = None  # the reader's public one-sentence take
@@ -617,7 +604,7 @@ class ResolvedWork(BaseModel):
 
 class ReferenceOut(BaseModel):
     """One work cited by the paper being read."""
-    id: int
+    uuid: str
     key: str
     index: int
     # As printed. Always shown when the lookup found nothing, so a reader
@@ -635,7 +622,7 @@ class ReferenceOut(BaseModel):
     resolution: Optional[ResolvedWork] = None
     # A paper already in Papol that this reference names, when there is
     # one: the reader can go straight to it instead of out to a publisher.
-    papol_paper_id: Optional[str] = None
+    papol_paper_uuid: Optional[str] = None
 
 
 class ReferencePreviewIn(BaseModel):
@@ -647,7 +634,7 @@ class ReferencePreviewIn(BaseModel):
 class CitationOut(BaseModel):
     """One clickable marker in the text, as fractions of its page measured
     from the top-left corner."""
-    reference_id: int
+    reference_uuid: str
     label: Optional[str] = None
     page: int
     x: float
@@ -676,7 +663,7 @@ class EditionReferences(BaseModel):
     `status` is what the viewer acts on: `pending` means come back shortly,
     `unavailable` means this Papol has no analyzer and the feature is
     simply off."""
-    edition_id: int
+    edition_uuid: str
     status: str  # pending | ready | failed | unavailable
     detail: Optional[str] = None
     references: List[ReferenceOut] = []
@@ -685,8 +672,7 @@ class EditionReferences(BaseModel):
 
 
 class PaperEditionOut(BaseModel):
-    id: int
-    sync_id: Optional[str] = None
+    uuid: str
     file_path: str
     sha256: Optional[str] = None
     created_at: datetime
@@ -697,7 +683,7 @@ class PaperEditionOut(BaseModel):
 
 
 class PaperList(PaperBase):
-    id: str
+    uuid: str
     # The file the viewer's own copy reads, falling back to the latest
     # edition for a paper they do not have.
     file_path: str
@@ -712,12 +698,11 @@ class PaperList(PaperBase):
     rating_liking: Optional[int] = None
     room_status: Optional[str] = None
     readers: List[ReaderEntry] = []
-    edition_id: Optional[int] = None
+    edition_uuid: Optional[str] = None
     edition_sha256: Optional[str] = None
     tags: List[TagOut] = []
-    shelf_id: Optional[int] = None
-    shelf_sync_id: Optional[str] = None
-    copy_sync_id: Optional[str] = None
+    shelf_uuid: Optional[str] = None
+    copy_uuid: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -725,7 +710,7 @@ class PaperList(PaperBase):
 
 class Paper(PaperBase):
     """Paper detail, merged with the viewer's own copy when they have one."""
-    id: str
+    uuid: str
     file_path: str
     created_at: datetime
     summary: Optional[str] = None
@@ -741,16 +726,14 @@ class Paper(PaperBase):
     viewer_is_reader: bool = False  # viewer has a displayed copy
     viewer_has_entry: bool = False  # viewer has any copy
     # Editions: which one the viewer reads, and whether a newer one waits.
-    edition_id: Optional[int] = None
-    edition_sync_id: Optional[str] = None
+    edition_uuid: Optional[str] = None
     edition_sha256: Optional[str] = None
-    ignored_edition_id: Optional[int] = None
+    ignored_edition_uuid: Optional[str] = None
     editions: List[PaperEditionOut] = []
     latest_edition: Optional[PaperEditionOut] = None
     tags: List[TagOut] = []
-    shelf_id: Optional[int] = None
-    shelf_sync_id: Optional[str] = None
-    copy_sync_id: Optional[str] = None
+    shelf_uuid: Optional[str] = None
+    copy_uuid: Optional[str] = None
 
     class Config:
         from_attributes = True

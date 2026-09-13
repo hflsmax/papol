@@ -16,7 +16,10 @@ const DEMO_BG = [
 
 const INITIAL_TINTS = 6;
 
-const tintOf = (user) => (user?.id || 0) % INITIAL_TINTS;
+// A reader keeps one colour: their UUID, folded to a small number.
+const shadeOf = (user, count) => [...String(user?.uuid || '')]
+  .reduce((sum, character) => (sum * 31 + character.charCodeAt(0)) % 65521, 0) % count;
+const tintOf = (user) => shadeOf(user, INITIAL_TINTS);
 
 // Circular avatar: the user's uploaded image, or their initial as fallback.
 // Size comes from the className (e.g. entry-avatar, nook-chip-avatar).
@@ -31,7 +34,7 @@ export default function Avatar({ user, className }) {
         className={`avatar-img ${bundled ? 'head-crop ' : ''}${className}`}
         style={
           bundled
-            ? { background: DEMO_BG[(user.id || 0) % DEMO_BG.length] }
+            ? { background: DEMO_BG[shadeOf(user, DEMO_BG.length)] }
             : undefined
         }
         src={src}

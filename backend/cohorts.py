@@ -22,5 +22,5 @@ def in_active_cohort(db: Session, user: User, key: str) -> bool:
         .all()
     )
     return any(
-        p.user_id == user.id for room in rooms for p in room.participants
+        p.user_uuid == user.uuid for room in rooms for p in room.participants
     )

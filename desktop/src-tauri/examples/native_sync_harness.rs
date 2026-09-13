@@ -16,12 +16,12 @@ async fn main() {
     let database = &arguments[1];
     let backend = &arguments[2];
     let token = &arguments[3];
-    let account_id: i64 = arguments[4].parse().expect("account ID is an integer");
-    let paper_id = &arguments[5];
-    let edition_id = &arguments[6];
-    let board_id = Uuid::new_v4().to_string();
-    let item_id = Uuid::new_v4().to_string();
-    let clip_id = Uuid::new_v4().to_string();
+    let account_uuid = arguments[4].as_str();
+    let paper_uuid = &arguments[5];
+    let edition_uuid = &arguments[6];
+    let board_uuid = Uuid::new_v4().to_string();
+    let item_uuid = Uuid::new_v4().to_string();
+    let clip_uuid = Uuid::new_v4().to_string();
     let clip_bytes = b"native viewer clip bytes";
     let sha256;
 
@@ -33,20 +33,20 @@ async fn main() {
             .sha256;
         store
             .mutate(
-                account_id,
+                account_uuid,
                 vec![
                     DataChange {
                         table: "boards".into(),
-                        id: board_id.clone(),
+                        uuid: board_uuid.clone(),
                         operation: "upsert".into(),
                         values: Map::from_iter([("name".into(), json!("End-to-end offline"))]),
                     },
                     DataChange {
                         table: "board_items".into(),
-                        id: item_id.clone(),
+                        uuid: item_uuid.clone(),
                         operation: "upsert".into(),
                         values: Map::from_iter([
-                            ("board_id".into(), json!(board_id)),
+                            ("board_uuid".into(), json!(board_uuid)),
                             ("kind".into(), json!("comment")),
                             ("content".into(), json!("Survived restart and sync")),
                             ("x".into(), json!(18)),
@@ -55,10 +55,10 @@ async fn main() {
                     },
                     DataChange {
                         table: "board_items".into(),
-                        id: clip_id.clone(),
+                        uuid: clip_uuid.clone(),
                         operation: "upsert".into(),
                         values: Map::from_iter([
-                            ("board_id".into(), json!(board_id)),
+                            ("board_uuid".into(), json!(board_uuid)),
                             ("kind".into(), json!("image")),
                             ("content".into(), json!("Clipped offline")),
                             ("sha256".into(), json!(sha256)),
@@ -76,7 +76,7 @@ async fn main() {
 
     let seeded = LocalStore::open(Path::new(database)).expect("reopen local database");
     let before = seeded
-        .query(account_id, "board", json!({"id": board_id}))
+        .query(account_uuid, "board", json!({"uuid": board_uuid}))
         .expect("offline board survives restart");
     assert_eq!(
         seeded
@@ -86,26 +86,26 @@ async fn main() {
     );
     let initial_sync = Coordinator::new()
         .expect("create coordinator")
-        .synchronize(&seeded, account_id, backend, token)
+        .synchronize(&seeded, account_uuid, backend, token)
         .await
         .expect("synchronize local database");
-    let note_id = Uuid::new_v4().to_string();
-    let ink_id = Uuid::new_v4().to_string();
-    let paper_clip_id = Uuid::new_v4().to_string();
-    let imported_paper_id = Uuid::new_v4().to_string();
-    let imported_edition_id = Uuid::new_v4().to_string();
-    let imported_copy_id = Uuid::new_v4().to_string();
+    let note_uuid = Uuid::new_v4().to_string();
+    let ink_uuid = Uuid::new_v4().to_string();
+    let paper_clip_uuid = Uuid::new_v4().to_string();
+    let imported_paper_uuid = Uuid::new_v4().to_string();
+    let imported_edition_uuid = Uuid::new_v4().to_string();
+    let imported_copy_uuid = Uuid::new_v4().to_string();
     seeded
         .mutate(
-            account_id,
+            account_uuid,
             vec![
                 DataChange {
                     table: "comments".into(),
-                    id: note_id.clone(),
+                    uuid: note_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_id".into(), json!(paper_id)),
-                        ("edition_id".into(), json!(edition_id)),
+                        ("paper_uuid".into(), json!(paper_uuid)),
+                        ("edition_uuid".into(), json!(edition_uuid)),
                         ("content".into(), json!("Native offline note")),
                         ("page".into(), json!(1)),
                         ("anchor_type".into(), json!("point")),
@@ -114,10 +114,10 @@ async fn main() {
                 },
                 DataChange {
                     table: "ink_strokes".into(),
-                    id: ink_id.clone(),
+                    uuid: ink_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("edition_id".into(), json!(edition_id)),
+                        ("edition_uuid".into(), json!(edition_uuid)),
                         ("page".into(), json!(1)),
                         (
                             "points".into(),
@@ -131,10 +131,10 @@ async fn main() {
                 },
                 DataChange {
                     table: "paper_clips".into(),
-                    id: paper_clip_id.clone(),
+                    uuid: paper_clip_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("edition_id".into(), json!(edition_id)),
+                        ("edition_uuid".into(), json!(edition_uuid)),
                         ("page".into(), json!(1)),
                         (
                             "source".into(),
@@ -158,11 +158,11 @@ async fn main() {
         .expect("import offline PDF");
     seeded
         .mutate(
-            account_id,
+            account_uuid,
             vec![
                 DataChange {
                     table: "papers".into(),
-                    id: imported_paper_id.clone(),
+                    uuid: imported_paper_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("title".into(), json!("Native imported PDF")),
@@ -171,21 +171,21 @@ async fn main() {
                 },
                 DataChange {
                     table: "paper_editions".into(),
-                    id: imported_edition_id.clone(),
+                    uuid: imported_edition_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_id".into(), json!(imported_paper_id)),
+                        ("paper_uuid".into(), json!(imported_paper_uuid)),
                         ("file_path".into(), json!(format!("{}.pdf", pdf.sha256))),
                         ("sha256".into(), json!(pdf.sha256)),
                     ]),
                 },
                 DataChange {
                     table: "copies".into(),
-                    id: imported_copy_id,
+                    uuid: imported_copy_uuid,
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_id".into(), json!(imported_paper_id)),
-                        ("edition_id".into(), json!(imported_edition_id)),
+                        ("paper_uuid".into(), json!(imported_paper_uuid)),
+                        ("edition_uuid".into(), json!(imported_edition_uuid)),
                         ("edition_sha256".into(), json!(pdf.sha256)),
                         ("summary".into(), json!("Imported entirely offline")),
                     ]),
@@ -198,31 +198,31 @@ async fn main() {
     let reopened =
         LocalStore::open(Path::new(database)).expect("restart after offline annotations");
     let offline_notes = reopened
-        .query(account_id, "comments", json!({"parent_id": paper_id}))
+        .query(account_uuid, "comments", json!({"parent_uuid": paper_uuid}))
         .expect("offline notes survive restart");
     let offline_import = reopened
-        .query(account_id, "paper", json!({"id": imported_paper_id}))
+        .query(account_uuid, "paper", json!({"uuid": imported_paper_uuid}))
         .expect("offline PDF survives restart");
     let sync = Coordinator::new()
         .expect("create restart coordinator")
-        .synchronize(&reopened, account_id, backend, token)
+        .synchronize(&reopened, account_uuid, backend, token)
         .await
         .expect("synchronize annotations");
     let status = reopened
-        .query(account_id, "sync_status", Value::Object(Map::new()))
+        .query(account_uuid, "sync_status", Value::Object(Map::new()))
         .expect("read sync status");
     println!(
         "{}",
         json!({
-            "board_id": board_id,
-            "item_id": item_id,
-            "clip_id": clip_id,
+            "board_uuid": board_uuid,
+            "item_uuid": item_uuid,
+            "clip_uuid": clip_uuid,
             "sha256": sha256,
-            "note_id": note_id,
-            "ink_id": ink_id,
-            "paper_clip_id": paper_clip_id,
-            "imported_paper_id": imported_paper_id,
-            "imported_edition_id": imported_edition_id,
+            "note_uuid": note_uuid,
+            "ink_uuid": ink_uuid,
+            "paper_clip_uuid": paper_clip_uuid,
+            "imported_paper_uuid": imported_paper_uuid,
+            "imported_edition_uuid": imported_edition_uuid,
             "imported_pdf_sha256": pdf.sha256,
             "offline_import": offline_import,
             "before": before,

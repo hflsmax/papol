@@ -18,35 +18,13 @@ def reference(**overrides):
     return SimpleNamespace(**values)
 
 
-class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
-    def test_old_journal_as_title_is_repaired_when_served(self):
-        raw = (
-            "M. Schenk and S. D. Guest, Proceedings of the National Academy "
-            "of Sciences 110, 3276 (2013)."
-        )
-        ref = reference(
-            raw=raw,
-            title="Proceedings of the National Academy of Sciences",
-            journal="Proceedings of the National Academy of Sciences",
-            authors=None,
-            resolved_status="bibliography",
-            resolution='{"title":"Proceedings of the National Academy of Sciences",'
-            '"venue":"Proceedings of the National Academy of Sciences",'
-            '"source":"bibliography"}',
-            id=8,
-            key="b7",
-            index=7,
-            page=None,
-            y=None,
-        )
-        answer = reference_engine.reference_out(ref)
-        self.assertIsNone(answer.title)
-        self.assertEqual(answer.resolution.title, raw)
-        self.assertEqual(
-            answer.resolution.venue,
-            "Proceedings of the National Academy of Sciences",
-        )
+async def resolve_unindexed(ref):
+    """Resolve with every index answering that it does not know the work."""
+    with patch.object(reference_engine.biblio, "resolve", AsyncMock(return_value=("miss", None))):
+        return await reference_engine.resolve(ref)
 
+
+class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
     def test_untitled_reference_accepts_exact_crossref_metadata(self):
         context = biblio.ReferenceContext(
             raw="M. Schenk and S. D. Guest, PNAS 110, 3276 (2013).",
@@ -113,44 +91,23 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
         lookup.assert_awaited_once_with("2310.06825")
         crossref.assert_not_awaited()
 
-    async def test_new_arxiv_evidence_retries_cached_miss(self):
-        ref = reference(
-            raw="Mistral 7B. https://arxiv.org/abs/2310.06825",
-            resolved_status="miss",
-            resolution=None,
-            resolved_at=None,
-            id=17,
-            key="b17",
-            index=17,
-            page=None,
-            y=None,
-        )
-        with patch.object(
-            reference_engine.biblio,
-            "resolve",
-            AsyncMock(return_value=("ok", {"title": "Mistral 7B", "year": 2023})),
-        ) as resolver:
-            answer = await reference_engine.resolve(ref)
-        resolver.assert_awaited_once_with(ref)
-        self.assertEqual(answer.resolved_status, "ok")
-
     async def test_unindexed_web_reference_gets_bibliography_card(self):
         ref = reference(
             raw="MLC team. WebLLM, 2023b. URL https://github. com/mlc-ai/web-llm.",
             title=None,
             year=2023,
-            resolved_status="miss",
+            resolved_status=None,
             resolution=None,
             resolved_at=None,
             authors=None,
             journal=None,
-            id=27,
+            uuid="reference-27",
             key="b27",
             index=27,
             page=None,
             y=None,
         )
-        answer = await reference_engine.resolve(ref)
+        answer = await resolve_unindexed(ref)
         self.assertEqual(answer.resolved_status, "bibliography")
         self.assertEqual(answer.resolution.title, "mlc-ai/web-llm")
         self.assertEqual(answer.resolution.year, 2023)
@@ -161,18 +118,18 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
             raw="Chaudhary, S. Code alpaca. https://github.com/ sahil280114/codealpaca , 2023.",
             title=None,
             year=None,
-            resolved_status="miss",
+            resolved_status=None,
             resolution=None,
             resolved_at=None,
             authors=None,
             journal=None,
-            id=28,
+            uuid="reference-28",
             key="codealpaca",
             index=28,
             page=None,
             y=None,
         )
-        answer = await reference_engine.resolve(ref)
+        answer = await resolve_unindexed(ref)
         self.assertEqual(answer.resolution.title, "sahil280114/codealpaca")
         self.assertEqual(answer.resolution.year, 2023)
 
@@ -182,18 +139,18 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
             title="Efficient guided generation for LLMs",
             year=2023,
             arxiv_id="2307.09702",
-            resolved_status="miss",
+            resolved_status=None,
             resolution=None,
             resolved_at=None,
             authors=None,
             journal=None,
-            id=44,
+            uuid="reference-44",
             key="b44",
             index=44,
             page=None,
             y=None,
         )
-        answer = await reference_engine.resolve(ref)
+        answer = await resolve_unindexed(ref)
         self.assertEqual(answer.resolved_status, "bibliography")
         self.assertEqual(answer.resolution.url, "https://arxiv.org/abs/2307.09702")
 
@@ -208,7 +165,7 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
             resolved_at=None,
             authors=None,
             journal=None,
-            id=7,
+            uuid="reference-7",
             key="b7",
             index=7,
             page=None,

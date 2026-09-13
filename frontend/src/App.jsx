@@ -4941,15 +4941,14 @@ function parseRoute() {
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
     : rawPath;
   const routed = (route) => (demo ? { ...route, demo: true } : route);
-  let match = path.match(/^\/u\/(\d+)\/boards\/?$/);
-  if (match) return routed({ page: 'space', id: parseInt(match[1]), section: 'boards' });
-  match = path.match(/^\/u\/(\d+)\/?$/);
-  if (match) return routed({ page: 'space', id: parseInt(match[1]) });
-  // Papers are addressed by their UUID, and only by it.
-  match = path.match(/^\/paper\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
-  if (match) return routed({ page: 'paper', id: match[1].toLowerCase() });
-  match = path.match(/^\/room\/(\d+)\/?$/);
-  if (match) return routed({ page: 'room', id: parseInt(match[1]) });
+  // Readers, papers and seminars are addressed by their UUID, and only by it.
+  const UUID_PATTERN = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
+  const at = (pattern) => path.match(new RegExp(`^${pattern}/?$`, 'i'))?.[1].toLowerCase();
+  let uuid;
+  if ((uuid = at(`/u/${UUID_PATTERN}/boards`))) return routed({ page: 'space', uuid, section: 'boards' });
+  if ((uuid = at(`/u/${UUID_PATTERN}`))) return routed({ page: 'space', uuid });
+  if ((uuid = at(`/paper/${UUID_PATTERN}`))) return routed({ page: 'paper', uuid });
+  if ((uuid = at(`/room/${UUID_PATTERN}`))) return routed({ page: 'room', uuid });
   if (path === '/profile') return routed({ page: 'profile' });
   if (path === '/join') return routed({ page: 'join' });
   if (path === '/about') return routed({ page: 'about' });
@@ -4997,8 +4996,8 @@ function navigate(path, { replace = false } = {}) {
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-function openBoard(guid) {
-  const path = demoActive() ? `/demo/boards/${guid}` : `/boards/${guid}`;
+function openBoard(uuid) {
+  const path = demoActive() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
   if (DESKTOP) {
     openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
     return;
@@ -5097,7 +5096,7 @@ export default function App() {
         return;
       }
       setLibraryDropNotice(null);
-      setIncomingPaperFile({ id: globalThis.crypto.randomUUID(), file: files[0] });
+      setIncomingPaperFile({ uuid: globalThis.crypto.randomUUID(), file: files[0] });
       navigate('/library');
     };
     window.addEventListener('dragenter', dragEnter);
@@ -5208,7 +5207,7 @@ export default function App() {
   const [syncRefresh, setSyncRefresh] = useState(0);
   // The desktop sidebar lists the reader's shelves and tags, so the desktop
   // app keeps their nook loaded beside whatever is open.
-  const nook = useNookSpace(DESKTOP && user ? user.id : null, route);
+  const nook = useNookSpace(DESKTOP && user ? user.uuid : null, route);
   const desktopSource = resolveSource(route, user, {
     search: window.location.search,
     lastShown: lastShownSource(),
@@ -5275,7 +5274,7 @@ export default function App() {
     const leave = await confirmAction(warning, { confirmLabel: 'Sign out' });
     if (!leave) return;
     try {
-      await logout(user?.id);
+      await logout(user?.uuid);
     } catch (error) {
       const message = `Could not delete local account data: ${error.message}`;
       if (DESKTOP) {
@@ -5421,7 +5420,7 @@ export default function App() {
   // real accounts, remounts every page so no nook or private paper state can
   // survive an identity boundary.
   const pages = (
-    <main className="main-content" key={`${mode}:${user?.id ?? 'none'}`}>
+    <main className="main-content" key={`${mode}:${user?.uuid ?? 'none'}`}>
       {guestNeedsSignIn ? (
         <AuthPage onAuth={handleAuth} initialMode="login" />
       ) : (
@@ -5429,9 +5428,9 @@ export default function App() {
       {route.page === 'home' &&
         (user ? (
           <Space
-            userId={user.id}
+            userUuid={user.uuid}
             currentUser={user}
-            onSelectPaper={(id) => navigate(`/paper/${id}`)}
+            onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
             onSelectBoard={openBoard}
           />
         ) : DESKTOP ? (
@@ -5445,9 +5444,9 @@ export default function App() {
         ))}
       {route.page === 'space' && (
         <Space
-          userId={route.id}
+          userUuid={route.uuid}
           currentUser={user}
-          onSelectPaper={(id) => navigate(`/paper/${id}`)}
+          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
           onSelectBoard={openBoard}
           initialSection={route.section}
           onBack={goBack}
@@ -5456,7 +5455,7 @@ export default function App() {
       )}
       {route.page === 'paper' && (
         <PaperDetail
-          paperId={route.id}
+          paperUuid={route.uuid}
           currentUser={user}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
           onBack={goBack}
@@ -5465,24 +5464,24 @@ export default function App() {
             mode !== 'demo' &&
             !window.history.state?.papolNavigation
           }
-          onSelectPaper={(id) => navigate(`/paper/${id}`)}
+          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
         />
       )}
       {route.page === 'papers' && (
         <PapersPage
           currentUser={user}
-          onSelectPaper={(id) => navigate(`/paper/${id}`)}
+          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
           onSelectBoard={openBoard}
           incomingPaperFile={incomingPaperFile}
           onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
         />
       )}
       {route.page === 'room' && (
-        <RoomPage roomId={route.id} currentUser={user} onBack={goBack} backHref={backHref} />
+        <RoomPage roomUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
       )}
       {route.page === 'inbox' && (
         <InboxPage
-          onOpenRoom={(id) => navigate(`/room/${id}`)}
+          onOpenRoom={(uuid) => navigate(`/room/${uuid}`)}
           onUnread={setUnreadCount}
         />
       )}
@@ -5528,9 +5527,9 @@ export default function App() {
   // Reading happens in a three-pane browser — source, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
-    const movePaperToShelf = async (paperId, shelfId) => {
+    const movePaperToShelf = async (paperUuid, shelfUuid) => {
       try {
-        await updatePaper(paperId, { shelf_id: shelfId });
+        await updatePaper(paperUuid, { shelf_uuid: shelfUuid });
       } catch (err) {
         setDesktopNotice(err.message);
         window.setTimeout(() => setDesktopNotice(null), 5000);
@@ -5549,7 +5548,7 @@ export default function App() {
             setSpace={nook.setSpace}
             onChanged={nook.reload}
             onClose={() => setManagingNook(false)}
-            onTagDeleted={(tagId) => { if (desktopSource === `tag:${tagId}`) navigate('/'); }}
+            onTagDeleted={(tagUuid) => { if (desktopSource === `tag:${tagUuid}`) navigate('/'); }}
           />
         )}
         <div className="desktop-app" onClickCapture={routeAppLinks}>
@@ -5569,7 +5568,7 @@ export default function App() {
           />
           {isBrowsing(route, user) ? (
             <DesktopBrowser
-              key={`${mode}:${user.id}`}
+              key={`${mode}:${user.uuid}`}
               source={desktopSource}
               route={route}
               currentUser={user}
@@ -5619,7 +5618,7 @@ export default function App() {
                 href={appPath('/')}
                 className={
                   route.page === 'home' || route.page === 'board' ||
-                  (route.page === 'space' && route.id === user.id)
+                  (route.page === 'space' && route.uuid === user.uuid)
                     ? 'active'
                     : ''
                 }

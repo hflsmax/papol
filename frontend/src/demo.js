@@ -5,7 +5,7 @@
 // remains the sole authority for whether demo mode is active.
 
 import {
-  demoPapers, demoNotes, demoEditionFor, demoPaperId, noteAsComment,
+  demoPapers, demoNotes, demoEditionFor, demoPaperUuid, noteAsComment,
 } from '../../shared/demoWorld';
 import { stripAppBase } from './base';
 
@@ -26,7 +26,18 @@ export function exitDemo() {
   db = null;
 }
 
-const ME = 1;
+// Every demo row is named by UUID, as every Papol row is. Seeds name rows by
+// kind and a small ordinal; rows made while playing get a random UUID.
+const KIND_DIGITS = {
+  user: 'a', tag: 'b', shelf: 'c', copy: 'd', room: 'e', participant: 'f',
+  message: '1', availability: '2', notification: '3',
+};
+const demoUuid = (kind, ordinal) =>
+  `00000000-0000-4000-8000-${KIND_DIGITS[kind]}${String(ordinal).padStart(11, '0')}`;
+const newUuid = () => globalThis.crypto.randomUUID();
+const tagUuids = (...ordinals) => ordinals.map((ordinal) => demoUuid('tag', ordinal));
+
+const ME = demoUuid('user', 1);
 
 function demoError(detail, status = 400) {
   const err = new Error(detail);
@@ -40,13 +51,13 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 
 function seed() {
   const users = [
-    { id: ME, display_name: 'SpongeBob SquarePants', affiliation: 'MIT CSAIL', avatar_path: 'assets/demo/spongebob.png', email: 'spongebob@demo.papol', is_admin: false },
-    { id: 2, display_name: 'Sandy Cheeks', affiliation: 'Carnegie Mellon University', avatar_path: 'assets/demo/sandy.png', email: 'sandy@demo.papol' },
-    { id: 3, display_name: 'Patrick Star', affiliation: 'Stanford University', avatar_path: 'assets/demo/patrick.png', email: 'patrick@demo.papol' },
-    { id: 4, display_name: 'Squidward Tentacles', affiliation: 'UC Berkeley', avatar_path: 'assets/demo/squidward.png', email: 'squidward@demo.papol' },
-    { id: 5, display_name: 'Mr. Krabs', affiliation: 'Bikini Bottom University', avatar_path: 'assets/demo/krabs.png', email: 'krabs@demo.papol' },
+    { uuid: ME, display_name: 'SpongeBob SquarePants', affiliation: 'MIT CSAIL', avatar_path: 'assets/demo/spongebob.png', email: 'spongebob@demo.papol', is_admin: false },
+    { uuid: demoUuid('user', 2), display_name: 'Sandy Cheeks', affiliation: 'Carnegie Mellon University', avatar_path: 'assets/demo/sandy.png', email: 'sandy@demo.papol' },
+    { uuid: demoUuid('user', 3), display_name: 'Patrick Star', affiliation: 'Stanford University', avatar_path: 'assets/demo/patrick.png', email: 'patrick@demo.papol' },
+    { uuid: demoUuid('user', 4), display_name: 'Squidward Tentacles', affiliation: 'UC Berkeley', avatar_path: 'assets/demo/squidward.png', email: 'squidward@demo.papol' },
+    { uuid: demoUuid('user', 5), display_name: 'Mr. Krabs', affiliation: 'Bikini Bottom University', avatar_path: 'assets/demo/krabs.png', email: 'krabs@demo.papol' },
     // Plankton keeps his address to himself — the opted-out case.
-    { id: 6, display_name: 'Plankton', affiliation: 'Bikini State University', avatar_path: 'assets/demo/plankton.png', email: 'plankton@demo.papol', email_public: false },
+    { uuid: demoUuid('user', 6), display_name: 'Plankton', affiliation: 'Bikini State University', avatar_path: 'assets/demo/plankton.png', email: 'plankton@demo.papol', email_public: false },
   ];
 
   const papers = demoPapers.map(({ daysAgo: ago, ...p }) => ({
@@ -55,39 +66,39 @@ function seed() {
   }));
 
   let cid = 1;
-  // Seeds name a paper by its place in demoPapers.
-  const copy = (paper, user_id, extra = {}) => ({
-    id: cid++, paper_id: demoPaperId(paper), user_id, summary: null, thought: null, marketed: true, is_author: false,
+  // Seeds name a paper by its place in demoPapers, and a reader by ordinal.
+  const copy = (paper, user, extra = {}) => ({
+    uuid: demoUuid('copy', cid++), paper_uuid: demoPaperUuid(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, marketed: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
-    tag_ids: [], created_at: daysAgo(5), ...extra,
+    tag_uuids: [], created_at: daysAgo(5), ...extra,
   });
 
   // SpongeBob's private filing system. These never appear in another
   // reader's nook or on their copy of the same paper.
   const tags = [
-    { id: 1, name: 'foundations' },
-    { id: 2, name: 'transformers' },
-    { id: 3, name: 'to discuss' },
-    { id: 4, name: 'my work' },
+    { uuid: demoUuid('tag', 1), name: 'foundations' },
+    { uuid: demoUuid('tag', 2), name: 'transformers' },
+    { uuid: demoUuid('tag', 3), name: 'to discuss' },
+    { uuid: demoUuid('tag', 4), name: 'my work' },
     // Deliberately unused: opening a paper's tag picker demonstrates that
     // an existing tag can be attached without creating a new one.
-    { id: 5, name: 'reread' },
-    { id: 6, name: 'favourite' },
+    { uuid: demoUuid('tag', 5), name: 'reread' },
+    { uuid: demoUuid('tag', 6), name: 'favourite' },
   ];
   const shelves = [
-    { id: 1, name: 'Display', color: '#7ba26c', is_public: true, is_default: true, position: 0 },
-    { id: 2, name: 'Personal', color: '#2b4a6f', is_public: false, is_default: false, position: 1 },
-    { id: 3, name: 'Seminar picks', color: '#b3923d', is_public: true, is_default: false, position: 2 },
-    { id: 4, name: 'Deep dives', color: '#6b3f5e', is_public: false, is_default: false, position: 3 },
+    { uuid: demoUuid('shelf', 1), name: 'Display', color: '#7ba26c', is_public: true, is_default: true, position: 0 },
+    { uuid: demoUuid('shelf', 2), name: 'Personal', color: '#2b4a6f', is_public: false, is_default: false, position: 1 },
+    { uuid: demoUuid('shelf', 3), name: 'Seminar picks', color: '#b3923d', is_public: true, is_default: false, position: 2 },
+    { uuid: demoUuid('shelf', 4), name: 'Deep dives', color: '#6b3f5e', is_public: false, is_default: false, position: 3 },
   ];
 
   const copies = [
-    copy(1, ME, { summary: '## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, tag_ids: [1, 3], created_at: daysAgo(28) }),
+    copy(1, 1, { summary: '## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.', thought: 'Four generals, one traitor — suddenly the arithmetic makes sense.', rating_expertise: 3, rating_reading: 4, rating_liking: 5, tag_uuids: tagUuids(1, 3), created_at: daysAgo(28) }),
     copy(1, 2, { thought: 'The clearest impossibility argument I know.', rating_expertise: 4, rating_reading: 5, rating_liking: 5 }),
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
-    copy(2, ME, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, tag_ids: [2, 3], created_at: daysAgo(20) }),
+    copy(2, 1, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, tag_uuids: tagUuids(2, 3), created_at: daysAgo(20) }),
     copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
-    copy(3, ME, { marketed: false, summary: 'Working through how scale changes the few-shot regime before sharing a take.', tag_ids: [2], created_at: daysAgo(12) }),
+    copy(3, 1, { marketed: false, summary: 'Working through how scale changes the few-shot regime before sharing a take.', tag_uuids: tagUuids(2), created_at: daysAgo(12) }),
     copy(3, 3, { thought: 'GPUs go brrr and suddenly vision works.', rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
     copy(3, 6, { thought: 'Scale beats cleverness; I find that deeply unfair.', rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
     copy(4, 4, { thought: 'Tables. It was always going to be tables.', rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
@@ -102,20 +113,20 @@ function seed() {
     copy(8, 6, { thought: 'Seven primitives and you get a civilization.', rating_expertise: 3, rating_reading: 3, rating_liking: 4 }),
     copy(9, 2, { thought: 'Call-by-name and call-by-value finally on one clean footing.', rating_expertise: 4, rating_reading: 4, rating_liking: 5 }),
     copy(9, 5, { rating_expertise: 2, rating_reading: 3, rating_liking: 4 }),
-    copy(10, ME, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, tag_ids: [3, 4], created_at: daysAgo(1) }),
+    copy(10, 1, { is_author: true, thought: 'Our secret formula holds even when one cook is a spy.', summary: '## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.', rating_expertise: 5, rating_reading: 5, rating_liking: 5, tag_uuids: tagUuids(3, 4), created_at: daysAgo(1) }),
     copy(10, 2, { is_author: true, thought: 'The karate chop lemma was the hard part.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
     copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
     // A private exploration: filed in Deep dives and absent from the
     // public nook even though the public one-line thought stays attached.
-    copy(9, ME, { marketed: false, thought: 'Reading this in secret.', tag_ids: [1], created_at: daysAgo(0) }),
+    copy(9, 1, { marketed: false, thought: 'Reading this in secret.', tag_uuids: tagUuids(1), created_at: daysAgo(0) }),
   ];
-  for (const item of copies) item.shelf_id = item.marketed ? 1 : 2;
+  for (const item of copies) item.shelf_uuid = demoUuid('shelf', item.marketed ? 1 : 2);
   // Spread SpongeBob's papers across the shelves so every shelf demonstrates
   // real membership, color, visibility, and counts.
-  for (const item of copies.filter((copyItem) => copyItem.user_id === ME)) {
-    if (item.paper_id === demoPaperId(1) || item.paper_id === demoPaperId(10)) item.shelf_id = 3;
-    if (item.paper_id === demoPaperId(9)) item.shelf_id = 4;
-    item.marketed = shelves.find((shelf) => shelf.id === item.shelf_id).is_public;
+  for (const item of copies.filter((copyItem) => copyItem.user_uuid === ME)) {
+    if (item.paper_uuid === demoPaperUuid(1) || item.paper_uuid === demoPaperUuid(10)) item.shelf_uuid = demoUuid('shelf', 3);
+    if (item.paper_uuid === demoPaperUuid(9)) item.shelf_uuid = demoUuid('shelf', 4);
+    item.marketed = shelves.find((shelf) => shelf.uuid === item.shelf_uuid).is_public;
   }
 
   // SpongeBob's notes, as the API would return them. Bare anchors and his
@@ -125,53 +136,55 @@ function seed() {
   const key = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
 
   const rooms = [
-    { id: 1, paper_key: key(papers[0]), paper_title: papers[0].title, created_by: 3,
-      leader_id: 2, status: 'finished', scheduled_time: 'Two weeks ago, 4 pm', platform: 'Zoom',
+    { uuid: demoUuid('room', 1), paper_key: key(papers[0]), paper_title: papers[0].title, created_by: demoUuid('user', 3),
+      leader_uuid: demoUuid('user', 2), status: 'finished', scheduled_time: 'Two weeks ago, 4 pm', platform: 'Zoom',
       style: 'walkthrough', style_desc: null, created_at: daysAgo(16) },
-    { id: 2, paper_key: key(papers[0]), paper_title: papers[0].title, created_by: 3,
-      leader_id: 2, status: 'planning', scheduled_time: null, platform: null,
+    { uuid: demoUuid('room', 2), paper_key: key(papers[0]), paper_title: papers[0].title, created_by: demoUuid('user', 3),
+      leader_uuid: demoUuid('user', 2), status: 'planning', scheduled_time: null, platform: null,
       style: null, style_desc: null, created_at: daysAgo(2) },
-    { id: 3, paper_key: key(papers[6]), paper_title: papers[6].title, created_by: 4,
-      leader_id: 4, status: 'scheduled', scheduled_time: 'Friday, 4:00 pm CET', platform: 'Zoom',
+    { uuid: demoUuid('room', 3), paper_key: key(papers[6]), paper_title: papers[6].title, created_by: demoUuid('user', 4),
+      leader_uuid: demoUuid('user', 4), status: 'scheduled', scheduled_time: 'Friday, 4:00 pm CET', platform: 'Zoom',
       style: 'questions', style_desc: null, created_at: daysAgo(4) },
-    { id: 4, paper_key: key(papers[1]), paper_title: papers[1].title, created_by: 2,
-      leader_id: null, status: 'open', scheduled_time: null, platform: null,
+    { uuid: demoUuid('room', 4), paper_key: key(papers[1]), paper_title: papers[1].title, created_by: demoUuid('user', 2),
+      leader_uuid: null, status: 'open', scheduled_time: null, platform: null,
       style: null, style_desc: null, created_at: daysAgo(1) },
   ];
 
   let pid = 1;
-  const part = (room_id, user_id) => ({ id: pid++, room_id, user_id, created_at: daysAgo(1) });
+  const part = (room, user) => ({
+    uuid: demoUuid('participant', pid++), room_uuid: demoUuid('room', room), user_uuid: demoUuid('user', user),
+    created_at: daysAgo(1),
+  });
   const participants = [
-    part(1, 2), part(1, 3), part(1, ME),
-    part(2, 3), part(2, 2), part(2, ME),
+    part(1, 2), part(1, 3), part(1, 1),
+    part(2, 3), part(2, 2), part(2, 1),
     part(3, 4), part(3, 5),
     part(4, 2),
   ];
 
   const messages = [
-    { id: 1, room_id: 2, user_id: 3, content: 'I mostly followed the story but lost the proof — can we walk it slowly?', created_at: daysAgo(2) },
-    { id: 2, room_id: 2, user_id: 2, content: 'Sure! I will prepare the m=1 and m=2 cases on a whiteboard.', created_at: daysAgo(1) },
+    { uuid: demoUuid('message', 1), room_uuid: demoUuid('room', 2), user_uuid: demoUuid('user', 3), content: 'I mostly followed the story but lost the proof — can we walk it slowly?', created_at: daysAgo(2) },
+    { uuid: demoUuid('message', 2), room_uuid: demoUuid('room', 2), user_uuid: demoUuid('user', 2), content: 'Sure! I will prepare the m=1 and m=2 cases on a whiteboard.', created_at: daysAgo(1) },
   ];
 
   const availabilities = [
-    { id: 1, room_id: 2, user_id: 2, availability: 'Weekday evenings; any time Friday', created_at: daysAgo(1) },
-    { id: 2, room_id: 2, user_id: 3, availability: 'After 3 pm most days', created_at: daysAgo(1) },
+    { uuid: demoUuid('availability', 1), room_uuid: demoUuid('room', 2), user_uuid: demoUuid('user', 2), availability: 'Weekday evenings; any time Friday', created_at: daysAgo(1) },
+    { uuid: demoUuid('availability', 2), room_uuid: demoUuid('room', 2), user_uuid: demoUuid('user', 3), availability: 'After 3 pm most days', created_at: daysAgo(1) },
   ];
 
   const notifications = [
-    { id: 1, user_id: ME, room_id: 4, content: 'Sandy Cheeks called for a seminar on “Attention Is All You Need”. A reader of the paper can answer to host.', read: false, created_at: daysAgo(1) },
-    { id: 2, user_id: ME, room_id: 2, content: 'Sandy Cheeks will host the seminar on “The Byzantine Generals Problem”. Share your availability in the cohort.', read: true, created_at: daysAgo(2) },
+    { uuid: demoUuid('notification', 1), user_uuid: ME, room_uuid: demoUuid('room', 4), content: 'Sandy Cheeks called for a seminar on “Attention Is All You Need”. A reader of the paper can answer to host.', read: false, created_at: daysAgo(1) },
+    { uuid: demoUuid('notification', 2), user_uuid: ME, room_uuid: demoUuid('room', 2), content: 'Sandy Cheeks will host the seminar on “The Byzantine Generals Problem”. Share your availability in the cohort.', read: true, created_at: daysAgo(2) },
   ];
 
   return {
     users, papers, copies, comments, rooms, participants, messages,
     availabilities, notifications, tags, shelves,
-    nextId: { paper: 100, copy: 100, comment: 100, room: 100, part: 100, msg: 100, avail: 100, notif: 100, tag: 7, shelf: 5 },
   };
 }
 
 let db = null;
-const STORAGE_KEY = 'papol.demoWorld.v3';
+const STORAGE_KEY = 'papol.demoWorld';
 const navigation = window.performance.getEntriesByType('navigation')[0];
 if (navigation?.type === 'reload') {
   window.sessionStorage.removeItem(STORAGE_KEY);
@@ -180,7 +193,7 @@ if (navigation?.type === 'reload') {
 function storedWorld() {
   try {
     const value = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
-    return value && Array.isArray(value.papers) && Array.isArray(value.copies) && value.nextId
+    return value && Array.isArray(value.papers) && Array.isArray(value.copies)
       ? value
       : null;
   } catch {
@@ -199,14 +212,14 @@ function persistWorld() {
 
 const ensure = () => { if (!db) db = storedWorld() || seed(); return db; };
 const myTags = () => ensure().tags || (ensure().tags = []);
-const tagsOf = (copy) => myTags().filter((tag) => (copy?.tag_ids || []).includes(tag.id));
+const tagsOf = (copy) => myTags().filter((tag) => (copy?.tag_uuids || []).includes(tag.uuid));
 
 // ---------- Helpers mirroring the backend ----------
 
 // Mirrors the backend's UserPublic: the email rides along only when the
 // reader chose to show it.
 const publicUser = (u) => ({
-  id: u.id, display_name: u.display_name,
+  uuid: u.uuid, display_name: u.display_name,
   affiliation: u.affiliation || null, avatar_path: u.avatar_path || null,
   email: u.email_public === false ? null : u.email || null,
 });
@@ -219,15 +232,15 @@ const privateUser = (u) => ({
   is_admin: false,
 });
 
-const userById = (id) => ensure().users.find((u) => u.id === id);
+const userByUuid = (uuid) => ensure().users.find((u) => u.uuid === uuid);
 const paperKey = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
-const paperCopies = (p) => ensure().copies.filter((c) => c.paper_id === p.id);
+const paperCopies = (p) => ensure().copies.filter((c) => c.paper_uuid === p.uuid);
 const displayedCopies = (p) => paperCopies(p).filter((c) => c.marketed);
-const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_id === uid) || null;
-const roomParts = (r) => ensure().participants.filter((x) => x.room_id === r.id);
+const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_uuid === uid) || null;
+const roomParts = (r) => ensure().participants.filter((x) => x.room_uuid === r.uuid);
 
 const readerEntry = (c) => ({
-  paper_id: c.paper_id, user: publicUser(userById(c.user_id)),
+  paper_uuid: c.paper_uuid, user: publicUser(userByUuid(c.user_uuid)),
   is_author: !!c.is_author,
   thought: c.thought,
   rating_expertise: c.rating_expertise, rating_reading: c.rating_reading,
@@ -235,13 +248,13 @@ const readerEntry = (c) => ({
 });
 
 const roomSummary = (r) => ({
-  id: r.id, status: r.status, scheduled_time: r.scheduled_time,
+  uuid: r.uuid, status: r.status, scheduled_time: r.scheduled_time,
   platform: r.platform, style: r.style, style_desc: r.style_desc,
   created_at: r.created_at,
-  creator: publicUser(userById(r.created_by)),
-  leader: r.leader_id ? publicUser(userById(r.leader_id)) : null,
+  creator: publicUser(userByUuid(r.created_by)),
+  leader: r.leader_uuid ? publicUser(userByUuid(r.leader_uuid)) : null,
   participant_count: roomParts(r).length,
-  participants: roomParts(r).map((x) => publicUser(userById(x.user_id))),
+  participants: roomParts(r).map((x) => publicUser(userByUuid(x.user_uuid))),
 });
 
 const paperRooms = (p) =>
@@ -260,15 +273,15 @@ function paperDetail(p) {
   const editions = editionsOf(p);
   const latest = editions[editions.length - 1];
   const myEdition =
-    editions.find((e) => mine && e.id === mine.edition_id) || latest;
+    editions.find((e) => mine && e.uuid === mine.edition_uuid) || latest;
   return {
-    id: p.id, doi: p.doi, title: p.title, authors: p.authors,
+    uuid: p.uuid, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: myEdition.file_path,
     created_at: p.created_at,
     editions,
     latest_edition: latest,
-    edition_id: myEdition.id,
-    ignored_edition_id: mine ? mine.ignored_edition_id ?? null : null,
+    edition_uuid: myEdition.uuid,
+    ignored_edition_uuid: mine ? mine.ignored_edition_uuid ?? null : null,
     summary: mine ? mine.summary : null,
     thought: mine ? mine.thought : null,
     marketed: mine ? mine.marketed : null,
@@ -276,11 +289,11 @@ function paperDetail(p) {
     rating_expertise: mine ? mine.rating_expertise : null,
     rating_reading: mine ? mine.rating_reading : null,
     rating_liking: mine ? mine.rating_liking : null,
-    shelf_id: mine ? mine.shelf_id : null,
+    shelf_uuid: mine ? mine.shelf_uuid : null,
     tags: tagsOf(mine),
     comments: mine
-      ? ensure().comments.filter((c) => c.paper_id === p.id && c.user_id === ME)
-          .map((c) => ({ ...c, user: publicUser(userById(c.user_id)) }))
+      ? ensure().comments.filter((c) => c.paper_uuid === p.uuid && c.user_uuid === ME)
+          .map((c) => ({ ...c, user: publicUser(userByUuid(c.user_uuid)) }))
       : [],
     also_read_by: displayedCopies(p).map(readerEntry),
     rooms: paperRooms(p).map(roomSummary),
@@ -299,10 +312,10 @@ function roomStatusMap() {
 
 function paperListEntry(p, c, hidePrivate, statusMap) {
   return {
-    id: p.id, doi: p.doi, title: p.title, authors: p.authors,
+    uuid: p.uuid, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: c ? c.created_at : p.created_at,
-    edition_id: c ? c.edition_id ?? editionsOf(p)[0].id : null,
+    edition_uuid: c ? c.edition_uuid ?? editionsOf(p)[0].uuid : null,
     summary: c && !hidePrivate ? c.summary : null,
     thought: c ? c.thought : null,
     marketed: c ? c.marketed : null,
@@ -310,7 +323,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     rating_expertise: c ? c.rating_expertise : null,
     rating_reading: c ? c.rating_reading : null,
     rating_liking: c ? c.rating_liking : null,
-    shelf_id: c ? c.shelf_id : null,
+    shelf_uuid: c ? c.shelf_uuid : null,
     tags: hidePrivate ? [] : tagsOf(c),
     room_status: statusMap[paperKey(p)] || null,
     readers: displayedCopies(p).map(readerEntry),
@@ -325,17 +338,17 @@ function roomDetail(r) {
   return {
     ...roomSummary(r),
     paper_title: r.paper_title,
-    paper_id: paper ? paper.id : null,
-    messages: d.messages.filter((m) => m.room_id === r.id)
-      .map((m) => ({ id: m.id, content: m.content, created_at: m.created_at, user: publicUser(userById(m.user_id)) })),
-    availabilities: d.availabilities.filter((a) => a.room_id === r.id)
-      .map((a) => ({ id: a.id, availability: a.availability, created_at: a.created_at, user: publicUser(userById(a.user_id)) })),
+    paper_uuid: paper ? paper.uuid : null,
+    messages: d.messages.filter((m) => m.room_uuid === r.uuid)
+      .map((m) => ({ uuid: m.uuid, content: m.content, created_at: m.created_at, user: publicUser(userByUuid(m.user_uuid)) })),
+    availabilities: d.availabilities.filter((a) => a.room_uuid === r.uuid)
+      .map((a) => ({ uuid: a.uuid, availability: a.availability, created_at: a.created_at, user: publicUser(userByUuid(a.user_uuid)) })),
     viewer_can_lead:
       r.status === 'open' && isReader &&
-      roomParts(r).some((x) => x.user_id === ME),
-    viewer_is_participant: roomParts(r).some((x) => x.user_id === ME),
+      roomParts(r).some((x) => x.user_uuid === ME),
+    viewer_is_participant: roomParts(r).some((x) => x.user_uuid === ME),
     viewer_is_reader: isReader,
-    viewer_hidden_entry_id: mine && !mine.marketed && paper ? paper.id : null,
+    viewer_hidden_entry_uuid: mine && !mine.marketed && paper ? paper.uuid : null,
   };
 }
 
@@ -343,8 +356,8 @@ const now = () => new Date().toISOString();
 
 function ensureParticipant(r) {
   const d = ensure();
-  if (!roomParts(r).some((x) => x.user_id === ME)) {
-    d.participants.push({ id: d.nextId.part++, room_id: r.id, user_id: ME, created_at: now() });
+  if (!roomParts(r).some((x) => x.user_uuid === ME)) {
+    d.participants.push({ uuid: newUuid(), room_uuid: r.uuid, user_uuid: ME, created_at: now() });
   }
 }
 
@@ -358,7 +371,7 @@ function requireReaderOf(room) {
 }
 
 function findPaper(ref) {
-  const p = ensure().papers.find((x) => x.id === ref.toLowerCase());
+  const p = ensure().papers.find((x) => x.uuid === ref.toLowerCase());
   if (!p) throw demoError('Paper not found', 404);
   return p;
 }
@@ -367,7 +380,7 @@ function inActiveCohort(k) {
   const d = ensure();
   return d.rooms.some(
     (r) => r.paper_key === k && r.status !== 'finished' &&
-      roomParts(r).some((x) => x.user_id === ME)
+      roomParts(r).some((x) => x.user_uuid === ME)
   );
 }
 
@@ -381,9 +394,9 @@ async function routeDemoRequest(path, options = {}) {
 
   // ----- auth -----
   if (path === '/auth/logout') return { message: 'Logged out' };
-  if (path === '/auth/me') return privateUser(userById(ME));
+  if (path === '/auth/me') return privateUser(userByUuid(ME));
   if (path === '/auth/profile' && method === 'PUT') {
-    const me = userById(ME);
+    const me = userByUuid(ME);
     if (body.display_name !== undefined) me.display_name = body.display_name || me.display_name;
     if (body.affiliation !== undefined) me.affiliation = body.affiliation || null;
     if (body.email_public !== undefined) me.email_public = !!body.email_public;
@@ -404,53 +417,53 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/users') {
     return d.users.map((u) => ({
       ...publicUser(u),
-      paper_count: d.copies.filter((c) => c.user_id === u.id && c.marketed).length,
+      paper_count: d.copies.filter((c) => c.user_uuid === u.uuid && c.marketed).length,
     }));
   }
   if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
-  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === ME && copy.shelf_id === shelf.id).length }));
-  if ((m = path.match(/^\/users\/(\d+)\/space$/))) {
-    const u = userById(parseInt(m[1]));
+  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length }));
+  if ((m = path.match(/^\/users\/([0-9a-f-]{36})\/space$/))) {
+    const u = userByUuid(m[1]);
     if (!u) throw demoError('User not found', 404);
-    const own = u.id === ME;
+    const own = u.uuid === ME;
     const statusMap = roomStatusMap();
     const list = d.copies
-      .filter((c) => c.user_id === u.id && (own || c.marketed))
+      .filter((c) => c.user_uuid === u.uuid && (own || c.marketed))
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-      .map((c) => paperListEntry(d.papers.find((p) => p.id === c.paper_id), c, !own, statusMap));
+      .map((c) => paperListEntry(d.papers.find((p) => p.uuid === c.paper_uuid), c, !own, statusMap));
     const stats = own
       ? {
-          papers: d.copies.filter((c) => c.user_id === u.id).length,
-          displayed: d.copies.filter((c) => c.user_id === u.id && c.marketed).length,
-          notes: d.comments.filter((c) => c.user_id === u.id).length,
-          seminars: d.participants.filter((x) => x.user_id === u.id).length,
+          papers: d.copies.filter((c) => c.user_uuid === u.uuid).length,
+          displayed: d.copies.filter((c) => c.user_uuid === u.uuid && c.marketed).length,
+          notes: d.comments.filter((c) => c.user_uuid === u.uuid).length,
+          seminars: d.participants.filter((x) => x.user_uuid === u.uuid).length,
         }
       : null;
-    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === u.id && copy.shelf_id === shelf.id).length })) };
+    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === u.uuid && copy.shelf_uuid === shelf.uuid).length })) };
   }
 
   if (path === '/shelves' && method === 'POST') {
     if (d.shelves.length >= 5) throw demoError('A nook can have at most five shelves');
-    const shelf = { id: d.nextId.shelf++, name: body.name, color: body.color, is_public: !!body.is_public, is_default: false, position: d.shelves.length };
+    const shelf = { uuid: newUuid(), name: body.name, color: body.color, is_public: !!body.is_public, is_default: false, position: d.shelves.length };
     d.shelves.push(shelf);
     return { ...shelf, paper_count: 0 };
   }
-  if ((m = path.match(/^\/shelves\/(\d+)$/)) && method === 'PUT') {
-    const shelf = d.shelves.find((item) => item.id === parseInt(m[1]));
+  if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'PUT') {
+    const shelf = d.shelves.find((item) => item.uuid === m[1]);
     if (!shelf) throw demoError('Shelf not found', 404);
     if (body.is_default) for (const item of d.shelves) item.is_default = item === shelf;
     Object.assign(shelf, body);
-    if ('is_public' in body) for (const copy of d.copies.filter((item) => item.user_id === ME && item.shelf_id === shelf.id)) copy.marketed = !!body.is_public;
-    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_id === ME && copy.shelf_id === shelf.id).length };
+    if ('is_public' in body) for (const copy of d.copies.filter((item) => item.user_uuid === ME && item.shelf_uuid === shelf.uuid)) copy.marketed = !!body.is_public;
+    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length };
   }
-  if ((m = path.match(/^\/shelves\/(\d+)$/)) && method === 'DELETE') {
-    const shelf = d.shelves.find((item) => item.id === parseInt(m[1]));
+  if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
+    const shelf = d.shelves.find((item) => item.uuid === m[1]);
     if (!shelf) throw demoError('Shelf not found', 404);
     const remaining = d.shelves.filter((item) => item !== shelf);
     if (!remaining.length) throw demoError('A nook must have at least one shelf');
     const destination = remaining.find((item) => item.is_default) || remaining[0];
-    for (const copy of d.copies.filter((item) => item.user_id === ME && item.shelf_id === shelf.id)) {
-      copy.shelf_id = destination.id;
+    for (const copy of d.copies.filter((item) => item.user_uuid === ME && item.shelf_uuid === shelf.uuid)) {
+      copy.shelf_uuid = destination.uuid;
       copy.marketed = destination.is_public;
     }
     if (shelf.is_default) destination.is_default = true;
@@ -462,16 +475,16 @@ async function routeDemoRequest(path, options = {}) {
     const name = body.name.trim().replace(/\s+/g, ' ');
     const existing = myTags().find((tag) => tag.name.toLowerCase() === name.toLowerCase());
     if (existing) return existing;
-    const tag = { id: d.nextId.tag++, name };
+    const tag = { uuid: newUuid(), name };
     myTags().push(tag);
     return tag;
   }
-  if ((m = path.match(/^\/tags\/(\d+)$/)) && method === 'DELETE') {
-    const tagId = parseInt(m[1]);
-    if (!d.tags.some((tag) => tag.id === tagId)) throw demoError('Tag not found', 404);
-    d.tags = d.tags.filter((tag) => tag.id !== tagId);
-    for (const copy of d.copies.filter((item) => item.user_id === ME)) {
-      copy.tag_ids = copy.tag_ids.filter((id) => id !== tagId);
+  if ((m = path.match(/^\/tags\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
+    const tagUuid = m[1];
+    if (!d.tags.some((tag) => tag.uuid === tagUuid)) throw demoError('Tag not found', 404);
+    d.tags = d.tags.filter((tag) => tag.uuid !== tagUuid);
+    for (const copy of d.copies.filter((item) => item.user_uuid === ME)) {
+      copy.tag_uuids = copy.tag_uuids.filter((uuid) => uuid !== tagUuid);
     }
     return null;
   }
@@ -504,10 +517,10 @@ async function routeDemoRequest(path, options = {}) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     const defaultShelf = d.shelves.find((shelf) => shelf.is_default) || d.shelves[0];
-    d.copies.push({ id: d.nextId.copy++, paper_id: paper.id, user_id: ME,
+    d.copies.push({ uuid: newUuid(), paper_uuid: paper.uuid, user_uuid: ME,
       summary: null, thought: null, marketed: defaultShelf.is_public, is_author: false, rating_expertise: null,
       rating_reading: null, rating_liking: null,
-      shelf_id: defaultShelf.id,
+      shelf_uuid: defaultShelf.uuid,
       created_at: now() });
     return paperDetail(paper);
   }
@@ -519,7 +532,7 @@ async function routeDemoRequest(path, options = {}) {
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
     const editions = editionsOf(paper);
-    mine.ignored_edition_id = body.edition_id || editions[editions.length - 1].id;
+    mine.ignored_edition_uuid = body.edition_uuid || editions[editions.length - 1].uuid;
     return paperDetail(paper);
   }
   if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/adopt-edition$/))) {
@@ -527,25 +540,25 @@ async function routeDemoRequest(path, options = {}) {
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
     const editions = editionsOf(paper);
-    mine.edition_id = body.edition_id || editions[editions.length - 1].id;
+    mine.edition_uuid = body.edition_uuid || editions[editions.length - 1].uuid;
     return paperDetail(paper);
   }
   if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/comments$/))) {
     const paper = findPaper(m[1]);
     if (!copyOf(paper, ME)) throw demoError('Add this paper to your nook first', 403);
-    const c = { id: d.nextId.comment++, paper_id: paper.id, user_id: ME,
+    const c = { uuid: newUuid(), paper_uuid: paper.uuid, user_uuid: ME,
       content: body.content, created_at: now() };
     d.comments.push(c);
-    return { ...c, user: publicUser(userById(ME)) };
+    return { ...c, user: publicUser(userByUuid(ME)) };
   }
-  if ((m = path.match(/^\/comments\/(\d+)$/)) && method === 'PUT') {
-    const c = d.comments.find((x) => x.id === parseInt(m[1]) && x.user_id === ME);
+  if ((m = path.match(/^\/comments\/([0-9a-f-]{36})$/)) && method === 'PUT') {
+    const c = d.comments.find((x) => x.uuid === m[1] && x.user_uuid === ME);
     if (!c) throw demoError('Comment not found', 404);
     c.content = body.content;
-    return { ...c, user: publicUser(userById(c.user_id)) };
+    return { ...c, user: publicUser(userByUuid(c.user_uuid)) };
   }
-  if ((m = path.match(/^\/comments\/(\d+)$/)) && method === 'DELETE') {
-    const i = d.comments.findIndex((c) => c.id === parseInt(m[1]) && c.user_id === ME);
+  if ((m = path.match(/^\/comments\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
+    const i = d.comments.findIndex((c) => c.uuid === m[1] && c.user_uuid === ME);
     if (i < 0) throw demoError('Comment not found', 404);
     d.comments.splice(i, 1);
     return { message: 'Comment deleted' };
@@ -560,8 +573,8 @@ async function routeDemoRequest(path, options = {}) {
     if (d.rooms.some((r) => r.paper_key === k && (r.status === 'open' || r.status === 'planning'))) {
       throw demoError('A seminar is already being organized for this paper');
     }
-    const room = { id: d.nextId.room++, paper_key: k, paper_title: paper.title,
-      created_by: ME, leader_id: null, status: 'open', scheduled_time: null,
+    const room = { uuid: newUuid(), paper_key: k, paper_title: paper.title,
+      created_by: ME, leader_uuid: null, status: 'open', scheduled_time: null,
       platform: null, style: null, style_desc: null, created_at: now() };
     d.rooms.push(room);
     ensureParticipant(room);
@@ -581,20 +594,20 @@ async function routeDemoRequest(path, options = {}) {
       if ('marketed' in body) {
         const shelf = d.shelves.find((item) => item.is_public === body.marketed);
         if (!shelf) throw demoError(`Create a ${body.marketed ? 'public' : 'private'} shelf first`);
-        mine.shelf_id = shelf.id;
+        mine.shelf_uuid = shelf.uuid;
         mine.marketed = shelf.is_public;
       }
     }
-    if ('tag_ids' in body) {
+    if ('tag_uuids' in body) {
       const mine = copyOf(paper, ME);
       if (!mine) throw demoError('Add this paper to your nook first', 403);
-      mine.tag_ids = body.tag_ids;
+      mine.tag_uuids = body.tag_uuids;
     }
-    if ('shelf_id' in body) {
+    if ('shelf_uuid' in body) {
       const mine = copyOf(paper, ME);
-      const shelf = d.shelves.find((item) => item.id === body.shelf_id);
+      const shelf = d.shelves.find((item) => item.uuid === body.shelf_uuid);
       if (!mine || !shelf) throw demoError('Shelf not found');
-      mine.shelf_id = shelf.id;
+      mine.shelf_uuid = shelf.uuid;
       mine.marketed = shelf.is_public;
     }
     for (const k of metadata) if (k in body) paper[k] = body[k];
@@ -605,7 +618,7 @@ async function routeDemoRequest(path, options = {}) {
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
     d.copies = d.copies.filter((c) => c !== mine);
-    d.comments = d.comments.filter((c) => !(c.paper_id === paper.id && c.user_id === ME));
+    d.comments = d.comments.filter((c) => !(c.paper_uuid === paper.uuid && c.user_uuid === ME));
     if (paperCopies(paper).length === 0) {
       d.papers = d.papers.filter((p) => p !== paper);
     }
@@ -616,8 +629,8 @@ async function routeDemoRequest(path, options = {}) {
   }
 
   // ----- rooms -----
-  if ((m = path.match(/^\/rooms\/(\d+)(\/(\w+))?$/))) {
-    const room = d.rooms.find((r) => r.id === parseInt(m[1]));
+  if ((m = path.match(/^\/rooms\/([0-9a-f-]{36})(\/(\w+))?$/))) {
+    const room = d.rooms.find((r) => r.uuid === m[1]);
     if (!room) throw demoError('Cohort not found', 404);
     const action = m[3] || null;
 
@@ -625,18 +638,18 @@ async function routeDemoRequest(path, options = {}) {
     if (action === 'lead') {
       if (room.status !== 'open') throw demoError('This seminar already has a host');
       requireReaderOf(room);
-      if (!roomParts(room).some((x) => x.user_id === ME)) {
+      if (!roomParts(room).some((x) => x.user_uuid === ME)) {
         throw demoError('Join the cohort before answering to host');
       }
-      room.leader_id = ME;
+      room.leader_uuid = ME;
       room.status = 'planning';
       ensureParticipant(room);
       return roomDetail(room);
     }
     if (action === 'unhost') {
-      if (room.leader_id !== ME) throw demoError('Only the host can step back', 403);
+      if (room.leader_uuid !== ME) throw demoError('Only the host can step back', 403);
       if (room.status !== 'planning') throw demoError('Only a seminar in planning can lose its host');
-      room.leader_id = null;
+      room.leader_uuid = null;
       room.status = 'open';
       return roomDetail(room);
     }
@@ -646,42 +659,42 @@ async function routeDemoRequest(path, options = {}) {
       return roomDetail(room);
     }
     if (action === 'leave') {
-      if (!roomParts(room).some((x) => x.user_id === ME)) throw demoError('You are not in this cohort');
-      if (room.leader_id === ME && room.status !== 'finished') {
-        const successor = body && body.successor_id;
+      if (!roomParts(room).some((x) => x.user_uuid === ME)) throw demoError('You are not in this cohort');
+      if (room.leader_uuid === ME && room.status !== 'finished') {
+        const successor = body && body.successor_uuid;
         if (!successor) throw demoError('Appoint a cohort member to host before leaving');
-        if (successor === ME || !roomParts(room).some((x) => x.user_id === successor)) {
+        if (successor === ME || !roomParts(room).some((x) => x.user_uuid === successor)) {
           throw demoError('Choose another cohort member');
         }
-        room.leader_id = successor;
+        room.leader_uuid = successor;
       }
-      d.participants = d.participants.filter((x) => !(x.room_id === room.id && x.user_id === ME));
-      d.availabilities = d.availabilities.filter((x) => !(x.room_id === room.id && x.user_id === ME));
+      d.participants = d.participants.filter((x) => !(x.room_uuid === room.uuid && x.user_uuid === ME));
+      d.availabilities = d.availabilities.filter((x) => !(x.room_uuid === room.uuid && x.user_uuid === ME));
       return roomDetail(room);
     }
     if (action === 'messages') {
       requireReaderOf(room);
-      if (!roomParts(room).some((x) => x.user_id === ME)) {
+      if (!roomParts(room).some((x) => x.user_uuid === ME)) {
         throw demoError('Join the cohort before posting a message');
       }
-      d.messages.push({ id: d.nextId.msg++, room_id: room.id, user_id: ME,
+      d.messages.push({ uuid: newUuid(), room_uuid: room.uuid, user_uuid: ME,
         content: body.content.trim(), created_at: now() });
       return roomDetail(room);
     }
     if (action === 'availability') {
       if (room.status === 'scheduled') throw demoError('This seminar has already been scheduled');
       requireReaderOf(room);
-      if (!roomParts(room).some((x) => x.user_id === ME)) {
+      if (!roomParts(room).some((x) => x.user_uuid === ME)) {
         throw demoError('Join the cohort before sharing availability');
       }
-      const mine = d.availabilities.find((a) => a.room_id === room.id && a.user_id === ME);
+      const mine = d.availabilities.find((a) => a.room_uuid === room.uuid && a.user_uuid === ME);
       if (mine) mine.availability = body.availability;
-      else d.availabilities.push({ id: d.nextId.avail++, room_id: room.id, user_id: ME,
+      else d.availabilities.push({ uuid: newUuid(), room_uuid: room.uuid, user_uuid: ME,
         availability: body.availability, created_at: now() });
       return roomDetail(room);
     }
     if (action === 'announce') {
-      if (room.leader_id !== ME) throw demoError('Only the host can announce', 403);
+      if (room.leader_uuid !== ME) throw demoError('Only the host can announce', 403);
       if (room.status !== 'planning' && room.status !== 'scheduled') {
         throw demoError('This seminar is not being planned');
       }
@@ -693,7 +706,7 @@ async function routeDemoRequest(path, options = {}) {
       return roomDetail(room);
     }
     if (action === 'finish') {
-      if (room.leader_id !== ME) throw demoError('Only the host can finish the seminar', 403);
+      if (room.leader_uuid !== ME) throw demoError('Only the host can finish the seminar', 403);
       if (room.status !== 'scheduled') throw demoError('Schedule the seminar first');
       room.status = 'finished';
       return roomDetail(room);
@@ -702,21 +715,21 @@ async function routeDemoRequest(path, options = {}) {
 
   // ----- notifications -----
   if (path === '/notifications' && method === 'GET') {
-    const mine = d.notifications.filter((n) => n.user_id === ME)
+    const mine = d.notifications.filter((n) => n.user_uuid === ME)
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     return {
       unread_count: mine.filter((n) => !n.read).length,
-      notifications: mine.map(({ user_id, ...n }) => n),
+      notifications: mine.map(({ user_uuid, ...n }) => n),
     };
   }
-  if ((m = path.match(/^\/notifications\/(\d+)\/read$/))) {
-    const n = d.notifications.find((x) => x.id === parseInt(m[1]) && x.user_id === ME);
+  if ((m = path.match(/^\/notifications\/([0-9a-f-]{36})\/read$/))) {
+    const n = d.notifications.find((x) => x.uuid === m[1] && x.user_uuid === ME);
     if (!n) throw demoError('Notification not found', 404);
     n.read = true;
     return { message: 'Notification marked read' };
   }
   if (path === '/notifications/read') {
-    d.notifications.forEach((n) => { if (n.user_id === ME) n.read = true; });
+    d.notifications.forEach((n) => { if (n.user_uuid === ME) n.read = true; });
     return { message: 'All notifications marked read' };
   }
 

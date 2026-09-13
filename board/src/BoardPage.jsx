@@ -12,8 +12,7 @@ import { subscribeNativeData } from '../../frontend/src/nativeData.js';
 import { carriesFiles } from '../../frontend/src/fileDrop.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-const compareId = (a, b) => String(a).localeCompare(String(b));
-const dataId = (value) => /^\d+$/.test(value || '') ? Number(value) : value;
+const compareUuid = (a, b) => String(a).localeCompare(String(b));
 const COLLECTION_INSET_X = 28;
 const COLLECTION_CARD_OFFSET_Y = 96;
 const COLLECTION_INSET_BOTTOM = 20;
@@ -26,17 +25,17 @@ const prepareCardTextPointerDown = (event) => {
   else preventModifiedTextSelection(event);
 };
 const defaultBoardView = () => ({ x: window.innerWidth / 2 - 150, y: 150, zoom: 1 });
-const savedBoardView = (boardId) => {
+const savedBoardView = (boardUuid) => {
   try {
-    const value = JSON.parse(localStorage.getItem(`papol_board_view_${boardId}`));
+    const value = JSON.parse(localStorage.getItem(`papol_board_view_${boardUuid}`));
     if (Number.isFinite(value?.x) && Number.isFinite(value?.y) && Number.isFinite(value?.zoom)) {
       return { x: value.x, y: value.y, zoom: clamp(value.zoom, 0.25, 3) };
     }
   } catch { /* a damaged local preference should not stop the board opening */ }
   return null;
 };
-const initialBoardView = (boardId) => window.innerWidth > 700
-  ? savedBoardView(boardId) || defaultBoardView()
+const initialBoardView = (boardUuid) => window.innerWidth > 700
+  ? savedBoardView(boardUuid) || defaultBoardView()
   : defaultBoardView();
 
 function AlignGlyph({ align }) {
@@ -76,9 +75,9 @@ const stagedSourceLabel = (item) => {
   }
 };
 
-export default function BoardPage({ boardId, onBack, backHref }) {
+export default function BoardPage({ boardUuid, onBack, backHref }) {
   const [board, setBoard] = useState(null);
-  const [view, setView] = useState(() => initialBoardView(boardId));
+  const [view, setView] = useState(() => initialBoardView(boardUuid));
   const [viewRevision, setViewRevision] = useState(0);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -117,8 +116,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const viewFrame = useRef(null);
   const pendingView = useRef(view);
   const viewSaveTimer = useRef(null);
-  const activeBoardId = useRef(boardId);
-  const centerInitialView = useRef(window.innerWidth <= 700 || savedBoardView(boardId) == null);
+  const activeBoardUuid = useRef(boardUuid);
+  const centerInitialView = useRef(window.innerWidth <= 700 || savedBoardView(boardUuid) == null);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const newNoteToSelect = useRef(null);
@@ -127,25 +126,25 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   useEffect(() => {
     if (board?.name) document.title = `${board.name} — Papol`;
   }, [board?.name]);
-  const showGrip = (itemId) => {
-    setVisibleGrip(itemId);
+  const showGrip = (itemUuid) => {
+    setVisibleGrip(itemUuid);
   };
-  const redrawBooklets = (groupIds) => {
-    const ids = [...new Set(groupIds.filter((id) => id != null))];
+  const redrawBooklets = (groupUuids) => {
+    const ids = [...new Set(groupUuids.filter((uuid) => uuid != null))];
     if (!ids.length) return;
     setBookletRedraws((current) => {
       const next = { ...current };
-      ids.forEach((id) => { next[id] = (next[id] || 0) + 1; });
+      ids.forEach((uuid) => { next[uuid] = (next[uuid] || 0) + 1; });
       return next;
     });
   };
   const updateGripProximity = (event) => {
     if (event.pointerType === 'touch') return;
     if (event.target.closest?.('.board-card-drag-handle')) {
-      const itemId = dataId(event.target.closest('[data-item-id]')?.dataset.itemId);
-      if (itemId) {
-        showGrip(itemId);
-        setForegroundGrip(itemId);
+      const itemUuid = event.target.closest('[data-item-uuid]')?.dataset.itemUuid;
+      if (itemUuid) {
+        showGrip(itemUuid);
+        setForegroundGrip(itemUuid);
       }
       return;
     }
@@ -154,7 +153,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     // This runs on the board, rather than on each card, so approaching a card
     // from outside its bounds can reveal the handle. Distances are measured in
     // screen pixels and therefore remain comfortable at every board zoom.
-    const candidates = [...(stageRef.current?.querySelectorAll('[data-item-id]') || [])]
+    const candidates = [...(stageRef.current?.querySelectorAll('[data-item-uuid]') || [])]
       .map((element) => {
         const rect = element.getBoundingClientRect();
         const outsideX = Math.max(rect.left - event.clientX, 0, event.clientX - rect.right);
@@ -162,39 +161,39 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         // The whole card and a 24px halo around it form one uninterrupted
         // activation region. This also bridges the gap to the protruding grip.
         const distance = Math.hypot(outsideX, outsideY);
-        return { itemId: dataId(element.dataset.itemId), distance, z: Number(element.style.zIndex) || 0 };
+        return { itemUuid: element.dataset.itemUuid, distance, z: Number(element.style.zIndex) || 0 };
       })
-      .filter((candidate) => candidate.itemId && candidate.distance <= 24)
+      .filter((candidate) => candidate.itemUuid && candidate.distance <= 24)
       .sort((a, b) => a.distance - b.distance || b.z - a.z);
 
     if (candidates.length) {
-      const itemId = candidates[0].itemId;
-      showGrip(itemId);
-      const handle = stageRef.current?.querySelector(`[data-item-id="${itemId}"] > .board-card-drag-handle`);
+      const itemUuid = candidates[0].itemUuid;
+      showGrip(itemUuid);
+      const handle = stageRef.current?.querySelector(`[data-item-uuid="${itemUuid}"] > .board-card-drag-handle`);
       const rect = handle?.getBoundingClientRect();
       const nearHandle = rect && Math.hypot(
         Math.max(rect.left - event.clientX, 0, event.clientX - rect.right),
         Math.max(rect.top - event.clientY, 0, event.clientY - rect.bottom),
       ) <= 14;
-      setForegroundGrip(nearHandle ? itemId : null);
+      setForegroundGrip(nearHandle ? itemUuid : null);
     } else {
       if (visibleGrip != null) setVisibleGrip(null);
       if (foregroundGrip != null) setForegroundGrip(null);
     }
   };
-  const load = () => getBoard(boardId).then(setBoard).catch((err) => setError(err.message));
+  const load = () => getBoard(boardUuid).then(setBoard).catch((err) => setError(err.message));
   useEffect(() => subscribeNativeData((change) => {
     setImageRevision((current) => current + 1);
     if (!change?.scope || change.scope === 'boards') load();
-  }), [boardId]);
-  const raiseCards = (itemIds) => {
-    const ids = new Set(itemIds);
-    const ordered = board.items.filter((item) => ids.has(item.id)).sort((a, b) => a.position - b.position || compareId(a.id, b.id));
+  }), [boardUuid]);
+  const raiseCards = (itemUuids) => {
+    const ids = new Set(itemUuids);
+    const ordered = board.items.filter((item) => ids.has(item.uuid)).sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid));
     if (!ordered.length) return;
     const start = Math.max(0, ...board.items.map((item) => item.position || 0)) + 1;
-    const positions = new Map(ordered.map((item, index) => [item.id, start + index]));
-    setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, position: positions.get(item.id) } : item) }));
-    Promise.all(ordered.map((item) => updateBoardItem(item.id, { position: positions.get(item.id) }))).catch((err) => { setError(err.message); load(); });
+    const positions = new Map(ordered.map((item, index) => [item.uuid, start + index]));
+    setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.uuid) ? { ...item, position: positions.get(item.uuid) } : item) }));
+    Promise.all(ordered.map((item) => updateBoardItem(item.uuid, { position: positions.get(item.uuid) }))).catch((err) => { setError(err.message); load(); });
   };
 
   useEffect(() => {
@@ -219,25 +218,25 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   useEffect(() => {
     let isNewBoard = false;
     try {
-      isNewBoard = sessionStorage.getItem('papol.newBoardHint') === boardId;
+      isNewBoard = sessionStorage.getItem('papol.newBoardHint') === boardUuid;
       if (isNewBoard) sessionStorage.removeItem('papol.newBoardHint');
     } catch { /* best effort */ }
     setShowNewBoardHint(isNewBoard);
     if (!isNewBoard) return undefined;
     const timer = window.setTimeout(() => setShowNewBoardHint(false), 7000);
     return () => window.clearTimeout(timer);
-  }, [boardId]);
+  }, [boardUuid]);
 
   useEffect(() => {
     if (viewSaveTimer.current != null) {
       clearTimeout(viewSaveTimer.current);
       viewSaveTimer.current = null;
       try {
-        localStorage.setItem(`papol_board_view_${activeBoardId.current}`, JSON.stringify(viewRef.current));
+        localStorage.setItem(`papol_board_view_${activeBoardUuid.current}`, JSON.stringify(viewRef.current));
       } catch { /* best effort while switching boards */ }
     }
-    activeBoardId.current = boardId;
-    const saved = window.innerWidth > 700 ? savedBoardView(boardId) : null;
+    activeBoardUuid.current = boardUuid;
+    const saved = window.innerWidth > 700 ? savedBoardView(boardUuid) : null;
     centerInitialView.current = saved == null;
     const restored = saved || defaultBoardView();
     viewRef.current = restored;
@@ -245,14 +244,14 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     paintView(restored);
     setView(restored);
     load();
-  }, [boardId]);
+  }, [boardUuid]);
   useEffect(() => { document.body.classList.add('board-workspace-open'); return () => document.body.classList.remove('board-workspace-open'); }, []);
   useEffect(() => {
     if (!board?.items.length || !centerInitialView.current) return undefined;
     const frame = requestAnimationFrame(() => {
       if (!centerInitialView.current || !viewportRef.current || !stageRef.current) return;
       const weighted = board.items.map((item) => {
-        const element = stageRef.current.querySelector(`[data-item-id="${item.id}"]`);
+        const element = stageRef.current.querySelector(`[data-item-uuid="${item.uuid}"]`);
         const width = element?.offsetWidth || item.width || 300;
         const height = element?.offsetHeight || 1;
         return { x: item.x + width / 2, y: item.y + height / 2, width, height };
@@ -276,10 +275,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       queueView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
     });
     return () => cancelAnimationFrame(frame);
-  }, [board?.id]);
+  }, [board?.uuid]);
   const imageItems = board ? [...board.items, ...(board.staged_items || [])]
     .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind) && hasCardPreview(item)) : [];
-  const imageIds = imageItems.map((item) => item.id).join(',');
+  const imageUuids = imageItems.map((item) => item.uuid).join(',');
   useEffect(() => {
     imageUrlsRef.current = imageUrls;
   }, [imageUrls]);
@@ -289,46 +288,46 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   useEffect(() => {
     if (!board) return undefined;
     let active = true;
-    const wanted = new Set(imageItems.map((item) => item.id));
+    const wanted = new Set(imageItems.map((item) => item.uuid));
     const staleUrls = Object.entries(imageUrlsRef.current)
-      .filter(([id]) => !wanted.has(dataId(id)))
+      .filter(([uuid]) => !wanted.has(uuid))
       .map(([, url]) => url);
     if (staleUrls.length) {
       staleUrls.forEach((url) => URL.revokeObjectURL(url));
       setImageUrls((current) => Object.fromEntries(
-        Object.entries(current).filter(([id]) => wanted.has(dataId(id))),
+        Object.entries(current).filter(([uuid]) => wanted.has(uuid)),
       ));
       setImageErrors((current) => Object.fromEntries(
-        Object.entries(current).filter(([id]) => wanted.has(dataId(id))),
+        Object.entries(current).filter(([uuid]) => wanted.has(uuid)),
       ));
     }
     imageItems.forEach(async (item) => {
-      if (imageUrlsRef.current[item.id]) return;
+      if (imageUrlsRef.current[item.uuid]) return;
       setImageErrors((current) => {
-        if (!current[item.id]) return current;
+        if (!current[item.uuid]) return current;
         const next = { ...current };
-        delete next[item.id];
+        delete next[item.uuid];
         return next;
       });
       try {
         const url = await boardFileBlob(item);
         if (!active) { URL.revokeObjectURL(url); return; }
         setImageUrls((current) => {
-          const next = { ...current, [item.id]: url };
+          const next = { ...current, [item.uuid]: url };
           imageUrlsRef.current = next;
           return next;
         });
       } catch (error) {
-        console.warn('Could not load board image', item.id, error);
-        setImageErrors((current) => ({ ...current, [item.id]: true }));
+        console.warn('Could not load board image', item.uuid, error);
+        setImageErrors((current) => ({ ...current, [item.uuid]: true }));
       }
     });
     return () => { active = false; };
-  }, [imageIds, imageRevision]);
+  }, [imageUuids, imageRevision]);
   useEffect(() => () => {
     Object.values(imageUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
-  const bookletKey = board?.groups?.map((group) => `${group.id}:${group.kind}:${group.title}:${group.header}:${group.auto_arrange}:${group.item_ids.join(',')}`).join('|') || '';
+  const bookletKey = board?.groups?.map((group) => `${group.uuid}:${group.kind}:${group.title}:${group.header}:${group.auto_arrange}:${group.item_uuids.join(',')}`).join('|') || '';
   useEffect(() => {
     if (!board?.groups?.length || !stageRef.current) { setBookletLayouts([]); return undefined; }
     let reflowTimer = null;
@@ -336,26 +335,26 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       if (!board.can_edit) return;
       if (['item', 'resize'].includes(gesture.current?.type)) return;
       const layouts = board.groups.filter((group) => group.kind === 'booklet').map((group) => {
-        const members = group.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean).sort((a, b) => a.y - b.y);
+        const members = group.item_uuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter(Boolean).sort((a, b) => a.y - b.y);
         if (members.length < 2) return null;
         const x = Math.min(...members.map((item) => item.x));
         let y = members[0].y;
         const items = members.map((item) => {
-          const position = { id: item.id, group_id: group.id, x, y };
-          const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
+          const position = { uuid: item.uuid, group_uuid: group.uuid, x, y };
+          const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
           y += (element?.offsetHeight || 0) + 18;
           return position;
         });
         const changed = items.some((position) => {
-          const item = board.items.find((candidate) => candidate.id === position.id);
+          const item = board.items.find((candidate) => candidate.uuid === position.uuid);
           return Math.abs(item.x - position.x) > .5 || Math.abs(item.y - position.y) > .5;
         });
         return changed ? { group, items } : null;
       }).filter(Boolean);
       if (!layouts.length) return;
-      const positions = new Map(layouts.flatMap((layout) => layout.items).map((position) => [position.id, position]));
-      setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, ...positions.get(item.id) } : item) }));
-      Promise.all(layouts.map((layout) => layoutBoardGroup(layout.group.id, layout.items))).catch((err) => { setError(err.message); load(); });
+      const positions = new Map(layouts.flatMap((layout) => layout.items).map((position) => [position.uuid, position]));
+      setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.uuid) ? { ...item, ...positions.get(item.uuid) } : item) }));
+      Promise.all(layouts.map((layout) => layoutBoardGroup(layout.group.uuid, layout.items))).catch((err) => { setError(err.message); load(); });
     };
     const scheduleCompact = () => {
       if (reflowTimer != null) clearTimeout(reflowTimer);
@@ -363,9 +362,9 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     };
     const measure = () => {
       setBookletLayouts(board.groups.map((group) => {
-        const members = group.item_ids.map((id) => {
-          const item = board.items.find((candidate) => candidate.id === id);
-          const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+        const members = group.item_uuids.map((uuid) => {
+          const item = board.items.find((candidate) => candidate.uuid === uuid);
+          const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
           return item && element ? { ...item, height: element.offsetHeight } : null;
         }).filter(Boolean);
         if (!members.length) return null;
@@ -378,7 +377,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         return {
           ...group, x, y, width: maxRight - minX + (isCollection ? COLLECTION_INSET_X * 2 : 34),
           height: maxBottom - minY + (isCollection ? COLLECTION_CARD_OFFSET_Y + COLLECTION_INSET_BOTTOM : 86),
-          branches: isCollection ? [] : members.map((item) => ({ id: item.id, top: item.y - y + 18, width: item.x - x - 10 })),
+          branches: isCollection ? [] : members.map((item) => ({ uuid: item.uuid, top: item.y - y + 18, width: item.x - x - 10 })),
         };
       }).filter(Boolean));
       scheduleCompact();
@@ -387,7 +386,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const observer = new ResizeObserver(measure);
     stageRef.current.querySelectorAll('.board-canvas-card').forEach((element) => observer.observe(element));
     return () => { cancelAnimationFrame(frame); observer.disconnect(); if (reflowTimer != null) clearTimeout(reflowTimer); };
-  }, [bookletKey, imageIds, board?.items, bookletRedraws]);
+  }, [bookletKey, imageUuids, board?.items, bookletRedraws]);
 
   const paintView = (next) => {
     if (stageRef.current) {
@@ -419,7 +418,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     viewSaveTimer.current = setTimeout(() => {
       viewSaveTimer.current = null;
       try {
-        localStorage.setItem(`papol_board_view_${activeBoardId.current}`, JSON.stringify(viewRef.current));
+        localStorage.setItem(`papol_board_view_${activeBoardUuid.current}`, JSON.stringify(viewRef.current));
       } catch { /* storage may be disabled; the board still works */ }
     }, 250);
   };
@@ -434,7 +433,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (viewSaveTimer.current != null) {
       clearTimeout(viewSaveTimer.current);
       try {
-        localStorage.setItem(`papol_board_view_${activeBoardId.current}`, JSON.stringify(viewRef.current));
+        localStorage.setItem(`papol_board_view_${activeBoardUuid.current}`, JSON.stringify(viewRef.current));
       } catch { /* best effort on departure */ }
     }
   }, []);
@@ -464,7 +463,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     };
     viewport.addEventListener('wheel', handleWheel, { passive: false });
     return () => viewport.removeEventListener('wheel', handleWheel);
-  }, [Boolean(board), boardId]);
+  }, [Boolean(board), boardUuid]);
   useEffect(() => {
     if (!board?.can_edit) return undefined;
     const handlePaste = async (event) => {
@@ -484,13 +483,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         );
         setBusy(true); setError(null);
         try {
-          const items = await Promise.all(images.map((image, index) => addBoardFile(board.guid, image, '', {
+          const items = await Promise.all(images.map((image, index) => addBoardFile(board.uuid, image, '', {
             x: origin.x + index * 28, y: origin.y + index * 28,
           })));
-          items.forEach((item) => undoStack.current.push({ type: 'add', id: item.id }));
+          items.forEach((item) => undoStack.current.push({ type: 'add', uuid: item.uuid }));
           redoStack.current = [];
           await load();
-          setSelectedItems(items.map((item) => item.id));
+          setSelectedItems(items.map((item) => item.uuid));
         } catch (err) { setError(err.message); } finally { setBusy(false); }
         return;
       }
@@ -508,36 +507,36 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
         bounds, viewRef.current, { x: 150, y: 100 },
       );
-      const loadingId = `${Date.now()}-${Math.random()}`;
-      const loadingItem = { id: loadingId, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' };
+      const loadingUuid = `${Date.now()}-${Math.random()}`;
+      const loadingItem = { uuid: loadingUuid, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' };
       urlLoadingRef.current = [...urlLoadingRef.current, loadingItem];
       setUrlLoading(urlLoadingRef.current);
       setBusy(true); setError(null);
       try {
         const item = isYouTube
-          ? await addBoardYouTube(board.guid, text, x, y)
-          : await addBoardWebpage(board.guid, text, x, y);
-        const finalPosition = urlLoadingRef.current.find((candidate) => candidate.id === loadingId);
+          ? await addBoardYouTube(board.uuid, text, x, y)
+          : await addBoardWebpage(board.uuid, text, x, y);
+        const finalPosition = urlLoadingRef.current.find((candidate) => candidate.uuid === loadingUuid);
         if (finalPosition && (finalPosition.x !== x || finalPosition.y !== y)) {
           try {
-            await moveBoardItem(item.id, finalPosition.x, finalPosition.y);
+            await moveBoardItem(item.uuid, finalPosition.x, finalPosition.y);
           } catch (moveError) {
             setError(moveError.message);
           }
         }
-        undoStack.current.push({ type: 'add', id: item.id });
+        undoStack.current.push({ type: 'add', uuid: item.uuid });
         redoStack.current = [];
         await load();
-        setSelectedItems([item.id]);
+        setSelectedItems([item.uuid]);
       } catch (err) { setError(err.message); } finally {
-        urlLoadingRef.current = urlLoadingRef.current.filter((item) => item.id !== loadingId);
+        urlLoadingRef.current = urlLoadingRef.current.filter((item) => item.uuid !== loadingUuid);
         setUrlLoading(urlLoadingRef.current);
         setBusy(false);
       }
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [board?.id]);
+  }, [board?.uuid]);
   const startPan = (event) => {
     if (event.button !== 0 || event.target.closest('.board-canvas-card, .board-youtube-loading')) return;
     setSelectedBooklet(null);
@@ -573,162 +572,162 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     setMenuItem(null);
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     if (!board.can_edit) {
-      setSelectedItems([item.id]);
+      setSelectedItems([item.uuid]);
       return;
     }
-    if (selectedItems.length > 1 && selectedItems.includes(item.id)) {
-      const memberIds = new Set(selectedItems);
-      selectedItems.forEach((id) => {
-        const selected = board.items.find((candidate) => candidate.id === id);
-        const group = board.groups.find((candidate) => candidate.id === selected?.group_id);
-        group?.item_ids.forEach((memberId) => memberIds.add(memberId));
+    if (selectedItems.length > 1 && selectedItems.includes(item.uuid)) {
+      const memberUuids = new Set(selectedItems);
+      selectedItems.forEach((uuid) => {
+        const selected = board.items.find((candidate) => candidate.uuid === uuid);
+        const group = board.groups.find((candidate) => candidate.uuid === selected?.group_uuid);
+        group?.item_uuids.forEach((memberUuid) => memberUuids.add(memberUuid));
       });
-      const members = [...memberIds].map((id) => {
-        const member = board.items.find((candidate) => candidate.id === id);
-        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-        return member && element ? { id, x: member.x, y: member.y, element } : null;
+      const members = [...memberUuids].map((uuid) => {
+        const member = board.items.find((candidate) => candidate.uuid === uuid);
+        const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+        return member && element ? { uuid, x: member.x, y: member.y, element } : null;
       }).filter(Boolean);
-      const groupIds = new Set(members.map((member) => board.items.find((candidate) => candidate.id === member.id)?.group_id).filter((id) => id != null));
-      const groups = [...groupIds].map((id) => {
-        const layout = bookletLayouts.find((candidate) => candidate.id === id);
-        const element = stageRef.current?.querySelector(`[data-group-id="${id}"]`);
-        return layout && element ? { id, x: layout.x, y: layout.y, element } : null;
+      const groupUuids = new Set(members.map((member) => board.items.find((candidate) => candidate.uuid === member.uuid)?.group_uuid).filter((uuid) => uuid != null));
+      const groups = [...groupUuids].map((uuid) => {
+        const layout = bookletLayouts.find((candidate) => candidate.uuid === uuid);
+        const element = stageRef.current?.querySelector(`[data-group-uuid="${uuid}"]`);
+        return layout && element ? { uuid, x: layout.x, y: layout.y, element } : null;
       }).filter(Boolean);
-      raiseCards(members.map((member) => member.id));
+      raiseCards(members.map((member) => member.uuid));
       gesture.current = {
-        type: 'multi-item', primaryId: item.id, members, groups,
+        type: 'multi-item', primaryUuid: item.uuid, members, groups,
         sx: event.clientX, sy: event.clientY,
         mode: selectionMode(event), baseSelected: [...selectedItems],
       };
       return;
     }
-    if (item.group_id != null) {
-      const group = board.groups?.find((candidate) => candidate.id === item.group_id);
+    if (item.group_uuid != null) {
+      const group = board.groups?.find((candidate) => candidate.uuid === item.group_uuid);
       if (group?.kind === 'collection') {
-        raiseCards([item.id]);
+        raiseCards([item.uuid]);
         event.currentTarget.classList.add('booklet-reordering');
         gesture.current = {
-          type: 'free-item', id: item.id, originGroupId: group.id,
+          type: 'free-item', uuid: item.uuid, originGroupUuid: group.uuid,
           sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
           element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems],
         };
         return;
       }
-      const members = group?.item_ids.map((id) => {
-        const member = board.items.find((candidate) => candidate.id === id);
-        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-        return member && element ? { id, x: member.x, y: member.y, element } : null;
+      const members = group?.item_uuids.map((uuid) => {
+        const member = board.items.find((candidate) => candidate.uuid === uuid);
+        const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+        return member && element ? { uuid, x: member.x, y: member.y, element } : null;
       }).filter(Boolean);
-      const booklet = bookletLayouts.find((candidate) => candidate.id === group?.id);
-      const bookletElement = stageRef.current?.querySelector(`[data-group-id="${group?.id}"]`);
+      const booklet = bookletLayouts.find((candidate) => candidate.uuid === group?.uuid);
+      const bookletElement = stageRef.current?.querySelector(`[data-group-uuid="${group?.uuid}"]`);
       if (group && members?.length && booklet) {
-        raiseCards(members.map((member) => member.id));
+        raiseCards(members.map((member) => member.uuid));
         gesture.current = {
-          type: 'booklet-move', groupId: group.id, members, booklet, bookletElement,
-          clickedId: item.id, sx: event.clientX, sy: event.clientY,
+          type: 'booklet-move', groupUuid: group.uuid, members, booklet, bookletElement,
+          clickedUuid: item.uuid, sx: event.clientX, sy: event.clientY,
           mode: selectionMode(event), baseSelected: [...selectedItems],
         };
       }
       return;
     }
     gesture.current = {
-      type: 'free-item', id: item.id,
+      type: 'free-item', uuid: item.uuid,
       booklet: null, bookletElement: null, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y,
       element: event.currentTarget, mode: selectionMode(event), baseSelected: [...selectedItems],
     };
-    raiseCards([item.id]);
+    raiseCards([item.uuid]);
   };
   const startMembershipDrag = (event, item) => {
     if (event.button !== 0 || !board.can_edit) return;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setSelectedBooklet(null); setMenuItem(null);
-    const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
+    const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
     if (!element) return;
     element.classList.add('booklet-reordering');
-    raiseCards([item.id]);
+    raiseCards([item.uuid]);
     gesture.current = {
-      type: 'membership-item', id: item.id, originGroupId: item.group_id || null,
+      type: 'membership-item', uuid: item.uuid, originGroupUuid: item.group_uuid || null,
       sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element,
       collectionBounds: new Map(bookletLayouts.filter((group) => group.kind === 'collection').map((group) => {
-        const collection = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
-        return [group.id, collection?.getBoundingClientRect() || null];
+        const collection = stageRef.current?.querySelector(`[data-group-uuid="${group.uuid}"]`);
+        return [group.uuid, collection?.getBoundingClientRect() || null];
       })),
     };
   };
   const startLoadingDrag = (event, item) => {
     if (event.button !== 0) return;
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
-    gesture.current = { type: 'loading-item', id: item.id, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget };
+    gesture.current = { type: 'loading-item', uuid: item.uuid, sx: event.clientX, sy: event.clientY, x: item.x, y: item.y, element: event.currentTarget };
   };
   const startResize = (event, item) => {
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const resizeIds = selectedItems.length > 1 && selectedItems.includes(item.id) ? selectedItems : [item.id];
-    if (resizeIds.length > 1) {
-      const entries = resizeIds.map((id) => {
-        const candidate = board.items.find((boardItem) => boardItem.id === id);
-        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-        return candidate && element ? { id, width: candidate.width || 300, element } : null;
+    const resizeUuids = selectedItems.length > 1 && selectedItems.includes(item.uuid) ? selectedItems : [item.uuid];
+    if (resizeUuids.length > 1) {
+      const entries = resizeUuids.map((uuid) => {
+        const candidate = board.items.find((boardItem) => boardItem.uuid === uuid);
+        const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+        return candidate && element ? { uuid, width: candidate.width || 300, element } : null;
       }).filter(Boolean);
-      const groupIds = [...new Set(entries.map((entry) => {
-        const candidate = board.items.find((boardItem) => boardItem.id === entry.id);
-        const group = board.groups.find((boardGroup) => boardGroup.id === candidate?.group_id);
-        return group?.kind === 'booklet' ? group.id : null;
-      }).filter((id) => id != null))];
-      const beforeLayouts = new Map(groupIds.map((groupId) => {
-        const group = board.groups.find((candidate) => candidate.id === groupId);
-        return [groupId, group.item_ids.map((id) => {
-          const member = board.items.find((candidate) => candidate.id === id);
-          return { id, group_id: groupId, x: member.x, y: member.y };
+      const groupUuids = [...new Set(entries.map((entry) => {
+        const candidate = board.items.find((boardItem) => boardItem.uuid === entry.uuid);
+        const group = board.groups.find((boardGroup) => boardGroup.uuid === candidate?.group_uuid);
+        return group?.kind === 'booklet' ? group.uuid : null;
+      }).filter((uuid) => uuid != null))];
+      const beforeLayouts = new Map(groupUuids.map((groupUuid) => {
+        const group = board.groups.find((candidate) => candidate.uuid === groupUuid);
+        return [groupUuid, group.item_uuids.map((uuid) => {
+          const member = board.items.find((candidate) => candidate.uuid === uuid);
+          return { uuid, group_uuid: groupUuid, x: member.x, y: member.y };
         })];
       }));
-      gesture.current = { type: 'resize-many', sx: event.clientX, entries, groupIds, beforeLayouts };
+      gesture.current = { type: 'resize-many', sx: event.clientX, entries, groupUuids, beforeLayouts };
       return;
     }
-    const group = item.group_id ? board.groups?.find((candidate) => candidate.id === item.group_id) : null;
+    const group = item.group_uuid ? board.groups?.find((candidate) => candidate.uuid === item.group_uuid) : null;
     const booklet = group?.kind === 'booklet' ? group : null;
-    const beforePositions = booklet?.item_ids.map((id) => {
-      const member = board.items.find((candidate) => candidate.id === id);
-      return { id, group_id: booklet.id, x: member.x, y: member.y };
+    const beforePositions = booklet?.item_uuids.map((uuid) => {
+      const member = board.items.find((candidate) => candidate.uuid === uuid);
+      return { uuid, group_uuid: booklet.uuid, x: member.x, y: member.y };
     });
     gesture.current = {
-      type: 'resize', id: item.id, sx: event.clientX,
+      type: 'resize', uuid: item.uuid, sx: event.clientX,
       width: item.width || 300, element: event.currentTarget.closest('.board-canvas-card'),
-      groupId: booklet?.id, beforePositions,
+      groupUuid: booklet?.uuid, beforePositions,
     };
   };
-  const compactBookletPositions = (groupId) => {
-    const group = board.groups.find((candidate) => candidate.id === groupId);
+  const compactBookletPositions = (groupUuid) => {
+    const group = board.groups.find((candidate) => candidate.uuid === groupUuid);
     if (!group) return null;
-    const members = group.item_ids
-      .map((id) => board.items.find((item) => item.id === id))
+    const members = group.item_uuids
+      .map((uuid) => board.items.find((item) => item.uuid === uuid))
       .filter(Boolean)
       .sort((a, b) => a.y - b.y);
     if (!members.length) return [];
     const x = Math.min(...members.map((item) => item.x));
     let y = members[0].y;
     return members.map((item) => {
-      const position = { id: item.id, group_id: groupId, x, y };
-      const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
+      const position = { uuid: item.uuid, group_uuid: groupUuid, x, y };
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
       y += (element?.offsetHeight || 0) + 18;
       return position;
     });
   };
-  const collectionLayout = (group, draggedId = null, draggedPoint = null, excludedId = null) => {
-    const cards = group.item_ids
-      .filter((id) => id !== excludedId)
-      .map((id) => {
-        const item = board.items.find((candidate) => candidate.id === id);
-        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+  const collectionLayout = (group, draggedUuid = null, draggedPoint = null, excludedUuid = null) => {
+    const cards = group.item_uuids
+      .filter((uuid) => uuid !== excludedUuid)
+      .map((uuid) => {
+        const item = board.items.find((candidate) => candidate.uuid === uuid);
+        const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
         if (!item || !element) return null;
-        return { id, x: item.x, y: item.y, width: element.offsetWidth || item.width || DEFAULT_CARD_WIDTH, height: element.offsetHeight || 1 };
+        return { uuid, x: item.x, y: item.y, width: element.offsetWidth || item.width || DEFAULT_CARD_WIDTH, height: element.offsetHeight || 1 };
       }).filter(Boolean);
-    if (draggedId != null && !cards.some((card) => card.id === draggedId)) {
-      const item = board.items.find((candidate) => candidate.id === draggedId);
-      const element = stageRef.current?.querySelector(`[data-item-id="${draggedId}"]`);
+    if (draggedUuid != null && !cards.some((card) => card.uuid === draggedUuid)) {
+      const item = board.items.find((candidate) => candidate.uuid === draggedUuid);
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${draggedUuid}"]`);
       if (item && element) cards.push({
-        id: draggedId,
+        uuid: draggedUuid,
         x: cards.length ? Math.min(...cards.map((card) => card.x)) : draggedPoint.x,
         y: cards.length ? Math.min(...cards.map((card) => card.y)) : draggedPoint.y,
         width: element.offsetWidth || item.width || DEFAULT_CARD_WIDTH,
@@ -736,10 +735,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       });
     }
     const columnWidth = Math.max(DEFAULT_CARD_WIDTH, ...cards.map((card) => card.width));
-    const layout = draggedId != null && draggedPoint
-      ? collectionReorderLayout(cards, draggedId, draggedPoint, columnWidth)
+    const layout = draggedUuid != null && draggedPoint
+      ? collectionReorderLayout(cards, draggedUuid, draggedPoint, columnWidth)
       : collectionMasonryLayout(cards, columnWidth);
-    return layout.positions.map((position) => ({ ...position, group_id: group.id }));
+    return layout.positions.map((position) => ({ ...position, group_uuid: group.uuid }));
   };
   const settleDraggedCard = (element, position) => {
     if (!element || !position) return;
@@ -752,17 +751,17 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (event.button !== 0 || !board.can_edit) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const members = booklet.item_ids.map((id) => {
-      const item = board.items.find((candidate) => candidate.id === id);
-      const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-      return item && element ? { id, x: item.x, y: item.y, element } : null;
+    const members = booklet.item_uuids.map((uuid) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+      return item && element ? { uuid, x: item.x, y: item.y, element } : null;
     }).filter(Boolean);
     if (!members.length) return;
     setSelectedBooklet(null);
     setMenuItem(null);
     gesture.current = {
-      type: 'booklet-move', groupId: booklet.id, members, booklet,
-      bookletElement: stageRef.current?.querySelector(`[data-group-id="${booklet.id}"]`),
+      type: 'booklet-move', groupUuid: booklet.uuid, members, booklet,
+      bookletElement: stageRef.current?.querySelector(`[data-group-uuid="${booklet.uuid}"]`),
       sx: event.clientX, sy: event.clientY,
     };
   };
@@ -780,36 +779,36 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     drag.collectionPreview = null;
   };
   const showCollectionPreview = (drag, group, point) => {
-    if (drag.collectionPreview?.id !== group.id) clearCollectionPreview(drag);
-    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
-    const element = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
+    if (drag.collectionPreview?.uuid !== group.uuid) clearCollectionPreview(drag);
+    const layout = bookletLayouts.find((candidate) => candidate.uuid === group.uuid);
+    const element = stageRef.current?.querySelector(`[data-group-uuid="${group.uuid}"]`);
     if (!layout || !element) return;
-    const members = [...new Set([...group.item_ids, drag.id])].map((id) => {
-      const item = board.items.find((candidate) => candidate.id === id);
-      const card = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+    const members = [...new Set([...group.item_uuids, drag.uuid])].map((uuid) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
+      const card = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
       if (!item || !card) return null;
-      return { id, x: item.x, y: item.y, width: card.offsetWidth || item.width || 300, height: card.offsetHeight || 1 };
+      return { uuid, x: item.x, y: item.y, width: card.offsetWidth || item.width || 300, height: card.offsetHeight || 1 };
     }).filter(Boolean);
-    if (!group.item_ids.includes(drag.id) && members.length > 1) {
-      const dragged = members.find((member) => member.id === drag.id);
-      const peers = members.filter((member) => member.id !== drag.id);
+    if (!group.item_uuids.includes(drag.uuid) && members.length > 1) {
+      const dragged = members.find((member) => member.uuid === drag.uuid);
+      const peers = members.filter((member) => member.uuid !== drag.uuid);
       dragged.x = Math.min(...peers.map((member) => member.x));
       dragged.y = Math.min(...peers.map((member) => member.y));
     }
     let displayMembers = members;
     if (group.auto_arrange) {
       const columnWidth = Math.max(DEFAULT_CARD_WIDTH, ...members.map((member) => member.width));
-      const positions = new Map(collectionReorderLayout(members, drag.id, point, columnWidth).positions.map((position) => [position.id, position]));
-      displayMembers = members.map((member) => ({ ...member, ...positions.get(member.id) }));
-      const peers = members.filter((member) => member.id !== drag.id).map((member) => ({
-        ...member, element: stageRef.current?.querySelector(`[data-item-id="${member.id}"]`),
+      const positions = new Map(collectionReorderLayout(members, drag.uuid, point, columnWidth).positions.map((position) => [position.uuid, position]));
+      displayMembers = members.map((member) => ({ ...member, ...positions.get(member.uuid) }));
+      const peers = members.filter((member) => member.uuid !== drag.uuid).map((member) => ({
+        ...member, element: stageRef.current?.querySelector(`[data-item-uuid="${member.uuid}"]`),
       })).filter((member) => member.element);
-      if (!drag.collectionPreview) drag.collectionPreview = { id: group.id, element, original: layout, members: peers };
-      const previewPeers = new Map(drag.collectionPreview.members.map((member) => [member.id, member]));
+      if (!drag.collectionPreview) drag.collectionPreview = { uuid: group.uuid, element, original: layout, members: peers };
+      const previewPeers = new Map(drag.collectionPreview.members.map((member) => [member.uuid, member]));
       peers.forEach((member) => {
-        const peer = previewPeers.get(member.id);
+        const peer = previewPeers.get(member.uuid);
         if (!peer) drag.collectionPreview.members.push(member);
-        const position = positions.get(member.id);
+        const position = positions.get(member.uuid);
         member.element.classList.add('booklet-reorder-peer');
         member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
       });
@@ -824,7 +823,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       width: maxRight - minX + COLLECTION_INSET_X * 2,
       height: maxBottom - minY + COLLECTION_CARD_OFFSET_Y + COLLECTION_INSET_BOTTOM,
     };
-    if (!drag.collectionPreview) drag.collectionPreview = { id: group.id, element, original: layout, members: [] };
+    if (!drag.collectionPreview) drag.collectionPreview = { uuid: group.uuid, element, original: layout, members: [] };
     element.style.transform = `translate(${next.x}px, ${next.y}px)`;
     element.style.width = `${next.width}px`;
     element.style.height = `${next.height}px`;
@@ -846,16 +845,16 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const showOriginCollectionPreview = (drag, group) => {
     if (drag.originCollectionPreview) return;
-    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
-    const element = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
+    const layout = bookletLayouts.find((candidate) => candidate.uuid === group.uuid);
+    const element = stageRef.current?.querySelector(`[data-group-uuid="${group.uuid}"]`);
     if (!layout || !element) return;
-    const members = group.item_ids.filter((id) => id !== drag.id).map((id) => {
-      const item = board.items.find((candidate) => candidate.id === id);
-      const card = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
+    const members = group.item_uuids.filter((uuid) => uuid !== drag.uuid).map((uuid) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
+      const card = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
       return item && card ? { ...item, width: card.offsetWidth || item.width || 300, height: card.offsetHeight || 1 } : null;
     }).filter(Boolean);
     const previewMembers = members.map((member) => ({
-      ...member, element: stageRef.current?.querySelector(`[data-item-id="${member.id}"]`),
+      ...member, element: stageRef.current?.querySelector(`[data-item-uuid="${member.uuid}"]`),
     })).filter((member) => member.element);
     drag.originCollectionPreview = { element, original: layout, members: previewMembers };
     element.classList.add('moving-active');
@@ -863,10 +862,10 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     let displayMembers = members;
     if (group.auto_arrange) {
       const columnWidth = Math.max(DEFAULT_CARD_WIDTH, ...members.map((member) => member.width));
-      const positions = new Map(collectionMasonryLayout(members, columnWidth).positions.map((position) => [position.id, position]));
-      displayMembers = members.map((member) => ({ ...member, ...positions.get(member.id) }));
+      const positions = new Map(collectionMasonryLayout(members, columnWidth).positions.map((position) => [position.uuid, position]));
+      displayMembers = members.map((member) => ({ ...member, ...positions.get(member.uuid) }));
       previewMembers.forEach((member) => {
-        const position = positions.get(member.id);
+        const position = positions.get(member.uuid);
         member.element.classList.add('booklet-reorder-peer');
         member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
       });
@@ -890,35 +889,35 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     drag.membershipBookletPreview = null;
   };
   const showMembershipBookletPreview = (drag, group, point, insertionY) => {
-    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
+    const layout = bookletLayouts.find((candidate) => candidate.uuid === group.uuid);
     if (!layout) return;
-    const members = group.item_ids.filter((id) => id !== drag.id).map((id) => {
-      const item = board.items.find((candidate) => candidate.id === id);
-      const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-      return item && element ? { id, x: item.x, y: item.y, height: element.offsetHeight, element } : null;
+    const members = group.item_uuids.filter((uuid) => uuid !== drag.uuid).map((uuid) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+      return item && element ? { uuid, x: item.x, y: item.y, height: element.offsetHeight, element } : null;
     }).filter(Boolean);
     const height = drag.element.offsetHeight || 1;
-    const anchor = group.id === drag.originGroupId
-      ? group.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean).reduce((result, item) => ({
+    const anchor = group.uuid === drag.originGroupUuid
+      ? group.item_uuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter(Boolean).reduce((result, item) => ({
         x: Math.min(result.x, item.x), y: Math.min(result.y, item.y),
       }), { x: Infinity, y: Infinity })
       : null;
     const after = stackWithInsertion(members, {
-      id: drag.id, x: point.x, y: point.y, height, centerY: insertionY,
-    }, group.id, anchor).positions;
-    const signature = `${group.id}:${after.map((position) => position.id).join(',')}`;
+      uuid: drag.uuid, x: point.x, y: point.y, height, centerY: insertionY,
+    }, group.uuid, anchor).positions;
+    const signature = `${group.uuid}:${after.map((position) => position.uuid).join(',')}`;
     if (drag.membershipBookletPreview?.signature === signature) return;
     clearMembershipBookletPreview(drag);
-    const positions = new Map(after.map((position) => [position.id, position]));
+    const positions = new Map(after.map((position) => [position.uuid, position]));
     members.forEach((member) => {
-      const position = positions.get(member.id);
+      const position = positions.get(member.uuid);
       member.element.classList.add('booklet-reorder-peer');
       member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
     });
-    const bookletElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
-    const heights = new Map([...members.map((member) => [member.id, member.height]), [drag.id, height]]);
+    const bookletElement = stageRef.current?.querySelector(`[data-group-uuid="${group.uuid}"]`);
+    const heights = new Map([...members.map((member) => [member.uuid, member.height]), [drag.uuid, height]]);
     if (bookletElement) bookletElement.style.height = `${previewBookletHeight(layout.y, after, heights)}px`;
-    drag.membershipBookletPreview = { groupId: group.id, members, after, bookletElement, originalHeight: layout.height, signature };
+    drag.membershipBookletPreview = { groupUuid: group.uuid, members, after, bookletElement, originalHeight: layout.height, signature };
   };
   const clearOriginBookletPreview = (drag) => {
     const preview = drag?.originBookletPreview;
@@ -932,23 +931,23 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   };
   const showOriginBookletPreview = (drag, group) => {
     if (drag.originBookletPreview) return;
-    const layout = bookletLayouts.find((candidate) => candidate.id === group.id);
+    const layout = bookletLayouts.find((candidate) => candidate.uuid === group.uuid);
     if (!layout) return;
-    const allMembers = group.item_ids.map((id) => {
-      const item = board.items.find((candidate) => candidate.id === id);
-      const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-      return item && element ? { id, x: item.x, y: item.y, height: element.offsetHeight, element } : null;
+    const allMembers = group.item_uuids.map((uuid) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+      return item && element ? { uuid, x: item.x, y: item.y, height: element.offsetHeight, element } : null;
     }).filter(Boolean);
-    const members = allMembers.filter((member) => member.id !== drag.id);
-    const after = stackWithout(allMembers, drag.id, group.id);
-    const positions = new Map(after.map((position) => [position.id, position]));
+    const members = allMembers.filter((member) => member.uuid !== drag.uuid);
+    const after = stackWithout(allMembers, drag.uuid, group.uuid);
+    const positions = new Map(after.map((position) => [position.uuid, position]));
     members.forEach((member) => {
-      const position = positions.get(member.id);
+      const position = positions.get(member.uuid);
       member.element.classList.add('booklet-reorder-peer');
       member.element.style.transform = `translate(${position.x}px, ${position.y}px)`;
     });
-    const bookletElement = stageRef.current?.querySelector(`[data-group-id="${group.id}"]`);
-    const heights = new Map(members.map((member) => [member.id, member.height]));
+    const bookletElement = stageRef.current?.querySelector(`[data-group-uuid="${group.uuid}"]`);
+    const heights = new Map(members.map((member) => [member.uuid, member.height]));
     if (bookletElement) bookletElement.style.height = `${previewBookletHeight(layout.y, after, heights)}px`;
     drag.originBookletPreview = { members, after, bookletElement, originalHeight: layout.height };
   };
@@ -957,8 +956,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const registerDragMovement = () => {
       const moved = exceedsDragThreshold(g.sx, g.sy, event.clientX, event.clientY);
       if (moved && !g.moved) {
-        const draggedId = g.id ?? g.clickedId ?? g.primaryId;
-        if (draggedId != null) setDraggingGrip(draggedId);
+        const draggedUuid = g.uuid ?? g.clickedUuid ?? g.primaryUuid;
+        if (draggedUuid != null) setDraggingGrip(draggedUuid);
         setSelectedBooklet(null);
         setMenuItem(null);
       }
@@ -982,13 +981,13 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setMarquee({ x: g.point.x + Math.min(0, dx), y: g.point.y + Math.min(0, dy), width: Math.abs(dx), height: Math.abs(dy) });
       const x1 = Math.min(g.sx, event.clientX); const y1 = Math.min(g.sy, event.clientY);
       const x2 = Math.max(g.sx, event.clientX); const y2 = Math.max(g.sy, event.clientY);
-      const hitIds = [...viewportRef.current.querySelectorAll('.board-canvas-card')]
+      const hitUuids = [...viewportRef.current.querySelectorAll('.board-canvas-card')]
         .filter((card) => {
           const rect = card.getBoundingClientRect();
           return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
         })
-        .map((card) => dataId(card.dataset.itemId));
-      setSelectedItems(mergeSelection(g.baseSelected, hitIds, g.mode));
+        .map((card) => card.dataset.itemUuid);
+      setSelectedItems(mergeSelection(g.baseSelected, hitUuids, g.mode));
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
     else if (g.type === 'booklet-move') {
       const dx = (event.clientX - g.sx) / viewRef.current.zoom;
@@ -1021,24 +1020,24 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         g.insertionY = pointer.y;
         const collectionTarget = bookletLayouts.find((group) => {
           if (group.kind !== 'collection') return false;
-          const rect = g.collectionBounds.get(group.id);
+          const rect = g.collectionBounds.get(group.uuid);
           if (!rect) return false;
           const outlineTop = rect.top + 76 * zoom;
           return event.clientX >= rect.left && event.clientX <= rect.right
             && event.clientY >= outlineTop && event.clientY <= rect.bottom;
         });
-        const originBooklet = bookletLayouts.find((group) => group.kind === 'booklet' && group.id === g.originGroupId);
+        const originBooklet = bookletLayouts.find((group) => group.kind === 'booklet' && group.uuid === g.originGroupUuid);
         const staysInOriginBooklet = originBooklet && pointerX >= originBooklet.x && pointerX <= originBooklet.x + originBooklet.width;
-        const bookletTarget = staysInOriginBooklet ? originBooklet : bookletLayouts.find((group) => group.kind === 'booklet' && group.id !== g.originGroupId
+        const bookletTarget = staysInOriginBooklet ? originBooklet : bookletLayouts.find((group) => group.kind === 'booklet' && group.uuid !== g.originGroupUuid
           && center.x >= group.x && center.x <= group.x + group.width
           && center.y >= group.y && center.y <= group.y + group.height);
-        g.dropGroupId = collectionTarget?.id || bookletTarget?.id || null;
-        setDropBooklet(g.dropGroupId);
-        const target = board.groups.find((group) => group.id === g.dropGroupId);
-        const origin = board.groups.find((group) => group.id === g.originGroupId);
-        if (origin?.kind === 'booklet' && target?.id !== origin.id) showOriginBookletPreview(g, origin);
+        g.dropGroupUuid = collectionTarget?.uuid || bookletTarget?.uuid || null;
+        setDropBooklet(g.dropGroupUuid);
+        const target = board.groups.find((group) => group.uuid === g.dropGroupUuid);
+        const origin = board.groups.find((group) => group.uuid === g.originGroupUuid);
+        if (origin?.kind === 'booklet' && target?.uuid !== origin.uuid) showOriginBookletPreview(g, origin);
         else clearOriginBookletPreview(g);
-        if (origin?.kind === 'collection' && target?.id !== origin.id) showOriginCollectionPreview(g, origin);
+        if (origin?.kind === 'collection' && target?.uuid !== origin.uuid) showOriginCollectionPreview(g, origin);
         else clearOriginCollectionPreview(g);
         if (target?.kind === 'collection') {
           clearMembershipBookletPreview(g);
@@ -1050,12 +1049,12 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           clearCollectionPreview(g);
           clearMembershipBookletPreview(g);
         }
-      } else if (g.type === 'free-item' && g.originGroupId) {
-        const group = board.groups.find((candidate) => candidate.id === g.originGroupId);
+      } else if (g.type === 'free-item' && g.originGroupUuid) {
+        const group = board.groups.find((candidate) => candidate.uuid === g.originGroupUuid);
         if (group?.kind === 'collection') showCollectionPreview(g, group, g.current);
       }
       if (g.type === 'loading-item') {
-        urlLoadingRef.current = urlLoadingRef.current.map((item) => item.id === g.id ? { ...item, ...g.current } : item);
+        urlLoadingRef.current = urlLoadingRef.current.map((item) => item.uuid === g.uuid ? { ...item, ...g.current } : item);
       }
     } else if (g.type === 'resize') {
       g.current = clamp(g.width + (event.clientX - g.sx) / viewRef.current.zoom, 120, 1200);
@@ -1102,59 +1101,59 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       const originPeers = [...(g.originBookletPreview?.members || []), ...(g.originCollectionPreview?.members || [])];
       setTimeout(() => [...membershipPeers, ...originPeers].forEach((member) => member.element.classList.remove('booklet-reorder-peer')), 190);
       g.element.classList.remove('booklet-reordering');
-      const item = board.items.find((candidate) => candidate.id === g.id);
+      const item = board.items.find((candidate) => candidate.uuid === g.uuid);
       const point = g.current || { x: g.x, y: g.y };
-      const target = board.groups.find((group) => group.id === g.dropGroupId) || null;
-      const origin = board.groups.find((group) => group.id === g.originGroupId) || null;
+      const target = board.groups.find((group) => group.uuid === g.dropGroupUuid) || null;
+      const origin = board.groups.find((group) => group.uuid === g.originGroupUuid) || null;
       const saveMembership = async () => {
         let targetLayout = null;
         if (target?.kind === 'booklet') {
-          const members = target.item_ids.filter((id) => id !== item.id).map((id) => {
-            const member = board.items.find((candidate) => candidate.id === id);
-            const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-            return member && element ? { id, x: member.x, y: member.y, height: element.offsetHeight } : null;
+          const members = target.item_uuids.filter((uuid) => uuid !== item.uuid).map((uuid) => {
+            const member = board.items.find((candidate) => candidate.uuid === uuid);
+            const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+            return member && element ? { uuid, x: member.x, y: member.y, height: element.offsetHeight } : null;
           }).filter(Boolean);
-          const anchor = target.id === origin?.id
-            ? origin.item_ids.map((id) => board.items.find((candidate) => candidate.id === id)).filter(Boolean).reduce((result, member) => ({
+          const anchor = target.uuid === origin?.uuid
+            ? origin.item_uuids.map((uuid) => board.items.find((candidate) => candidate.uuid === uuid)).filter(Boolean).reduce((result, member) => ({
               x: Math.min(result.x, member.x), y: Math.min(result.y, member.y),
             }), { x: Infinity, y: Infinity })
             : null;
-          targetLayout = g.membershipBookletPreview?.groupId === target.id
+          targetLayout = g.membershipBookletPreview?.groupUuid === target.uuid
             ? g.membershipBookletPreview.after
             : stackWithInsertion(members, {
-              id: item.id, x: point.x, y: point.y, height: g.element.offsetHeight || 1,
+              uuid: item.uuid, x: point.x, y: point.y, height: g.element.offsetHeight || 1,
               centerY: g.insertionY ?? point.y + (g.element.offsetHeight || 1) / 2,
-            }, target.id, anchor).positions;
+            }, target.uuid, anchor).positions;
         }
         if (target?.kind === 'collection' && target.auto_arrange) {
-          targetLayout = collectionLayout(target, item.id, point);
+          targetLayout = collectionLayout(target, item.uuid, point);
         }
         let originLayout = null;
-        if (origin?.kind === 'booklet' && origin.id !== target?.id) {
-          const members = origin.item_ids.map((id) => {
-            const member = board.items.find((candidate) => candidate.id === id);
-            const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-            return member && element ? { id, x: member.x, y: member.y, height: element.offsetHeight } : null;
+        if (origin?.kind === 'booklet' && origin.uuid !== target?.uuid) {
+          const members = origin.item_uuids.map((uuid) => {
+            const member = board.items.find((candidate) => candidate.uuid === uuid);
+            const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+            return member && element ? { uuid, x: member.x, y: member.y, height: element.offsetHeight } : null;
           }).filter(Boolean);
-          originLayout = stackWithout(members, item.id, origin.id);
+          originLayout = stackWithout(members, item.uuid, origin.uuid);
         }
-        if (origin?.kind === 'collection' && origin.auto_arrange && origin.id !== target?.id) {
-          originLayout = collectionLayout(origin, null, null, item.id);
+        if (origin?.kind === 'collection' && origin.auto_arrange && origin.uuid !== target?.uuid) {
+          originLayout = collectionLayout(origin, null, null, item.uuid);
         }
-        const destination = targetLayout?.find((position) => position.id === item.id) || point;
+        const destination = targetLayout?.find((position) => position.uuid === item.uuid) || point;
         if (target?.auto_arrange) settleDraggedCard(g.element, destination);
         const history = membershipHistorySnapshots(
-          board.items, item.id, target?.id, destination, originLayout || [], targetLayout || [],
+          board.items, item.uuid, target?.uuid, destination, originLayout || [], targetLayout || [],
         );
-        await updateBoardItem(item.id, { group_id: target?.id || null, x: destination.x, y: destination.y });
-        if (originLayout?.length) await layoutBoardGroup(origin.id, originLayout);
-        if (targetLayout) await layoutBoardGroup(target.id, targetLayout);
+        await updateBoardItem(item.uuid, { group_uuid: target?.uuid || null, x: destination.x, y: destination.y });
+        if (originLayout?.length) await layoutBoardGroup(origin.uuid, originLayout);
+        if (targetLayout) await layoutBoardGroup(target.uuid, targetLayout);
         undoStack.current.push({ type: 'membership', ...history });
         redoStack.current = [];
         await load();
         redrawBooklets([
-          origin?.kind === 'booklet' ? origin.id : null,
-          target?.kind === 'booklet' ? target.id : null,
+          origin?.kind === 'booklet' ? origin.uuid : null,
+          target?.kind === 'booklet' ? target.uuid : null,
         ]);
       };
       if (item && g.moved) {
@@ -1177,46 +1176,46 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       g.collectionPreview?.element.classList.remove('moving-active');
       const point = g.current || { x: g.x, y: g.y };
       if (g.moved) {
-        const group = board.groups.find((candidate) => candidate.id === g.originGroupId);
+        const group = board.groups.find((candidate) => candidate.uuid === g.originGroupUuid);
         if (group?.kind === 'collection' && group.auto_arrange) {
-          const layout = collectionLayout(group, g.id, point);
-          const positions = new Map(layout.map((position) => [position.id, position]));
-          const destination = layout.find((position) => position.id === g.id);
+          const layout = collectionLayout(group, g.uuid, point);
+          const positions = new Map(layout.map((position) => [position.uuid, position]));
+          const destination = layout.find((position) => position.uuid === g.uuid);
           settleDraggedCard(g.element, destination);
-          const history = membershipHistorySnapshots(board.items, g.id, group.id, destination, [], layout);
+          const history = membershipHistorySnapshots(board.items, g.uuid, group.uuid, destination, [], layout);
           undoStack.current.push({ type: 'membership', ...history });
           redoStack.current = [];
-          setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, ...positions.get(item.id) } : item) }));
+          setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.uuid) ? { ...item, ...positions.get(item.uuid) } : item) }));
           setTimeout(() => g.collectionPreview?.members?.forEach((member) => member.element.classList.remove('booklet-reorder-peer')), 190);
           setBusy(true);
-          layoutBoardGroup(group.id, layout).then(load).catch((err) => { setError(err.message); load(); }).finally(() => setBusy(false));
+          layoutBoardGroup(group.uuid, layout).then(load).catch((err) => { setError(err.message); load(); }).finally(() => setBusy(false));
         } else {
-          undoStack.current.push({ type: 'move', id: g.id, from: { x: g.x, y: g.y }, to: point });
+          undoStack.current.push({ type: 'move', uuid: g.uuid, from: { x: g.x, y: g.y }, to: point });
           redoStack.current = [];
-          setBoard((current) => ({ ...current, items: current.items.map((item) => item.id === g.id ? { ...item, ...point } : item) }));
-          moveBoardItem(g.id, point.x, point.y).catch((err) => { setError(err.message); load(); });
+          setBoard((current) => ({ ...current, items: current.items.map((item) => item.uuid === g.uuid ? { ...item, ...point } : item) }));
+          moveBoardItem(g.uuid, point.x, point.y).catch((err) => { setError(err.message); load(); });
         }
       } else {
         g.element.style.transform = `translate(${g.x}px, ${g.y}px)`;
-        setSelectedItems(mergeSelection(g.baseSelected, [g.id], g.mode));
+        setSelectedItems(mergeSelection(g.baseSelected, [g.uuid], g.mode));
       }
     }
     if (g?.type === 'booklet-move') {
       const { dx = 0, dy = 0 } = g.current || {};
       if (g.moved) {
-        suppressBookletClick.current = g.groupId;
+        suppressBookletClick.current = g.groupUuid;
         setSelectedBooklet(null);
         setMenuItem(null);
-        undoStack.current.push({ type: 'group-move', id: g.groupId, dx, dy });
+        undoStack.current.push({ type: 'group-move', uuid: g.groupUuid, dx, dy });
         redoStack.current = [];
-        const ids = new Set(g.members.map((member) => member.id));
-        setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.id) ? { ...item, x: item.x + dx, y: item.y + dy } : item) }));
-        moveBoardGroup(g.groupId, dx, dy).catch((err) => { setError(err.message); load(); });
+        const ids = new Set(g.members.map((member) => member.uuid));
+        setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.uuid) ? { ...item, x: item.x + dx, y: item.y + dy } : item) }));
+        moveBoardGroup(g.groupUuid, dx, dy).catch((err) => { setError(err.message); load(); });
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
         if (g.bookletElement) g.bookletElement.style.transform = `translate(${g.booklet.x}px, ${g.booklet.y}px)`;
-        if (g.clickedId != null) {
-          setSelectedItems(mergeSelection(g.baseSelected, [g.clickedId], g.mode));
+        if (g.clickedUuid != null) {
+          setSelectedItems(mergeSelection(g.baseSelected, [g.clickedUuid], g.mode));
           setSelectedBooklet(null);
           setMenuItem(null);
         }
@@ -1225,16 +1224,16 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (g?.type === 'multi-item') {
       const { dx = 0, dy = 0 } = g.current || {};
       if (g.moved) {
-        const moves = g.members.map((member) => ({ id: member.id, from: { x: member.x, y: member.y }, to: { x: member.x + dx, y: member.y + dy } }));
+        const moves = g.members.map((member) => ({ uuid: member.uuid, from: { x: member.x, y: member.y }, to: { x: member.x + dx, y: member.y + dy } }));
         undoStack.current.push({ type: 'move-many', moves });
         redoStack.current = [];
-        const positions = new Map(moves.map((move) => [move.id, move.to]));
-        setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.id) ? { ...item, ...positions.get(item.id) } : item) }));
-        Promise.all(moves.map((move) => moveBoardItem(move.id, move.to.x, move.to.y))).catch((err) => { setError(err.message); load(); });
+        const positions = new Map(moves.map((move) => [move.uuid, move.to]));
+        setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.uuid) ? { ...item, ...positions.get(item.uuid) } : item) }));
+        Promise.all(moves.map((move) => moveBoardItem(move.uuid, move.to.x, move.to.y))).catch((err) => { setError(err.message); load(); });
       } else {
         g.members.forEach((member) => { member.element.style.transform = `translate(${member.x}px, ${member.y}px)`; });
         g.groups.forEach((group) => { group.element.style.transform = `translate(${group.x}px, ${group.y}px)`; });
-        if (g.mode === 'toggle') setSelectedItems(mergeSelection(g.baseSelected, [g.primaryId], g.mode));
+        if (g.mode === 'toggle') setSelectedItems(mergeSelection(g.baseSelected, [g.primaryUuid], g.mode));
       }
     }
     if (event?.pointerType === 'touch') {
@@ -1244,24 +1243,24 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     }
     if (g?.type === 'loading-item') {
       const point = g.current || { x: g.x, y: g.y };
-      urlLoadingRef.current = urlLoadingRef.current.map((item) => item.id === g.id ? { ...item, ...point } : item);
+      urlLoadingRef.current = urlLoadingRef.current.map((item) => item.uuid === g.uuid ? { ...item, ...point } : item);
       setUrlLoading(urlLoadingRef.current);
     }
     if (g?.type === 'resize') {
       const width = g.current ?? g.width;
       if (Math.abs(width - g.width) > 1) {
-        const afterPositions = g.groupId ? compactBookletPositions(g.groupId) : null;
-        undoStack.current.push({ type: 'resize', id: g.id, from: g.width, to: width, groupId: g.groupId, beforePositions: g.beforePositions, afterPositions });
+        const afterPositions = g.groupUuid ? compactBookletPositions(g.groupUuid) : null;
+        undoStack.current.push({ type: 'resize', uuid: g.uuid, from: g.width, to: width, groupUuid: g.groupUuid, beforePositions: g.beforePositions, afterPositions });
         redoStack.current = [];
-        const positions = new Map(afterPositions?.map((position) => [position.id, position]));
+        const positions = new Map(afterPositions?.map((position) => [position.uuid, position]));
         setBoard((current) => ({ ...current, items: current.items.map((item) => ({
           ...item,
-          ...(item.id === g.id ? { width } : {}),
-          ...(positions?.get(item.id) || {}),
+          ...(item.uuid === g.uuid ? { width } : {}),
+          ...(positions?.get(item.uuid) || {}),
         })) }));
         Promise.all([
-          updateBoardItem(g.id, { width }),
-          ...(g.groupId ? [layoutBoardGroup(g.groupId, afterPositions)] : []),
+          updateBoardItem(g.uuid, { width }),
+          ...(g.groupUuid ? [layoutBoardGroup(g.groupUuid, afterPositions)] : []),
         ]).catch((err) => { setError(err.message); load(); });
       }
     }
@@ -1269,25 +1268,25 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       const resized = g.current || g.entries.map((entry) => ({ ...entry, nextWidth: entry.width }));
       const changes = resized
         .filter((entry) => Math.abs(entry.nextWidth - entry.width) > 1)
-        .map((entry) => ({ id: entry.id, from: entry.width, to: entry.nextWidth }));
+        .map((entry) => ({ uuid: entry.uuid, from: entry.width, to: entry.nextWidth }));
       if (changes.length) {
-        const layouts = g.groupIds.map((groupId) => ({
-          id: groupId,
-          before: g.beforeLayouts.get(groupId),
-          after: compactBookletPositions(groupId),
+        const layouts = g.groupUuids.map((groupUuid) => ({
+          uuid: groupUuid,
+          before: g.beforeLayouts.get(groupUuid),
+          after: compactBookletPositions(groupUuid),
         }));
-        const positions = new Map(layouts.flatMap((layout) => layout.after).map((position) => [position.id, position]));
+        const positions = new Map(layouts.flatMap((layout) => layout.after).map((position) => [position.uuid, position]));
         undoStack.current.push({ type: 'resize-selection', changes, layouts });
         redoStack.current = [];
-        const widths = new Map(changes.map((change) => [change.id, change.to]));
+        const widths = new Map(changes.map((change) => [change.uuid, change.to]));
         setBoard((current) => ({ ...current, items: current.items.map((candidate) => ({
           ...candidate,
-          ...(widths.has(candidate.id) ? { width: widths.get(candidate.id) } : {}),
-          ...(positions.get(candidate.id) || {}),
+          ...(widths.has(candidate.uuid) ? { width: widths.get(candidate.uuid) } : {}),
+          ...(positions.get(candidate.uuid) || {}),
         })) }));
         Promise.all([
-          ...changes.map((change) => updateBoardItem(change.id, { width: change.to })),
-          ...layouts.map((layout) => layoutBoardGroup(layout.id, layout.after)),
+          ...changes.map((change) => updateBoardItem(change.uuid, { width: change.to })),
+          ...layouts.map((layout) => layoutBoardGroup(layout.uuid, layout.after)),
         ]).catch((err) => { setError(err.message); load(); });
       }
     }
@@ -1302,7 +1301,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           const rect = card.getBoundingClientRect();
           return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
         });
-        setSelectedItems(mergeSelection(g.baseSelected, hits.map((card) => dataId(card.dataset.itemId)), g.mode));
+        setSelectedItems(mergeSelection(g.baseSelected, hits.map((card) => card.dataset.itemUuid), g.mode));
       } else if (g.mode === 'replace') {
         setSelectedItems([]);
       }
@@ -1313,29 +1312,29 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     if (ask && !(await confirmAction('Remove this card?', { confirmLabel: 'Remove', destructive: true }))) return;
     setBusy(true); setError(null);
     try {
-      await deleteBoardItem(item.id);
-      undoStack.current.push({ type: 'delete', id: item.id });
+      await deleteBoardItem(item.uuid);
+      undoStack.current.push({ type: 'delete', uuid: item.uuid });
       redoStack.current = [];
       setSelectedItems([]);
       setMenuItem(null);
       setBoard((current) => ({
         ...current,
         item_count: Math.max(0, current.item_count - 1),
-        items: current.items.filter((candidate) => candidate.id !== item.id),
+        items: current.items.filter((candidate) => candidate.uuid !== item.uuid),
       }));
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const saveDescription = async (item) => {
     setBusy(true); setError(null);
     try {
-      const updated = await updateBoardItem(item.id, { content: descriptionDraft });
-      setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? updated : candidate) }));
+      const updated = await updateBoardItem(item.uuid, { content: descriptionDraft });
+      setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.uuid === item.uuid ? updated : candidate) }));
       setEditingDescription(null);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const removeItems = async (itemIds) => {
-    if (!itemIds.length) return;
-    const ids = [...itemIds];
+  const removeItems = async (itemUuids) => {
+    if (!itemUuids.length) return;
+    const ids = [...itemUuids];
     setBusy(true); setError(null);
     try {
       await Promise.all(ids.map(deleteBoardItem));
@@ -1345,7 +1344,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setBoard((current) => ({
         ...current,
         item_count: Math.max(0, current.item_count - ids.length),
-        items: current.items.filter((item) => !ids.includes(item.id)),
+        items: current.items.filter((item) => !ids.includes(item.uuid)),
       }));
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
@@ -1353,133 +1352,133 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const saveText = async (item) => {
     setBusy(true); setError(null);
     try {
-      const updated = await updateBoardItem(item.id, { content: textDraft });
-      setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? updated : candidate) }));
+      const updated = await updateBoardItem(item.uuid, { content: textDraft });
+      setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.uuid === item.uuid ? updated : candidate) }));
       setEditingText(null);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const alignText = async (item, textAlign) => {
     try {
-      const updated = await updateBoardItem(item.id, { text_align: textAlign });
-      setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? updated : candidate) }));
+      const updated = await updateBoardItem(item.uuid, { text_align: textAlign });
+      setBoard((current) => ({ ...current, items: current.items.map((candidate) => candidate.uuid === item.uuid ? updated : candidate) }));
     } catch (err) { setError(err.message); }
   };
-  const groupAsBooklet = async (itemIds = selectedItems) => {
-    if (itemIds.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
+  const groupAsBooklet = async (itemUuids = selectedItems) => {
+    if (itemUuids.some((uuid) => board.items.find((item) => item.uuid === uuid)?.group_uuid != null)) return;
     setBusy(true); setError(null);
     try {
-      const previous = itemIds.map((id) => {
-        const item = board.items.find((candidate) => candidate.id === id);
-        return { id, group_id: item.group_id || null, x: item.x, y: item.y };
+      const previous = itemUuids.map((uuid) => {
+        const item = board.items.find((candidate) => candidate.uuid === uuid);
+        return { uuid, group_uuid: item.group_uuid || null, x: item.x, y: item.y };
       });
-      const group = await createBoardGroup(board.guid, { kind: 'booklet', title: '', item_ids: itemIds });
-      undoStack.current.push({ type: 'group', kind: 'booklet', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...itemIds], previous });
+      const group = await createBoardGroup(board.uuid, { kind: 'booklet', title: '', item_uuids: itemUuids });
+      undoStack.current.push({ type: 'group', kind: 'booklet', uuid: group.uuid, boardUuid: board.uuid, title: '', header: '', itemUuids: [...itemUuids], previous });
       redoStack.current = [];
       setSelectedItems([]);
       await load();
       setBookletTitleDraft('');
-      setEditingBooklet(group.id);
+      setEditingBooklet(group.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const groupAsCollection = async (itemIds = selectedItems) => {
-    if (itemIds.some((id) => board.items.find((item) => item.id === id)?.group_id != null)) return;
+  const groupAsCollection = async (itemUuids = selectedItems) => {
+    if (itemUuids.some((uuid) => board.items.find((item) => item.uuid === uuid)?.group_uuid != null)) return;
     setBusy(true); setError(null);
     try {
-      const previous = itemIds.map((id) => {
-        const item = board.items.find((candidate) => candidate.id === id);
-        return { id, group_id: null, x: item.x, y: item.y };
+      const previous = itemUuids.map((uuid) => {
+        const item = board.items.find((candidate) => candidate.uuid === uuid);
+        return { uuid, group_uuid: null, x: item.x, y: item.y };
       });
-      const group = await createBoardGroup(board.guid, { kind: 'collection', title: '', item_ids: itemIds });
-      undoStack.current.push({ type: 'group', kind: 'collection', id: group.id, boardGuid: board.guid, title: '', header: '', itemIds: [...itemIds], previous });
+      const group = await createBoardGroup(board.uuid, { kind: 'collection', title: '', item_uuids: itemUuids });
+      undoStack.current.push({ type: 'group', kind: 'collection', uuid: group.uuid, boardUuid: board.uuid, title: '', header: '', itemUuids: [...itemUuids], previous });
       redoStack.current = [];
       setSelectedItems([]);
       await load();
       setBookletTitleDraft('');
-      setEditingBooklet(group.id);
+      setEditingBooklet(group.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const ungroupBooklet = async (booklet) => {
-    const items = booklet.item_ids.map((id) => {
-      const item = board.items.find((candidate) => candidate.id === id);
-      return { id, group_id: null, x: item.x, y: item.y };
+    const items = booklet.item_uuids.map((uuid) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
+      return { uuid, group_uuid: null, x: item.x, y: item.y };
     });
     setBusy(true); setError(null);
     try {
-      await ungroupBoardGroup(booklet.id, items);
+      await ungroupBoardGroup(booklet.uuid, items);
       undoStack.current.push({
-        type: 'ungroup', kind: booklet.kind, id: booklet.id, boardGuid: board.guid,
+        type: 'ungroup', kind: booklet.kind, uuid: booklet.uuid, boardUuid: board.uuid,
         title: booklet.title, header: booklet.header, autoArrange: booklet.auto_arrange,
-        itemIds: [...booklet.item_ids], items,
+        itemUuids: [...booklet.item_uuids], items,
       });
       redoStack.current = [];
       setSelectedBooklet(null);
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const tidyItems = async (itemIds) => {
-    const ids = new Set(itemIds);
-    const items = board.items.filter((item) => ids.has(item.id));
+  const tidyItems = async (itemUuids) => {
+    const ids = new Set(itemUuids);
+    const items = board.items.filter((item) => ids.has(item.uuid));
     if (!items.length) return;
     const width = DEFAULT_CARD_WIDTH;
-    const changes = items.map((item) => ({ id: item.id, from: item.width || DEFAULT_CARD_WIDTH, to: width, fromX: item.x, fromY: item.y }));
+    const changes = items.map((item) => ({ uuid: item.uuid, from: item.width || DEFAULT_CARD_WIDTH, to: width, fromX: item.x, fromY: item.y }));
     const positions = new Map();
-    board.groups.filter((group) => group.kind === 'collection' && group.item_ids.every((id) => ids.has(id))).forEach((group) => {
-      const cards = group.item_ids.map((id) => {
-        const item = board.items.find((candidate) => candidate.id === id);
-        const element = stageRef.current?.querySelector(`[data-item-id="${id}"]`);
-        return item && element ? { id, x: item.x, y: item.y, width, height: element.offsetHeight } : null;
+    board.groups.filter((group) => group.kind === 'collection' && group.item_uuids.every((uuid) => ids.has(uuid))).forEach((group) => {
+      const cards = group.item_uuids.map((uuid) => {
+        const item = board.items.find((candidate) => candidate.uuid === uuid);
+        const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+        return item && element ? { uuid, x: item.x, y: item.y, width, height: element.offsetHeight } : null;
       }).filter(Boolean);
-      tidyCollectionPositions(cards).forEach((position) => positions.set(position.id, position));
+      tidyCollectionPositions(cards).forEach((position) => positions.set(position.uuid, position));
     });
     changes.forEach((change) => {
-      const position = positions.get(change.id);
+      const position = positions.get(change.uuid);
       change.toX = position?.x ?? change.fromX;
       change.toY = position?.y ?? change.fromY;
     });
-    if (changes.every((change) => change.from === change.to) && [...positions].every(([id, position]) => {
-      const item = board.items.find((candidate) => candidate.id === id);
+    if (changes.every((change) => change.from === change.to) && [...positions].every(([uuid, position]) => {
+      const item = board.items.find((candidate) => candidate.uuid === uuid);
       return item.x === position.x && item.y === position.y;
     })) return;
     setBusy(true); setError(null);
     try {
-      await Promise.all(changes.map((change) => updateBoardItem(change.id, { width: change.to, ...(positions.get(change.id) || {}) })));
+      await Promise.all(changes.map((change) => updateBoardItem(change.uuid, { width: change.to, ...(positions.get(change.uuid) || {}) })));
       undoStack.current.push({ type: 'resize-many', changes });
       redoStack.current = [];
-      setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.id) ? { ...item, width, ...(positions.get(item.id) || {}) } : item) }));
+      setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.uuid) ? { ...item, width, ...(positions.get(item.uuid) || {}) } : item) }));
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
   const tidySelectedItems = () => tidyItems(selectedItems);
-  const tidyBoard = () => tidyItems(board.items.map((item) => item.id));
+  const tidyBoard = () => tidyItems(board.items.map((item) => item.uuid));
   const tidyCollection = async (collection) => {
-    const members = collection.item_ids.map((id) => board.items.find((item) => item.id === id)).filter(Boolean);
+    const members = collection.item_uuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter(Boolean);
     if (!members.length) return;
     const changes = members.map((item) => ({
-      id: item.id, from: item.width || DEFAULT_CARD_WIDTH, to: DEFAULT_CARD_WIDTH,
+      uuid: item.uuid, from: item.width || DEFAULT_CARD_WIDTH, to: DEFAULT_CARD_WIDTH,
       fromX: item.x, fromY: item.y,
     }));
     members.forEach((item) => {
-      const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
       if (element) element.style.width = `${DEFAULT_CARD_WIDTH}px`;
     });
     const cards = members.map((item) => {
-      const element = stageRef.current?.querySelector(`[data-item-id="${item.id}"]`);
-      return { id: item.id, x: item.x, y: item.y, height: element?.offsetHeight || 1 };
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
+      return { uuid: item.uuid, x: item.x, y: item.y, height: element?.offsetHeight || 1 };
     });
     const { positions } = collectionMasonryLayout(cards);
-    const positionsById = new Map(positions.map((position) => [position.id, position]));
+    const positionsByUuid = new Map(positions.map((position) => [position.uuid, position]));
     changes.forEach((change) => {
-      const position = positionsById.get(change.id);
+      const position = positionsByUuid.get(change.uuid);
       change.toX = position.x; change.toY = position.y;
     });
     setBusy(true); setError(null);
     try {
-      await Promise.all(changes.map((change) => updateBoardItem(change.id, {
+      await Promise.all(changes.map((change) => updateBoardItem(change.uuid, {
         width: change.to, x: change.toX, y: change.toY,
       })));
       undoStack.current.push({ type: 'resize-many', changes });
       redoStack.current = [];
       setBoard((current) => ({ ...current, items: current.items.map((item) => {
-        const position = positionsById.get(item.id);
+        const position = positionsByUuid.get(item.uuid);
         return position ? { ...item, width: DEFAULT_CARD_WIDTH, ...position } : item;
       }) }));
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
@@ -1488,35 +1487,35 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const enabled = !collection.auto_arrange;
     setBusy(true); setError(null);
     try {
-      const updated = await updateBoardGroup(collection.id, { auto_arrange: enabled });
+      const updated = await updateBoardGroup(collection.uuid, { auto_arrange: enabled });
       if (enabled) {
         const layout = collectionLayout(collection);
-        if (layout.length) await layoutBoardGroup(collection.id, layout);
+        if (layout.length) await layoutBoardGroup(collection.uuid, layout);
       }
-      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === collection.id ? updated : group) }));
+      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.uuid === collection.uuid ? updated : group) }));
       await load();
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
   const saveBookletTitle = async (booklet) => {
     setEditingBooklet(null);
     try {
-      const updated = await updateBoardGroup(booklet.id, { title: bookletTitleDraft });
+      const updated = await updateBoardGroup(booklet.uuid, { title: bookletTitleDraft });
       for (let index = undoStack.current.length - 1; index >= 0; index -= 1) {
         const action = undoStack.current[index];
-        if (action.type === 'group' && action.id === booklet.id) { action.title = updated.title; break; }
+        if (action.type === 'group' && action.uuid === booklet.uuid) { action.title = updated.title; break; }
       }
-      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === booklet.id ? updated : group) }));
+      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.uuid === booklet.uuid ? updated : group) }));
     } catch (err) { setError(err.message); }
   };
   const saveBookletHeader = async (booklet) => {
     setEditingBookletHeader(null);
     try {
-      const updated = await updateBoardGroup(booklet.id, { header: bookletHeaderDraft });
+      const updated = await updateBoardGroup(booklet.uuid, { header: bookletHeaderDraft });
       for (let index = undoStack.current.length - 1; index >= 0; index -= 1) {
         const action = undoStack.current[index];
-        if (action.type === 'group' && action.id === booklet.id) { action.header = updated.header; break; }
+        if (action.type === 'group' && action.uuid === booklet.uuid) { action.header = updated.header; break; }
       }
-      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.id === booklet.id ? updated : group) }));
+      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.uuid === booklet.uuid ? updated : group) }));
     } catch (err) { setError(err.message); }
   };
   const applyHistory = async (direction) => {
@@ -1528,95 +1527,95 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     try {
       if (action.type === 'move') {
         const point = direction === 'undo' ? action.from : action.to;
-        await moveBoardItem(action.id, point.x, point.y);
+        await moveBoardItem(action.uuid, point.x, point.y);
       } else if (action.type === 'move-many') {
         await Promise.all(action.moves.map((move) => {
           const point = direction === 'undo' ? move.from : move.to;
-          return moveBoardItem(move.id, point.x, point.y);
+          return moveBoardItem(move.uuid, point.x, point.y);
         }));
       } else if (action.type === 'membership') {
         const snapshot = direction === 'undo' ? action.before : action.after;
-        await Promise.all(snapshot.map((item) => updateBoardItem(item.id, {
-          group_id: item.group_id,
+        await Promise.all(snapshot.map((item) => updateBoardItem(item.uuid, {
+          group_uuid: item.group_uuid,
           x: item.x,
           y: item.y,
         })));
       } else if (action.type === 'booklet-join') {
-        const joined = action.after.find((position) => position.id === action.id);
+        const joined = action.after.find((position) => position.uuid === action.uuid);
         if (direction === 'undo') {
-          await updateBoardItem(action.id, { group_id: null, ...action.from });
-          if (action.before.length) await layoutBoardGroup(action.groupId, action.before);
+          await updateBoardItem(action.uuid, { group_uuid: null, ...action.from });
+          if (action.before.length) await layoutBoardGroup(action.groupUuid, action.before);
         } else {
-          await updateBoardItem(action.id, { group_id: action.groupId, x: joined.x, y: joined.y });
-          await layoutBoardGroup(action.groupId, action.after);
+          await updateBoardItem(action.uuid, { group_uuid: action.groupUuid, x: joined.x, y: joined.y });
+          await layoutBoardGroup(action.groupUuid, action.after);
         }
       } else if (action.type === 'booklet-leave') {
-        const original = action.before.find((position) => position.id === action.id);
+        const original = action.before.find((position) => position.uuid === action.uuid);
         if (direction === 'undo') {
-          await updateBoardItem(action.id, { group_id: action.groupId, x: original.x, y: original.y });
-          await layoutBoardGroup(action.groupId, action.before);
+          await updateBoardItem(action.uuid, { group_uuid: action.groupUuid, x: original.x, y: original.y });
+          await layoutBoardGroup(action.groupUuid, action.before);
         } else {
-          await updateBoardItem(action.id, { group_id: null, ...action.to });
-          if (action.after.length) await layoutBoardGroup(action.groupId, action.after);
+          await updateBoardItem(action.uuid, { group_uuid: null, ...action.to });
+          if (action.after.length) await layoutBoardGroup(action.groupUuid, action.after);
         }
       } else if (action.type === 'group-move') {
         const factor = direction === 'undo' ? -1 : 1;
-        await moveBoardGroup(action.id, action.dx * factor, action.dy * factor);
+        await moveBoardGroup(action.uuid, action.dx * factor, action.dy * factor);
       } else if (action.type === 'group') {
         if (direction === 'undo') {
-          await ungroupBoardGroup(action.id, action.previous);
+          await ungroupBoardGroup(action.uuid, action.previous);
         } else {
-          const previousId = action.id;
-          const group = await createBoardGroup(action.boardGuid, {
+          const previousUuid = action.uuid;
+          const group = await createBoardGroup(action.boardUuid, {
             kind: action.kind || 'booklet', title: action.title, header: action.header,
-            auto_arrange: action.autoArrange || false, item_ids: action.itemIds,
+            auto_arrange: action.autoArrange || false, item_uuids: action.itemUuids,
           });
-          action.id = group.id;
+          action.uuid = group.uuid;
           source.forEach((pending) => {
-            if (pending.type === 'group-move' && pending.id === previousId) pending.id = group.id;
+            if (pending.type === 'group-move' && pending.uuid === previousUuid) pending.uuid = group.uuid;
           });
         }
       } else if (action.type === 'ungroup') {
         if (direction === 'undo') {
-          const group = await createBoardGroup(action.boardGuid, {
+          const group = await createBoardGroup(action.boardUuid, {
             kind: action.kind || 'booklet', title: action.title, header: action.header,
-            auto_arrange: action.autoArrange || false, item_ids: action.itemIds,
+            auto_arrange: action.autoArrange || false, item_uuids: action.itemUuids,
           });
-          action.id = group.id;
+          action.uuid = group.uuid;
         } else {
-          await ungroupBoardGroup(action.id, action.items);
+          await ungroupBoardGroup(action.uuid, action.items);
         }
       } else if (action.type === 'resize') {
-        await updateBoardItem(action.id, { width: direction === 'undo' ? action.from : action.to });
-        if (action.groupId) await layoutBoardGroup(
-          action.groupId,
+        await updateBoardItem(action.uuid, { width: direction === 'undo' ? action.from : action.to });
+        if (action.groupUuid) await layoutBoardGroup(
+          action.groupUuid,
           direction === 'undo' ? action.beforePositions : action.afterPositions,
         );
       } else if (action.type === 'resize-many') {
         await Promise.all(action.changes.map((change) => updateBoardItem(
-          change.id, direction === 'undo'
+          change.uuid, direction === 'undo'
             ? { width: change.from, ...(change.fromX == null ? {} : { x: change.fromX, y: change.fromY }) }
             : { width: change.to, ...(change.toX == null ? {} : { x: change.toX, y: change.toY }) },
         )));
       } else if (action.type === 'resize-selection') {
         await Promise.all([
-          ...action.changes.map((change) => updateBoardItem(change.id, {
+          ...action.changes.map((change) => updateBoardItem(change.uuid, {
             width: direction === 'undo' ? change.from : change.to,
           })),
           ...action.layouts.map((layout) => layoutBoardGroup(
-            layout.id, direction === 'undo' ? layout.before : layout.after,
+            layout.uuid, direction === 'undo' ? layout.before : layout.after,
           )),
         ]);
       } else if (action.type === 'layout') {
-        await layoutBoardGroup(action.id, direction === 'undo' ? action.before : action.after);
+        await layoutBoardGroup(action.uuid, direction === 'undo' ? action.before : action.after);
       } else if (action.type === 'delete') {
-        if (direction === 'undo') await restoreBoardItem(action.id);
-        else await deleteBoardItem(action.id);
+        if (direction === 'undo') await restoreBoardItem(action.uuid);
+        else await deleteBoardItem(action.uuid);
       } else if (action.type === 'delete-many') {
-        await Promise.all(action.ids.map((id) => direction === 'undo' ? restoreBoardItem(id) : deleteBoardItem(id)));
+        await Promise.all(action.ids.map((uuid) => direction === 'undo' ? restoreBoardItem(uuid) : deleteBoardItem(uuid)));
       } else {
-        if (direction === 'undo') await deleteBoardItem(action.id);
-        else await restoreBoardItem(action.id);
+        if (direction === 'undo') await deleteBoardItem(action.uuid);
+        else await restoreBoardItem(action.uuid);
       }
       destination.push(action);
       setSelectedItems([]);
@@ -1657,7 +1656,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
         event.preventDefault();
         setMenuItem(null);
-        setSelectedItems(board.items.map((item) => item.id));
+        setSelectedItems(board.items.map((item) => item.uuid));
         return;
       }
       if (!board.can_edit || !['Delete', 'Backspace'].includes(event.key) || !selectedItems.length || busy) return;
@@ -1672,8 +1671,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
   const dropFiles = async (event) => {
     event.preventDefault(); setDraggingFiles(false);
     if (!board.can_edit) return;
-    const stagedId = dataId(event.dataTransfer.getData('application/x-papol-staged-item'));
-    if (Number.isInteger(stagedId) && stagedId > 0) {
+    const stagedUuid = event.dataTransfer.getData('application/x-papol-staged-item');
+    if (stagedUuid) {
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
       const { x, y } = boardPointFromClient(
@@ -1681,11 +1680,11 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       );
       setBusy(true); setError(null);
       try {
-        const item = await placeStagedBoardItem(stagedId, x, y);
-        undoStack.current.push({ type: 'add', id: item.id });
+        const item = await placeStagedBoardItem(stagedUuid, x, y);
+        undoStack.current.push({ type: 'add', uuid: item.uuid });
         redoStack.current = [];
         await load();
-        setSelectedItems([item.id]);
+        setSelectedItems([item.uuid]);
       } catch (err) { setError(err.message); } finally { setBusy(false); }
       return;
     }
@@ -1700,7 +1699,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     );
     setBusy(true); setError(null);
     try {
-      await Promise.all(files.map((file, index) => addBoardFile(board.guid, file, '', {
+      await Promise.all(files.map((file, index) => addBoardFile(board.uuid, file, '', {
         x: origin.x + index * 28, y: origin.y + index * 28,
       })));
       await load();
@@ -1716,8 +1715,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     );
     setBusy(true); setError(null);
     try {
-      const item = await addBoardComment(board.guid, 'New note', x, y);
-      undoStack.current.push({ type: 'add', id: item.id });
+      const item = await addBoardComment(board.uuid, 'New note', x, y);
+      undoStack.current.push({ type: 'add', uuid: item.uuid });
       redoStack.current = [];
       setBoard((currentBoard) => ({
         ...currentBoard,
@@ -1727,26 +1726,26 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       setSelectedItems([]);
       setSelectedBooklet(null);
       setTextDraft(item.content);
-      newNoteToSelect.current = item.id;
-      setEditingText(item.id);
+      newNoteToSelect.current = item.uuid;
+      setEditingText(item.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const removeBoard = async () => {
     if (!(await confirmAction(`Delete “${board.name}”? This cannot be undone.`, { confirmLabel: 'Delete board', destructive: true }))) return;
     setBusy(true); setError(null);
     try {
-      await deleteBoard(board.guid);
-      try { localStorage.removeItem(`papol_board_view_${board.guid}`); } catch { /* best effort */ }
+      await deleteBoard(board.uuid);
+      try { localStorage.removeItem(`papol_board_view_${board.uuid}`); } catch { /* best effort */ }
       onBack();
     } catch (err) { setError(err.message); setBusy(false); }
   };
 
   if (error && !board) return <div className="error">{error}</div>;
   if (!board) return <div className="loading">Loading board…</div>;
-  const canGroupSelection = selectedItems.every((id) =>
-    board.items.find((item) => item.id === id)?.group_id == null
+  const canGroupSelection = selectedItems.every((uuid) =>
+    board.items.find((item) => item.uuid === uuid)?.group_uuid == null
   );
-  const activeBooklet = board.groups?.find((booklet) => booklet.id === selectedBooklet);
+  const activeBooklet = board.groups?.find((booklet) => booklet.uuid === selectedBooklet);
   const historyEntries = () => [
     { label: 'Undo', shortcut: '⌘Z', disabled: busy || undoStack.current.length === 0, onSelect: () => applyHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: busy || redoStack.current.length === 0, onSelect: () => applyHistory('redo') },
@@ -1757,19 +1756,19 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     setMenuItem(null);
     if (item.source_url || item.kind === 'image') {
       setDescriptionDraft(item.content || '');
-      setEditingDescription(item.id);
+      setEditingDescription(item.uuid);
     } else {
       setTextDraft(item.content || '');
-      setEditingText(item.id);
+      setEditingText(item.uuid);
     }
   };
   const handleCardContextMenu = (event, item) => {
-    const itemIds = selectedItems.length > 1 && selectedItems.includes(item.id)
+    const itemUuids = selectedItems.length > 1 && selectedItems.includes(item.uuid)
       ? [...selectedItems]
-      : [item.id];
-    const isSelection = itemIds.length > 1;
-    const selectionCanGroup = itemIds.every((id) => (
-      board.items.find((candidate) => candidate.id === id)?.group_id == null
+      : [item.uuid];
+    const isSelection = itemUuids.length > 1;
+    const selectionCanGroup = itemUuids.every((uuid) => (
+      board.items.find((candidate) => candidate.uuid === uuid)?.group_uuid == null
     ));
     const opened = openContextMenu(event, [
       !isSelection && item.source_url && {
@@ -1788,17 +1787,17 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           onSelect: () => alignText(item, alignment),
         })),
       },
-      isSelection && board.can_edit && { label: `Tidy ${itemIds.length} Cards`, onSelect: () => tidyItems(itemIds) },
-      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Collection', onSelect: () => groupAsCollection(itemIds) },
-      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Booklet', onSelect: () => groupAsBooklet(itemIds) },
+      isSelection && board.can_edit && { label: `Tidy ${itemUuids.length} Cards`, onSelect: () => tidyItems(itemUuids) },
+      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Collection', onSelect: () => groupAsCollection(itemUuids) },
+      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Booklet', onSelect: () => groupAsBooklet(itemUuids) },
       board.can_edit && { separator: true },
-      board.can_edit && { label: isSelection ? `Remove ${itemIds.length} Cards` : 'Remove Card…', disabled: busy, onSelect: () => isSelection ? removeItems(itemIds) : removeItem(item) },
+      board.can_edit && { label: isSelection ? `Remove ${itemUuids.length} Cards` : 'Remove Card…', disabled: busy, onSelect: () => isSelection ? removeItems(itemUuids) : removeItem(item) },
       board.can_edit && { separator: true },
       board.can_edit && historyEntries()[0],
       board.can_edit && historyEntries()[1],
     ]);
     if (opened) {
-      setSelectedItems(itemIds);
+      setSelectedItems(itemUuids);
       setSelectedBooklet(null);
       setMenuItem(null);
     }
@@ -1807,11 +1806,11 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     const opened = openContextMenu(event, [
       board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => {
         setBookletTitleDraft(booklet.title || '');
-        setEditingBooklet(booklet.id);
+        setEditingBooklet(booklet.uuid);
       } },
       board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => {
         setBookletHeaderDraft(booklet.header || '');
-        setEditingBookletHeader(booklet.id);
+        setEditingBookletHeader(booklet.uuid);
       } },
       board.can_edit && booklet.kind === 'collection' && {
         label: 'Auto-arrange', checked: booklet.auto_arrange, onSelect: () => toggleCollectionAutoArrange(booklet),
@@ -1825,7 +1824,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     ]);
     if (opened) {
       setSelectedItems([]);
-      setSelectedBooklet(booklet.id);
+      setSelectedBooklet(booklet.uuid);
       setMenuItem(null);
     }
   };
@@ -1843,8 +1842,8 @@ export default function BoardPage({ boardId, onBack, backHref }) {
     }
     if (!selectedItems.length || event.shiftKey || event.metaKey || event.ctrlKey) return;
     if (event.target.closest?.('.board-selection-menu')) return;
-    const card = event.target.closest?.('[data-item-id]');
-    if (card && selectedItems.includes(dataId(card.dataset.itemId))) return;
+    const card = event.target.closest?.('[data-item-uuid]');
+    if (card && selectedItems.includes(card.dataset.itemUuid)) return;
     setSelectedItems([]);
   };
   return <div
@@ -1872,7 +1871,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
         : !DESKTOP
           ? <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
           : null}
-      <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.guid, { name: e.target.value.trim() })} />
+      <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength="120" readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
@@ -1893,22 +1892,22 @@ export default function BoardPage({ boardId, onBack, backHref }) {
           <div className="board-staging-list">
             {board.staged_items.map((item) => (
               <article
-                key={item.id}
+                key={item.uuid}
                 className="board-staging-card"
                 draggable="true"
                 onDragStart={(event) => {
                   event.stopPropagation();
                   event.dataTransfer.effectAllowed = 'move';
-                  event.dataTransfer.setData('application/x-papol-staged-item', String(item.id));
+                  event.dataTransfer.setData('application/x-papol-staged-item', String(item.uuid));
                 }}
               >
                 <div className="board-staging-card-head">
                   <span className={`board-staging-kind ${item.kind}`}>{item.kind === 'image' ? 'Clip' : 'Excerpt'}</span>
                   <span className="board-staging-drag" aria-hidden="true">Drag to place</span>
                 </div>
-                {item.kind === 'image' && imageUrls[item.id]
-                  ? <img src={imageUrls[item.id]} alt="Clipped paper content" draggable="false" />
-                  : item.kind === 'image' && imageErrors[item.id]
+                {item.kind === 'image' && imageUrls[item.uuid]
+                  ? <img src={imageUrls[item.uuid]} alt="Clipped paper content" draggable="false" />
+                  : item.kind === 'image' && imageErrors[item.uuid]
                     ? <div className="board-image-error" role="status">Image unavailable</div>
                   : item.kind === 'image'
                     ? <div className="board-staging-image-loading"><span className="board-loading-spinner" /></div>
@@ -1916,7 +1915,7 @@ export default function BoardPage({ boardId, onBack, backHref }) {
                 {item.content && <p className="board-staging-comment">{item.content}</p>}
                 <footer>
                   <a href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{stagedSourceLabel(item)}</a>
-                  <button type="button" aria-label="Remove staged item" title="Remove" onPointerDown={(event) => event.stopPropagation()} onClick={async () => { await deleteBoardItem(item.id); load(); }}>×</button>
+                  <button type="button" aria-label="Remove staged item" title="Remove" onPointerDown={(event) => event.stopPropagation()} onClick={async () => { await deleteBoardItem(item.uuid); load(); }}>×</button>
                 </footer>
               </article>
             ))}
@@ -1925,44 +1924,44 @@ export default function BoardPage({ boardId, onBack, backHref }) {
       )}
       {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {bookletLayouts.map((booklet) => <div key={`${booklet.id}:${bookletRedraws[booklet.id] || 0}`} data-group-id={booklet.id} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.id ? ' selected' : ''}${dropBooklet === booklet.id ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
-          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.id} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedBooklet((current) => current === booklet.id ? null : booklet.id); }} />}
+        {bookletLayouts.map((booklet) => <div key={`${booklet.uuid}:${bookletRedraws[booklet.uuid] || 0}`} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
+          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid); }} />}
           <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
-            {editingBooklet === booklet.id
+            {editingBooklet === booklet.uuid
               ? <input className="board-booklet-title" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} placeholder={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} autoFocus maxLength="240" value={bookletTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletTitleDraft(event.target.value)} onBlur={() => saveBookletTitle(booklet)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBooklet(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setBookletTitleDraft(booklet.title); setEditingBooklet(booklet.id); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setBookletTitleDraft(booklet.title); setEditingBooklet(booklet.uuid); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
           </div>
           <div className="board-booklet-header" style={{ width: Math.max(0, booklet.width - 14) }}>
-            {editingBookletHeader === booklet.id
+            {editingBookletHeader === booklet.uuid
               ? <textarea className="board-booklet-header-text" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} header text`} placeholder="Add header text…" autoFocus maxLength="4000" rows="2" value={bookletHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletHeaderDraft(event.target.value)} onBlur={() => saveBookletHeader(booklet)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBookletHeader(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.id) { suppressBookletClick.current = null; return; } setBookletHeaderDraft(booklet.header || ''); setEditingBookletHeader(booklet.id); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setBookletHeaderDraft(booklet.header || ''); setEditingBookletHeader(booklet.uuid); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
           </div>
-          {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.id} data-branch-id={branch.id} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
+          {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
-        {urlLoading.map((item) => <div key={item.id} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || compareId(a.id, b.id)).map((item) => <article key={`${item.id}:${bookletRedraws[item.group_id] || 0}`} data-item-id={item.id} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.id) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
-          {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.id ? ' grip-visible' : ''}${foregroundGrip === item.id ? ' grip-foreground' : ''}${draggingGrip === item.id ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.id); setForegroundGrip(item.id); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
+        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
+        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={`${item.uuid}:${bookletRedraws[item.group_uuid] || 0}`} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
+          {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
-            {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setSelectedBooklet(null); setMenuItem((current) => current === item.id ? null : item.id); }}>•••</button>}
+            {(board.can_edit || item.source_url || item.kind !== 'comment') && <button type="button" className="board-card-more" aria-label="Card actions" aria-expanded={menuItem === item.uuid} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedItems([]); setSelectedBooklet(null); setMenuItem((current) => current === item.uuid ? null : item.uuid); }}>•••</button>}
           </header>
           <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
-          {hasCardPreview(item) && !imageUrls[item.id] && (imageErrors[item.id]
+          {hasCardPreview(item) && !imageUrls[item.uuid] && (imageErrors[item.uuid]
             ? <div className="board-image-error" role="status">Image unavailable</div>
             : <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>)}
-          {hasCardPreview(item) && imageUrls[item.id] && <img src={imageUrls[item.id]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
+          {hasCardPreview(item) && imageUrls[item.uuid] && <img src={imageUrls[item.uuid]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {!hasCardPreview(item) && ['youtube', 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{item.kind === 'youtube' ? '▶' : '↗'}</span><span>{item.kind === 'youtube' ? 'Video saved offline' : 'Page saved offline'}</span></div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
-          {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.id
-            ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onFocus={(event) => { if (newNoteToSelect.current === item.id) { event.currentTarget.select(); newNoteToSelect.current = null; } }} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
-            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setTextDraft(item.content); setEditingText(item.id); }}>{item.content}</p>)}
-          {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.id
+          {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.uuid
+            ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={textDraft} onFocus={(event) => { if (newNoteToSelect.current === item.uuid) { event.currentTarget.select(); newNoteToSelect.current = null; } }} onChange={(event) => setTextDraft(event.target.value)} onBlur={() => saveText(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="4" maxLength="10000" /></div>
+            : <p className="board-editable-text" style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.uuid], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setTextDraft(item.content); setEditingText(item.uuid); }}>{item.content}</p>)}
+          {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.uuid
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength="10000" /></div>
-            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.id], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.id); }}>{item.content || 'Add description'}</p>)}
+            : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.uuid], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.uuid); }}>{item.content || 'Add description'}</p>)}
           {['excerpt', 'image'].includes(item.kind) && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>}
           </div>
-          {menuItem === item.id && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
+          {menuItem === item.uuid && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
             {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
             {item.kind !== 'comment' && hasCardPreview(item) && <button onClick={() => downloadBoardFile(item)}>Download</button>}
             {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove card</button>}

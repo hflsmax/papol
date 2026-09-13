@@ -9,7 +9,7 @@ import { contextMenuHandler } from '../../../shared/contextMenu';
 export default function InboxPage({ onOpenRoom, onUnread }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState({}); // id -> bool
+  const [expanded, setExpanded] = useState({}); // uuid -> bool
 
   useEffect(() => {
     getNotifications()
@@ -30,7 +30,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
 
   const applyRead = (ids) => {
     const notifications = data.notifications.map((x) =>
-      ids.includes(x.id) ? { ...x, read: true } : x
+      ids.includes(x.uuid) ? { ...x, read: true } : x
     );
     const unread_count = notifications.filter((x) => !x.read).length;
     setData({ unread_count, notifications });
@@ -39,15 +39,15 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
 
   const handleClick = (n) => {
     if (!n.read) {
-      markNotificationRead(n.id).catch(() => {});
-      applyRead([n.id]);
+      markNotificationRead(n.uuid).catch(() => {});
+      applyRead([n.uuid]);
     }
-    setExpanded((e) => ({ ...e, [n.id]: !e[n.id] }));
+    setExpanded((e) => ({ ...e, [n.uuid]: !e[n.uuid] }));
   };
 
   const handleMarkAll = async () => {
     markNotificationsRead().catch(() => {});
-    applyRead(data.notifications.map((x) => x.id));
+    applyRead(data.notifications.map((x) => x.uuid));
   };
 
   return (
@@ -66,16 +66,16 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
         <ul className="notif-list">
           {data.notifications.map((n) => (
             <li
-              key={n.id}
+              key={n.uuid}
               className={n.read ? 'notif-item' : 'notif-item unread'}
               onContextMenu={contextMenuHandler(() => [
-                { label: expanded[n.id] ? 'Collapse' : 'Expand', onSelect: () => handleClick(n) },
+                { label: expanded[n.uuid] ? 'Collapse' : 'Expand', onSelect: () => handleClick(n) },
                 !n.read && { label: 'Mark as Read', onSelect: () => {
-                  markNotificationRead(n.id).catch(() => {});
-                  applyRead([n.id]);
+                  markNotificationRead(n.uuid).catch(() => {});
+                  applyRead([n.uuid]);
                 } },
-                n.room_id && { separator: true },
-                n.room_id && { label: 'Open Seminar', onSelect: () => onOpenRoom(n.room_id) },
+                n.room_uuid && { separator: true },
+                n.room_uuid && { label: 'Open Seminar', onSelect: () => onOpenRoom(n.room_uuid) },
               ])}
             >
               {/* A real button, so a notification can be reached and opened
@@ -83,12 +83,12 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
               <button
                 type="button"
                 className="notif-toggle"
-                aria-expanded={Boolean(expanded[n.id])}
+                aria-expanded={Boolean(expanded[n.uuid])}
                 onClick={() => handleClick(n)}
               >
                 <span
                   className={
-                    expanded[n.id] ? 'notif-content' : 'notif-content collapsed'
+                    expanded[n.uuid] ? 'notif-content' : 'notif-content collapsed'
                   }
                 >
                   {!n.read && <span className="notif-new">new</span>}
@@ -96,11 +96,11 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
                 </span>
                 <span className="notif-date">{formatWhen(n.created_at)}</span>
               </button>
-              {expanded[n.id] && n.room_id && (
+              {expanded[n.uuid] && n.room_uuid && (
                 <p className="notif-room-link">
                   <button
                     className="link-btn"
-                    onClick={() => onOpenRoom(n.room_id)}
+                    onClick={() => onOpenRoom(n.room_uuid)}
                   >
                     Open the seminar cohort →
                   </button>

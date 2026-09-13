@@ -33,7 +33,7 @@ const json = (value, status = 200) => new Response(
 );
 
 function reset() {
-  indexedDB.deleteDatabase('papol-offline-v1');
+  indexedDB.deleteDatabase('papol-offline');
   settings.clear();
   setLocalSyncPreference('manual');
 }
@@ -65,33 +65,33 @@ test('desktop queue replays dependent board operations against the backend in or
     method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'Synced board' }),
   })).json();
-  const note = await (await offlineFetch(`${API}/boards/${board.guid}/comments`, {
+  const note = await (await offlineFetch(`${API}/boards/${board.uuid}/comments`, {
     method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: 'Made offline', x: 3, y: 4 }),
   })).json();
-  const secondNote = await (await offlineFetch(`${API}/boards/${board.guid}/comments`, {
+  const secondNote = await (await offlineFetch(`${API}/boards/${board.uuid}/comments`, {
     method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
     // Content that happens to equal a temporary identifier is still content;
     // only URL segments and ID-bearing fields may be rewritten.
-    body: JSON.stringify({ content: board.guid, x: 13, y: 14 }),
+    body: JSON.stringify({ content: board.uuid, x: 13, y: 14 }),
   })).json();
-  await offlineFetch(`${API}/board-items/${note.id}`, {
+  await offlineFetch(`${API}/board-items/${note.uuid}`, {
     method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' },
     body: JSON.stringify({ x: 30, y: 40 }),
   });
-  await offlineFetch(`${API}/boards/${board.guid}/groups`, {
+  await offlineFetch(`${API}/boards/${board.uuid}/groups`, {
     method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind: 'collection', title: 'Related', item_ids: [note.id, secondNote.id] }),
+    body: JSON.stringify({ kind: 'collection', title: 'Related', item_uuids: [note.uuid, secondNote.uuid] }),
   });
 
   const calls = [];
   const backend = async (url, options) => {
     calls.push({ url: String(url), method: options.method, body: JSON.parse(options.body) });
-    if (calls.length === 1) return json({ id: 81, guid: 'server-board', name: 'Synced board' });
-    if (calls.length === 2) return json({ id: 92, board_guid: 'server-board', kind: 'comment' });
-    if (calls.length === 3) return json({ id: 93, board_guid: 'server-board', kind: 'comment' });
-    if (calls.length === 4) return json({ id: 92, x: 30, y: 40 });
-    return json({ id: 94, kind: 'collection', item_ids: [92, 93] });
+    if (calls.length === 1) return json({ uuid: 'server-board', name: 'Synced board' });
+    if (calls.length === 2) return json({ uuid: 'server-note', board_uuid: 'server-board', kind: 'comment' });
+    if (calls.length === 3) return json({ uuid: 'server-second-note', board_uuid: 'server-board', kind: 'comment' });
+    if (calls.length === 4) return json({ uuid: 'server-note', x: 30, y: 40 });
+    return json({ uuid: 'server-group', kind: 'collection', item_uuids: ['server-note', 'server-second-note'] });
   };
 
   assert.equal(await syncOfflineQueue(backend), 0);
@@ -99,12 +99,12 @@ test('desktop queue replays dependent board operations against the backend in or
     ['POST', `${API}/boards`],
     ['POST', `${API}/boards/server-board/comments`],
     ['POST', `${API}/boards/server-board/comments`],
-    ['PUT', `${API}/board-items/92`],
+    ['PUT', `${API}/board-items/server-note`],
     ['POST', `${API}/boards/server-board/groups`],
   ]);
   assert.deepEqual(calls[3].body, { x: 30, y: 40 });
-  assert.equal(calls[2].body.content, board.guid);
-  assert.deepEqual(calls[4].body.item_ids, [92, 93]);
+  assert.equal(calls[2].body.content, board.uuid);
+  assert.deepEqual(calls[4].body.item_uuids, ['server-note', 'server-second-note']);
   assert.equal(getSyncStatus().pending, 0);
   assert.ok(getSyncStatus().lastSynced);
 });
@@ -124,10 +124,10 @@ test('a server failure commits only the successful prefix and retry resumes at t
     if (calls === 2) {
       const headers = new Headers(options.headers);
       failedIdentity = [
-        headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID'),
+        headers.get('X-Papol-Client-UUID'), headers.get('X-Papol-Mutation-UUID'),
       ];
     }
-    return calls === 2 ? json({ detail: 'temporary failure' }, 503) : json({ id: 100 + calls });
+    return calls === 2 ? json({ detail: 'temporary failure' }, 503) : json({ uuid: 100 + calls });
   }), 2);
   assert.equal(getSyncStatus().error, 'Sync stopped: server returned 503');
 
@@ -136,9 +136,9 @@ test('a server failure commits only the successful prefix and retry resumes at t
     const headers = new Headers(options.headers);
     retried.push({
       name: JSON.parse(options.body).name,
-      identity: [headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID')],
+      identity: [headers.get('X-Papol-Client-UUID'), headers.get('X-Papol-Mutation-UUID')],
     });
-    return json({ id: 200 + retried.length });
+    return json({ uuid: 200 + retried.length });
   }), 0);
   assert.deepEqual(retried.map(({ name }) => name), ['two', 'three']);
   assert.deepEqual(retried[0].identity, failedIdentity);
@@ -156,7 +156,7 @@ test('an ambiguous transport failure queues the already identified mutation', as
   }, async (_url, options) => {
     const headers = new Headers(options.headers);
     attemptedIdentity = [
-      headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID'),
+      headers.get('X-Papol-Client-UUID'), headers.get('X-Papol-Mutation-UUID'),
     ];
     throw new TypeError('response connection was lost');
   });
@@ -167,9 +167,9 @@ test('an ambiguous transport failure queues the already identified mutation', as
   assert.equal(await syncOfflineQueue(async (_url, options) => {
     const headers = new Headers(options.headers);
     replayedIdentity = [
-      headers.get('X-Papol-Client-ID'), headers.get('X-Papol-Mutation-ID'),
+      headers.get('X-Papol-Client-UUID'), headers.get('X-Papol-Mutation-UUID'),
     ];
-    return json({ id: 9, guid: 'server-board', name: 'Committed maybe' });
+    return json({ uuid: 'server-board', name: 'Committed maybe' });
   }), 0);
   assert.deepEqual(replayedIdentity, attemptedIdentity);
 });
@@ -189,7 +189,7 @@ test('persisted queues use account scope and inject current authorization only a
   let replayHeaders;
   assert.equal(await syncOfflineQueue(async (_url, options) => {
     replayHeaders = new Headers(options.headers);
-    return json({ id: 1, guid: 'private' });
+    return json({ uuid: 'private' });
   }), 0);
   assert.equal(replayHeaders.get('authorization'), auth.Authorization);
 });
@@ -206,7 +206,7 @@ test('simultaneous sync requests share one replay and never duplicate a create',
   const backend = async () => {
     calls += 1;
     await waiting;
-    return json({ id: 1, guid: 'once' });
+    return json({ uuid: 'once' });
   };
   const first = syncOfflineQueue(backend);
   const second = syncOfflineQueue(backend);
@@ -225,7 +225,7 @@ test('queued multipart files retain bytes and metadata when replayed', async () 
   let replayed;
   await syncOfflineQueue(async (_url, options) => {
     replayed = options.body;
-    return json({ id: 7, file_path: '4/upload.png' });
+    return json({ uuid: 7, file_path: '4/upload.png' });
   });
   const file = replayed.get('file');
   assert.equal(file.name, 'diagram.png');

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const values = new Map([
-  ['papol.localAccountId', '7'],
+  ['papol.localAccountUuid', '7'],
   ['papol_token', 'stored-token'],
 ]);
 

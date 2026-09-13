@@ -236,19 +236,19 @@ impl Coordinator {
     pub async fn synchronize(
         &self,
         store: &LocalStore,
-        account_id: i64,
+        account_uuid: &str,
         backend_url: &str,
         token: &str,
     ) -> Result<SyncResult, String> {
         let ignore = |_: SyncProgress| {};
-        self.synchronize_with_progress(store, account_id, backend_url, token, &ignore)
+        self.synchronize_with_progress(store, account_uuid, backend_url, token, &ignore)
             .await
     }
 
     pub async fn synchronize_with_progress(
         &self,
         store: &LocalStore,
-        account_id: i64,
+        account_uuid: &str,
         backend_url: &str,
         token: &str,
         report: &(dyn Fn(SyncProgress) + Send + Sync),
@@ -260,13 +260,13 @@ impl Coordinator {
         }
         let mut meter = Meter::new(report);
         let outbox = store
-            .query(account_id, "sync_status", serde_json::json!({}))?
+            .query(account_uuid, "sync_status", serde_json::json!({}))?
             .get("pending")
             .and_then(Value::as_u64)
             .unwrap_or(0) as usize;
         meter.begin(SyncPhase::Uploading, Some(outbox));
         let mut pushed = 0;
-        while let Some(mutation) = store.next_outbox(account_id)? {
+        while let Some(mutation) = store.next_outbox(account_uuid)? {
             let meter = &mut meter;
             let attempted: Result<PushResponse, SyncFailure> = async {
                 for change in &mutation.changes {
@@ -337,7 +337,7 @@ impl Coordinator {
                 Err(failure) => {
                     let blocked = failure.kind == FailureKind::Permanent;
                     store.record_outbox_error(
-                        account_id,
+                        account_uuid,
                         mutation.local_sequence,
                         &failure.message,
                         blocked,
@@ -350,7 +350,7 @@ impl Coordinator {
             };
             store
                 .accept_push(
-                    account_id,
+                    account_uuid,
                     mutation.local_sequence,
                     result.rows,
                     result.conflicts,
@@ -383,21 +383,21 @@ impl Coordinator {
         let snapshot: SnapshotResponse =
             serde_json::from_slice(&snapshot).map_err(|error| error.to_string())?;
         store
-            .apply_snapshot(account_id, snapshot.rows)
+            .apply_snapshot(account_uuid, snapshot.rows)
             .map_err(|error| format!("Applying snapshot failed: {error}"))?;
         meter.item_done();
 
         meter.begin(SyncPhase::Pulling, None);
         let mut pulled = 0;
-        let mut cursor = store.pull_cursor(account_id)?;
-        let client_id = store.client_id()?;
+        let mut cursor = store.pull_cursor(account_uuid)?;
+        let client_uuid = store.client_uuid()?;
         loop {
             let mut url = backend
                 .join("api/sync/pull")
                 .map_err(|error| error.to_string())?;
             url.query_pairs_mut()
                 .append_pair("cursor", &cursor.to_string())
-                .append_pair("client_id", &client_id)
+                .append_pair("client_uuid", &client_uuid)
                 .append_pair("limit", "250");
             let response = self
                 .client
@@ -417,7 +417,7 @@ impl Coordinator {
             pulled += page.changes.len();
             cursor = page.cursor;
             store
-                .apply_pull(account_id, page.changes, cursor)
+                .apply_pull(account_uuid, page.changes, cursor)
                 .map_err(|error| format!("Applying pull page failed: {error}"))?;
             meter.item_done();
             if !page.has_more {
@@ -426,7 +426,7 @@ impl Coordinator {
         }
         // A successful sync is a complete offline replica: hydrate every PDF
         // and board file referenced by the account before reporting success.
-        let missing = store.missing_blob_digests(account_id)?;
+        let missing = store.missing_blob_digests(account_uuid)?;
         meter.begin(SyncPhase::Downloading, Some(missing.len()));
         for sha256 in missing {
             self.download_blob(store, backend_url, token, &sha256, &mut meter)
@@ -639,8 +639,8 @@ mod tests {
     async fn ambiguous_push_is_retried_with_the_same_identity() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
-        let board_id = Uuid::new_v4().to_string();
-        let response_id = board_id.clone();
+        let board_uuid = Uuid::new_v4().to_string();
+        let response_uuid = board_uuid.clone();
         let server = thread::spawn(move || {
             let (mut lost, _) = listener.accept().unwrap();
             let first = read_request(&mut lost);
@@ -652,8 +652,8 @@ mod tests {
                 &mut retry,
                 &json!({
                     "rows": [{
-                        "table": "boards", "id": response_id, "user_id": 7,
-                        "shelf_id": null, "name": "Offline", "description": null,
+                        "table": "boards", "uuid": response_uuid, "user_uuid": "7",
+                        "shelf_uuid": null, "name": "Offline", "description": null,
                         "created_at": "2026-09-12T00:00:00Z",
                         "updated_at": "2026-09-12T00:00:00Z",
                         "revision": 1, "deleted_at": null
@@ -681,10 +681,10 @@ mod tests {
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "boards".into(),
-                    id: board_id.clone(),
+                    uuid: board_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([("name".into(), json!("Offline"))]),
                 }],
@@ -693,23 +693,23 @@ mod tests {
         let coordinator = Coordinator::new().unwrap();
         let backend = format!("http://{address}");
         assert!(coordinator
-            .synchronize(&store, 7, &backend, "token")
+            .synchronize(&store, "7", &backend, "token")
             .await
             .is_err());
         assert_eq!(
-            store.query(7, "sync_status", json!({})).unwrap()["pending"],
+            store.query("7","sync_status", json!({})).unwrap()["pending"],
             1
         );
-        let failed_status = store.query(7, "sync_status", json!({})).unwrap();
+        let failed_status = store.query("7","sync_status", json!({})).unwrap();
         assert_eq!(failed_status["attempts"], 1);
         assert!(failed_status["outbox_error"].as_str().is_some());
         let result = coordinator
-            .synchronize(&store, 7, &backend, "token")
+            .synchronize(&store, "7", &backend, "token")
             .await
             .unwrap();
         assert_eq!(result.pushed, 1);
         assert_eq!(
-            store.query(7, "sync_status", json!({})).unwrap()["pending"],
+            store.query("7","sync_status", json!({})).unwrap()["pending"],
             0
         );
 
@@ -719,8 +719,8 @@ mod tests {
         let second_body = second.split("\r\n\r\n").nth(1).unwrap();
         let first_json: Value = serde_json::from_str(first_body).unwrap();
         let second_json: Value = serde_json::from_str(second_body).unwrap();
-        assert_eq!(first_json["mutation_id"], second_json["mutation_id"]);
-        assert_eq!(first_json["client_id"], second_json["client_id"]);
+        assert_eq!(first_json["mutation_uuid"], second_json["mutation_uuid"]);
+        assert_eq!(first_json["client_uuid"], second_json["client_uuid"]);
         assert!(pull.starts_with("GET /api/sync/pull?"));
     }
 
@@ -728,8 +728,8 @@ mod tests {
     async fn simultaneous_windows_share_one_push_coordinator() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
-        let board_id = Uuid::new_v4().to_string();
-        let response_id = board_id.clone();
+        let board_uuid = Uuid::new_v4().to_string();
+        let response_uuid = board_uuid.clone();
         let server = thread::spawn(move || {
             let mut requests = Vec::new();
             for _ in 0..5 {
@@ -740,8 +740,8 @@ mod tests {
                         &mut stream,
                         &json!({
                             "rows": [{
-                                "table": "boards", "id": response_id, "user_id": 7,
-                                "shelf_id": null, "name": "One push", "description": null,
+                                "table": "boards", "uuid": response_uuid, "user_uuid": "7",
+                                "shelf_uuid": null, "name": "One push", "description": null,
                                 "created_at": "2026-09-12T00:00:00Z",
                                 "updated_at": "2026-09-12T00:00:00Z",
                                 "revision": 1, "deleted_at": null
@@ -766,10 +766,10 @@ mod tests {
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         store
             .mutate(
-                7,
+                "7",
                 vec![DataChange {
                     table: "boards".into(),
-                    id: board_id,
+                    uuid: board_uuid,
                     operation: "upsert".into(),
                     values: Map::from_iter([("name".into(), json!("One push"))]),
                 }],
@@ -778,8 +778,8 @@ mod tests {
         let coordinator = Coordinator::new().unwrap();
         let backend = format!("http://{address}");
         let (first, second) = tokio::join!(
-            coordinator.synchronize(&store, 7, &backend, "token"),
-            coordinator.synchronize(&store, 7, &backend, "token"),
+            coordinator.synchronize(&store, "7", &backend, "token"),
+            coordinator.synchronize(&store, "7", &backend, "token"),
         );
         assert_eq!(first.unwrap().pushed + second.unwrap().pushed, 1);
         let requests = server.join().unwrap();

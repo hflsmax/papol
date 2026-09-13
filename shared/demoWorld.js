@@ -14,7 +14,7 @@
 
 // Demo papers are named by UUID, as every Papol paper is. Seeds elsewhere
 // refer to them by their place in this list.
-const demoPaperIds = [
+const demoPaperUuids = [
   '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1001',
   '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1002',
   '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1003',
@@ -26,11 +26,12 @@ const demoPaperIds = [
   '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1009',
   '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1010',
 ];
-export const demoPaperId = (ordinal) => demoPaperIds[ordinal - 1];
+export const demoPaperUuid = (ordinal) => demoPaperUuids[ordinal - 1];
+const demoNoteUuid = (ordinal) => `5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3${String(ordinal).padStart(3, '0')}`;
 
 export const demoPapers = [
   {
-    id: demoPaperIds[0],
+    uuid: demoPaperUuids[0],
     doi: '10.1145/357172.357176',
     title: 'The Byzantine Generals Problem',
     authors: '["Leslie Lamport", "Robert Shostak", "Marshall Pease"]',
@@ -41,7 +42,7 @@ export const demoPapers = [
     daysAgo: 30,
   },
   {
-    id: demoPaperIds[1],
+    uuid: demoPaperUuids[1],
     doi: '10.48550/arXiv.1706.03762',
     title: 'Attention Is All You Need',
     authors:
@@ -53,7 +54,7 @@ export const demoPapers = [
     daysAgo: 21,
   },
   {
-    id: demoPaperIds[2],
+    uuid: demoPaperUuids[2],
     doi: '10.1145/3065386',
     title: 'ImageNet Classification with Deep Convolutional Neural Networks',
     authors: '["Alex Krizhevsky", "Ilya Sutskever", "Geoffrey E. Hinton"]',
@@ -64,7 +65,7 @@ export const demoPapers = [
     daysAgo: 18,
   },
   {
-    id: demoPaperIds[3],
+    uuid: demoPaperUuids[3],
     doi: '10.1145/362384.362685',
     title: 'A Relational Model of Data for Large Shared Data Banks',
     authors: '["E. F. Codd"]',
@@ -75,7 +76,7 @@ export const demoPapers = [
     daysAgo: 14,
   },
   {
-    id: demoPaperIds[4],
+    uuid: demoPaperUuids[4],
     doi: '10.1002/j.1538-7305.1948.tb01338.x',
     title: 'A Mathematical Theory of Communication',
     authors: '["Claude E. Shannon"]',
@@ -86,7 +87,7 @@ export const demoPapers = [
     daysAgo: 12,
   },
   {
-    id: demoPaperIds[5],
+    uuid: demoPaperUuids[5],
     doi: '10.1109/TIT.1976.1055638',
     title: 'New Directions in Cryptography',
     authors: '["Whitfield Diffie", "Martin E. Hellman"]',
@@ -97,7 +98,7 @@ export const demoPapers = [
     daysAgo: 9,
   },
   {
-    id: demoPaperIds[6],
+    uuid: demoPaperUuids[6],
     doi: '10.1016/S0169-7552(98)00110-X',
     title: 'The Anatomy of a Large-Scale Hypertextual Web Search Engine',
     authors: '["Sergey Brin", "Lawrence Page"]',
@@ -108,7 +109,7 @@ export const demoPapers = [
     daysAgo: 6,
   },
   {
-    id: demoPaperIds[7],
+    uuid: demoPaperUuids[7],
     doi: '10.1145/367177.367199',
     title:
       'Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I',
@@ -120,7 +121,7 @@ export const demoPapers = [
     daysAgo: 5,
   },
   {
-    id: demoPaperIds[8],
+    uuid: demoPaperUuids[8],
     doi: '10.1016/0304-3975(75)90017-1',
     title: 'Call-by-name, call-by-value and the λ-calculus',
     authors: '["Gordon D. Plotkin"]',
@@ -133,7 +134,7 @@ export const demoPapers = [
   // Wholly fictional, and written by two of the demo readers — this is
   // where the "this is my paper" tick box shows itself.
   {
-    id: demoPaperIds[9],
+    uuid: demoPaperUuids[9],
     doi: '10.5555/krabby.2026.001',
     title:
       'Byzantine Fry Cooks: Consensus on the Krabby Patty Formula Under Adversarial Plankton',
@@ -159,7 +160,7 @@ export const demoPapers = [
 // shared world so the paper page and the viewer cannot invent different
 // identities for the same bundled PDF.
 export const demoEditionFor = (paper) => ({
-  id: (demoPaperIds.indexOf(paper.id) + 1) * 100 + 1,
+  uuid: paper.uuid.replace(/1(\d{3})$/, '2$1'),
   file_path: paper.file_path,
   sha256: paper.sha256,
   created_at: paper.created_at,
@@ -168,8 +169,8 @@ export const demoEditionFor = (paper) => ({
 
 export const demoNotes = [
   {
-    id: 1,
-    paperId: demoPaperIds[0],
+    uuid: demoNoteUuid(1),
+    paperUuid: demoPaperUuids[0],
     page: 3,
     x: 0.34,
     y: 0.455,
@@ -178,8 +179,8 @@ export const demoNotes = [
       "Wait — why can't three generals manage it? I have read this page twice and I still do not see what goes wrong.",
   },
   {
-    id: 2,
-    paperId: demoPaperIds[0],
+    uuid: demoNoteUuid(2),
+    paperUuid: demoPaperUuids[0],
     page: 4,
     x: 0.62,
     y: 0.185,
@@ -188,8 +189,8 @@ export const demoNotes = [
       'They send you to another paper for the proof! I wanted to see it here.',
   },
   {
-    id: 3,
-    paperId: demoPaperIds[0],
+    uuid: demoNoteUuid(3),
+    paperUuid: demoPaperUuids[0],
     page: 9,
     x: 0.36,
     y: 0.215,
@@ -197,10 +198,10 @@ export const demoNotes = [
     content:
       'Lost me completely. Why does signing a message fix everything? Ask Sandy.',
   },
-  { id: 4, paperId: demoPaperIds[0], page: 5, x: 0.3, y: 0.6, daysAgo: 21, content: '' },
+  { uuid: demoNoteUuid(4), paperUuid: demoPaperUuids[0], page: 5, x: 0.3, y: 0.6, daysAgo: 21, content: '' },
   {
-    id: 5,
-    paperId: demoPaperIds[0],
+    uuid: demoNoteUuid(5),
+    paperUuid: demoPaperUuids[0],
     page: 7,
     x: 0.34,
     y: 0.52,
@@ -208,8 +209,8 @@ export const demoNotes = [
     content: '',
   },
   {
-    id: 6,
-    paperId: demoPaperIds[1],
+    uuid: demoNoteUuid(6),
+    paperUuid: demoPaperUuids[1],
     page: 4,
     x: 0.28,
     y: 0.86,
@@ -218,8 +219,8 @@ export const demoNotes = [
       'Everyone warned me this paper was hard, and this part is not hard at all!',
   },
   {
-    id: 7,
-    paperId: demoPaperIds[1],
+    uuid: demoNoteUuid(7),
+    paperUuid: demoPaperUuids[1],
     page: 6,
     x: 0.3,
     y: 0.62,
@@ -227,10 +228,10 @@ export const demoNotes = [
     content:
       'Why sines and cosines? They say it works and then move on. I am taking it personally.',
   },
-  { id: 8, paperId: demoPaperIds[1], page: 7, x: 0.32, y: 0.55, daysAgo: 17, content: '' },
+  { uuid: demoNoteUuid(8), paperUuid: demoPaperUuids[1], page: 7, x: 0.32, y: 0.55, daysAgo: 17, content: '' },
   {
-    id: 9,
-    paperId: demoPaperIds[1],
+    uuid: demoNoteUuid(9),
+    paperUuid: demoPaperUuids[1],
     page: 9,
     x: 0.36,
     y: 0.5,
@@ -238,8 +239,8 @@ export const demoNotes = [
     content: '',
   },
   {
-    id: 10,
-    paperId: demoPaperIds[9],
+    uuid: demoNoteUuid(10),
+    paperUuid: demoPaperUuids[9],
     page: 2,
     x: 0.33,
     y: 0.815,
@@ -249,11 +250,11 @@ export const demoNotes = [
 ];
 
 /** The same row, in the shape the API returns for a note. */
-export function noteAsComment(note, userId, daysAgoToDate) {
+export function noteAsComment(note, userUuid, daysAgoToDate) {
   return {
-    id: note.id,
-    paper_id: note.paperId,
-    user_id: userId,
+    uuid: note.uuid,
+    paper_uuid: note.paperUuid,
+    user_uuid: userUuid,
     content: note.content,
     page: note.page,
     anchor_type: 'point',

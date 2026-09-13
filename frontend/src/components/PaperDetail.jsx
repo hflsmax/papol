@@ -18,7 +18,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperDetail({
-  paperId, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
+  paperUuid, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   hideBack = false,
 }) {
   const [paper, setPaper] = useState(null);
@@ -95,7 +95,7 @@ export default function PaperDetail({
   const handleAdoptEdition = async () => {
     setError(null);
     try {
-      await adoptEdition(paper.id, paper.latest_edition.id);
+      await adoptEdition(paper.uuid, paper.latest_edition.uuid);
       loadPaper();
     } catch (err) {
       setError(err.message);
@@ -107,7 +107,7 @@ export default function PaperDetail({
   const handleIgnoreEdition = async () => {
     setError(null);
     try {
-      await ignoreEdition(paper.id, paper.latest_edition.id);
+      await ignoreEdition(paper.uuid, paper.latest_edition.uuid);
       loadPaper();
     } catch (err) {
       setError(err.message);
@@ -116,7 +116,7 @@ export default function PaperDetail({
 
   useEffect(() => {
     loadPaper();
-  }, [paperId]);
+  }, [paperUuid]);
 
   // Coming back from the viewer is a history step, so the browser restores
   // this page from its cache with whatever notes it had when the reader
@@ -141,7 +141,7 @@ export default function PaperDetail({
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [paperId, editMode, editingSummary, editingThought]);
+  }, [paperUuid, editMode, editingSummary, editingThought]);
 
   // Every load after the first follows a change made here, so whatever lists
   // this paper beside the page (Papol Desktop's nook) is told to catch up.
@@ -149,7 +149,7 @@ export default function PaperDetail({
   const loadPaper = async () => {
     setError(null);
     try {
-      const data = await getPaper(paperId);
+      const data = await getPaper(paperUuid);
       setPaper(data);
       if (currentUser && data.viewer_has_entry) setShelves(await listShelves());
       if (loadedOnce.current) onChanged?.();
@@ -161,8 +161,8 @@ export default function PaperDetail({
     }
   };
 
-  const editionHash = (editionId = paper?.edition_id) =>
-    paper?.editions?.find((edition) => edition.id === editionId)?.sha256 || null;
+  const editionHash = (editionUuid = paper?.edition_uuid) =>
+    paper?.editions?.find((edition) => edition.uuid === editionUuid)?.sha256 || null;
 
   const viewerHref = () => {
     if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}`);
@@ -171,9 +171,9 @@ export default function PaperDetail({
   };
 
   const noteHref = (comment) => {
-    if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}&note=${comment.id}`);
-    const hash = editionHash(comment.edition_id || paper?.edition_id);
-    return hash ? appPath(`/viewer/?pdf=${hash}&note=${comment.id}`) : null;
+    if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}&note=${comment.uuid}`);
+    const hash = editionHash(comment.edition_uuid || paper?.edition_uuid);
+    return hash ? appPath(`/viewer/?pdf=${hash}&note=${comment.uuid}`) : null;
   };
 
   // A newer edition exists and this reader's copy is not on it. Only ever
@@ -182,8 +182,8 @@ export default function PaperDetail({
     paper &&
     paper.viewer_has_entry &&
     paper.latest_edition &&
-    paper.latest_edition.id !== paper.edition_id &&
-    paper.latest_edition.id !== paper.ignored_edition_id
+    paper.latest_edition.uuid !== paper.edition_uuid &&
+    paper.latest_edition.uuid !== paper.ignored_edition_uuid
       ? paper.latest_edition
       : null;
 
@@ -216,18 +216,18 @@ export default function PaperDetail({
   const handleInlineRating = async (key, value) => {
     setError(null);
     try {
-      await updatePaper(paper.id, { [key]: value });
+      await updatePaper(paper.uuid, { [key]: value });
       loadPaper();
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleShelfChange = async (shelfId) => {
+  const handleShelfChange = async (shelfUuid) => {
     setError(null);
     setToggleWarning(null);
     try {
-      await updatePaper(paper.id, { shelf_id: shelfId });
+      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
       loadPaper();
     } catch (err) {
       setToggleWarning(err.message);
@@ -237,7 +237,7 @@ export default function PaperDetail({
   const handleAddToNook = async () => {
     setError(null);
     try {
-      const added = await addToNook(paper.id);
+      const added = await addToNook(paper.uuid);
       setPaper(added);
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.
@@ -245,7 +245,7 @@ export default function PaperDetail({
       window.history.replaceState(
         window.history.state,
         '',
-        appPath(`${modePrefix}/paper/${added.id}`),
+        appPath(`${modePrefix}/paper/${added.uuid}`),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
       // the nook needs the reader's shelves for its shelf menu.
@@ -256,7 +256,7 @@ export default function PaperDetail({
   };
 
   const handleShare = async () => {
-    const link = `${window.location.origin}${appPath(`/paper/${paper.id}`)}`;
+    const link = `${window.location.origin}${appPath(`/paper/${paper.uuid}`)}`;
     let copied = false;
     try {
       if (navigator.clipboard?.writeText) {
@@ -284,7 +284,7 @@ export default function PaperDetail({
   const handleDelete = async () => {
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
-      await deletePaper(paper.id);
+      await deletePaper(paper.uuid);
       onBack();
     } catch (err) {
       setError(err.message);
@@ -299,7 +299,7 @@ export default function PaperDetail({
         .map((a) => a.trim())
         .filter((a) => a);
 
-      await updatePaper(paper.id, {
+      await updatePaper(paper.uuid, {
         title: editData.title,
         authors: JSON.stringify(authorsList),
         journal: editData.journal || null,
@@ -311,7 +311,7 @@ export default function PaperDetail({
       // paper changes until the reader commits the form.
       if (pendingPdf) {
         setIsAddingEdition(true);
-        await addPaperEdition(paper.id, pendingPdf);
+        await addPaperEdition(paper.uuid, pendingPdf);
         setPendingPdf(null);
       }
 
@@ -328,7 +328,7 @@ export default function PaperDetail({
     setError(null);
     setIsExtractingMetadata(true);
     try {
-      const extracted = await reextractPaperMetadata(paper.id);
+      const extracted = await reextractPaperMetadata(paper.uuid);
       setEditData((current) => ({
         ...current,
         ...(extracted.title != null && { title: extracted.title }),
@@ -349,7 +349,7 @@ export default function PaperDetail({
   const saveSummary = async () => {
     setError(null);
     try {
-      await updatePaper(paper.id, { summary: summaryDraft.trim() || null });
+      await updatePaper(paper.uuid, { summary: summaryDraft.trim() || null });
       setEditingSummary(false);
       loadPaper();
     } catch (err) {
@@ -360,7 +360,7 @@ export default function PaperDetail({
   const saveThought = async () => {
     setError(null);
     try {
-      await updatePaper(paper.id, { thought: thoughtDraft.trim() || null });
+      await updatePaper(paper.uuid, { thought: thoughtDraft.trim() || null });
       setEditingThought(false);
       loadPaper();
     } catch (err) {
@@ -387,19 +387,19 @@ export default function PaperDetail({
 
   const authors = parseAuthors(paper.authors);
   const hasEntry = currentUser != null && paper.viewer_has_entry;
-  const assignedTagIds = new Set((paper.tags || []).map((tag) => tag.id));
+  const assignedTagUuids = new Set((paper.tags || []).map((tag) => tag.uuid));
   const tagQuery = tagDraft.trim().toLowerCase();
   const tagSuggestions = availableTags.filter(
-    (tag) => !assignedTagIds.has(tag.id) && (!tagQuery || tag.name.toLowerCase().includes(tagQuery))
+    (tag) => !assignedTagUuids.has(tag.uuid) && (!tagQuery || tag.name.toLowerCase().includes(tagQuery))
   );
   const tagExists = availableTags.some((tag) => tag.name.toLowerCase() === tagQuery);
   const attachTag = async (tag) => {
-    await updatePaper(paper.id, {
-      tag_ids: [...assignedTagIds, tag.id],
+    await updatePaper(paper.uuid, {
+      tag_uuids: [...assignedTagUuids, tag.uuid],
     });
     setTagDraft('');
     setTagMenuOpen(false);
-    setAvailableTags((current) => current.some((item) => item.id === tag.id) ? current : [...current, tag]);
+    setAvailableTags((current) => current.some((item) => item.uuid === tag.uuid) ? current : [...current, tag]);
     loadPaper();
   };
   const openViewer = () => {
@@ -604,9 +604,9 @@ export default function PaperDetail({
               <div className="detail-toggle">
                 <span className="hint-anchor paper-shelf-picker">
                   <label htmlFor="paper-shelf">Shelf:</label>
-                  <select id="paper-shelf" value={paper.shelf_id || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.id) === e.target.value)?.id)}>
+                  <select id="paper-shelf" value={paper.shelf_uuid || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.uuid) === e.target.value)?.uuid)}>
                     {shelves.map((shelf) => (
-                      <option key={shelf.id} value={shelf.id}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                      <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
                     ))}
                   </select>
                   {toggleWarning && (
@@ -720,7 +720,7 @@ export default function PaperDetail({
                     </a>
                     <a
                       role="menuitem"
-                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.id}`)}`)}
+                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.uuid}`)}`)}
                       title="Sign in to use the built-in viewer"
                     >
                       <strong>Use built-in viewer</strong>
@@ -793,7 +793,7 @@ export default function PaperDetail({
                       <input
                         id="canonical-share-url"
                         ref={shareUrlRef}
-                        value={`${window.location.origin}${appPath(`/paper/${paper.id}`)}`}
+                        value={`${window.location.origin}${appPath(`/paper/${paper.uuid}`)}`}
                         readOnly
                         onFocus={(event) => event.target.select()}
                       />
@@ -826,19 +826,19 @@ export default function PaperDetail({
               <div className="title-chips">
                 {paper.also_read_by.map((entry) => (
                   <a
-                    key={entry.user.id}
+                    key={entry.user.uuid}
                     className={
                       entry.is_author
                         ? 'avatar-chip has-pop mini author'
                         : 'avatar-chip has-pop mini'
                     }
-                    href={appPath(`/u/${entry.user.id}`)}
+                    href={appPath(`/u/${entry.user.uuid}`)}
                   >
                     <Avatar user={entry.user} className="mini-avatar" />
                     <span className="chip-pop">
                       <span className="chip-pop-name">
                         {entry.user.display_name}
-                        {currentUser && entry.user.id === currentUser.id
+                        {currentUser && entry.user.uuid === currentUser.uuid
                           ? ' (you)'
                           : ''}
                         {entry.is_author && (
@@ -1003,9 +1003,9 @@ export default function PaperDetail({
                     <button
                       type="button"
                       className="tag-chip selected"
-                      key={tag.id}
+                      key={tag.uuid}
                       onClick={async () => {
-                        await updatePaper(paper.id, { tag_ids: paper.tags.filter((t) => t.id !== tag.id).map((t) => t.id) });
+                        await updatePaper(paper.uuid, { tag_uuids: paper.tags.filter((t) => t.uuid !== tag.uuid).map((t) => t.uuid) });
                         loadPaper();
                       }}
                       title="Remove tag from this paper"
@@ -1032,7 +1032,7 @@ export default function PaperDetail({
                   <div className="tag-dropdown">
                     {tagSuggestions.length > 0 && <div className="tag-dropdown-label">Your tags</div>}
                     {tagSuggestions.map((tag) => (
-                      <button type="button" key={tag.id} onMouseDown={(e) => e.preventDefault()} onClick={() => attachTag(tag).catch((err) => setError(err.message))}>
+                      <button type="button" key={tag.uuid} onMouseDown={(e) => e.preventDefault()} onClick={() => attachTag(tag).catch((err) => setError(err.message))}>
                         <span className="tag-option-mark">#</span>
                         <span>{tag.name}</span>
                         <span className="tag-option-hint">Add</span>
@@ -1054,7 +1054,7 @@ export default function PaperDetail({
           </section>
 
           <CommentSection
-            paperId={paper.id}
+            paperUuid={paper.uuid}
             comments={(paper.comments || []).filter((c) => c.content)}
             noteHref={noteHref}
             onOpenNote={onRead}

@@ -9,7 +9,7 @@ export const PAPER_DRAG_TYPE = 'application/x-papol-paper';
 
 const SOURCE_KEY = 'papol.desktopSource';
 
-// Sources: 'all', 'shelf:<id>', 'tag:<id>', 'boards' (the reader's nook) and
+// Sources: 'all', 'shelf:<uuid>', 'tag:<uuid>', 'boards' (the reader's nook) and
 // 'library' (every public paper).
 export function sourcePath(source) {
   if (source === 'library') return '/library';
@@ -42,16 +42,16 @@ export function lastShownSource() {
 export function isBrowsing(route, user) {
   if (!user) return false;
   return route.page === 'papers' || route.page === 'paper' || route.page === 'home'
-    || (route.page === 'space' && route.id === user.id);
+    || (route.page === 'space' && route.uuid === user.uuid);
 }
 
 // The shelf or tag a source names, if the nook still has it.
 export function shelfOf(source, space) {
-  return (space?.shelves || []).find((shelf) => `shelf:${shelf.id}` === source) || null;
+  return (space?.shelves || []).find((shelf) => `shelf:${shelf.uuid}` === source) || null;
 }
 
 export function tagOf(source, space) {
-  return (space?.tags || []).find((tag) => `tag:${tag.id}` === source) || null;
+  return (space?.tags || []).find((tag) => `tag:${tag.uuid}` === source) || null;
 }
 
 // The papers a source lists, in its order: the nook newest first, the library
@@ -65,8 +65,8 @@ export function papersInSource(source, { space, library }) {
   const shelf = shelfOf(source, space);
   const tag = tagOf(source, space);
   return (space?.papers || [])
-    .filter((paper) => (!shelf || paper.shelf_id === shelf.id)
-      && (!tag || (paper.tags || []).some((item) => item.id === tag.id)))
+    .filter((paper) => (!shelf || paper.shelf_uuid === shelf.uuid)
+      && (!tag || (paper.tags || []).some((item) => item.uuid === tag.uuid)))
     .sort(newestFirst);
 }
 
