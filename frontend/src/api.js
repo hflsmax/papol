@@ -208,10 +208,6 @@ export async function getMe() {
   return user;
 }
 
-export function sendPresence() {
-  return request('/presence', { method: 'POST' });
-}
-
 export async function updateProfile(data) {
   const user = await jsonRequest('/auth/profile', 'PUT', data);
   await prepareNativeAccount(user);
@@ -965,14 +961,6 @@ export function adminDbMetrics() {
 
 export function adminResetDbMetrics() {
   return request('/admin/db-metrics/reset', { method: 'POST' });
-}
-
-export function adminActiveUsers() {
-  return request('/admin/active-users');
-}
-
-export function adminConcurrencySeries() {
-  return request('/admin/concurrency-series');
 }
 
 export function adminListFeedback() {

@@ -143,7 +143,7 @@ The longer-term simplification is to use content hash as edition identity and UU
 These do not appear in the local replica:
 
 - authentication tokens and password material;
-- presence and operational analytics;
+- operational analytics;
 - admin data and feedback management;
 - full public directory and seminar state;
 - `_server_applied_mutations`;

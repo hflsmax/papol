@@ -245,7 +245,7 @@ _local_blob_refs (
 );
 ```
 
-Server-only infrastructure follows the same convention, for example `_server_applied_mutations`, `_server_change_log`, and `_server_client_cursors`. Authentication, administration, presence, and other non-replicated server domains remain ordinary server-only tables.
+Server-only infrastructure follows the same convention, for example `_server_applied_mutations`, `_server_change_log`, and `_server_client_cursors`. Authentication, administration, and other non-replicated server domains remain ordinary server-only tables.
 
 Synchronized domain tables should include at least a stable UUID `id`, `revision`, `updated_at`, `deleted_at` or an equivalent tombstone flag, and normal query indexes. Papol will share papers and editions as read-only dependencies and synchronize user-owned copies, private notes, ink, clips, shelves, tags, boards, board items, and board groups. Public library and seminar data can remain a bounded cache or online-only view.
 

@@ -71,13 +71,16 @@ def _add_column_ddl(column) -> str:
 
 
 def migrate():
-    """Add columns the models declare but an existing table lacks.
+    """Retire obsolete tables and add columns an existing table lacks.
     create_all only creates missing tables, so a database written under an
     earlier schema needs these ALTERs. Driven off the model metadata, so
     there is no second list to keep in step: declare the column on the
     model (with a server_default if it is NOT NULL, which SQLite requires
     to add one) and an existing database picks it up on the next start."""
     with engine.begin() as conn:
+        # Remove tables belonging to retired features before reconciling the
+        # live model metadata. DROP IF EXISTS keeps fresh installs unchanged.
+        conn.execute(text("DROP TABLE IF EXISTS presence_pings"))
         for table in Base.metadata.tables.values():
             existing = {
                 row[1] for row in conn.execute(text(f"PRAGMA table_info({table.name})"))

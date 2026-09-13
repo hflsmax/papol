@@ -137,18 +137,6 @@ class SyncClient(Base):
     last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class PresencePing(Base):
-    """One reader heartbeat per minute, retained for concurrency history."""
-    __tablename__ = "presence_pings"
-    __table_args__ = (
-        UniqueConstraint("user_uuid", "bucket_at", name="uq_presence_user_bucket"),
-    )
-
-    uuid = uuid_key()
-    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
-    bucket_at = Column(DateTime, nullable=False, index=True)
-
-
 class Paper(Base):
     """The canonical paper, keyed by DOI (or title when no DOI). One row
     per paper; its PDFs are its editions, and per-reader state lives in

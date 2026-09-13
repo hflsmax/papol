@@ -41,7 +41,7 @@ from database import (
     SessionLocal, set_request_session, reset_request_session,
 )
 from models import (
-    User, AuthToken, AppliedMutation, PresencePing, Paper, Copy, CopyTagLink, Comment,
+    User, AuthToken, AppliedMutation, Paper, Copy, CopyTagLink, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     Setting, Feedback, PaperEdition, EditionReference, EditionCitation, EditionLink,
     InkStroke, PaperClip, Tag, Shelf, Board, BoardGroup, BoardItem,
@@ -3767,39 +3767,6 @@ async def mark_notifications_read(
     return {"message": "All notifications marked read"}
 
 
-# ---------------- Admin ----------------
-
-# Browsers check in once a minute. The extra minute tolerates a delayed
-# background-tab timer without leaving closed browsers present for long.
-ACTIVE_USER_WINDOW = timedelta(minutes=2)
-
-
-@app.post("/api/presence")
-async def presence(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Keep the session current and retain one history point per minute."""
-    now = datetime.utcnow().replace(second=0, microsecond=0)
-    exists = db.query(PresencePing.uuid).filter(
-        PresencePing.user_uuid == current_user.uuid,
-        PresencePing.bucket_at == now,
-    ).first()
-    if exists is None:
-        db.add(PresencePing(user_uuid=current_user.uuid, bucket_at=now))
-        # Bound storage without paying for cleanup on every heartbeat.
-        if now.minute == 0:
-            db.query(PresencePing).filter(
-                PresencePing.bucket_at < now - timedelta(days=30)
-            ).delete(synchronize_session=False)
-        try:
-            db.commit()
-        except IntegrityError:
-            # Two tabs can check in for the same user in the same instant.
-            # The unique minute bucket means the other request already won.
-            db.rollback()
-    return {"ok": True}
-
 # ---------------- Feedback ----------------
 
 def _feedback_reporter(fb: Feedback) -> str:
@@ -3980,95 +3947,6 @@ async def admin_db_metrics(admin: User = Depends(require_admin)):
 async def admin_reset_db_metrics(admin: User = Depends(require_admin)):
     dbmetrics.reset()
     return dbmetrics.snapshot()
-
-
-@app.get("/api/admin/active-users")
-async def admin_active_users(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Signed-in readers with an unrevoked session used in the live window."""
-    now = datetime.utcnow()
-    cutoff = now - ACTIVE_USER_WINDOW
-    sessions = (
-        db.query(AuthToken)
-        .join(User, AuthToken.user_uuid == User.uuid)
-        .filter(
-            AuthToken.revoked_at.is_(None),
-            AuthToken.last_used_at >= cutoff,
-            User.deleted_at.is_(None),
-        )
-        .all()
-    )
-
-    by_user = {}
-    for session in sessions:
-        entry = by_user.get(session.user_uuid)
-        if entry is None:
-            entry = {
-                "uuid": session.user.uuid,
-                "display_name": session.user.display_name,
-                "email": session.user.email,
-                "last_seen_at": session.last_used_at,
-                "session_count": 0,
-            }
-            by_user[session.user_uuid] = entry
-        entry["session_count"] += 1
-        if session.last_used_at > entry["last_seen_at"]:
-            entry["last_seen_at"] = session.last_used_at
-
-    users = sorted(
-        by_user.values(), key=lambda row: row["last_seen_at"], reverse=True
-    )
-    return {
-        "count": len(users),
-        "window_seconds": int(ACTIVE_USER_WINDOW.total_seconds()),
-        "as_of": now,
-        "users": users,
-    }
-
-
-@app.get("/api/admin/concurrency-series")
-async def admin_concurrency_series(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Five-minute concurrency observations for the trailing 24 hours."""
-    now = datetime.utcnow().replace(second=0, microsecond=0)
-    end = now.replace(minute=(now.minute // 5) * 5)
-    start = end - timedelta(hours=24)
-    pings = (
-        db.query(PresencePing)
-        .join(User, PresencePing.user_uuid == User.uuid)
-        .filter(PresencePing.bucket_at >= start - ACTIVE_USER_WINDOW)
-        .filter(User.deleted_at.is_(None))
-        .order_by(PresencePing.bucket_at)
-        .all()
-    )
-
-    user_uuids = {ping.user_uuid for ping in pings}
-    reader_names = dict(
-        db.query(User.uuid, User.display_name).filter(User.uuid.in_(user_uuids)).all()
-    ) if user_uuids else {}
-
-    points = []
-    ping_index = 0
-    recent = []
-    cursor = start
-    while cursor <= end:
-        lower = cursor - ACTIVE_USER_WINDOW
-        while ping_index < len(pings) and pings[ping_index].bucket_at <= cursor:
-            recent.append(pings[ping_index])
-            ping_index += 1
-        recent = [ping for ping in recent if ping.bucket_at > lower]
-        active = {ping.user_uuid for ping in recent}
-        readers = sorted(
-            (reader_names[user_uuid] for user_uuid in active if user_uuid in reader_names),
-            key=str.casefold,
-        )
-        points.append({"at": cursor, "count": len(readers), "readers": readers})
-        cursor += timedelta(minutes=5)
-    return {"from": start, "to": end, "interval_seconds": 300, "points": points}
 
 
 @app.get("/api/admin/feedback", response_model=list[FeedbackOut])

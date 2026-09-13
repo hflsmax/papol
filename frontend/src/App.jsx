@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  getMe, getToken, setToken, logout, pendingLocalChanges, getNotifications, sendPresence, updatePaper,
+  getMe, getToken, setToken, logout, pendingLocalChanges, getNotifications, updatePaper,
 } from './api';
 import AuthPage from './components/AuthPage';
 import Space from './components/Space';
@@ -4025,94 +4025,6 @@ a.btn:hover {
 
 /* ---------- Admin ---------- */
 
-.active-user-count {
-  margin: 2px 0 0;
-  font-family: var(--font-ui);
-  color: var(--ink-soft);
-}
-
-.active-user-count span {
-  color: var(--green-ink);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-}
-
-.concurrency-title {
-  margin-top: 18px;
-}
-
-.concurrency-chart-wrap {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.concurrency-chart {
-  display: block;
-  width: 100%;
-  min-width: 540px;
-  height: auto;
-  font: 11px var(--font-ui);
-  color: var(--ink-faint);
-}
-
-.concurrency-chart line {
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-.concurrency-chart text {
-  fill: currentColor;
-}
-
-.concurrency-area {
-  fill: var(--green-soft);
-}
-
-.concurrency-line {
-  fill: none;
-  stroke: var(--green-ink);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.concurrency-chart:focus {
-  outline: 2px solid var(--green-ink);
-  outline-offset: 2px;
-}
-
-.concurrency-inspector {
-  pointer-events: none;
-}
-
-.concurrency-inspector .concurrency-guide {
-  stroke: var(--green-ink);
-  stroke-dasharray: 3 3;
-}
-
-.concurrency-inspector circle {
-  fill: var(--paper);
-  stroke: var(--green-ink);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.concurrency-inspector rect {
-  fill: var(--paper);
-  stroke: var(--line-dark);
-  stroke-width: 1;
-  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.14));
-}
-
-.concurrency-inspector text {
-  fill: var(--ink-soft);
-  font-size: 12px;
-}
-
-.concurrency-inspector .concurrency-tooltip-time {
-  fill: var(--ink);
-  font-weight: 700;
-}
-
 .admin-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -5228,14 +5140,6 @@ export default function App() {
   useEffect(() => subscribeSignInRequests((request) => {
     if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
   }), []);
-
-  useEffect(() => {
-    if (!user || demoActive() || !getToken()) return;
-    const checkIn = () => sendPresence().catch(() => {});
-    checkIn();
-    const timer = window.setInterval(checkIn, 60_000);
-    return () => window.clearInterval(timer);
-  }, [user]);
 
   const [managingNook, setManagingNook] = useState(false);
   const [desktopNotice, setDesktopNotice] = useState(null);
