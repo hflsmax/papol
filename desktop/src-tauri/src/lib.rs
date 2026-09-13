@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
@@ -22,6 +22,34 @@ struct OpenedFiles {
     // Set once the app can build windows; files arriving earlier wait.
     origin: Mutex<Option<String>>,
     waiting: Mutex<Vec<PathBuf>>,
+}
+
+/// The permanent library is built hidden so a file-association launch can
+/// open directly into its document. Once the first event-loop turn ends, an
+/// ordinary app launch reveals the library; later PDF opens leave its current
+/// visibility alone.
+#[derive(Default)]
+struct WindowLaunch {
+    finished: AtomicBool,
+    standalone_viewer: AtomicBool,
+}
+
+impl WindowLaunch {
+    fn note_standalone_viewer(&self) -> bool {
+        if self.finished.load(Ordering::SeqCst) {
+            return false;
+        }
+        self.standalone_viewer.store(true, Ordering::SeqCst);
+        true
+    }
+
+    fn finish(&self) -> Option<bool> {
+        if self.finished.swap(true, Ordering::SeqCst) {
+            None
+        } else {
+            Some(!self.standalone_viewer.load(Ordering::SeqCst))
+        }
+    }
 }
 
 enum OpenedFile {
@@ -673,35 +701,46 @@ fn open_document_window(
     }
 }
 
-#[cfg(target_os = "macos")]
 fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
-    if let tauri::RunEvent::Opened { urls } = &event {
-        let paths = urls
-            .iter()
-            .filter_map(|url| url.to_file_path().ok())
-            .map(|path| path.to_string_lossy().into_owned());
-        open_pdf_files(app, pdf_paths(paths));
-        return;
+    if matches!(event, tauri::RunEvent::MainEventsCleared) {
+        let launch = app.state::<WindowLaunch>();
+        if matches!(launch.finish(), Some(true)) {
+            focus_library_window(app.clone());
+        }
     }
-    if matches!(event, tauri::RunEvent::Reopen { .. }) {
-        if let Some(window) = app.get_webview_window("main") {
-            if !matches!(window.is_visible(), Ok(true)) {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
+
+    #[cfg(target_os = "macos")]
+    {
+        if let tauri::RunEvent::Opened { urls } = &event {
+            let paths = pdf_paths(
+                urls.iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().into_owned()),
+            );
+            if !paths.is_empty() {
+                app.state::<WindowLaunch>().note_standalone_viewer();
+            }
+            open_pdf_files(app, paths);
+            return;
+        }
+        if matches!(event, tauri::RunEvent::Reopen { .. }) {
+            if let Some(window) = app.get_webview_window("main") {
+                if !matches!(window.is_visible(), Ok(true)) {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
         }
     }
 }
-
-#[cfg(not(target_os = "macos"))]
-fn handle_run_event(_app: &tauri::AppHandle, _event: tauri::RunEvent) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .manage(OpenedFiles::default())
+        .manage(WindowLaunch::default())
         .menu(|app| {
             let menu = Menu::default(app)?;
             if let Some(item) = menu.get(WINDOW_SUBMENU_ID) {
@@ -757,7 +796,7 @@ pub fn run() {
             // The window is declared in tauri.conf.json with `create: false`
             // and built here, because a webview's handlers can only be given
             // to it as it is created.
-            let config = app
+            let mut config = app
                 .config()
                 .app
                 .windows
@@ -765,6 +804,9 @@ pub fn run() {
                 .find(|window| window.label == "main")
                 .cloned()
                 .expect("tauri.conf.json declares the main window");
+            // Keep the library off screen through the initial native open-file
+            // events. handle_run_event reveals it for an ordinary app launch.
+            config.visible = false;
             let papol_origin = match &config.url {
                 tauri::WebviewUrl::External(url) => Some(url_origin(url)),
                 // macOS and Linux expose bundled assets through Tauri's
@@ -802,6 +844,9 @@ pub fn run() {
             let mut files = std::mem::take(&mut *opened.waiting.lock().expect("opened files"));
             *opened.origin.lock().expect("opened files") = opened_origin;
             files.extend(pdf_paths(std::env::args().skip(1)));
+            if !files.is_empty() {
+                app.state::<WindowLaunch>().note_standalone_viewer();
+            }
             open_pdf_files(app.handle(), files);
             Ok(())
         })
@@ -947,6 +992,23 @@ mod tests {
                 .into_owned(),
         ];
         assert_eq!(pdf_paths(arguments), vec![pdf]);
+    }
+
+    #[test]
+    fn ordinary_launch_opens_the_library_once() {
+        let launch = WindowLaunch::default();
+
+        assert_eq!(launch.finish(), Some(true));
+        assert_eq!(launch.finish(), None);
+    }
+
+    #[test]
+    fn standalone_viewer_launch_keeps_the_library_hidden() {
+        let launch = WindowLaunch::default();
+
+        assert!(launch.note_standalone_viewer());
+        assert_eq!(launch.finish(), Some(false));
+        assert!(!launch.note_standalone_viewer());
     }
 
     #[test]
