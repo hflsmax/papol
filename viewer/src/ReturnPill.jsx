@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const pageName = (view) => (view.page ? `Page ${view.page}` : 'Previous place');
 
@@ -16,6 +16,24 @@ const pageName = (view) => (view.page ? `Page ${view.page}` : 'Previous place');
 export default function ReturnPill({
   returnView, onwardView, hidden, notice, onBack, onForward, onHide, onUndo, onDismiss, children,
 }) {
+  const noticeRef = useRef(null);
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const closeAway = (event) => {
+      if (!noticeRef.current?.contains(event.target)) onDismiss();
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') onDismiss();
+    };
+    document.addEventListener('pointerdown', closeAway, true);
+    window.addEventListener('keydown', closeOnEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeAway, true);
+      window.removeEventListener('keydown', closeOnEscape, true);
+    };
+  }, [notice, onDismiss]);
+
   return (
     <>
       {(returnView || onwardView) && !hidden && (
@@ -62,7 +80,7 @@ export default function ReturnPill({
           card where the pill stood, kept until the reader has read it. */}
       {notice && (
         <div className="link-return-notice">
-          <span className="learn-papol" role="dialog" aria-labelledby="return-pill-hidden-title">
+          <span ref={noticeRef} className="learn-papol" role="dialog" aria-labelledby="return-pill-hidden-title">
             <span className="learn-papol-kicker">Learn Papol</span>
             <strong id="return-pill-hidden-title">The return pill is hidden</strong>
             <span>

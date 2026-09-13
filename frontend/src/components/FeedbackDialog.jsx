@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { submitFeedback } from '../api';
 
 export default function FeedbackDialog({ currentUser, onClose }) {
@@ -6,6 +6,14 @@ export default function FeedbackDialog({ currentUser, onClose }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
 
   const handleSend = async () => {
     if (!content.trim()) return;
@@ -28,7 +36,7 @@ export default function FeedbackDialog({ currentUser, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-box" role="dialog" aria-modal="true" aria-label="Feedback" onClick={(e) => e.stopPropagation()}>
         <div className="panel">
           <h3>{sent ? 'Thank you' : 'Report a bug or ask for a feature'}</h3>
           {sent ? (

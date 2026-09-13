@@ -356,6 +356,7 @@ export default function App() {
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
+  const learnLinkTipRef = useRef(null);
   // How much of the PDF has arrived, while it has not: null until the
   // first progress event, since a bar at 0% before the request has even
   // answered reads as stalled rather than as "not yet known".
@@ -447,6 +448,9 @@ export default function App() {
   // an account. idle | ask (sign in first?) | waiting (for the library
   // window's sign-in) | adding.
   const [nookStep, setNookStep] = useState('idle');
+  // Kept apart from the sign-in step so clicking away can hide the prompt
+  // without cancelling a sign-in already under way in the library window.
+  const [nookPromptOpen, setNookPromptOpen] = useState(false);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Told on every file outside the nook, until the reader says not to: marks
   // on it live only on this device.
@@ -663,14 +667,34 @@ export default function App() {
     };
   }, [paper, paperInfo, paperInfoOpen, source]);
 
+  const paperPopupOpen = paperInfoOpen || nookPromptOpen ||
+    localNotesNotice || pdfViewerTip;
+
+  // Everything hung from the paper menu is the same kind of transient
+  // window, even though the contents differ. A click beyond the menu puts
+  // whichever one is showing away; Escape is handled with the viewer's
+  // other keyboard dismissals below.
   useEffect(() => {
-    if (!paperInfoOpen) return undefined;
+    if (!paperPopupOpen) return undefined;
     const closeAway = (event) => {
-      if (!paperMenuRef.current?.contains(event.target)) setPaperInfoOpen(false);
+      if (paperMenuRef.current?.contains(event.target)) return;
+      setPaperInfoOpen(false);
+      setNookPromptOpen(false);
+      setLocalNotesNotice(false);
+      setPdfViewerTip(false);
     };
     document.addEventListener('pointerdown', closeAway, true);
     return () => document.removeEventListener('pointerdown', closeAway, true);
-  }, [paperInfoOpen]);
+  }, [paperPopupOpen]);
+
+  useEffect(() => {
+    if (!learnLinkNavigation) return undefined;
+    const closeAway = (event) => {
+      if (!learnLinkTipRef.current?.contains(event.target)) setLearnLinkNavigation(false);
+    };
+    document.addEventListener('pointerdown', closeAway, true);
+    return () => document.removeEventListener('pointerdown', closeAway, true);
+  }, [learnLinkNavigation]);
 
   useEffect(() => {
     setSearchIndex([]);
@@ -867,9 +891,12 @@ export default function App() {
         setReturnPillNotice(false);
         return;
       }
-      if (e.key === 'Escape' && paperInfoOpen) {
+      if (e.key === 'Escape' && paperPopupOpen) {
         e.preventDefault();
         setPaperInfoOpen(false);
+        setNookPromptOpen(false);
+        setLocalNotesNotice(false);
+        setPdfViewerTip(false);
         return;
       }
       if (e.key === 'Escape' && sendSelection) {
@@ -2759,9 +2786,11 @@ export default function App() {
     await hydrateCredential();
     if (!nativeDataActive()) {
       setNookStep('ask');
+      setNookPromptOpen(true);
       return;
     }
     setNookStep('adding');
+    setNookPromptOpen(false);
     try {
       await source.addToNook();
       window.location.reload();
@@ -2784,10 +2813,12 @@ export default function App() {
       return;
     }
     setNookStep('waiting');
+    setNookPromptOpen(true);
     requestSignIn({ register: true }).catch(() => setNookStep('ask'));
   };
   const askToSignIn = () => {
     setNookStep('waiting');
+    setNookPromptOpen(true);
     requestSignIn().catch(() => setNookStep('ask'));
   };
   // Signing in happens in the library window. This window hears of it when
@@ -2933,7 +2964,7 @@ export default function App() {
   const onwardView = linkHistory.current.forward[linkHistory.current.forward.length - 1] || null;
 
   const learnLinkTip = learnLinkNavigation && (
-    <span className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
+    <span ref={learnLinkTipRef} className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
       <span className="learn-papol-kicker">Learn Papol</span>
       <strong id="learn-link-title">Jump back to where you were</strong>
       <span>
@@ -3335,7 +3366,12 @@ export default function App() {
             <button
               type="button"
               className="bar-link paper-info-button"
-              onClick={() => setPaperInfoOpen((open) => !open)}
+              onClick={() => {
+                setPaperInfoOpen((open) => !open);
+                setNookPromptOpen(false);
+                setLocalNotesNotice(false);
+                setPdfViewerTip(false);
+              }}
               aria-expanded={paperInfoOpen}
               aria-haspopup="dialog"
             >
@@ -3371,7 +3407,7 @@ export default function App() {
             >
               Download
             </a>}
-            {(nookStep === 'ask' || nookStep === 'waiting') && (
+            {nookPromptOpen && (nookStep === 'ask' || nookStep === 'waiting') && (
               <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title">
                 <strong id="nook-ask-title">Add this paper to your nook</strong>
                 <p>
@@ -3380,7 +3416,7 @@ export default function App() {
                     : 'Sign in first. Your notes, ink and clips on this file come with it.'}
                 </p>
                 <div className="nook-ask-actions">
-                  <button type="button" onClick={() => setNookStep('idle')}>Not now</button>
+                  <button type="button" onClick={() => { setNookPromptOpen(false); setNookStep('idle'); }}>Not now</button>
                   <button type="button" className={nookStep === 'ask' ? 'primary' : ''} onClick={askToSignIn}>
                     {nookStep === 'ask' ? 'Sign in' : 'Show sign-in'}
                   </button>
