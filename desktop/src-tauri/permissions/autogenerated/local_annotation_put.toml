@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-annotation-put"
+description = "Enables the local_annotation_put command without any pre-configured scope."
+commands.allow = ["local_annotation_put"]
+
+[[permission]]
+identifier = "deny-local-annotation-put"
+description = "Denies the local_annotation_put command without any pre-configured scope."
+commands.deny = ["local_annotation_put"]

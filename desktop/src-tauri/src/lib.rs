@@ -1,4 +1,8 @@
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
@@ -7,6 +11,226 @@ pub mod data;
 pub mod sync;
 
 static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);
+
+/// PDFs the system asked Papol to open (Open With, a double-click once Papol
+/// is the default viewer, a drop on the Dock icon, or a command-line path).
+/// A viewer window may read only the files named here, and only by the hash
+/// of what it was shown.
+#[derive(Default)]
+struct OpenedFiles {
+    files: Mutex<HashMap<String, PathBuf>>,
+    // Set once the app can build windows; files arriving earlier wait.
+    origin: Mutex<Option<String>>,
+    waiting: Mutex<Vec<PathBuf>>,
+}
+
+fn opened_file_url(origin: &str, sha256: &str, path: &Path) -> Option<tauri::Url> {
+    let mut url = format!("{origin}/viewer/").parse::<tauri::Url>().ok()?;
+    let name = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or_default();
+    url.query_pairs_mut()
+        .append_pair("pdf", sha256)
+        .append_pair("file", "1")
+        .append_pair("name", name);
+    Some(url)
+}
+
+fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
+    let Some(state) = app.try_state::<OpenedFiles>() else {
+        return;
+    };
+    let origin = state.origin.lock().ok().and_then(|origin| origin.clone());
+    let Some(origin) = origin else {
+        if let Ok(mut waiting) = state.waiting.lock() {
+            waiting.extend(paths);
+        }
+        return;
+    };
+    for path in paths {
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        drop(bytes);
+        let Some(url) = opened_file_url(&origin, &sha256, &path) else {
+            continue;
+        };
+        if let Ok(mut files) = state.files.lock() {
+            files.insert(sha256, path);
+        }
+        show_document_window(app, &origin, url);
+    }
+}
+
+fn pdf_paths(arguments: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
+    arguments
+        .into_iter()
+        .map(PathBuf::from)
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
+                && path.is_file()
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn opened_file_read(
+    opened: tauri::State<'_, OpenedFiles>,
+    sha256: String,
+) -> Result<tauri::ipc::Response, String> {
+    let path = opened
+        .files
+        .lock()
+        .map_err(|_| "Opened files lock failed")?
+        .get(&sha256)
+        .cloned()
+        .ok_or("Papol was not asked to open this file")?;
+    let bytes = std::fs::read(&path).map_err(|_| "The file can no longer be read")?;
+    if format!("{:x}", Sha256::digest(&bytes)) != sha256 {
+        return Err("The file has changed since it was opened. Open it again.".into());
+    }
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Document windows do not sign in themselves: the library window does, and
+/// the viewer that asked picks the account up when it is focused again.
+#[tauri::command]
+fn request_sign_in(app: tauri::AppHandle, register: Option<bool>) {
+    use tauri::Emitter;
+
+    focus_library_window(app.clone());
+    let _ = app.emit_to(
+        "main",
+        "papol://sign-in-requested",
+        serde_json::json!({"register": register.unwrap_or(false)}),
+    );
+}
+
+#[tauri::command]
+fn local_annotations_list(
+    store: tauri::State<'_, data::LocalStore>,
+    sha256: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    store.local_annotations(&sha256)
+}
+
+#[tauri::command]
+fn local_annotation_put(
+    store: tauri::State<'_, data::LocalStore>,
+    sha256: String,
+    kind: String,
+    uuid: String,
+    row: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    store.put_local_annotation(&sha256, &kind, &uuid, row)
+}
+
+#[tauri::command]
+fn local_annotation_delete(
+    store: tauri::State<'_, data::LocalStore>,
+    uuid: String,
+) -> Result<(), String> {
+    store.delete_local_annotation(&uuid)
+}
+
+#[tauri::command]
+fn local_annotations_clear(
+    store: tauri::State<'_, data::LocalStore>,
+    sha256: String,
+) -> Result<usize, String> {
+    store.clear_local_annotations(&sha256)
+}
+
+#[cfg(target_os = "macos")]
+mod pdf_handler {
+    use core_foundation::base::TCFType;
+    use core_foundation::string::{CFString, CFStringRef};
+
+    const PDF_CONTENT_TYPE: &str = "com.adobe.pdf";
+    const ALL_ROLES: u32 = 0xFFFF_FFFF;
+
+    #[link(name = "CoreServices", kind = "framework")]
+    extern "C" {
+        fn LSCopyDefaultRoleHandlerForContentType(
+            content_type: CFStringRef,
+            role: u32,
+        ) -> CFStringRef;
+        fn LSSetDefaultRoleHandlerForContentType(
+            content_type: CFStringRef,
+            role: u32,
+            handler_bundle_id: CFStringRef,
+        ) -> i32;
+    }
+
+    pub fn is_default(bundle_identifier: &str) -> bool {
+        let content_type = CFString::from_static_string(PDF_CONTENT_TYPE);
+        // SAFETY: the argument is a live CFString; the result follows the
+        // Create rule and is released by wrap_under_create_rule.
+        let handler = unsafe {
+            LSCopyDefaultRoleHandlerForContentType(content_type.as_concrete_TypeRef(), ALL_ROLES)
+        };
+        if handler.is_null() {
+            return false;
+        }
+        let handler = unsafe { CFString::wrap_under_create_rule(handler) };
+        handler.to_string().eq_ignore_ascii_case(bundle_identifier)
+    }
+
+    pub fn make_default(bundle_identifier: &str) -> Result<(), String> {
+        let content_type = CFString::from_static_string(PDF_CONTENT_TYPE);
+        let handler = CFString::new(bundle_identifier);
+        // SAFETY: both arguments are live CFStrings for the whole call.
+        let status = unsafe {
+            LSSetDefaultRoleHandlerForContentType(
+                content_type.as_concrete_TypeRef(),
+                ALL_ROLES,
+                handler.as_concrete_TypeRef(),
+            )
+        };
+        match status {
+            0 => Ok(()),
+            // kLSApplicationNotFoundErr: a development build is not an
+            // installed application the system knows about.
+            -10814 => Err("Install Papol in Applications to make it your PDF viewer.".into()),
+            status => Err(format!(
+                "macOS did not change the PDF viewer (error {status})."
+            )),
+        }
+    }
+}
+
+#[tauri::command]
+fn pdf_viewer_status(app: tauri::AppHandle) -> serde_json::Value {
+    #[cfg(target_os = "macos")]
+    {
+        serde_json::json!({
+            "supported": true,
+            "is_default": pdf_handler::is_default(&app.config().identifier),
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        serde_json::json!({"supported": false, "is_default": false})
+    }
+}
+
+#[tauri::command]
+fn pdf_viewer_make_default(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "macos")]
+    {
+        pdf_handler::make_default(&app.config().identifier)?;
+        Ok(pdf_viewer_status(app))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err("Choose Papol as the PDF viewer in your system settings.".into())
+    }
+}
 
 #[tauri::command]
 fn data_query(
@@ -405,6 +629,14 @@ fn open_document_window(
 
 #[cfg(target_os = "macos")]
 fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
+    if let tauri::RunEvent::Opened { urls } = &event {
+        let paths = urls
+            .iter()
+            .filter_map(|url| url.to_file_path().ok())
+            .map(|path| path.to_string_lossy().into_owned());
+        open_pdf_files(app, pdf_paths(paths));
+        return;
+    }
     if matches!(event, tauri::RunEvent::Reopen { .. }) {
         if let Some(window) = app.get_webview_window("main") {
             if !matches!(window.is_visible(), Ok(true)) {
@@ -423,6 +655,7 @@ fn handle_run_event(_app: &tauri::AppHandle, _event: tauri::RunEvent) {}
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .manage(OpenedFiles::default())
         .menu(|app| {
             let menu = Menu::default(app)?;
             if let Some(item) = menu.get(WINDOW_SUBMENU_ID) {
@@ -457,7 +690,15 @@ pub fn run() {
             local_account_set,
             local_account_remove,
             local_recovery_export,
-            sync_now
+            sync_now,
+            opened_file_read,
+            request_sign_in,
+            local_annotations_list,
+            local_annotation_put,
+            local_annotation_delete,
+            local_annotations_clear,
+            pdf_viewer_status,
+            pdf_viewer_make_default
         ])
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
@@ -486,6 +727,7 @@ pub fn run() {
                 _ => None,
             };
             let app_handle = app.handle().clone();
+            let opened_origin = papol_origin.clone();
             WebviewWindowBuilder::from_config(app.handle(), &config)?
                 // Publish Papol's runtime contract before application modules
                 // execute, without exposing Tauri's entire global API.
@@ -507,6 +749,13 @@ pub fn run() {
                 // them to Downloads, numbering rather than overwriting.
                 .on_download(|_webview, _event| true)
                 .build()?;
+            // Files handed over at launch: by the system before the window
+            // existed, or as arguments on platforms that open files that way.
+            let opened = app.state::<OpenedFiles>();
+            let mut files = std::mem::take(&mut *opened.waiting.lock().expect("opened files"));
+            *opened.origin.lock().expect("opened files") = opened_origin;
+            files.extend(pdf_paths(std::env::args().skip(1)));
+            open_pdf_files(app.handle(), files);
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -611,6 +860,46 @@ mod tests {
             "https://mc-pony.com"
         )
         .is_none());
+    }
+
+    #[test]
+    fn opened_files_get_their_own_viewer_window() {
+        let sha256 = "a".repeat(64);
+        let url = opened_file_url(
+            "tauri://localhost",
+            &sha256,
+            Path::new("/Users/reader/Downloads/Attention & more.pdf"),
+        )
+        .expect("opened file URL");
+        let document =
+            document_window(&url, "tauri://localhost").expect("opened file opens in a viewer");
+        assert_eq!(document.label, format!("viewer-{sha256}"));
+        let bundled = bundled_document_url(url, &document);
+        assert_eq!(bundled.path(), "/viewer/index.html");
+        assert_eq!(
+            bundled.query(),
+            Some(format!("pdf={sha256}&file=1&name=Attention+%26+more").as_str())
+        );
+    }
+
+    #[test]
+    fn only_existing_pdf_paths_are_opened() {
+        let directory = tempfile::tempdir().unwrap();
+        let pdf = directory.path().join("paper.PDF");
+        std::fs::write(&pdf, b"%PDF-1.7").unwrap();
+        let text = directory.path().join("notes.txt");
+        std::fs::write(&text, b"notes").unwrap();
+        let arguments = [
+            "-psn_0_12345".to_string(),
+            pdf.to_string_lossy().into_owned(),
+            text.to_string_lossy().into_owned(),
+            directory
+                .path()
+                .join("gone.pdf")
+                .to_string_lossy()
+                .into_owned(),
+        ];
+        assert_eq!(pdf_paths(arguments), vec![pdf]);
     }
 
     #[test]

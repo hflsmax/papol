@@ -27,6 +27,7 @@ import { appPath, stripAppBase } from './base';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from './fileDrop.js';
+import { subscribeSignInRequests } from './nativeData';
 
 export const styles = `
 * {
@@ -523,6 +524,14 @@ input[type='checkbox'] {
   color: var(--gold-ink);
   font-size: var(--fs-sm);
   text-decoration: underline;
+}
+
+.pdf-viewer-prompt button.demo-banner-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
 }
 
 .topnav .spacer {
@@ -3208,6 +3217,10 @@ h4 .state-pill {
   font-size: var(--fs-sm);
 }
 
+.local-storage-totals.error {
+  color: var(--red);
+}
+
 .panel-head-row {
   display: flex;
   align-items: flex-start;
@@ -5193,6 +5206,14 @@ export default function App() {
       .then((d) => setUnreadCount(d.unread_count))
       .catch(() => {});
   }, [user, route]);
+
+  // A document window asked for an account: a PDF opened from disk is being
+  // added to a nook. Signing in happens here, in the library window.
+  const signedInUser = useRef(user);
+  signedInUser.current = user;
+  useEffect(() => subscribeSignInRequests((request) => {
+    if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
+  }), []);
 
   useEffect(() => {
     if (!user || demoActive() || !getToken()) return;

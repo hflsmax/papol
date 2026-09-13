@@ -183,6 +183,42 @@ function subscribeNativeEvents(eventNames, listener) {
   };
 }
 
+// A PDF opened from the file system, read from where it lies on disk.
+export async function openedFileBlob(sha256) {
+  const bytes = await invoke('opened_file_read', { sha256 });
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+
+export async function openedFileUrl(sha256) {
+  return URL.createObjectURL(await openedFileBlob(sha256));
+}
+
+// This device's notes, ink and clips on an opened file, by its SHA-256.
+export const localAnnotations = {
+  list: (sha256) => invoke('local_annotations_list', { sha256 }),
+  put: (sha256, kind, uuid, row) => invoke('local_annotation_put', { sha256, kind, uuid, row }),
+  remove: (uuid) => invoke('local_annotation_delete', { uuid }),
+  clear: (sha256) => invoke('local_annotations_clear', { sha256 }),
+};
+
+// A document window cannot sign in itself; the library window does.
+export function requestSignIn({ register = false } = {}) {
+  return IS_DESKTOP ? invoke('request_sign_in', { register }) : Promise.resolve();
+}
+
+export function subscribeSignInRequests(listener) {
+  return subscribeNativeEvents(['papol://sign-in-requested'], listener);
+}
+
+export function pdfViewerStatus() {
+  if (!IS_DESKTOP) return Promise.resolve({ supported: false, is_default: false });
+  return invoke('pdf_viewer_status');
+}
+
+export function makePdfViewerDefault() {
+  return invoke('pdf_viewer_make_default');
+}
+
 export function newUuid() {
   return globalThis.crypto.randomUUID();
 }

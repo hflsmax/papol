@@ -329,6 +329,20 @@ button.link.danger { color: var(--red); }
 
 .viewer-bar .bar-link:hover { border-color: var(--accent); color: var(--accent); }
 .paper-menu { position: relative; display: flex; align-items: center; gap: 6px; }
+.viewer-bar button.bar-link { cursor: pointer; background: var(--card); }
+.viewer-bar button.bar-link:disabled { cursor: default; opacity: 0.6; }
+.viewer-bar .nook-add-button { border-color: var(--accent); color: var(--accent); }
+.nook-ask { display: flex; flex-direction: column; gap: 8px; width: min(300px, calc(100vw - 24px)); }
+.nook-ask strong { font-size: var(--fs-md); }
+.nook-ask p { color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.45; }
+.nook-ask-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.learn-papol.pdf-viewer-tip { left: auto; right: 0; }
+.learn-papol.pdf-viewer-tip::before { left: auto; right: 22px; }
+.pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
+.pdf-viewer-tip-actions button { padding: 4px 9px; }
+.learn-papol .pdf-viewer-tip-actions .learn-papol-close { margin-top: 0; }
+.local-notes-hide { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
+.local-notes-hide input { margin: 0; accent-color: var(--accent); }
 .paper-info-button { cursor: pointer; background: var(--card); }
 .info-glyph {
   display: inline-grid;

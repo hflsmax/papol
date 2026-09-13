@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-pdf-viewer-make-default"
+description = "Enables the pdf_viewer_make_default command without any pre-configured scope."
+commands.allow = ["pdf_viewer_make_default"]
+
+[[permission]]
+identifier = "deny-pdf-viewer-make-default"
+description = "Denies the pdf_viewer_make_default command without any pre-configured scope."
+commands.deny = ["pdf_viewer_make_default"]

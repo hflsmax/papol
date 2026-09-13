@@ -19,6 +19,8 @@
     "allow-local-account-remove",
     "allow-local-recovery-export",
     "allow-sync-now",
+    "allow-pdf-viewer-status",
+    "allow-pdf-viewer-make-default",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "core:window:allow-start-dragging",

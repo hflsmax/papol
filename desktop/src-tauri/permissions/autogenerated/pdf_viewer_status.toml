@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-pdf-viewer-status"
+description = "Enables the pdf_viewer_status command without any pre-configured scope."
+commands.allow = ["pdf_viewer_status"]
+
+[[permission]]
+identifier = "deny-pdf-viewer-status"
+description = "Denies the pdf_viewer_status command without any pre-configured scope."
+commands.deny = ["pdf_viewer_status"]

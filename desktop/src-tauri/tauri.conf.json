@@ -78,6 +78,16 @@
     "category": "Education",
     "shortDescription": "Read, annotate, and discuss research papers.",
     "longDescription": "Papol is a workspace for reading, annotating, organizing, and discussing research papers.",
+    "fileAssociations": [
+      {
+        "ext": ["pdf"],
+        "name": "PDF Document",
+        "role": "Viewer",
+        "mimeType": "application/pdf",
+        "contentTypes": ["com.adobe.pdf"],
+        "rank": "Alternate"
+      }
+    ],
     "macOS": {
       "minimumSystemVersion": "11.0",
       "signingIdentity": null,

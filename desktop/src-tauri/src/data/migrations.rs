@@ -60,6 +60,21 @@ CREATE TABLE IF NOT EXISTS _local_blob_refs (
 CREATE INDEX IF NOT EXISTS ix_local_blob_refs_sha256 ON _local_blob_refs(sha256);
 "#;
 
+// Notes, ink and clips on a PDF opened from the file system, kept on this
+// device by the file's content hash until the paper is added to a nook.
+const LOCAL_ANNOTATIONS: &str = r#"
+CREATE TABLE IF NOT EXISTS _local_annotations (
+  uuid TEXT PRIMARY KEY NOT NULL,
+  sha256 TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  row_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_local_annotations_sha256
+  ON _local_annotations(sha256, created_at);
+"#;
+
 pub fn run(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection
         .transaction()
@@ -74,6 +89,11 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     apply_sql(&transaction, "202609120001_domain", DOMAIN)?;
     apply_sql(&transaction, "202609120001_local", LOCAL)?;
+    apply_sql(
+        &transaction,
+        "202609130001_local_annotations",
+        LOCAL_ANNOTATIONS,
+    )?;
     transaction.commit().map_err(|error| error.to_string())
 }
 

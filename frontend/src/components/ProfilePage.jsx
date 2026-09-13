@@ -14,8 +14,8 @@ import {
   setLocalSyncPreference,
 } from '../../../shared/offlineStore';
 import {
-  clearNativeData, hydrateNativeSyncPreference, nativeStorageStatus,
-  persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress,
+  clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
+  pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress,
   syncAllNow,
 } from '../nativeData';
 
@@ -31,6 +31,51 @@ function syncProgressLabel(progress) {
   const label = SYNC_PHASES[progress.phase] || 'Syncing';
   if (!progress.total) return label;
   return `${label} · ${Math.min(progress.completed + 1, progress.total)} of ${progress.total}`;
+}
+
+// Which app a PDF opens in is the system's to say; this row reads it again
+// whenever the window comes back, in case it was changed elsewhere.
+function PdfViewerSetting() {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const refresh = () => pdfViewerStatus().then(setStatus).catch(() => {});
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
+
+  if (!status?.supported) return null;
+
+  const makeDefault = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await makePdfViewerDefault());
+    } catch (failure) {
+      setError(String(failure?.message ?? failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="local-setting-row local-storage-row">
+      <div>
+        <strong>PDF viewer</strong>
+        <div className={`local-storage-totals${error ? ' error' : ''}`}>
+          {error || (status.is_default ? 'PDFs open in Papol.' : 'PDFs open in another app.')}
+        </div>
+      </div>
+      {!status.is_default && (
+        <button type="button" disabled={busy} onClick={makeDefault}>
+          {busy ? 'Setting…' : 'Make Papol the default'}
+        </button>
+      )}
+    </div>
+  );
 }
 
 // Unlike the account fields below, these settings belong to this installation
@@ -147,6 +192,7 @@ function LocalDeviceSettings({ onSynced }) {
           {sync.error || `Sync finished · ${formatSize(sync.lastBytes)} transferred`}
         </div>
       )}
+      <PdfViewerSetting />
       {storage && (
         <div className="local-setting-row local-storage-row">
           <div>

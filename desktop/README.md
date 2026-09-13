@@ -40,6 +40,23 @@ recovery records without freezing unrelated later work. Settings can save a
 portable recovery ZIP with queued mutations, current affected rows, conflict
 details, and unsynchronized files.
 
+## Opening PDFs from the system
+
+Papol registers as a PDF viewer (`bundle.fileAssociations`). A PDF opened with
+Open With, by double-click once Papol is the default, by a drop on the Dock
+icon, or as a command-line path opens in its own viewer window, named by the
+file's SHA-256. A viewer may read only files the system handed to this process.
+
+Opening a file needs no account and makes no network request. If the reader's
+nook already holds those exact bytes, the window works on that paper. Otherwise
+notes, ink, and clips are kept in `_local_annotations` by the file's hash (a
+notice, shown on each such file until "Don't show again" is ticked, says they
+are not in the PDF and suggests an account to back them up), and
+**Save with notes** writes a copy with ink drawn in and notes as PDF comments.
+**Add to nook** copies the file into the replica with those marks; without an
+account it first asks the library window to sign in. The library banner and
+Settings can make Papol the default PDF viewer (macOS only).
+
 ## Development
 
 ### Run the native app on macOS

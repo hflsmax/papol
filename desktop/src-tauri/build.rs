@@ -17,6 +17,14 @@ fn main() {
             "local_account_remove",
             "local_recovery_export",
             "sync_now",
+            "opened_file_read",
+            "request_sign_in",
+            "local_annotations_list",
+            "local_annotation_put",
+            "local_annotation_delete",
+            "local_annotations_clear",
+            "pdf_viewer_status",
+            "pdf_viewer_make_default",
         ]),
     ))
     .expect("failed to prepare the Papol desktop build")

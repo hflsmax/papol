@@ -333,6 +333,111 @@ impl LocalStore {
         Ok(())
     }
 
+    /// This device's notes, ink and clips on a file opened from the file
+    /// system, named by the file's SHA-256.
+    pub fn local_annotations(&self, sha256: &str) -> Result<Vec<Value>, String> {
+        if !valid_sha256(sha256) {
+            return Err("Invalid file digest".into());
+        }
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        let mut statement = connection
+            .prepare(
+                "SELECT uuid,kind,row_json FROM _local_annotations WHERE sha256=?1 \
+                 ORDER BY created_at,uuid",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([sha256], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        rows.into_iter()
+            .map(|(uuid, kind, encoded)| {
+                let mut row: Map<String, Value> =
+                    serde_json::from_str(&encoded).map_err(|_| "Invalid local annotation")?;
+                row.insert("uuid".into(), json!(uuid));
+                row.insert("kind".into(), json!(kind));
+                Ok(Value::Object(row))
+            })
+            .collect()
+    }
+
+    pub fn put_local_annotation(
+        &self,
+        sha256: &str,
+        kind: &str,
+        uuid: &str,
+        row: Value,
+    ) -> Result<Value, String> {
+        if !valid_sha256(sha256) {
+            return Err("Invalid file digest".into());
+        }
+        if !matches!(kind, "note" | "ink" | "clip") {
+            return Err("Unknown annotation kind".into());
+        }
+        Uuid::parse_str(uuid).map_err(|_| "Annotations are named by UUID")?;
+        let mut row = row
+            .as_object()
+            .cloned()
+            .ok_or("An annotation must be an object")?;
+        row.remove("uuid");
+        row.remove("kind");
+        let encoded = serde_json::to_string(&row).map_err(|error| error.to_string())?;
+        if encoded.len() > 4 * 1024 * 1024 {
+            return Err("Annotation is too large".into());
+        }
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        let written = connection
+            .execute(
+                "INSERT INTO _local_annotations(uuid,sha256,kind,row_json,updated_at) \
+                 VALUES (?1,?2,?3,?4,?5) ON CONFLICT(uuid) DO UPDATE SET \
+                 row_json=excluded.row_json,updated_at=excluded.updated_at \
+                 WHERE _local_annotations.sha256=excluded.sha256 \
+                 AND _local_annotations.kind=excluded.kind",
+                params![uuid, sha256, kind, encoded, chrono_text()],
+            )
+            .map_err(|error| error.to_string())?;
+        if written == 0 {
+            return Err("That annotation belongs to another file".into());
+        }
+        row.insert("uuid".into(), json!(uuid));
+        row.insert("kind".into(), json!(kind));
+        Ok(Value::Object(row))
+    }
+
+    pub fn delete_local_annotation(&self, uuid: &str) -> Result<(), String> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        connection
+            .execute("DELETE FROM _local_annotations WHERE uuid=?1", [uuid])
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    pub fn clear_local_annotations(&self, sha256: &str) -> Result<usize, String> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        connection
+            .execute("DELETE FROM _local_annotations WHERE sha256=?1", [sha256])
+            .map_err(|error| error.to_string())
+    }
+
     pub fn next_outbox(&self, account_uuid: &str) -> Result<Option<OutboxMutation>, String> {
         let connection = self
             .connection
@@ -822,7 +927,8 @@ impl LocalStore {
                      DELETE FROM _local_blobs;
                      DELETE FROM _local_outbox;
                      DELETE FROM _local_conflicts;
-                     DELETE FROM _local_sync_state;",
+                     DELETE FROM _local_sync_state;
+                     DELETE FROM _local_annotations;",
                 )
                 .map_err(|error| error.to_string())?;
             transaction.commit().map_err(|error| error.to_string())
@@ -2716,6 +2822,13 @@ fn recover_staged_blob_removals(connection: &Connection, directory: &Path) -> Re
     Ok(())
 }
 
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .chars()
+            .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character))
+}
+
 fn chrono_text() -> String {
     chrono::Utc::now().to_rfc3339()
 }
@@ -3601,8 +3714,57 @@ mod tests {
                     row.get(0)
                 })
                 .unwrap();
-            assert_eq!(migration_count, 2);
+            assert_eq!(migration_count, 3);
         }
+    }
+
+    #[test]
+    fn opened_file_annotations_are_kept_by_content_hash() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let digest = "e".repeat(64);
+        let note = Uuid::new_v4().to_string();
+        store
+            .put_local_annotation(
+                &digest,
+                "note",
+                &note,
+                json!({"page": 2, "content": "First"}),
+            )
+            .unwrap();
+        store
+            .put_local_annotation(
+                &digest,
+                "note",
+                &note,
+                json!({"page": 2, "content": "Edited"}),
+            )
+            .unwrap();
+        store
+            .put_local_annotation(
+                &digest,
+                "ink",
+                &Uuid::new_v4().to_string(),
+                json!({"page": 1, "points": [{"x": 0.1, "y": 0.2}]}),
+            )
+            .unwrap();
+        assert!(store
+            .put_local_annotation(&digest, "board", &Uuid::new_v4().to_string(), json!({}))
+            .is_err());
+        assert!(store
+            .put_local_annotation(&"f".repeat(64), "note", &note, json!({"page": 1}))
+            .is_err());
+
+        let rows = store.local_annotations(&digest).unwrap();
+        assert_eq!(rows.len(), 2);
+        let saved = rows.iter().find(|row| row["uuid"] == note).unwrap();
+        assert_eq!(saved["content"], "Edited");
+        assert_eq!(saved["kind"], "note");
+        assert!(store.local_annotations(&"f".repeat(64)).unwrap().is_empty());
+
+        store.delete_local_annotation(&note).unwrap();
+        assert_eq!(store.clear_local_annotations(&digest).unwrap(), 1);
+        assert!(store.local_annotations(&digest).unwrap().is_empty());
     }
 
     #[test]

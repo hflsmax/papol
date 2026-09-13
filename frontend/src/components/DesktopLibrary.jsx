@@ -13,7 +13,52 @@ import Glyph from './DesktopGlyph';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
-import { subscribeNativeData } from '../nativeData';
+import { makePdfViewerDefault, pdfViewerStatus, subscribeNativeData } from '../nativeData';
+import { inDemo } from '../base';
+
+// Shared with the viewer, which asks the same question over an opened file:
+// a reader who has answered it once is not asked again in either place.
+const PDF_VIEWER_PROMPT_KEY = 'papol.pdfViewerPrompt';
+
+function DefaultViewerPrompt() {
+  const [visible, setVisible] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(PDF_VIEWER_PROMPT_KEY) === 'dismissed'; } catch { /* ask */ }
+    if (dismissed || inDemo()) return undefined;
+    let active = true;
+    pdfViewerStatus()
+      .then((status) => { if (active) setVisible(status.supported && !status.is_default); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  if (!visible) return null;
+  const dismiss = () => {
+    try { localStorage.setItem(PDF_VIEWER_PROMPT_KEY, 'dismissed'); } catch { /* hide for now */ }
+    setVisible(false);
+  };
+  const makeDefault = async () => {
+    try {
+      await makePdfViewerDefault();
+      dismiss();
+    } catch (failure) {
+      setError(String(failure?.message ?? failure));
+    }
+  };
+
+  return (
+    <div className="demo-banner pdf-viewer-prompt" role="status">
+      <span>{error || 'Use Papol as your default PDF viewer?'}</span>
+      <span className="demo-banner-actions">
+        <button type="button" className="demo-banner-btn" onClick={makeDefault}>Use Papol</button>
+        <button type="button" className="demo-banner-link" onClick={dismiss}>Not now</button>
+      </span>
+    </div>
+  );
+}
 
 // Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
@@ -374,6 +419,7 @@ export function DesktopBrowser({
             the window like the title bar it stands in for. */}
         <div className="desktop-toolbar" data-tauri-drag-region="deep" />
         {banner}
+        <DefaultViewerPrompt />
         {detail}
       </section>
     </div>

@@ -14,8 +14,14 @@ import {
 } from './api';
 import { resolveSource, getToken } from './source';
 import { appPath, backendPath } from './base';
-import { nativeDataActive } from '../../frontend/src/nativeData.js';
+import {
+  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, requestSignIn,
+} from '../../frontend/src/nativeData.js';
+import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
+import {
+  localAnnotationsNoticeHidden, rememberLocalAnnotationsNoticeChoice,
+} from './localAnnotationsNotice.js';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
@@ -199,6 +205,12 @@ function useEvent(handler) {
   ref.current = handler;
   return useMemo(() => (...args) => ref.current(...args), []);
 }
+
+// Shared with the library window, which asks the same question.
+const PDF_VIEWER_PROMPT_KEY = 'papol.pdfViewerPrompt';
+
+// Native commands reject with a bare string rather than an Error.
+const messageOf = (failure) => String(failure?.message ?? failure);
 
 function numberParam(name) {
   const v = new URLSearchParams(window.location.search).get(name);
@@ -431,6 +443,34 @@ export default function App() {
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
+  // A PDF opened from disk: adding it to a nook is the one step that needs
+  // an account. idle | ask (sign in first?) | waiting (for the library
+  // window's sign-in) | adding.
+  const [nookStep, setNookStep] = useState('idle');
+  const [savingCopy, setSavingCopy] = useState(false);
+  const [pdfViewerTip, setPdfViewerTip] = useState(false);
+  // Told on every file outside the nook, until the reader says not to: marks
+  // on it live only on this device.
+  const [localNotesNotice, setLocalNotesNotice] = useState(false);
+  const [hideLocalNotesNotice, setHideLocalNotesNotice] = useState(false);
+  useEffect(() => {
+    if (!source?.openedFile || !paper || paper.uuid) return;
+    if (!localAnnotationsNoticeHidden()) setLocalNotesNotice(true);
+  }, [source, paper]);
+
+  // Asked once, over the first file opened from disk while another app is
+  // the system's PDF viewer.
+  useEffect(() => {
+    if (!source?.openedFile) return undefined;
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(PDF_VIEWER_PROMPT_KEY) === 'dismissed'; } catch { /* ask */ }
+    if (dismissed) return undefined;
+    let cancelled = false;
+    pdfViewerStatus()
+      .then((status) => { if (!cancelled) setPdfViewerTip(status.supported && !status.is_default); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [source]);
   const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -969,7 +1009,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!paper?.edition_uuid || !source?.clips) return undefined;
+    // A file opened from disk has no edition until it joins a nook.
+    if ((!paper?.edition_uuid && !paper?.opened_file) || !source?.clips) return undefined;
     let cancelled = false;
     source.clips.list(paper.edition_uuid)
       .then((loaded) => { if (!cancelled) setClips(loaded); })
@@ -2716,6 +2757,94 @@ export default function App() {
 
   const signedIn = !!getToken();
 
+  // The paper joins the nook with everything already made on it; the window
+  // then reopens it as the nook's paper.
+  const addToNook = async () => {
+    await hydrateCredential();
+    if (!nativeDataActive()) {
+      setNookStep('ask');
+      return;
+    }
+    setNookStep('adding');
+    try {
+      await source.addToNook();
+      window.location.reload();
+    } catch (failure) {
+      setNookStep('idle');
+      setError(`Could not add this paper: ${messageOf(failure)}`);
+    }
+  };
+  const addToNookOnceSignedIn = useEvent(addToNook);
+  const dismissLocalNotesNotice = () => {
+    rememberLocalAnnotationsNoticeChoice(hideLocalNotesNotice);
+    setLocalNotesNotice(false);
+  };
+  // Backing up is adding to the nook; without an account, that starts with
+  // creating one in the library window.
+  const backUpNotes = () => {
+    dismissLocalNotesNotice();
+    if (nativeDataActive()) {
+      addToNook();
+      return;
+    }
+    setNookStep('waiting');
+    requestSignIn({ register: true }).catch(() => setNookStep('ask'));
+  };
+  const askToSignIn = () => {
+    setNookStep('waiting');
+    requestSignIn().catch(() => setNookStep('ask'));
+  };
+  // Signing in happens in the library window. This window hears of it when
+  // the account is written to shared storage, or when it is focused again.
+  useEffect(() => {
+    if (nookStep !== 'waiting') return undefined;
+    const check = () => {
+      if (nativeDataActive()) addToNookOnceSignedIn();
+    };
+    window.addEventListener('storage', check);
+    window.addEventListener('focus', check);
+    return () => {
+      window.removeEventListener('storage', check);
+      window.removeEventListener('focus', check);
+    };
+  }, [nookStep, addToNookOnceSignedIn]);
+
+  // A copy of the PDF with the notes and ink in it, readable by any PDF app.
+  const saveWithNotes = async () => {
+    setSavingCopy(true);
+    let href = null;
+    try {
+      const [{ annotatePdf }, pdfUrl] = await Promise.all([import('./annotatedPdf.js'), cachedPdfHref(paper)]);
+      href = pdfUrl;
+      const bytes = await (await fetch(href)).arrayBuffer();
+      const annotated = await annotatePdf(bytes, { notes, ink });
+      const copy = URL.createObjectURL(new Blob([annotated], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = copy;
+      link.download = `${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')} (with notes).pdf`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(copy), 60_000);
+    } catch (failure) {
+      setError(`Could not save a copy: ${messageOf(failure)}`);
+    } finally {
+      if (href) URL.revokeObjectURL(href);
+      setSavingCopy(false);
+    }
+  };
+
+  const dismissPdfViewerTip = () => {
+    try { localStorage.setItem(PDF_VIEWER_PROMPT_KEY, 'dismissed'); } catch { /* hide for now */ }
+    setPdfViewerTip(false);
+  };
+  const makeDefaultPdfViewer = async () => {
+    try {
+      await makePdfViewerDefault();
+    } catch (failure) {
+      setError(messageOf(failure));
+    }
+    dismissPdfViewerTip();
+  };
+
   const closeFeedback = () => {
     setFeedbackOpen(false);
     setFeedbackContent('');
@@ -3239,7 +3368,29 @@ export default function App() {
             >
               <span className="info-glyph" aria-hidden="true">i</span> Info
             </button>
-            <a
+            {source?.openedFile && !paper.uuid && (
+              <button
+                type="button"
+                className="bar-link nook-add-button"
+                onClick={addToNook}
+                disabled={nookStep === 'adding'}
+              >
+                {nookStep === 'adding' ? 'Adding…' : 'Add to nook'}
+              </button>
+            )}
+            {/* The file is already on disk; what is worth saving is a copy
+                that carries the reader's marks. */}
+            {source?.openedFile ? (
+              <button
+                type="button"
+                className="bar-link"
+                onClick={saveWithNotes}
+                disabled={savingCopy}
+                title="Save a copy of this PDF with your notes and ink in it"
+              >
+                {savingCopy ? 'Saving…' : 'Save with notes'}
+              </button>
+            ) : <a
               className="bar-link"
               href={pdfHref(paper)}
               download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
@@ -3258,7 +3409,58 @@ export default function App() {
               }}
             >
               Download
-            </a>
+            </a>}
+            {(nookStep === 'ask' || nookStep === 'waiting') && (
+              <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title">
+                <strong id="nook-ask-title">Add this paper to your nook</strong>
+                <p>
+                  {nookStep === 'waiting'
+                    ? 'Continue in the Papol window. The paper is added as soon as you are signed in.'
+                    : 'Sign in first. Your notes, ink and clips on this file come with it.'}
+                </p>
+                <div className="nook-ask-actions">
+                  <button type="button" onClick={() => setNookStep('idle')}>Not now</button>
+                  <button type="button" className={nookStep === 'ask' ? 'primary' : ''} onClick={askToSignIn}>
+                    {nookStep === 'ask' ? 'Sign in' : 'Show sign-in'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {localNotesNotice && nookStep === 'idle' && !paperInfoOpen && (
+              <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="local-notes-title">
+                <strong id="local-notes-title">Annotations aren't attached to this PDF</strong>
+                <span>
+                  {nativeDataActive()
+                    ? 'Your notes, ink and clips are stored separately on this device. Add the paper to your nook to back them up securely in the cloud.'
+                    : 'Your notes, ink and clips are stored separately on this device. Consider creating an account to back them up securely in the cloud.'}
+                </span>
+                <label className="local-notes-hide">
+                  <input
+                    type="checkbox"
+                    checked={hideLocalNotesNotice}
+                    onChange={(event) => setHideLocalNotesNotice(event.target.checked)}
+                  />
+                  Don't show again
+                </label>
+                <span className="pdf-viewer-tip-actions">
+                  <button type="button" onClick={dismissLocalNotesNotice}>Got it</button>
+                  <button type="button" className="learn-papol-close" onClick={backUpNotes}>
+                    {nativeDataActive() ? 'Add to nook' : 'Create account'}
+                  </button>
+                </span>
+              </span>
+            )}
+            {pdfViewerTip && !localNotesNotice && nookStep === 'idle' && !paperInfoOpen && (
+              <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="pdf-viewer-tip-title">
+                <strong id="pdf-viewer-tip-title">Use Papol as your default PDF viewer?</strong>
+                <span className="pdf-viewer-tip-actions">
+                  <button type="button" onClick={dismissPdfViewerTip}>Not now</button>
+                  <button type="button" className="learn-papol-close" onClick={makeDefaultPdfViewer}>
+                    Use Papol
+                  </button>
+                </span>
+              </span>
+            )}
             {paperInfoOpen && (
               <div className="paper-info-pop" role="dialog" aria-label="Current paper information">
                 <button type="button" className="card-x" onClick={() => setPaperInfoOpen(false)} aria-label="Close" title="Close">
@@ -3282,7 +3484,9 @@ export default function App() {
                 {paperInfoError && <p className="ref-unmatched">Details unavailable.</p>}
                 {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
                 <div className="ref-links">
-                  <a className="ref-link here" href={appPath(`/paper/${paper.uuid}`)}>In Papol</a>
+                  {paper.uuid && (
+                    <a className="ref-link here" href={appPath(`/paper/${paper.uuid}`)}>In Papol</a>
+                  )}
                   {paperInfo?.pdf_url && (
                     <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
                   )}

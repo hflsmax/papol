@@ -11,7 +11,7 @@ import {
 } from '../../shared/offlineStore.js';
 import {
   boardView, clipView, inkView, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate,
-  nativeQuery, noteView, paperView, newUuid,
+  nativeQuery, nativeSyncNow, noteView, openedFileBlob, openedFileUrl, paperView, newUuid,
 } from '../../frontend/src/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 
@@ -96,7 +96,119 @@ export function pdfHref(paper) {
   return backendPath(`/uploads/${paper.file_path}`);
 }
 
+// The reader's nook paper for these exact bytes, or null. Only the local
+// replica is asked: a file opened from disk is not announced to Papol.
+export async function getNookPaperByPdf(hash) {
+  if (!nativeDataActive()) return null;
+  try {
+    const paper = rememberPaperIdentity(paperView(await nativeQuery('paper_by_pdf', { sha256: hash })));
+    paper.comments = (await nativeQuery('comments', { parent_uuid: paper.uuid })).map(noteView);
+    return paper;
+  } catch {
+    return null;
+  }
+}
+
+async function openedFileMetadata(blob) {
+  if (globalThis.navigator?.onLine === false) return null;
+  const body = new FormData();
+  body.append('file', blob, 'paper.pdf');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    return await request('/papers/extract', { method: 'POST', body, signal: controller.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function storedAnchor(anchor) {
+  if (!anchor) return { anchor_type: null, anchor: null };
+  const { type, ...rest } = anchor;
+  return { anchor_type: type || null, anchor: JSON.stringify(rest) };
+}
+
+// A file opened from disk becomes a nook paper, and the notes, ink and clips
+// made on it before then come along. The file is copied into the replica and
+// its details are looked up only now, because the reader asked.
+export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [] }) {
+  if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
+  const existing = await getNookPaperByPdf(sha256);
+  if (existing) return existing.uuid;
+  const blob = await openedFileBlob(sha256);
+  const stored = await nativeBlobImport(blob);
+  if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
+  let shelves = await nativeQuery('shelves');
+  if (shelves.length === 0) {
+    // Just signed in: the nook has not arrived on this device yet, and it
+    // may already hold these exact bytes.
+    await nativeSyncNow();
+    const synced = await getNookPaperByPdf(sha256);
+    if (synced) return synced.uuid;
+    shelves = await nativeQuery('shelves');
+    if (shelves.length === 0) throw new Error('Your nook is still loading. Try again in a moment.');
+  }
+  const remote = await openedFileMetadata(blob);
+  const isPublic = (shelf) => shelf.is_public === true || shelf.is_public === 1;
+  const shelf = shelves.find((row) => !isPublic(row) && (row.is_default === true || row.is_default === 1))
+    || shelves.find((row) => !isPublic(row))
+    || shelves[0];
+  const paperUuid = newUuid();
+  const editionUuid = newUuid();
+  await nativeMutate([
+    {
+      table: 'papers', uuid: paperUuid, operation: 'upsert',
+      values: {
+        doi: remote?.doi || null,
+        title: remote?.title || name,
+        authors: remote?.authors || null,
+        journal: remote?.journal || null,
+        year: remote?.year || null,
+      },
+    },
+    {
+      table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
+      values: { paper_uuid: paperUuid, file_path: `${sha256}.pdf`, sha256 },
+    },
+    {
+      table: 'copies', uuid: newUuid(), operation: 'upsert',
+      values: {
+        paper_uuid: paperUuid, shelf_uuid: shelf?.uuid ?? null,
+        edition_uuid: editionUuid, edition_sha256: sha256,
+      },
+    },
+  ]);
+
+  const marks = [
+    ...notes.map((note) => ({
+      table: 'comments', uuid: note.uuid, operation: 'upsert',
+      values: {
+        paper_uuid: paperUuid, edition_uuid: editionUuid, page: note.page ?? null,
+        ...storedAnchor(note.anchor), content: note.content || '', name: note.name || null,
+      },
+    })),
+    ...ink.map(({ uuid, kind: _kind, created_at: _createdAt, ...stroke }) => ({
+      table: 'ink_strokes', uuid, operation: 'upsert',
+      values: { ...stroke, edition_uuid: editionUuid, points: JSON.stringify(stroke.points) },
+    })),
+    ...clips.map(({ uuid, kind: _kind, created_at: _createdAt, ...clip }) => ({
+      table: 'paper_clips', uuid, operation: 'upsert',
+      values: {
+        ...clip, edition_uuid: editionUuid,
+        source: JSON.stringify(clip.source), frame: JSON.stringify(clip.frame),
+      },
+    })),
+  ];
+  for (let start = 0; start < marks.length; start += 200) {
+    await nativeMutate(marks.slice(start, start + 200));
+  }
+  return paperUuid;
+}
+
 export async function cachedPdfHref(paper) {
+  if (paper?.opened_file && !paper.uuid) return openedFileUrl(paper.edition_sha256);
   if (nativeDataActive()) {
     if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
     return nativeBlobUrl(paper.edition_sha256, 'application/pdf');
