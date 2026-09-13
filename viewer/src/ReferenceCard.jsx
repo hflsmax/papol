@@ -16,7 +16,8 @@ const WIDTH = 400;
 const MARGIN = 12;
 
 export default function ReferenceCard({
-  anchor, reference, error, onClose, position = 0, count = 1, onPrevious, onNext,
+  anchor, reference, error, requiresNook = false, onAddToNook, onClose,
+  position = 0, count = 1, onPrevious, onNext,
 }) {
   const cardRef = useRef(null);
   const [showAll, setShowAll] = useState(false);
@@ -80,7 +81,7 @@ export default function ReferenceCard({
       window.removeEventListener('resize', place);
       observer.disconnect();
     };
-  }, [anchor, reference, error, showAll]);
+  }, [anchor, reference, error, requiresNook, showAll]);
 
   // A click anywhere else puts the card away. Registered on the window in
   // a capture phase so it fires before anything else takes the click.
@@ -96,13 +97,17 @@ export default function ReferenceCard({
   const raw = reference?.raw;
   const looking = !reference || (!work && !reference.resolved_status && !error);
   const status = reference?.resolved_status;
-  const waiting = looking || status === 'pending_analysis' || status === 'resolving';
+  const waiting = !requiresNook && (
+    looking || status === 'pending_analysis' || status === 'resolving'
+  );
   const waitingMessage = status === 'pending_analysis'
     ? 'Preparing this reference’s details…'
     : status === 'resolving'
       ? 'Looking up abstract and citation data…'
       : 'Looking this reference up…';
-  const showRaw = raw && (looking || status === 'resolving' || status === 'pdf_text');
+  const showRaw = raw && (
+    requiresNook || looking || status === 'resolving' || status === 'pdf_text'
+  );
 
   return (
     <div
@@ -136,6 +141,21 @@ export default function ReferenceCard({
           </nav>
         )}
       </div>
+
+      {requiresNook && (
+        <>
+          <p className="ref-unmatched">
+            Add this paper to your nook to enable citation lookup feature.
+          </p>
+          {onAddToNook && (
+            <div className="ref-links">
+              <button type="button" className="ref-link here" onClick={onAddToNook}>
+                Add to nook
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {waiting && <p className="ref-looking">{waitingMessage}</p>}
 
@@ -223,7 +243,7 @@ export default function ReferenceCard({
         </>
       )}
 
-      {!waiting && !work && status !== 'pdf_text' && (
+      {!requiresNook && !waiting && !work && status !== 'pdf_text' && (
         <>
           <p className="ref-unmatched">
             {error || reference?.resolved_status === 'error'

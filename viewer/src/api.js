@@ -152,9 +152,7 @@ export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], 
     }
     if (!paper) {
       const remote = await openedFileMetadata(blob);
-      const isPublic = (shelf) => shelf.is_public === true || shelf.is_public === 1;
-      const shelf = shelves.find((row) => !isPublic(row) && (row.is_default === true || row.is_default === 1))
-        || shelves.find((row) => !isPublic(row))
+      const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
         || shelves[0];
       const paperUuid = newUuid();
       const editionUuid = newUuid();

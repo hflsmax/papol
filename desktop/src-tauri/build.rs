@@ -4,6 +4,7 @@ fn main() {
             "open_document_window",
             "close_document_window",
             "focus_library_window",
+            "open_storage_in_finder",
             "data_query",
             "data_mutate",
             "blob_import",

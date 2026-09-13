@@ -92,6 +92,11 @@ export function nativeStorageStatus() {
   return nativeQuery('storage_status');
 }
 
+export function openNativeStorageInFinder() {
+  if (!IS_DESKTOP) return Promise.resolve();
+  return invoke('open_storage_in_finder');
+}
+
 export async function clearNativeData() {
   const removed = await invoke('local_clear_data');
   await clearOfflineData();

@@ -8,15 +8,15 @@ import {
 } from '../api';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
-import { DESKTOP } from '../../../shared/desktopShell';
+import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import {
   getLocalSyncPreference,
   setLocalSyncPreference,
 } from '../../../shared/offlineStore';
 import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
-  pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress,
-  syncAllNow,
+  openNativeStorageInFinder, pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData,
+  subscribeNativeSyncProgress, syncAllNow,
 } from '../nativeData';
 
 const SYNC_PHASES = {
@@ -84,6 +84,7 @@ function PdfViewerSetting() {
 function LocalDeviceSettings({ onSynced }) {
   const [syncPreference, setSyncPreferenceState] = useState(getLocalSyncPreference);
   const [storage, setStorage] = useState(null);
+  const [storageError, setStorageError] = useState(null);
   const [clearingData, setClearingData] = useState(false);
   // Progress arrives for every native sync, whether started here, from the
   // sidebar, or automatically, so the bar reflects whatever is running.
@@ -144,6 +145,15 @@ function LocalDeviceSettings({ onSynced }) {
     }
   };
 
+  const openStorage = async () => {
+    setStorageError(null);
+    try {
+      await openNativeStorageInFinder();
+    } catch (failure) {
+      setStorageError(String(failure?.message ?? failure));
+    }
+  };
+
   return (
     <div className="panel local-settings-panel">
       <h2 className="panel-title">Settings</h2>
@@ -201,14 +211,18 @@ function LocalDeviceSettings({ onSynced }) {
               {formatSize(storage.classes.unsynced.bytes)} unsynced ·{' '}
               {formatSize(storage.classes.cache.bytes)} cache
             </div>
+            {storageError && <div className="local-storage-totals error">{storageError}</div>}
           </div>
-          <button
-            type="button"
-            disabled={clearingData}
-            onClick={clearData}
-          >
-            {clearingData ? 'Clearing…' : 'Clear data'}
-          </button>
+          <div className="local-storage-actions">
+            {MAC && <button type="button" onClick={openStorage}>Open in Finder</button>}
+            <button
+              type="button"
+              disabled={clearingData}
+              onClick={clearData}
+            >
+              {clearingData ? 'Clearing…' : 'Clear data'}
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -532,6 +532,31 @@ fn focus_library_window(app: tauri::AppHandle) {
         let _ = window.set_focus();
     }
 }
+
+#[tauri::command]
+fn open_storage_in_finder(app: tauri::AppHandle) -> Result<(), String> {
+    let data_directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .arg(&data_directory)
+            .status()
+            .map_err(|error| format!("Could not open Finder: {error}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("Finder could not open Papol’s storage folder".into())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = data_directory;
+        Err("Opening Papol storage in Finder is available only on macOS".into())
+    }
+}
 struct DocumentWindow {
     label: String,
     route: String,
@@ -762,6 +787,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             close_document_window,
             focus_library_window,
+            open_storage_in_finder,
             open_document_window,
             data_query,
             data_mutate,

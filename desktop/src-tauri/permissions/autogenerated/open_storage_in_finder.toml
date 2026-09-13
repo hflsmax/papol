@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-storage-in-finder"
+description = "Enables the open_storage_in_finder command without any pre-configured scope."
+commands.allow = ["open_storage_in_finder"]
+
+[[permission]]
+identifier = "deny-open-storage-in-finder"
+description = "Denies the open_storage_in_finder command without any pre-configured scope."
+commands.deny = ["open_storage_in_finder"]

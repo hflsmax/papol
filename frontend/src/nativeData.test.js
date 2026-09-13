@@ -64,7 +64,8 @@ await credentials.hydrateCredential();
 const {
   boardView, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
-  nativeSyncInProgress, openDroppedPdf, prepareNativeAccount, removeNativeAccount,
+  nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
+  prepareNativeAccount, removeNativeAccount,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
 
@@ -128,6 +129,11 @@ test('a desktop file drop transfers the PDF to the native viewer', async () => {
   const call = calls.find(([command]) => command === 'opened_file_open');
   assert.equal(call[1].name, 'Local paper.pdf');
   assert.deepEqual([...call[1].bytes], [37, 80, 68, 70, 45, 49, 46, 55]);
+});
+
+test('opening local storage asks the desktop shell to show it in Finder', async () => {
+  await openNativeStorageInFinder();
+  assert.ok(calls.some(([command]) => command === 'open_storage_in_finder'));
 });
 
 test('native blob reads are local-only and never trigger a download', async () => {

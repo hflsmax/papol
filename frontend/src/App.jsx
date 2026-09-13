@@ -3221,6 +3221,13 @@ h4 .state-pill {
   color: var(--red);
 }
 
+.local-storage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .panel-head-row {
   display: flex;
   align-items: flex-start;

@@ -4,6 +4,7 @@ import test from 'node:test';
 const HASH = 'a'.repeat(64);
 const ACCOUNT = '77777777-7777-4777-8777-777777777777';
 const SHELF = '88888888-8888-4888-8888-888888888888';
+const OTHER_SHELF = '66666666-6666-4666-8666-666666666666';
 const values = new Map([['papol.syncPreference', 'manual']]);
 const annotations = new Map();
 const calls = [];
@@ -52,7 +53,10 @@ global.window = {
           throw new Error('Paper not in nook');
         }
         if (args.queryName === 'comments') return [];
-        if (args.queryName === 'shelves') return [{ uuid: SHELF, is_default: 1, is_public: 0 }];
+        if (args.queryName === 'shelves') return [
+          { uuid: OTHER_SHELF, is_default: 0, is_public: 0 },
+          { uuid: SHELF, is_default: 1, is_public: 1 },
+        ];
         return [];
       }
       if (command === 'data_mutate') return { rows: [] };
@@ -122,7 +126,7 @@ test('an unsigned standalone viewer keeps every annotation type on the device by
   assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
 });
 
-test('Add to nook creates the account graph and carries all device annotations', async () => {
+test('Add to nook creates the account graph on the default shelf and carries all device annotations', async () => {
   values.set('papol.localAccountUuid', ACCOUNT);
   existingPaper = null;
   calls.length = 0;
@@ -162,6 +166,7 @@ test('reopening after a partial Add to nook finishes migrating retained device a
   const loaded = await source.load();
 
   assert.equal(loaded.doc.uuid, existingPaper.uuid);
+  assert.equal(source.backHref, `/paper/${existingPaper.uuid}`);
   assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
   const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
   assert.equal(mutations.length, 1);

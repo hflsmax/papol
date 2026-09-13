@@ -3413,17 +3413,27 @@ export default function App() {
             >
               <span className="info-glyph" aria-hidden="true">i</span> Info
             </button>
-            {source?.openedFile && !paper.uuid && (
-              <button
-                type="button"
-                className="bar-link nook-add-button"
-                onClick={addToNook}
-                disabled={nookStep === 'adding'}
-              >
-                {nookStep === 'adding' ? 'Adding…' : 'Add to nook'}
-              </button>
+            {source?.openedFile && (
+              paper.uuid ? (
+                <button
+                  type="button"
+                  className="bar-link nook-add-button"
+                  onClick={focusDesktopLibraryWindow}
+                >
+                  Show in nook
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="bar-link nook-add-button"
+                  onClick={addToNook}
+                  disabled={nookStep === 'adding'}
+                >
+                  {nookStep === 'adding' ? 'Adding…' : 'Add to nook'}
+                </button>
+              )
             )}
-            {!source?.openedFile && <a
+            {!source?.openedFile && !(DESKTOP && MAC) && <a
               className="bar-link"
               href={pdfHref(paper)}
               download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
@@ -3461,11 +3471,11 @@ export default function App() {
             )}
             {localNotesNotice && nookStep === 'idle' && !paperInfoOpen && (
               <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="local-notes-title">
-                <strong id="local-notes-title">Annotations aren't attached to this PDF</strong>
+                <strong id="local-notes-title">Want Papol’s full functionality?</strong>
                 <span>
                   {nativeDataActive()
-                    ? 'Your notes, ink and clips are stored separately on this device. Add the paper to your nook to back them up securely in the cloud.'
-                    : 'Your notes, ink and clips are stored separately on this device. Consider creating an account to back them up securely in the cloud.'}
+                    ? 'Annotations aren’t added to this PDF, and experimental citation lookup isn’t supported for files opened directly. Add the paper to your nook to use both.'
+                    : 'Annotations aren’t added to this PDF, and experimental citation lookup isn’t supported for files opened directly. Create an account and add the paper to your nook to use both.'}
                 </span>
                 <label className="local-notes-hide">
                   <input
@@ -3707,6 +3717,11 @@ export default function App() {
               anchor={openCite.anchor}
               reference={reference}
               error={referenceError}
+              requiresNook={source?.openedFile && !paper?.edition_uuid}
+              onAddToNook={() => {
+                closeReference();
+                addToNook();
+              }}
               onClose={closeReference}
               position={openCite.index}
               count={openCite.referenceUuids.length}
