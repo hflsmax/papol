@@ -105,6 +105,34 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "$1 is required for macOS desktop development"
 }
 
+# A previous interrupted desktop-dev run can leave one of the Vite children
+# behind. Reclaim only Vite processes launched from this checkout; never kill
+# an unrelated service that happens to use one of the development ports.
+stop_existing_vite() {
+  local port pid command attempt stopped
+  for port in 5173 5174 5175; do
+    while IFS= read -r pid; do
+      [ -n "$pid" ] || continue
+      command=$(ps -p "$pid" -o command= 2>/dev/null || true)
+      case "$command" in
+        *"$DEV_DIR"/frontend/node_modules/.bin/vite*|*"$DEV_DIR"/viewer/node_modules/.bin/vite*|*"$DEV_DIR"/board/node_modules/.bin/vite*) ;;
+        *) continue ;;
+      esac
+      say "Stopping previous Vite server on port $port"
+      kill "$pid" 2>/dev/null || true
+      stopped=no
+      for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$pid" 2>/dev/null || { stopped=yes; break; }
+        sleep 0.1
+      done
+      if [ "$stopped" = no ]; then
+        note "Vite did not exit cleanly; terminating it"
+        kill -KILL "$pid" 2>/dev/null || true
+      fi
+    done < <(lsof -nP -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u)
+  done
+}
+
 # npm keeps the lockfile used to populate node_modules here. Comparing against
 # that file avoids reinstalling on every run while still making a changed
 # package.json or package-lock.json take effect before a build starts.
@@ -235,6 +263,7 @@ macos_dev() {
   valid_backend "$backend"
   prepare_macos
 
+  stop_existing_vite
   local port
   for port in 5173 5174 5175; do
     port_busy "$port" && die "port $port is already in use; stop the existing Vite process first"
