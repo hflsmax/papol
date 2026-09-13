@@ -18,10 +18,15 @@ static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);
 /// of what it was shown.
 #[derive(Default)]
 struct OpenedFiles {
-    files: Mutex<HashMap<String, PathBuf>>,
+    files: Mutex<HashMap<String, OpenedFile>>,
     // Set once the app can build windows; files arriving earlier wait.
     origin: Mutex<Option<String>>,
     waiting: Mutex<Vec<PathBuf>>,
+}
+
+enum OpenedFile {
+    Path(PathBuf),
+    Bytes(Vec<u8>),
 }
 
 fn opened_file_url(origin: &str, sha256: &str, path: &Path) -> Option<tauri::Url> {
@@ -58,7 +63,7 @@ fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
             continue;
         };
         if let Ok(mut files) = state.files.lock() {
-            files.insert(sha256, path);
+            files.insert(sha256, OpenedFile::Path(path));
         }
         show_document_window(app, &origin, url);
     }
@@ -81,18 +86,59 @@ fn opened_file_read(
     opened: tauri::State<'_, OpenedFiles>,
     sha256: String,
 ) -> Result<tauri::ipc::Response, String> {
-    let path = opened
+    let files = opened
         .files
         .lock()
-        .map_err(|_| "Opened files lock failed")?
+        .map_err(|_| "Opened files lock failed")?;
+    let bytes = match files
         .get(&sha256)
-        .cloned()
-        .ok_or("Papol was not asked to open this file")?;
-    let bytes = std::fs::read(&path).map_err(|_| "The file can no longer be read")?;
+        .ok_or("Papol was not asked to open this file")?
+    {
+        OpenedFile::Path(path) => {
+            std::fs::read(path).map_err(|_| "The file can no longer be read")?
+        }
+        OpenedFile::Bytes(bytes) => bytes.clone(),
+    };
+    drop(files);
     if format!("{:x}", Sha256::digest(&bytes)) != sha256 {
         return Err("The file has changed since it was opened. Open it again.".into());
     }
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// HTML file drops deliberately stay enabled for the library's import UI.
+/// Before sign-in, hand their bytes back to the native shell so WebKit never
+/// falls through to its own PDF renderer and the file gets Papol's viewer.
+#[tauri::command]
+fn opened_file_open(
+    app: tauri::AppHandle,
+    opened: tauri::State<'_, OpenedFiles>,
+    bytes: Vec<u8>,
+    name: String,
+) -> Result<(), String> {
+    if bytes.len() < 5 || &bytes[..5] != b"%PDF-" {
+        return Err("Papol’s viewer can only open PDF files.".into());
+    }
+    let origin = opened
+        .origin
+        .lock()
+        .map_err(|_| "Opened files lock failed")?
+        .clone()
+        .ok_or("Papol is still starting. Drop the PDF again.")?;
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let path = PathBuf::from(name);
+    let url =
+        opened_file_url(&origin, &sha256, &path).ok_or("Papol could not create the viewer URL")?;
+    opened
+        .files
+        .lock()
+        .map_err(|_| "Opened files lock failed")?
+        .insert(sha256, OpenedFile::Bytes(bytes));
+    if show_document_window(&app, &origin, url) {
+        Ok(())
+    } else {
+        Err("Papol could not open its PDF viewer.".into())
+    }
 }
 
 /// Document windows do not sign in themselves: the library window does, and
@@ -692,6 +738,7 @@ pub fn run() {
             local_recovery_export,
             sync_now,
             opened_file_read,
+            opened_file_open,
             request_sign_in,
             local_annotations_list,
             local_annotation_put,

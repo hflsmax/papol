@@ -256,7 +256,8 @@ export async function downloadMyData() {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // WebKit may not consume the URL until after the click handler returns.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return blob.size;
 }
 
@@ -565,7 +566,7 @@ export async function downloadBoardFile(item) {
   anchor.href = href;
   anchor.download = item.original_filename || 'board-file';
   anchor.click();
-  URL.revokeObjectURL(href);
+  setTimeout(() => URL.revokeObjectURL(href), 60_000);
 }
 
 // The server reads the PDF's DOI or arXiv identifier and looks it up. On

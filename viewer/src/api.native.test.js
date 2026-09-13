@@ -21,6 +21,8 @@ global.window = {
       calls.push([command, arguments_]);
       if (command === 'local_setting_get') return 'manual';
       if (command === 'data_query') return [];
+      if (command === 'blob_read') return [37, 80, 68, 70];
+      if (command === 'opened_file_read') return [37, 80, 68, 70, 45, 49, 46, 52];
       if (command === 'data_mutate') {
         return { rows: [{ uuid: arguments_.changes[0].uuid, ...arguments_.changes[0].values }] };
       }
@@ -34,7 +36,7 @@ global.window = {
 global.Event = class Event { constructor(type) { this.type = type; } };
 
 const {
-  addClip, addInk, createNote, eraseInk, getClips, getInk, rememberPaperIdentity,
+  addClip, addInk, createNote, eraseInk, getClips, getInk, pdfLoadInput, rememberPaperIdentity,
 } = await import('./api.js');
 
 rememberPaperIdentity({
@@ -83,4 +85,22 @@ test('a local edition UUID reads annotations without falling through to integer 
   assert.deepEqual(reads.map(([, args]) => args.parameters.parent_uuid), [
     localEditionUuid, localEditionUuid,
   ]);
+});
+
+test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', async () => {
+  const nook = await pdfLoadInput({
+    uuid: '11111111-1111-4111-8111-111111111111',
+    edition_sha256: 'a'.repeat(64),
+  });
+  assert.ok(nook.data instanceof Uint8Array);
+  assert.deepEqual([...nook.data], [37, 80, 68, 70]);
+  assert.equal('url' in nook, false);
+
+  const opened = await pdfLoadInput({
+    opened_file: true,
+    edition_sha256: 'b'.repeat(64),
+  });
+  assert.ok(opened.data instanceof Uint8Array);
+  assert.deepEqual([...opened.data], [37, 80, 68, 70, 45, 49, 46, 52]);
+  assert.equal('url' in opened, false);
 });

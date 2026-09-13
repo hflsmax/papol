@@ -65,11 +65,15 @@ export async function nativeBlobImport(blob) {
   return invoke('blob_import', { bytes, mimeType: blob.type || null });
 }
 
-export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream') {
+export async function nativeBlobBytes(sha256) {
   // Rendering is strictly local. Synchronization hydrates every referenced
   // blob before it reports success; views must never initiate network I/O.
   const bytes = await invoke('blob_read', { sha256 });
-  return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType }));
+  return new Uint8Array(bytes);
+}
+
+export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream') {
+  return URL.createObjectURL(new Blob([await nativeBlobBytes(sha256)], { type: mimeType }));
 }
 
 export function nativeStorageStatus() {
@@ -184,13 +188,25 @@ function subscribeNativeEvents(eventNames, listener) {
 }
 
 // A PDF opened from the file system, read from where it lies on disk.
-export async function openedFileBlob(sha256) {
+export async function openedFileBytes(sha256) {
   const bytes = await invoke('opened_file_read', { sha256 });
-  return new Blob([bytes], { type: 'application/pdf' });
+  return new Uint8Array(bytes);
+}
+
+export async function openedFileBlob(sha256) {
+  return new Blob([await openedFileBytes(sha256)], { type: 'application/pdf' });
 }
 
 export async function openedFileUrl(sha256) {
   return URL.createObjectURL(await openedFileBlob(sha256));
+}
+
+// A file dropped on the unsigned desktop library should be read by Papol's
+// viewer, not by the webview's built-in PDF renderer.
+export async function openDroppedPdf(file) {
+  if (!IS_DESKTOP) return;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  await invoke('opened_file_open', { bytes, name: file.name || 'PDF document.pdf' });
 }
 
 // This device's notes, ink and clips on an opened file, by its SHA-256.

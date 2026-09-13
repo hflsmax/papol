@@ -9,7 +9,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import {
-  pdfHref, cachedPdfHref, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, cachedPdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
 import { resolveSource, getToken } from './source';
@@ -447,7 +447,6 @@ export default function App() {
   // an account. idle | ask (sign in first?) | waiting (for the library
   // window's sign-in) | adding.
   const [nookStep, setNookStep] = useState('idle');
-  const [savingCopy, setSavingCopy] = useState(false);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Told on every file outside the nook, until the reader says not to: marks
   // on it live only on this device.
@@ -621,15 +620,13 @@ export default function App() {
     if (!paper) return undefined;
     let cancelled = false;
     let task = null;
-    let localUrl = null;
     setPdfProgress(null);
-    cachedPdfHref(paper)
-      .then((href) => {
-        if (!href) throw new Error('This paper has no PDF.');
-        if (cancelled) { URL.revokeObjectURL(href); return null; }
-        localUrl = href;
+    pdfLoadInput(paper)
+      .then((input) => {
+        if (!input?.url && !input?.data) throw new Error('This paper has no PDF.');
+        if (cancelled) return null;
         task = pdfjs.getDocument({
-          url: href,
+          ...input,
           standardFontDataUrl: 'standard_fonts/',
           wasmUrl: 'wasm/',
         });
@@ -643,7 +640,6 @@ export default function App() {
     return () => {
       cancelled = true;
       task?.destroy();
-      if (localUrl) URL.revokeObjectURL(localUrl);
     };
   }, [paper]);
 
@@ -2809,29 +2805,6 @@ export default function App() {
     };
   }, [nookStep, addToNookOnceSignedIn]);
 
-  // A copy of the PDF with the notes and ink in it, readable by any PDF app.
-  const saveWithNotes = async () => {
-    setSavingCopy(true);
-    let href = null;
-    try {
-      const [{ annotatePdf }, pdfUrl] = await Promise.all([import('./annotatedPdf.js'), cachedPdfHref(paper)]);
-      href = pdfUrl;
-      const bytes = await (await fetch(href)).arrayBuffer();
-      const annotated = await annotatePdf(bytes, { notes, ink });
-      const copy = URL.createObjectURL(new Blob([annotated], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = copy;
-      link.download = `${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')} (with notes).pdf`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(copy), 60_000);
-    } catch (failure) {
-      setError(`Could not save a copy: ${messageOf(failure)}`);
-    } finally {
-      if (href) URL.revokeObjectURL(href);
-      setSavingCopy(false);
-    }
-  };
-
   const dismissPdfViewerTip = () => {
     try { localStorage.setItem(PDF_VIEWER_PROMPT_KEY, 'dismissed'); } catch { /* hide for now */ }
     setPdfViewerTip(false);
@@ -3378,19 +3351,7 @@ export default function App() {
                 {nookStep === 'adding' ? 'Adding…' : 'Add to nook'}
               </button>
             )}
-            {/* The file is already on disk; what is worth saving is a copy
-                that carries the reader's marks. */}
-            {source?.openedFile ? (
-              <button
-                type="button"
-                className="bar-link"
-                onClick={saveWithNotes}
-                disabled={savingCopy}
-                title="Save a copy of this PDF with your notes and ink in it"
-              >
-                {savingCopy ? 'Saving…' : 'Save with notes'}
-              </button>
-            ) : <a
+            {!source?.openedFile && <a
               className="bar-link"
               href={pdfHref(paper)}
               download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}

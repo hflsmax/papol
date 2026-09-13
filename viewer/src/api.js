@@ -10,8 +10,9 @@ import {
   configureNetworkFetch, configureReplayAuthorization, offlineFetch, offlinePdfUrl,
 } from '../../shared/offlineStore.js';
 import {
-  boardView, clipView, inkView, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate,
-  nativeQuery, nativeSyncNow, noteView, openedFileBlob, openedFileUrl, paperView, newUuid,
+  boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
+  nativeMutate, nativeQuery, nativeSyncNow, noteView, openedFileBlob, openedFileBytes,
+  openedFileUrl, paperView, newUuid,
 } from '../../frontend/src/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 
@@ -221,6 +222,20 @@ export async function cachedPdfHref(paper) {
     return nativeBlobUrl(paper.edition_sha256, 'application/pdf');
   }
   return offlinePdfUrl(pdfHref(paper));
+}
+
+// PDF.js treats a URL as a network request. macOS WebKit reports requests to
+// Tauri-created blob: URLs with status 0, which PDF.js rejects even though the
+// bytes are present. Native viewers therefore hand PDF.js the bytes directly.
+export async function pdfLoadInput(paper) {
+  if (paper?.opened_file && !paper.uuid) {
+    return { data: await openedFileBytes(paper.edition_sha256) };
+  }
+  if (nativeDataActive()) {
+    if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
+    return { data: await nativeBlobBytes(paper.edition_sha256) };
+  }
+  return { url: await offlinePdfUrl(pdfHref(paper)) };
 }
 
 export function listBoards() {

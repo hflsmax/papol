@@ -52,7 +52,6 @@ nook already holds those exact bytes, the window works on that paper. Otherwise
 notes, ink, and clips are kept in `_local_annotations` by the file's hash (a
 notice, shown on each such file until "Don't show again" is ticked, says they
 are not in the PDF and suggests an account to back them up), and
-**Save with notes** writes a copy with ink drawn in and notes as PDF comments.
 **Add to nook** copies the file into the replica with those marks; without an
 account it first asks the library window to sign in. The library banner and
 Settings can make Papol the default PDF viewer (macOS only).

@@ -62,7 +62,7 @@ await credentials.hydrateCredential();
 const {
   boardView, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
-  prepareNativeAccount, removeNativeAccount,
+  openDroppedPdf, prepareNativeAccount, removeNativeAccount,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
 
@@ -104,6 +104,17 @@ test('native blob import transfers exact bytes and metadata', async () => {
   const call = calls.find(([command]) => command === 'blob_import');
   assert.deepEqual([...call[1].bytes], [0, 1, 2, 255]);
   assert.equal(call[1].mimeType, 'image/png');
+});
+
+test('a desktop file drop transfers the PDF to the native viewer', async () => {
+  await openDroppedPdf(new File(
+    [new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55])],
+    'Local paper.pdf',
+    { type: 'application/pdf' },
+  ));
+  const call = calls.find(([command]) => command === 'opened_file_open');
+  assert.equal(call[1].name, 'Local paper.pdf');
+  assert.deepEqual([...call[1].bytes], [37, 80, 68, 70, 45, 49, 46, 55]);
 });
 
 test('native blob reads are local-only and never trigger a download', async () => {

@@ -18,6 +18,7 @@ fn main() {
             "local_recovery_export",
             "sync_now",
             "opened_file_read",
+            "opened_file_open",
             "request_sign_in",
             "local_annotations_list",
             "local_annotation_put",

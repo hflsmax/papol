@@ -5022,15 +5022,19 @@ function openBoard(uuid) {
   window.location.assign(appPath(path));
 }
 
-function LibraryFileDropFeedback({ state, message }) {
+function LibraryFileDropFeedback({ state, message, opensViewer = false }) {
   return <>
     {state && (
       <div className={`library-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
         <div className="library-file-drop-card">
-          <strong>{state === 'reject' ? 'PDF files only' : 'Drop PDF to import'}</strong>
+          <strong>{state === 'reject'
+            ? 'PDF files only'
+            : opensViewer ? 'Drop PDF to open' : 'Drop PDF to import'}</strong>
           <span>{state === 'reject'
             ? 'Papol’s library only supports PDF files.'
-            : 'The paper will open for metadata review.'}</span>
+            : opensViewer
+              ? 'The paper will open in Papol’s PDF viewer.'
+              : 'The paper will open for metadata review.'}</span>
         </div>
       </div>
     )}
@@ -5570,7 +5574,11 @@ export default function App() {
     return (
       <>
         <style>{styles}</style>
-        <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
+        <LibraryFileDropFeedback
+          state={libraryFileDrag}
+          message={libraryDropNotice}
+          opensViewer={mode === 'guest'}
+        />
         {demoIntro}
         {feedbackDialog}
         {managingNook && nook.space && (
