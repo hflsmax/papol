@@ -298,6 +298,25 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(sync_client.client_uuid, client_uuid)
             self.assertEqual(sync_client.acknowledged_cursor, cursor)
 
+    def test_deleting_a_row_missing_after_server_restore_is_idempotent(self):
+        payload = {
+            "protocol_version": 1,
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": 1,
+            "changes": [{
+                "table": "boards", "uuid": str(uuid.uuid4()),
+                "base_revision": 4, "operation": "delete", "values": {},
+            }],
+        }
+
+        first = self.request("POST", "/api/sync/push", json=payload)
+        replay = self.request("POST", "/api/sync/push", json=payload)
+
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.json()["rows"], [])
+        self.assertEqual(replay.json(), first.json())
+
     def test_sync_pull_is_account_isolated(self):
         board = self.request("POST", "/api/boards", json={"name": "Private"}).json()
         other = self.client.post("/api/auth/register", json={
@@ -746,6 +765,32 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(db.query(Comment).count(), 1)
             self.assertEqual(db.query(InkStroke).count(), 1)
             self.assertEqual(db.query(PaperClip).count(), 1)
+
+    def test_snapshot_contains_the_complete_board_hierarchy(self):
+        board = self.request("POST", "/api/boards", json={"name": "Snapshot board"}).json()
+        item = self.request(
+            "POST", f"/api/boards/{board['uuid']}/comments",
+            json={"content": "On the board", "x": 12, "y": 34},
+        ).json()
+        second_item = self.request(
+            "POST", f"/api/boards/{board['uuid']}/comments",
+            json={"content": "Also on the board", "x": 56, "y": 78},
+        ).json()
+        group = self.request(
+            "POST", f"/api/boards/{board['uuid']}/groups",
+            json={
+                "kind": "collection", "title": "Snapshot group",
+                "item_uuids": [item["uuid"], second_item["uuid"]],
+            },
+        ).json()
+
+        snapshot = self.request("GET", "/api/sync/snapshot").json()
+        identities = {(row["table"], row["uuid"]) for row in snapshot["rows"]}
+
+        self.assertIn(("boards", board["uuid"]), identities)
+        self.assertIn(("board_groups", group["uuid"]), identities)
+        self.assertIn(("board_items", item["uuid"]), identities)
+        self.assertIn(("board_items", second_item["uuid"]), identities)
 
     def test_viewer_reference_boundary_accepts_a_synced_edition_uuid(self):
         digest = "3" * 64

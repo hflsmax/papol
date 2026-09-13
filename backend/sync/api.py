@@ -468,7 +468,13 @@ def _apply_change(db: Session, change: RowChange, user: User):
             collision = db.get(model, row_uuid)
         if collision is not None:
             raise HTTPException(status_code=404, detail="Synchronized row not found")
-        if change.operation in {"patch", "delete"}:
+        # A delete says what the final state should be. If a restored or
+        # replaced server database has already lost that row, the requested
+        # state is satisfied and the mutation can be acknowledged. This also
+        # makes retries idempotent without manufacturing a partial tombstone.
+        if change.operation == "delete":
+            return None, None
+        if change.operation == "patch":
             raise HTTPException(status_code=409, detail="Synchronized row no longer exists")
         record = _new_record(db, change, user, change.values)
         db.add(record)
@@ -627,7 +633,8 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
                     aliases[requested_uuid] = canonical.uuid
                     change.uuid = UUID(canonical.uuid)
             record, conflict = _apply_change(db, change, user)
-            touched.append(record)
+            if record is not None:
+                touched.append(record)
             if conflict:
                 conflicts.append(conflict)
     for record in touched:
@@ -679,6 +686,18 @@ def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_d
     log while still giving the offline viewer complete foreign-key parents.
     """
     copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
+    shelves = db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all()
+    tags = db.query(Tag).filter(Tag.user_uuid == user.uuid).all()
+    boards = db.query(Board).filter(Board.user_uuid == user.uuid).all()
+    board_uuids = {board.uuid for board in boards}
+    board_groups = (
+        db.query(BoardGroup).filter(BoardGroup.board_uuid.in_(board_uuids)).all()
+        if board_uuids else []
+    )
+    board_items = (
+        db.query(BoardItem).filter(BoardItem.board_uuid.in_(board_uuids)).all()
+        if board_uuids else []
+    )
     paper_uuids = {copy.paper_uuid for copy in copies}
     papers = db.query(Paper).filter(Paper.uuid.in_(paper_uuids)).all() if paper_uuids else []
     editions = (
@@ -688,11 +707,14 @@ def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_d
     records = [
         *papers,
         *editions,
+        *shelves,
+        *tags,
+        *boards,
+        *board_groups,
+        *board_items,
         *db.query(Comment).filter(Comment.user_uuid == user.uuid).all(),
         *db.query(InkStroke).filter(InkStroke.user_uuid == user.uuid).all(),
         *db.query(PaperClip).filter(PaperClip.user_uuid == user.uuid).all(),
-        *db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all(),
-        *db.query(Tag).filter(Tag.user_uuid == user.uuid).all(),
         *copies,
         *db.query(CopyTagLink).filter(CopyTagLink.user_uuid == user.uuid).all(),
     ]

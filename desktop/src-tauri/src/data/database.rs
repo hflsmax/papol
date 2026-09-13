@@ -631,7 +631,21 @@ impl LocalStore {
             // Never do this around queued local work: its rows and dependencies
             // must remain intact until the server has accepted or rejected it.
             let stale_at = chrono_text();
+            // Board children carry ownership through their parent, so stale
+            // them before the boards themselves. Rows present in the incoming
+            // snapshot are restored by the revision-aware upserts below.
+            for table in ["board_items", "board_groups"] {
+                transaction
+                    .execute(
+                        &format!(
+                            "UPDATE {table} SET deleted_at=?1 WHERE deleted_at IS NULL AND board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?2)"
+                        ),
+                        params![stale_at, account_uuid],
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
             for table in [
+                "boards",
                 "comments",
                 "ink_strokes",
                 "paper_clips",
@@ -3907,6 +3921,61 @@ mod tests {
             .unwrap()
             .iter()
             .any(|row| row["uuid"] == pending_uuid));
+    }
+
+    #[test]
+    fn snapshot_removes_a_board_hierarchy_missing_from_the_server() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board_uuid = Uuid::new_v4().to_string();
+        let group_uuid = Uuid::new_v4().to_string();
+        let item_uuid = Uuid::new_v4().to_string();
+        let now = chrono_text();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO boards(uuid,user_uuid,name,created_at,updated_at,revision) VALUES (?1,'7','Old board',?2,?2,1)",
+                    params![board_uuid, now],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO board_groups(uuid,board_uuid,kind,title,created_at,updated_at,revision) VALUES (?1,?2,'collection','Old group',?3,?3,1)",
+                    params![group_uuid, board_uuid, now],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO board_items(uuid,board_uuid,group_uuid,kind,content,created_at,updated_at,revision) VALUES (?1,?2,?3,'comment','Old item',?4,?4,1)",
+                    params![item_uuid, board_uuid, group_uuid, now],
+                )
+                .unwrap();
+        }
+
+        store.apply_snapshot("7", vec![]).unwrap();
+
+        assert!(store
+            .query("7", "boards", json!({}))
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let connection = store.connection.lock().unwrap();
+        for (table, uuid) in [
+            ("boards", board_uuid),
+            ("board_groups", group_uuid),
+            ("board_items", item_uuid),
+        ] {
+            let deleted: bool = connection
+                .query_row(
+                    &format!("SELECT deleted_at IS NOT NULL FROM {table} WHERE uuid=?1"),
+                    [uuid],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(deleted, "{table} should be stale after an empty snapshot");
+        }
     }
 
     #[test]

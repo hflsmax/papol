@@ -531,7 +531,7 @@ async fn http_error(response: reqwest::Response) -> SyncFailure {
 fn classify_status(status: u16) -> FailureKind {
     match status {
         401 => FailureKind::Authentication,
-        400 | 403 | 404 | 422 => FailureKind::Permanent,
+        400 | 403 | 404 | 409 | 422 => FailureKind::Permanent,
         _ => FailureKind::Transient,
     }
 }
@@ -588,7 +588,7 @@ mod tests {
         assert_eq!(FailureKind::Permanent, classify_status(422));
         assert_eq!(FailureKind::Permanent, classify_status(403));
         assert_eq!(FailureKind::Authentication, classify_status(401));
-        assert_eq!(FailureKind::Transient, classify_status(409));
+        assert_eq!(FailureKind::Permanent, classify_status(409));
         assert_eq!(FailureKind::Transient, classify_status(503));
     }
 

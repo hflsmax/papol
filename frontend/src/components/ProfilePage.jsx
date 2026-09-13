@@ -64,9 +64,11 @@ function PdfViewerSetting() {
   return (
     <div className="local-setting-row local-storage-row">
       <div>
-        <strong>PDF viewer</strong>
+        <strong>Default PDF viewer</strong>
         <div className={`local-storage-totals${error ? ' error' : ''}`}>
-          {error || (status.is_default ? 'PDFs open in Papol.' : 'PDFs open in another app.')}
+          {error || (status.is_default
+            ? 'Papol is your default PDF viewer.'
+            : 'Another app is your default PDF viewer.')}
         </div>
       </div>
       {!status.is_default && (
@@ -156,7 +158,10 @@ function LocalDeviceSettings({ onSynced }) {
 
   return (
     <div className="panel local-settings-panel">
-      <h2 className="panel-title">Settings</h2>
+      <h2 className="panel-title">On this Mac</h2>
+      <p className="panel-note">
+        Sync, storage, and file-opening preferences apply only to this Mac.
+      </p>
       <div className="local-setting-row">
         <label htmlFor="local-sync-preference"><strong>Sync</strong></label>
         <div className="local-sync-actions">
@@ -217,6 +222,7 @@ function LocalDeviceSettings({ onSynced }) {
             {MAC && <button type="button" onClick={openStorage}>Open in Finder</button>}
             <button
               type="button"
+              className="danger"
               disabled={clearingData}
               onClick={clearData}
             >
@@ -260,6 +266,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   const [closeEmail, setCloseEmail] = useState('');
   const [closeError, setCloseError] = useState(null);
   const [isClosing, setIsClosing] = useState(false);
+  const closeEmailMatches = closeEmail.trim().toLowerCase() === user.email.toLowerCase();
 
   const handleExport = async () => {
     setExportError(null);
@@ -378,92 +385,98 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
           Signed in as <strong>{user.email}</strong>.
         </p>
 
-        {profileError && <div className="error">{profileError}</div>}
-        {profileSaved && <div className="success">Profile updated.</div>}
+        {profileError && <div className="error" role="alert">{profileError}</div>}
+        {profileSaved && <div className="success" role="status">Profile updated.</div>}
 
-        <div className="avatar-row">
-          <Avatar user={user} className="profile-avatar" />
-          <div className="avatar-actions">
-            <div className="avatar-buttons">
-              <button
-                type="button"
-                onClick={() => avatarFileRef.current?.click()}
-                disabled={isAvatarBusy}
-              >
-                {isAvatarBusy
-                  ? 'Working…'
-                  : user.avatar_path
-                    ? 'Change image'
-                    : 'Upload image'}
-              </button>
-            </div>
-            <p className="avatar-hint">PNG, JPEG, or WebP, up to 2 MB.</p>
-            <input
-              type="file"
-              ref={avatarFileRef}
-              accept="image/png,image/jpeg,image/webp"
-              style={{ display: 'none' }}
-              onChange={handleAvatarFile}
-            />
-          </div>
-        </div>
-
-        <form onSubmit={handleProfileSubmit}>
-          <div className="form-group">
-            <label>Display name</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Affiliation</label>
-            <input
-              type="text"
-              value={affiliation}
-              onChange={(e) => setAffiliation(e.target.value)}
-              placeholder="University, lab, or company (optional)"
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="checkbox-row">
+        <div className="profile-editor">
+          <div className="avatar-row">
+            <Avatar user={user} className="profile-avatar" />
+            <div className="avatar-actions">
+              <div className="avatar-buttons">
+                <button
+                  type="button"
+                  onClick={() => avatarFileRef.current?.click()}
+                  disabled={isAvatarBusy}
+                >
+                  {isAvatarBusy
+                    ? 'Working…'
+                    : user.avatar_path
+                      ? 'Change image'
+                      : 'Upload image'}
+                </button>
+              </div>
+              <p className="avatar-hint">PNG, JPEG, or WebP · 2 MB max.</p>
               <input
-                type="checkbox"
-                checked={emailPublic}
-                onChange={(e) => setEmailPublic(e.target.checked)}
+                type="file"
+                ref={avatarFileRef}
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={handleAvatarFile}
               />
-              <span>Show my email on my nook</span>
-            </label>
+            </div>
           </div>
 
-          <div className="form-actions">
-            <button type="submit" className="primary" disabled={isSavingProfile}>
-              {isSavingProfile ? 'Saving…' : 'Save profile'}
-            </button>
-            {/* type="button": inside the profile form, but it reveals the
-                password fields rather than submitting anything. */}
-            <button
-              type="button"
-              onClick={() => setChangingPassword((v) => !v)}
-              aria-expanded={changingPassword}
-            >
-              Change password
-            </button>
-          </div>
-        </form>
-
-        {changingPassword && (
-          <form onSubmit={handlePasswordSubmit} className="password-change">
-            {passwordError && <div className="error">{passwordError}</div>}
-            {passwordSaved && <div className="success">Password updated.</div>}
+          <form onSubmit={handleProfileSubmit} className="profile-form">
+            <div className="form-group">
+              <label htmlFor="profile-display-name">Display name</label>
+              <input
+                id="profile-display-name"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+              />
+            </div>
 
             <div className="form-group">
-              <label>Current password</label>
+              <label htmlFor="profile-affiliation">Affiliation</label>
               <input
+                id="profile-affiliation"
+                type="text"
+                value={affiliation}
+                onChange={(e) => setAffiliation(e.target.value)}
+                placeholder="University, lab, or company (optional)"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={emailPublic}
+                  onChange={(e) => setEmailPublic(e.target.checked)}
+                />
+                <span>Show my email on my nook</span>
+              </label>
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" className="primary" disabled={isSavingProfile}>
+                {isSavingProfile ? 'Saving…' : 'Save profile'}
+              </button>
+              {/* type="button": inside the profile form, but it reveals the
+                  password fields rather than submitting anything. */}
+              <button
+                type="button"
+                onClick={() => setChangingPassword((v) => !v)}
+                aria-expanded={changingPassword}
+                aria-controls="password-change-form"
+              >
+                Change password
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {changingPassword && (
+          <form id="password-change-form" onSubmit={handlePasswordSubmit} className="password-change">
+            {passwordError && <div className="error" role="alert">{passwordError}</div>}
+            {passwordSaved && <div className="success" role="status">Password updated.</div>}
+
+            <div className="form-group">
+              <label htmlFor="current-password">Current password</label>
+              <input
+                id="current-password"
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -473,8 +486,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
             </div>
 
             <div className="form-group">
-              <label>New password</label>
+              <label htmlFor="new-password">New password</label>
               <input
+                id="new-password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -485,8 +499,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
             </div>
 
             <div className="form-group">
-              <label>Confirm new password</label>
+              <label htmlFor="confirm-password">Confirm new password</label>
               <input
+                id="confirm-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -521,11 +536,11 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
       {/* Notes you cannot leave with are not really yours. */}
       <div className="panel">
-        <h2 className="panel-title">Your things</h2>
+        <h2 className="panel-title">My data</h2>
 
-        {exportError && <div className="error">{exportError}</div>}
+        {exportError && <div className="error" role="alert">{exportError}</div>}
         {exportedBytes != null && (
-          <div className="success">
+          <div className="success" role="status">
             Downloaded — {formatSize(exportedBytes)}.
           </div>
         )}
@@ -546,9 +561,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
       <div className="panel panel-danger">
         <h2 className="panel-title">Close your account</h2>
 
-        {closeError && <div className="error">{closeError}</div>}
+        {closeError && <div className="error" role="alert">{closeError}</div>}
 
-        <p className="panel-note">
+        <p className="panel-note" id="close-account-note">
           This permanently deletes your profile, notes, 
           and discussions. It cannot be undone.
           Download your data first if you want to keep it.
@@ -561,19 +576,21 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
         <form onSubmit={handleClose}>
           <div className="form-group">
-            <label>Your email address</label>
+            <label htmlFor="close-account-email">Your email address</label>
             <input
+              id="close-account-email"
               type="email"
               value={closeEmail}
               onChange={(e) => setCloseEmail(e.target.value)}
               placeholder={user.email}
               autoComplete="off"
+              aria-describedby="close-account-note"
               required
             />
           </div>
 
           <div className="form-actions">
-            <button type="submit" className="danger" disabled={isClosing}>
+            <button type="submit" className="danger" disabled={isClosing || !closeEmailMatches}>
               {isClosing ? 'Closing…' : 'Delete my account'}
             </button>
           </div>
