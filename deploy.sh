@@ -257,6 +257,7 @@ macos_prod() {
   say "macOS application ready"
   note "$dmg"
   note "$(du -h "$dmg" | cut -f1), SHA-256 $(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+  open "$dmg"
 }
 
 run_macos() {
