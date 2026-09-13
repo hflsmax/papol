@@ -46,6 +46,7 @@ import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
+import DesktopSyncingStatus from '../../frontend/src/components/DesktopSyncingStatus.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -397,15 +398,10 @@ export default function App() {
   const [activeNoteUuid, setActiveNoteUuid] = useState(null);
   // The anchor just pointed at: its entry in the rail lights up briefly.
   const [flashUuid, setFlashUuid] = useState(null);
-  // The rail can be put away to give the page the whole window; the choice
-  // is remembered, since it is about how this reader likes to read.
-  const [railOpen, setRailOpen] = useState(() => {
-    const saved = localStorage.getItem('papol_viewer_rail');
-    if (saved) return saved !== 'closed';
-    // Below the breakpoint the rail lies over the page rather than beside
-    // it, so on a phone it starts away and is asked for.
-    return window.innerWidth > NARROW;
-  });
+  // Opening a paper is for reading. The anchors rail is available from its
+  // handle, but every viewer window starts with the paper using the whole
+  // width rather than inheriting an open rail from an earlier paper.
+  const [railOpen, setRailOpen] = useState(false);
   const [railWidth, setRailWidth] = useState(() => {
     const saved = Number(localStorage.getItem('papol_viewer_rail_width'));
     return Number.isFinite(saved) && saved > 0 ? clampRailWidth(saved) : DEFAULT_RAIL_WIDTH;
@@ -820,12 +816,6 @@ export default function App() {
       if (timer) clearTimeout(timer);
     };
   }, [paper]);
-
-  // The comment above the state says the choice is remembered; this is
-  // what remembers it.
-  useEffect(() => {
-    localStorage.setItem('papol_viewer_rail', railOpen ? 'open' : 'closed');
-  }, [railOpen]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_rail_width', String(railWidth));
@@ -3071,6 +3061,7 @@ export default function App() {
           </a>
         ) : null}
         <span className="spacer" />
+        <DesktopSyncingStatus />
         <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
           <button type="button" className="search-button" onClick={() => setSearchOpen((open) => !open)} title="Search PDF (Ctrl/Command+F)" aria-label="Search PDF" aria-expanded={searchOpen}>
             <span aria-hidden="true">⌕</span> Search

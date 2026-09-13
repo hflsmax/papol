@@ -855,6 +855,20 @@ button.link.danger { color: var(--red); }
   box-shadow: -2px 2px 10px rgba(25, 35, 50, 0.12);
 }
 
+/* WebKit's macOS scroll indicator floats over the right edge of its scroll
+   view. Keep the rail controls out of that lane: when the rail is closed
+   the page's indicator remains on top at the window edge, and when it is
+   open its handle sits just inside the rail instead of covering the page's
+   indicator. */
+[data-platform='mac'] .rail-hidden .rail-handle { right: 14px; }
+[data-platform='mac'] .viewer-body:not(.rail-hidden) .rail-handle {
+  right: calc(var(--rail-w) - 18px);
+  border-right: 1px solid var(--line);
+  border-left: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  box-shadow: 2px 0 6px rgba(25, 35, 50, 0.08);
+}
+
 .rail-handle-icon,
 .rail-handle-icon svg { display: block; width: 15px; height: 15px; }
 
