@@ -29,6 +29,10 @@ import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from './fileDrop.js';
 import { openDroppedPdf, subscribeSignInRequests } from './nativeData';
 
+// Light red makes a development desktop unmistakable. Packaged builds use
+// neutral chrome so that the development cue never becomes product branding.
+const desktopChrome = import.meta.env?.DEV ? '#f9ecea' : '#eaedf1';
+
 export const styles = `
 * {
   box-sizing: border-box;
@@ -111,7 +115,7 @@ export const styles = `
   --radius-pill: 999px;
 
   /* Desktop chrome — the sidebar and toolbars of Papol Desktop only */
-  --chrome: #f9ecea;
+  --chrome: ${desktopChrome};
   --chrome-hover: rgba(29, 33, 41, 0.06);
   --chrome-selected: rgba(29, 33, 41, 0.1);
   --chrome-radius: 6px;
