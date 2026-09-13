@@ -65,7 +65,7 @@ const {
   boardView, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
-  prepareNativeAccount, removeNativeAccount,
+  prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
 
@@ -87,7 +87,17 @@ test('a failed native sync announces both start and settled status', async () =>
   syncFailure = new Error('network unavailable');
   await assert.rejects(nativeSyncNow(), /network unavailable/);
   syncFailure = null;
-  assert.deepEqual(dispatchedEvents, ['papol-offline-status', 'papol-offline-status']);
+  assert.deepEqual(dispatchedEvents, [
+    'papol-offline-status',
+    'papol-offline-status',
+    'papol-offline-status',
+  ]);
+
+  const syncCalls = calls.filter(([command]) => command === 'sync_now').length;
+  await assert.rejects(nativeSyncNow(), { name: 'OnlineRequiredError' });
+  assert.equal(calls.filter(([command]) => command === 'sync_now').length, syncCalls);
+  assert.equal(await syncAllNow(), null);
+  assert.equal(calls.filter(([command]) => command === 'sync_now').length, syncCalls + 1);
 });
 
 test('native sync activity is visible to screens mounted during sign-in', async () => {

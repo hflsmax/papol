@@ -1763,6 +1763,15 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       setEditingText(item.uuid);
     }
   };
+  const downloadItem = async (item) => {
+    setMenuItem(null);
+    setError(null);
+    try {
+      await downloadBoardFile(item);
+    } catch (failure) {
+      setError(failure?.message || 'This file is not available right now.');
+    }
+  };
   const handleCardContextMenu = (event, item) => {
     const itemUuids = selectedItems.length > 1 && selectedItems.includes(item.uuid)
       ? [...selectedItems]
@@ -1777,7 +1786,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
         onSelect: () => window.open(item.source_url, '_blank', 'noopener,noreferrer'),
       },
       !isSelection && item.kind !== 'comment' && {
-        label: 'Download', onSelect: () => downloadBoardFile(item),
+        label: 'Download', onSelect: () => downloadItem(item),
       },
       !isSelection && board.can_edit && { label: item.kind === 'comment' ? 'Edit Thought…' : 'Edit Description…', onSelect: () => beginEditingItem(item) },
       !isSelection && board.can_edit && {
@@ -1886,7 +1895,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
     {board.can_edit && activeBooklet && <div className="board-selection-menu"><span>{activeBooklet.kind === 'collection' ? 'Collection' : 'Booklet'} selected</span>{activeBooklet.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeBooklet.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeBooklet)}>{activeBooklet.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeBooklet)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupBooklet(activeBooklet)}>Ungroup</button></div>}
-    <main ref={viewportRef} className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
+    <main ref={viewportRef} aria-label="Board canvas" className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
         <aside className="board-staging" aria-label="Staging area">
@@ -1965,7 +1974,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
           </div>
           {menuItem === item.uuid && (board.can_edit || item.source_url || item.kind !== 'comment') && <div className="board-item-menu" onPointerDown={(e) => e.stopPropagation()}>
             {item.source_url && <button onClick={() => window.open(item.source_url, '_blank', 'noopener,noreferrer')}>{item.kind === 'youtube' ? 'Open video' : 'Open page'}</button>}
-            {item.kind !== 'comment' && hasCardPreview(item) && <button onClick={() => downloadBoardFile(item)}>Download</button>}
+            {item.kind !== 'comment' && hasCardPreview(item) && <button onClick={() => downloadItem(item)}>Download</button>}
             {board.can_edit && <button type="button" className="remove" disabled={busy} onClick={() => removeItem(item)}>Remove card</button>}
           </div>}
           {board.can_edit && <button className="board-resize-handle" aria-label="Resize card" title="Resize card" onPointerDown={(event) => startResize(event, item)} />}

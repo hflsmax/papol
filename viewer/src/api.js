@@ -7,7 +7,7 @@ import { appPath, backendPath } from './base.js';
 import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  configureNetworkFetch, configureReplayAuthorization, offlineFetch, offlinePdfUrl,
+  configureNetworkFetch, configureReplayAuthorization, inOfflineMode, offlineFetch, offlinePdfUrl,
 } from '../../shared/offlineStore.js';
 import {
   boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
@@ -111,7 +111,7 @@ export async function getNookPaperByPdf(hash) {
 }
 
 async function openedFileMetadata(blob) {
-  if (globalThis.navigator?.onLine === false) return null;
+  if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
   const body = new FormData();
   body.append('file', blob, 'paper.pdf');
   const controller = new AbortController();

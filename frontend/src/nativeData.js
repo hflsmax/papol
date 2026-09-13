@@ -2,7 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  clearOfflineData, getLocalSyncPreference, setLocalSyncPreference, syncOfflineQueue,
+  clearOfflineData, enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
+  inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference, syncOfflineQueue,
 } from '../../shared/offlineStore.js';
 import { BACKEND_BASE, inDemo } from './base.js';
 import { currentCredential } from '../../shared/credentials.js';
@@ -12,6 +13,15 @@ const ACCOUNT_KEY = 'papol.localAccountUuid';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let scheduledSync = null;
 let activeNativeSyncs = 0;
+
+// Tauri broadcasts coordinator status to every webview. Latch failures in
+// each window so a sync started in the library also makes the viewer and
+// board surfaces stop issuing backend requests.
+if (IS_DESKTOP) {
+  listen('papol://sync-status', (event) => {
+    if (event.payload?.error) enterOfflineMode();
+  }).catch(() => {});
+}
 
 function announceNativeSyncState() {
   window.dispatchEvent(new Event('papol-offline-status'));
@@ -117,18 +127,24 @@ export function discardNativeBlob(sha256) {
   return invoke('blob_discard', { sha256 });
 }
 
-export async function nativeSyncNow() {
+export async function nativeSyncNow({ manual = false } = {}) {
   const accountUuid = nativeAccountUuid();
   const token = currentCredential();
   if (!IS_DESKTOP || accountUuid == null || !token) return null;
+  if (inOfflineMode() && !manual) throw new OnlineRequiredError();
   activeNativeSyncs += 1;
   announceNativeSyncState();
   try {
-    return await invoke('sync_now', {
-      accountUuid,
-      backendUrl: nativeBackendUrl(),
-      token,
-    });
+    try {
+      return await invoke('sync_now', {
+        accountUuid,
+        backendUrl: nativeBackendUrl(),
+        token,
+      });
+    } catch (error) {
+      enterOfflineMode();
+      throw error;
+    }
   } finally {
     // Failed automatic syncs are caught by the scheduler, but status still
     // needs to refresh in the window that initiated them.
@@ -141,12 +157,17 @@ export async function nativeSyncNow() {
 // request queue first, then the native replica. Resolves to the first
 // failure message, or null.
 export async function syncAllNow() {
-  const queued = await Promise.allSettled([syncOfflineQueue()]);
+  exitOfflineMode();
+  const queued = await Promise.allSettled([syncOfflineQueue(undefined, { manual: true })]);
   const native = await Promise.allSettled([
-    nativeDataActive() ? nativeSyncNow() : Promise.resolve(),
+    nativeDataActive() ? nativeSyncNow({ manual: true }) : Promise.resolve(),
   ]);
   const failure = [...queued, ...native].find((result) => result.status === 'rejected');
-  if (failure) return failure.reason?.message || String(failure.reason);
+  if (failure) {
+    const detail = failure.reason?.message || String(failure.reason || 'Sync failed');
+    return `${OFFLINE_MODE_MESSAGE} (${detail})`;
+  }
+  if (inOfflineMode()) return OFFLINE_MODE_MESSAGE;
   try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
   return null;
 }

@@ -8,7 +8,7 @@ import {
 } from './nativeData.js';
 import {
   cachedBlobUrl, clearOfflineData, configureNetworkFetch, configureReplayAuthorization, offlineFetch,
-  refreshSyncStatus, rememberOfflineIdentity, runtimeFetch,
+  inOfflineMode, OnlineRequiredError, refreshSyncStatus, rememberOfflineIdentity, runtimeFetch,
 } from '../../shared/offlineStore';
 import { currentCredential, storeCredential } from '../../shared/credentials.js';
 import { withAbortTimeout } from './requestTimeout.js';
@@ -104,13 +104,13 @@ function jsonRequest(path, method, body) {
 // the result back into the replica after.
 async function onServer(send, { pull = true } = {}) {
   if (!nativeDataActive()) return send();
-  if (globalThis.navigator?.onLine === false) {
-    throw new Error('This change needs a connection to Papol.');
+  if (inOfflineMode() || globalThis.navigator?.onLine === false) {
+    throw new OnlineRequiredError();
   }
   try {
     await nativeSyncNow();
-  } catch (error) {
-    throw new Error(`This change needs a connection to Papol. ${error?.message || error}`);
+  } catch {
+    throw new OnlineRequiredError();
   }
   const result = await send();
   if (pull) await nativeSyncNow().catch(() => {});
@@ -122,7 +122,8 @@ async function desktopAuthRequest(requester) {
   try {
     return await withAbortTimeout(requester, DESKTOP_AUTH_TIMEOUT_MS);
   } catch (error) {
-    if (error?.name === 'OnlineRequiredError' || error?.name === 'AbortError') {
+    if (error?.name === 'OnlineRequiredError') throw error;
+    if (error?.name === 'AbortError') {
       throw new Error('Cannot reach the Papol backend. Start it or choose a working backend URL.');
     }
     throw error;
@@ -569,7 +570,7 @@ export async function downloadBoardFile(item) {
 // desktop this is best-effort: the file is already safe in the local replica,
 // so being offline or a slow backend only costs the prefilled fields.
 async function remotePaperMetadata(file) {
-  if (globalThis.navigator?.onLine === false) return null;
+  if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
   const formData = new FormData();
   formData.append('file', file);
   try {
@@ -596,6 +597,7 @@ export async function extractPaperMetadata(file) {
       year: remote?.year || null,
       file_path: `${blob.sha256}.pdf`,
       sha256: blob.sha256,
+      metadata_offline: inOfflineMode() || globalThis.navigator?.onLine === false,
     };
   }
   const formData = new FormData();

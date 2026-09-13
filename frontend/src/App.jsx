@@ -1156,6 +1156,16 @@ select:disabled { cursor: default; opacity: .65; }
   padding: 18px;
 }
 
+.offline-notice {
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  background: var(--accent-soft);
+  font-size: var(--fs-sm);
+}
+
 .upload-review-form .form-group {
   margin-bottom: 12px;
 }

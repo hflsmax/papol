@@ -13,7 +13,16 @@ const LAST_SYNC_KEY = 'papol.lastSync';
 const LOCAL_SYNC_CLIENT_UUID_KEY = 'papol.syncClientUuid';
 const CLIENT_UUID_HEADER = 'X-Papol-Client-UUID';
 const MUTATION_UUID_HEADER = 'X-Papol-Mutation-UUID';
+export const OFFLINE_MODE_MESSAGE = 'Papol is offline. Your local data is still available. Choose Sync to reconnect.';
 let syncing = null;
+// A failed sync means the backend is not trustworthy for the rest of this app
+// session. Keep serving local data without making every backend-only action
+// wait for its own timeout. This is deliberately not persisted: relaunching
+// the app, or explicitly pressing Sync, is a fresh connectivity attempt.
+let offlineMode = false;
+const offlineModeChannel = typeof window !== 'undefined' && typeof window.BroadcastChannel === 'function'
+  ? new window.BroadcastChannel('papol-offline-mode')
+  : null;
 const pendingBlobLoads = new Map();
 let remoteNetworkFetch = (...args) => globalThis.fetch(...args);
 let replayAuthorization = () => {
@@ -48,9 +57,40 @@ export function runtimeFetch(input, options) {
   const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
   let protocol = '';
   try { protocol = new URL(rawUrl, globalThis.location?.href).protocol; } catch { /* fetch reports malformed URLs */ }
-  return /^https?:$/.test(protocol)
-    ? remoteNetworkFetch(input, options)
-    : globalThis.fetch(input, options);
+  if (/^https?:$/.test(protocol)) {
+    if (offlineMode) return Promise.reject(new OnlineRequiredError());
+    return remoteNetworkFetch(input, options);
+  }
+  return globalThis.fetch(input, options);
+}
+
+export function inOfflineMode() {
+  return offlineMode;
+}
+
+export function enterOfflineMode() {
+  offlineMode = true;
+  notify({ offline: true });
+  offlineModeChannel?.postMessage({ offline: true });
+}
+
+export function exitOfflineMode() {
+  offlineMode = false;
+  notify({ offline: typeof navigator !== 'undefined' && navigator.onLine === false });
+  offlineModeChannel?.postMessage({ offline: false });
+}
+
+if (offlineModeChannel) {
+  offlineModeChannel.onmessage = (event) => {
+    if (event.data?.requestState) {
+      if (offlineMode) offlineModeChannel.postMessage({ offline: true });
+      return;
+    }
+    if (typeof event.data?.offline !== 'boolean') return;
+    offlineMode = event.data.offline;
+    notify({ offline: offlineMode || (typeof navigator !== 'undefined' && navigator.onLine === false) });
+  };
+  offlineModeChannel.postMessage({ requestState: true });
 }
 
 function storedSetting(key, fallback = null) {
@@ -110,8 +150,9 @@ export async function refreshSyncStatus() {
 
 export class OnlineRequiredError extends Error {
   constructor() {
-    super('This action needs an internet connection because it affects shared data.');
+    super(OFFLINE_MODE_MESSAGE);
     this.name = 'OnlineRequiredError';
+    this.code = 'PAPOL_OFFLINE';
   }
 }
 
@@ -343,7 +384,7 @@ function notify(detail) {
     syncStatus = {
       pending,
       syncing: detail.syncing ?? syncStatus.syncing,
-      offline: detail.offline ?? syncStatus.offline,
+      offline: offlineMode || (detail.offline ?? syncStatus.offline),
       error: Object.prototype.hasOwnProperty.call(detail, 'error')
         ? detail.error
         : detail.conflict ?? (detail.syncing ? null : syncStatus.error),
@@ -625,7 +666,12 @@ function mappedOptions(options, mappings) {
   return options;
 }
 
-export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
+export async function syncOfflineQueue(fetchImpl = remoteNetworkFetch, { manual = false } = {}) {
+  if (offlineMode && !manual) {
+    const pending = (await allStored('queue')).length;
+    notify({ offline: true, pending });
+    return pending;
+  }
   if (syncing) return syncing;
   syncing = (async () => {
     const operations = await allStored('queue');
@@ -673,12 +719,13 @@ export async function syncOfflineQueue(fetchImpl = runtimeFetch) {
       try { localStorage.setItem(LAST_SYNC_KEY, lastSynced); } catch { /* best effort */ }
     }
     notify({
-      offline: syncError === 'Sync paused — no connection',
+      offline: Boolean(syncError),
       syncing: false,
       pending: remaining,
       error: syncError,
       lastSynced,
     });
+    if (syncError) enterOfflineMode();
     return remaining;
   })().finally(() => { syncing = null; });
   return syncing;
@@ -691,6 +738,14 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
   if (requestAuthorization) latestAuthorization = requestAuthorization;
   const safeMutation = method !== 'GET' && isSafeOfflineMutation(method, path, options.body);
   if (safeMutation) options = identifiedMutationOptions(options);
+  if (offlineMode) {
+    if (method === 'GET') {
+      const cached = await cachedResponse(path, options);
+      if (cached) return cached;
+    }
+    if (safeMutation) return queueMutation(url, path, method, options);
+    throw new OnlineRequiredError();
+  }
   let pullRequested = false;
   try { pullRequested = Number(sessionStorage.getItem('papol.syncPullUntil') || 0) > Date.now(); }
   catch { /* session storage unavailable */ }
@@ -792,6 +847,7 @@ export function rememberOfflineIdentity(token, user) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
+    if (offlineMode) return;
     notify({ offline: false });
     if (getLocalSyncPreference() === 'automatic') syncOfflineQueue();
   });

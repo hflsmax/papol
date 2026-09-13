@@ -179,6 +179,11 @@ export default function PaperUpload({
       <BackLink className={`back-btn upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
         <h3>Review Paper Metadata</h3>
+        {extractedData.metadata_offline && (
+          <div className="offline-notice" role="status">
+            Papol is offline, so metadata could not be looked up. Review the title and details before saving.
+          </div>
+        )}
         {error && <div className="error">{error}</div>}
         <form className="upload-review-form" onSubmit={handleSubmit}>
           <div className="form-group">

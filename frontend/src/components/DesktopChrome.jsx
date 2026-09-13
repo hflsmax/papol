@@ -6,7 +6,7 @@ import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import {
-  getSyncStatus, refreshSyncStatus,
+  getSyncStatus, OFFLINE_MODE_MESSAGE, refreshSyncStatus,
 } from '../../../shared/offlineStore';
 import {
   nativeDataActive, nativeQuery, subscribeNativeData, syncAllNow,
@@ -163,13 +163,15 @@ function SyncControl({ onSynced }) {
     if (!latest.error && latest.pending === 0) onSynced?.();
   };
 
-  const summary = status.error || status.conflicts ? 'Needs attention' : (status.syncing
+  const summary = status.syncing
     ? 'Syncing…'
     : status.offline
       ? `Offline${status.pending ? ` · ${status.pending} pending` : ''}`
-      : status.pending
+      : status.error || status.conflicts
+        ? 'Needs attention'
+        : status.pending
         ? `${status.pending} pending`
-        : 'Up to date');
+        : 'Up to date';
 
   return (
     <section id="desktop-sync-control" className={`desktop-sync-control${status.error ? ' has-error' : ''}`} aria-label="Synchronization">
@@ -179,10 +181,10 @@ function SyncControl({ onSynced }) {
         onClick={syncNow}
         disabled={status.syncing}
         aria-label={`Sync now — ${summary}`}
-        title={status.error || 'Send and receive changes now'}
+        title={status.offline ? OFFLINE_MODE_MESSAGE : (status.error || 'Send and receive changes now')}
       >
         <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
-        <span>Sync</span>
+        <span>{status.offline ? 'Offline — Sync' : 'Sync'}</span>
       </button>
     </section>
   );

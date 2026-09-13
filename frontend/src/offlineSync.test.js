@@ -21,7 +21,8 @@ global.sessionStorage = { getItem: () => null };
 Object.defineProperty(global, 'navigator', { configurable: true, value: { onLine: true } });
 
 const {
-  cachedBlobUrl, configureReplayAuthorization, getSyncStatus, offlineFetch, refreshSyncStatus,
+  cachedBlobUrl, configureNetworkFetch, configureReplayAuthorization, exitOfflineMode,
+  getSyncStatus, inOfflineMode, OFFLINE_MODE_MESSAGE, offlineFetch, refreshSyncStatus, runtimeFetch,
   setLocalSyncPreference, syncOfflineQueue,
 } = await import('../../shared/offlineStore.js');
 
@@ -35,6 +36,7 @@ const json = (value, status = 200) => new Response(
 function reset() {
   indexedDB.deleteDatabase('papol-offline');
   settings.clear();
+  exitOfflineMode();
   setLocalSyncPreference('manual');
 }
 
@@ -139,7 +141,7 @@ test('a server failure commits only the successful prefix and retry resumes at t
       identity: [headers.get('X-Papol-Client-UUID'), headers.get('X-Papol-Mutation-UUID')],
     });
     return json({ uuid: 200 + retried.length });
-  }), 0);
+  }, { manual: true }), 0);
   assert.deepEqual(retried.map(({ name }) => name), ['two', 'three']);
   assert.deepEqual(retried[0].identity, failedIdentity);
   assert.match(failedIdentity[0], /^[0-9a-f-]{36}$/);
@@ -251,4 +253,29 @@ test('network loss pauses a replay without dropping its operation', async () => 
   assert.deepEqual(Object.keys(status).sort(), [
     'error', 'lastSynced', 'offline', 'pending', 'preference', 'syncing',
   ]);
+});
+
+test('a failed sync latches offline mode and backend requests return without network traffic', async () => {
+  reset();
+  await offlineFetch(`${API}/tags`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'waiting' }),
+  });
+  await syncOfflineQueue(async () => { throw new TypeError('offline'); });
+  assert.equal(inOfflineMode(), true);
+
+  let calls = 0;
+  configureNetworkFetch(async () => { calls += 1; return json({ title: 'too late' }); });
+  await assert.rejects(
+    runtimeFetch(`${API}/papers/extract`, { method: 'POST' }),
+    { name: 'OnlineRequiredError', message: OFFLINE_MODE_MESSAGE },
+  );
+  await assert.rejects(
+    offlineFetch(`${API}/papers/paper-id/extract-metadata`, { method: 'POST' }, async () => {
+      calls += 1;
+      return json({});
+    }),
+    { name: 'OnlineRequiredError', message: OFFLINE_MODE_MESSAGE },
+  );
+  assert.equal(calls, 0);
 });
