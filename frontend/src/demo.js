@@ -7,15 +7,10 @@
 import {
   demoPapers, demoNotes, demoEditionFor, demoPaperUuid, noteAsComment,
 } from '../../shared/demoWorld';
-import { stripAppBase } from './base';
+import { inDemo } from './base';
 
 export function demoActive() {
-  const path = stripAppBase(window.location.pathname);
-  return (
-    path.includes('/demo/viewer') ||
-    path === '/demo' ||
-    path.startsWith('/demo/')
-  );
+  return inDemo();
 }
 
 export function enterDemo() {

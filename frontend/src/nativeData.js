@@ -4,7 +4,7 @@ import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   clearOfflineData, getLocalSyncPreference, setLocalSyncPreference, syncOfflineQueue,
 } from '../../shared/offlineStore.js';
-import { BACKEND_BASE } from './base.js';
+import { BACKEND_BASE, inDemo } from './base.js';
 import { currentCredential } from '../../shared/credentials.js';
 
 const ACCOUNT_KEY = 'papol.localAccountUuid';
@@ -26,8 +26,9 @@ export function setNativeAccount(user) {
   else localStorage.removeItem(ACCOUNT_KEY);
 }
 
+// The demo's reader lives in the page, never in the local replica.
 export async function prepareNativeAccount(user) {
-  if (!IS_DESKTOP || user?.uuid == null) return false;
+  if (!IS_DESKTOP || inDemo() || user?.uuid == null) return false;
   await invoke('local_account_set', { accountUuid: user.uuid, profile: user });
   setNativeAccount(user);
   return true;
@@ -40,7 +41,7 @@ export function nativeAccountUuid() {
 }
 
 export function nativeDataActive() {
-  return nativeAccountUuid() != null;
+  return !inDemo() && nativeAccountUuid() != null;
 }
 
 export async function nativeQuery(queryName, parameters = {}) {

@@ -697,10 +697,10 @@ mod tests {
             .await
             .is_err());
         assert_eq!(
-            store.query("7","sync_status", json!({})).unwrap()["pending"],
+            store.query("7", "sync_status", json!({})).unwrap()["pending"],
             1
         );
-        let failed_status = store.query("7","sync_status", json!({})).unwrap();
+        let failed_status = store.query("7", "sync_status", json!({})).unwrap();
         assert_eq!(failed_status["attempts"], 1);
         assert!(failed_status["outbox_error"].as_str().is_some());
         let result = coordinator
@@ -709,7 +709,7 @@ mod tests {
             .unwrap();
         assert_eq!(result.pushed, 1);
         assert_eq!(
-            store.query("7","sync_status", json!({})).unwrap()["pending"],
+            store.query("7", "sync_status", json!({})).unwrap()["pending"],
             0
         );
 

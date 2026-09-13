@@ -206,7 +206,12 @@ impl LocalStore {
         })
     }
 
-    pub fn query(&self, account_uuid: &str, name: &str, parameters: Value) -> Result<Value, String> {
+    pub fn query(
+        &self,
+        account_uuid: &str,
+        name: &str,
+        parameters: Value,
+    ) -> Result<Value, String> {
         let connection = self
             .connection
             .lock()
@@ -225,9 +230,13 @@ impl LocalStore {
                     .ok_or("board_group query requires a uuid")?;
                 query_board_group(&connection, account_uuid, uuid)
             }
-            "comments" => {
-                query_annotations(&connection, account_uuid, "comments", "paper_uuid", parameters)
-            }
+            "comments" => query_annotations(
+                &connection,
+                account_uuid,
+                "comments",
+                "paper_uuid",
+                parameters,
+            ),
             "ink" => query_annotations(
                 &connection,
                 account_uuid,
@@ -242,10 +251,16 @@ impl LocalStore {
                 "edition_uuid",
                 parameters,
             ),
-            "shelves" => query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid"),
+            "shelves" => {
+                query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid")
+            }
             "tags" => query_owned_rows(&connection, account_uuid, "tags", "name,uuid"),
-            "copies" => query_owned_rows(&connection, account_uuid, "copies", "updated_at DESC,uuid"),
-            "copy_tags" => query_owned_rows(&connection, account_uuid, "copy_tags", "created_at,uuid"),
+            "copies" => {
+                query_owned_rows(&connection, account_uuid, "copies", "updated_at DESC,uuid")
+            }
+            "copy_tags" => {
+                query_owned_rows(&connection, account_uuid, "copy_tags", "created_at,uuid")
+            }
             "nook" => query_nook(&connection, account_uuid),
             "papers" => query_papers(&connection, account_uuid),
             "paper" => {
@@ -711,11 +726,51 @@ impl LocalStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?;
         drop(statement);
+        let recorded = connection
+            .prepare("SELECT sha256 FROM _local_blobs")
+            .map_err(|error| error.to_string())?
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<HashSet<_>, _>>()
+            .map_err(|error| error.to_string())?;
         drop(connection);
-        Ok(digests
-            .into_iter()
-            .filter(|sha256| !self.has_blob(sha256))
-            .collect())
+        let mut missing = Vec::new();
+        for sha256 in digests {
+            let present = self.has_blob(&sha256)
+                && (recorded.contains(&sha256) || self.adopt_blob_file(&sha256)?);
+            if !present {
+                missing.push(sha256);
+            }
+        }
+        Ok(missing)
+    }
+
+    /// Record a file already in the blob directory but not in its index —
+    /// one kept from an earlier replica — as cache, so it is counted,
+    /// evictable and referenced like a download. A file whose bytes do not
+    /// match its name is removed and reported as not adopted.
+    fn adopt_blob_file(&self, sha256: &str) -> Result<bool, String> {
+        use sha2::{Digest, Sha256};
+
+        let path = self.blob_directory.join(sha256);
+        let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
+        if format!("{:x}", Sha256::digest(&bytes)) != sha256 {
+            std::fs::remove_file(&path).map_err(|error| error.to_string())?;
+            return Ok(false);
+        }
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        connection
+            .execute(
+                "INSERT INTO _local_blobs(sha256,relative_path,size,mime_type,durability,last_accessed_at) \
+                 VALUES (?1,?1,?2,NULL,'cache',?3) ON CONFLICT(sha256) DO NOTHING",
+                params![sha256, bytes.len() as i64, chrono_text()],
+            )
+            .map_err(|error| error.to_string())?;
+        refresh_blob_references_for_digest(&connection, sha256)?;
+        Ok(true)
     }
 
     pub fn clear_data(&self) -> Result<usize, String> {
@@ -1022,7 +1077,9 @@ impl LocalStore {
         let mut recovery_rows = BTreeMap::new();
         for mutation in &mutations {
             for change in mutation["changes"].as_array().into_iter().flatten() {
-                if let (Some(table), Some(uuid)) = (change["table"].as_str(), change["uuid"].as_str()) {
+                if let (Some(table), Some(uuid)) =
+                    (change["table"].as_str(), change["uuid"].as_str())
+                {
                     if let Ok(row) = read_row(&connection, table, uuid) {
                         recovery_rows.insert(format!("{table}:{uuid}"), row);
                     }
@@ -1203,7 +1260,7 @@ fn validate_ownership(
                         .flatten()
                 })
                 .ok_or_else(|| format!("copy_tags.{field} is required"))?;
-            let owner: Option<String> =connection
+            let owner: Option<String> = connection
                 .query_row(
                     &format!("SELECT user_uuid FROM {table} WHERE uuid=?1 AND deleted_at IS NULL"),
                     [parent_uuid],
@@ -1218,7 +1275,7 @@ fn validate_ownership(
     }
     if matches!(change.table.as_str(), "boards" | "copies") {
         if let Some(shelf_uuid) = change.values.get("shelf_uuid").and_then(Value::as_str) {
-            let owner: Option<String> =connection
+            let owner: Option<String> = connection
                 .query_row(
                     "SELECT user_uuid FROM shelves WHERE uuid=?1 AND deleted_at IS NULL",
                     [shelf_uuid],
@@ -1235,7 +1292,7 @@ fn validate_ownership(
         change.table.as_str(),
         "comments" | "ink_strokes" | "paper_clips" | "copies" | "copy_tags" | "shelves" | "tags"
     ) {
-        let owner: Option<String> =connection
+        let owner: Option<String> = connection
             .query_row(
                 &format!("SELECT user_uuid FROM {} WHERE uuid=?1", change.table),
                 [&change.uuid],
@@ -1269,7 +1326,7 @@ fn validate_ownership(
             })
     };
     if let Some(board_uuid) = board_uuid.as_deref() {
-        let owner: Option<String> =connection
+        let owner: Option<String> = connection
             .query_row(
                 "SELECT user_uuid FROM boards WHERE uuid=?1",
                 [board_uuid],
@@ -1550,7 +1607,7 @@ fn validate_remote_ownership(
         .get("board_uuid")
         .and_then(Value::as_str)
         .ok_or("Server child row is missing its board")?;
-    let owner: Option<String> =connection
+    let owner: Option<String> = connection
         .query_row(
             "SELECT user_uuid FROM boards WHERE uuid=?1",
             [board_uuid],
@@ -2187,7 +2244,7 @@ fn query_boards(connection: &Connection, account_uuid: &str) -> Result<Value, St
 }
 
 fn query_board(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
-    let owner: Option<String> =connection
+    let owner: Option<String> = connection
         .query_row(
             "SELECT user_uuid FROM boards WHERE uuid=?1 AND deleted_at IS NULL",
             [uuid],
@@ -2252,7 +2309,11 @@ fn query_groups(connection: &Connection, board_uuid: &str) -> Result<Value, Stri
         .map(Value::Array)
 }
 
-fn query_board_group(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
+fn query_board_group(
+    connection: &Connection,
+    account_uuid: &str,
+    uuid: &str,
+) -> Result<Value, String> {
     let board_uuid: Option<String> = connection
         .query_row(
             "SELECT board_uuid FROM board_groups WHERE uuid=?1 AND deleted_at IS NULL",
@@ -2388,7 +2449,11 @@ fn query_nook(connection: &Connection, account_uuid: &str) -> Result<Value, Stri
     }))
 }
 
-fn paper_view(connection: &Connection, account_uuid: &str, paper_uuid: &str) -> Result<Value, String> {
+fn paper_view(
+    connection: &Connection,
+    account_uuid: &str,
+    paper_uuid: &str,
+) -> Result<Value, String> {
     let copy_uuid: String = connection
         .query_row(
             "SELECT uuid FROM copies WHERE user_uuid=?1 AND paper_uuid=?2 AND deleted_at IS NULL",
@@ -2688,16 +2753,21 @@ mod tests {
         let path = directory.path().join("papol.sqlite3");
         let uuid = Uuid::new_v4().to_string();
         let store = LocalStore::open(&path).unwrap();
-        let receipt = store.mutate("7",vec![board_change(&uuid, "Offline")]).unwrap();
+        let receipt = store
+            .mutate("7", vec![board_change(&uuid, "Offline")])
+            .unwrap();
         assert_eq!(receipt.local_sequence, 1);
         assert_eq!(store.outbox_count(), 1);
-        assert_eq!(store.query("7","boards", json!({})).unwrap()[0]["uuid"], uuid);
+        assert_eq!(
+            store.query("7", "boards", json!({})).unwrap()[0]["uuid"],
+            uuid
+        );
 
         drop(store);
         let reopened = LocalStore::open(&path).unwrap();
         assert_eq!(reopened.outbox_count(), 1);
         assert_eq!(
-            reopened.query("7","board", json!({"uuid": uuid})).unwrap()["name"],
+            reopened.query("7", "board", json!({"uuid": uuid})).unwrap()["name"],
             "Offline"
         );
     }
@@ -2770,9 +2840,9 @@ mod tests {
         invalid
             .values
             .insert("server_secret".into(), Value::String("no".into()));
-        assert!(store.mutate("7",vec![first, invalid]).is_err());
+        assert!(store.mutate("7", vec![first, invalid]).is_err());
         assert_eq!(store.outbox_count(), 0);
-        assert_eq!(store.query("7","boards", json!({})).unwrap(), json!([]));
+        assert_eq!(store.query("7", "boards", json!({})).unwrap(), json!([]));
     }
 
     #[test]
@@ -2780,14 +2850,16 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let uuid = Uuid::new_v4().to_string();
-        store.mutate("7",vec![board_change(&uuid, "Mine")]).unwrap();
+        store
+            .mutate("7", vec![board_change(&uuid, "Mine")])
+            .unwrap();
         let update = DataChange {
             table: "boards".into(),
             uuid,
             operation: "patch".into(),
             values: Map::from_iter([("name".into(), Value::String("Not mine".into()))]),
         };
-        assert!(store.mutate("8",vec![update]).is_err());
+        assert!(store.mutate("8", vec![update]).is_err());
     }
 
     #[test]
@@ -2795,17 +2867,17 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let first = store
-            .mutate("7",vec![board_change(&Uuid::new_v4().to_string(), "Bad")])
+            .mutate("7", vec![board_change(&Uuid::new_v4().to_string(), "Bad")])
             .unwrap();
         let second = store
-            .mutate("7",vec![board_change(&Uuid::new_v4().to_string(), "Good")])
+            .mutate("7", vec![board_change(&Uuid::new_v4().to_string(), "Good")])
             .unwrap();
         store
-            .record_outbox_error("7",first.local_sequence, "422 Unprocessable Entity", true)
+            .record_outbox_error("7", first.local_sequence, "422 Unprocessable Entity", true)
             .unwrap();
         let next = store.next_outbox("7").unwrap().unwrap();
         assert_eq!(next.local_sequence, second.local_sequence);
-        let status = store.query("7","sync_status", json!({})).unwrap();
+        let status = store.query("7", "sync_status", json!({})).unwrap();
         assert_eq!(status["pending"], 2);
         assert_eq!(status["blocked"], 1);
         assert_eq!(status["attempts"], 1);
@@ -2832,7 +2904,7 @@ mod tests {
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate("7",vec![board_change(&board_uuid, "Links")])
+            .mutate("7", vec![board_change(&board_uuid, "Links")])
             .unwrap();
         let change = DataChange {
             table: "board_items".into(),
@@ -2844,7 +2916,7 @@ mod tests {
                 ("source_url".into(), json!("javascript:alert(1)")),
             ]),
         };
-        assert!(store.mutate("7",vec![change]).is_err());
+        assert!(store.mutate("7", vec![change]).is_err());
         assert_eq!(store.outbox_count(), 1);
     }
 
@@ -2853,7 +2925,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let uuid = Uuid::new_v4().to_string();
-        let receipt = store.mutate("7",vec![board_change(&uuid, "Local")]).unwrap();
+        let receipt = store
+            .mutate("7", vec![board_change(&uuid, "Local")])
+            .unwrap();
         let mut row = remote_board(&uuid, 1, "Canonical");
         row.insert("table".into(), json!("boards"));
         store
@@ -2871,11 +2945,11 @@ mod tests {
             .unwrap();
         assert_eq!(store.outbox_count(), 0);
         assert_eq!(
-            store.query("7","board", json!({"uuid": uuid})).unwrap()["name"],
+            store.query("7", "board", json!({"uuid": uuid})).unwrap()["name"],
             "Canonical"
         );
         assert_eq!(
-            store.query("7","sync_status", json!({})).unwrap()["conflicts"],
+            store.query("7", "sync_status", json!({})).unwrap()["conflicts"],
             0
         );
         let connection = store.connection.lock().unwrap();
@@ -2909,7 +2983,7 @@ mod tests {
             .unwrap();
         assert_eq!(store.pull_cursor("7").unwrap(), 19);
         assert_eq!(
-            store.query("7","board", json!({"uuid": uuid})).unwrap()["name"],
+            store.query("7", "board", json!({"uuid": uuid})).unwrap()["name"],
             "Remote"
         );
 
@@ -2930,7 +3004,9 @@ mod tests {
             )
             .is_err());
         assert_eq!(store.pull_cursor("7").unwrap(), 19);
-        assert!(store.query("7","board", json!({"uuid": bad_uuid})).is_err());
+        assert!(store
+            .query("7", "board", json!({"uuid": bad_uuid}))
+            .is_err());
 
         let foreign_uuid = Uuid::new_v4().to_string();
         let mut foreign = remote_board(&foreign_uuid, 1, "Foreign");
@@ -2962,7 +3038,7 @@ mod tests {
         assert_eq!(store.read_blob(&record.sha256).unwrap(), bytes);
         let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate("7",vec![board_change(&board_uuid, "Files")])
+            .mutate("7", vec![board_change(&board_uuid, "Files")])
             .unwrap();
         let item_uuid = Uuid::new_v4().to_string();
         let receipt = store
@@ -3095,6 +3171,59 @@ mod tests {
     }
 
     #[test]
+    fn files_already_on_disk_are_recorded_instead_of_downloaded() {
+        use sha2::Digest;
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let bytes = b"kept from an earlier replica";
+        let kept = format!("{:x}", sha2::Sha256::digest(bytes));
+        let corrupt = "d".repeat(64);
+        std::fs::write(store.blob_directory.join(&kept), bytes).unwrap();
+        std::fs::write(store.blob_directory.join(&corrupt), b"not these bytes").unwrap();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let kept_edition = Uuid::new_v4().to_string();
+        let corrupt_edition = Uuid::new_v4().to_string();
+        let now = "2026-09-12T00:00:00Z";
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Paper',?2,?2)",
+                    params![paper_uuid, now],
+                )
+                .unwrap();
+            for (edition, digest) in [(&kept_edition, &kept), (&corrupt_edition, &corrupt)] {
+                connection.execute(
+                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
+                    params![edition, paper_uuid, digest, now],
+                ).unwrap();
+            }
+            connection.execute(
+                "INSERT INTO copies(uuid,paper_uuid,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                params![Uuid::new_v4().to_string(), paper_uuid, now],
+            ).unwrap();
+        }
+
+        assert_eq!(
+            store.missing_blob_digests("7").unwrap(),
+            vec![corrupt.clone()]
+        );
+        assert!(!store.blob_directory.join(&corrupt).exists());
+        let status = store.query("7", "storage_status", json!({})).unwrap();
+        assert_eq!(status["classes"]["cache"]["bytes"], bytes.len());
+        let connection = store.connection.lock().unwrap();
+        let references: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM _local_blob_refs WHERE row_uuid=?1 AND sha256=?2",
+                params![kept_edition, kept],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(references, 1);
+    }
+
+    #[test]
     fn clear_data_removes_replica_pending_work_and_files_but_keeps_the_account() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
@@ -3106,7 +3235,7 @@ mod tests {
             .set_local_account("7", json!({"uuid": "7", "display_name": "Reader"}))
             .unwrap();
         store
-            .mutate("7",vec![board_change(&board_uuid, "Unsynced board")])
+            .mutate("7", vec![board_change(&board_uuid, "Unsynced board")])
             .unwrap();
         {
             let connection = store.connection.lock().unwrap();
@@ -3119,12 +3248,12 @@ mod tests {
         }
 
         assert_eq!(store.clear_data().unwrap(), 1);
-        assert_eq!(store.query("7","boards", json!({})).unwrap(), json!([]));
+        assert_eq!(store.query("7", "boards", json!({})).unwrap(), json!([]));
         assert_eq!(store.outbox_count(), 0);
         assert_eq!(store.pull_cursor("7").unwrap(), 0);
         assert!(!store.has_blob(&blob.sha256));
         assert_eq!(
-            store.query("7","account", json!({})).unwrap()["display_name"],
+            store.query("7", "account", json!({})).unwrap()["display_name"],
             "Reader"
         );
     }
@@ -3226,14 +3355,26 @@ mod tests {
         assert_eq!(store.remove_account("7").unwrap(), 2);
         let connection = store.connection.lock().unwrap();
         for (query, expected) in [
-            ("SELECT COUNT(*) FROM _local_accounts WHERE account_uuid='7'", 0),
-            ("SELECT COUNT(*) FROM _local_accounts WHERE account_uuid='8'", 1),
+            (
+                "SELECT COUNT(*) FROM _local_accounts WHERE account_uuid='7'",
+                0,
+            ),
+            (
+                "SELECT COUNT(*) FROM _local_accounts WHERE account_uuid='8'",
+                1,
+            ),
             ("SELECT COUNT(*) FROM copies WHERE user_uuid='7'", 0),
             ("SELECT COUNT(*) FROM copies WHERE user_uuid='8'", 1),
             ("SELECT COUNT(*) FROM boards WHERE user_uuid='7'", 0),
             ("SELECT COUNT(*) FROM boards WHERE user_uuid='8'", 1),
-            ("SELECT COUNT(*) FROM _local_outbox WHERE account_uuid='7'", 0),
-            ("SELECT COUNT(*) FROM _local_outbox WHERE account_uuid='8'", 1),
+            (
+                "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid='7'",
+                0,
+            ),
+            (
+                "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid='8'",
+                1,
+            ),
         ] {
             assert_eq!(
                 connection
@@ -3303,7 +3444,7 @@ mod tests {
         let digest = "a".repeat(64);
         let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate("7",vec![board_change(&board_uuid, "Files")])
+            .mutate("7", vec![board_change(&board_uuid, "Files")])
             .unwrap();
         assert!(store
             .mutate(
@@ -3340,7 +3481,7 @@ mod tests {
         let retained = store.import_blob(b"queued", None).unwrap();
         let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate("7",vec![board_change(&board_uuid, "Files")])
+            .mutate("7", vec![board_change(&board_uuid, "Files")])
             .unwrap();
         store
             .mutate(
@@ -3372,10 +3513,10 @@ mod tests {
             )
             .unwrap();
         assert_eq!(
-            store.query("7","account", json!({})).unwrap()["display_name"],
+            store.query("7", "account", json!({})).unwrap()["display_name"],
             "Reader"
         );
-        assert!(store.query("8","account", json!({})).is_err());
+        assert!(store.query("8", "account", json!({})).is_err());
         assert!(store
             .set_local_account("8", json!({"uuid": "7", "display_name": "Wrong"}))
             .is_err());
@@ -3389,10 +3530,10 @@ mod tests {
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let board_uuid = Uuid::new_v4().to_string();
         store
-            .mutate("7",vec![board_change(&board_uuid, "Recover me")])
+            .mutate("7", vec![board_change(&board_uuid, "Recover me")])
             .unwrap();
         let destination = directory.path().join("recovery.zip");
-        let exported = store.export_recovery("7",&destination).unwrap();
+        let exported = store.export_recovery("7", &destination).unwrap();
         assert_eq!(exported.mutations, 1);
         assert_eq!(exported.files, 0);
         assert!(exported.size > 0);
@@ -3442,7 +3583,7 @@ mod tests {
         std::fs::remove_file(store.blob_directory.join(&blob.sha256)).unwrap();
 
         let destination = directory.path().join("recovery.zip");
-        let error = store.export_recovery("7",&destination).unwrap_err();
+        let error = store.export_recovery("7", &destination).unwrap_err();
         assert!(error.contains("Recovery file"), "{error}");
         assert!(!destination.exists());
         assert!(!destination.with_extension("zip.partial").exists());
@@ -3537,7 +3678,7 @@ mod tests {
 
         let reopened = LocalStore::open(&path).unwrap();
         let notes = reopened
-            .query("7","comments", json!({"parent_uuid": paper_uuid}))
+            .query("7", "comments", json!({"parent_uuid": paper_uuid}))
             .unwrap();
         assert_eq!(notes[0]["uuid"], note_uuid);
         assert_eq!(notes[0]["content"], "Written offline");
@@ -3575,9 +3716,9 @@ mod tests {
             )
             .unwrap();
         store
-            .apply_snapshot("7",vec![shelf(&current_uuid, "Current")])
+            .apply_snapshot("7", vec![shelf(&current_uuid, "Current")])
             .unwrap();
-        let nook = store.query("7","nook", json!({})).unwrap();
+        let nook = store.query("7", "nook", json!({})).unwrap();
         assert_eq!(nook["shelves"].as_array().unwrap().len(), 1);
         assert_eq!(nook["shelves"][0]["uuid"], current_uuid);
 
@@ -3597,8 +3738,8 @@ mod tests {
                 }],
             )
             .unwrap();
-        store.apply_snapshot("7",vec![]).unwrap();
-        let nook = store.query("7","nook", json!({})).unwrap();
+        store.apply_snapshot("7", vec![]).unwrap();
+        let nook = store.query("7", "nook", json!({})).unwrap();
         assert!(nook["shelves"]
             .as_array()
             .unwrap()
@@ -3708,7 +3849,7 @@ mod tests {
                 .unwrap();
         }
         let reopened = LocalStore::open(&path).unwrap();
-        let nook = reopened.query("7","nook", json!({})).unwrap();
+        let nook = reopened.query("7", "nook", json!({})).unwrap();
         assert_eq!(nook["copies"][0]["summary"], "Read locally");
         assert_eq!(nook["tags"][0]["name"], "methods");
         assert_eq!(nook["copy_tags"][0]["copy_uuid"], copy_uuid);
@@ -3801,7 +3942,7 @@ mod tests {
         }
         let reopened = LocalStore::open(&path).unwrap();
         let paper = reopened
-            .query("7","paper", json!({"uuid": canonical_paper_uuid}))
+            .query("7", "paper", json!({"uuid": canonical_paper_uuid}))
             .unwrap();
         assert_eq!(paper["title"], "Imported offline");
         assert_eq!(paper["edition_uuid"], canonical_edition_uuid);

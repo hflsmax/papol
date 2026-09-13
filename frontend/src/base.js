@@ -37,3 +37,9 @@ export function stripAppBase(pathname) {
     ? pathname.slice(APP_BASE.length)
     : pathname;
 }
+
+// The URL alone says whether this page is the demo.
+export function inDemo() {
+  const path = stripAppBase(window.location.pathname);
+  return path === '/demo' || path.startsWith('/demo/');
+}
