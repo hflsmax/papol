@@ -7,6 +7,7 @@ import { mergeSelection, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
 import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow } from '../../shared/desktopShell.js';
 import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
+import DesktopSyncingStatus from '../../frontend/src/components/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
 import { subscribeNativeData } from '../../frontend/src/nativeData.js';
 import { carriesFiles } from '../../frontend/src/fileDrop.js';
@@ -1875,6 +1876,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
+      <DesktopSyncingStatus />
       {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || !board.items.length} onClick={tidyBoard} title="Reset card sizes and bring collection cards closer"><TidyGlyph /><span>Tidy</span></button>}
       <div className="board-card-count" aria-label={`${board.item_count} cards`}><strong>{board.item_count}</strong> {board.item_count === 1 ? 'card' : 'cards'}</div>
       <ExperimentalBadge />
