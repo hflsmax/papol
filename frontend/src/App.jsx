@@ -111,7 +111,7 @@ export const styles = `
   --radius-pill: 999px;
 
   /* Desktop chrome — the sidebar and toolbars of Papol Desktop only */
-  --chrome: #eaedf1;
+  --chrome: #f9ecea;
   --chrome-hover: rgba(29, 33, 41, 0.06);
   --chrome-selected: rgba(29, 33, 41, 0.1);
   --chrome-radius: 6px;

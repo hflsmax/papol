@@ -24,7 +24,7 @@ use the same tokens.
 | `--accent` | `#2b4a6f` | Brand navy: links, primary buttons, selection |
 | `--accent-strong` | `#1e3752` | Primary button hover |
 | `--accent-soft` | `#eaeff5` | Tinted cards (notes, summaries, quotes) |
-| `--chrome` | `#eaedf1` | Papol Desktop sidebar ground |
+| `--chrome` | `#f9ecea` | Papol Desktop sidebar ground |
 | `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
 | `--chrome-radius` | `6px` | Desktop sidebar rows and toolbar buttons only |
 
