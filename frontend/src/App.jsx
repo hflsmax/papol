@@ -4653,12 +4653,12 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-excerpt-source { display: block; margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--accent); background: var(--paper); font: var(--fs-xs) var(--font-ui); text-decoration: none; }
 .board-excerpt-source:hover { text-decoration: underline; text-underline-offset: 2px; }
 .board-excerpt-text { margin: 0; padding: 16px 16px 14px; border: 0; color: var(--ink); font: var(--fs-sm) var(--font-serif); line-height: 1.55; white-space: pre-wrap; -webkit-user-select: none; user-select: none; }
-.board-staging { position: absolute; z-index: 20; top: 18px; right: 18px; display: flex; flex-direction: column; width: min(292px, calc(100vw - 36px)); max-height: calc(100% - 36px); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: color-mix(in srgb, var(--card) 96%, transparent); box-shadow: 0 12px 34px rgba(29,33,41,.18); font-family: var(--font-ui); touch-action: auto; }
+.board-staging { position: absolute; z-index: 20; top: 18px; right: 18px; display: flex; flex-direction: column; width: min(292px, calc(100vw - 36px)); max-height: calc(100% - 36px); overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--card) 96%, transparent); box-shadow: 0 12px 34px rgba(29,33,41,.18); font-family: var(--font-ui); touch-action: auto; }
 .board-staging > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 11px 13px 9px; border-bottom: 1px solid var(--line); }
 .board-staging > header strong { color: var(--ink); font-size: var(--fs-sm); }
 .board-staging > header span { color: var(--ink-faint); font-size: var(--fs-2xs); }
 .board-staging-list { display: grid; gap: 9px; padding: 9px; overflow: auto; }
-.board-staging-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--card); box-shadow: 0 2px 7px rgba(29,33,41,.08); cursor: grab; user-select: none; }
+.board-staging-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: 0 2px 7px rgba(29,33,41,.08); cursor: grab; user-select: none; }
 .board-staging-card:active { cursor: grabbing; }
 .board-staging-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border-bottom: 1px solid var(--line); background: var(--paper); }
 .board-staging-kind { color: var(--accent); font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }

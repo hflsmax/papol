@@ -200,7 +200,14 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   Reading is three panes (`components/DesktopLibrary.jsx`): the sidebar picks
   a source, a 320px white list pane shows it as compact rows with a search
   field, and the selected paper opens beside the list in the ordinary
-  `PaperDetail`. Adding a paper or a board also happens in that pane. Every
+  `PaperDetail`. A selected board opens a read-only overview there instead:
+  identity and shelf, incoming excerpts or clips waiting to be placed, and a
+  fitted canvas preview. One click selects a board; double-click, Return, or
+  the overview's Open Board button opens its document window. The library is
+  for recognising and resuming a board, never for editing its canvas. A newly
+  created board becomes the selected board in the Library and shows this
+  overview; creation never opens the document window on the reader's behalf.
+  Adding a paper or a board also happens in the detail pane. Every
   other page (Inbox, Profile, Learn, a seminar, someone else's nook) fills the
   space beside the sidebar under a toolbar holding just its title.
   Papol is small enough that the sidebar is all the navigation the app needs:

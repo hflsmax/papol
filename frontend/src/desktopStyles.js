@@ -604,6 +604,361 @@ export const desktopStyles = `
   background: transparent;
 }
 
+/* A board remains a document window of its own. Beside the Boards list,
+   this pane helps the reader recognise it, deal with incoming material and
+   resume work without squeezing an editable canvas into the library. */
+.desktop-board-overview {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 32px 36px 48px;
+}
+
+.desktop-board-overview-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 24px;
+}
+
+.desktop-board-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.desktop-board-title-row h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 650 var(--fs-2xl) var(--font-serif);
+}
+
+.desktop-board-description {
+  max-width: 640px;
+  margin: 7px 0 0;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+
+.desktop-board-description.empty {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.desktop-board-editable {
+  cursor: text;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.desktop-board-editable:hover,
+.desktop-board-editable:focus-visible {
+  background: var(--wash);
+  box-shadow: 0 0 0 4px var(--wash);
+  color: var(--accent);
+}
+
+.desktop-board-title-row h1.desktop-board-editable {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 650;
+  letter-spacing: -.01em;
+  text-decoration: underline dotted var(--line-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 6px;
+}
+
+.desktop-board-inline-input {
+  flex: 1 1 auto;
+  min-width: 12rem;
+  margin: -5px 0 -4px;
+  padding: 4px 7px;
+  font: 650 var(--fs-2xl) var(--font-serif);
+}
+
+.desktop-board-inline-description {
+  display: block;
+  width: min(640px, 100%);
+  margin: 7px 0 0;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.desktop-board-description.desktop-board-editable {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  width: fit-content;
+  max-width: 640px;
+  text-decoration: underline dotted var(--line-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.desktop-board-open {
+  display: block;
+  margin-top: 16px;
+  white-space: nowrap;
+}
+
+.desktop-board-edit {
+  display: grid;
+  gap: 10px;
+  max-width: 640px;
+}
+
+.desktop-board-edit label {
+  display: grid;
+  gap: 4px;
+  color: var(--ink-soft);
+  font: 600 var(--fs-xs) var(--font-ui);
+}
+
+.desktop-board-edit input,
+.desktop-board-edit textarea {
+  width: 100%;
+  color: var(--ink);
+  font: var(--fs-base) var(--font-serif);
+}
+
+.desktop-board-edit textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.desktop-board-edit-error {
+  margin: 0;
+  color: var(--red);
+  font: var(--fs-xs) var(--font-ui);
+}
+
+.desktop-board-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.desktop-board-title-meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-faint);
+  font: var(--fs-xs) var(--font-ui);
+}
+
+.desktop-board-title-meta time {
+  white-space: nowrap;
+}
+
+.desktop-board-loading {
+  margin-top: 24px;
+  padding: 48px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-faint);
+  font: var(--fs-sm) var(--font-ui);
+  text-align: center;
+}
+
+.desktop-board-loading.error {
+  border-color: var(--red-line);
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.desktop-board-staging,
+.desktop-board-canvas-section {
+  margin-top: 28px;
+}
+
+.desktop-board-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-family: var(--font-ui);
+}
+
+.desktop-board-section-head h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+.desktop-board-section-head p {
+  margin: 2px 0 0;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+}
+
+.desktop-board-section-head button {
+  flex: none;
+  padding: 5px 9px;
+  font-size: var(--fs-xs);
+}
+
+.desktop-board-staging-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.desktop-board-staged-item,
+.desktop-board-staged-more {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.desktop-board-staged-item > span {
+  color: var(--accent);
+  font: 700 var(--fs-2xs) var(--font-ui);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.desktop-board-staged-item p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.desktop-board-staged-item small {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font: var(--fs-2xs) var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-board-staged-more {
+  display: grid;
+  min-height: 86px;
+  place-items: center;
+  color: var(--ink-soft);
+  font: 600 var(--fs-sm) var(--font-ui);
+}
+
+.desktop-board-preview {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 280px;
+  height: min(52vh, 520px);
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--paper-sunken);
+  background-image: radial-gradient(circle, var(--line-strong) .65px, transparent .75px);
+  background-size: 16px 16px;
+  cursor: default;
+  user-select: none;
+}
+
+.desktop-board-preview svg {
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+}
+
+.desktop-board-preview-card rect {
+  fill: var(--card);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 3px 3px rgba(29,33,41,.10));
+}
+
+.desktop-board-preview-card line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.desktop-board-preview-card text {
+  fill: var(--ink-soft);
+  font: 14px var(--font-serif);
+  pointer-events: none;
+}
+
+.desktop-board-preview-card text.kind {
+  fill: var(--ink-faint);
+  font: 700 10px var(--font-ui);
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+
+.desktop-board-preview-card.comment rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent-line);
+}
+
+.desktop-board-preview-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  color: var(--ink-faint);
+  font: var(--fs-2xs) var(--font-ui);
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.desktop-board-preview:hover .desktop-board-preview-hint {
+  opacity: 1;
+}
+
+.desktop-board-preview.empty {
+  height: min(42vh, 400px);
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 30px;
+  color: var(--ink-faint);
+  background-image: none;
+  font: var(--fs-sm) var(--font-ui);
+  text-align: center;
+}
+
+.desktop-board-preview.empty svg {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  padding: 0;
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+}
+
+.desktop-board-preview.empty strong {
+  color: var(--ink-soft);
+  font-size: var(--fs-base);
+}
+
+.desktop-board-preview.empty button {
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .desktop-board-overview { padding-inline: 24px; }
+  .desktop-board-overview-head { grid-template-columns: 1fr; gap: 14px; }
+  .desktop-board-open { width: max-content; }
+}
+
 /* Inbox reads as a mail list: an unread notification is marked by a dot
    beside it, the way Mail marks one, rather than a tinted row and a badge.
    The word "new" stays for screen readers. */
@@ -685,6 +1040,57 @@ export const desktopStyles = `
    upload review keeps its own back link: it is that form's Cancel. */
 [data-shell='desktop'] .main-content {
   padding-bottom: 0;
+}
+
+/* A profile is structured configuration, so its account editor uses the
+   compact two-column rhythm of a native preference pane. The same component
+   remains stacked on the website and in narrow desktop windows. */
+[data-shell='desktop'] .profile-editor {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 22px;
+}
+
+[data-shell='desktop'] .profile-editor .avatar-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  text-align: center;
+}
+
+[data-shell='desktop'] .profile-editor .avatar-buttons {
+  justify-content: center;
+}
+
+[data-shell='desktop'] .profile-editor .avatar-hint {
+  max-width: 150px;
+}
+
+[data-shell='desktop'] .profile-form .form-group:last-of-type {
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  [data-shell='desktop'] .profile-editor {
+    grid-template-columns: 1fr;
+  }
+
+  [data-shell='desktop'] .profile-editor .avatar-row {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  [data-shell='desktop'] .profile-editor .avatar-buttons {
+    justify-content: flex-start;
+  }
+
+  [data-shell='desktop'] .profile-editor .avatar-hint {
+    max-width: none;
+  }
 }
 
 [data-shell='desktop'] .back-btn:not(.upload-review-back) {

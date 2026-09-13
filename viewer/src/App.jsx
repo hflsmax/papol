@@ -3474,8 +3474,8 @@ export default function App() {
                 <strong id="local-notes-title">Want Papol’s full functionality?</strong>
                 <span>
                   {nativeDataActive()
-                    ? 'Annotations aren’t added to this PDF, and experimental citation lookup isn’t supported for files opened directly. Add the paper to your nook to use both.'
-                    : 'Annotations aren’t added to this PDF, and experimental citation lookup isn’t supported for files opened directly. Create an account and add the paper to your nook to use both.'}
+                    ? 'Add the paper to the nook to enjoy full functionality of Papol, such as citation lookup.'
+                    : 'Add the paper to the nook to enjoy full functionality of Papol, such as citation lookup. Create an account first.'}
                 </span>
                 <label className="local-notes-hide">
                   <input

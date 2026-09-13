@@ -85,7 +85,7 @@ const hasVisualPreview = (item) => ['image', 'youtube', 'webpage'].includes(item
   && Boolean(item.kind === 'image' || item.sha256 || item.file_path);
 
 function BoardCanvasPreview({ board, onOpen }) {
-  const items = board.items || [];
+  const items = board?.items || [];
   const [previewUrls, setPreviewUrls] = useState({});
   const previewUrlsRef = useRef({});
   const previewSourcesRef = useRef({});
@@ -208,32 +208,47 @@ function BoardCanvasPreview({ board, onOpen }) {
 }
 
 function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpdate, onMove, onDelete }) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(summary.name);
-  const [description, setDescription] = useState(summary.description || '');
-  const [saving, setSaving] = useState(false);
+  const [editingField, setEditingField] = useState(null);
+  const [draftValue, setDraftValue] = useState('');
+  const [savingField, setSavingField] = useState(null);
   const [editError, setEditError] = useState(null);
-  const shelf = shelves.find((item) => item.uuid === summary.shelf_uuid);
-
+  const beginEditing = (field) => {
+    setEditError(null);
+    setEditingField(field);
+    setDraftValue(field === 'name' ? summary.name : (summary.description || ''));
+  };
+  const beginEditingWithKeyboard = (field, event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      beginEditing(field);
+    }
+  };
   useEffect(() => {
-    setEditing(false);
-    setName(summary.name);
-    setDescription(summary.description || '');
+    setEditingField(null);
+    setDraftValue('');
     setEditError(null);
   }, [summary.uuid, summary.name, summary.description]);
 
-  const save = async (event) => {
-    event.preventDefault();
-    if (!name.trim()) return;
-    setSaving(true);
+  const saveInline = async () => {
+    if (!editingField || savingField) return;
+    const value = draftValue.trim();
+    if (editingField === 'name' && !value) return;
+    const field = editingField;
+    const previous = field === 'name' ? summary.name : (summary.description || '');
+    if (value === previous) {
+      setEditingField(null);
+      return;
+    }
+    setSavingField(field);
     setEditError(null);
     try {
-      await onUpdate({ name: name.trim(), description: description.trim() || null });
-      setEditing(false);
+      await onUpdate(field === 'name' ? { name: value } : { description: value || null });
+      setEditingField(null);
     } catch (failure) {
       setEditError(failure.message);
-    } finally { setSaving(false); }
+    } finally { setSavingField(null); }
   };
+  const cancelInline = () => { setEditingField(null); setDraftValue(''); setEditError(null); };
 
   const staged = board?.staged_items || [];
   const cardCount = board?.item_count ?? summary.item_count;
@@ -242,41 +257,72 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
       <article className="desktop-board-overview">
         <header className="desktop-board-overview-head">
           <div>
-            {editing ? (
-              <form className="desktop-board-edit" onSubmit={save}>
-                <label>Board name<input value={name} onChange={(event) => setName(event.target.value)} maxLength="120" autoFocus /></label>
-                <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength="4000" rows="3" placeholder="What are you exploring on this board?" /></label>
-                {editError && <p className="desktop-board-edit-error" role="alert">{editError}</p>}
-                <div className="desktop-board-edit-actions">
-                  <button type="submit" className="primary" disabled={saving || !name.trim()}>{saving ? 'Saving…' : 'Save'}</button>
-                  <button type="button" disabled={saving} onClick={() => { setEditing(false); setName(summary.name); setDescription(summary.description || ''); }}>Cancel</button>
-                </div>
-              </form>
-            ) : (
-              <>
-                <div className="desktop-board-title-row">
-                  <h1>{summary.name}</h1>
-                  <button type="button" className="link-btn" onClick={() => setEditing(true)}>Edit</button>
-                </div>
-                <p className={`desktop-board-description${summary.description ? '' : ' empty'}`}>
-                  {summary.description || 'No description yet.'}
+            <>
+              <div className="desktop-board-title-row">
+                {editingField === 'name' ? (
+                  <input
+                    className="desktop-board-inline-input"
+                    value={draftValue}
+                    onChange={(event) => setDraftValue(event.target.value)}
+                    onBlur={saveInline}
+                    onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveInline(); } if (event.key === 'Escape') cancelInline(); }}
+                    maxLength="120"
+                    autoFocus
+                    aria-label="Board name"
+                  />
+                ) : (
+                  <h1 className="desktop-board-editable" role="button" tabIndex="0" onClick={() => beginEditing('name')} onKeyDown={(event) => beginEditingWithKeyboard('name', event)} title="Click to edit board name" aria-label="Edit board name">{summary.name}</h1>
+                )}
+                  <div className="detail-toggle">
+                    {shelves.length > 0 && (
+                      <span className="hint-anchor paper-shelf-picker desktop-board-shelf-picker">
+                        <label htmlFor="selected-board-shelf">Shelf:</label>
+                        <select id="selected-board-shelf" value={summary.shelf_uuid || ''} onChange={(event) => onMove(event.target.value)}>
+                          {shelves.map((item) => <option key={item.uuid} value={item.uuid}>{item.name} · {item.is_public ? 'Public' : 'Private'}</option>)}
+                        </select>
+                      </span>
+                    )}
+                    <button type="button" className="icon-btn danger-icon" onClick={onDelete} title="Delete this board" aria-label="Delete this board">
+                      <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M2.6 4h10.8" />
+                        <path d="M6.2 4V2.7h3.6V4" />
+                        <path d="M4.1 4l.5 9.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L11.9 4" />
+                        <path d="M6.7 6.6v5.2M9.3 6.6v5.2" />
+                      </svg>
+                    </button>
+                  </div>
+              </div>
+              {editingField === 'description' ? (
+                <textarea
+                  className="desktop-board-inline-description"
+                  value={draftValue}
+                  onChange={(event) => setDraftValue(event.target.value)}
+                  onBlur={saveInline}
+                  onKeyDown={(event) => { if (event.key === 'Escape') cancelInline(); if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveInline(); } }}
+                  maxLength="4000"
+                  rows="3"
+                  autoFocus
+                  placeholder="What are you exploring on this board?"
+                  aria-label="Board description"
+                />
+              ) : (
+                <p
+                  className={`desktop-board-description desktop-board-editable${summary.description ? '' : ' empty'}`}
+                  role="button"
+                  tabIndex="0"
+                  onClick={() => beginEditing('description')}
+                  onKeyDown={(event) => beginEditingWithKeyboard('description', event)}
+                  title="Click to edit board description"
+                  aria-label="Edit board description"
+                >
+                  {summary.description || 'Add a description…'}
                 </p>
-              </>
-            )}
+              )}
+              {editError && <p className="desktop-board-edit-error" role="alert">{editError}</p>}
+            </>
+            <button type="button" className="primary desktop-board-open" onClick={onOpen}>Open Board</button>
           </div>
-          <button type="button" className="primary desktop-board-open" onClick={onOpen}>Open Board</button>
         </header>
-
-        <div className="desktop-board-meta" aria-label="Board information">
-          <label className="desktop-board-shelf">
-            <span className="desktop-row-swatch" style={{ background: shelf?.color || 'var(--line-strong)' }} aria-hidden="true" />
-            <select value={summary.shelf_uuid || ''} onChange={(event) => onMove(event.target.value)} aria-label="Move board to shelf">
-              {shelves.map((item) => <option key={item.uuid} value={item.uuid}>{item.name} — {item.is_public ? 'Public' : 'Private'}</option>)}
-            </select>
-          </label>
-          <span>{cardCount} {cardCount === 1 ? 'card' : 'cards'}</span>
-          <time dateTime={summary.updated_at}>Edited {formatBoardDate(summary.updated_at)}</time>
-        </div>
 
         {loading && <div className="desktop-board-loading" role="status">Loading board preview…</div>}
         {error && <div className="desktop-board-loading error" role="alert">{error}</div>}
@@ -300,16 +346,12 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
                 </div>
               </section>
             )}
-            <section className="desktop-board-canvas-section" aria-labelledby="desktop-board-canvas-title">
-              <div className="desktop-board-section-head"><div><h2 id="desktop-board-canvas-title">Board preview</h2><p>A read-only view of the canvas.</p></div></div>
-              <BoardCanvasPreview board={board} onOpen={onOpen} />
-            </section>
           </>
         )}
-
-        <footer className="desktop-board-overview-footer">
-          <button type="button" className="danger-link" onClick={onDelete}>Delete board…</button>
-        </footer>
+        <section className="desktop-board-canvas-section" aria-labelledby="desktop-board-canvas-title">
+          <div className="desktop-board-section-head"><div><h2 id="desktop-board-canvas-title">Board preview</h2><p className="desktop-board-title-meta" aria-label="Board information"><span>{cardCount} {cardCount === 1 ? 'card' : 'cards'}</span><time dateTime={summary.updated_at}>Edited {formatBoardDate(summary.updated_at)}</time></p></div></div>
+          {!loading && board && <BoardCanvasPreview board={board} onOpen={onOpen} />}
+        </section>
       </article>
     </div>
   );

@@ -1874,7 +1874,11 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     }}
     onDrop={dropFiles}
   >
-    <header className="board-toolbar" data-tauri-drag-region="deep">
+    <header
+      className="board-toolbar"
+      data-tauri-drag-region="deep"
+      onPointerDown={() => { setSelectedItems([]); setSelectedBooklet(null); setMenuItem(null); }}
+    >
       {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
       {DESKTOP
         ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
