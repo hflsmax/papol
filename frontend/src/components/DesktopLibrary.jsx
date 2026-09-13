@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteBoard, deletePaper, getUserSpace, listPapers, paperHref, updateBoard, updatePaper } from '../api';
+import { boardFileBlob, deleteBoard, deletePaper, getBoard, getUserSpace, listPapers, paperHref, updateBoard, updatePaper } from '../api';
 import { appPath } from '../base';
 import {
   PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInSource,
@@ -63,6 +63,258 @@ function DefaultViewerPrompt() {
   );
 }
 
+const boardDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
+const formatBoardDate = (value) => new Intl.DateTimeFormat(undefined, {
+  month: 'short', day: 'numeric',
+  year: boardDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  hour: 'numeric', minute: '2-digit',
+}).format(boardDate(value));
+
+const previewCardHeight = (item) => {
+  if (['image', 'youtube', 'webpage'].includes(item.kind)) return 180;
+  if (item.kind === 'excerpt') return 145;
+  if (item.kind === 'file') return 82;
+  return 112;
+};
+
+const previewCardLabel = (item) => item.content || item.excerpt_text || item.original_filename || item.source_label || {
+  comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
+}[item.kind] || 'Card';
+
+const hasVisualPreview = (item) => ['image', 'youtube', 'webpage'].includes(item.kind)
+  && Boolean(item.kind === 'image' || item.sha256 || item.file_path);
+
+function BoardCanvasPreview({ board, onOpen }) {
+  const items = board.items || [];
+  const [previewUrls, setPreviewUrls] = useState({});
+  const previewUrlsRef = useRef({});
+  const previewSourcesRef = useRef({});
+  const previewItems = items.filter(hasVisualPreview);
+  const previewKey = previewItems
+    .map((item) => `${item.uuid}:${item.sha256 || item.file_path || ''}`)
+    .join(',');
+
+  useEffect(() => {
+    previewUrlsRef.current = previewUrls;
+  }, [previewUrls]);
+
+  useEffect(() => {
+    let active = true;
+    const wanted = new Map(previewItems.map((item) => [
+      item.uuid, `${item.sha256 || item.file_path || ''}`,
+    ]));
+
+    Object.entries(previewUrlsRef.current).forEach(([uuid, url]) => {
+      if (wanted.get(uuid) === previewSourcesRef.current[uuid]) return;
+      URL.revokeObjectURL(url);
+      delete previewUrlsRef.current[uuid];
+      delete previewSourcesRef.current[uuid];
+    });
+    setPreviewUrls((current) => Object.fromEntries(
+      Object.entries(current).filter(([uuid]) => wanted.get(uuid) === previewSourcesRef.current[uuid]),
+    ));
+
+    previewItems.forEach(async (item) => {
+      if (previewUrlsRef.current[item.uuid]) return;
+      const source = wanted.get(item.uuid);
+      try {
+        const url = await boardFileBlob(item);
+        if (!active) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setPreviewUrls((current) => {
+          const next = { ...current, [item.uuid]: url };
+          previewSourcesRef.current[item.uuid] = source;
+          previewUrlsRef.current = next;
+          return next;
+        });
+      } catch (error) {
+        console.warn('Could not load board preview image', item.uuid, error);
+      }
+    });
+
+    return () => { active = false; };
+  }, [previewKey]);
+
+  useEffect(() => () => {
+    Object.values(previewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    previewSourcesRef.current = {};
+  }, []);
+
+  if (!items.length) {
+    return (
+      <div className="desktop-board-preview empty">
+        <Glyph name="boards" />
+        <strong>This board is empty</strong>
+        <span>Open it to add a thought, drop a file, or paste a link.</span>
+        <button type="button" onClick={onOpen}>Open board</button>
+      </div>
+    );
+  }
+
+  const cards = items.map((item) => ({
+    ...item,
+    width: item.width || 300,
+    previewHeight: previewCardHeight(item),
+  }));
+  const padding = 44;
+  const minX = Math.min(...cards.map((item) => item.x)) - padding;
+  const minY = Math.min(...cards.map((item) => item.y)) - padding;
+  const maxX = Math.max(...cards.map((item) => item.x + item.width)) + padding;
+  const maxY = Math.max(...cards.map((item) => item.y + item.previewHeight)) + padding;
+
+  return (
+    <div className="desktop-board-preview" onDoubleClick={onOpen} title="Double-click to open board">
+      <svg
+        viewBox={`${minX} ${minY} ${Math.max(1, maxX - minX)} ${Math.max(1, maxY - minY)}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label={`Preview of ${board.name}, containing ${items.length} ${items.length === 1 ? 'card' : 'cards'}`}
+      >
+        {cards.sort((a, b) => (a.position || 0) - (b.position || 0)).map((item) => {
+          const label = previewCardLabel(item).replace(/\s+/g, ' ').trim();
+          const clipped = label.length > 38 ? `${label.slice(0, 37)}…` : label;
+          return (
+            <g key={item.uuid} className={`desktop-board-preview-card ${item.kind}`}>
+              <title>{label}</title>
+              <rect x={item.x} y={item.y} width={item.width} height={item.previewHeight} rx="8" />
+              <line x1={item.x} y1={item.y + 32} x2={item.x + item.width} y2={item.y + 32} />
+              <text className="kind" x={item.x + 13} y={item.y + 21}>{item.kind}</text>
+              {previewUrls[item.uuid] ? (
+                <>
+                  <clipPath id={`desktop-board-preview-clip-${item.uuid}`}>
+                    <rect x={item.x + 1} y={item.y + 33} width={item.width - 2} height={item.previewHeight - 34} rx="7" />
+                  </clipPath>
+                  <image
+                    className="content-preview"
+                    href={previewUrls[item.uuid]}
+                    x={item.x + 1}
+                    y={item.y + 33}
+                    width={item.width - 2}
+                    height={item.previewHeight - 34}
+                    preserveAspectRatio="xMidYMid slice"
+                    clipPath={`url(#desktop-board-preview-clip-${item.uuid})`}
+                  />
+                </>
+              ) : <text x={item.x + 13} y={item.y + 58}>{clipped}</text>}
+            </g>
+          );
+        })}
+      </svg>
+      <span className="desktop-board-preview-hint">Double-click to open</span>
+    </div>
+  );
+}
+
+function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpdate, onMove, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(summary.name);
+  const [description, setDescription] = useState(summary.description || '');
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const shelf = shelves.find((item) => item.uuid === summary.shelf_uuid);
+
+  useEffect(() => {
+    setEditing(false);
+    setName(summary.name);
+    setDescription(summary.description || '');
+    setEditError(null);
+  }, [summary.uuid, summary.name, summary.description]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    setEditError(null);
+    try {
+      await onUpdate({ name: name.trim(), description: description.trim() || null });
+      setEditing(false);
+    } catch (failure) {
+      setEditError(failure.message);
+    } finally { setSaving(false); }
+  };
+
+  const staged = board?.staged_items || [];
+  const cardCount = board?.item_count ?? summary.item_count;
+  return (
+    <div className="desktop-scroll">
+      <article className="desktop-board-overview">
+        <header className="desktop-board-overview-head">
+          <div>
+            {editing ? (
+              <form className="desktop-board-edit" onSubmit={save}>
+                <label>Board name<input value={name} onChange={(event) => setName(event.target.value)} maxLength="120" autoFocus /></label>
+                <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength="4000" rows="3" placeholder="What are you exploring on this board?" /></label>
+                {editError && <p className="desktop-board-edit-error" role="alert">{editError}</p>}
+                <div className="desktop-board-edit-actions">
+                  <button type="submit" className="primary" disabled={saving || !name.trim()}>{saving ? 'Saving…' : 'Save'}</button>
+                  <button type="button" disabled={saving} onClick={() => { setEditing(false); setName(summary.name); setDescription(summary.description || ''); }}>Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="desktop-board-title-row">
+                  <h1>{summary.name}</h1>
+                  <button type="button" className="link-btn" onClick={() => setEditing(true)}>Edit</button>
+                </div>
+                <p className={`desktop-board-description${summary.description ? '' : ' empty'}`}>
+                  {summary.description || 'No description yet.'}
+                </p>
+              </>
+            )}
+          </div>
+          <button type="button" className="primary desktop-board-open" onClick={onOpen}>Open Board</button>
+        </header>
+
+        <div className="desktop-board-meta" aria-label="Board information">
+          <label className="desktop-board-shelf">
+            <span className="desktop-row-swatch" style={{ background: shelf?.color || 'var(--line-strong)' }} aria-hidden="true" />
+            <select value={summary.shelf_uuid || ''} onChange={(event) => onMove(event.target.value)} aria-label="Move board to shelf">
+              {shelves.map((item) => <option key={item.uuid} value={item.uuid}>{item.name} — {item.is_public ? 'Public' : 'Private'}</option>)}
+            </select>
+          </label>
+          <span>{cardCount} {cardCount === 1 ? 'card' : 'cards'}</span>
+          <time dateTime={summary.updated_at}>Edited {formatBoardDate(summary.updated_at)}</time>
+        </div>
+
+        {loading && <div className="desktop-board-loading" role="status">Loading board preview…</div>}
+        {error && <div className="desktop-board-loading error" role="alert">{error}</div>}
+        {board && (
+          <>
+            {staged.length > 0 && (
+              <section className="desktop-board-staging" aria-labelledby="desktop-board-staging-title">
+                <div className="desktop-board-section-head">
+                  <div><h2 id="desktop-board-staging-title">Waiting to place</h2><p>{staged.length} {staged.length === 1 ? 'item is' : 'items are'} ready on this board.</p></div>
+                  <button type="button" onClick={onOpen}>Place on board</button>
+                </div>
+                <div className="desktop-board-staging-list">
+                  {staged.slice(0, 4).map((item) => (
+                    <div key={item.uuid} className="desktop-board-staged-item">
+                      <span>{item.kind === 'image' ? 'Clip' : 'Excerpt'}</span>
+                      <p>{item.content || item.excerpt_text || 'Clipped paper content'}</p>
+                      {item.source_label && <small>{item.source_label}</small>}
+                    </div>
+                  ))}
+                  {staged.length > 4 && <div className="desktop-board-staged-more">+{staged.length - 4} more</div>}
+                </div>
+              </section>
+            )}
+            <section className="desktop-board-canvas-section" aria-labelledby="desktop-board-canvas-title">
+              <div className="desktop-board-section-head"><div><h2 id="desktop-board-canvas-title">Board preview</h2><p>A read-only view of the canvas.</p></div></div>
+              <BoardCanvasPreview board={board} onOpen={onOpen} />
+            </section>
+          </>
+        )}
+
+        <footer className="desktop-board-overview-footer">
+          <button type="button" className="danger-link" onClick={onDelete}>Delete board…</button>
+        </footer>
+      </article>
+    </div>
+  );
+}
+
 // Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
 // paper opens beside the list instead of replacing it. What a source means
@@ -117,22 +369,33 @@ export function DesktopBrowser({
   source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner,
   incomingPaperFile, onIncomingPaperFileHandled,
 }) {
-  const { space, reload, syncing } = nook;
+  const { space, setSpace, reload, syncing } = nook;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
   const [draggingUuid, setDraggingUuid] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [selectedBoardUuid, setSelectedBoardUuid] = useState(null);
+  const [boardDetail, setBoardDetail] = useState(null);
+  const [boardDetailLoading, setBoardDetailLoading] = useState(false);
+  const [boardDetailError, setBoardDetailError] = useState(null);
   const listRef = useRef(null);
   const paperUuid = route.page === 'paper' ? route.uuid : null;
-  const selectedKey = paperUuid;
-  const isSelected = (paper) => selectedKey != null && paper.uuid === selectedKey;
+  const selectedKey = source === 'boards' ? selectedBoardUuid : paperUuid;
+  const isSelected = (paper) => paperUuid != null && paper.uuid === paperUuid;
 
   useEffect(() => {
     if (route.page !== 'paper') rememberSource(source);
   }, [route.page, source]);
 
-  useEffect(() => { setSearch(''); }, [source]);
+  useEffect(() => {
+    setSearch('');
+    if (source !== 'boards') {
+      setSelectedBoardUuid(null);
+      setBoardDetail(null);
+      setBoardDetailError(null);
+    }
+  }, [source]);
   useEffect(() => { setComposer(null); }, [paperUuid, source]);
   useEffect(() => {
     if (incomingPaperFile) setComposer('paper');
@@ -172,6 +435,32 @@ export function DesktopBrowser({
       .filter((board) => matchesSearch(search, [board.name, board.description]))
       .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
     : [];
+  const selectedBoard = boardsView
+    ? (space?.boards || []).find((board) => board.uuid === selectedBoardUuid) || null
+    : null;
+
+  useEffect(() => {
+    if (!boardsView || !selectedBoardUuid) return undefined;
+    let active = true;
+    setBoardDetailLoading(true);
+    setBoardDetailError(null);
+    getBoard(selectedBoardUuid)
+      .then((detail) => { if (active) setBoardDetail(detail); })
+      .catch((failure) => {
+        if (!active) return;
+        setBoardDetail(null);
+        setBoardDetailError(failure.message);
+      })
+      .finally(() => { if (active) setBoardDetailLoading(false); });
+    return () => { active = false; };
+  }, [boardsView, selectedBoardUuid, selectedBoard?.updated_at, onSyncRefresh]);
+
+  useEffect(() => {
+    if (selectedBoardUuid && space && !selectedBoard) {
+      setSelectedBoardUuid(null);
+      setBoardDetail(null);
+    }
+  }, [space, selectedBoard, selectedBoardUuid]);
 
   const title = libraryView ? 'Library' : boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
   const total = boardsView ? shownBoards.length : shownPapers.length;
@@ -196,7 +485,11 @@ export function DesktopBrowser({
     try {
       await updateBoard(board.uuid, { shelf_uuid: shelfUuid });
       reload();
-    } catch (error) { setActionError(error.message); }
+      return true;
+    } catch (error) {
+      setActionError(error.message);
+      return false;
+    }
   };
   const removePaper = async (paper) => {
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
@@ -212,19 +505,29 @@ export function DesktopBrowser({
     setActionError(null);
     try {
       await deleteBoard(board.uuid);
+      if (selectedBoardUuid === board.uuid) {
+        setSelectedBoardUuid(null);
+        setBoardDetail(null);
+      }
       reload();
     } catch (error) { setActionError(error.message); }
   };
 
   const moveSelection = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    if (event.target.closest?.('input, textarea') || shownPapers.length === 0) return;
+    const entries = boardsView ? shownBoards : shownPapers;
+    if (event.target.closest?.('input, textarea') || entries.length === 0) return;
     event.preventDefault();
-    const index = shownPapers.findIndex((paper) => isSelected(paper));
+    const index = entries.findIndex((entry) => entry.uuid === selectedKey);
     const step = event.key === 'ArrowDown' ? 1 : -1;
-    const next = index < 0 ? 0 : Math.min(shownPapers.length - 1, Math.max(0, index + step));
+    const next = index < 0 ? 0 : Math.min(entries.length - 1, Math.max(0, index + step));
     if (next === index) return;
-    onNavigate(`/paper/${shownPapers[next].uuid}`, { replace: route.page === 'paper' });
+    if (boardsView) {
+      setComposer(null);
+      setSelectedBoardUuid(entries[next].uuid);
+    } else {
+      onNavigate(`/paper/${entries[next].uuid}`, { replace: route.page === 'paper' });
+    }
   };
 
   let emptyList = null;
@@ -274,7 +577,22 @@ export function DesktopBrowser({
         <div className="desktop-content">
           <BoardCreateForm
             shelves={shelves}
-            onCreated={(board) => onOpenBoard(board.uuid)}
+            onCreated={(board) => {
+              // Creation belongs to the Library workflow: put the new board
+              // into the list immediately and focus its overview. Opening the
+              // separate canvas is the reader's next, explicit action.
+              setComposer(null);
+              setSearch('');
+              setBoardDetail(board);
+              setBoardDetailError(null);
+              setBoardDetailLoading(false);
+              setSpace((current) => current ? {
+                ...current,
+                boards: [board, ...(current.boards || []).filter((item) => item.uuid !== board.uuid)],
+              } : current);
+              setSelectedBoardUuid(board.uuid);
+              reload();
+            }}
             onCancel={() => setComposer(null)}
           />
         </div>
@@ -299,14 +617,42 @@ export function DesktopBrowser({
         </div>
       </div>
     );
+  } else if (boardsView && selectedBoard) {
+    detail = (
+      <BoardOverview
+        summary={selectedBoard}
+        board={boardDetail?.uuid === selectedBoard.uuid ? boardDetail : null}
+        loading={boardDetailLoading}
+        error={boardDetailError}
+        shelves={shelves}
+        onOpen={() => onOpenBoard(selectedBoard.uuid)}
+        onUpdate={async (values) => {
+          setActionError(null);
+          try {
+            const updated = await updateBoard(selectedBoard.uuid, values);
+            setBoardDetail((current) => current?.uuid === selectedBoard.uuid ? { ...current, ...updated } : current);
+            reload();
+          } catch (failure) {
+            setActionError(failure.message);
+            throw failure;
+          }
+        }}
+        onMove={async (shelfUuid) => {
+          if (await moveBoard(selectedBoard, shelfUuid)) {
+            setBoardDetail((current) => current?.uuid === selectedBoard.uuid ? { ...current, shelf_uuid: shelfUuid } : current);
+          }
+        }}
+        onDelete={() => removeBoard(selectedBoard)}
+      />
+    );
   } else {
     detail = (
       <div className="desktop-empty">
         <Glyph name={boardsView ? 'boards' : 'document'} />
-        <strong>{boardsView ? 'No board open' : 'No paper selected'}</strong>
+        <strong>{boardsView ? 'No board selected' : 'No paper selected'}</strong>
         <span>
           {boardsView
-            ? 'Choose a board from the list to open it.'
+            ? 'Choose a board to preview it and continue where you left off.'
             : 'Choose a paper from the list to read its notes and discussion.'}
         </span>
       </div>
@@ -351,11 +697,22 @@ export function DesktopBrowser({
             shownBoards.map((board) => (
               <a
                 key={board.uuid}
-                className="desktop-row"
+                className={`desktop-row${selectedBoardUuid === board.uuid ? ' selected' : ''}`}
                 href={appPath(`/boards/${board.uuid}`)}
                 data-document
                 draggable="false"
-                onClick={(event) => { event.preventDefault(); onOpenBoard(board.uuid); }}
+                aria-current={selectedBoardUuid === board.uuid ? 'true' : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setComposer(null);
+                  setSelectedBoardUuid(board.uuid);
+                }}
+                onDoubleClick={(event) => { event.preventDefault(); onOpenBoard(board.uuid); }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return;
+                  event.preventDefault();
+                  onOpenBoard(board.uuid);
+                }}
                 onContextMenu={contextMenuHandler(() => [
                   { label: 'Open Board', onSelect: () => onOpenBoard(board.uuid) },
                   shelves.length > 0 && { separator: true },
@@ -381,6 +738,9 @@ export function DesktopBrowser({
                   {board.description && <span className="desktop-row-meta">{board.description}</span>}
                   <span className="desktop-row-sub">
                     {board.item_count} {board.item_count === 1 ? 'card' : 'cards'}
+                    {selectedBoardUuid === board.uuid && boardDetail?.uuid === board.uuid && boardDetail.staged_items?.length > 0
+                      ? ` · ${boardDetail.staged_items.length} waiting`
+                      : ''}
                   </span>
                 </span>
               </a>
