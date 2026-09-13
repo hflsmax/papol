@@ -27,7 +27,7 @@ import { appPath, stripAppBase } from './base';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from './fileDrop.js';
-import { subscribeSignInRequests } from './nativeData';
+import { openDroppedPdf, subscribeSignInRequests } from './nativeData';
 
 export const styles = `
 * {
@@ -5064,7 +5064,9 @@ export default function App() {
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
 
   useEffect(() => {
-    if (mode !== 'signed-in') return undefined;
+    const importIntoLibrary = mode === 'signed-in';
+    const openInViewer = DESKTOP && mode === 'guest';
+    if (!importIntoLibrary && !openInViewer) return undefined;
     const resetDrag = () => {
       libraryDragDepth.current = 0;
       setLibraryFileDrag(null);
@@ -5094,7 +5096,7 @@ export default function App() {
       libraryDragDepth.current = Math.max(0, libraryDragDepth.current - 1);
       if (libraryDragDepth.current === 0) setLibraryFileDrag(null);
     };
-    const drop = (event) => {
+    const drop = async (event) => {
       if (!carriesFiles(event.dataTransfer)) return;
       resetDrag();
       if (event.defaultPrevented) return;
@@ -5109,6 +5111,14 @@ export default function App() {
         return;
       }
       setLibraryDropNotice(null);
+      if (openInViewer) {
+        try {
+          await openDroppedPdf(files[0]);
+        } catch (error) {
+          showNotice(error instanceof Error ? error.message : String(error));
+        }
+        return;
+      }
       setIncomingPaperFile({ uuid: globalThis.crypto.randomUUID(), file: files[0] });
       navigate('/library');
     };
@@ -5358,8 +5368,8 @@ export default function App() {
         <div className="panel demo-intro">
           <h3>Welcome to Papol</h3>
           <p>
-            Papol is a place to keep the papers you read and call
-            spontaneous seminars on them with other readers.
+            Papol is your paper reading companion. Stay close to the ideas
+            that matter, and the people thinking about them.
           </p>
           <p>
             You are looking at the demo: you play as SpongeBob among

@@ -128,8 +128,8 @@ _PUBLIC_DEMO_PDFS = _install_demo_pdfs()
 dbmetrics.init(engine)
 
 app = FastAPI(
-    title="Papol - A Nook for Every Reader",
-    description="A paper-reading community built to make spontaneous seminars happen.",
+    title="Papol — Your Paper Reading Companion",
+    description="Papol keeps the papers and ideas that matter close at hand.",
 )
 app.state.session_factory = SessionLocal
 app.include_router(sync_router)
@@ -374,7 +374,7 @@ if BOARD_DIR.exists():
 # The {name} placeholder is filled with the new reader's display name.
 # Override via the settings table key "welcome_message".
 DEFAULT_WELCOME = (
-    "Welcome to Papol, {name}! Your nook is where you "
+    "Welcome to Papol, {name}—your paper reading companion. Your nook is where you "
     "document your reading: upload the papers you read, rate them, "
     "keep private notes and a summary, and share a public "
     "one-sentence thought. Use the Library to find papers and see "

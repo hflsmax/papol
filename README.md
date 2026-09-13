@@ -1,9 +1,7 @@
 # Papol
 
-Papol is a web app for reading and discussing research papers. Readers
-organize papers in public or private shelves, add private tags and notes, and
-share ratings and short thoughts. Any reader can call a spontaneous seminar
-and invite others reading the same paper to join.
+Papol is your paper reading companion. It helps readers stay close to the
+papers, ideas, and people that shape their thinking.
 
 For native-resolution YouTube frames on boards, set
 `PAPOL_YOUTUBE_PO_TOKEN` to an mweb GVS PO token and optionally set

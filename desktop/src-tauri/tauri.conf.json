@@ -76,8 +76,8 @@
       "icons/icon.ico"
     ],
     "category": "Education",
-    "shortDescription": "Read, annotate, and discuss research papers.",
-    "longDescription": "Papol is a workspace for reading, annotating, organizing, and discussing research papers.",
+    "shortDescription": "Your paper reading companion.",
+    "longDescription": "Papol is your paper reading companion, keeping the ideas that matter close at hand.",
     "fileAssociations": [
       {
         "ext": ["pdf"],

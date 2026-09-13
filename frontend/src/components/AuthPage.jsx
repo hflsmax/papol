@@ -32,8 +32,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
       <div className="auth-card">
         <h2>{mode === 'login' ? 'Sign in' : 'Join Papol'}</h2>
         <p className="auth-subtitle">
-          Every reader gets a nook — share the papers you read, rate them, and
-          gather to discuss.
+          Papol is your paper reading companion.
         </p>
 
         {error && <div className="error">{error}</div>}
