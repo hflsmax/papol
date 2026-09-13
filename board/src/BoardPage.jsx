@@ -539,7 +539,9 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     return () => window.removeEventListener('paste', handlePaste);
   }, [board?.uuid]);
   const startPan = (event) => {
-    if (event.button !== 0 || event.target.closest('.board-canvas-card, .board-youtube-loading')) return;
+    // A staging-card drag begins with a pointerdown that bubbles through the
+    // canvas. It is an HTML drag, not the start of a canvas marquee.
+    if (event.button !== 0 || event.target.closest('.board-canvas-card, .board-youtube-loading, .board-staging')) return;
     setSelectedBooklet(null);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (event.pointerType === 'touch') {
