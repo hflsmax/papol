@@ -1,14 +1,14 @@
-import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld';
+import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { localAnnotations } from '../../frontend/src/nativeData.js';
-import { appPath } from './base';
+import { appPath } from './base.js';
 import {
   getPaperByPdf, getNookPaperByPdf, addOpenedFileToNook, getViewerPaperInfo,
   createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getClips, addClip, moveClip, eraseClip,
   getToken,
-} from './api';
+} from './api.js';
 
 /**
  * Where this document and its notes come from — decided once, from the URL,
@@ -126,14 +126,28 @@ function openedFileSource(pdfHash, name) {
     requiresSignIn: false,
     openedFile: true,
     async load() {
-      const inNook = await getNookPaperByPdf(pdfHash);
+      for (const row of await localAnnotations.list(pdfHash)) saved.set(row.uuid, row);
+      let inNook = await getNookPaperByPdf(pdfHash);
       if (inNook) {
+        // A previous Add to nook may have committed the paper graph before a
+        // later annotation batch failed. Finish that idempotent migration on
+        // the next open before exposing the nook copy.
+        if (saved.size > 0) {
+          await addOpenedFileToNook({
+            sha256: pdfHash, name: title,
+            notes: listOf('note'), ink: listOf('ink'), clips: listOf('clip'),
+          });
+          await localAnnotations.clear(pdfHash);
+          saved.clear();
+          // Reload the local replica so the just-migrated notes are visible
+          // in this window rather than only after another reopen.
+          inNook = await getNookPaperByPdf(pdfHash) || inNook;
+        }
         nook = apiSource(pdfHash, async () => inNook);
         const loaded = await nook.load();
         source.backHref = nook.backHref;
         return { ...loaded, doc: { ...loaded.doc, opened_file: true } };
       }
-      for (const row of await localAnnotations.list(pdfHash)) saved.set(row.uuid, row);
       return {
         doc: { title, sha256: pdfHash, edition_sha256: pdfHash, opened_file: true },
         notes: listOf('note'),

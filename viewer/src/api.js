@@ -135,51 +135,58 @@ function storedAnchor(anchor) {
 // its details are looked up only now, because the reader asked.
 export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [] }) {
   if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
-  const existing = await getNookPaperByPdf(sha256);
-  if (existing) return existing.uuid;
-  const blob = await openedFileBlob(sha256);
-  const stored = await nativeBlobImport(blob);
-  if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
-  let shelves = await nativeQuery('shelves');
-  if (shelves.length === 0) {
-    // Just signed in: the nook has not arrived on this device yet, and it
-    // may already hold these exact bytes.
-    await nativeSyncNow();
-    const synced = await getNookPaperByPdf(sha256);
-    if (synced) return synced.uuid;
-    shelves = await nativeQuery('shelves');
-    if (shelves.length === 0) throw new Error('Your nook is still loading. Try again in a moment.');
+  let paper = await getNookPaperByPdf(sha256);
+  if (!paper) {
+    const blob = await openedFileBlob(sha256);
+    const stored = await nativeBlobImport(blob);
+    if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
+    let shelves = await nativeQuery('shelves');
+    if (shelves.length === 0) {
+      // Just signed in: the nook has not arrived on this device yet, and it
+      // may already hold these exact bytes.
+      await nativeSyncNow();
+      paper = await getNookPaperByPdf(sha256);
+      shelves = paper ? [] : await nativeQuery('shelves');
+      if (!paper && shelves.length === 0) throw new Error('Your nook is still loading. Try again in a moment.');
+    }
+    if (!paper) {
+      const remote = await openedFileMetadata(blob);
+      const isPublic = (shelf) => shelf.is_public === true || shelf.is_public === 1;
+      const shelf = shelves.find((row) => !isPublic(row) && (row.is_default === true || row.is_default === 1))
+        || shelves.find((row) => !isPublic(row))
+        || shelves[0];
+      const paperUuid = newUuid();
+      const editionUuid = newUuid();
+      await nativeMutate([
+        {
+          table: 'papers', uuid: paperUuid, operation: 'upsert',
+          values: {
+            doi: remote?.doi || null,
+            title: remote?.title || name,
+            authors: remote?.authors || null,
+            journal: remote?.journal || null,
+            year: remote?.year || null,
+          },
+        },
+        {
+          table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
+          values: { paper_uuid: paperUuid, file_path: `${sha256}.pdf`, sha256 },
+        },
+        {
+          table: 'copies', uuid: newUuid(), operation: 'upsert',
+          values: {
+            paper_uuid: paperUuid, shelf_uuid: shelf?.uuid ?? null,
+            edition_uuid: editionUuid, edition_sha256: sha256,
+          },
+        },
+      ]);
+      paper = { uuid: paperUuid, edition_uuid: editionUuid };
+    }
   }
-  const remote = await openedFileMetadata(blob);
-  const isPublic = (shelf) => shelf.is_public === true || shelf.is_public === 1;
-  const shelf = shelves.find((row) => !isPublic(row) && (row.is_default === true || row.is_default === 1))
-    || shelves.find((row) => !isPublic(row))
-    || shelves[0];
-  const paperUuid = newUuid();
-  const editionUuid = newUuid();
-  await nativeMutate([
-    {
-      table: 'papers', uuid: paperUuid, operation: 'upsert',
-      values: {
-        doi: remote?.doi || null,
-        title: remote?.title || name,
-        authors: remote?.authors || null,
-        journal: remote?.journal || null,
-        year: remote?.year || null,
-      },
-    },
-    {
-      table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
-      values: { paper_uuid: paperUuid, file_path: `${sha256}.pdf`, sha256 },
-    },
-    {
-      table: 'copies', uuid: newUuid(), operation: 'upsert',
-      values: {
-        paper_uuid: paperUuid, shelf_uuid: shelf?.uuid ?? null,
-        edition_uuid: editionUuid, edition_sha256: sha256,
-      },
-    },
-  ]);
+
+  const paperUuid = paper.uuid;
+  const editionUuid = paper.edition_uuid;
+  if (!editionUuid) throw new Error('This paper has no readable PDF edition.');
 
   const marks = [
     ...notes.map((note) => ({

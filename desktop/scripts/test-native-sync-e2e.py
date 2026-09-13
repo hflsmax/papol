@@ -109,8 +109,8 @@ def main():
                     "--manifest-path", str(ROOT / "desktop/src-tauri/Cargo.toml"),
                     "--example", "native_sync_harness", "--",
                     str(temporary / "local.sqlite3"), backend,
-                    auth["token"], str(auth["user"]["id"]),
-                    paper["sync_id"], paper["edition_sync_id"],
+                    auth["token"], auth["user"]["uuid"],
+                    paper["uuid"], paper["edition_uuid"],
                 ],
                 cwd=ROOT,
                 capture_output=True,
@@ -128,7 +128,7 @@ def main():
             assert result["offline_notes"][0]["content"] == "Native offline note"
             assert result["offline_import"]["summary"] == "Imported entirely offline"
             board = request(
-                f"{backend}/api/boards/{result['board_id']}", token=auth["token"],
+                f"{backend}/api/boards/{result['board_uuid']}", token=auth["token"],
             )
             assert board["name"] == "End-to-end offline"
             assert [item["content"] for item in board["items"]] == ["Survived restart and sync"]
@@ -140,12 +140,12 @@ def main():
             with urllib.request.urlopen(clip_request, timeout=5) as response:
                 assert response.read() == b"native viewer clip bytes"
             snapshot = request(f"{backend}/api/sync/snapshot", token=auth["token"])
-            rows = {(row["table"], row["id"]): row for row in snapshot["rows"]}
-            assert rows[("comments", result["note_id"])]["content"] == "Native offline note"
-            assert rows[("ink_strokes", result["ink_id"])]["page"] == 1
-            assert rows[("paper_clips", result["paper_clip_id"])]["floating"] is False
-            assert rows[("papers", result["imported_paper_id"])]["title"] == "Native imported PDF"
-            assert rows[("paper_editions", result["imported_edition_id"])]["sha256"] == result["imported_pdf_sha256"]
+            rows = {(row["table"], row["uuid"]): row for row in snapshot["rows"]}
+            assert rows[("comments", result["note_uuid"])]["content"] == "Native offline note"
+            assert rows[("ink_strokes", result["ink_uuid"])]["page"] == 1
+            assert rows[("paper_clips", result["paper_clip_uuid"])]["floating"] is False
+            assert rows[("papers", result["imported_paper_uuid"])]["title"] == "Native imported PDF"
+            assert rows[("paper_editions", result["imported_edition_uuid"])]["sha256"] == result["imported_pdf_sha256"]
             imported_pdf = urllib.request.Request(
                 f"{backend}/api/sync/blobs/{result['imported_pdf_sha256']}",
                 headers={"Authorization": f"Bearer {auth['token']}"},
