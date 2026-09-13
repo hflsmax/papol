@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteBoard, deletePaper, getUserSpace, listPapers, paperHref, updateBoard, updatePaper } from '../api';
 import { appPath } from '../base';
 import {
-  PAPER_DRAG_TYPE, matchesSearch, papersInSource, rememberSource, shelfOf, sourcePath, tagOf,
+  PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInSource,
+  rememberSource, shelfOf, sourcePath, tagOf,
 } from '../desktopSources';
 import { formatAuthors } from '../paperFormat';
 import PaperDetail from './PaperDetail';
@@ -255,7 +256,11 @@ export function DesktopBrowser({
             onPaperCreated={(paper) => {
               setComposer(null);
               reload();
-              if (paper?.uuid != null) onNavigate(`/paper/${paper.uuid}`);
+              if (paper?.uuid != null) {
+                const destination = paperCreatedNavigation(source, paper.uuid);
+                rememberSource(destination.source);
+                onNavigate(destination.path);
+              }
             }}
             incomingFile={incomingPaperFile}
             onIncomingFileHandled={onIncomingPaperFileHandled}

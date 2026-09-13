@@ -17,6 +17,15 @@ export function sourcePath(source) {
   return `/?source=${source}`;
 }
 
+// An import reviewed from the public library belongs to the reader's nook once
+// it is created. Select that nook source while opening the new paper itself.
+export function paperCreatedNavigation(source, paperUuid) {
+  return {
+    source: source === 'library' ? 'all' : source,
+    path: `/paper/${paperUuid}`,
+  };
+}
+
 // search is the page's query string. A paper's own URL does not say which
 // list it was picked from, so for a paper the list last shown stands in.
 export function resolveSource(route, user, { search = '', lastShown = null } = {}) {

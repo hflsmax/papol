@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isBrowsing, matchesSearch, papersInSource, resolveSource, sourcePath,
+  isBrowsing, matchesSearch, paperCreatedNavigation, papersInSource,
+  resolveSource, sourcePath,
 } from './desktopSources.js';
 
 const reader = { uuid: 1 };
@@ -11,6 +12,17 @@ test('writes each source as the address the sidebar links to', () => {
   assert.equal(sourcePath('library'), '/library');
   assert.equal(sourcePath('shelf:3'), '/?source=shelf:3');
   assert.equal(sourcePath('boards'), '/?source=boards');
+});
+
+test('a paper imported from the library opens in the all-papers nook', () => {
+  assert.deepEqual(paperCreatedNavigation('library', 'new-paper'), {
+    source: 'all',
+    path: '/paper/new-paper',
+  });
+  assert.deepEqual(paperCreatedNavigation('shelf:reading', 'new-paper'), {
+    source: 'shelf:reading',
+    path: '/paper/new-paper',
+  });
 });
 
 test('reads the source back from the address', () => {
