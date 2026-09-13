@@ -7,7 +7,7 @@
 #   ./deploy.sh status         what is running where
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8000)
-#   ./deploy.sh macos prod     test and build a production-backed app and DMG
+#   ./deploy.sh macos prod     test, build, and install a production-backed app
 #                  [--backend URL] [--universal] [--no-check]
 #
 # Code goes up with `prod`. Data never goes from development to production;
@@ -204,8 +204,73 @@ macos_dev() {
   fi
 }
 
+install_macos_app() {
+  local source_app=$1 destination_app=/Applications/Papol.app
+  local staging_dir staged_app previous_app bundle_executable attempt
+
+  # Stage a complete bundle before touching the installed copy. Moving the
+  # previous bundle aside makes the replacement exact (rather than merging
+  # stale resources into it) and gives us something to restore if the final
+  # move fails.
+  staging_dir=$(mktemp -d -t papol-macos-install.XXXXXX)
+  staged_app="$staging_dir/Papol.app"
+  ditto "$source_app" "$staged_app" || {
+    rm -rf "$staging_dir"
+    die "could not stage the macOS application for installation"
+  }
+  bundle_executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
+    "$staged_app/Contents/Info.plist" 2>/dev/null || true)
+  case "$bundle_executable" in
+    ""|*/*) bundle_executable= ;;
+  esac
+  [ -n "$bundle_executable" ] \
+    && [ -x "$staged_app/Contents/MacOS/$bundle_executable" ] || {
+    rm -rf "$staging_dir"
+    die "the built Papol application has no executable"
+  }
+
+  # Replacing the bundle underneath a running process leaves `open` attached
+  # to the old executable. Ask it to finish first, then refuse to proceed if
+  # it has work that prevents it from quitting cleanly. The process name is
+  # the bundle's executable (`papol-desktop` today), not its display name.
+  if pgrep -x "$bundle_executable" >/dev/null 2>&1; then
+    say "Closing the installed Papol application"
+    osascript -e 'tell application id "com.mc-pony.papol" to quit' >/dev/null 2>&1 || true
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+      pgrep -x "$bundle_executable" >/dev/null 2>&1 || break
+      sleep 0.25
+    done
+    if pgrep -x "$bundle_executable" >/dev/null 2>&1; then
+      rm -rf "$staging_dir"
+      die "Papol is still running; quit it and run the macOS production build again"
+    fi
+  fi
+
+  previous_app="/Applications/.Papol.previous.$$"
+  if [ -e "$destination_app" ]; then
+    as_root mv "$destination_app" "$previous_app"
+  else
+    previous_app=
+  fi
+
+  if ! as_root mv "$staged_app" "$destination_app"; then
+    if [ -n "$previous_app" ] && [ -e "$previous_app" ]; then
+      as_root mv "$previous_app" "$destination_app" \
+        || note "warning: the previous app remains at $previous_app"
+    fi
+    rm -rf "$staging_dir"
+    die "could not install Papol in /Applications"
+  fi
+  [ -z "$previous_app" ] || as_root rm -rf "$previous_app"
+  rm -rf "$staging_dir"
+
+  say "Installed Papol for macOS"
+  note "$destination_app"
+  open "$destination_app"
+}
+
 macos_prod() {
-  local backend="https://mc-pony.com/papol" universal=no checks=yes arg marker dmg
+  local backend="https://mc-pony.com/papol" universal=no checks=yes arg marker app dmg
   while [ $# -gt 0 ]; do
     arg=$1
     case "$arg" in
@@ -250,14 +315,17 @@ macos_prod() {
     rm -f "$marker"
     die "the macOS application build failed"
   fi
+  app=$(find "$DEV_DIR/desktop/src-tauri/target" -type d -name 'Papol.app' -newer "$marker" -prune -print | head -1)
   dmg=$(find "$DEV_DIR/desktop/src-tauri/target" -type f -name '*.dmg' -newer "$marker" -print | head -1)
   rm -f "$marker"
+  [ -n "$app" ] || die "the build completed but no new application bundle was found"
   [ -n "$dmg" ] || die "the build completed but no new DMG was found"
 
   say "macOS application ready"
+  note "$app"
   note "$dmg"
   note "$(du -h "$dmg" | cut -f1), SHA-256 $(shasum -a 256 "$dmg" | cut -d' ' -f1)"
-  open "$dmg"
+  install_macos_app "$app"
 }
 
 run_macos() {
@@ -270,9 +338,10 @@ Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--universal] [--no-check]
 
-`prod` and its `build` alias create an application bundle and DMG. Local
-builds are ad-hoc signed; tagged GitHub releases use Developer ID signing and
-notarization. Add --universal to build one binary for Apple Silicon and Intel.
+`prod` and its `build` alias create an application bundle and DMG, install the
+app in /Applications, and launch it. Local builds are ad-hoc signed; tagged
+GitHub releases use Developer ID signing and notarization. Add --universal to
+build one binary for Apple Silicon and Intel.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, or build)" ;;
