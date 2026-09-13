@@ -53,6 +53,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
+const MIN_RAIL_WIDTH = 220;
+const MAX_RAIL_WIDTH = 520;
+const DEFAULT_RAIL_WIDTH = 344;
+const clampRailWidth = (width) => Math.min(MAX_RAIL_WIDTH, Math.max(MIN_RAIL_WIDTH, width));
 const markReturnToPapol = () => {
   // This is a one-shot navigation handoff, not demo-mode state. Papol
   // consumes it on arrival so returning from the viewer does not greet the
@@ -401,6 +405,10 @@ export default function App() {
     // Below the breakpoint the rail lies over the page rather than beside
     // it, so on a phone it starts away and is asked for.
     return window.innerWidth > NARROW;
+  });
+  const [railWidth, setRailWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('papol_viewer_rail_width'));
+    return Number.isFinite(saved) && saved > 0 ? clampRailWidth(saved) : DEFAULT_RAIL_WIDTH;
   });
   // The paper's bibliography, and where it is cited in the PDF. Null until
   // it has been asked for; `status` says whether it is worth waiting on.
@@ -818,6 +826,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('papol_viewer_rail', railOpen ? 'open' : 'closed');
   }, [railOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('papol_viewer_rail_width', String(railWidth));
+  }, [railWidth]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_tool', tool);
@@ -2982,6 +2994,39 @@ export default function App() {
     </span>
   );
 
+  const beginRailResize = (event) => {
+    if (window.innerWidth <= NARROW) return;
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    const handle = event.currentTarget;
+    handle.setPointerCapture(pointerId);
+    document.body.classList.add('resizing-rail');
+
+    const move = (moveEvent) => {
+      const available = Math.min(MAX_RAIL_WIDTH, window.innerWidth * 0.45);
+      setRailWidth(clampRailWidth(Math.min(available, window.innerWidth - moveEvent.clientX)));
+    };
+    const finish = () => {
+      document.body.classList.remove('resizing-rail');
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', finish);
+      handle.removeEventListener('pointercancel', finish);
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+    };
+
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', finish);
+    handle.addEventListener('pointercancel', finish);
+  };
+
+  const resizeRailWithKeyboard = (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Home') return setRailWidth(MIN_RAIL_WIDTH);
+    if (event.key === 'End') return setRailWidth(MAX_RAIL_WIDTH);
+    setRailWidth((width) => clampRailWidth(width + (event.key === 'ArrowLeft' ? 16 : -16)));
+  };
+
   return (
     <>
       <style>{styles}</style>
@@ -3512,7 +3557,10 @@ export default function App() {
       )}
 
 
-      <div className={`viewer-body${railOpen ? '' : ' rail-hidden'}`}>
+      <div
+        className={`viewer-body${railOpen ? '' : ' rail-hidden'}`}
+        style={{ '--rail-user-w': `${railWidth}px` }}
+      >
         {/* A handle on the rail's edge: it clings there when the rail is
             open and to the window's edge when it is away. */}
         <button
@@ -3525,7 +3573,11 @@ export default function App() {
           aria-label={railOpen ? 'Hide my anchors' : 'Show my anchors'}
           title={railOpen ? 'Hide my anchors' : 'Show my anchors'}
         >
-          {railOpen ? '›' : '‹'}
+          {railOpen ? (
+            <span aria-hidden="true">›</span>
+          ) : (
+            <span className="rail-handle-icon" aria-hidden="true"><ToolGlyph id="anchor" /></span>
+          )}
         </button>
         <ReturnPill
           returnView={returnView}
@@ -3953,28 +4005,73 @@ export default function App() {
           </div>
         )}
 
+        {railOpen && <button className="rail-scrim" type="button" aria-label="Close anchors" onClick={() => setRailOpen(false)} />}
+
         {railOpen && (
-        <aside className="rail">
-          <h2>
-            My anchors
-            <button
-              type="button"
-              className="rail-help"
-              aria-label="What the tools do"
-              title="What the tools do"
-              onClick={() => setHelpOpen(true)}
-            >
-              ?
-            </button>
-          </h2>
+          <div
+            className="rail-resizer"
+            role="separator"
+            aria-label="Resize anchors sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={MIN_RAIL_WIDTH}
+            aria-valuemax={MAX_RAIL_WIDTH}
+            aria-valuenow={Math.round(railWidth)}
+            tabIndex={0}
+            onPointerDown={beginRailResize}
+            onKeyDown={resizeRailWithKeyboard}
+          />
+        )}
+
+        {railOpen && (
+        <aside className="rail" aria-label="Paper anchors">
+          <div className="rail-header">
+            <div className="rail-heading">
+              <span className="rail-kicker">Paper notes</span>
+              <div className="rail-title-row">
+                <h2>Anchors</h2>
+                <span className="rail-count" aria-label={`${numbered.length} ${numbered.length === 1 ? 'anchor' : 'anchors'}`}>
+                  {numbered.length}
+                </span>
+              </div>
+            </div>
+            <div className="rail-header-actions">
+              <button
+                type="button"
+                className="rail-help"
+                aria-label="Open tools help"
+                title="Tools help"
+                onClick={() => setHelpOpen(true)}
+              >
+                <span aria-hidden="true">?</span>
+              </button>
+              <button
+                type="button"
+                className="rail-close"
+                aria-label="Close anchors"
+                title="Close anchors"
+                onClick={() => setRailOpen(false)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </div>
 
           {numbered.length === 0 && (
-            <div className="manual">
-              <p>
-                Use the help above to learn the different tools.
-              </p>
+            <div className="rail-empty">
+              <span className="rail-empty-glyph" aria-hidden="true">
+                <ToolGlyph id="anchor" />
+              </span>
+              <h3>No anchors yet</h3>
+              <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>
+              <button type="button" className="link" onClick={() => setHelpOpen(true)}>See all annotation tools</button>
             </div>
           )}
+
+          {numbered.length > 0 && (
+            <p className="rail-intro">Select an anchor to return to that place in the paper.</p>
+          )}
+
+          <div className="rail-list">
 
           {numbered.map((note) =>
             // An anchor with nothing written on it is a mark, not a note:
@@ -3993,6 +4090,18 @@ export default function App() {
                   <GlyphFor note={note} />
                 </span>
                 <span className="anchor-where">{label(note)}</span>
+                <button
+                  type="button"
+                  className="link anchor-jump"
+                  aria-label={`Go to ${note.name || (note.anchor ? `page ${note.page}` : 'unplaced anchor')}`}
+                  title="Go to anchor"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    goToNote(note);
+                  }}
+                >
+                  <span aria-hidden="true">→</span>
+                </button>
                 <button
                   className="link anchor-write"
                   onClick={(e) => {
@@ -4087,6 +4196,15 @@ export default function App() {
                         className="link"
                         onClick={(e) => {
                           e.stopPropagation();
+                          goToNote(note);
+                        }}
+                      >
+                        go to anchor
+                      </button>
+                      <button
+                        className="link"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           startWriting(note);
                         }}
                       >
@@ -4098,6 +4216,8 @@ export default function App() {
               </div>
             )
           )}
+
+          </div>
 
         </aside>
         )}
