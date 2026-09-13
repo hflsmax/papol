@@ -11,6 +11,18 @@ const ACCOUNT_KEY = 'papol.localAccountUuid';
 // Accounts are named by UUID; anything else in storage is not an account.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let scheduledSync = null;
+let activeNativeSyncs = 0;
+
+function announceNativeSyncState() {
+  window.dispatchEvent(new Event('papol-offline-status'));
+}
+
+// Native events are attached asynchronously. Keeping the lifecycle here as
+// well lets a screen mounted immediately after sign-in know that the initial
+// sync is already running, even if it missed the first Tauri event.
+export function nativeSyncInProgress() {
+  return activeNativeSyncs > 0 || scheduledSync != null;
+}
 
 function nativeBackendUrl() {
   const value = BACKEND_BASE || window.location.origin;
@@ -104,6 +116,8 @@ export async function nativeSyncNow() {
   const accountUuid = nativeAccountUuid();
   const token = currentCredential();
   if (!IS_DESKTOP || accountUuid == null || !token) return null;
+  activeNativeSyncs += 1;
+  announceNativeSyncState();
   try {
     return await invoke('sync_now', {
       accountUuid,
@@ -113,7 +127,8 @@ export async function nativeSyncNow() {
   } finally {
     // Failed automatic syncs are caught by the scheduler, but status still
     // needs to refresh in the window that initiated them.
-    window.dispatchEvent(new Event('papol-offline-status'));
+    activeNativeSyncs = Math.max(0, activeNativeSyncs - 1);
+    announceNativeSyncState();
   }
 }
 
@@ -136,7 +151,11 @@ export function scheduleNativeSync() {
   scheduledSync = Promise.resolve()
     .then(nativeSyncNow)
     .catch(() => null)
-    .finally(() => { scheduledSync = null; });
+    .finally(() => {
+      scheduledSync = null;
+      announceNativeSyncState();
+    });
+  announceNativeSyncState();
   return scheduledSync;
 }
 

@@ -13,7 +13,9 @@ import Glyph from './DesktopGlyph';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
-import { makePdfViewerDefault, pdfViewerStatus, subscribeNativeData } from '../nativeData';
+import {
+  makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
+} from '../nativeData';
 import { inDemo } from '../base';
 
 // Shared with the viewer, which asks the same question over an opened file:
@@ -70,6 +72,7 @@ function DefaultViewerPrompt() {
 // the paper pane edits it underneath.
 export function useNookSpace(userUuid, refreshKey) {
   const [space, setSpace] = useState(null);
+  const [nativeSyncing, setNativeSyncing] = useState(nativeSyncInProgress);
   const currentUserUuid = useRef(userUuid);
   currentUserUuid.current = userUuid;
 
@@ -80,25 +83,40 @@ export function useNookSpace(userUuid, refreshKey) {
       .catch(() => {});
   }, [userUuid]);
 
-  useEffect(() => { setSpace(null); }, [userUuid]);
+  useEffect(() => {
+    setSpace(null);
+    setNativeSyncing(nativeSyncInProgress());
+  }, [userUuid]);
   useEffect(() => { reload(); }, [reload, refreshKey]);
   useEffect(() => {
-    window.addEventListener('focus', reload);
-    const unsubscribeNative = subscribeNativeData(reload);
+    const refresh = () => {
+      setNativeSyncing(nativeSyncInProgress());
+      reload();
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('papol-offline-status', refresh);
+    const unsubscribeNative = subscribeNativeData((status) => {
+      if (typeof status?.syncing === 'boolean') setNativeSyncing(status.syncing);
+      reload();
+    });
     return () => {
       unsubscribeNative();
-      window.removeEventListener('focus', reload);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('papol-offline-status', refresh);
     };
   }, [reload]);
 
-  return { space, setSpace, reload };
+  return {
+    space, setSpace, reload,
+    syncing: Boolean(userUuid) && (nativeSyncing || nativeSyncInProgress()),
+  };
 }
 
 export function DesktopBrowser({
   source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner,
   incomingPaperFile, onIncomingPaperFileHandled,
 }) {
-  const { space, reload } = nook;
+  const { space, reload, syncing } = nook;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
@@ -159,6 +177,7 @@ export function DesktopBrowser({
   const noun = boardsView ? (total === 1 ? 'board' : 'boards') : (total === 1 ? 'paper' : 'papers');
   const subtitle = loading ? 'Loading…' : [
     `${total} ${noun}`,
+    syncing ? 'Syncing…' : null,
     shelf ? (shelf.is_public ? 'Public' : 'Private') : null,
   ].filter(Boolean).join(' · ');
 
@@ -210,6 +229,11 @@ export function DesktopBrowser({
   let emptyList = null;
   if (loading) emptyList = 'Loading…';
   else if (total === 0 && search.trim()) emptyList = 'Nothing matches your search.';
+  else if (total === 0 && syncing && !libraryView) {
+    emptyList = boardsView
+      ? 'Syncing your nook… Boards will appear here as they arrive.'
+      : 'Syncing your nook… Papers will appear here as they arrive.';
+  }
   else if (total === 0) {
     emptyList = libraryView ? 'No one has shared a paper yet.'
       : boardsView ? 'You have no boards yet.'

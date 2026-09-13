@@ -17,6 +17,7 @@ const calls = [];
 const dispatchedEvents = [];
 let remoteBlobReady = false;
 let syncFailure = null;
+let syncGate = null;
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -47,6 +48,7 @@ global.window = {
       if (command === 'local_setting_get') return 'manual';
       if (command === 'local_account_remove') return 2;
       if (command === 'sync_now' && syncFailure) throw syncFailure;
+      if (command === 'sync_now' && syncGate) await syncGate.promise;
       return null;
     },
     transformCallback: () => 1,
@@ -62,7 +64,7 @@ await credentials.hydrateCredential();
 const {
   boardView, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
-  openDroppedPdf, prepareNativeAccount, removeNativeAccount,
+  nativeSyncInProgress, openDroppedPdf, prepareNativeAccount, removeNativeAccount,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('./nativeData.js');
 
@@ -79,12 +81,23 @@ test('manual mode never starts background native network traffic', async () => {
   assert.equal(calls.filter(([command]) => command === 'sync_now').length, before);
 });
 
-test('a failed native sync still refreshes offline status', async () => {
+test('a failed native sync announces both start and settled status', async () => {
   dispatchedEvents.length = 0;
   syncFailure = new Error('network unavailable');
   await assert.rejects(nativeSyncNow(), /network unavailable/);
   syncFailure = null;
-  assert.deepEqual(dispatchedEvents, ['papol-offline-status']);
+  assert.deepEqual(dispatchedEvents, ['papol-offline-status', 'papol-offline-status']);
+});
+
+test('native sync activity is visible to screens mounted during sign-in', async () => {
+  let release;
+  syncGate = { promise: new Promise((resolve) => { release = resolve; }) };
+  const syncing = nativeSyncNow();
+  assert.equal(nativeSyncInProgress(), true);
+  release();
+  await syncing;
+  syncGate = null;
+  assert.equal(nativeSyncInProgress(), false);
 });
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {
