@@ -160,6 +160,58 @@ prepare_macos() {
   install_node_tree "$DEV_DIR/board"
 }
 
+# create-dmg mounts a writable intermediate image while Finder lays out the
+# installer window. An interrupted build can leave that image attached, and a
+# previously opened output DMG can remain attached too. Both cases make a later
+# bundle_dmg.sh run fail with only Tauri's generic "failed to run" message.
+# Limit cleanup to images produced below this checkout's Tauri target directory;
+# a volume named Papol from anywhere else is not ours to detach.
+unmount_macos_build_images() {
+  local target_root="$DEV_DIR/desktop/src-tauri/target/"
+  local line image_path= device suffix attempt detached found=no failed=no
+
+  while IFS= read -r line; do
+    case "$line" in
+      "image-path"*:*)
+        image_path=${line#*: }
+        ;;
+      /dev/disk*)
+        device=${line%%[[:space:]]*}
+        suffix=${device#/dev/disk}
+        # hdiutil lists the whole disk before its partitions. Detaching the
+        # whole disk once avoids retrying each slice from the same image.
+        case "$suffix" in
+          ""|*[!0-9]*) continue ;;
+        esac
+        case "$image_path" in
+          "$target_root"*) ;;
+          *) continue ;;
+        esac
+
+        if [ "$found" = no ]; then
+          say "Unmounting previous Papol build images"
+          found=yes
+        fi
+        note "$device (${image_path#"$DEV_DIR/"})"
+        detached=no
+        for attempt in 1 2 3; do
+          if hdiutil detach "$device" >/dev/null; then
+            detached=yes
+            break
+          fi
+          [ "$attempt" -eq 3 ] || sleep 1
+        done
+        if [ "$detached" = no ]; then
+          note "warning: could not unmount $device"
+          failed=yes
+        fi
+        ;;
+    esac
+  done < <(hdiutil info)
+
+  [ "$failed" = no ]
+}
+
 valid_backend() {
   case "$1" in
     http://*|https://*) return 0 ;;
@@ -302,6 +354,9 @@ macos_prod() {
     args+=(--target universal-apple-darwin)
   fi
 
+  unmount_macos_build_images \
+    || die "a previous Papol build image is still in use; eject it and try again"
+
   marker=$(mktemp -t papol-macos-build.XXXXXX)
   say "Building Papol for macOS"
   note "backend: $backend"
@@ -309,10 +364,12 @@ macos_prod() {
   if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
     (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}") || {
       rm -f "$marker"
+      unmount_macos_build_images || true
       die "the macOS application build failed"
     }
   elif ! (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" cargo tauri build "${args[@]}"); then
     rm -f "$marker"
+    unmount_macos_build_images || true
     die "the macOS application build failed"
   fi
   app=$(find "$DEV_DIR/desktop/src-tauri/target" -type d -name 'Papol.app' -newer "$marker" -prune -print | head -1)
