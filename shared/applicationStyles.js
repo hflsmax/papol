@@ -3660,7 +3660,19 @@ a.btn:hover {
 }
 
 .room-enter {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-top: 10px;
+}
+
+/* Open is an anchor and Uncall is a button. Give the paired controls an
+   explicit shared leading so their boxes have the same height despite the
+   body line-height inherited by the anchor. */
+.room-enter .btn,
+.room-enter button {
+  line-height: 1.5;
 }
 
 .call-block {

@@ -133,7 +133,12 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
             Open the room
           </a>
           {canUncall && (
-            <button className="danger" disabled={isBusy} onClick={() => onUncall(room)}>
+            <button
+              type="button"
+              className="danger"
+              disabled={isBusy}
+              onClick={() => onUncall(room)}
+            >
               Uncall seminar
             </button>
           )}
