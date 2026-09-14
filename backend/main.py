@@ -1663,7 +1663,9 @@ async def get_user_space(
     if hide_private:
         query = query.filter(Copy.marketed.is_(True))
     copies = query.order_by(Copy.created_at.desc()).all()
-    board_query = db.query(Board).filter(Board.user_uuid == user.uuid)
+    board_query = db.query(Board).filter(
+        Board.user_uuid == user.uuid, Board.deleted_at.is_(None),
+    )
     if hide_private:
         board_query = board_query.join(Shelf).filter(Shelf.is_public.is_(True))
     boards = board_query.order_by(Board.updated_at.desc(), Board.uuid.desc()).all()

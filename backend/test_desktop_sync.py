@@ -970,6 +970,27 @@ class DesktopSyncContractTests(unittest.TestCase):
         })
         self.assertEqual(rejected.status_code, 422, rejected.text)
 
+    def test_desktop_board_deletion_disappears_from_the_web_nook(self):
+        board = self.request("POST", "/api/boards", json={"name": "Delete offline"}).json()
+        before = self.request("GET", f"/api/users/{self.user_uuid}/space").json()
+        self.assertEqual([row["uuid"] for row in before["boards"]], [board["uuid"]])
+
+        self.request("POST", "/api/sync/push", json={
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": 1,
+            "changes": [{
+                "table": "boards",
+                "uuid": board["uuid"],
+                "base_revision": board["revision"],
+                "operation": "delete",
+                "values": {},
+            }],
+        })
+
+        after = self.request("GET", f"/api/users/{self.user_uuid}/space").json()
+        self.assertEqual(after["boards"], [])
+
     def test_desktop_shelf_moves_publish_and_hide_like_online_moves(self):
         with self.sessions() as db:
             public = Shelf(user_uuid=self.user_uuid, name="Offline public", color="#123456", is_public=True)
