@@ -361,7 +361,11 @@ fn data_query(
     query_name: LocalDataQuery,
     parameters: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    store.query(&account_uuid, query_name.as_str(), parameters)
+    let mut result = store.query(&account_uuid, query_name.as_str(), parameters)?;
+    if matches!(query_name, LocalDataQuery::SyncStatus) {
+        result["syncing"] = serde_json::json!(ACTIVE_SYNCS.load(Ordering::SeqCst) > 0);
+    }
+    Ok(result)
 }
 
 #[tauri::command]

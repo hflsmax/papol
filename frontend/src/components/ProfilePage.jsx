@@ -15,7 +15,7 @@ import {
 } from '../../../shared/connectivity.js';
 import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
-  openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
+  nativeSyncInProgress, openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
   persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress, syncAllNow,
 } from '../../../shared/nativeData.js';
 
@@ -90,7 +90,9 @@ function LocalDeviceSettings({ onSynced }) {
   const [clearingData, setClearingData] = useState(false);
   // Progress arrives for every native sync, whether started here, from the
   // sidebar, or automatically, so the bar reflects whatever is running.
-  const [sync, setSync] = useState({ running: false, progress: null, error: null, lastBytes: null });
+  const [sync, setSync] = useState({
+    running: nativeSyncInProgress(), progress: null, error: null, lastBytes: null,
+  });
 
   useEffect(() => {
     hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
@@ -113,16 +115,37 @@ function LocalDeviceSettings({ onSynced }) {
         setSync((current) => ({ ...current, error: payload.error }));
       }
     });
+    // The start event may have fired before Settings mounted. Read the
+    // coordinator's process-wide latch after subscribing so a sync started
+    // by another surface is still visible here.
+    nativeRepository.syncStatus().then((status) => {
+      if (typeof status?.syncing === 'boolean') {
+        setSync((current) => ({ ...current, running: status.syncing || nativeSyncInProgress() }));
+      }
+    }).catch(() => {});
+    const refreshWindowSync = () => {
+      if (nativeSyncInProgress()) {
+        setSync((current) => ({ ...current, running: true, error: null }));
+      }
+    };
+    window.addEventListener('papol-offline-status', refreshWindowSync);
     return () => {
       stopProgress();
       stopStatus();
+      window.removeEventListener('papol-offline-status', refreshWindowSync);
     };
   }, []);
 
   const syncNow = async () => {
     setSync((current) => ({ ...current, running: true, error: null, progress: null }));
     const failure = await syncAllNow();
-    setSync((current) => ({ ...current, running: false, progress: null, error: failure }));
+    const status = await nativeRepository.syncStatus().catch(() => null);
+    setSync((current) => ({
+      ...current,
+      running: Boolean(status?.syncing || nativeSyncInProgress()),
+      progress: null,
+      error: failure,
+    }));
     if (!failure) onSynced?.();
   };
 
