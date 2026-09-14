@@ -3,7 +3,7 @@ import {
   getNotifications,
   markNotificationRead,
   markNotificationsRead,
-} from '../../../shared/api.js';
+} from '../../../shared/api/notifications.js';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function InboxPage({ onOpenRoom, onUnread }) {

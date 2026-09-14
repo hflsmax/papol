@@ -9,8 +9,8 @@ import {
   setRoomAvailability,
   announceRoom,
   finishRoom,
-  updatePaper,
-} from '../../../shared/api.js';
+} from '../../../shared/api/rooms.js';
+import { updatePaper } from '../../../shared/api/papers.js';
 import Avatar from './Avatar';
 import HintPop from './HintPop';
 import { SEMINAR_STYLES, styleLabel, roomStyleDesc } from '../seminarStyles';

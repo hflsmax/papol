@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { boardFileBlob, deleteBoard, deletePaper, getBoard, getUserSpace, listPapers, paperHref, updateBoard, updatePaper } from '../../../shared/api.js';
+import { boardFileBlob, deleteBoard, getBoard, updateBoard } from '../../../shared/api/boards.js';
+import { getUserSpace } from '../../../shared/api/people.js';
+import { deletePaper, listPapers, paperHref, updatePaper } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
   PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInSource,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { callSeminar } from '../../../shared/api.js';
+import { callSeminar } from '../../../shared/api/rooms.js';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import HintPop from './HintPop';

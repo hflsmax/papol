@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
-} from '../../../shared/api.js';
+} from '../../../shared/api/papers.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';

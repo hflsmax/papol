@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { updateBoard, updatePaper, paperHref } from '../../../shared/api.js';
+import { updateBoard } from '../../../shared/api/boards.js';
+import { updatePaper, paperHref } from '../../../shared/api/papers.js';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import StatePill from './StatePill';

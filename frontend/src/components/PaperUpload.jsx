@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   createPaper, createTag, discardPaperImport, extractPaperMetadata, listShelves, listTags,
-} from '../../../shared/api.js';
+} from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';

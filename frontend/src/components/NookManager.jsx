@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../../../shared/api.js';
+import { createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../../../shared/api/papers.js';
 import { confirmAction } from '../../../shared/confirmAction';
 
 // The focused editor for a reader's shelves and private tags ("Shelf" in

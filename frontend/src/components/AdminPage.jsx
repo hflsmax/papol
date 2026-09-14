@@ -11,7 +11,7 @@ import {
   adminResetDbMetrics,
   adminListFeedback,
   adminSetFeedbackResolved,
-} from '../../../shared/api.js';
+} from '../../../shared/api/admin.js';
 
 function DbMetricsPanel() {
   const [metrics, setMetrics] = useState(null);

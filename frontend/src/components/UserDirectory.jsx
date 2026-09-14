@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listUsers } from '../../../shared/api.js';
+import { listUsers } from '../../../shared/api/people.js';
 import Avatar from './Avatar';
 
 export default function UserDirectory({ currentUser, onVisit }) {

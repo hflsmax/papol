@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createBoard } from '../../../shared/api.js';
+import { createBoard } from '../../../shared/api/boards.js';
 
 // Naming a new board and choosing its shelf, which decides who can find it.
 export default function BoardCreateForm({ shelves, className, onCreated, onCancel }) {

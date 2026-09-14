@@ -1,5 +1,5 @@
 // Demo mode: a fictional Papol that lives entirely in the browser.
-// api.js routes every request here when the demo URL is active, so the real
+// httpClient.js routes every request here when the demo URL is active, so the real
 // backend is never touched. Its working data can cross the full-page trip
 // into the viewer and back, but an explicit refresh resets it. The URL
 // remains the sole authority for whether demo mode is active.

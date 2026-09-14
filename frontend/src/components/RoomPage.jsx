@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getRoom } from '../../../shared/api.js';
+import { getRoom } from '../../../shared/api/rooms.js';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
 import { appPath } from '../base';

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { submitFeedback } from '../../../shared/api.js';
+import { submitFeedback } from '../../../shared/api/feedback.js';
 
 export default function FeedbackDialog({ currentUser, onClose }) {
   const [content, setContent] = useState('');

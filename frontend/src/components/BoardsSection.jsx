@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { createBoard, listBoards, updateBoard } from '../../../shared/api.js';
+import { createBoard, listBoards, updateBoard } from '../../../shared/api/boards.js';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { subscribeNativeData } from '../../../shared/nativeData.js';
 

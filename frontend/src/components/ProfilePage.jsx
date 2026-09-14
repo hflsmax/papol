@@ -5,7 +5,7 @@ import {
   uploadAvatar,
   downloadMyData,
   deleteAccount,
-} from '../../../shared/api.js';
+} from '../../../shared/api/account.js';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';

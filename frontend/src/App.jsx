@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  getMe, getToken, setToken, logout, pendingLocalChanges, getNotifications, updatePaper,
-} from '../../shared/api.js';
+  getMe, getToken, setToken, logout, pendingLocalChanges,
+} from '../../shared/api/account.js';
+import { getNotifications } from '../../shared/api/notifications.js';
+import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import Space from './components/Space';
 import PaperDetail from './components/PaperDetail';

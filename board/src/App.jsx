@@ -1,7 +1,7 @@
 import React from 'react';
 import BoardPage from './BoardPage.jsx';
 import { applicationStyles } from '../../shared/applicationStyles.js';
-import { getToken } from '../../shared/api.js';
+import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
 
 function route() {
