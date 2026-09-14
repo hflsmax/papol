@@ -66,7 +66,7 @@ export default function FeedbackDialog({ initialContent = '', reportError = fals
             <>
               {reportError && (
                 <p className="panel-note">
-                  Papol found a synchronization error it cannot resolve by retrying.
+                  Papol encountered an unexpected error.
                   Review or edit the diagnostic details below, then choose whether to send them to the developer.
                 </p>
               )}

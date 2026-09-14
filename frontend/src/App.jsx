@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
   getMe, getStartupUser, getToken, setToken, logout, pendingLocalChanges,
   refreshStartupUser,
@@ -32,6 +32,7 @@ import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
 import {
   openDroppedPdf, recordDiagnosticEvent, subscribeShowPaperRequests, subscribeSignInRequests,
+  REPORTABLE_NATIVE_ERROR_EVENT,
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
 
@@ -159,39 +160,47 @@ export default function App({ startupUser = null, startupError = null }) {
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
 
+  const offerDesktopError = useCallback((error, area) => {
+    if (!DESKTOP) return;
+    const report = unexpectedDesktopErrorReport(error, area, {
+      surface: window.__PAPOL_ENV__?.surface,
+      platform: navigator.platform,
+    });
+    if (offeredErrorReports.current.has(report.signature)) return;
+    offeredErrorReports.current.add(report.signature);
+    void recordDiagnosticEvent({
+      level: 'error', component: 'frontend', event: 'unexpected_error',
+      message: error?.message || String(error),
+      fields: { error_type: error?.name || typeof error, operation: area },
+    });
+    setFeedbackRequest((current) => current || ({
+      key: `error:${report.signature}`,
+      content: report.content,
+      reportError: true,
+    }));
+  }, []);
+
   useEffect(() => {
     if (!DESKTOP) return undefined;
-    const offer = (error, area) => {
-      const report = unexpectedDesktopErrorReport(error, area, {
-        surface: window.__PAPOL_ENV__?.surface,
-        platform: navigator.platform,
-      });
-      if (offeredErrorReports.current.has(report.signature)) return;
-      offeredErrorReports.current.add(report.signature);
-      void recordDiagnosticEvent({
-        level: 'error', component: 'frontend', event: 'unexpected_error',
-        message: error?.message || String(error),
-        fields: { error_type: error?.name || typeof error, operation: area },
-      });
-      setFeedbackRequest((current) => current || ({
-        key: `error:${report.signature}`,
-        content: report.content,
-        reportError: true,
-      }));
-    };
-    if (startupError) offer(startupError, 'desktop startup');
+    if (startupError) offerDesktopError(startupError, 'desktop startup');
     void recordDiagnosticEvent({
       component: 'frontend', event: 'mounted', fields: { surface: 'main' },
     });
-    const onError = (event) => offer(event.error || event.message, 'JavaScript runtime');
-    const onRejection = (event) => offer(event.reason, 'unhandled promise');
+    const onError = (event) => offerDesktopError(event.error || event.message, 'JavaScript runtime');
+    const onRejection = (event) => offerDesktopError(event.reason, 'unhandled promise');
+    const onNativeError = (event) => offerDesktopError(
+      event.detail?.error || 'Unknown native command error',
+      event.detail?.area || 'native command',
+    );
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
+    window.addEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     return () => {
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
+      window.removeEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     };
-  }, []);
+  }, [offerDesktopError, startupError]);
 
   const restoreRealUser = async () => {
     const localUser = await getStartupUser().catch(() => null);
@@ -650,6 +659,7 @@ export default function App({ startupUser = null, startupError = null }) {
             !window.history.state?.papolNavigation
           }
           onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onReportableError={offerDesktopError}
         />
       )}
       {route.page === 'papers' && (
@@ -773,6 +783,7 @@ export default function App({ startupUser = null, startupError = null }) {
               banner={demoBanner}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
+              onReportableError={offerDesktopError}
             />
           ) : (
             <div className="desktop-pane">

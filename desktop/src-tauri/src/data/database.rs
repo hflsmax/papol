@@ -282,7 +282,7 @@ impl LocalStore {
         }
     }
 
-    pub fn cache_shared_paper(
+    pub fn import_shared_paper(
         &self,
         account_uuid: &str,
         rows: Vec<Map<String, Value>>,
@@ -3942,7 +3942,7 @@ mod tests {
     }
 
     #[test]
-    fn shared_paper_cache_supports_an_offline_owned_copy_without_queueing_shared_rows() {
+    fn shared_paper_import_supports_an_offline_owned_copy_without_queueing_shared_rows() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let account_uuid = Uuid::new_v4().to_string();
@@ -3974,7 +3974,7 @@ mod tests {
             )
             .unwrap();
         let cached = store
-            .cache_shared_paper(
+            .import_shared_paper(
                 &account_uuid,
                 vec![
                     Map::from_iter([

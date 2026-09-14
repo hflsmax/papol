@@ -390,12 +390,12 @@ fn data_mutate(
 }
 
 #[tauri::command]
-fn shared_paper_cache(
+fn import_shared_paper(
     store: tauri::State<'_, data::LocalStore>,
     account_uuid: String,
     rows: Vec<serde_json::Map<String, serde_json::Value>>,
 ) -> Result<usize, String> {
-    store.cache_shared_paper(&account_uuid, rows)
+    store.import_shared_paper(&account_uuid, rows)
 }
 
 #[tauri::command]
@@ -521,6 +521,7 @@ struct SyncRequest {
     backend_url: String,
     token: String,
     push_only: Option<bool>,
+    pull_only: Option<bool>,
     retry_blocked: Option<bool>,
 }
 
@@ -544,7 +545,11 @@ async fn sync_now(
         let _ = progress_app.emit("papol://sync-progress", progress);
     };
     let retry_blocked = request.retry_blocked.unwrap_or(false);
-    let result = if request.push_only.unwrap_or(false) {
+    let push_only = request.push_only.unwrap_or(false);
+    let pull_only = request.pull_only.unwrap_or(false);
+    let result = if push_only && pull_only {
+        Err("A sync cannot be both push-only and pull-only".into())
+    } else if push_only {
         coordinator
             .push_with_progress(
                 &store,
@@ -562,7 +567,10 @@ async fn sync_now(
                 &request.account_uuid,
                 &request.backend_url,
                 &request.token,
-                retry_blocked,
+                sync::ReconcileOptions {
+                    retry_blocked,
+                    pull_only,
+                },
                 &report,
             )
             .await
@@ -982,7 +990,7 @@ pub fn run() {
             open_document_window,
             data_query,
             data_mutate,
-            shared_paper_cache,
+            import_shared_paper,
             blob_import,
             blob_read,
             blob_ensure,

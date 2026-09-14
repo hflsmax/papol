@@ -20,7 +20,7 @@ import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperDetail({
   paperUuid, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
-  hideBack = false,
+  hideBack = false, onReportableError,
 }) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +32,7 @@ export default function PaperDetail({
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
   const [isAddingEdition, setIsAddingEdition] = useState(false);
+  const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [pendingPdf, setPendingPdf] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
@@ -237,6 +238,7 @@ export default function PaperDetail({
 
   const handleAddToNook = async () => {
     setError(null);
+    setIsAddingToNook(true);
     try {
       const added = await addToNook(paper);
       setPaper(added);
@@ -252,7 +254,12 @@ export default function PaperDetail({
       // the nook needs the reader's shelves for its shelf menu.
       loadPaper();
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || String(err));
+      if (err?.reportable !== false) {
+        onReportableError?.(err, 'adding a Library paper to My Nook');
+      }
+    } finally {
+      setIsAddingToNook(false);
     }
   };
 
@@ -412,7 +419,7 @@ export default function PaperDetail({
   // Papol Desktop keeps the reader's PDF in its local store. Save that copy,
   // which needs no network and exists before the paper syncs, and read it
   // only when asked, since a PDF can be large.
-  const localPdf = nativeDataActive() && Boolean(paper.edition_sha256);
+  const localPdf = nativeDataActive() && hasEntry && Boolean(paper.edition_sha256);
   const saveLocalPdf = async () => {
     try {
       const href = await nativeBlobUrl(paper.edition_sha256, 'application/pdf');
@@ -422,7 +429,13 @@ export default function PaperDetail({
       link.click();
       setTimeout(() => URL.revokeObjectURL(href), 60_000);
     } catch (err) {
-      setError(err.message);
+      const message = err?.message || String(err);
+      if (/blob is not available offline|pdf is not available in the local replica/i.test(message)) {
+        setError('This PDF has not finished downloading to this Mac. Connect to the internet and choose Sync, then try again.');
+      } else {
+        setError(`PDF download failed: ${message}`);
+        onReportableError?.(err, 'downloading a PDF from My Nook');
+      }
     }
   };
   const paperContextMenu = contextMenuHandler(() => [
@@ -775,8 +788,8 @@ export default function PaperDetail({
             )}
             {currentUser && !paper.viewer_has_entry && (
               /* The actual next step, so it carries the weight. */
-              <button className="primary" onClick={handleAddToNook}>
-                Add to my nook
+              <button className="primary" onClick={handleAddToNook} disabled={isAddingToNook}>
+                {isAddingToNook ? 'Downloading PDF…' : 'Add to my nook'}
               </button>
             )}
             {currentUser && !demoActive() && (

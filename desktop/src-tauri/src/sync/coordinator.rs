@@ -48,6 +48,12 @@ pub struct SyncResult {
     pub cursor: i64,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct ReconcileOptions {
+    pub retry_blocked: bool,
+    pub pull_only: bool,
+}
+
 /// The four stages of a sync, in the order they run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -248,8 +254,15 @@ impl Coordinator {
         token: &str,
     ) -> Result<SyncResult, String> {
         let ignore = |_: SyncProgress| {};
-        self.synchronize_with_progress(store, account_uuid, backend_url, token, false, &ignore)
-            .await
+        self.synchronize_with_progress(
+            store,
+            account_uuid,
+            backend_url,
+            token,
+            ReconcileOptions::default(),
+            &ignore,
+        )
+        .await
     }
 
     pub async fn push_with_progress(
@@ -392,13 +405,13 @@ impl Coordinator {
         Ok(pushed)
     }
 
-    pub async fn synchronize_with_progress(
+    pub(crate) async fn synchronize_with_progress(
         &self,
         store: &LocalStore,
         account_uuid: &str,
         backend_url: &str,
         token: &str,
-        retry_blocked: bool,
+        options: ReconcileOptions,
         report: &(dyn Fn(SyncProgress) + Send + Sync),
     ) -> Result<SyncResult, String> {
         let _guard = self.gate.lock().await;
@@ -406,16 +419,21 @@ impl Coordinator {
         if token.trim().is_empty() {
             return Err("Sync requires a signed-in account".into());
         }
-        if retry_blocked {
+        if options.retry_blocked && !options.pull_only {
             store.retry_blocked_outbox(account_uuid)?;
         }
         let mut meter = Meter::new(report);
-        let pushed = self
-            .push_pending(store, account_uuid, &backend, token, &mut meter)
-            .await?;
+        let pushed = if options.pull_only {
+            0
+        } else {
+            self.push_pending(store, account_uuid, &backend, token, &mut meter)
+                .await?
+        };
 
-        // Push first so aliases can collapse a temporary offline import
-        // before a snapshot introduces the same paper or edition UUID.
+        // When uploads are enabled, push first so aliases can collapse a
+        // temporary offline import before a snapshot introduces the same
+        // paper or edition UUID. Pull-only reconciliation leaves the outbox
+        // untouched; snapshot application already preserves pending rows.
         meter.begin(SyncPhase::Snapshot, Some(1));
         let snapshot_url = backend
             .join("api/sync/snapshot")
@@ -706,6 +724,76 @@ mod tests {
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             body.len(), body,
         ).unwrap();
+    }
+
+    #[tokio::test]
+    async fn pull_only_reconciliation_leaves_pending_uploads_in_the_outbox() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let mut requests = Vec::new();
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let request = read_request(&mut stream);
+                if request.starts_with("GET /api/sync/pull?") {
+                    respond(
+                        &mut stream,
+                        &json!({"cursor": 1, "has_more": false, "changes": []}),
+                    );
+                } else {
+                    respond(&mut stream, &json!({"rows": []}));
+                }
+                requests.push(request);
+            }
+            requests
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        store
+            .mutate(
+                "7",
+                vec![DataChange {
+                    table: "boards".into(),
+                    uuid: Uuid::new_v4().to_string(),
+                    operation: "upsert".into(),
+                    values: Map::from_iter([("name".into(), json!("Pending upload"))]),
+                }],
+            )
+            .unwrap();
+        let coordinator = Coordinator::new().unwrap();
+        let backend = format!("http://{address}");
+        let report = |_: SyncProgress| {};
+        let result = coordinator
+            .synchronize_with_progress(
+                &store,
+                "7",
+                &backend,
+                "token",
+                ReconcileOptions {
+                    retry_blocked: false,
+                    pull_only: true,
+                },
+                &report,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.pushed, 0);
+        assert_eq!(
+            store.query("7", "sync_status", json!({})).unwrap()["pending"],
+            1
+        );
+        let requests = server.join().unwrap();
+        assert!(requests
+            .iter()
+            .any(|request| request.starts_with("GET /api/sync/snapshot ")));
+        assert!(requests
+            .iter()
+            .any(|request| request.starts_with("GET /api/sync/pull?")));
+        assert!(!requests
+            .iter()
+            .any(|request| request.starts_with("POST /api/sync/push ")));
     }
 
     #[tokio::test]

@@ -12,6 +12,7 @@
     "allow-open-diagnostic-logs",
     "allow-data-query",
     "allow-data-mutate",
+    "allow-import-shared-paper",
     "allow-blob-import",
     "allow-blob-read",
     "allow-blob-ensure",

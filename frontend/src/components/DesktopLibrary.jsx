@@ -412,7 +412,7 @@ export function useNookSpace(userUuid, refreshKey) {
 
 export function DesktopBrowser({
   source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner,
-  incomingPaperFile, onIncomingPaperFileHandled,
+  incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
 }) {
   const { space, setSpace, reload, syncing } = nook;
   const [library, setLibrary] = useState(null);
@@ -658,6 +658,7 @@ export function DesktopBrowser({
             onChanged={reload}
             onRead={openReader}
             onSelectPaper={(uuid) => onNavigate(`/paper/${uuid}`)}
+            onReportableError={onReportableError}
           />
         </div>
       </div>

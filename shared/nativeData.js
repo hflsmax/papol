@@ -19,6 +19,13 @@ let invoke = (command, parameters) => {
 };
 let listen = () => Promise.resolve(() => {});
 
+export const REPORTABLE_NATIVE_ERROR_EVENT = 'papol-reportable-native-error';
+
+export function isReportableNativeBridgeError(error) {
+  const message = error?.message || String(error || '');
+  return /native bridge.*unavailable|command.*(?:not allowed|not found)|unknown command/i.test(message);
+}
+
 // Tauri broadcasts coordinator status to every webview. Latch failures in
 // each window so a sync started in the library also makes the viewer and
 // board surfaces stop issuing backend requests.
@@ -37,7 +44,21 @@ export function configureNativeBridge(bridge) {
   if (typeof bridge?.invoke !== 'function' || typeof bridge?.listen !== 'function') {
     throw new TypeError('Native bridge requires invoke and listen functions');
   }
-  invoke = bridge.invoke;
+  invoke = async (command, parameters) => {
+    try {
+      return await bridge.invoke(command, parameters);
+    } catch (error) {
+      // ACL and command-registration mismatches are application defects, not
+      // user-recoverable failures. Announce them even when the calling screen
+      // catches the rejection to show an inline message.
+      if (isReportableNativeBridgeError(error) && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent(REPORTABLE_NATIVE_ERROR_EVENT, {
+          detail: { error, area: `native command ${command}` },
+        }));
+      }
+      throw error;
+    }
+  };
   listen = bridge.listen;
   listenForSyncStatus();
 }
@@ -135,7 +156,7 @@ async function nativeMutate(changes) {
     fields: { duration_ms: Date.now() - started, total: changes.length },
   });
   window.dispatchEvent(new Event('papol-offline-status'));
-  if (getLocalSyncPreference() === 'automatic') scheduleNativeSync();
+  scheduleAutomaticNativeSync();
   return receipt;
 }
 
@@ -163,7 +184,7 @@ export const nativeRepository = Object.freeze({
   transact: (changes) => nativeMutate(changes),
 });
 
-export async function cacheNativeSharedPaper(paper) {
+export async function importNativeSharedPaper(paper) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   const createdAt = paper?.created_at || new Date().toISOString();
@@ -180,7 +201,7 @@ export async function cacheNativeSharedPaper(paper) {
     revision: Number.isInteger(edition.revision) ? edition.revision : 0,
     deleted_at: null,
   }))];
-  return invoke('shared_paper_cache', { accountUuid, rows });
+  return invoke('import_shared_paper', { accountUuid, rows });
 }
 
 export async function nativeBlobImport(blob) {
@@ -226,7 +247,7 @@ export function discardNativeBlob(sha256) {
   return invoke('blob_discard', { sha256 });
 }
 
-export async function nativeSyncNow({ manual = false, pushOnly = false } = {}) {
+export async function nativeSyncNow({ manual = false, pushOnly = false, pullOnly = false } = {}) {
   const accountUuid = nativeAccountUuid();
   const token = currentCredential();
   if (!IS_DESKTOP || accountUuid == null || !token) return null;
@@ -241,6 +262,7 @@ export async function nativeSyncNow({ manual = false, pushOnly = false } = {}) {
           backendUrl: nativeBackendUrl(),
           token,
           pushOnly,
+          pullOnly,
           retryBlocked: manual,
         },
       });
@@ -275,22 +297,31 @@ export async function syncAllNow() {
   return null;
 }
 
-export function scheduleNativeSync() {
-  if (scheduledSync) return scheduledSync;
+export function scheduleNativeSync({ pullOnly = false } = {}) {
+  if (scheduledSync) {
+    // An automatic-upload request arriving during a pull-only pass must run
+    // after it; otherwise that local change could wait for another trigger.
+    if (!pullOnly && scheduledSync.pullOnly) {
+      return scheduledSync.then(() => scheduleNativeSync());
+    }
+    return scheduledSync;
+  }
   scheduledSync = Promise.resolve()
-    .then(nativeSyncNow)
+    .then(() => nativeSyncNow({ pullOnly }))
     .catch(() => null)
     .finally(() => {
       scheduledSync = null;
       announceNativeSyncState();
     });
   announceNativeSyncState();
+  scheduledSync.pullOnly = pullOnly;
   return scheduledSync;
 }
 
 export function scheduleAutomaticNativeSync() {
-  if (getLocalSyncPreference() !== 'automatic') return Promise.resolve(null);
-  return scheduleNativeSync();
+  return scheduleNativeSync({
+    pullOnly: getLocalSyncPreference() !== 'automatic',
+  });
 }
 
 export function persistNativeSyncPreference(preference) {
@@ -466,11 +497,15 @@ export function paperView(row) {
 if (typeof window !== 'undefined' && IS_DESKTOP) {
   hydrateNativeSyncPreference().catch(() => {});
   window.addEventListener('online', () => {
+    exitOfflineMode();
     scheduleAutomaticNativeSync();
   });
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') scheduleAutomaticNativeSync();
+      if (document.visibilityState === 'visible' && globalThis.navigator?.onLine !== false) {
+        exitOfflineMode();
+        scheduleAutomaticNativeSync();
+      }
     });
   }
 }

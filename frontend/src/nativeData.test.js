@@ -35,6 +35,9 @@ global.window = {
       if (command === 'data_query' && arguments_.queryName === 'paper' && queryPaper) {
         return queryPaper;
       }
+      if (command === 'data_query' && arguments_.queryName === 'shelves') {
+        return [{ uuid: '88888888-8888-4888-8888-888888888888', is_default: 1 }];
+      }
       if (command === 'blob_import') {
         return { sha256: 'a'.repeat(64), size: arguments_.bytes.length, mime_type: arguments_.mimeType };
       }
@@ -61,17 +64,25 @@ global.Event = class Event { constructor(type) { this.type = type; } };
 
 const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
-const { enterOfflineMode, inOfflineMode } = await import('../../shared/connectivity.js');
+const { configureNetworkFetch, enterOfflineMode, inOfflineMode } = await import('../../shared/connectivity.js');
+configureNetworkFetch(async (url, options) => {
+  calls.push(['network_fetch', { url: String(url), options }]);
+  return new Response(new Blob(['%PDF-1.4\ntest\n%%EOF'], { type: 'application/pdf' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/pdf' },
+  });
+});
 
 const {
-  boardView, cacheNativeSharedPaper, hydrateNativeSyncPreference,
+  boardView, hydrateNativeSyncPreference, importNativeSharedPaper,
+  isReportableNativeBridgeError,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('../../shared/nativeData.js');
 const {
-  addPaperEdition, adoptEdition, deletePaper, ignoreEdition, updatePaper,
+  addPaperEdition, addToNook, adoptEdition, deletePaper, ignoreEdition, updatePaper,
 } = await import('../../shared/api/papers.js');
 
 test('native SQLite is authoritative for the local sync preference', async () => {
@@ -80,11 +91,26 @@ test('native SQLite is authoritative for the local sync preference', async () =>
   assert.equal(values.get('papol.syncPreference'), 'manual');
 });
 
-test('manual mode never starts background native network traffic', async () => {
+test('native command contract failures are reportable application errors', () => {
+  assert.equal(isReportableNativeBridgeError('Command import_shared_paper not allowed by ACL'), true);
+  assert.equal(isReportableNativeBridgeError(new Error('Unknown command import_shared_paper')), true);
+  assert.equal(isReportableNativeBridgeError(new Error('network unavailable')), false);
+});
+
+test('manual mode automatically pulls without uploading local changes', async () => {
   values.set('papol.syncPreference', 'manual');
-  const before = calls.filter(([command]) => command === 'sync_now').length;
-  assert.equal(await scheduleAutomaticNativeSync(), null);
-  assert.equal(calls.filter(([command]) => command === 'sync_now').length, before);
+  await scheduleAutomaticNativeSync();
+  const call = calls.findLast(([command]) => command === 'sync_now');
+  assert.equal(call[1].request.pullOnly, true);
+  assert.equal(call[1].request.pushOnly, false);
+});
+
+test('automatic mode permits uploads during background reconciliation', async () => {
+  values.set('papol.syncPreference', 'automatic');
+  await scheduleAutomaticNativeSync();
+  const call = calls.findLast(([command]) => command === 'sync_now');
+  assert.equal(call[1].request.pullOnly, false);
+  values.set('papol.syncPreference', 'manual');
 });
 
 test('a failed native sync announces both start and settled status', async () => {
@@ -142,7 +168,7 @@ test('desktop native mutations carry the local account into Tauri IPC', async ()
   assert.equal(call[1].changes[0].values.name, 'Offline');
 });
 
-test('paper edits resolve their local copy without an in-memory identity cache', async () => {
+test('paper edits resolve their local copy without automatically uploading it', async () => {
   calls.length = 0;
   const paperUuid = '12121212-1212-4212-8212-121212121212';
   const copyUuid = '34343434-3434-4434-8434-343434343434';
@@ -152,11 +178,12 @@ test('paper edits resolve their local copy without an in-memory identity cache',
   const mutations = calls.filter(([command]) => command === 'data_mutate');
   assert.equal(mutations.length, 2);
   assert.ok(mutations.every(([, args]) => args.changes[0].uuid === copyUuid));
-  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
+  const syncs = calls.filter(([command]) => command === 'sync_now');
+  assert.ok(syncs.every(([, args]) => args.request.pullOnly === true));
   queryPaper = null;
 });
 
-test('edition changes commit to the local paper graph without server operations', async () => {
+test('edition changes commit locally while background reconciliation remains pull-only', async () => {
   calls.length = 0;
   const paperUuid = '56565656-5656-4656-8656-565656565656';
   const copyUuid = '78787878-7878-4878-8878-787878787878';
@@ -174,7 +201,8 @@ test('edition changes commit to the local paper graph without server operations'
   const batches = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
   assert.deepEqual(batches.slice(0, 2).map((changes) => changes[0].table), ['copies', 'copies']);
   assert.deepEqual(batches[2].map((change) => change.table), ['paper_editions', 'copies']);
-  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
+  const syncs = calls.filter(([command]) => command === 'sync_now');
+  assert.ok(syncs.every(([, args]) => args.request.pullOnly === true));
   queryPaper = null;
 });
 
@@ -197,7 +225,7 @@ test('the native repository owns query names and parameter shapes', async () => 
 
 test('a shared paper and all of its editions can seed an offline nook copy', async () => {
   calls.length = 0;
-  await cacheNativeSharedPaper({
+  await importNativeSharedPaper({
     uuid: '11111111-1111-4111-8111-111111111111', title: 'Shared paper',
     created_at: '2026-09-14T00:00:00Z',
     editions: [
@@ -211,7 +239,7 @@ test('a shared paper and all of its editions can seed an offline nook copy', asy
       },
     ],
   });
-  const call = calls.find(([command]) => command === 'shared_paper_cache');
+  const call = calls.find(([command]) => command === 'import_shared_paper');
   assert.equal(call[1].accountUuid, ACCOUNT);
   assert.deepEqual(call[1].rows.map((row) => row.table), [
     'papers', 'paper_editions', 'paper_editions',
@@ -226,6 +254,39 @@ test('native blob import transfers exact bytes and metadata', async () => {
   const call = calls.find(([command]) => command === 'blob_import');
   assert.deepEqual([...call[1].bytes], [0, 1, 2, 255]);
   assert.equal(call[1].mimeType, 'image/png');
+});
+
+test('adding a Library paper directly downloads it without running manual sync', async () => {
+  calls.length = 0;
+  remoteBlobReady = false;
+  const paperUuid = '11111111-1111-4111-8111-111111111111';
+  const editionUuid = '22222222-2222-4222-8222-222222222222';
+  const digest = 'a'.repeat(64);
+  queryPaper = {
+    uuid: paperUuid, title: 'Ready to read', file_path: 'ready.pdf', edition_uuid: editionUuid,
+    edition_sha256: digest, editions: [{ uuid: editionUuid, sha256: digest }],
+  };
+
+  const added = await addToNook({
+    ...queryPaper,
+    created_at: '2026-09-14T00:00:00Z',
+    editions: [{
+      uuid: editionUuid, sha256: digest, file_path: 'ready.pdf',
+      created_at: '2026-09-14T00:00:00Z',
+    }],
+  });
+
+  const commands = calls.map(([command]) => command);
+  assert.equal(commands.includes('blob_ensure'), false);
+  const syncs = calls.filter(([command]) => command === 'sync_now');
+  assert.ok(syncs.every(([, args]) => args.request.pullOnly === true));
+  assert.ok(commands.indexOf('network_fetch') < commands.indexOf('blob_import'));
+  assert.ok(commands.indexOf('blob_import') < commands.indexOf('data_mutate'));
+  const download = calls.find(([command]) => command === 'network_fetch')[1];
+  assert.match(download.url, /\/uploads\/ready\.pdf$/);
+  assert.equal(download.options.headers, undefined);
+  assert.equal(added.viewer_has_entry, true);
+  queryPaper = null;
 });
 
 test('a desktop file drop transfers the PDF to the native viewer', async () => {

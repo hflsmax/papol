@@ -213,7 +213,11 @@ test('first sign-in adds an open file locally without waiting for its nook snaps
   const paperUuid = await source.addToNook();
 
   assert.match(paperUuid, /^[0-9a-f-]{36}$/);
-  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
+  const syncs = calls.filter(([command]) => command === 'sync_now');
+  assert.ok(syncs.length > 0);
+  assert.ok(syncs.every(([, args]) => (
+    args.request.pullOnly === true && args.request.pushOnly === false
+  )));
   const paperGraph = calls.find(([, args]) => args.changes?.some((change) => change.table === 'copies'));
   assert.equal(paperGraph[1].changes.find((change) => change.table === 'copies').values.shelf_uuid, null);
   assert.deepEqual(

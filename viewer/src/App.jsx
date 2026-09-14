@@ -15,9 +15,11 @@ import {
 import { resolveSource, getToken } from './source';
 import { appPath, backendPath } from './base';
 import {
-  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents, requestSignIn,
+  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
+  recordDiagnosticEvent, requestSignIn,
 } from '../../shared/nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/diagnosticLog.js';
+import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
 import {
@@ -495,12 +497,14 @@ export default function App() {
   const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackReportError, setFeedbackReportError] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackError, setFeedbackError] = useState(null);
   const [feedbackLog, setFeedbackLog] = useState('');
   const [feedbackIncludeLog, setFeedbackIncludeLog] = useState(true);
+  const reportedPdfErrors = useRef(new Set());
 
   useEffect(() => {
     if (!feedbackOpen) return;
@@ -669,7 +673,29 @@ export default function App() {
         setDoc(d);
         markViewerPerformance('document-loaded', { pages: d.numPages });
       })
-      .catch((e) => !cancelled && setError(`PDF failed to open: ${e.message}`));
+      .catch((failure) => {
+        if (cancelled) return;
+        const message = messageOf(failure);
+        if (/blob is not available offline|pdf is not available in the local replica/i.test(message)) {
+          setError('This PDF has not finished downloading to this Mac. Connect to the internet and choose Sync, then open it again.');
+          return;
+        }
+        setError(`PDF failed to open: ${message}`);
+        if (!DESKTOP) return;
+        const report = unexpectedDesktopErrorReport(failure, 'opening a PDF in the viewer', {
+          surface: window.__PAPOL_ENV__?.surface,
+          platform: navigator.platform,
+        });
+        if (reportedPdfErrors.current.has(report.signature)) return;
+        reportedPdfErrors.current.add(report.signature);
+        void recordDiagnosticEvent({
+          level: 'error', component: 'viewer', event: 'pdf_open_failed',
+          message, fields: { operation: 'pdf_open' },
+        });
+        setFeedbackReportError(true);
+        setFeedbackContent(report.content);
+        setFeedbackOpen(true);
+      });
     return () => {
       cancelled = true;
       task?.destroy();
@@ -2879,6 +2905,7 @@ export default function App() {
 
   const closeFeedback = () => {
     setFeedbackOpen(false);
+    setFeedbackReportError(false);
     setFeedbackContent('');
     setFeedbackError(null);
     setFeedbackSent(false);
@@ -3866,7 +3893,11 @@ export default function App() {
         <button
           type="button"
           className="feedback-fab"
-          onClick={() => setFeedbackOpen(true)}
+          onClick={() => {
+            setFeedbackReportError(false);
+            setFeedbackContent('');
+            setFeedbackOpen(true);
+          }}
         >
           Feedback
         </button>
@@ -3876,11 +3907,13 @@ export default function App() {
             className="help-back"
             role="dialog"
             aria-modal="true"
-            aria-label="Report a bug or ask for a feature"
+            aria-label={feedbackReportError ? 'Send an error report' : 'Report a bug or ask for a feature'}
             onClick={closeFeedback}
           >
             <div className="help-sheet feedback-sheet" onClick={(e) => e.stopPropagation()}>
-              <h3>{feedbackSent ? 'Thank you' : 'Report a bug or ask for a feature'}</h3>
+              <h3>{feedbackSent
+                ? (feedbackReportError ? 'Report sent' : 'Thank you')
+                : (feedbackReportError ? 'Send an error report?' : 'Report a bug or ask for a feature')}</h3>
               {feedbackSent ? (
                 <>
                   <div className="feedback-actions">
@@ -3891,16 +3924,21 @@ export default function App() {
                 </>
               ) : (
                 <>
+                  {feedbackReportError && (
+                    <p className="feedback-note">
+                      Papol encountered an unexpected error while opening this PDF. Review the details below and choose whether to send them to the developer.
+                    </p>
+                  )}
                   <div className="feedback-field">
                     <label>
-                      What went wrong, or what would you like the viewer to do?
+                      {feedbackReportError ? 'Diagnostic details' : 'What went wrong, or what would you like the viewer to do?'}
                     </label>
                     <textarea
                       rows="5"
                       maxLength={appLimits.text.feedback}
                       value={feedbackContent}
                       onChange={(e) => setFeedbackContent(e.target.value)}
-                      placeholder="I clicked … and the page …, or: it would help if …"
+                      placeholder={feedbackReportError ? undefined : 'I clicked … and the page …, or: it would help if …'}
                       autoFocus
                     />
                   </div>
@@ -3926,7 +3964,7 @@ export default function App() {
 
                   <div className="feedback-actions">
                     <button type="button" onClick={closeFeedback} disabled={feedbackSending}>
-                      Cancel
+                      {feedbackReportError ? 'Not now' : 'Cancel'}
                     </button>
                     <button
                       type="button"
@@ -3934,7 +3972,7 @@ export default function App() {
                       onClick={sendFeedback}
                       disabled={feedbackSending || !feedbackContent.trim()}
                     >
-                      {feedbackSending ? 'Sending…' : 'Submit'}
+                      {feedbackSending ? 'Sending…' : (feedbackReportError ? 'Send report' : 'Submit')}
                     </button>
                   </div>
                 </>

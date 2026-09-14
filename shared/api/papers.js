@@ -1,6 +1,6 @@
 import { appPath, backendPath } from '../appUrls.js';
 import {
-  cacheNativeSharedPaper, discardNativeBlob, nativeBlobImport, nativeDataActive,
+  discardNativeBlob, importNativeSharedPaper, nativeBlobImport, nativeDataActive,
   nativeRepository, noteView, paperView, shelfView, newUuid,
 } from '../nativeData.js';
 import { inOfflineMode, runtimeFetch } from '../connectivity.js';
@@ -183,6 +183,41 @@ export async function getPaper(uuid) {
   return paper;
 }
 
+async function downloadNativePaperPdf(paper, expectedSha256) {
+  const filePath = paper.file_path
+    || paper.editions?.find((edition) => edition.sha256 === expectedSha256)?.file_path;
+  if (!filePath) {
+    const failure = new Error('This Library paper does not have a downloadable PDF.');
+    failure.reportable = false;
+    throw failure;
+  }
+  let response;
+  try {
+    // Library PDFs are public. Do not attach the Papol bearer token: an
+    // edition may point at an external open-access URL.
+    response = await runtimeFetch(pdfHref({ ...paper, file_path: filePath }));
+  } catch (cause) {
+    const failure = new Error(
+      'The paper could not be downloaded. Check your connection and try again.',
+      { cause },
+    );
+    failure.reportable = false;
+    throw failure;
+  }
+  if (!response.ok) {
+    const failure = new Error(
+      `The paper could not be downloaded from the server (error ${response.status}). Try again later.`,
+    );
+    failure.reportable = false;
+    throw failure;
+  }
+  const stored = await nativeBlobImport(await response.blob());
+  if (stored.sha256 !== expectedSha256) {
+    await discardNativeBlob(stored.sha256).catch(() => {});
+    throw new Error('The downloaded PDF did not match the Library edition.');
+  }
+}
+
 export async function addToNook(paper) {
   const paperUuid = typeof paper === 'string' ? paper : paper?.uuid;
   if (!paperUuid) throw new Error('Paper not found');
@@ -190,9 +225,12 @@ export async function addToNook(paper) {
     return request(`/papers/${paperUuid}/add-to-nook`, { method: 'POST' });
   }
 
-  await cacheNativeSharedPaper(paper);
   const shelves = await nativeRepository.shelves();
   const { copyUuid, change } = planOfflineNookAddition(paper, shelves, newUuid);
+  if (change.values.edition_sha256) {
+    await downloadNativePaperPdf(paper, change.values.edition_sha256);
+  }
+  await importNativeSharedPaper(paper);
   await nativeRepository.transact([change]);
   setPaperCopyUuid(paperUuid, copyUuid);
   return paperView(await nativeRepository.paper(paperUuid));

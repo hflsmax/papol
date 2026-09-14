@@ -15,7 +15,7 @@ import {
 } from '../../../shared/connectivity.js';
 import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
-  nativeSyncInProgress, openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
+  nativeRepository, nativeSyncInProgress, openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
   persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress, syncAllNow,
 } from '../../../shared/nativeData.js';
 
@@ -195,15 +195,15 @@ function LocalDeviceSettings({ onSynced }) {
         Sync, storage, and file-opening preferences apply only to this Mac.
       </p>
       <div className="local-setting-row">
-        <label htmlFor="local-sync-preference"><strong>Sync</strong></label>
+        <label htmlFor="local-sync-preference"><strong>Uploading</strong></label>
         <div className="local-sync-actions">
           <select
             id="local-sync-preference"
             value={syncPreference}
             onChange={(event) => chooseSyncPreference(event.target.value)}
           >
-            <option value="automatic">Automatic</option>
-            <option value="manual">Manual</option>
+            <option value="automatic">Upload automatically</option>
+            <option value="manual">Upload when I click Sync</option>
           </select>
           <button type="button" disabled={sync.running} onClick={syncNow}>
             {sync.running ? 'Syncing…' : 'Sync now'}

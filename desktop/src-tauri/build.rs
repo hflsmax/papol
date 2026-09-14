@@ -10,6 +10,7 @@ fn main() {
             "open_diagnostic_logs",
             "data_query",
             "data_mutate",
+            "import_shared_paper",
             "blob_import",
             "blob_read",
             "blob_ensure",
