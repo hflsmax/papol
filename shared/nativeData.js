@@ -26,6 +26,31 @@ export function isReportableNativeBridgeError(error) {
   return /native bridge.*unavailable|command.*(?:not allowed|not found)|unknown command/i.test(message);
 }
 
+export function isOfflineNativeSyncError(error) {
+  const message = error?.message || String(error || '');
+  return /\b(?:network|offline|dns|tcp|tls|certificate)\b|connect(?:ion)? (?:error|failed|refused|reset)|error (?:sending request|trying to connect)|timed? out|timeout/i.test(message);
+}
+
+export function isReportableNativeSyncError(error) {
+  const message = error?.message || String(error || '');
+  return /applying (?:pushed rows|snapshot|pull page) failed|local database|database lock|constraint failed|server (?:sent|row)|push result row|pulled row|synchronized columns/i.test(message);
+}
+
+function announceReportableNativeError(error, area) {
+  if (typeof CustomEvent !== 'function') return;
+  window.dispatchEvent(new CustomEvent(REPORTABLE_NATIVE_ERROR_EVENT, {
+    detail: { error, area },
+  }));
+}
+
+function handleNativeSyncFailure(error) {
+  if (isOfflineNativeSyncError(error)) enterOfflineMode();
+  else exitOfflineMode();
+  if (isReportableNativeSyncError(error)) {
+    announceReportableNativeError(error, 'synchronizing local data');
+  }
+}
+
 // Tauri broadcasts coordinator status to every webview. Latch failures in
 // each window so a sync started in the library also makes the viewer and
 // board surfaces stop issuing backend requests.
@@ -33,7 +58,7 @@ function listenForSyncStatus() {
   if (!IS_DESKTOP || syncStatusListening) return;
   syncStatusListening = true;
   listen('papol://sync-status', (event) => {
-    if (event.payload?.error) enterOfflineMode();
+    if (event.payload?.error) handleNativeSyncFailure(event.payload.error);
     else if (Number.isFinite(event.payload?.cursor)) exitOfflineMode();
   }).catch(() => { syncStatusListening = false; });
 }
@@ -51,10 +76,8 @@ export function configureNativeBridge(bridge) {
       // ACL and command-registration mismatches are application defects, not
       // user-recoverable failures. Announce them even when the calling screen
       // catches the rejection to show an inline message.
-      if (isReportableNativeBridgeError(error) && typeof CustomEvent === 'function') {
-        window.dispatchEvent(new CustomEvent(REPORTABLE_NATIVE_ERROR_EVENT, {
-          detail: { error, area: `native command ${command}` },
-        }));
+      if (isReportableNativeBridgeError(error)) {
+        announceReportableNativeError(error, `native command ${command}`);
       }
       throw error;
     }
@@ -283,7 +306,7 @@ export async function nativeSyncNow({ manual = false, pushOnly = false, pullOnly
       exitOfflineMode();
       return result;
     } catch (error) {
-      enterOfflineMode();
+      handleNativeSyncFailure(error);
       throw error;
     }
   } finally {

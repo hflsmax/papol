@@ -65,6 +65,9 @@ global.window = {
   dispatchEvent(event) { dispatchedEvents.push(event.type); },
 };
 global.Event = class Event { constructor(type) { this.type = type; } };
+global.CustomEvent = class CustomEvent extends Event {
+  constructor(type, init) { super(type); this.detail = init?.detail; }
+};
 
 const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
@@ -85,7 +88,8 @@ configureNetworkFetch(async (url, options) => {
 
 const {
   boardView, configureNativeBridge, hydrateNativeSyncPreference, importNativeSharedPaper,
-  isNativeSyncResult, isReportableNativeBridgeError,
+  isNativeSyncResult, isOfflineNativeSyncError, isReportableNativeBridgeError,
+  isReportableNativeSyncError,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
@@ -129,6 +133,24 @@ test('native command contract failures are reportable application errors', () =>
   assert.equal(isReportableNativeBridgeError('Command import_shared_paper not allowed by ACL'), true);
   assert.equal(isReportableNativeBridgeError(new Error('Unknown command import_shared_paper')), true);
   assert.equal(isReportableNativeBridgeError(new Error('network unavailable')), false);
+});
+
+test('sync failures distinguish connectivity from reportable local defects', async () => {
+  assert.equal(isOfflineNativeSyncError(new Error('error sending request: connection refused')), true);
+  assert.equal(isOfflineNativeSyncError(new Error('UNIQUE constraint failed')), false);
+  assert.equal(isReportableNativeSyncError(new Error('Applying pushed rows failed: UNIQUE constraint failed')), true);
+
+  dispatchedEvents.length = 0;
+  syncFailure = new Error('Applying pushed rows failed: UNIQUE constraint failed');
+  await assert.rejects(nativeSyncNow(), /UNIQUE constraint failed/);
+  syncFailure = null;
+  assert.equal(inOfflineMode(), false);
+  assert.deepEqual(dispatchedEvents, [
+    'papol-offline-status',
+    'papol-offline-status',
+    'papol-reportable-native-error',
+    'papol-offline-status',
+  ]);
 });
 
 test('manual mode automatically pulls without uploading local changes', async () => {

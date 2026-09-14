@@ -2059,10 +2059,17 @@ fn apply_identity_aliases(
                     )
                     .map_err(|error| error.to_string())?;
             }
-            transaction.execute(
-                "UPDATE _local_blob_refs SET row_uuid=?1 WHERE table_name='paper_editions' AND row_uuid=?2",
-                params![new_uuid, old_uuid],
-            ).map_err(|error| error.to_string())?;
+            // The canonical edition can already have a blob reference when a
+            // snapshot introduced it before this offline import was pushed.
+            // Rebuild the reference under the canonical identity instead of
+            // renaming the temporary row into the same primary key.
+            transaction
+                .execute(
+                    "DELETE FROM _local_blob_refs WHERE table_name='paper_editions' AND row_uuid=?1",
+                    [old_uuid],
+                )
+                .map_err(|error| error.to_string())?;
+            refresh_blob_reference(transaction, "paper_editions", new_uuid)?;
             if canonical_exists.is_some() {
                 transaction
                     .execute("DELETE FROM paper_editions WHERE uuid=?1", [old_uuid])
@@ -4630,5 +4637,78 @@ mod tests {
             1
         );
         assert_eq!(store.outbox_count(), 1);
+    }
+
+    #[test]
+    fn accepted_duplicate_pdf_alias_merges_existing_blob_references() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let blob = store
+            .import_blob(b"%PDF-1.4\ncanonical bytes", Some("application/pdf".into()))
+            .unwrap();
+        let canonical_paper_uuid = Uuid::new_v4().to_string();
+        let canonical_edition_uuid = Uuid::new_v4().to_string();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical',?2,?2)",
+                    params![canonical_paper_uuid, chrono_text()],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?5)",
+                    params![
+                        canonical_edition_uuid,
+                        canonical_paper_uuid,
+                        format!("{}.pdf", blob.sha256),
+                        blob.sha256,
+                        chrono_text(),
+                    ],
+                )
+                .unwrap();
+            refresh_blob_reference(&connection, "paper_editions", &canonical_edition_uuid).unwrap();
+        }
+
+        let receipt = store
+            .mutate(
+                "7",
+                pdf_import_changes(&blob.sha256, "Duplicate offline import"),
+            )
+            .unwrap();
+        let temporary_edition_uuid = receipt.rows[1]["uuid"].as_str().unwrap().to_owned();
+        store
+            .accept_push(
+                "7",
+                receipt.local_sequence,
+                vec![],
+                vec![],
+                Map::from_iter([(
+                    temporary_edition_uuid.clone(),
+                    json!(canonical_edition_uuid),
+                )]),
+            )
+            .unwrap();
+
+        let connection = store.connection.lock().unwrap();
+        let references: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM _local_blob_refs WHERE table_name='paper_editions' AND row_uuid=?1 AND sha256=?2",
+                params![canonical_edition_uuid, blob.sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let temporary_references: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM _local_blob_refs WHERE table_name='paper_editions' AND row_uuid=?1",
+                [temporary_edition_uuid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(references, 1);
+        assert_eq!(temporary_references, 0);
+        drop(connection);
+        assert_eq!(store.outbox_count(), 0);
     }
 }
