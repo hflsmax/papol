@@ -6,6 +6,7 @@ global.indexedDB = createTestIndexedDb();
 global.location = new URL('tauri://localhost/');
 global.window = {
   location: global.location,
+  __PAPOL_ENV__: { runtime: 'desktop', surface: 'main', documentWindow: false },
   dispatchEvent() {},
   addEventListener() {},
 };

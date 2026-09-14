@@ -2,11 +2,12 @@ import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { normalizeBackendBase } from '../../shared/backendUrl.js';
 
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = resolve(desktopDir, '..');
 const outputDir = join(desktopDir, 'dist');
-const backend = (process.env.PAPOL_BACKEND_URL || 'https://mc-pony.com/papol').replace(/\/$/, '');
+const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'https://mc-pony.com/papol');
 
 function build(name) {
   const result = spawnSync('npm', ['run', 'build'], {

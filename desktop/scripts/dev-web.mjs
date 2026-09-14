@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeBackendBase } from '../../shared/backendUrl.js';
 
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = resolve(desktopDir, '..');
-const backend = (process.env.PAPOL_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'http://127.0.0.1:8000');
 const apps = [
   ['frontend', '5173'],
   ['viewer', '5174'],

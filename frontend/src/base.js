@@ -1,3 +1,5 @@
+import { backendUrl, normalizeBackendBase } from '../../shared/backendUrl.js';
+
 // Vite supplies / in development and /papol/ in the production deployment.
 // Keep browser URLs and API requests inside that mount without teaching the
 // application routes themselves about where Papol happens to be hosted.
@@ -22,12 +24,12 @@ export function appPath(path = '/') {
 // Browser builds keep using Papol's own origin. The desktop build supplies a
 // hosted backend here, while its pages and all of their runtime dependencies
 // remain inside the application bundle.
-const configuredBackend = (viteEnvironment.VITE_PAPOL_BACKEND || '').replace(/\/$/, '');
+const configuredBackend = normalizeBackendBase(viteEnvironment.VITE_PAPOL_BACKEND);
 export const BACKEND_BASE = configuredBackend || APP_BASE;
 
 export function backendPath(path = '/') {
   const absolute = path.startsWith('/') ? path : `/${path}`;
-  return configuredBackend ? `${configuredBackend}${absolute}` : appPath(absolute);
+  return configuredBackend ? backendUrl(configuredBackend, absolute) : appPath(absolute);
 }
 
 export function stripAppBase(pathname) {

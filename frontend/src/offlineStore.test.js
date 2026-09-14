@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyOfflineQueue, configureNetworkFetch, getLocalSyncPreference, isSafeOfflineMutation,
-  runtimeFetch, setLocalSyncPreference,
+  applyOfflineQueue, configureNetworkFetch, enterOfflineMode, getLocalSyncPreference,
+  inOfflineMode, isSafeOfflineMutation, offlineFetch, runtimeFetch, setLocalSyncPreference,
 } from '../../shared/offlineStore.js';
 
 const raw = (value) => ({ type: 'raw', value: JSON.stringify(value) });
@@ -23,17 +23,33 @@ test('only user-owned mutations are accepted for offline replay', () => {
   assert.equal(isSafeOfflineMutation('PUT', '/board-items/12/layout', '{}'), false);
 });
 
-test('local sync preference persists on this device as automatic or manual', () => {
+test('the hosted web runtime has no sync mode', () => {
   const values = new Map();
   global.localStorage = {
     getItem: (key) => values.get(key) || null,
     setItem: (key, value) => values.set(key, value),
   };
   setLocalSyncPreference('manual');
-  assert.equal(getLocalSyncPreference(), 'manual');
-  setLocalSyncPreference('automatic');
   assert.equal(getLocalSyncPreference(), 'automatic');
+  assert.equal(values.has('papol.syncPreference'), false);
   delete global.localStorage;
+});
+
+test('the hosted web runtime never enters offline mode or reuses an API response', async () => {
+  enterOfflineMode();
+  assert.equal(inOfflineMode(), false);
+
+  let requestOptions;
+  const first = await offlineFetch('/api/boards', {}, async (_url, options) => {
+    requestOptions = options;
+    return new Response('[]');
+  });
+  assert.equal(await first.text(), '[]');
+  assert.equal(requestOptions.cache, 'no-store');
+  await assert.rejects(
+    offlineFetch('/api/boards', {}, async () => { throw new TypeError('network unavailable'); }),
+    /network unavailable/,
+  );
 });
 
 test('runtime transport keeps bundled assets local and sends HTTPS through native networking', async () => {

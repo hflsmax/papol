@@ -1,6 +1,8 @@
-// Durable offline transport for Papol's user-owned data. Successful reads are
-// cached in IndexedDB. Safe private mutations are queued after a network
-// failure and replayed in order when the backend becomes reachable again.
+import { IS_DESKTOP } from './appEnvironment.js';
+
+// Durable offline transport for Papol Desktop's user-owned data. The hosted
+// web app is deliberately network-only: it neither caches API responses nor
+// queues mutations when the backend is unavailable.
 
 const DB_NAME = 'papol-offline';
 const DB_VERSION = 1;
@@ -20,7 +22,7 @@ let syncing = null;
 // wait for its own timeout. This is deliberately not persisted: relaunching
 // the app, or explicitly pressing Sync, is a fresh connectivity attempt.
 let offlineMode = false;
-const offlineModeChannel = typeof window !== 'undefined' && typeof window.BroadcastChannel === 'function'
+const offlineModeChannel = IS_DESKTOP && typeof window !== 'undefined' && typeof window.BroadcastChannel === 'function'
   ? new window.BroadcastChannel('papol-offline-mode')
   : null;
 const pendingBlobLoads = new Map();
@@ -35,7 +37,7 @@ let latestAuthorization = null;
 let syncStatus = {
   pending: 0,
   syncing: false,
-  offline: typeof navigator !== 'undefined' ? navigator.onLine === false : false,
+  offline: IS_DESKTOP && typeof navigator !== 'undefined' ? navigator.onLine === false : false,
   error: null,
   lastSynced: null,
 };
@@ -58,23 +60,25 @@ export function runtimeFetch(input, options) {
   let protocol = '';
   try { protocol = new URL(rawUrl, globalThis.location?.href).protocol; } catch { /* fetch reports malformed URLs */ }
   if (/^https?:$/.test(protocol)) {
-    if (offlineMode) return Promise.reject(new OnlineRequiredError());
+    if (IS_DESKTOP && offlineMode) return Promise.reject(new OnlineRequiredError());
     return remoteNetworkFetch(input, options);
   }
   return globalThis.fetch(input, options);
 }
 
 export function inOfflineMode() {
-  return offlineMode;
+  return IS_DESKTOP && offlineMode;
 }
 
 export function enterOfflineMode() {
+  if (!IS_DESKTOP) return;
   offlineMode = true;
   notify({ offline: true });
   offlineModeChannel?.postMessage({ offline: true });
 }
 
 export function exitOfflineMode() {
+  if (!IS_DESKTOP) return;
   offlineMode = false;
   notify({ offline: typeof navigator !== 'undefined' && navigator.onLine === false });
   offlineModeChannel?.postMessage({ offline: false });
@@ -124,11 +128,13 @@ function identifiedMutationOptions(options = {}) {
 }
 
 export function getLocalSyncPreference() {
+  if (!IS_DESKTOP) return 'automatic';
   return storedSetting(LOCAL_SYNC_PREFERENCE_KEY, 'automatic');
 }
 
 export function setLocalSyncPreference(preference) {
   if (!['automatic', 'manual'].includes(preference)) throw new Error('Unknown sync preference');
+  if (!IS_DESKTOP) return;
   try { localStorage.setItem(LOCAL_SYNC_PREFERENCE_KEY, preference); } catch { /* best effort */ }
   notify({ preference });
   if (preference === 'automatic') syncOfflineQueue().catch(() => {});
@@ -143,6 +149,7 @@ export function getSyncStatus() {
 }
 
 export async function refreshSyncStatus() {
+  if (!IS_DESKTOP) return getSyncStatus();
   const pending = (await allStored('queue')).length;
   notify({ pending });
   return getSyncStatus();
@@ -666,6 +673,7 @@ function mappedOptions(options, mappings) {
 }
 
 export async function syncOfflineQueue(fetchImpl = remoteNetworkFetch, { manual = false } = {}) {
+  if (!IS_DESKTOP) return 0;
   if (offlineMode && !manual) {
     const pending = (await allStored('queue')).length;
     notify({ offline: true, pending });
@@ -752,6 +760,7 @@ export async function syncOfflineQueue(fetchImpl = remoteNetworkFetch, { manual 
 }
 
 export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) {
+  if (!IS_DESKTOP) return fetchImpl(url, { ...options, cache: 'no-store' });
   const method = (options.method || 'GET').toUpperCase();
   const path = pathOf(url);
   const requestAuthorization = new Headers(options.headers || {}).get('authorization');
@@ -818,6 +827,10 @@ export async function offlineFetch(url, options = {}, fetchImpl = runtimeFetch) 
 
 export async function cachedBlobUrl(key, loader = null) {
   if (!key) return null;
+  if (!IS_DESKTOP) {
+    if (!loader) throw new Error('No network loader is available');
+    return URL.createObjectURL(await loader());
+  }
   if (key.startsWith(OFFLINE_FILE)) {
     const blob = await getStored('files', key);
     return blob ? URL.createObjectURL(blob) : null;
@@ -859,13 +872,14 @@ export function offlinePdfUrl(url) {
 }
 
 export function rememberOfflineIdentity(token, user) {
+  if (!IS_DESKTOP) return Promise.resolve();
   if (!token || !user) return Promise.resolve();
   return putStored('responses', user, responseKey('/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
   }));
 }
 
-if (typeof window !== 'undefined') {
+if (IS_DESKTOP && typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     if (offlineMode) return;
     notify({ offline: false });

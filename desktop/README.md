@@ -107,6 +107,12 @@ To use another backend in that bundle:
 PAPOL_BACKEND_URL=http://localhost:8000 npm run build:web
 ```
 
+`PAPOL_BACKEND_URL` is the base directory that contains Papol's `api/`
+route: use `https://host/papol` for a mounted production app and
+`http://localhost:8000` for a root-mounted development app. The build
+normalizes either form to a trailing-slash directory URL, so browser requests
+and native synchronization retain that path prefix.
+
 ### Extending offline data
 
 For a nullable field on an existing synchronized row: add it to the ordered

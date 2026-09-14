@@ -554,6 +554,20 @@ mod tests {
     }
 
     #[test]
+    fn backend_url_keeps_a_mounted_api_prefix_when_joining_sync_routes() {
+        let backend = validated_backend("https://example.test/papol").unwrap();
+        assert_eq!(
+            backend.join("api/sync/snapshot").unwrap().as_str(),
+            "https://example.test/papol/api/sync/snapshot",
+        );
+        let root = validated_backend("https://example.test").unwrap();
+        assert_eq!(
+            root.join("api/sync/snapshot").unwrap().as_str(),
+            "https://example.test/api/sync/snapshot",
+        );
+    }
+
+    #[test]
     fn progress_advances_through_phases_and_counts_bytes() {
         let reports = std::sync::Mutex::new(Vec::new());
         let record = |progress: SyncProgress| reports.lock().unwrap().push(progress);

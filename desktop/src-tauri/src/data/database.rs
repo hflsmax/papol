@@ -535,7 +535,7 @@ impl LocalStore {
                 .to_owned();
             let sha256 = row.get("sha256").and_then(Value::as_str).map(str::to_owned);
             validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
-            apply_remote_row(&transaction, &table, row)?;
+            apply_remote_row(&transaction, &table, row, false)?;
             refresh_blob_reference(&transaction, &table, &row_uuid)?;
             if let Some(sha256) = sha256 {
                 transaction
@@ -594,7 +594,7 @@ impl LocalStore {
             validate_remote_ownership(&transaction, account_uuid, &change.table, &change.row)?;
             let table = change.table;
             let uuid = change.uuid;
-            apply_remote_row(&transaction, &table, change.row)?;
+            apply_remote_row(&transaction, &table, change.row, false)?;
             refresh_blob_reference(&transaction, &table, &uuid)?;
         }
         transaction.execute(
@@ -633,7 +633,7 @@ impl LocalStore {
             let stale_at = chrono_text();
             // Board children carry ownership through their parent, so stale
             // them before the boards themselves. Rows present in the incoming
-            // snapshot are restored by the revision-aware upserts below.
+            // snapshot are restored by the authoritative upserts below.
             for table in ["board_items", "board_groups"] {
                 transaction
                     .execute(
@@ -675,7 +675,7 @@ impl LocalStore {
                 .ok_or("Snapshot row is missing its uuid")?
                 .to_owned();
             validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
-            apply_remote_row(&transaction, &table, row)?;
+            apply_remote_row(&transaction, &table, row, pending == 0)?;
             refresh_blob_reference(&transaction, &table, &uuid)?;
         }
         transaction.commit().map_err(|error| error.to_string())?;
@@ -2140,6 +2140,7 @@ fn apply_remote_row(
     transaction: &rusqlite::Transaction<'_>,
     table: &str,
     row: Map<String, Value>,
+    authoritative: bool,
 ) -> Result<(), String> {
     let registry: Value = serde_json::from_str(REGISTRY).map_err(|error| error.to_string())?;
     if registry["tables"].get(table).is_none() {
@@ -2173,13 +2174,23 @@ fn apply_remote_row(
         .iter()
         .map(|name| fields.remove(name).unwrap())
         .collect();
-    transaction.execute(
-        &format!(
-            "INSERT INTO {table} ({}) VALUES ({}) ON CONFLICT(uuid) DO UPDATE SET {} WHERE excluded.revision >= {table}.revision",
-            names.join(","), placeholders.join(","), updates.join(","),
-        ),
-        params_from_iter(values),
-    ).map_err(|error| error.to_string())?;
+    let revision_guard = if authoritative {
+        String::new()
+    } else {
+        format!(" WHERE excluded.revision >= {table}.revision")
+    };
+    transaction
+        .execute(
+            &format!(
+                "INSERT INTO {table} ({}) VALUES ({}) ON CONFLICT(uuid) DO UPDATE SET {}{}",
+                names.join(","),
+                placeholders.join(","),
+                updates.join(","),
+                revision_guard,
+            ),
+            params_from_iter(values),
+        )
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -3921,6 +3932,63 @@ mod tests {
             .unwrap()
             .iter()
             .any(|row| row["uuid"] == pending_uuid));
+    }
+
+    #[test]
+    fn authoritative_snapshot_restores_a_present_board_despite_a_higher_local_revision() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board_uuid = Uuid::new_v4().to_string();
+        let now = chrono_text();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO boards(uuid,user_uuid,name,created_at,updated_at,revision) VALUES (?1,'7','Stale local board',?2,?2,8)",
+                    params![board_uuid, now],
+                )
+                .unwrap();
+        }
+
+        let mut snapshot_board = remote_board(&board_uuid, 2, "Server board");
+        snapshot_board.insert("table".into(), json!("boards"));
+        store.apply_snapshot("7", vec![snapshot_board]).unwrap();
+
+        let boards = store.query("7", "boards", json!({})).unwrap();
+        assert_eq!(boards.as_array().unwrap().len(), 1);
+        assert_eq!(boards[0]["uuid"], board_uuid);
+        assert_eq!(boards[0]["name"], "Server board");
+        assert_eq!(boards[0]["revision"], 2);
+        assert!(boards[0]["deleted_at"].is_null());
+    }
+
+    #[test]
+    fn snapshot_does_not_overwrite_a_higher_revision_with_pending_local_work() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board_uuid = Uuid::new_v4().to_string();
+        let mut original = remote_board(&board_uuid, 1, "Server board");
+        original.insert("table".into(), json!("boards"));
+        store.apply_snapshot("7", vec![original]).unwrap();
+        store
+            .mutate(
+                "7",
+                vec![DataChange {
+                    table: "boards".into(),
+                    uuid: board_uuid.clone(),
+                    operation: "patch".into(),
+                    values: Map::from_iter([("name".into(), json!("Offline edit"))]),
+                }],
+            )
+            .unwrap();
+
+        let mut stale_snapshot = remote_board(&board_uuid, 1, "Stale server board");
+        stale_snapshot.insert("table".into(), json!("boards"));
+        store.apply_snapshot("7", vec![stale_snapshot]).unwrap();
+
+        let boards = store.query("7", "boards", json!({})).unwrap();
+        assert_eq!(boards[0]["name"], "Offline edit");
+        assert_eq!(store.outbox_count(), 1);
     }
 
     #[test]
