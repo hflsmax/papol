@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue.js';
+import {
+  createRenderQueue, DRAW_SCROLL_QUIET_MS, SCROLL_QUIET_MS,
+} from './pageRenderQueue.js';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -103,6 +105,25 @@ test('an idle job waits for drawing to finish and for scrolling to pause', async
   assert.deepEqual(ran, ['draw'], 'still scrolling');
   await advance(SCROLL_QUIET_MS);
   assert.deepEqual(ran, ['draw', 'text']);
+});
+
+test('a scroll-sensitive page waits out a fling before drawing', async () => {
+  const { queue, advance } = queueWithClock();
+  const ran = [];
+  queue.scrolled();
+  queue.request({
+    scrollSensitive: true,
+    priority: () => 0,
+    run: () => { ran.push('page'); },
+  });
+  await flush();
+  assert.deepEqual(ran, []);
+  await advance(DRAW_SCROLL_QUIET_MS / 2);
+  queue.scrolled();
+  await advance(DRAW_SCROLL_QUIET_MS / 2);
+  assert.deepEqual(ran, [], 'continued scrolling keeps the page queued');
+  await advance(DRAW_SCROLL_QUIET_MS);
+  assert.deepEqual(ran, ['page']);
 });
 
 test('quiet() waits for scrolling to pause, and always for a later task', async () => {

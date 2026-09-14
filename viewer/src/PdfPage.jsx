@@ -10,6 +10,7 @@ import { STRIP_RATIO } from './ink';
 import { resizeClipFrame } from './clipResize';
 import { anchorSpotAtPage } from './anchorDrag';
 import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
+import { markViewerPerformance, measureViewerPerformance } from './performance.js';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -385,6 +386,7 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
 function PdfPage({
   doc,
   pageNumber,
+  initialSize,
   scale,
   renderScaleStore,
   notes,
@@ -436,7 +438,10 @@ function PdfPage({
   const holderRef = useRef(null);
   const textHostRef = useRef(null);
   const textTaskRef = useRef(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [size, setSize] = useState(() => ({
+    width: initialSize?.width || 0,
+    height: initialSize?.height || 0,
+  }));
   const [near, setNear] = useState(false);
   const [kept, setKept] = useState(false);
   const nearRef = useRef(false);
@@ -589,6 +594,7 @@ function PdfPage({
     let task = null;
     let drawing = null;
     const withdraw = pageRenderQueue().request({
+      scrollSensitive: true,
       priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
       run: async () => {
         const page = await doc.getPage(pageNumber);
@@ -622,6 +628,10 @@ function PdfPage({
         drawing = null;
         holderRef.current.dataset.painted = String(renderScale);
         setDrawn({ doc, scale: renderScale });
+        if (pageNumber === 1) {
+          markViewerPerformance('first-page-painted', { scale: renderScale });
+          measureViewerPerformance('bootstrap-to-first-page-painted', 'bootstrap', 'first-page-painted');
+        }
       },
     });
 
@@ -908,6 +918,10 @@ function PdfPage({
         textLayerRef.current = { layer, doc, scale: layoutScale, wrapper, container };
         if (holderRef.current) holderRef.current.dataset.text = String(layoutScale);
         setTextReady((count) => count + 1);
+        if (pageNumber === 1) {
+          markViewerPerformance('first-page-text-ready', { scale: layoutScale });
+          measureViewerPerformance('bootstrap-to-first-page-text-ready', 'bootstrap', 'first-page-text-ready');
+        }
       },
     });
 

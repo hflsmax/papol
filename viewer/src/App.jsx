@@ -40,6 +40,7 @@ import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
+import { markViewerPerformance } from './performance.js';
 import {
   DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopLibraryWindow,
 } from '../../shared/desktopShell';
@@ -346,6 +347,11 @@ export default function App() {
   }, [wantedSelection]);
   const [paper, setPaper] = useState(null);
   const [doc, setDoc] = useState(null);
+  // Page 1 is already read to choose the initial zoom. Its unscaled size is
+  // also a reliable shell for the rest of a normally uniform document, so
+  // pages do not mount at zero height and then shove one another down while
+  // their individual metadata promises resolve.
+  const [defaultPageSize, setDefaultPageSize] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchIndex, setSearchIndex] = useState([]);
@@ -619,6 +625,7 @@ export default function App() {
       .then(({ doc: paperDoc, notes: loaded }) => {
         setPaper(paperDoc);
         setNotes(loaded);
+        markViewerPerformance('paper-loaded');
       })
       .catch((e) => setError(e.message));
   }, [source]);
@@ -646,7 +653,11 @@ export default function App() {
         };
         return task.promise;
       })
-      .then((d) => d && !cancelled && setDoc(d))
+      .then((d) => {
+        if (!d || cancelled) return;
+        setDoc(d);
+        markViewerPerformance('document-loaded', { pages: d.numPages });
+      })
       .catch((e) => !cancelled && setError(`PDF failed to open: ${e.message}`));
     return () => {
       cancelled = true;
@@ -1273,7 +1284,9 @@ export default function App() {
     };
 
     doc.getPage(1).then((page) => {
-      pageWidth = page.getViewport({ scale: 1 }).width;
+      const viewport = page.getViewport({ scale: 1 });
+      pageWidth = viewport.width;
+      setDefaultPageSize({ width: viewport.width, height: viewport.height });
       fit();
     });
 
@@ -1283,6 +1296,11 @@ export default function App() {
       window.removeEventListener('resize', fit);
     };
   }, [doc]);
+
+  useEffect(() => {
+    if (scale == null) return;
+    markViewerPerformance('layout-ready', { scale });
+  }, [scale]);
 
   // A note placed on a different edition may sit anywhere on this one; it
   // is shown, and marked, never moved.
@@ -1905,7 +1923,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!animalFollow) {
+    if (!animalFollow || placedAnimals.length === 0) {
       for (const cow of placedAnimals) {
         cow.followTarget = null;
         cow.followPage = false;
@@ -3630,6 +3648,7 @@ export default function App() {
               <PdfPage
               doc={doc}
               pageNumber={n}
+              initialSize={defaultPageSize}
               scale={scale}
               renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}

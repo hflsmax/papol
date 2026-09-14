@@ -5,6 +5,9 @@ import '../../shared/desktopShell';
 import './readableStreamIteration';
 import App from './App';
 import { hydrateCredential } from '../../shared/credentials.js';
+import { markViewerPerformance } from './performance.js';
+
+markViewerPerformance('bootstrap');
 
 await hydrateCredential().catch(() => {});
 

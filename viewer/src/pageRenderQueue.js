@@ -12,6 +12,11 @@
 // could start: lower goes first, and null means the job is no longer wanted.
 
 export const SCROLL_QUIET_MS = 180;
+// A newly visible bitmap is expensive and disposable if the page is already
+// moving away. Give a fling just enough time to declare itself before starting
+// another PDF render. This is deliberately shorter than the text-layer pause:
+// pixels should arrive promptly; selectable text can wait until reading stops.
+export const DRAW_SCROLL_QUIET_MS = 80;
 
 export function createRenderQueue({
   now = () => performance.now(),
@@ -52,7 +57,19 @@ export function createRenderQueue({
       if (job.idle) idle = { job, priority };
       else draw = { job, priority };
     }
-    if (draw && running.draw === 0) start(draw.job);
+    if (draw && running.draw === 0) {
+      const quietFor = now() - lastScroll;
+      if (draw.job.scrollSensitive && quietFor < DRAW_SCROLL_QUIET_MS) {
+        if (wake == null) {
+          wake = later(() => {
+            wake = null;
+            schedule();
+          }, DRAW_SCROLL_QUIET_MS - quietFor);
+        }
+      } else {
+        start(draw.job);
+      }
+    }
     if (!idle || draw || running.draw || running.idle) return;
     const quietFor = now() - lastScroll;
     if (quietFor >= SCROLL_QUIET_MS) start(idle.job);
