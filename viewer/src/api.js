@@ -4,24 +4,15 @@
 // Both /viewer and /demo/viewer run this build. Step back once from the
 // former and twice from the latter to reach Papol's root API and assets.
 import { appPath, backendPath } from './base.js';
-import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
-import { IS_DESKTOP } from '../../shared/appEnvironment.js';
-import {
-  configureNetworkFetch, inOfflineMode, runtimeFetch,
-} from '../../shared/connectivity.js';
+import { inOfflineMode } from '../../shared/connectivity.js';
+import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
   boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
   nativeMutate, nativeQuery, nativeSyncNow, noteView, openedFileBlob, openedFileBytes,
   openedFileUrl, paperView, newUuid,
-} from '../../frontend/src/nativeData.js';
+} from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 
-const networkFetch = IS_DESKTOP
-  ? tauriHttpFetch
-  : (...args) => window.fetch(...args);
-configureNetworkFetch(networkFetch);
-
-const API_BASE = backendPath('/api');
 // The edition a paper's located notes are placed on.
 const activeEditionByPaper = new Map();
 
@@ -32,37 +23,6 @@ export function rememberPaperIdentity(paper) {
 
 export function getToken() {
   return currentCredential();
-}
-
-async function request(path, options = {}) {
-  const token = getToken();
-  const response = await runtimeFetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!response.ok) {
-    let message = `Error ${response.status}`;
-    try {
-      message = (await response.json()).detail || message;
-    } catch {
-      /* keep the status */
-    }
-    const err = new Error(typeof message === 'string' ? message : JSON.stringify(message));
-    err.status = response.status;
-    throw err;
-  }
-  return response.json();
-}
-
-function jsonRequest(path, method, body) {
-  return request(path, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
 }
 
 export async function getPaperByPdf(hash) {

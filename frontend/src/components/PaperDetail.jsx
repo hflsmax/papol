@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
-} from '../api';
-import { nativeBlobUrl, nativeDataActive } from '../nativeData';
+} from '../../../shared/api.js';
+import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
@@ -11,9 +11,9 @@ import Avatar from './Avatar';
 import { RatingInput, RatingSummary } from './Rating';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
-import { demoActive } from '../demo';
+import { demoActive } from '../../../shared/demo.js';
 import { appPath } from '../base';
-import BackLink from './BackLink';
+import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 

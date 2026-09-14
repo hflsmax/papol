@@ -16,7 +16,7 @@ import { resolveSource, getToken } from './source';
 import { appPath, backendPath } from './base';
 import {
   makePdfViewerDefault, nativeDataActive, pdfViewerStatus, requestSignIn,
-} from '../../frontend/src/nativeData.js';
+} from '../../shared/nativeData.js';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
 import {
@@ -46,8 +46,8 @@ import {
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
-import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
-import DesktopSyncingStatus from '../../frontend/src/components/DesktopSyncingStatus.jsx';
+import DesktopNav from '../../shared/ui/DesktopNav.jsx';
+import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;

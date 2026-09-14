@@ -10,7 +10,7 @@ import {
   announceRoom,
   finishRoom,
   updatePaper,
-} from '../api';
+} from '../../../shared/api.js';
 import Avatar from './Avatar';
 import HintPop from './HintPop';
 import { SEMINAR_STYLES, styleLabel, roomStyleDesc } from '../seminarStyles';

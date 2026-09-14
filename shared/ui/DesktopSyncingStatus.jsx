@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { DESKTOP } from '../../../shared/desktopShell.js';
-import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../../../shared/connectivity.js';
+import { DESKTOP } from '../desktopShell.js';
+import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../connectivity.js';
 import {
   nativeDataActive, nativeSyncInProgress, subscribeNativeData, syncAllNow,
 } from '../nativeData.js';

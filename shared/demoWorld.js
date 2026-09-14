@@ -2,7 +2,7 @@
  * The demo world's papers and located notes — the single source both apps
  * read.
  *
- * Papol's demo (frontend/src/demo.js) turns these into the papers and
+ * Papol's demo (shared/demo.js) turns these into the papers and
  * comments its in-browser API serves; the PDF viewer (viewer/src/source.js)
  * turns the same rows into the anchors it draws. They used to be two
  * hand-copied tables, and a note written into one and not the other showed

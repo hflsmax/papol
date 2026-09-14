@@ -10,7 +10,7 @@ import {
 } from '../../../shared/connectivity.js';
 import {
   nativeDataActive, nativeQuery, subscribeNativeData, syncAllNow,
-} from '../nativeData';
+} from '../../../shared/nativeData.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol Desktop (see DESIGN.md, "Desktop shell"). Destinations are ordinary

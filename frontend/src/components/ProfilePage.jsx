@@ -5,7 +5,7 @@ import {
   uploadAvatar,
   downloadMyData,
   deleteAccount,
-} from '../api';
+} from '../../../shared/api.js';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
@@ -17,7 +17,7 @@ import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
   openNativeStorageInFinder, pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData,
   subscribeNativeSyncProgress, syncAllNow,
-} from '../nativeData';
+} from '../../../shared/nativeData.js';
 
 const SYNC_PHASES = {
   uploading: 'Sending changes',

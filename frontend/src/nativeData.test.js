@@ -65,7 +65,7 @@ const {
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
-} = await import('./nativeData.js');
+} = await import('../../shared/nativeData.js');
 
 test('native SQLite is authoritative for the local sync preference', async () => {
   values.set('papol.syncPreference', 'automatic');

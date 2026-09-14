@@ -1,5 +1,5 @@
 import React from 'react';
-import { appPath } from '../base';
+import { appPath } from '../appUrls.js';
 
 export default function BackLink({ href, onBack, children = <>&larr; Back</>, ...props }) {
   return <a href={href || appPath('/')} onClick={(event) => {

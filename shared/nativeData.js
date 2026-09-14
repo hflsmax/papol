@@ -1,27 +1,45 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { IS_DESKTOP } from './appEnvironment.js';
 import {
   enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
   inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference,
-} from '../../shared/connectivity.js';
-import { BACKEND_BASE, inDemo } from './base.js';
-import { currentCredential } from '../../shared/credentials.js';
+} from './connectivity.js';
+import { BACKEND_BASE, inDemo } from './appUrls.js';
+import { currentCredential } from './credentials.js';
 
 const ACCOUNT_KEY = 'papol.localAccountUuid';
 // Accounts are named by UUID; anything else in storage is not an account.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let scheduledSync = null;
 let activeNativeSyncs = 0;
+let syncStatusListening = false;
+let invoke = (command, parameters) => {
+  const nativeInvoke = globalThis.window?.__TAURI_INTERNALS__?.invoke;
+  if (typeof nativeInvoke !== 'function') return Promise.reject(new Error('Native bridge is unavailable'));
+  return nativeInvoke(command, parameters);
+};
+let listen = () => Promise.resolve(() => {});
 
 // Tauri broadcasts coordinator status to every webview. Latch failures in
 // each window so a sync started in the library also makes the viewer and
 // board surfaces stop issuing backend requests.
-if (IS_DESKTOP) {
+function listenForSyncStatus() {
+  if (!IS_DESKTOP || syncStatusListening) return;
+  syncStatusListening = true;
   listen('papol://sync-status', (event) => {
     if (event.payload?.error) enterOfflineMode();
     else if (Number.isFinite(event.payload?.cursor)) exitOfflineMode();
-  }).catch(() => {});
+  }).catch(() => { syncStatusListening = false; });
+}
+
+// Applications own their Tauri dependency and supply it at composition time;
+// this shared service owns only Papol's native data contract.
+export function configureNativeBridge(bridge) {
+  if (typeof bridge?.invoke !== 'function' || typeof bridge?.listen !== 'function') {
+    throw new TypeError('Native bridge requires invoke and listen functions');
+  }
+  invoke = bridge.invoke;
+  listen = bridge.listen;
+  listenForSyncStatus();
 }
 
 function announceNativeSyncState() {

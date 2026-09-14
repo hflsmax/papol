@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './configurePlatform.js';
 import '../../shared/desktopShell';
 import './readableStreamIteration';
 import App from './App';

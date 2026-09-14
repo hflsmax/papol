@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activateDesktopSession } from './authTransition.js';
+import { activateDesktopSession } from '../../shared/authTransition.js';
 
 const result = {
   token: 'credential',

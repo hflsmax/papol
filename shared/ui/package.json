@@ -1,0 +1,9 @@
+{
+  "name": "@papol/ui",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}

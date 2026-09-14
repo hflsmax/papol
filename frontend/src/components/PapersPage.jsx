@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listLibraryBoards, listPapers, paperHref } from '../api';
+import { listLibraryBoards, listPapers, paperHref } from '../../../shared/api.js';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import StatePill from './StatePill';

@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   createPaper, createTag, discardPaperImport, extractPaperMetadata, listShelves, listTags,
-} from '../api';
+} from '../../../shared/api.js';
 import { RatingInput } from './Rating';
-import BackLink from './BackLink';
-import { nativeDataActive } from '../nativeData.js';
-import { isPdfFile } from '../fileDrop.js';
+import BackLink from '../../../shared/ui/BackLink.jsx';
+import { nativeDataActive } from '../../../shared/nativeData.js';
+import { isPdfFile } from '../../../shared/fileDrop.js';
 
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,

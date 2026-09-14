@@ -1,5 +1,5 @@
 import React from 'react';
-import { MAC } from '../../../shared/desktopShell';
+import { MAC } from '../desktopShell.js';
 
 // Papol Desktop's Back: a lone chevron at the leading edge of a toolbar,
 // before its title, as the App Store and System Settings have it. Only the

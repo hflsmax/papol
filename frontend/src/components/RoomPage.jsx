@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getRoom } from '../api';
+import { getRoom } from '../../../shared/api.js';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
 import { appPath } from '../base';
-import BackLink from './BackLink';
+import BackLink from '../../../shared/ui/BackLink.jsx';
 
 export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
   const [room, setRoom] = useState(null);

@@ -1,0 +1,21 @@
+# Application boundaries
+
+Papol's browser entry points are separate applications: `frontend`, `viewer`,
+and `board`. They may depend on modules in `shared`, but never on one another.
+The dependency-boundary test enforces that rule.
+
+The shared client layers have distinct responsibilities:
+
+- `appUrls.js` owns deployment paths and backend URL derivation.
+- `httpClient.js` owns authenticated HTTP requests and response normalization.
+- `api.js` exposes product-level operations to the main app and board.
+- `nativeData.js` owns the desktop data protocol without importing Tauri.
+- `ui/` contains UI used by more than one application.
+
+Each application configures its platform adapters in `configurePlatform.js`.
+This is the only layer that imports Tauri packages. Hosted builds therefore use
+the same product APIs without making the shared data layer platform-aware.
+
+Code belongs in an application until a second application needs it. At that
+point it should move behind a deliberate shared interface rather than being
+imported from the first application's source tree.

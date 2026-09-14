@@ -6,8 +6,8 @@
 
 import {
   demoPapers, demoNotes, demoEditionFor, demoPaperUuid, noteAsComment,
-} from '../../shared/demoWorld';
-import { inDemo } from './base';
+} from './demoWorld.js';
+import { inDemo } from './appUrls.js';
 
 export function demoActive() {
   return inDemo();
@@ -180,9 +180,9 @@ function seed() {
 
 let db = null;
 const STORAGE_KEY = 'papol.demoWorld';
-const navigation = window.performance.getEntriesByType('navigation')[0];
+const navigation = globalThis.window?.performance?.getEntriesByType?.('navigation')?.[0];
 if (navigation?.type === 'reload') {
-  window.sessionStorage.removeItem(STORAGE_KEY);
+  globalThis.window?.sessionStorage?.removeItem(STORAGE_KEY);
 }
 
 function storedWorld() {

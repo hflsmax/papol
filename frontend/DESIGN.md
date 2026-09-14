@@ -213,7 +213,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   Papol is small enough that the sidebar is all the navigation the app needs:
   its window has no Back or Forward and no history to walk (⌘1…⌘4 open the
   sidebar's numbered rows). The viewer and a board are the exception, because
-  they replace the sidebar: their bars lead with `components/DesktopNav.jsx`,
+  they replace the sidebar: their bars lead with `shared/ui/DesktopNav.jsx`,
   a single borderless Back chevron at the leading edge, as in the App Store
   and System Settings, which returns to Papol; ⌘[ presses it. Nothing lies
   ahead of either, so there is no Forward.

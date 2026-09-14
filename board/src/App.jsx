@@ -1,7 +1,7 @@
 import React from 'react';
 import BoardPage from './BoardPage.jsx';
-import { styles } from '../../frontend/src/App.jsx';
-import { getToken } from '../../frontend/src/api.js';
+import { applicationStyles } from '../../shared/applicationStyles.js';
+import { getToken } from '../../shared/api.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
 
 function route() {
@@ -41,7 +41,7 @@ export default function App() {
     return null;
   }
   return <>
-    <style>{styles}</style>
+    <style>{applicationStyles}</style>
     {boardUuid
       ? <BoardPage boardUuid={boardUuid} onBack={returnToPapol} backHref={boardReturnPath()} />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}

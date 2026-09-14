@@ -1,25 +1,20 @@
-import { demoActive, demoRequest } from './demo';
-import { appPath, backendPath } from './base';
-import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
-import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { demoActive } from './demo.js';
+import { appPath } from './appUrls.js';
+import { IS_DESKTOP } from './appEnvironment.js';
 import {
   boardView, cacheNativeSharedPaper, discardNativeBlob, nativeAccountUuid, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeQuery, nativeSyncNow,
   noteView, paperView, prepareNativeAccount, removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount, shelfView, newUuid,
 } from './nativeData.js';
 import {
-  configureNetworkFetch, inOfflineMode, OnlineRequiredError, runtimeFetch,
-} from '../../shared/connectivity.js';
-import { currentCredential, storeCredential } from '../../shared/credentials.js';
+  inOfflineMode, OnlineRequiredError, runtimeFetch,
+} from './connectivity.js';
+import {
+  API_BASE, authHeaders, handleResponse, jsonRequest, request,
+} from './httpClient.js';
+import { currentCredential, storeCredential } from './credentials.js';
 import { withAbortTimeout } from './requestTimeout.js';
 import { activateDesktopSession } from './authTransition.js';
 import { planOfflineNookAddition } from './nookTransition.js';
-
-configureNetworkFetch(IS_DESKTOP
-  ? tauriHttpFetch
-  : (...args) => window.fetch(...args));
-// Relative, so it resolves against the app's own base URL — works at / and
-// under a proxied subpath like mc-pony.com/papol/.
-const API_BASE = backendPath('/api');
 
 // Which copy holds a nook paper's private fields.
 const copyUuids = new Map();
@@ -45,53 +40,6 @@ export function getToken() {
 
 export function setToken(token, accountUuid = null) {
   return storeCredential(token, accountUuid);
-}
-
-function authHeaders(extra = {}) {
-  const token = getToken();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
-}
-
-async function handleResponse(response) {
-  if (!response.ok) {
-    let message = `Error ${response.status}`;
-    try {
-      const error = await response.json();
-      message = error.detail || message;
-    } catch {
-      message = await response.text() || message;
-    }
-    const err = new Error(
-      typeof message === 'string' ? message : JSON.stringify(message)
-    );
-    err.status = response.status;
-    throw err;
-  }
-  if (response.status === 204) return null;
-  return response.json();
-}
-
-async function request(path, options = {}) {
-  // Signing in or registering always talks to the real backend — that is
-  // how a demo visitor becomes a real member. So does feedback: a bug a
-  // visitor hits in the demo is a real bug.
-  const alwaysReal = ['/auth/login', '/auth/register', '/feedback'];
-  if (demoActive() && !alwaysReal.some((p) => path.startsWith(p))) {
-    return demoRequest(path, options);
-  }
-  const response = await runtimeFetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: authHeaders(options.headers || {}),
-  });
-  return handleResponse(response);
-}
-
-function jsonRequest(path, method, body) {
-  return request(path, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
 }
 
 // Some changes exist only on the server: publishing, seminars, shared
