@@ -294,6 +294,12 @@ export function subscribeSignInRequests(listener) {
   return subscribeNativeEvents(['papol://sign-in-requested'], listener);
 }
 
+export function subscribeShowPaperRequests(listener) {
+  return subscribeNativeEvents(['papol://show-paper-requested'], (payload) => {
+    if (UUID.test(payload?.paper_uuid || '')) listener(payload.paper_uuid.toLowerCase());
+  });
+}
+
 export function pdfViewerStatus() {
   if (!IS_DESKTOP) return Promise.resolve({ supported: false, is_default: false });
   return invoke('pdf_viewer_status');

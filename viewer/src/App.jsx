@@ -3418,7 +3418,7 @@ export default function App() {
                 <button
                   type="button"
                   className="bar-link nook-add-button"
-                  onClick={focusDesktopLibraryWindow}
+                  onClick={() => focusDesktopLibraryWindow(paper.uuid)}
                 >
                   Show in nook
                 </button>

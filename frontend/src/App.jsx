@@ -20,14 +20,14 @@ import {
   useDesktopShortcuts,
 } from './components/DesktopChrome';
 import { DesktopBrowser, useNookSpace } from './components/DesktopLibrary';
-import { isBrowsing, lastShownSource, resolveSource } from './desktopSources';
+import { isBrowsing, lastShownSource, rememberSource, resolveSource } from './desktopSources';
 import { desktopStyles } from './desktopStyles';
 import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from './fileDrop.js';
-import { openDroppedPdf, subscribeSignInRequests } from './nativeData';
+import { openDroppedPdf, subscribeShowPaperRequests, subscribeSignInRequests } from './nativeData';
 
 // Light red makes a development desktop unmistakable. Packaged builds use
 // neutral chrome so that the development cue never becomes product branding.
@@ -5160,6 +5160,20 @@ export default function App() {
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
     if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
+  }), []);
+
+  // A document reader can reveal its paper in the permanent library window.
+  // Use the complete nook rather than whichever shelf or tag happened to be
+  // open, so the selected row is always present in the list.
+  useEffect(() => subscribeShowPaperRequests((paperUuid) => {
+    rememberSource('all');
+    const path = `/paper/${paperUuid}`;
+    const mountedPath = appPath(path);
+    if (`${window.location.pathname}${window.location.search}` === mountedPath) {
+      setRoute(parseRoute());
+    } else {
+      navigate(path);
+    }
   }), []);
 
   const [managingNook, setManagingNook] = useState(false);

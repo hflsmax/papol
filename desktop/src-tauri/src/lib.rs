@@ -175,7 +175,7 @@ fn opened_file_open(
 fn request_sign_in(app: tauri::AppHandle, register: Option<bool>) {
     use tauri::Emitter;
 
-    focus_library_window(app.clone());
+    focus_library_window(app.clone(), None);
     let _ = app.emit_to(
         "main",
         "papol://sign-in-requested",
@@ -507,8 +507,8 @@ const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
-    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = () => \
-      window.__TAURI_INTERNALS__.invoke('focus_library_window');";
+    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperUuid) => \
+      window.__TAURI_INTERNALS__.invoke('focus_library_window', { paperUuid });";
 
 fn document_environment(surface: &str) -> String {
     format!(
@@ -519,8 +519,8 @@ fn document_environment(surface: &str) -> String {
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
            window.__TAURI_INTERNALS__.invoke('close_document_window'); \
-         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = () => \
-           window.__TAURI_INTERNALS__.invoke('focus_library_window');"
+         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperUuid) => \
+           window.__TAURI_INTERNALS__.invoke('focus_library_window', {{ paperUuid }});"
     )
 }
 
@@ -534,11 +534,20 @@ fn close_document_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-fn focus_library_window(app: tauri::AppHandle) {
+fn focus_library_window(app: tauri::AppHandle, paper_uuid: Option<String>) {
+    use tauri::Emitter;
+
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        if let Some(paper_uuid) = paper_uuid {
+            let _ = app.emit_to(
+                "main",
+                "papol://show-paper-requested",
+                serde_json::json!({"paper_uuid": paper_uuid}),
+            );
+        }
     }
 }
 
@@ -754,7 +763,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::MainEventsCleared) {
         let launch = app.state::<WindowLaunch>();
         if matches!(launch.finish(), Some(true)) {
-            focus_library_window(app.clone());
+            focus_library_window(app.clone(), None);
         }
     }
 
