@@ -789,9 +789,10 @@ export default function App() {
   const pending = useRef(new Map());
 
   useEffect(() => {
+    let cancelled = false;
     if (!source) {
       setError('Open a paper from your nook.');
-      return;
+      return undefined;
     }
     if (!canOpenPrivateSource({
       requiresSignIn: source.requiresSignIn,
@@ -799,16 +800,29 @@ export default function App() {
       localAccount: nativeDataActive(),
     })) {
       setError('Sign in to view your notes.');
-      return;
+      return undefined;
     }
-    source
-      .load()
+    const loaded = source.load();
+    loaded
       .then(({ doc: paperDoc, notes: loaded }) => {
+        if (cancelled) return;
         setPaper(paperDoc);
         setNotes(loaded);
         markViewerPerformance('paper-loaded');
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    // Exact-hash nook membership is useful for the toolbar, but it must not
+    // delay an opened file. Start it beside the ordinary source load and
+    // apply it only after that initial paper has landed.
+    if (source.loadNookPaper) {
+      const nookPaper = source.loadNookPaper();
+      Promise.all([loaded, nookPaper])
+        .then(([, found]) => {
+          if (!cancelled && found) setPaper(found);
+        })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
   }, [source]);
 
   useEffect(() => {

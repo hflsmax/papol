@@ -2,7 +2,7 @@ import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { appPath } from './base.js';
 import {
-  getPaperByPdf, addOpenedFileToNook,
+  getPaperByPdf, getNookPaperByPdf, addOpenedFileToNook,
   createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getClips, addClip, moveClip, eraseClip,
@@ -95,8 +95,14 @@ function openedFileSource(pdfHash, name) {
     async load() {
       return { doc: initialPaper, notes: [] };
     },
-    // Looking a paper up sends its hash to Papol; a file that is only on this
-    // device is not looked up until the reader explicitly adds it.
+    async loadNookPaper() {
+      const nookPaper = await getNookPaperByPdf(pdfHash);
+      return nookPaper
+        ? { ...nookPaper, edition_sha256: pdfHash, opened_file: true }
+        : null;
+    },
+    // Public metadata lookup would send the hash to Papol. The membership
+    // check stays entirely inside the signed-in reader's local replica.
     info: () => Promise.resolve({}),
     marks: () => ({ notes: [], ink: [] }),
     async addToNook() {

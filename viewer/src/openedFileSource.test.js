@@ -107,6 +107,32 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
 });
 
+test('an opened file already in the nook exposes its paper identity', async () => {
+  values.set('papol.localAccountUuid', ACCOUNT);
+  existingPaper = {
+    uuid: '55555555-5555-4555-8555-555555555555',
+    title: 'Saved paper',
+    edition_uuid: '44444444-4444-4444-8444-444444444444',
+    edition_sha256: HASH,
+  };
+  calls.length = 0;
+
+  const source = resolveSource();
+  const loaded = await source.load();
+  assert.deepEqual(loaded.doc, source.initialPaper);
+  assert.equal(calls.some(([, args]) => args.queryName === 'paper_by_pdf'), false);
+
+  const nookPaper = await source.loadNookPaper();
+
+  assert.equal(nookPaper.uuid, existingPaper.uuid);
+  assert.equal(nookPaper.title, 'Saved paper');
+  assert.equal(nookPaper.opened_file, true);
+  assert.deepEqual(loaded.notes, []);
+  assert.equal(calls.filter(([, args]) => args.queryName === 'paper_by_pdf').length, 1);
+  assert.equal(calls.some(([, args]) => args.queryName === 'comments'), false);
+  assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
+});
+
 test('Add to nook imports only the paper graph, with no file-viewer annotations', async () => {
   values.set('papol.localAccountUuid', ACCOUNT);
   existingPaper = null;

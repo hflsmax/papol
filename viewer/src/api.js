@@ -58,9 +58,7 @@ export function pdfHref(paper) {
 export async function getNookPaperByPdf(hash) {
   if (!nativeDataActive()) return null;
   try {
-    const paper = rememberPaperIdentity(paperView(await nativeRepository.paperByPdf(hash)));
-    paper.comments = (await nativeRepository.comments(paper.uuid)).map(noteView);
-    return paper;
+    return rememberPaperIdentity(paperView(await nativeRepository.paperByPdf(hash)));
   } catch {
     return null;
   }
