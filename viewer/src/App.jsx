@@ -28,6 +28,7 @@ import ReferenceCard from './ReferenceCard';
 import { readNamedReference } from './references';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { styles } from './styles';
+import { copySelectionSnapshot } from './selectionCopy.js';
 import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
@@ -388,6 +389,19 @@ export default function App() {
       byPage.set(stroke.page, [...(byPage.get(stroke.page) || []), stroke]);
     }
     return byPage;
+  }, [selectionPaint]);
+
+  // A completed PDF selection is represented by our own paint geometry and
+  // text snapshot, not a live DOM Range (the selected pages may be
+  // virtualized afterward). Supply that text when WebKit/macOS invokes the
+  // standard Copy command or its Command-C shortcut.
+  useEffect(() => {
+    if (!selectionPaint?.text) return undefined;
+    const copy = (event) => {
+      copySelectionSnapshot(event, selectionPaint.text, window.getSelection());
+    };
+    document.addEventListener('copy', copy);
+    return () => document.removeEventListener('copy', copy);
   }, [selectionPaint]);
   const [sendSelection, setSendSelection] = useState(null);
   const [sendBoards, setSendBoards] = useState([]);
