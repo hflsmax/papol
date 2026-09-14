@@ -1,7 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 // The same legacy build as App.jsx (see there): one pdf.js, and one that
 // runs in WebKit.
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
 import { animalFor } from './animals';
 import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
@@ -12,6 +11,7 @@ import { anchorSpotAtPage } from './anchorDrag';
 import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
 import { markViewerPerformance, measureViewerPerformance } from './performance.js';
 import appLimits from '../../shared/appLimits.js';
+import { pdfjsReady } from './pdfRuntime.js';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -387,7 +387,9 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
 function PdfPage({
   doc,
   pageNumber,
+  initiallyNear = false,
   initialSize,
+  previewUrl,
   scale,
   renderScaleStore,
   notes,
@@ -443,9 +445,11 @@ function PdfPage({
     width: initialSize?.width || 0,
     height: initialSize?.height || 0,
   }));
-  const [near, setNear] = useState(false);
+  // The page at the opening position need not wait for IntersectionObserver's
+  // first callback before claiming the otherwise idle drawing queue.
+  const [near, setNear] = useState(initiallyNear);
   const [kept, setKept] = useState(false);
-  const nearRef = useRef(false);
+  const nearRef = useRef(initiallyNear);
   // The zoom pages are drawn at. A page near the view follows it; a page
   // away from it keeps the value it last had, so a settled zoom re-renders
   // only the pages about to be redrawn — re-rendering every page of a long
@@ -594,10 +598,12 @@ function PdfPage({
     let cancelled = false;
     let task = null;
     let drawing = null;
+    markViewerPerformance('first-page-render-requested', { page: pageNumber });
     const withdraw = pageRenderQueue().request({
       scrollSensitive: true,
       priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
       run: async () => {
+        markViewerPerformance('first-page-render-started', { page: pageNumber });
         const page = await doc.getPage(pageNumber);
         if (cancelled) return;
         const viewport = page.getViewport({ scale: renderScale });
@@ -605,6 +611,7 @@ function PdfPage({
         drawing = document.createElement('canvas');
         drawing.width = Math.floor(viewport.width * ratio);
         drawing.height = Math.floor(viewport.height * ratio);
+        markViewerPerformance('first-page-canvas-started', { page: pageNumber });
         task = page.render({
           canvasContext: drawing.getContext('2d', { alpha: false }),
           viewport,
@@ -629,10 +636,11 @@ function PdfPage({
         drawing = null;
         holderRef.current.dataset.painted = String(renderScale);
         setDrawn({ doc, scale: renderScale });
-        if (pageNumber === 1) {
-          markViewerPerformance('first-page-painted', { scale: renderScale });
-          measureViewerPerformance('bootstrap-to-first-page-painted', 'bootstrap', 'first-page-painted');
-        }
+        // Whichever near page wins the queue is what the reader sees first.
+        // This is deliberately not restricted to numbered page 1: restored
+        // reading positions can open elsewhere in the document.
+        markViewerPerformance('first-page-painted', { page: pageNumber, scale: renderScale });
+        measureViewerPerformance('bootstrap-to-first-page-painted', 'bootstrap', 'first-page-painted');
       },
     });
 
@@ -865,6 +873,8 @@ function PdfPage({
       idle: true,
       priority: () => (cancelled ? null : distanceFromView(holderRef.current)),
       run: async () => {
+        const pdfjs = await pdfjsReady;
+        if (cancelled) return;
         const page = await doc.getPage(pageNumber);
         if (cancelled) return;
         // Use the same text-content shape as the document-wide search index.
@@ -1863,6 +1873,11 @@ function PdfPage({
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
         cursor: hoveredCitation >= 0 ? 'pointer' : undefined,
+        // Do not advertise an invisible background image to paint/LCP while
+        // an opaque sharp canvas is already present. It appears only in the
+        // interval after that canvas is released and before its replacement.
+        backgroundImage: previewUrl && !drawn ? `url(${JSON.stringify(previewUrl)})` : undefined,
+        backgroundSize: '100% 100%',
       }}
       onPointerMove={(e) => {
         const at = anchorAt(e.clientX, e.clientY);

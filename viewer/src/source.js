@@ -1,9 +1,8 @@
 import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
-import { localAnnotations } from '../../shared/nativeData.js';
 import { appPath } from './base.js';
 import {
-  getPaperByPdf, getNookPaperByPdf, addOpenedFileToNook, getViewerPaperInfo,
+  getPaperByPdf, addOpenedFileToNook,
   createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getClips, addClip, moveClip, eraseClip,
@@ -18,8 +17,8 @@ import {
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol Desktop
  * Demo PDFs use the same hash identity; only their storage is local.
  *
- * All return the same shape, so the viewer only ever calls load(),
- * notes, ink and clips through the same small persistence interfaces.
+ * Nook and demo sources expose the same annotation interfaces. A file source
+ * intentionally omits them; the viewer must first import it into the nook.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
@@ -65,110 +64,46 @@ function apiSource(pdfHash, loadPaper = () => getPaperByPdf(pdfHash)) {
   return source;
 }
 
-// A PDF opened from the file system reads the same for everyone. A reader
-// whose nook already holds these exact bytes works on their nook's paper;
-// anyone else keeps their marks on this device, by the file's hash, until
-// they add the paper to a nook and the marks go with it.
+// A file-system document is deliberately ephemeral. Opening a file never
+// reads or writes annotations, even when the same bytes already exist in the
+// reader's nook. Adding it to the nook moves the window onto the ordinary
+// nook URL, where annotation persistence is allowed.
 function openedFileSource(pdfHash, name) {
   const title = name || 'Untitled PDF';
-  const saved = new Map();
-  let nook = null;
-  const now = () => new Date().toISOString();
-  const listOf = (kind) => [...saved.values()].filter((row) => row.kind === kind);
-  const keep = async (kind, row) => {
-    const stored = await localAnnotations.put(pdfHash, kind, row.uuid, row);
-    saved.set(stored.uuid, stored);
-    return stored;
+  const params = new URLSearchParams(window.location.search);
+  const measured = (key) => {
+    const value = Number(params.get(key));
+    return Number.isFinite(value) && value >= 0 ? value : null;
   };
-  const change = (uuid, patch) => {
-    const current = saved.get(uuid);
-    if (!current) return Promise.reject(new Error('That mark is no longer here.'));
-    return keep(current.kind, { ...current, ...patch });
+  // Enough identity to begin reading the bytes immediately. No paper state
+  // needs to be consulted before showing page one.
+  const initialPaper = {
+    title, sha256: pdfHash, edition_sha256: pdfHash, opened_file: true,
   };
-  const forget = async (uuid) => {
-    await localAnnotations.remove(uuid);
-    saved.delete(uuid);
-  };
-  const onDevice = {
-    notes: {
-      create: ({ page, anchor, content }) => keep('note', {
-        uuid: crypto.randomUUID(), page, anchor, anchor_type: anchor?.type || null,
-        content: content || '', name: null, created_at: now(),
-      }),
-      update: (uuid, content) => change(uuid, { content }),
-      move: (uuid, spot) => change(uuid, {
-        page: spot.page, anchor: spot.anchor, anchor_type: spot.anchor?.type || null,
-      }),
-      rename: (uuid, noteName) => change(uuid, { name: noteName }),
-      remove: forget,
-    },
-    ink: {
-      list: async () => listOf('ink'),
-      create: (_editionUuid, stroke) => keep('ink', { ...stroke, uuid: crypto.randomUUID(), created_at: now() }),
-      move: (uuid, points) => change(uuid, { points }),
-      remove: forget,
-    },
-    clips: {
-      list: async () => listOf('clip'),
-      create: (_editionUuid, clip) => keep('clip', { ...clip, uuid: crypto.randomUUID(), created_at: now() }),
-      move: (uuid, frame, floating) => change(uuid, { frame, floating }),
-      remove: forget,
-    },
-  };
-  const either = (group) => Object.fromEntries(
-    Object.keys(onDevice[group]).map((method) => [
-      method, (...args) => (nook || onDevice)[group][method](...args),
-    ]),
-  );
 
   const source = {
     backHref: appPath('/'),
     requiresSignIn: false,
     openedFile: true,
+    annotationsRequireNook: true,
+    initialPaper,
+    openingTimings: {
+      openedAtMs: measured('opened_at_ms'),
+      nativeReadMs: measured('native_read_ms'),
+      nativeHashMs: measured('native_hash_ms'),
+    },
     async load() {
-      for (const row of await localAnnotations.list(pdfHash)) saved.set(row.uuid, row);
-      let inNook = await getNookPaperByPdf(pdfHash);
-      if (inNook) {
-        // A previous Add to nook may have committed the paper graph before a
-        // later annotation batch failed. Finish that idempotent migration on
-        // the next open before exposing the nook copy.
-        if (saved.size > 0) {
-          await addOpenedFileToNook({
-            sha256: pdfHash, name: title,
-            notes: listOf('note'), ink: listOf('ink'), clips: listOf('clip'),
-          });
-          await localAnnotations.clear(pdfHash);
-          saved.clear();
-          // Reload the local replica so the just-migrated notes are visible
-          // in this window rather than only after another reopen.
-          inNook = await getNookPaperByPdf(pdfHash) || inNook;
-        }
-        nook = apiSource(pdfHash, async () => inNook);
-        const loaded = await nook.load();
-        source.backHref = nook.backHref;
-        return { ...loaded, doc: { ...loaded.doc, opened_file: true } };
-      }
-      return {
-        doc: { title, sha256: pdfHash, edition_sha256: pdfHash, opened_file: true },
-        notes: listOf('note'),
-      };
+      return { doc: initialPaper, notes: [] };
     },
-    // Looking a paper up sends its hash to Papol; a file that is only on
-    // this device is not looked up until the reader adds it.
-    info: () => (nook ? getViewerPaperInfo(pdfHash) : Promise.resolve({})),
-    marks: () => ({ notes: listOf('note'), ink: listOf('ink') }),
+    // Looking a paper up sends its hash to Papol; a file that is only on this
+    // device is not looked up until the reader explicitly adds it.
+    info: () => Promise.resolve({}),
+    marks: () => ({ notes: [], ink: [] }),
     async addToNook() {
-      const paperUuid = await addOpenedFileToNook({
-        sha256: pdfHash, name: title,
-        notes: listOf('note'), ink: listOf('ink'), clips: listOf('clip'),
+      return addOpenedFileToNook({
+        sha256: pdfHash, name: title, notes: [], ink: [], clips: [],
       });
-      await localAnnotations.clear(pdfHash);
-      saved.clear();
-      return paperUuid;
     },
-    notes: either('notes'),
-    ink: either('ink'),
-    clips: either('clips'),
   };
   return source;
 }

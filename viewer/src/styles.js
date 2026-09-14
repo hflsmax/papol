@@ -939,6 +939,12 @@ button.link.danger { color: var(--red); }
   background: var(--card);
   box-shadow: 0 6px 20px rgba(29, 33, 41, 0.18);
   text-align: center;
+  animation: pdfLoadingArrive 160ms ease-out both;
+}
+
+@keyframes pdfLoadingArrive {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .pdf-loading-card p {

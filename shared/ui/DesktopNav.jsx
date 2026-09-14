@@ -66,10 +66,16 @@ const STYLE = `
 `;
 
 if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = STYLE;
-  document.head.appendChild(style);
+  if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in document) {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(STYLE);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  } else {
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = STYLE;
+    document.head.appendChild(style);
+  }
 }
 
 // back/library: { onClick, label }. Without onClick a control is disabled.

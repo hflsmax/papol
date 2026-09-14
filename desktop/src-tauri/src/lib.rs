@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
@@ -20,7 +21,7 @@ static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);
 /// of what it was shown.
 #[derive(Default)]
 struct OpenedFiles {
-    files: Mutex<HashMap<String, OpenedFile>>,
+    files: Mutex<HashMap<String, Vec<u8>>>,
     // Set once the app can build windows; files arriving earlier wait.
     origin: Mutex<Option<String>>,
     waiting: Mutex<Vec<PathBuf>>,
@@ -54,11 +55,6 @@ impl WindowLaunch {
     }
 }
 
-enum OpenedFile {
-    Path(PathBuf),
-    Bytes(Vec<u8>),
-}
-
 fn opened_file_url(origin: &str, sha256: &str, path: &Path) -> Option<tauri::Url> {
     let mut url = format!("{origin}/viewer/").parse::<tauri::Url>().ok()?;
     let name = path
@@ -70,6 +66,24 @@ fn opened_file_url(origin: &str, sha256: &str, path: &Path) -> Option<tauri::Url
         .append_pair("file", "1")
         .append_pair("name", name);
     Some(url)
+}
+
+fn elapsed_ms(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1000.0
+}
+
+fn epoch_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+fn add_open_timings(url: &mut tauri::Url, opened_at_ms: u128, read_ms: f64, hash_ms: f64) {
+    url.query_pairs_mut()
+        .append_pair("opened_at_ms", &opened_at_ms.to_string())
+        .append_pair("native_read_ms", &format!("{read_ms:.1}"))
+        .append_pair("native_hash_ms", &format!("{hash_ms:.1}"));
 }
 
 fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
@@ -84,16 +98,25 @@ fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
         return;
     };
     for path in paths {
+        let opened_at_ms = epoch_ms();
+        let phase = Instant::now();
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
         };
+        let read_ms = elapsed_ms(phase);
+        let phase = Instant::now();
         let sha256 = format!("{:x}", Sha256::digest(&bytes));
-        drop(bytes);
-        let Some(url) = opened_file_url(&origin, &sha256, &path) else {
+        let hash_ms = elapsed_ms(phase);
+        let Some(mut url) = opened_file_url(&origin, &sha256, &path) else {
             continue;
         };
+        add_open_timings(&mut url, opened_at_ms, read_ms, hash_ms);
         if let Ok(mut files) = state.files.lock() {
-            files.insert(sha256, OpenedFile::Path(path));
+            // Keep the exact bytes whose identity was put in the URL. PDF.js
+            // can receive them without a second disk read and SHA-256 pass,
+            // and a file edited in place cannot silently change under an
+            // already-open viewer.
+            files.insert(sha256, bytes);
         }
         show_document_window(app, &origin, url);
     }
@@ -120,19 +143,11 @@ fn opened_file_read(
         .files
         .lock()
         .map_err(|_| "Opened files lock failed")?;
-    let bytes = match files
+    let bytes = files
         .get(&sha256)
         .ok_or("Papol was not asked to open this file")?
-    {
-        OpenedFile::Path(path) => {
-            std::fs::read(path).map_err(|_| "The file can no longer be read")?
-        }
-        OpenedFile::Bytes(bytes) => bytes.clone(),
-    };
+        .clone();
     drop(files);
-    if format!("{:x}", Sha256::digest(&bytes)) != sha256 {
-        return Err("The file has changed since it was opened. Open it again.".into());
-    }
     Ok(tauri::ipc::Response::new(bytes))
 }
 
@@ -146,6 +161,7 @@ fn opened_file_open(
     bytes: Vec<u8>,
     name: String,
 ) -> Result<(), String> {
+    let opened_at_ms = epoch_ms();
     if bytes.len() < 5 || &bytes[..5] != b"%PDF-" {
         return Err("Papol’s viewer can only open PDF files.".into());
     }
@@ -155,15 +171,18 @@ fn opened_file_open(
         .map_err(|_| "Opened files lock failed")?
         .clone()
         .ok_or("Papol is still starting. Drop the PDF again.")?;
+    let phase = Instant::now();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let hash_ms = elapsed_ms(phase);
     let path = PathBuf::from(name);
-    let url =
+    let mut url =
         opened_file_url(&origin, &sha256, &path).ok_or("Papol could not create the viewer URL")?;
+    add_open_timings(&mut url, opened_at_ms, 0.0, hash_ms);
     opened
         .files
         .lock()
         .map_err(|_| "Opened files lock failed")?
-        .insert(sha256, OpenedFile::Bytes(bytes));
+        .insert(sha256, bytes);
     if show_document_window(&app, &origin, url) {
         Ok(())
     } else {
@@ -977,6 +996,16 @@ pub fn run() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
+                }
+            } else if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(hash) = window.label().strip_prefix("viewer-") {
+                    if hash.len() == 64 {
+                        if let Some(opened) = window.app_handle().try_state::<OpenedFiles>() {
+                            if let Ok(mut files) = opened.files.lock() {
+                                files.remove(hash);
+                            }
+                        }
+                    }
                 }
             }
         })

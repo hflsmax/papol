@@ -7,9 +7,32 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Papol — reading</title>
+    <!-- Painted before the module graph is downloaded and evaluated. React
+         replaces it on its first commit, using the same geometry and colours. -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #f5f6f8; }
+      #root { height: 100%; }
+      .viewer-boot { display: flex; height: 100%; flex-direction: column; }
+      .viewer-boot-bar {
+        flex: 0 0 52px; background: #fff; border-bottom: 1px solid #dde2e8;
+      }
+      .viewer-boot-pages {
+        flex: 1; overflow: hidden; padding: 24px; background: #f1f3f6;
+      }
+      .viewer-boot-page {
+        width: min(100%, 1100px); aspect-ratio: 1 / 1.294; margin: 0 auto;
+        border-radius: 2px; background: #fff;
+        box-shadow: 0 1px 6px rgba(25, 35, 50, 0.12);
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="viewer-boot" aria-hidden="true">
+        <div class="viewer-boot-bar"></div>
+        <div class="viewer-boot-pages"><div class="viewer-boot-page"></div></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

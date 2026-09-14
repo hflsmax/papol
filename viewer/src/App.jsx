@@ -3,11 +3,10 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
 // fails in Safari and in Papol Desktop's macOS webview. The legacy build
 // carries polyfills for exactly that, in the document and in the worker.
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
-import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+import { pdfjsReady } from './pdfRuntime.js';
 import {
   pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
@@ -22,15 +21,11 @@ import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/di
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
-import {
-  localAnnotationsNoticeHidden, rememberLocalAnnotationsNoticeChoice,
-} from './localAnnotationsNotice.js';
 import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { readNamedReference } from './references';
 import { GlyphFor, ToolGlyph } from './glyphs';
-import { styles } from './styles';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
@@ -43,7 +38,9 @@ import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
-import { markViewerPerformance } from './performance.js';
+import {
+  markViewerPerformance, observeViewerPerformanceMark, viewerOpeningTimings,
+} from './performance.js';
 import {
   DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopLibraryWindow,
 } from '../../shared/desktopShell';
@@ -54,8 +51,6 @@ import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
-
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
@@ -162,6 +157,37 @@ const INK_SHAPES = [
 ];
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
+const FIRST_PAGE_ONLY = new Set([1]);
+const PAGE_PREVIEW_WIDTH = 320;
+const PAGE_PREVIEW_QUALITY = 0.72;
+
+// A file opened from Finder always begins at page one and carries no saved
+// reading position. Keep the rest of the document as cheap geometry until
+// page one is visible, then turn nearby shells into full PdfPages as the
+// reader approaches them. This avoids mounting every page's effects — and,
+// in particular, avoids calling pdf.js getPage() for the whole document —
+// on the opening frame.
+function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
+  return (
+    <div
+      className="pdf-page lazy-page"
+      style={{
+        width: size?.width ? size.width * scale : undefined,
+        height: size?.height ? size.height * scale : undefined,
+        backgroundImage: previewUrl ? `url(${JSON.stringify(previewUrl)})` : undefined,
+        backgroundSize: '100% 100%',
+      }}
+      data-page={pageNumber}
+      data-page-width={size?.width || undefined}
+      data-page-height={size?.height || undefined}
+      data-render-scale={scale}
+      data-lazy-page=""
+      aria-hidden="true"
+    >
+      <span className="page-number">{pageNumber}</span>
+    </div>
+  );
+}
 
 // What the reader can be holding. The arrow is reading: text selects, and
 // what is already on the page can be picked up and moved. The rest put
@@ -184,6 +210,7 @@ const TOOLS = [
 // Drop tools are one-shot: they are a thing you are holding until you put
 // it down, and then the ordinary reading cursor comes back.
 const DROP_TOOLS = new Set(['anchor', 'clipper']);
+const ANNOTATION_TOOLS = new Set(['clipper', 'brush', 'eraser', 'anchor']);
 
 // Keyed by the letter as typed, so a and A are two tools rather than one
 // tool and a modifier — which also means caps lock picks the capital's.
@@ -336,6 +363,40 @@ function savedReadingView() {
 
 export default function App() {
   const source = useMemo(resolveSource, []);
+  const [firstPageReady, setFirstPageReady] = useState(false);
+  const [firstPageInteractive, setFirstPageInteractive] = useState(false);
+  const [materializedFilePages, setMaterializedFilePages] = useState(() => ({
+    doc: null,
+    pages: FIRST_PAGE_ONLY,
+  }));
+  const [filePagePreviews, setFilePagePreviews] = useState(() => ({
+    doc: null,
+    urls: new Map(),
+  }));
+  useLayoutEffect(() => {
+    markViewerPerformance('shell-committed');
+  }, []);
+
+  // Optional native queries and analysis wait until a page is visible. The
+  // same milestone starts diagnostic recording, after the measured path, so
+  // neither kind of background work competes with opening the document.
+  useEffect(() => {
+    return observeViewerPerformanceMark('first-page-painted', () => {
+      setFirstPageReady(true);
+      if (DESKTOP && source?.openedFile) {
+        for (const fields of viewerOpeningTimings(source.openingTimings)) {
+          void recordDiagnosticEvent({
+            component: 'viewer', event: 'local_pdf_open_timing', fields,
+          });
+        }
+      }
+    });
+  }, [source]);
+  useEffect(() => observeViewerPerformanceMark(
+    'first-page-text-ready',
+    () => setFirstPageInteractive(true)
+  ), []);
+
   // Papol's Notes list links straight to one note: ?paper=9&note=42.
   const wantedNoteUuid = new URLSearchParams(window.location.search).get('note');
   const wantedPage = numberParam('page');
@@ -370,11 +431,17 @@ export default function App() {
   // first progress event, since a bar at 0% before the request has even
   // answered reads as stalled rather than as "not yet known".
   const [pdfProgress, setPdfProgress] = useState(null);
+  // A quick open should feel immediate, not flash a modal-looking card for a
+  // fraction of a second. Local files keep the stable page-shaped skeleton;
+  // detailed progress is reserved for slower downloads.
+  const [showPdfLoading, setShowPdfLoading] = useState(false);
   const [notes, setNotes] = useState([]);
   const [error, setError] = useState(null);
   // Null until the page is measured: the document opens at the width of
   // the viewer, so nothing is drawn at a guessed scale first.
   const [scale, setScale] = useState(null);
+  // Stay fitted through actual window resizes until the reader picks a zoom.
+  const chosenZoom = useRef(false);
   // What the pages are actually drawn at. It follows `scale` once the
   // reader stops zooming, so a pinch costs a transform rather than a
   // re-render of every visible page.
@@ -428,6 +495,7 @@ export default function App() {
   // What the reader is holding. Remembered, like the rail: someone marking
   // up a paper puts the brush down between sittings, not between pages.
   const [tool, setTool] = useState(() => {
+    if (source?.annotationsRequireNook) return 'arrow';
     const kept = localStorage.getItem('papol_viewer_tool');
     return TOOLS.some((candidate) => candidate.id === kept) ? kept : 'arrow';
   });
@@ -472,19 +540,10 @@ export default function App() {
   // without cancelling a sign-in already under way in the library window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
-  // Told on every file outside the nook, until the reader says not to: marks
-  // on it live only on this device.
-  const [localNotesNotice, setLocalNotesNotice] = useState(false);
-  const [hideLocalNotesNotice, setHideLocalNotesNotice] = useState(false);
-  useEffect(() => {
-    if (!source?.openedFile || !paper || paper.uuid) return;
-    if (!localAnnotationsNoticeHidden()) setLocalNotesNotice(true);
-  }, [source, paper]);
-
   // Asked once, over the first file opened from disk while another app is
   // the system's PDF viewer.
   useEffect(() => {
-    if (!source?.openedFile) return undefined;
+    if (!source?.openedFile || !firstPageReady) return undefined;
     let dismissed = false;
     try { dismissed = localStorage.getItem(PDF_VIEWER_PROMPT_KEY) === 'dismissed'; } catch { /* ask */ }
     if (dismissed) return undefined;
@@ -493,7 +552,7 @@ export default function App() {
       .then((status) => { if (!cancelled) setPdfViewerTip(status.supported && !status.is_default); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [source]);
+  }, [firstPageReady, source]);
   const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -559,6 +618,15 @@ export default function App() {
   // ever in hand.
   const [sheet, setSheet] = useState(null);
   const brushOpen = sheet === 'brush';
+  const promptToAddForAnnotations = async () => {
+    if (!source?.annotationsRequireNook || nookStep === 'adding') return false;
+    setTool('arrow');
+    setSheet(null);
+    await hydrateCredential();
+    setNookStep(nativeDataActive() ? 'confirm' : 'ask');
+    setNookPromptOpen(true);
+    return true;
+  };
   const tempInkUuid = useRef(0);
   const tempNoteUuid = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
@@ -617,7 +685,105 @@ export default function App() {
   const [nameDraft, setNameDraft] = useState('');
   const [editText, setEditText] = useState('');
   const scrollerRef = useRef(null);
-  const readingView = useRef(savedReadingView());
+  // Do not even mount off-screen local-file pages until the critical first
+  // page has painted. One observer handles every lightweight shell; using an
+  // observer per page would merely exchange pdf.js startup work for browser
+  // observer setup. The generous forward margin makes the next sheet ready
+  // before an ordinary scroll reaches it.
+  useEffect(() => {
+    const root = scrollerRef.current;
+    if (!source?.openedFile || !doc || !scale || !firstPageInteractive || !root) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      const arrived = entries
+        .filter((entry) => entry.isIntersecting)
+        .map((entry) => Number(entry.target.dataset.page))
+        .filter((page) => Number.isInteger(page) && page > 1);
+      if (!arrived.length) return;
+      setMaterializedFilePages((previous) => {
+        const before = previous.doc === doc ? previous.pages : FIRST_PAGE_ONLY;
+        if (arrived.every((page) => before.has(page))) return previous;
+        const pages = new Set(before);
+        for (const page of arrived) pages.add(page);
+        return { doc, pages };
+      });
+    }, { root, rootMargin: '125% 50%' });
+    for (const shell of root.querySelectorAll('[data-lazy-page]')) observer.observe(shell);
+    return () => observer.disconnect();
+  }, [doc, scale, firstPageInteractive, source]);
+  // Once page one is completely interactive, warm a tiny retained image for
+  // every page. Full canvases are intentionally released far from the view;
+  // these compressed previews remain underneath them, so a fast scroll never
+  // exposes an empty sheet while the sharp canvas catches up. Preview work
+  // uses the idle lane and visible page drawing always remains the priority.
+  useEffect(() => {
+    if (!source?.openedFile || !doc || !firstPageInteractive) return undefined;
+    let cancelled = false;
+    const withdraws = [];
+    const tasks = new Set();
+    const objectUrls = new Set();
+    setFilePagePreviews({ doc, urls: new Map() });
+
+    for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+      const withdraw = pageRenderQueue().request({
+        idle: true,
+        priority: () => (cancelled ? null : pageNumber),
+        run: async () => {
+          const page = await doc.getPage(pageNumber);
+          if (cancelled) return;
+          const natural = page.getViewport({ scale: 1 });
+          const viewport = page.getViewport({
+            scale: Math.min(1, PAGE_PREVIEW_WIDTH / natural.width),
+          });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(viewport.width));
+          canvas.height = Math.max(1, Math.round(viewport.height));
+          const context = canvas.getContext('2d', { alpha: false });
+          context.fillStyle = '#fff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          const task = page.render({ canvasContext: context, viewport });
+          tasks.add(task);
+          try {
+            await task.promise;
+          } catch (error) {
+            if (error?.name === 'RenderingCancelledException') return;
+            throw error;
+          } finally {
+            tasks.delete(task);
+          }
+          if (cancelled) return;
+          const blob = await new Promise((resolve) => {
+            canvas.toBlob(resolve, 'image/jpeg', PAGE_PREVIEW_QUALITY);
+          });
+          canvas.width = 0;
+          canvas.height = 0;
+          if (!blob || cancelled) return;
+          const url = URL.createObjectURL(blob);
+          objectUrls.add(url);
+          setFilePagePreviews((previous) => {
+            const urls = new Map(previous.doc === doc ? previous.urls : []);
+            urls.set(pageNumber, url);
+            if (urls.size === doc.numPages) {
+              markViewerPerformance('page-previews-ready', { pages: doc.numPages });
+            }
+            return { doc, urls };
+          });
+        },
+      });
+      withdraws.push(withdraw);
+    }
+
+    return () => {
+      cancelled = true;
+      for (const withdraw of withdraws) withdraw();
+      for (const task of tasks) task.cancel();
+      for (const url of objectUrls) URL.revokeObjectURL(url);
+    };
+  }, [doc, firstPageInteractive, source]);
+  // File-system viewers do not read or write state keyed to the PDF. Once a
+  // paper is added to the nook, its canonical viewer may remember its place.
+  const readingView = useRef(source?.openedFile
+    ? { key: null, view: null }
+    : savedReadingView());
   const readingViewRestored = useRef(false);
   // Anchors placed but not yet acknowledged, keyed by their temporary id.
   const pending = useRef(new Map());
@@ -649,13 +815,28 @@ export default function App() {
     if (paper?.title) document.title = `${paper.title} — Papol`;
   }, [paper?.title]);
 
-  useEffect(() => {
-    if (!paper) return undefined;
+  // Files opened by the operating system already have enough identity in the
+  // URL to load their bytes. Start that work alongside annotations and nook
+  // metadata instead of putting those local database reads in front of PDF.js.
+  const pdfPaper = source?.openedFile ? source.initialPaper : paper;
+  const pdfIdentity = pdfPaper
+    ? `${pdfPaper.opened_file && !pdfPaper.uuid ? 'opened:' : 'paper:'}${pdfPaper.edition_sha256 || ''}`
+    : null;
+
+  useLayoutEffect(() => {
+    if (!pdfPaper) return undefined;
     let cancelled = false;
     let task = null;
     setPdfProgress(null);
-    pdfLoadInput(paper)
-      .then((input) => {
+    markViewerPerformance('pdf-bytes-requested');
+    const inputReady = pdfLoadInput(pdfPaper).then((input) => {
+      markViewerPerformance('pdf-bytes-ready', {
+        bytes: input?.data?.byteLength ?? null,
+      });
+      return input;
+    });
+    Promise.all([inputReady, pdfjsReady])
+      .then(([input, pdfjs]) => {
         if (!input?.url && !input?.data) throw new Error('This paper has no PDF.');
         if (cancelled) return null;
         task = pdfjs.getDocument({
@@ -668,10 +849,28 @@ export default function App() {
         };
         return task.promise;
       })
-      .then((d) => {
+      .then(async (d) => {
         if (!d || cancelled) return;
-        setDoc(d);
         markViewerPerformance('document-loaded', { pages: d.numPages });
+        // PDF.js has already parsed enough to expose page one. Resolve its
+        // geometry before mounting every PdfPage, then commit document, page
+        // shape, and fitted scale together without an intermediate render.
+        const firstPage = await d.getPage(1);
+        if (cancelled) return;
+        const viewport = firstPage.getViewport({ scale: 1 });
+        const pageSize = { width: viewport.width, height: viewport.height };
+        setDefaultPageSize(pageSize);
+        const el = scrollerRef.current;
+        if (el && !chosenZoom.current) {
+          const style = getComputedStyle(el);
+          const room = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          if (room > 0) {
+            const next = clampScale(Math.min(room, FIT_MAX_WIDTH) / pageSize.width);
+            setScale(next);
+            setRenderScale(next);
+          }
+        }
+        setDoc(d);
       })
       .catch((failure) => {
         if (cancelled) return;
@@ -700,7 +899,16 @@ export default function App() {
       cancelled = true;
       task?.destroy();
     };
-  }, [paper]);
+  }, [pdfIdentity, pdfPaper]);
+
+  useEffect(() => {
+    if (doc || source?.openedFile) {
+      setShowPdfLoading(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setShowPdfLoading(true), 350);
+    return () => window.clearTimeout(timer);
+  }, [doc, pdfIdentity, source]);
 
   useEffect(() => {
     if (!paperInfoOpen || paperInfo) return undefined;
@@ -722,8 +930,7 @@ export default function App() {
     };
   }, [paper, paperInfo, paperInfoOpen, source]);
 
-  const paperPopupOpen = paperInfoOpen || nookPromptOpen ||
-    localNotesNotice || pdfViewerTip;
+  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip;
 
   // Everything hung from the paper menu is the same kind of transient
   // window, even though the contents differ. A click beyond the menu puts
@@ -735,7 +942,6 @@ export default function App() {
       if (paperMenuRef.current?.contains(event.target)) return;
       setPaperInfoOpen(false);
       setNookPromptOpen(false);
-      setLocalNotesNotice(false);
       setPdfViewerTip(false);
     };
     document.addEventListener('pointerdown', closeAway, true);
@@ -835,7 +1041,7 @@ export default function App() {
   useEffect(() => {
     const editionUuid = paper?.edition_uuid;
     const pdfHash = paper?.edition_sha256 || paper?.sha256;
-    if (!editionUuid || !pdfHash) return undefined;
+    if (!firstPageReady || !editionUuid || !pdfHash) return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -866,15 +1072,16 @@ export default function App() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [paper]);
+  }, [firstPageReady, paper]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_rail_width', String(railWidth));
   }, [railWidth]);
 
   useEffect(() => {
+    if (source?.annotationsRequireNook) return;
     localStorage.setItem('papol_viewer_tool', tool);
-  }, [tool]);
+  }, [source, tool]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_animal', animal);
@@ -944,7 +1151,6 @@ export default function App() {
         e.preventDefault();
         setPaperInfoOpen(false);
         setNookPromptOpen(false);
-        setLocalNotesNotice(false);
         setPdfViewerTip(false);
         return;
       }
@@ -1299,13 +1505,11 @@ export default function App() {
   // Open at the width of the viewer, and stay fitted through actual window
   // resizes until the reader picks a zoom. Opening the rail is not a window
   // resize and must not silently change the document's zoom.
-  const chosenZoom = useRef(false);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollerRef.current;
     if (!doc || !el) return undefined;
     let gone = false;
-    let pageWidth = null;
+    let pageWidth = defaultPageSize?.width ?? null;
 
     const fit = () => {
       if (gone || pageWidth == null || chosenZoom.current) return;
@@ -1320,19 +1524,14 @@ export default function App() {
       setRenderScale(next);
     };
 
-    doc.getPage(1).then((page) => {
-      const viewport = page.getViewport({ scale: 1 });
-      pageWidth = viewport.width;
-      setDefaultPageSize({ width: viewport.width, height: viewport.height });
-      fit();
-    });
+    fit();
 
     window.addEventListener('resize', fit);
     return () => {
       gone = true;
       window.removeEventListener('resize', fit);
     };
-  }, [doc]);
+  }, [doc, defaultPageSize]);
 
   useEffect(() => {
     if (scale == null) return;
@@ -1403,6 +1602,7 @@ export default function App() {
   // dragging something heavy; if the save fails the stroke is taken back,
   // which is the honest thing to do with a mark that was not kept.
   const drawStroke = async (stroke, record = true) => {
+    if (await promptToAddForAnnotations()) return null;
     if (!source?.ink) return;
     const provisional = `wet-${++tempInkUuid.current}`;
     setInk((all) => [...all, { ...stroke, uuid: provisional }]);
@@ -1601,6 +1801,7 @@ export default function App() {
 
   const paintSelection = async () => {
     if (!selectionPaint) return;
+    if (await promptToAddForAnnotations()) return;
     const groupUuid = crypto.randomUUID();
     const specs = selectionPaint.strokes.map((fragment) => ({
         ...fragment,
@@ -1637,6 +1838,10 @@ export default function App() {
 
   const openSendSelection = () => {
     if (!selectionPaint?.text) return;
+    if (source?.annotationsRequireNook) {
+      void promptToAddForAnnotations();
+      return;
+    }
     const { text, strokes } = selectionPaint;
     window.getSelection()?.removeAllRanges();
     setSelectionPaint(null);
@@ -2318,6 +2523,10 @@ export default function App() {
   // Temporary ids are negative, so they can never collide with the
   // server's.
   const handlePlace = (spot) => {
+    if (source?.annotationsRequireNook) {
+      void promptToAddForAnnotations();
+      return null;
+    }
     // Counted, not clocked. This was -Date.now(), so two anchors dropped in
     // the same millisecond took the same temporary uuid: two notes with one
     // key, and a `pending` entry for the second standing in for the first,
@@ -2365,6 +2574,10 @@ export default function App() {
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
   const takeTool = (picked) => {
+    if (ANNOTATION_TOOLS.has(picked) && source?.annotationsRequireNook) {
+      void promptToAddForAnnotations();
+      return;
+    }
     // Reaching for what is already in your hand opens what belongs to it,
     // whether you reached with the pointer or with the key.
     if (picked === tool && SHEETS.has(picked)) {
@@ -2385,6 +2598,7 @@ export default function App() {
   };
 
   const createClip = async (clip) => {
+    if (await promptToAddForAnnotations()) return;
     const provisional = `clip-${Date.now()}`;
     setClips((all) => [...all, { ...clip, uuid: provisional }]);
     // A clipper is a one-shot form of the reading cursor. Put it down as
@@ -2834,8 +3048,8 @@ export default function App() {
   };
 
 
-  // The paper joins the nook with everything already made on it; the window
-  // then reopens it as the nook's paper.
+  // Once imported, leave the ephemeral file URL. The canonical nook viewer
+  // is the only surface allowed to load or persist paper state.
   const addToNook = async () => {
     await hydrateCredential();
     if (!nativeDataActive()) {
@@ -2847,29 +3061,17 @@ export default function App() {
     setNookPromptOpen(false);
     try {
       await source.addToNook();
-      window.location.reload();
+      const nookUrl = new URL(window.location.href);
+      for (const key of [
+        'file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms',
+      ]) nookUrl.searchParams.delete(key);
+      window.location.assign(nookUrl.href);
     } catch (failure) {
       setNookStep('idle');
       setError(`Could not add this paper: ${messageOf(failure)}`);
     }
   };
   const addToNookOnceSignedIn = useEvent(addToNook);
-  const dismissLocalNotesNotice = () => {
-    rememberLocalAnnotationsNoticeChoice(hideLocalNotesNotice);
-    setLocalNotesNotice(false);
-  };
-  // Backing up is adding to the nook; without an account, that starts with
-  // creating one in the library window.
-  const backUpNotes = () => {
-    dismissLocalNotesNotice();
-    if (nativeDataActive()) {
-      addToNook();
-      return;
-    }
-    setNookStep('waiting');
-    setNookPromptOpen(true);
-    requestSignIn({ register: true }).catch(() => setNookStep('ask'));
-  };
   const askToSignIn = () => {
     setNookStep('waiting');
     setNookPromptOpen(true);
@@ -2969,7 +3171,6 @@ export default function App() {
   if (error && !doc) {
     return (
       <>
-        <style>{styles}</style>
         <div className="shell">
           <div className="error">{error}</div>
           {!DOCUMENT_WINDOW && <p className="hint">
@@ -2992,6 +3193,13 @@ export default function App() {
   }
 
   const pages = doc ? Array.from({ length: doc.numPages }, (_, i) => i + 1) : [];
+  const initiallyVisiblePage = wantedPage || readingView.current.view?.page || 1;
+  const mountedFilePages = materializedFilePages.doc === doc
+    ? materializedFilePages.pages
+    : FIRST_PAGE_ONLY;
+  const pagePreviews = filePagePreviews.doc === doc
+    ? filePagePreviews.urls
+    : new Map();
 
   // A percentage once the server has said how big the file is; null while
   // that is still unknown, which reads as "under way" rather than "stuck
@@ -3076,7 +3284,6 @@ export default function App() {
 
   return (
     <>
-      <style>{styles}</style>
       <header
         className="viewer-bar"
         // Empty stretches of the bar move the window in Papol Desktop;
@@ -3438,7 +3645,6 @@ export default function App() {
               onClick={() => {
                 setPaperInfoOpen((open) => !open);
                 setNookPromptOpen(false);
-                setLocalNotesNotice(false);
                 setPdfViewerTip(false);
               }}
               aria-expanded={paperInfoOpen}
@@ -3486,47 +3692,29 @@ export default function App() {
             >
               Download
             </a>}
-            {nookPromptOpen && (nookStep === 'ask' || nookStep === 'waiting') && (
+            {nookPromptOpen && ['confirm', 'ask', 'waiting'].includes(nookStep) && (
               <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title">
                 <strong id="nook-ask-title">Add this paper to your nook</strong>
                 <p>
                   {nookStep === 'waiting'
                     ? 'Continue in the Papol window. The paper is added as soon as you are signed in.'
-                    : 'Sign in first. Your notes, ink and clips on this file come with it.'}
+                    : nookStep === 'confirm'
+                      ? 'Notes, ink, clips and other paper state are available after this file is added to your nook.'
+                      : 'Sign in first. Notes, ink and clips are available after the paper is added to your nook.'}
                 </p>
                 <div className="nook-ask-actions">
                   <button type="button" onClick={() => { setNookPromptOpen(false); setNookStep('idle'); }}>Not now</button>
-                  <button type="button" className={nookStep === 'ask' ? 'primary' : ''} onClick={askToSignIn}>
-                    {nookStep === 'ask' ? 'Sign in' : 'Show sign-in'}
+                  <button
+                    type="button"
+                    className={nookStep === 'waiting' ? '' : 'primary'}
+                    onClick={nookStep === 'confirm' ? addToNook : askToSignIn}
+                  >
+                    {nookStep === 'confirm' ? 'Add to nook' : nookStep === 'ask' ? 'Sign in' : 'Show sign-in'}
                   </button>
                 </div>
               </div>
             )}
-            {localNotesNotice && nookStep === 'idle' && !paperInfoOpen && (
-              <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="local-notes-title">
-                <strong id="local-notes-title">Want Papol’s full functionality?</strong>
-                <span>
-                  {nativeDataActive()
-                    ? 'Add the paper to the nook to enjoy full functionality of Papol, such as citation lookup.'
-                    : 'Add the paper to the nook to enjoy full functionality of Papol, such as citation lookup. Create an account first.'}
-                </span>
-                <label className="local-notes-hide">
-                  <input
-                    type="checkbox"
-                    checked={hideLocalNotesNotice}
-                    onChange={(event) => setHideLocalNotesNotice(event.target.checked)}
-                  />
-                  Don't show again
-                </label>
-                <span className="pdf-viewer-tip-actions">
-                  <button type="button" onClick={dismissLocalNotesNotice}>Got it</button>
-                  <button type="button" className="learn-papol-close" onClick={backUpNotes}>
-                    {nativeDataActive() ? 'Add to nook' : 'Create account'}
-                  </button>
-                </span>
-              </span>
-            )}
-            {pdfViewerTip && !localNotesNotice && nookStep === 'idle' && !paperInfoOpen && (
+            {pdfViewerTip && nookStep === 'idle' && !paperInfoOpen && (
               <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="pdf-viewer-tip-title">
                 <strong id="pdf-viewer-tip-title">Use Papol as your default PDF viewer?</strong>
                 <span className="pdf-viewer-tip-actions">
@@ -3629,6 +3817,7 @@ export default function App() {
         <div
           className="pages"
           ref={scrollerRef}
+          aria-busy={!doc}
           onContextMenu={pageContextMenu}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
@@ -3646,7 +3835,7 @@ export default function App() {
             dropAnimal(Number(nearest.el.dataset.page), { x, y });
           }}
         >
-          {!doc && (
+          {!doc && showPdfLoading && (
             <div className="pdf-loading" role="status" aria-live="polite">
               <div className="pdf-loading-card">
                 <p>Loading the paper…</p>
@@ -3686,10 +3875,19 @@ export default function App() {
                   }}
                 />
               )}
-              <PdfPage
+              {source?.openedFile && !mountedFilePages.has(n) ? (
+                <LazyPageShell
+                  pageNumber={n}
+                  size={defaultPageSize}
+                  scale={scale}
+                  previewUrl={pagePreviews.get(n)}
+                />
+              ) : <PdfPage
               doc={doc}
               pageNumber={n}
+              initiallyNear={source?.openedFile || n === initiallyVisiblePage}
               initialSize={defaultPageSize}
+              previewUrl={pagePreviews.get(n)}
               scale={scale}
               renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}
@@ -3742,7 +3940,7 @@ export default function App() {
               activeSearchId={searchResults[activeSearchResult]?.page === n
                 ? searchResults[activeSearchResult].id
                 : null}
-              />
+              />}
             </React.Fragment>
           ))}
           {openCite && (
