@@ -338,6 +338,15 @@ fn data_mutate(
 }
 
 #[tauri::command]
+fn shared_paper_cache(
+    store: tauri::State<'_, data::LocalStore>,
+    account_uuid: String,
+    rows: Vec<serde_json::Map<String, serde_json::Value>>,
+) -> Result<usize, String> {
+    store.cache_shared_paper(&account_uuid, rows)
+}
+
+#[tauri::command]
 fn blob_import(
     store: tauri::State<'_, data::LocalStore>,
     bytes: Vec<u8>,
@@ -791,6 +800,7 @@ pub fn run() {
             open_document_window,
             data_query,
             data_mutate,
+            shared_paper_cache,
             blob_import,
             blob_read,
             blob_ensure,

@@ -63,7 +63,7 @@ await credentials.hydrateCredential();
 const { enterOfflineMode, inOfflineMode } = await import('../../shared/offlineStore.js');
 
 const {
-  boardView, hydrateNativeSyncPreference,
+  boardView, cacheNativeSharedPaper, hydrateNativeSyncPreference,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
@@ -127,6 +127,31 @@ test('desktop native mutations carry the local account into Tauri IPC', async ()
   const call = calls.find(([command]) => command === 'data_mutate');
   assert.equal(call[1].accountUuid, ACCOUNT);
   assert.equal(call[1].changes[0].values.name, 'Offline');
+});
+
+test('a shared paper and all of its editions can seed an offline nook copy', async () => {
+  calls.length = 0;
+  await cacheNativeSharedPaper({
+    uuid: '11111111-1111-4111-8111-111111111111', title: 'Shared paper',
+    created_at: '2026-09-14T00:00:00Z',
+    editions: [
+      {
+        uuid: '22222222-2222-4222-8222-222222222222', file_path: 'first.pdf',
+        sha256: 'a'.repeat(64), created_at: '2026-09-13T00:00:00Z',
+      },
+      {
+        uuid: '33333333-3333-4333-8333-333333333333', file_path: 'second.pdf',
+        sha256: 'b'.repeat(64), created_at: '2026-09-14T00:00:00Z',
+      },
+    ],
+  });
+  const call = calls.find(([command]) => command === 'shared_paper_cache');
+  assert.equal(call[1].accountUuid, ACCOUNT);
+  assert.deepEqual(call[1].rows.map((row) => row.table), [
+    'papers', 'paper_editions', 'paper_editions',
+  ]);
+  assert.equal(call[1].rows[2].paper_uuid, '11111111-1111-4111-8111-111111111111');
+  assert.equal(call[1].rows[2].sha256, 'b'.repeat(64));
 });
 
 test('native blob import transfers exact bytes and metadata', async () => {

@@ -667,6 +667,7 @@ def _board_out(board: Board, include_items: bool = False, can_edit: bool = False
     ]
     return BoardOut(
         uuid=board.uuid,
+        revision=board.revision,
         user_uuid=board.owner.uuid,
         owner=board.owner,
         shelf_uuid=board.shelf.uuid if board.shelf else None,

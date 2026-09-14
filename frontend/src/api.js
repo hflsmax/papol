@@ -3,7 +3,7 @@ import { appPath, backendPath } from './base';
 import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  boardView, discardNativeBlob, nativeAccountUuid, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeQuery, nativeSyncNow,
+  boardView, cacheNativeSharedPaper, discardNativeBlob, nativeAccountUuid, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeQuery, nativeSyncNow,
   noteView, paperView, prepareNativeAccount, removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount, shelfView, newUuid,
 } from './nativeData.js';
 import {
@@ -12,6 +12,8 @@ import {
 } from '../../shared/offlineStore';
 import { currentCredential, storeCredential } from '../../shared/credentials.js';
 import { withAbortTimeout } from './requestTimeout.js';
+import { activateDesktopSession } from './authTransition.js';
+import { planOfflineNookAddition } from './nookTransition.js';
 
 configureNetworkFetch(IS_DESKTOP
   ? tauriHttpFetch
@@ -144,9 +146,11 @@ export async function register(email, displayName, affiliation, password) {
     }),
     signal,
   }));
-  await rememberOfflineIdentity(result.token, result.user).catch(() => {});
-  await prepareNativeAccount(result.user);
-  await setToken(result.token, result.user.uuid);
+  await activateDesktopSession(result, {
+    rememberIdentity: rememberOfflineIdentity,
+    storeToken: setToken,
+    prepareAccount: prepareNativeAccount,
+  });
   void scheduleAutomaticNativeSync().catch(() => {});
   return result;
 }
@@ -158,9 +162,11 @@ export async function login(email, password) {
     body: JSON.stringify({ email, password }),
     signal,
   }));
-  await rememberOfflineIdentity(result.token, result.user).catch(() => {});
-  await prepareNativeAccount(result.user);
-  await setToken(result.token, result.user.uuid);
+  await activateDesktopSession(result, {
+    rememberIdentity: rememberOfflineIdentity,
+    storeToken: setToken,
+    prepareAccount: prepareNativeAccount,
+  });
   void scheduleAutomaticNativeSync().catch(() => {});
   return result;
 }
@@ -710,8 +716,19 @@ export async function getPaper(uuid) {
   return paper;
 }
 
-export function addToNook(paperUuid) {
-  return request(`/papers/${paperUuid}/add-to-nook`, { method: 'POST' });
+export async function addToNook(paper) {
+  const paperUuid = typeof paper === 'string' ? paper : paper?.uuid;
+  if (!paperUuid) throw new Error('Paper not found');
+  if (!nativeDataActive() || typeof paper === 'string') {
+    return request(`/papers/${paperUuid}/add-to-nook`, { method: 'POST' });
+  }
+
+  await cacheNativeSharedPaper(paper);
+  const shelves = await nativeQuery('shelves');
+  const { copyUuid, change } = planOfflineNookAddition(paper, shelves, newUuid);
+  await nativeMutate([change]);
+  copyUuids.set(paperUuid, copyUuid);
+  return paperView(await nativeQuery('paper', { uuid: paperUuid }));
 }
 
 export function addPaperEdition(uuid, file) {

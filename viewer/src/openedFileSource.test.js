@@ -9,13 +9,14 @@ const values = new Map([['papol.syncPreference', 'manual']]);
 const annotations = new Map();
 const calls = [];
 let existingPaper = null;
+let shelvesReady = true;
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
   setItem: (key, value) => values.set(key, String(value)),
   removeItem: (key) => values.delete(key),
 };
-global.location = new URL(`tauri://localhost/viewer/?pdf=${HASH}&file=1&name=Local%20paper`);
+global.location = new URL(`http://127.0.0.1/viewer/?pdf=${HASH}&file=1&name=Local%20paper`);
 global.window = {
   location: global.location,
   __PAPOL_ENV__: { runtime: 'desktop', surface: 'viewer', documentWindow: true },
@@ -53,11 +54,15 @@ global.window = {
           throw new Error('Paper not in nook');
         }
         if (args.queryName === 'comments') return [];
-        if (args.queryName === 'shelves') return [
+        if (args.queryName === 'shelves') return shelvesReady ? [
           { uuid: OTHER_SHELF, is_default: 0, is_public: 0 },
           { uuid: SHELF, is_default: 1, is_public: 1 },
-        ];
+        ] : [];
         return [];
+      }
+      if (command === 'sync_now') {
+        shelvesReady = true;
+        return { pushed: 0, pulled: 1, cursor: 1 };
       }
       if (command === 'data_mutate') return { rows: [] };
       return null;
@@ -74,6 +79,7 @@ Object.defineProperty(globalThis, 'navigator', {
 global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
 
 const { resolveSource } = await import('./source.js');
+const { hydrateCredential } = await import('../../shared/credentials.js');
 
 function seedMarks() {
   annotations.clear();
@@ -187,5 +193,32 @@ test('reopening after a partial Add to nook finishes migrating retained device a
   assert.deepEqual(mutations[0].map((change) => change.table), ['comments', 'ink_strokes', 'paper_clips']);
   assert.ok(mutations[0].every((change) => change.values.edition_uuid === existingPaper.edition_uuid));
   assert.equal(calls.filter(([command]) => command === 'local_annotations_clear').length, 1);
+  assert.equal(annotations.size, 0);
+});
+
+test('first sign-in supplies the credential before an open file asks for its nook snapshot', async () => {
+  values.delete('papol.localAccountUuid');
+  values.delete('papol_token');
+  await hydrateCredential();
+  existingPaper = null;
+  shelvesReady = false;
+  calls.length = 0;
+  seedMarks();
+  const source = resolveSource();
+  await source.load();
+
+  values.set('papol_token', 'new-session-token');
+  await hydrateCredential();
+  values.set('papol.localAccountUuid', ACCOUNT);
+  const paperUuid = await source.addToNook();
+
+  assert.match(paperUuid, /^[0-9a-f-]{36}$/);
+  const sync = calls.find(([command]) => command === 'sync_now');
+  assert.equal(sync[1].token, 'new-session-token');
+  assert.deepEqual(
+    calls.filter(([command]) => command === 'data_mutate')
+      .flatMap(([, args]) => args.changes.map((change) => change.table)),
+    ['papers', 'paper_editions', 'copies', 'comments', 'ink_strokes', 'paper_clips'],
+  );
   assert.equal(annotations.size, 0);
 });

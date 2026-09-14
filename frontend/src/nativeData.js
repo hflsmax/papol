@@ -82,6 +82,26 @@ export async function nativeMutate(changes) {
   return receipt;
 }
 
+export async function cacheNativeSharedPaper(paper) {
+  const accountUuid = nativeAccountUuid();
+  if (accountUuid == null) throw new Error('Local data requires a signed-in account');
+  const createdAt = paper?.created_at || new Date().toISOString();
+  const rows = [{
+    table: 'papers', uuid: paper.uuid, doi: paper.doi ?? null,
+    title: paper.title, authors: paper.authors ?? null, journal: paper.journal ?? null,
+    year: paper.year ?? null, created_at: createdAt, updated_at: createdAt,
+    revision: Number.isInteger(paper.revision) ? paper.revision : 0, deleted_at: null,
+  }, ...(paper.editions || []).map((edition) => ({
+    table: 'paper_editions', uuid: edition.uuid, paper_uuid: paper.uuid,
+    file_path: edition.file_path, sha256: edition.sha256 ?? null,
+    created_at: edition.created_at || createdAt,
+    updated_at: edition.created_at || createdAt,
+    revision: Number.isInteger(edition.revision) ? edition.revision : 0,
+    deleted_at: null,
+  }))];
+  return invoke('shared_paper_cache', { accountUuid, rows });
+}
+
 export async function nativeBlobImport(blob) {
   if (!nativeDataActive()) throw new Error('Local files require a signed-in desktop account');
   const bytes = new Uint8Array(await blob.arrayBuffer());

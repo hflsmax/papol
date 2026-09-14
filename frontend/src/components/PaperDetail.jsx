@@ -237,7 +237,7 @@ export default function PaperDetail({
   const handleAddToNook = async () => {
     setError(null);
     try {
-      const added = await addToNook(paper.uuid);
+      const added = await addToNook(paper);
       setPaper(added);
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.

@@ -282,6 +282,72 @@ impl LocalStore {
         }
     }
 
+    pub fn cache_shared_paper(
+        &self,
+        account_uuid: &str,
+        rows: Vec<Map<String, Value>>,
+    ) -> Result<usize, String> {
+        let mut connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        let transaction = connection
+            .transaction()
+            .map_err(|error| error.to_string())?;
+        let account_exists: Option<i64> = transaction
+            .query_row(
+                "SELECT 1 FROM _local_accounts WHERE account_uuid=?1",
+                [account_uuid],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if account_exists.is_none() {
+            return Err("Local data requires a signed-in account".into());
+        }
+        transaction
+            .execute_batch("PRAGMA defer_foreign_keys=ON;")
+            .map_err(|error| error.to_string())?;
+        let count = rows.len();
+        for mut row in rows {
+            let table = row
+                .remove("table")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .ok_or("Cached paper row is missing its table")?;
+            if !matches!(table.as_str(), "papers" | "paper_editions") {
+                return Err("Only shared paper rows may enter the local cache".into());
+            }
+            let uuid = row
+                .get("uuid")
+                .and_then(Value::as_str)
+                .ok_or("Cached paper row is missing its uuid")?
+                .to_owned();
+            Uuid::parse_str(&uuid).map_err(|_| "Cached paper row has an invalid uuid")?;
+            if row.get("deleted_at").is_some_and(|value| !value.is_null()) {
+                return Err("A deleted paper cannot be added to a nook".into());
+            }
+            let already_cached: Option<i64> = transaction
+                .query_row(
+                    &format!("SELECT 1 FROM {table} WHERE uuid=?1"),
+                    [&uuid],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+            if already_cached.is_some() {
+                continue;
+            }
+            // This is a dependency cache, not a server revision claim. A
+            // subsequent push/pull replaces it with the authoritative row.
+            row.insert("revision".into(), json!(0));
+            validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
+            apply_remote_row(&transaction, &table, row, false)?;
+            refresh_blob_reference(&transaction, &table, &uuid)?;
+        }
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(count)
+    }
+
     pub fn local_setting(&self, key: &str) -> Result<Option<String>, String> {
         let connection = self
             .connection
@@ -3790,6 +3856,96 @@ mod tests {
         store.delete_local_annotation(&note).unwrap();
         assert_eq!(store.clear_local_annotations(&digest).unwrap(), 1);
         assert!(store.local_annotations(&digest).unwrap().is_empty());
+    }
+
+    #[test]
+    fn shared_paper_cache_supports_an_offline_owned_copy_without_queueing_shared_rows() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let account_uuid = Uuid::new_v4().to_string();
+        let shelf_uuid = Uuid::new_v4().to_string();
+        let paper_uuid = Uuid::new_v4().to_string();
+        let edition_uuid = Uuid::new_v4().to_string();
+        let copy_uuid = Uuid::new_v4().to_string();
+        let now = "2026-09-14T00:00:00Z";
+        store
+            .set_local_account(&account_uuid, json!({"uuid": account_uuid}))
+            .unwrap();
+        store
+            .apply_snapshot(
+                &account_uuid,
+                vec![Map::from_iter([
+                    ("table".into(), json!("shelves")),
+                    ("uuid".into(), json!(shelf_uuid.clone())),
+                    ("user_uuid".into(), json!(account_uuid.clone())),
+                    ("name".into(), json!("Nook")),
+                    ("color".into(), json!("#123456")),
+                    ("is_public".into(), json!(0)),
+                    ("is_default".into(), json!(1)),
+                    ("position".into(), json!(0)),
+                    ("created_at".into(), json!(now)),
+                    ("updated_at".into(), json!(now)),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
+            )
+            .unwrap();
+        let cached = store
+            .cache_shared_paper(
+                &account_uuid,
+                vec![
+                    Map::from_iter([
+                        ("table".into(), json!("papers")),
+                        ("uuid".into(), json!(paper_uuid.clone())),
+                        ("doi".into(), Value::Null),
+                        ("title".into(), json!("Shared paper")),
+                        ("authors".into(), Value::Null),
+                        ("journal".into(), Value::Null),
+                        ("year".into(), Value::Null),
+                        ("created_at".into(), json!(now)),
+                        ("updated_at".into(), json!(now)),
+                        ("revision".into(), json!(1)),
+                        ("deleted_at".into(), Value::Null),
+                    ]),
+                    Map::from_iter([
+                        ("table".into(), json!("paper_editions")),
+                        ("uuid".into(), json!(edition_uuid.clone())),
+                        ("paper_uuid".into(), json!(paper_uuid.clone())),
+                        ("file_path".into(), json!("shared.pdf")),
+                        ("sha256".into(), json!("a".repeat(64))),
+                        ("created_at".into(), json!(now)),
+                        ("updated_at".into(), json!(now)),
+                        ("revision".into(), json!(1)),
+                        ("deleted_at".into(), Value::Null),
+                    ]),
+                ],
+            )
+            .unwrap();
+        assert_eq!(cached, 2);
+        assert_eq!(store.outbox_count(), 0);
+
+        store
+            .mutate(
+                &account_uuid,
+                vec![DataChange {
+                    table: "copies".into(),
+                    uuid: copy_uuid.clone(),
+                    operation: "upsert".into(),
+                    values: Map::from_iter([
+                        ("paper_uuid".into(), json!(paper_uuid.clone())),
+                        ("shelf_uuid".into(), json!(shelf_uuid)),
+                        ("edition_uuid".into(), json!(edition_uuid)),
+                        ("edition_sha256".into(), json!("a".repeat(64))),
+                    ]),
+                }],
+            )
+            .unwrap();
+        assert_eq!(store.outbox_count(), 1);
+        let paper = store
+            .query(&account_uuid, "paper", json!({"uuid": paper_uuid}))
+            .unwrap();
+        assert_eq!(paper["title"], "Shared paper");
+        assert_eq!(paper["copy_uuid"], copy_uuid);
     }
 
     #[test]
