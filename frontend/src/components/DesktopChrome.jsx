@@ -9,7 +9,7 @@ import {
   getSyncStatus, OFFLINE_MODE_MESSAGE, refreshSyncStatus,
 } from '../../../shared/connectivity.js';
 import {
-  nativeDataActive, nativeQuery, subscribeNativeData, syncAllNow,
+  nativeDataActive, nativeRepository, subscribeNativeData, syncAllNow,
 } from '../../../shared/nativeData.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
@@ -121,7 +121,7 @@ function SyncControl({ onSynced }) {
       const web = getSyncStatus();
       if (!nativeDataActive()) { setStatus(web); return; }
       try {
-        const local = await nativeQuery('sync_status');
+        const local = await nativeRepository.syncStatus();
         setStatus({
           ...web,
           syncing: web.syncing || nativeSyncing,
@@ -152,7 +152,7 @@ function SyncControl({ onSynced }) {
     if (failure) latest.error = failure;
     if (nativeDataActive()) {
       try {
-        const local = await nativeQuery('sync_status');
+        const local = await nativeRepository.syncStatus();
         latest.pending += local.pending;
         latest.error ||= local.error || local.outbox_error;
         latest.conflicts = local.conflicts || 0;

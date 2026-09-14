@@ -306,14 +306,60 @@ fn pdf_viewer_make_default(app: tauri::AppHandle) -> Result<serde_json::Value, S
     }
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LocalDataQuery {
+    Account,
+    Board,
+    BoardGroup,
+    Boards,
+    Clips,
+    Comments,
+    Copies,
+    CopyTags,
+    Ink,
+    Nook,
+    Paper,
+    PaperByPdf,
+    Papers,
+    Shelves,
+    StorageStatus,
+    SyncStatus,
+    Tags,
+}
+
+impl LocalDataQuery {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Account => "account",
+            Self::Board => "board",
+            Self::BoardGroup => "board_group",
+            Self::Boards => "boards",
+            Self::Clips => "clips",
+            Self::Comments => "comments",
+            Self::Copies => "copies",
+            Self::CopyTags => "copy_tags",
+            Self::Ink => "ink",
+            Self::Nook => "nook",
+            Self::Paper => "paper",
+            Self::PaperByPdf => "paper_by_pdf",
+            Self::Papers => "papers",
+            Self::Shelves => "shelves",
+            Self::StorageStatus => "storage_status",
+            Self::SyncStatus => "sync_status",
+            Self::Tags => "tags",
+        }
+    }
+}
+
 #[tauri::command]
 fn data_query(
     store: tauri::State<'_, data::LocalStore>,
     account_uuid: String,
-    query_name: String,
+    query_name: LocalDataQuery,
     parameters: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    store.query(&account_uuid, &query_name, parameters)
+    store.query(&account_uuid, query_name.as_str(), parameters)
 }
 
 #[tauri::command]
@@ -937,6 +983,13 @@ fn open_in_browser(url: &tauri::Url) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_data_queries_are_a_closed_ipc_contract() {
+        let query: LocalDataQuery = serde_json::from_str("\"paper_by_pdf\"").unwrap();
+        assert_eq!(query.as_str(), "paper_by_pdf");
+        assert!(serde_json::from_str::<LocalDataQuery>("\"arbitrary_sql\"").is_err());
+    }
 
     fn parse(url: &str) -> tauri::Url {
         url.parse().expect("test URL should parse")

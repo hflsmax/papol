@@ -2,7 +2,7 @@ import { demoActive } from './demo.js';
 import { appPath } from './appUrls.js';
 import { IS_DESKTOP } from './appEnvironment.js';
 import {
-  boardView, cacheNativeSharedPaper, discardNativeBlob, nativeAccountUuid, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeQuery, nativeSyncNow,
+  boardView, cacheNativeSharedPaper, discardNativeBlob, nativeAccountUuid, nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   noteView, paperView, prepareNativeAccount, removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount, shelfView, newUuid,
 } from './nativeData.js';
 import {
@@ -129,7 +129,7 @@ export async function logout(accountUuid = nativeAccountUuid()) {
 
 export async function pendingLocalChanges() {
   if (!nativeDataActive()) return 0;
-  const native = await nativeQuery('sync_status');
+  const native = await nativeRepository.syncStatus();
   return native.pending;
 }
 
@@ -141,7 +141,7 @@ export async function getMe() {
   } catch (error) {
     if (!nativeDataActive() || error?.status === 401 || error?.status === 403) throw error;
     // Offline, SQLite holds the signed-in reader's identity.
-    user = await nativeQuery('account');
+    user = await nativeRepository.account();
   }
   if (!user) throw new Error('Account profile is unavailable');
   if (!nativeDataActive()) {
@@ -232,7 +232,7 @@ export function listUsers() {
 export async function getUserSpace(userUuid) {
   if (nativeDataActive() && userUuid === nativeAccountUuid()) {
     const [user, boards, nook, localPapers] = await Promise.all([
-      nativeQuery('account'), nativeQuery('boards'), nativeQuery('nook'), nativeQuery('papers'),
+      nativeRepository.account(), nativeRepository.boards(), nativeRepository.nook(), nativeRepository.papers(),
     ]);
     return {
       user,
@@ -277,7 +277,7 @@ export async function listPapers() {
 // ---------- Boards (private spaces inside the reader's nook) ----------
 
 export function listBoards() {
-  if (nativeDataActive()) return nativeQuery('boards').then((rows) => rows.map((row) => boardView(row)));
+  if (nativeDataActive()) return nativeRepository.boards().then((rows) => rows.map((row) => boardView(row)));
   return request('/boards');
 }
 
@@ -287,7 +287,7 @@ export function listLibraryBoards() {
 
 export async function createBoard(data) {
   const board = nativeDataActive()
-    ? boardView((await nativeMutate([{
+    ? boardView((await nativeRepository.transact([{
       table: 'boards', uuid: newUuid(), operation: 'upsert', values: data,
     }])).rows[0])
     : await jsonRequest('/boards', 'POST', data);
@@ -296,21 +296,21 @@ export async function createBoard(data) {
 }
 
 export function getBoard(uuid) {
-  if (nativeDataActive()) return nativeQuery('board', { uuid }).then((row) => boardView(row, true));
+  if (nativeDataActive()) return nativeRepository.board(uuid).then((row) => boardView(row, true));
   return request(`/boards/${uuid}`);
 }
 
 export function updateBoard(uuid, data) {
   if (nativeDataActive()) {
-    return nativeMutate([{ table: 'boards', uuid, operation: 'patch', values: data }])
-      .then((receipt) => nativeQuery('board', { uuid }).then((row) => boardView(row, true)));
+    return nativeRepository.transact([{ table: 'boards', uuid, operation: 'patch', values: data }])
+      .then((receipt) => nativeRepository.board(uuid).then((row) => boardView(row, true)));
   }
   return jsonRequest(`/boards/${uuid}`, 'PUT', data);
 }
 
 export function deleteBoard(uuid) {
   if (nativeDataActive()) {
-    return nativeMutate([{ table: 'boards', uuid, operation: 'delete', values: {} }]).then(() => null);
+    return nativeRepository.transact([{ table: 'boards', uuid, operation: 'delete', values: {} }]).then(() => null);
   }
   return request(`/boards/${uuid}`, { method: 'DELETE' });
 }
@@ -327,7 +327,7 @@ export async function createBoardGroup(uuid, data) {
     }, ...data.item_uuids.map((itemUuid) => ({
       table: 'board_items', uuid: itemUuid, operation: 'patch', values: { group_uuid: groupUuid },
     }))];
-    const receipt = await nativeMutate(changes);
+    const receipt = await nativeRepository.transact(changes);
     return { ...receipt.rows[0], item_uuids: data.item_uuids };
   }
   return jsonRequest(`/boards/${uuid}/groups`, 'POST', data);
@@ -335,8 +335,8 @@ export async function createBoardGroup(uuid, data) {
 
 export async function moveBoardGroup(uuid, dx, dy) {
   if (nativeDataActive()) {
-    const context = await nativeQuery('board_group', { uuid });
-    const receipt = await nativeMutate(context.items.map((item) => ({
+    const context = await nativeRepository.boardGroup(uuid);
+    const receipt = await nativeRepository.transact(context.items.map((item) => ({
       table: 'board_items', uuid: item.uuid, operation: 'patch',
       values: { x: item.x + dx, y: item.y + dy },
     })));
@@ -347,8 +347,8 @@ export async function moveBoardGroup(uuid, dx, dy) {
 
 export async function updateBoardGroup(uuid, data) {
   if (nativeDataActive()) {
-    await nativeMutate([{ table: 'board_groups', uuid, operation: 'patch', values: data }]);
-    const context = await nativeQuery('board_group', { uuid });
+    await nativeRepository.transact([{ table: 'board_groups', uuid, operation: 'patch', values: data }]);
+    const context = await nativeRepository.boardGroup(uuid);
     return { ...context.group, item_uuids: context.items.map((item) => item.uuid) };
   }
   return jsonRequest(`/board-groups/${uuid}`, 'PUT', data);
@@ -356,7 +356,7 @@ export async function updateBoardGroup(uuid, data) {
 
 export function ungroupBoardGroup(uuid, items) {
   if (nativeDataActive()) {
-    return nativeMutate([
+    return nativeRepository.transact([
       { table: 'board_groups', uuid, operation: 'delete', values: {} },
       ...items.map((item) => ({
         table: 'board_items', uuid: item.uuid, operation: 'patch',
@@ -369,7 +369,7 @@ export function ungroupBoardGroup(uuid, items) {
 
 export function layoutBoardGroup(uuid, items) {
   if (nativeDataActive()) {
-    return nativeMutate(items.map((item) => ({
+    return nativeRepository.transact(items.map((item) => ({
       table: 'board_items', uuid: item.uuid, operation: 'patch',
       values: { x: item.x, y: item.y },
     }))).then((receipt) => receipt.rows);
@@ -379,7 +379,7 @@ export function layoutBoardGroup(uuid, items) {
 
 export async function addBoardComment(uuid, content, x, y) {
   if (nativeDataActive()) {
-    const receipt = await nativeMutate([{
+    const receipt = await nativeRepository.transact([{
       table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: { board_uuid: uuid, kind: 'comment', content, x, y },
     }]);
@@ -392,7 +392,7 @@ export async function addBoardFile(uuid, file, caption = '', position = null) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     try {
-      const receipt = await nativeMutate([{
+      const receipt = await nativeRepository.transact([{
         table: 'board_items', uuid: newUuid(), operation: 'upsert',
         values: {
           board_uuid: uuid,
@@ -423,14 +423,14 @@ export async function addBoardFile(uuid, file, caption = '', position = null) {
 
 export function deleteBoardItem(uuid) {
   if (nativeDataActive()) {
-    return nativeMutate([{ table: 'board_items', uuid, operation: 'delete', values: {} }]).then(() => null);
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'delete', values: {} }]).then(() => null);
   }
   return request(`/board-items/${uuid}`, { method: 'DELETE' });
 }
 
 export function restoreBoardItem(uuid) {
   if (nativeDataActive()) {
-    return nativeMutate([{ table: 'board_items', uuid, operation: 'patch', values: {} }])
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'patch', values: {} }])
       .then((receipt) => receipt.rows[0]);
   }
   return request(`/board-items/${uuid}/restore`, { method: 'POST' });
@@ -438,7 +438,7 @@ export function restoreBoardItem(uuid) {
 
 export function moveBoardItem(uuid, x, y) {
   if (nativeDataActive()) {
-    return nativeMutate([{ table: 'board_items', uuid, operation: 'patch', values: { x, y } }])
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'patch', values: { x, y } }])
       .then((receipt) => receipt.rows[0]);
   }
   return jsonRequest(`/board-items/${uuid}`, 'PUT', { x, y });
@@ -446,7 +446,7 @@ export function moveBoardItem(uuid, x, y) {
 
 export function updateBoardItem(uuid, data) {
   if (nativeDataActive()) {
-    return nativeMutate([{ table: 'board_items', uuid, operation: 'patch', values: data }])
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'patch', values: data }])
       .then((receipt) => receipt.rows[0]);
   }
   return jsonRequest(`/board-items/${uuid}`, 'PUT', data);
@@ -456,7 +456,7 @@ export function addBoardYouTube(uuid, url, x, y) {
   if (nativeDataActive()) {
     const parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Video links must use http or https');
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: { board_uuid: uuid, kind: 'youtube', content: url, source_url: url, x, y },
     }]).then((receipt) => receipt.rows[0]);
@@ -469,7 +469,7 @@ export function addBoardWebpage(uuid, url, x, y) {
     const parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Page links must use http or https');
     const label = parsed.hostname;
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: { board_uuid: uuid, kind: 'webpage', content: label, source_url: url, x, y, width: 480 },
     }]).then((receipt) => receipt.rows[0]);
@@ -479,7 +479,7 @@ export function addBoardWebpage(uuid, url, x, y) {
 
 export function placeStagedBoardItem(uuid, x, y) {
   if (nativeDataActive()) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'board_items', uuid, operation: 'patch', values: { x, y, staged: false },
     }]).then((receipt) => receipt.rows[0]);
   }
@@ -562,7 +562,7 @@ export function reextractPaperMetadata(paperUuid) {
 export async function createPaper(paperData) {
   const sha256 = paperData.sha256 || paperData.file_path?.replace(/\.pdf$/i, '');
   if (nativeDataActive() && pendingPaperBlobs.has(sha256)) {
-    const localShelves = await nativeQuery('shelves');
+    const localShelves = await nativeRepository.shelves();
     let shelfUuid = paperData.shelf_uuid;
     const selectedShelf = localShelves.find((shelf) => shelf.uuid === shelfUuid);
     if (selectedShelf && (selectedShelf.is_public === true || selectedShelf.is_public === 1)) {
@@ -601,10 +601,10 @@ export async function createPaper(paperData) {
       table: 'comments', uuid: newUuid(), operation: 'upsert',
       values: { paper_uuid: paperUuid, edition_uuid: editionUuid, content: paperData.initial_comment.trim() },
     });
-    await nativeMutate(changes);
+    await nativeRepository.transact(changes);
     pendingPaperBlobs.delete(sha256);
     copyUuids.set(paperUuid, copyUuid);
-    return paperView(await nativeQuery('paper', { uuid: paperUuid }));
+    return paperView(await nativeRepository.paper(paperUuid));
   }
   return jsonRequest('/papers', 'POST', paperData);
 }
@@ -614,8 +614,8 @@ export async function getPaper(uuid) {
     // A nook paper is read from the replica: the server may not have it yet,
     // or may be out of reach.
     try {
-      const paper = paperView(await nativeQuery('paper', { uuid }));
-      paper.comments = (await nativeQuery('comments', { parent_uuid: uuid })).map(noteView);
+      const paper = paperView(await nativeRepository.paper(uuid));
+      paper.comments = (await nativeRepository.comments(uuid)).map(noteView);
       copyUuids.set(uuid, paper.copy_uuid);
       return paper;
     } catch (error) {
@@ -626,7 +626,7 @@ export async function getPaper(uuid) {
   const paper = rememberPaperIdentity(await request(`/papers/${uuid}`));
   if (nativeDataActive()) {
     const [comments, nook] = await Promise.all([
-      nativeQuery('comments', { parent_uuid: paper.uuid }), nativeQuery('nook'),
+      nativeRepository.comments(paper.uuid), nativeRepository.nook(),
     ]);
     paper.comments = comments.map(noteView);
     const copy = nook.copies.find((candidate) => candidate.paper_uuid === paper.uuid);
@@ -658,11 +658,11 @@ export async function addToNook(paper) {
   }
 
   await cacheNativeSharedPaper(paper);
-  const shelves = await nativeQuery('shelves');
+  const shelves = await nativeRepository.shelves();
   const { copyUuid, change } = planOfflineNookAddition(paper, shelves, newUuid);
-  await nativeMutate([change]);
+  await nativeRepository.transact([change]);
   copyUuids.set(paperUuid, copyUuid);
-  return paperView(await nativeQuery('paper', { uuid: paperUuid }));
+  return paperView(await nativeRepository.paper(paperUuid));
 }
 
 export function addPaperEdition(uuid, file) {
@@ -697,7 +697,7 @@ export async function updatePaper(uuid, data) {
       table: 'copies', uuid: copyUuid, operation: 'patch', values,
     }] : [];
     if (desiredTags) {
-      const nook = await nativeQuery('nook');
+      const nook = await nativeRepository.nook();
       const desired = new Set(desiredTags);
       const current = (nook.copy_tags || []).filter((link) => link.copy_uuid === copyUuid);
       for (const link of current) {
@@ -712,7 +712,7 @@ export async function updatePaper(uuid, data) {
       });
     }
     if (!changes.length) return data;
-    const receipt = await nativeMutate(changes);
+    const receipt = await nativeRepository.transact(changes);
     return receipt.rows[0];
   }
   return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${uuid}`, 'PUT', data)));
@@ -721,7 +721,7 @@ export async function updatePaper(uuid, data) {
 export function deletePaper(uuid) {
   const copyUuid = copyUuids.get(uuid);
   if (nativeDataActive() && copyUuid) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'copies', uuid: copyUuid, operation: 'delete', values: {},
     }]).then(() => ({ message: 'Paper removed from your nook' }));
   }
@@ -730,7 +730,7 @@ export function deletePaper(uuid) {
 
 export function createTag(name) {
   if (nativeDataActive()) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'tags', uuid: newUuid(), operation: 'upsert', values: { name },
     }]).then((receipt) => receipt.rows[0]);
   }
@@ -738,13 +738,13 @@ export function createTag(name) {
 }
 
 export function listTags() {
-  if (nativeDataActive()) return nativeQuery('tags');
+  if (nativeDataActive()) return nativeRepository.tags();
   return request('/tags');
 }
 
 export function deleteTag(tagUuid) {
   if (nativeDataActive()) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'tags', uuid: tagUuid,
       operation: 'delete', values: {},
     }]).then(() => null);
@@ -753,13 +753,13 @@ export function deleteTag(tagUuid) {
 }
 
 export function listShelves() {
-  if (nativeDataActive()) return nativeQuery('shelves').then((rows) => rows.map(shelfView));
+  if (nativeDataActive()) return nativeRepository.shelves().then((rows) => rows.map(shelfView));
   return request('/shelves');
 }
 
 export function createShelf(data) {
   if (nativeDataActive() && !data.is_public) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'shelves', uuid: newUuid(), operation: 'upsert',
       values: { name: data.name, color: data.color, position: data.position || 0 },
     }]).then((receipt) => shelfView(receipt.rows[0]));
@@ -769,7 +769,7 @@ export function createShelf(data) {
 
 export function updateShelf(uuid, data) {
   if (nativeDataActive() && !('is_public' in data) && !('is_default' in data)) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'shelves', uuid, operation: 'patch', values: data,
     }]).then((receipt) => shelfView(receipt.rows[0]));
   }
@@ -786,7 +786,7 @@ export function deleteShelf(uuid) {
 
 export function addComment(paperUuid, content) {
   if (nativeDataActive()) {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'comments', uuid: newUuid(), operation: 'upsert',
       values: { paper_uuid: paperUuid, content },
     }]).then((receipt) => noteView(receipt.rows[0]));
@@ -796,7 +796,7 @@ export function addComment(paperUuid, content) {
 
 export function updateComment(commentUuid, content) {
   if (nativeDataActive() && typeof commentUuid === 'string') {
-    return nativeMutate([{
+    return nativeRepository.transact([{
       table: 'comments', uuid: commentUuid, operation: 'patch', values: { content },
     }]).then((receipt) => noteView(receipt.rows[0]));
   }
@@ -805,7 +805,7 @@ export function updateComment(commentUuid, content) {
 
 export function deleteComment(commentUuid) {
   if (nativeDataActive() && typeof commentUuid === 'string') {
-    return nativeMutate([{ table: 'comments', uuid: commentUuid, operation: 'delete', values: {} }])
+    return nativeRepository.transact([{ table: 'comments', uuid: commentUuid, operation: 'delete', values: {} }])
       .then(() => null);
   }
   return request(`/comments/${commentUuid}`, { method: 'DELETE' });

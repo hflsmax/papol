@@ -85,13 +85,13 @@ export function nativeDataActive() {
   return !inDemo() && nativeAccountUuid() != null;
 }
 
-export async function nativeQuery(queryName, parameters = {}) {
+async function nativeQuery(queryName, parameters = {}) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   return invoke('data_query', { accountUuid, queryName, parameters });
 }
 
-export async function nativeMutate(changes) {
+async function nativeMutate(changes) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   const receipt = await invoke('data_mutate', { accountUuid, changes });
@@ -99,6 +99,30 @@ export async function nativeMutate(changes) {
   if (getLocalSyncPreference() === 'automatic') scheduleNativeSync();
   return receipt;
 }
+
+// This is the local replica's public data interface. Query names and parameter
+// shapes belong here rather than in screens or product APIs; `transact` remains
+// intentionally batch-oriented so related offline changes stay atomic.
+export const nativeRepository = Object.freeze({
+  account: () => nativeQuery('account'),
+  board: (uuid) => nativeQuery('board', { uuid }),
+  boardGroup: (uuid) => nativeQuery('board_group', { uuid }),
+  boards: () => nativeQuery('boards'),
+  clips: (editionUuid) => nativeQuery('clips', { parent_uuid: editionUuid }),
+  comments: (paperUuid) => nativeQuery('comments', { parent_uuid: paperUuid }),
+  copies: () => nativeQuery('copies'),
+  copyTags: () => nativeQuery('copy_tags'),
+  ink: (editionUuid) => nativeQuery('ink', { parent_uuid: editionUuid }),
+  nook: () => nativeQuery('nook'),
+  paper: (uuid) => nativeQuery('paper', { uuid }),
+  paperByPdf: (sha256) => nativeQuery('paper_by_pdf', { sha256 }),
+  papers: () => nativeQuery('papers'),
+  shelves: () => nativeQuery('shelves'),
+  storageStatus: () => nativeQuery('storage_status'),
+  syncStatus: () => nativeQuery('sync_status'),
+  tags: () => nativeQuery('tags'),
+  transact: (changes) => nativeMutate(changes),
+});
 
 export async function cacheNativeSharedPaper(paper) {
   const accountUuid = nativeAccountUuid();
@@ -138,7 +162,7 @@ export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream
 }
 
 export function nativeStorageStatus() {
-  return nativeQuery('storage_status');
+  return nativeRepository.storageStatus();
 }
 
 export function openNativeStorageInFinder() {

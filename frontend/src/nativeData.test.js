@@ -61,7 +61,7 @@ const { enterOfflineMode, inOfflineMode } = await import('../../shared/connectiv
 
 const {
   boardView, cacheNativeSharedPaper, hydrateNativeSyncPreference,
-  nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
+  nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
@@ -117,13 +117,30 @@ test('a successful native sync clears the offline latch', async () => {
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {
   assert.equal(nativeDataActive(), true);
-  await nativeMutate([{
+  await nativeRepository.transact([{
     table: 'boards', uuid: 'f5e4f3f9-a614-40a0-95d0-bad753642e2a',
     operation: 'upsert', values: { name: 'Offline' },
   }]);
   const call = calls.find(([command]) => command === 'data_mutate');
   assert.equal(call[1].accountUuid, ACCOUNT);
   assert.equal(call[1].changes[0].values.name, 'Offline');
+});
+
+test('the native repository owns query names and parameter shapes', async () => {
+  calls.length = 0;
+  const uuid = 'f5e4f3f9-a614-40a0-95d0-bad753642e2a';
+  await nativeRepository.board(uuid);
+  await nativeRepository.comments(uuid);
+
+  const queries = calls.filter(([command]) => command === 'data_query');
+  assert.deepEqual(queries.map(([, arguments_]) => ({
+    accountUuid: arguments_.accountUuid,
+    queryName: arguments_.queryName,
+    parameters: arguments_.parameters,
+  })), [
+    { accountUuid: ACCOUNT, queryName: 'board', parameters: { uuid } },
+    { accountUuid: ACCOUNT, queryName: 'comments', parameters: { parent_uuid: uuid } },
+  ]);
 });
 
 test('a shared paper and all of its editions can seed an offline nook copy', async () => {
