@@ -184,6 +184,14 @@ prepare_macos() {
   node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major === 20 ? +(minor < 19) : +(major < 22 || (major === 22 && minor < 12)))' \
     || die "Node.js 20.19+ or 22.12+ is required (found $(node --version))"
 
+  # Tauri builds for the minimum declared in tauri.conf.json. Keep every Cargo
+  # command in this process on that target too: Cargo fingerprints native C
+  # dependencies by MACOSX_DEPLOYMENT_TARGET, so a plain release build that
+  # inherits a newer SDK default otherwise invalidates Tauri's release cache.
+  MACOSX_DEPLOYMENT_TARGET=$(node -p \
+    "require('$DEV_DIR/desktop/src-tauri/tauri.conf.json').bundle.macOS.minimumSystemVersion")
+  export MACOSX_DEPLOYMENT_TARGET
+
   if [ ! -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ] \
      && ! cargo tauri --version >/dev/null 2>&1; then
     install_node_tree "$DEV_DIR/desktop"

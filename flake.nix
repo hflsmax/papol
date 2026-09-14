@@ -172,6 +172,10 @@
         shellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
           export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.libsndfile ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           export NODE_PATH="${tutorialNodeModules pkgs}/lib/node_modules''${NODE_PATH:+:$NODE_PATH}"
+        '' + pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+          # Match desktop/src-tauri/tauri.conf.json so plain Cargo commands and
+          # Tauri builds share native dependency fingerprints.
+          export MACOSX_DEPLOYMENT_TARGET=11.0
         '' + ''
           echo "Papol development environment"
           echo "  Backend:  cd backend && uvicorn main:app --reload"
