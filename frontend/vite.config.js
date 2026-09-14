@@ -7,6 +7,18 @@ export default defineConfig({
   base: process.env.VITE_BASE || '/',
   plugins: [react()],
   resolve: { dedupe: ['react', 'react-dom'] },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{
+            name: 'react-vendor',
+            test: /node_modules\/(?:react|react-dom|scheduler)\//,
+          }],
+        },
+      },
+    },
+  },
   server: {
     // The demo world is shared between the two apps, a level above
     // either root.
