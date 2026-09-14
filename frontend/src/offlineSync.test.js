@@ -21,7 +21,7 @@ global.sessionStorage = { getItem: () => null };
 Object.defineProperty(global, 'navigator', { configurable: true, value: { onLine: true } });
 
 const {
-  cachedBlobUrl, configureNetworkFetch, configureReplayAuthorization, exitOfflineMode,
+  cachedBlobUrl, configureNetworkFetch, configureReplayAuthorization, enterOfflineMode, exitOfflineMode,
   getSyncStatus, inOfflineMode, OFFLINE_MODE_MESSAGE, offlineFetch, refreshSyncStatus, runtimeFetch,
   setLocalSyncPreference, syncOfflineQueue,
 } = await import('../../shared/offlineStore.js');
@@ -38,6 +38,26 @@ function reset() {
   settings.clear();
   exitOfflineMode();
   setLocalSyncPreference('manual');
+}
+
+async function seedQueuedOperation(operation) {
+  await refreshSyncStatus();
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('papol-offline', 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction('queue', 'readwrite');
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+      transaction.objectStore('queue').add(operation);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 test('cached blobs are read locally before the network loader', async () => {
@@ -111,6 +131,49 @@ test('desktop queue replays dependent board operations against the backend in or
   assert.ok(getSyncStatus().lastSynced);
 });
 
+test('a large offline annotation batch survives reconnection and replays every mutation once', async () => {
+  reset();
+  enterOfflineMode();
+
+  const expected = [];
+  for (let index = 0; index < 40; index += 1) {
+    const path = `${API}/papers/paper-${index % 4}/comments`;
+    const body = { content: `offline note ${index}`, page: (index % 12) + 1 };
+    await offlineFetch(path, {
+      method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expected.push([path, body]);
+  }
+  for (let index = 0; index < 20; index += 1) {
+    const path = `${API}/editions/edition-${index % 3}/ink`;
+    const body = { points: [{ x: index / 20, y: 0.5 }], color: '#123456' };
+    await offlineFetch(path, {
+      method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expected.push([path, body]);
+  }
+  for (let index = 0; index < 20; index += 1) {
+    const path = `${API}/editions/edition-${index % 3}/clips`;
+    const body = { page: index + 1, source: { x: 0, y: 0, w: 0.2, h: 0.2 } };
+    await offlineFetch(path, {
+      method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expected.push([path, body]);
+  }
+  assert.equal(getSyncStatus().pending, expected.length);
+
+  const replayed = [];
+  assert.equal(await syncOfflineQueue(async (url, options) => {
+    replayed.push([String(url), JSON.parse(options.body)]);
+    return json({ uuid: `server-${replayed.length}` });
+  }, { manual: true }), 0);
+  assert.deepEqual(replayed, expected);
+  assert.equal(getSyncStatus().pending, 0);
+  assert.equal(getSyncStatus().error, null);
+  assert.equal(inOfflineMode(), false);
+  assert.ok(getSyncStatus().lastSynced);
+});
+
 test('a server failure commits only the successful prefix and retry resumes at the failed operation', async () => {
   reset();
   for (const name of ['one', 'two', 'three']) {
@@ -132,6 +195,8 @@ test('a server failure commits only the successful prefix and retry resumes at t
     return calls === 2 ? json({ detail: 'temporary failure' }, 503) : json({ uuid: 100 + calls });
   }), 2);
   assert.equal(getSyncStatus().error, 'Sync stopped: server returned 503');
+  assert.equal(getSyncStatus().offline, false);
+  assert.equal(inOfflineMode(), false);
 
   const retried = [];
   assert.equal(await syncOfflineQueue(async (_url, options) => {
@@ -234,6 +299,50 @@ test('queued multipart files retain bytes and metadata when replayed', async () 
   assert.equal(file.type, 'image/png');
   assert.equal(await file.text(), 'image bytes');
   assert.equal(replayed.get('caption'), 'offline image');
+});
+
+test('multipart replay replaces a stale persisted boundary', async () => {
+  reset();
+  const staleBoundary = '----WebKitFormBoundaryFromOriginalRequest';
+  const form = new FormData();
+  form.append('file', new File(['image bytes'], 'diagram.png', { type: 'image/png' }));
+  await offlineFetch(`${API}/boards/existing/files`, {
+    method: 'POST',
+    headers: { ...auth, 'Content-Type': `multipart/form-data; boundary=${staleBoundary}` },
+    body: form,
+  });
+
+  await syncOfflineQueue(async (url, options) => {
+    const request = new Request(url, options);
+    const contentType = request.headers.get('Content-Type');
+    const boundary = contentType.match(/boundary=(.+)$/)?.[1];
+    const body = Buffer.from(await request.arrayBuffer()).toString();
+    assert.ok(boundary);
+    assert.notEqual(boundary, staleBoundary);
+    assert.ok(body.startsWith(`--${boundary}\r\n`));
+    return json({ uuid: 7, file_path: '4/upload.png' });
+  });
+});
+
+test('upgrades retire queued metadata previews without replaying them', async () => {
+  reset();
+  await seedQueuedOperation({
+    method: 'POST',
+    path: '/papers/extract',
+    url: `${API}/papers/extract`,
+    headers: {},
+    accountScope: 'guest',
+    body: { type: 'form', value: [] },
+    optimistic: { title: 'Legacy preview' },
+  });
+
+  let calls = 0;
+  assert.equal(await syncOfflineQueue(async () => {
+    calls += 1;
+    return json({});
+  }), 0);
+  assert.equal(calls, 0);
+  assert.equal(getSyncStatus().pending, 0);
 });
 
 test('network loss pauses a replay without dropping its operation', async () => {

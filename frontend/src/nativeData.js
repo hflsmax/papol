@@ -20,6 +20,7 @@ let activeNativeSyncs = 0;
 if (IS_DESKTOP) {
   listen('papol://sync-status', (event) => {
     if (event.payload?.error) enterOfflineMode();
+    else if (Number.isFinite(event.payload?.cursor)) exitOfflineMode();
   }).catch(() => {});
 }
 
@@ -136,11 +137,13 @@ export async function nativeSyncNow({ manual = false } = {}) {
   announceNativeSyncState();
   try {
     try {
-      return await invoke('sync_now', {
+      const result = await invoke('sync_now', {
         accountUuid,
         backendUrl: nativeBackendUrl(),
         token,
       });
+      exitOfflineMode();
+      return result;
     } catch (error) {
       enterOfflineMode();
       throw error;

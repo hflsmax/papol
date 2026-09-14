@@ -8,6 +8,7 @@ import {
 const raw = (value) => ({ type: 'raw', value: JSON.stringify(value) });
 
 test('only user-owned mutations are accepted for offline replay', () => {
+  assert.equal(isSafeOfflineMutation('POST', '/papers/extract', new FormData()), false);
   assert.equal(isSafeOfflineMutation('POST', '/papers/12/comments', '{}'), true);
   assert.equal(isSafeOfflineMutation('DELETE', '/papers/12'), true);
   assert.equal(isSafeOfflineMutation('PUT', '/papers/12', JSON.stringify({ summary: 'mine' })), true);

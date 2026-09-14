@@ -124,6 +124,20 @@ test('an unsigned standalone viewer keeps every annotation type on the device by
   assert.equal(annotations.has(note.uuid), false);
   await assert.rejects(source.addToNook(), /Sign in to add this paper/);
   assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
+
+  // The library window can sign the reader in while this viewer stays open.
+  // Keep the same source instance: its device-local marks must become the
+  // newly signed-in account's queued annotations, rather than being lost or
+  // left as an inaccessible second copy.
+  values.set('papol.localAccountUuid', ACCOUNT);
+  calls.length = 0;
+  const paperUuid = await source.addToNook();
+  assert.match(paperUuid, /^[0-9a-f-]{36}$/);
+  const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
+  assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'paper_editions', 'copies']);
+  assert.deepEqual(mutations[1].map((change) => change.table), ['comments', 'ink_strokes', 'paper_clips']);
+  assert.equal(calls.filter(([command]) => command === 'local_annotations_clear').length, 1);
+  assert.equal(annotations.size, 0);
 });
 
 test('Add to nook creates the account graph on the default shelf and carries all device annotations', async () => {

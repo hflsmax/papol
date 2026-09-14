@@ -60,6 +60,7 @@ global.Event = class Event { constructor(type) { this.type = type; } };
 
 const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
+const { enterOfflineMode, inOfflineMode } = await import('../../shared/offlineStore.js');
 
 const {
   boardView, hydrateNativeSyncPreference,
@@ -109,6 +110,12 @@ test('native sync activity is visible to screens mounted during sign-in', async 
   await syncing;
   syncGate = null;
   assert.equal(nativeSyncInProgress(), false);
+});
+
+test('a successful native sync clears the offline latch', async () => {
+  enterOfflineMode();
+  await nativeSyncNow({ manual: true });
+  assert.equal(inOfflineMode(), false);
 });
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {

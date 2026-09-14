@@ -244,7 +244,6 @@ function bodyObject(body) {
 }
 
 const SAFE_ROUTES = [
-  ['POST', /^\/papers\/extract$/],
   ['POST', /^\/papers$/],
   ['DELETE', /^\/papers\/[^/]+$/],
   ['PUT', /^\/papers\/[^/]+$/],
@@ -678,7 +677,16 @@ export async function syncOfflineQueue(fetchImpl = remoteNetworkFetch, { manual 
     notify({ syncing: true, pending: operations.length, error: null });
     const mappings = (await getStored('mappings', 'ids')) || {};
     let syncError = null;
+    let connectionFailed = false;
+    let backendReached = false;
     for (const operation of operations) {
+      // Older builds treated metadata extraction as a durable mutation. It is
+      // only a best-effort preview and must not keep an upgraded installation's
+      // queue blocked forever.
+      if (operation.method === 'POST' && operation.path === '/papers/extract') {
+        await deleteStored('queue', operation.queueId);
+        continue;
+      }
       const authorization = replayAuthorization() || latestAuthorization;
       const currentScope = authScope({
         headers: authorization ? { Authorization: authorization } : {},
@@ -697,8 +705,17 @@ export async function syncOfflineQueue(fetchImpl = remoteNetworkFetch, { manual 
       let response;
       const requestHeaders = new Headers(operation.headers);
       if (authorization) requestHeaders.set('Authorization', authorization);
+      // A persisted multipart boundary belongs to the original serialized
+      // request body. Reconstructed FormData has a new boundary, which the
+      // runtime must put in Content-Type itself.
+      if (operation.body.type === 'form') requestHeaders.delete('Content-Type');
       try { response = await fetchImpl(url, { method: operation.method, headers: requestHeaders, body }); }
-      catch { syncError = 'Sync paused — no connection'; break; }
+      catch {
+        syncError = 'Sync paused — no connection';
+        connectionFailed = true;
+        break;
+      }
+      backendReached = true;
       if (!response.ok) {
         syncError = `Sync stopped: server returned ${response.status}`;
         break;
@@ -718,14 +735,17 @@ export async function syncOfflineQueue(fetchImpl = remoteNetworkFetch, { manual 
       lastSynced = new Date().toISOString();
       try { localStorage.setItem(LAST_SYNC_KEY, lastSynced); } catch { /* best effort */ }
     }
+    // Any HTTP response proves that the backend is reachable. Keep a 4xx/5xx
+    // replay error visible without misreporting the whole application offline.
+    if (connectionFailed) enterOfflineMode();
+    else if (backendReached) exitOfflineMode();
     notify({
-      offline: Boolean(syncError),
+      offline: connectionFailed,
       syncing: false,
       pending: remaining,
       error: syncError,
       lastSynced,
     });
-    if (syncError) enterOfflineMode();
     return remaining;
   })().finally(() => { syncing = null; });
   return syncing;
