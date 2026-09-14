@@ -3,7 +3,7 @@ import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardF
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
 import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
-import { mergeSelection, selectionMode } from './selection.js';
+import { cardsIntersectingRect, mergeSelection, nearestCardWithin, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
 import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow } from '../../shared/desktopShell.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
@@ -80,7 +80,6 @@ const stagedSourceLabel = (item) => {
 export default function BoardPage({ boardUuid, onBack, backHref }) {
   const [board, setBoard] = useState(null);
   const [view, setView] = useState(() => initialBoardView(boardUuid));
-  const [viewRevision, setViewRevision] = useState(0);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [imageUrls, setImageUrls] = useState({});
@@ -118,6 +117,11 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   const viewFrame = useRef(null);
   const pendingView = useRef(view);
   const viewSaveTimer = useRef(null);
+  const cardPaintFlip = useRef(false);
+  const cardBoundsRef = useRef(new Map());
+  const gripFrame = useRef(null);
+  const pendingGripSample = useRef(null);
+  const marqueeRef = useRef(null);
   const activeBoardUuid = useRef(boardUuid);
   const centerInitialView = useRef(window.innerWidth <= 700 || savedBoardView(boardUuid) == null);
   const undoStack = useRef([]);
@@ -140,48 +144,52 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       return next;
     });
   };
-  const updateGripProximity = (event) => {
-    if (event.pointerType === 'touch') return;
-    if (event.target.closest?.('.board-card-drag-handle')) {
-      const itemUuid = event.target.closest('[data-item-uuid]')?.dataset.itemUuid;
+  const measureGripProximity = (sample) => {
+    if (sample.pointerType === 'touch' || gesture.current) return;
+    if (sample.target.closest?.('.board-card-drag-handle')) {
+      const itemUuid = sample.target.closest('[data-item-uuid]')?.dataset.itemUuid;
       if (itemUuid) {
         showGrip(itemUuid);
         setForegroundGrip(itemUuid);
       }
       return;
     }
-    if (gesture.current) return;
-
     // This runs on the board, rather than on each card, so approaching a card
     // from outside its bounds can reveal the handle. Distances are measured in
     // screen pixels and therefore remain comfortable at every board zoom.
-    const candidates = [...(stageRef.current?.querySelectorAll('[data-item-uuid]') || [])]
-      .map((element) => {
-        const rect = element.getBoundingClientRect();
-        const outsideX = Math.max(rect.left - event.clientX, 0, event.clientX - rect.right);
-        const outsideY = Math.max(rect.top - event.clientY, 0, event.clientY - rect.bottom);
-        // The whole card and a 24px halo around it form one uninterrupted
-        // activation region. This also bridges the gap to the protruding grip.
-        const distance = Math.hypot(outsideX, outsideY);
-        return { itemUuid: element.dataset.itemUuid, distance, z: Number(element.style.zIndex) || 0 };
-      })
-      .filter((candidate) => candidate.itemUuid && candidate.distance <= 24)
-      .sort((a, b) => a.distance - b.distance || b.z - a.z);
+    const viewportBounds = viewportRef.current?.getBoundingClientRect();
+    if (!viewportBounds) return;
+    const point = boardPointFromClient(sample.clientX, sample.clientY, viewportBounds, viewRef.current);
+    const candidate = nearestCardWithin(cardBoundsRef.current.values(), point, 24 / viewRef.current.zoom);
 
-    if (candidates.length) {
-      const itemUuid = candidates[0].itemUuid;
+    if (candidate) {
+      const itemUuid = candidate.itemUuid;
       showGrip(itemUuid);
       const handle = stageRef.current?.querySelector(`[data-item-uuid="${itemUuid}"] > .board-card-drag-handle`);
       const rect = handle?.getBoundingClientRect();
       const nearHandle = rect && Math.hypot(
-        Math.max(rect.left - event.clientX, 0, event.clientX - rect.right),
-        Math.max(rect.top - event.clientY, 0, event.clientY - rect.bottom),
+        Math.max(rect.left - sample.clientX, 0, sample.clientX - rect.right),
+        Math.max(rect.top - sample.clientY, 0, sample.clientY - rect.bottom),
       ) <= 14;
       setForegroundGrip(nearHandle ? itemUuid : null);
     } else {
-      if (visibleGrip != null) setVisibleGrip(null);
-      if (foregroundGrip != null) setForegroundGrip(null);
+      setVisibleGrip(null);
+      setForegroundGrip(null);
     }
+  };
+  const updateGripProximity = (event) => {
+    if (event.pointerType === 'touch' || gesture.current) return;
+    pendingGripSample.current = {
+      clientX: event.clientX, clientY: event.clientY,
+      pointerType: event.pointerType, target: event.target,
+    };
+    if (gripFrame.current != null) return;
+    gripFrame.current = requestAnimationFrame(() => {
+      gripFrame.current = null;
+      const sample = pendingGripSample.current;
+      pendingGripSample.current = null;
+      if (sample) measureGripProximity(sample);
+    });
   };
   const load = () => getBoard(boardUuid).then(setBoard).catch((err) => setError(err.message));
   useEffect(() => subscribeNativeData((change) => {
@@ -284,9 +292,6 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   useEffect(() => {
     imageUrlsRef.current = imageUrls;
   }, [imageUrls]);
-  // Toggling a paint-affecting property invalidates each card's composited
-  // layer without remounting it or discarding editors and loaded images.
-  const cardPaintState = viewRevision % 2 ? 'hidden' : 'visible';
   useEffect(() => {
     if (!board) return undefined;
     let active = true;
@@ -331,7 +336,8 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   }, []);
   const bookletKey = board?.groups?.map((group) => `${group.uuid}:${group.kind}:${group.title}:${group.header}:${group.auto_arrange}:${group.item_uuids.join(',')}`).join('|') || '';
   useEffect(() => {
-    if (!board?.groups?.length || !stageRef.current) { setBookletLayouts([]); return undefined; }
+    if (!board || !stageRef.current) { cardBoundsRef.current = new Map(); return undefined; }
+    if (!board.groups.length) setBookletLayouts((current) => current.length ? [] : current);
     let reflowTimer = null;
     const compact = () => {
       if (!board.can_edit) return;
@@ -363,10 +369,22 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       reflowTimer = setTimeout(compact, 60);
     };
     const measure = () => {
+      const elements = new Map([...stageRef.current.querySelectorAll('.board-canvas-card')]
+        .map((element) => [element.dataset.itemUuid, element]));
+      cardBoundsRef.current = new Map(board.items.map((item) => {
+        const element = elements.get(String(item.uuid));
+        const width = element?.offsetWidth || item.width || DEFAULT_CARD_WIDTH;
+        const height = element?.offsetHeight || 1;
+        return [String(item.uuid), {
+          itemUuid: item.uuid, left: item.x, top: item.y,
+          right: item.x + width, bottom: item.y + height, z: item.position || 0,
+        }];
+      }));
+      if (!board.groups.length) return;
       setBookletLayouts(board.groups.map((group) => {
         const members = group.item_uuids.map((uuid) => {
           const item = board.items.find((candidate) => candidate.uuid === uuid);
-          const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+          const element = elements.get(String(uuid));
           return item && element ? { ...item, height: element.offsetHeight } : null;
         }).filter(Boolean);
         if (!members.length) return null;
@@ -394,6 +412,8 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     if (stageRef.current) {
       stageRef.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
       stageRef.current.style.setProperty('--board-ui-scale', 1 / next.zoom);
+      cardPaintFlip.current = !cardPaintFlip.current;
+      stageRef.current.style.setProperty('--board-card-paint-state', cardPaintFlip.current ? 'hidden' : 'visible');
     }
     if (viewportRef.current) {
       viewportRef.current.style.setProperty('--board-grid-size', `${24 * next.zoom}px`);
@@ -410,11 +430,6 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       viewFrame.current = null;
       const nextView = pendingView.current;
       paintView(nextView);
-      // View changes also invalidate the React tree so every card can
-      // redraw viewport-dependent content. Raw input remains coalesced to
-      // one update per animation frame.
-      setView(nextView);
-      setViewRevision((current) => current + 1);
     });
     if (viewSaveTimer.current != null) clearTimeout(viewSaveTimer.current);
     viewSaveTimer.current = setTimeout(() => {
@@ -432,6 +447,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   };
   useEffect(() => () => {
     if (viewFrame.current != null) cancelAnimationFrame(viewFrame.current);
+    if (gripFrame.current != null) cancelAnimationFrame(gripFrame.current);
     if (viewSaveTimer.current != null) {
       clearTimeout(viewSaveTimer.current);
       try {
@@ -955,6 +971,28 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     if (bookletElement) bookletElement.style.height = `${previewBookletHeight(layout.y, after, heights)}px`;
     drag.originBookletPreview = { members, after, bookletElement, originalHeight: layout.height };
   };
+  const cardsInClientRect = (x1, y1, x2, y2) => {
+    const viewportBounds = viewportRef.current?.getBoundingClientRect();
+    if (!viewportBounds) return [];
+    const start = boardPointFromClient(x1, y1, viewportBounds, viewRef.current);
+    const end = boardPointFromClient(x2, y2, viewportBounds, viewRef.current);
+    return cardsIntersectingRect(cardBoundsRef.current.values(), {
+      left: Math.min(start.x, end.x), top: Math.min(start.y, end.y),
+      right: Math.max(start.x, end.x), bottom: Math.max(start.y, end.y),
+    });
+  };
+  const paintMarquee = (rect) => {
+    if (!marqueeRef.current) return;
+    marqueeRef.current.style.left = `${rect.x}px`;
+    marqueeRef.current.style.top = `${rect.y}px`;
+    marqueeRef.current.style.width = `${rect.width}px`;
+    marqueeRef.current.style.height = `${rect.height}px`;
+  };
+  const updateMarqueeSelection = (gestureState, hits) => {
+    const next = mergeSelection(gestureState.baseSelected, hits, gestureState.mode);
+    setSelectedItems((current) => current.length === next.length
+      && current.every((uuid, index) => uuid === next[index]) ? current : next);
+  };
   const move = (event) => {
     const g = gesture.current; if (!g) return;
     const registerDragMovement = () => {
@@ -982,16 +1020,11 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     } else if (g.type === 'select') {
       const dx = event.clientX - g.sx; const dy = event.clientY - g.sy;
       g.current = { clientX: event.clientX, clientY: event.clientY };
-      setMarquee({ x: g.point.x + Math.min(0, dx), y: g.point.y + Math.min(0, dy), width: Math.abs(dx), height: Math.abs(dy) });
+      paintMarquee({ x: g.point.x + Math.min(0, dx), y: g.point.y + Math.min(0, dy), width: Math.abs(dx), height: Math.abs(dy) });
       const x1 = Math.min(g.sx, event.clientX); const y1 = Math.min(g.sy, event.clientY);
       const x2 = Math.max(g.sx, event.clientX); const y2 = Math.max(g.sy, event.clientY);
-      const hitUuids = [...viewportRef.current.querySelectorAll('.board-canvas-card')]
-        .filter((card) => {
-          const rect = card.getBoundingClientRect();
-          return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
-        })
-        .map((card) => card.dataset.itemUuid);
-      setSelectedItems(mergeSelection(g.baseSelected, hitUuids, g.mode));
+      const hitUuids = cardsInClientRect(x1, y1, x2, y2);
+      updateMarqueeSelection(g, hitUuids);
     } else if (g.type === 'pan') queueView({ ...g.origin, x: g.origin.x + event.clientX - g.sx, y: g.origin.y + event.clientY - g.sy });
     else if (g.type === 'booklet-move') {
       const dx = (event.clientX - g.sx) / viewRef.current.zoom;
@@ -1300,12 +1333,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       const x2 = Math.max(g.sx, g.current?.clientX ?? g.sx);
       const y2 = Math.max(g.sy, g.current?.clientY ?? g.sy);
       if (x2 - x1 > 3 || y2 - y1 > 3) {
-        const cards = [...viewportRef.current.querySelectorAll('.board-canvas-card')];
-        const hits = cards.filter((card) => {
-          const rect = card.getBoundingClientRect();
-          return rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1;
-        });
-        setSelectedItems(mergeSelection(g.baseSelected, hits.map((card) => card.dataset.itemUuid), g.mode));
+        updateMarqueeSelection(g, cardsInClientRect(x1, y1, x2, y2));
       } else if (g.mode === 'replace') {
         setSelectedItems([]);
       }
@@ -1940,8 +1968,8 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
           </div>
         </aside>
       )}
-      {marquee && <div className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
-      <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
+      {marquee && <div ref={marqueeRef} className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
+      <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, '--board-card-paint-state': 'visible', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         {bookletLayouts.map((booklet) => <div key={`${booklet.uuid}:${bookletRedraws[booklet.uuid] || 0}`} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
           {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setSelectedItems([]); setMenuItem(null); setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid); }} />}
           <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
@@ -1957,7 +1985,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
         {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={`${item.uuid}:${bookletRedraws[item.group_uuid] || 0}`} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: cardPaintState }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={`${item.uuid}:${bookletRedraws[item.group_uuid] || 0}`} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
