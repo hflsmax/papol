@@ -2781,15 +2781,26 @@ fn paper_view(
 
 fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let mut statement = connection.prepare(
-        "SELECT paper_uuid FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY created_at DESC,uuid"
+        "SELECT paper_uuid,created_at FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY created_at DESC,uuid"
     ).map_err(|error| error.to_string())?;
-    let ids = statement
-        .query_map([account_uuid], |row| row.get::<_, String>(0))
+    let copies = statement
+        .query_map([account_uuid], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
-    ids.into_iter()
-        .map(|uuid| paper_view(connection, account_uuid, &uuid))
+    copies
+        .into_iter()
+        .map(|(uuid, added_at)| {
+            let mut paper = paper_view(connection, account_uuid, &uuid)?;
+            let object = paper.as_object_mut().ok_or("Invalid local paper")?;
+            // Paper lists use the copy's creation time: that is when this
+            // reader added the paper to their nook. The canonical paper's
+            // creation time can be much older (or newer after a merge).
+            object.insert("created_at".into(), json!(added_at));
+            Ok(paper)
+        })
         .collect::<Result<Vec<_>, _>>()
         .map(Value::Array)
 }
@@ -3031,6 +3042,49 @@ mod tests {
             reopened.query("7", "board", json!({"uuid": uuid})).unwrap()["name"],
             "Offline"
         );
+    }
+
+    #[test]
+    fn paper_list_is_ordered_by_when_each_copy_was_added_to_the_nook() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let older_paper_uuid = Uuid::new_v4().to_string();
+        let newer_paper_uuid = Uuid::new_v4().to_string();
+        let first_copy_uuid = Uuid::new_v4().to_string();
+        let second_copy_uuid = Uuid::new_v4().to_string();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical old',?2,?2)",
+                    params![older_paper_uuid, "2025-01-01T00:00:00Z"],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical new',?2,?2)",
+                    params![newer_paper_uuid, "2026-08-01T00:00:00Z"],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO copies(uuid,paper_uuid,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                    params![first_copy_uuid, newer_paper_uuid, "2026-08-02T00:00:00Z"],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO copies(uuid,paper_uuid,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                    params![second_copy_uuid, older_paper_uuid, "2026-09-01T00:00:00Z"],
+                )
+                .unwrap();
+        }
+
+        let papers = store.query("7", "papers", json!({})).unwrap();
+        assert_eq!(papers[0]["uuid"], older_paper_uuid);
+        assert_eq!(papers[0]["created_at"], "2026-09-01T00:00:00Z");
+        assert_eq!(papers[1]["uuid"], newer_paper_uuid);
+        assert_eq!(papers[1]["created_at"], "2026-08-02T00:00:00Z");
     }
 
     #[test]
