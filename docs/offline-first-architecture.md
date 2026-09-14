@@ -58,21 +58,21 @@ The safest architecture begins by classifying operations by ownership, not by HT
 
 The sync preference is explicitly a **local device setting**. If a user selects Manual on one Mac, that choice must not change another Mac. Account-wide settings, by contrast, belong in replicated server-owned settings. Code and schema names should preserve this distinction (`device_settings.sync_mode`, not a generic `settings.sync`).
 
-## Current implementation: what it gets right
+## Retired prototype: what it established
 
-The present implementation in `shared/offlineStore.js` is a useful prototype. It already establishes several correct product boundaries:
+The former `shared/offlineStore.js` implementation was a useful prototype. It established several correct product boundaries:
 
-- it permits only an explicit list of private operations offline;
-- it distinguishes automatic and manual synchronization locally;
-- it stores successful JSON responses, queued operations, blobs, and temporary ID mappings in IndexedDB;
-- it uses content hashes for offline PDFs and board files;
-- it replays operations in order and stops when a request fails;
-- it routes remote HTTP through Tauri's native HTTP plugin while bundled resources remain in the WebView;
-- it lets the viewer send excerpts and clips into boards through the same offline layer.
+- it permitted only an explicit list of private operations offline;
+- it distinguished automatic and manual synchronization locally;
+- it stored successful JSON responses, queued operations, blobs, and temporary ID mappings in IndexedDB;
+- it used content hashes for offline PDFs and board files;
+- it replayed operations in order and stopped when a request failed;
+- it routed remote HTTP through Tauri's native HTTP plugin while bundled resources remained in the WebView;
+- it let the viewer send excerpts and clips into boards through the same offline layer.
 
-This work is valuable because it proves the UI flows and identifies the domain operations that need offline support. It should be treated as a compatibility bridge and test oracle during migration, not discarded as a failed approach.
+This work proved the UI flows and identified the domain operations that need offline support. The IndexedDB response cache and HTTP mutation queue were removed once the native SQLite path covered desktop local-first data; HTTP is now network-only.
 
-## Current implementation: risks that prevent it being the final design
+## Risks retired with the IndexedDB implementation
 
 ### Cached HTTP responses are the data model
 

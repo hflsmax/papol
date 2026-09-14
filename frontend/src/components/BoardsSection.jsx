@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { createBoard, listBoards, updateBoard } from '../api';
-import ExperimentalBadge from './ExperimentalBadge';
-import { subscribeNativeData } from '../nativeData';
+import { createBoard, listBoards, updateBoard } from '../../../shared/api/boards.js';
+import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
+import { subscribeNativeData } from '../../../shared/nativeData.js';
 
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: new Date(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',

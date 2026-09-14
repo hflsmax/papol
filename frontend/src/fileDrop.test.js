@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { carriesFiles, isPdfFile, libraryFileDragState } from './fileDrop.js';
+import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
 
 test('recognizes file drags without intercepting internal app drags', () => {
   assert.equal(carriesFiles({ types: ['Files', 'text/plain'] }), true);

@@ -357,6 +357,7 @@ class BoardItemOut(BaseModel):
 
 class BoardOut(BaseModel):
     uuid: str
+    revision: int
     user_uuid: str
     owner: Optional[UserPublic] = None
     shelf_uuid: Optional[str] = None

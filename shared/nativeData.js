@@ -1,27 +1,45 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { IS_DESKTOP } from './appEnvironment.js';
 import {
-  clearOfflineData, enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
-  inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference, syncOfflineQueue,
-} from '../../shared/offlineStore.js';
-import { BACKEND_BASE, inDemo } from './base.js';
-import { currentCredential } from '../../shared/credentials.js';
+  enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
+  inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference,
+} from './connectivity.js';
+import { BACKEND_BASE, inDemo } from './appUrls.js';
+import { currentCredential } from './credentials.js';
 
 const ACCOUNT_KEY = 'papol.localAccountUuid';
 // Accounts are named by UUID; anything else in storage is not an account.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let scheduledSync = null;
 let activeNativeSyncs = 0;
+let syncStatusListening = false;
+let invoke = (command, parameters) => {
+  const nativeInvoke = globalThis.window?.__TAURI_INTERNALS__?.invoke;
+  if (typeof nativeInvoke !== 'function') return Promise.reject(new Error('Native bridge is unavailable'));
+  return nativeInvoke(command, parameters);
+};
+let listen = () => Promise.resolve(() => {});
 
 // Tauri broadcasts coordinator status to every webview. Latch failures in
 // each window so a sync started in the library also makes the viewer and
 // board surfaces stop issuing backend requests.
-if (IS_DESKTOP) {
+function listenForSyncStatus() {
+  if (!IS_DESKTOP || syncStatusListening) return;
+  syncStatusListening = true;
   listen('papol://sync-status', (event) => {
     if (event.payload?.error) enterOfflineMode();
     else if (Number.isFinite(event.payload?.cursor)) exitOfflineMode();
-  }).catch(() => {});
+  }).catch(() => { syncStatusListening = false; });
+}
+
+// Applications own their Tauri dependency and supply it at composition time;
+// this shared service owns only Papol's native data contract.
+export function configureNativeBridge(bridge) {
+  if (typeof bridge?.invoke !== 'function' || typeof bridge?.listen !== 'function') {
+    throw new TypeError('Native bridge requires invoke and listen functions');
+  }
+  invoke = bridge.invoke;
+  listen = bridge.listen;
+  listenForSyncStatus();
 }
 
 function announceNativeSyncState() {
@@ -67,19 +85,63 @@ export function nativeDataActive() {
   return !inDemo() && nativeAccountUuid() != null;
 }
 
-export async function nativeQuery(queryName, parameters = {}) {
+async function nativeQuery(queryName, parameters = {}) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   return invoke('data_query', { accountUuid, queryName, parameters });
 }
 
-export async function nativeMutate(changes) {
+async function nativeMutate(changes) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   const receipt = await invoke('data_mutate', { accountUuid, changes });
   window.dispatchEvent(new Event('papol-offline-status'));
   if (getLocalSyncPreference() === 'automatic') scheduleNativeSync();
   return receipt;
+}
+
+// This is the local replica's public data interface. Query names and parameter
+// shapes belong here rather than in screens or product APIs; `transact` remains
+// intentionally batch-oriented so related offline changes stay atomic.
+export const nativeRepository = Object.freeze({
+  account: () => nativeQuery('account'),
+  board: (uuid) => nativeQuery('board', { uuid }),
+  boardGroup: (uuid) => nativeQuery('board_group', { uuid }),
+  boards: () => nativeQuery('boards'),
+  clips: (editionUuid) => nativeQuery('clips', { parent_uuid: editionUuid }),
+  comments: (paperUuid) => nativeQuery('comments', { parent_uuid: paperUuid }),
+  copies: () => nativeQuery('copies'),
+  copyTags: () => nativeQuery('copy_tags'),
+  ink: (editionUuid) => nativeQuery('ink', { parent_uuid: editionUuid }),
+  nook: () => nativeQuery('nook'),
+  paper: (uuid) => nativeQuery('paper', { uuid }),
+  paperByPdf: (sha256) => nativeQuery('paper_by_pdf', { sha256 }),
+  papers: () => nativeQuery('papers'),
+  shelves: () => nativeQuery('shelves'),
+  storageStatus: () => nativeQuery('storage_status'),
+  syncStatus: () => nativeQuery('sync_status'),
+  tags: () => nativeQuery('tags'),
+  transact: (changes) => nativeMutate(changes),
+});
+
+export async function cacheNativeSharedPaper(paper) {
+  const accountUuid = nativeAccountUuid();
+  if (accountUuid == null) throw new Error('Local data requires a signed-in account');
+  const createdAt = paper?.created_at || new Date().toISOString();
+  const rows = [{
+    table: 'papers', uuid: paper.uuid, doi: paper.doi ?? null,
+    title: paper.title, authors: paper.authors ?? null, journal: paper.journal ?? null,
+    year: paper.year ?? null, created_at: createdAt, updated_at: createdAt,
+    revision: Number.isInteger(paper.revision) ? paper.revision : 0, deleted_at: null,
+  }, ...(paper.editions || []).map((edition) => ({
+    table: 'paper_editions', uuid: edition.uuid, paper_uuid: paper.uuid,
+    file_path: edition.file_path, sha256: edition.sha256 ?? null,
+    created_at: edition.created_at || createdAt,
+    updated_at: edition.created_at || createdAt,
+    revision: Number.isInteger(edition.revision) ? edition.revision : 0,
+    deleted_at: null,
+  }))];
+  return invoke('shared_paper_cache', { accountUuid, rows });
 }
 
 export async function nativeBlobImport(blob) {
@@ -100,7 +162,7 @@ export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream
 }
 
 export function nativeStorageStatus() {
-  return nativeQuery('storage_status');
+  return nativeRepository.storageStatus();
 }
 
 export function openNativeStorageInFinder() {
@@ -110,17 +172,14 @@ export function openNativeStorageInFinder() {
 
 export async function clearNativeData() {
   const removed = await invoke('local_clear_data');
-  await clearOfflineData();
   window.dispatchEvent(new Event('papol-offline-status'));
   return removed;
 }
 
 export async function removeNativeAccount(accountUuid) {
   if (!IS_DESKTOP || !UUID.test(accountUuid || '')) return 0;
-  // IndexedDB is not keyed by account. Clear it in full so no response or
-  // queued request survives sign-out.
-  await clearOfflineData();
   const removed = await invoke('local_account_remove', { accountUuid });
+  window.dispatchEvent(new Event('papol-offline-status'));
   return removed;
 }
 
@@ -156,16 +215,14 @@ export async function nativeSyncNow({ manual = false } = {}) {
   }
 }
 
-// A user-initiated sync, from the sidebar or Settings: drain the IndexedDB
-// request queue first, then the native replica. Resolves to the first
-// failure message, or null.
+// A user-initiated sync reconciles the one local source of truth: SQLite.
+// Resolves to a failure message, or null.
 export async function syncAllNow() {
   exitOfflineMode();
-  const queued = await Promise.allSettled([syncOfflineQueue(undefined, { manual: true })]);
   const native = await Promise.allSettled([
     nativeDataActive() ? nativeSyncNow({ manual: true }) : Promise.resolve(),
   ]);
-  const failure = [...queued, ...native].find((result) => result.status === 'rejected');
+  const failure = native.find((result) => result.status === 'rejected');
   if (failure) {
     const detail = failure.reason?.message || String(failure.reason || 'Sync failed');
     return `${OFFLINE_MODE_MESSAGE} (${detail})`;
@@ -272,6 +329,12 @@ export function requestSignIn({ register = false } = {}) {
 
 export function subscribeSignInRequests(listener) {
   return subscribeNativeEvents(['papol://sign-in-requested'], listener);
+}
+
+export function subscribeShowPaperRequests(listener) {
+  return subscribeNativeEvents(['papol://show-paper-requested'], (payload) => {
+    if (UUID.test(payload?.paper_uuid || '')) listener(payload.paper_uuid.toLowerCase());
+  });
 }
 
 export function pdfViewerStatus() {

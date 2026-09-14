@@ -1,6 +1,6 @@
-// Papol Desktop's styles (DESIGN.md, "Desktop shell"), appended to the sheet in
-// App.jsx and so shared with boards, which import that sheet. They use the
-// sheet's tokens; rules scoped to [data-shell='desktop'] apply only in the app.
+// Papol Desktop's styles (frontend/DESIGN.md, "Desktop shell"), appended to the
+// shared application sheet. Rules scoped to [data-shell='desktop'] apply only
+// in the desktop application shell.
 export const desktopStyles = `
 
 /* The window is the app: only the content pane scrolls, and the chrome

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { login, register } from '../api';
+import { login, register } from '../../../shared/api/account.js';
 
 export default function AuthPage({ onAuth, initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode);

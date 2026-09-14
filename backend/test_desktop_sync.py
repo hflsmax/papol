@@ -554,6 +554,53 @@ class DesktopSyncContractTests(unittest.TestCase):
             self.assertEqual(len(copies), 1)
             self.assertEqual(copies[0].summary, "Updated offline")
 
+    def test_offline_add_to_nook_reuses_a_visible_paper_and_edition(self):
+        with self.sessions() as db:
+            other = User(
+                email="other@example.test", display_name="Other reader",
+                password_hash="unused",
+            )
+            paper = Paper(title="Visible before adding")
+            db.add_all([other, paper])
+            db.flush()
+            shelf = Shelf(
+                user_uuid=other.uuid, name="Public", color="#123456",
+                is_public=True, is_default=True,
+            )
+            edition = PaperEdition(
+                paper=paper, paper_uuid=paper.uuid, file_path="visible.pdf",
+                sha256="a" * 64, uploaded_by=other.uuid,
+            )
+            db.add_all([shelf, edition])
+            db.flush()
+            db.add(Copy(
+                paper=paper, user_uuid=other.uuid, shelf=shelf, marketed=True,
+                edition=edition, edition_sha256=edition.sha256,
+            ))
+            db.commit()
+            paper_uuid, edition_uuid = paper.uuid, edition.uuid
+            own_shelf_uuid = db.query(Shelf).filter(
+                Shelf.user_uuid == self.user_uuid, Shelf.is_default.is_(True),
+            ).one().uuid
+
+        copy_uuid = str(uuid.uuid4())
+        result = self.request("POST", "/api/sync/push", json={
+            "client_uuid": str(uuid.uuid4()),
+            "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": 1,
+            "changes": [{
+                "table": "copies", "uuid": copy_uuid, "operation": "upsert",
+                "base_revision": 0,
+                "values": {
+                    "paper_uuid": paper_uuid, "shelf_uuid": own_shelf_uuid,
+                    "edition_uuid": edition_uuid, "edition_sha256": "a" * 64,
+                },
+            }],
+        }).json()
+        self.assertEqual(result["rows"][0]["uuid"], copy_uuid)
+        self.assertEqual(result["rows"][0]["paper_uuid"], paper_uuid)
+        self.assertEqual(result["rows"][0]["edition_uuid"], edition_uuid)
+
     def test_sync_rejects_active_or_credentialed_board_links(self):
         board_uuid = str(uuid.uuid4())
         for source_url in ("javascript:alert(1)", "https://user:secret@example.test/page"):

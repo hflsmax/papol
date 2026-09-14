@@ -133,6 +133,17 @@ def _owned_edition(db: Session, edition_uuid: str, user_uuid: str) -> PaperEditi
     return edition
 
 
+def _edition_for_new_copy(db: Session, edition_uuid: str, paper: Paper) -> PaperEdition:
+    for pending in db.new:
+        if (isinstance(pending, PaperEdition) and pending.uuid == edition_uuid
+                and pending.paper is paper and pending.deleted_at is None):
+            return pending
+    edition = db.get(PaperEdition, edition_uuid) if isinstance(edition_uuid, str) else None
+    if edition is None or edition.deleted_at is not None or edition.paper_uuid != paper.uuid:
+        raise HTTPException(status_code=409, detail="Referenced edition is unavailable")
+    return edition
+
+
 def _owned_shelf(db: Session, shelf_uuid: str | None, user_uuid: str) -> Shelf | None:
     if shelf_uuid is None:
         return None
@@ -253,7 +264,7 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         if not isinstance(paper_uuid, str):
             raise HTTPException(status_code=422, detail="copies.paper_uuid is required")
         paper = _visible_paper(db, paper_uuid, user.uuid)
-        edition = _owned_edition(db, values["edition_uuid"], user.uuid) if values.get("edition_uuid") else None
+        edition = _edition_for_new_copy(db, values["edition_uuid"], paper) if values.get("edition_uuid") else None
         shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Copy(
             uuid=row_uuid, paper=paper, edition=edition, shelf=shelf,
@@ -389,7 +400,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             record.shelf = shelf
         if "edition_uuid" in values:
             edition_uuid = values["edition_uuid"]
-            record.edition = _owned_edition(db, edition_uuid, user.uuid) if edition_uuid else None
+            record.edition = _edition_for_new_copy(db, edition_uuid, record.paper) if edition_uuid else None
         if "ignored_edition_uuid" in values:
             ignored_uuid = values["ignored_edition_uuid"]
             record.ignored_edition = _owned_edition(db, ignored_uuid, user.uuid) if ignored_uuid else None

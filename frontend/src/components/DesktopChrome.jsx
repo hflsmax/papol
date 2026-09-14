@@ -7,10 +7,10 @@ import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import {
   getSyncStatus, OFFLINE_MODE_MESSAGE, refreshSyncStatus,
-} from '../../../shared/offlineStore';
+} from '../../../shared/connectivity.js';
 import {
-  nativeDataActive, nativeQuery, subscribeNativeData, syncAllNow,
-} from '../nativeData';
+  nativeDataActive, nativeRepository, subscribeNativeData, syncAllNow,
+} from '../../../shared/nativeData.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol Desktop (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -121,7 +121,7 @@ function SyncControl({ onSynced }) {
       const web = getSyncStatus();
       if (!nativeDataActive()) { setStatus(web); return; }
       try {
-        const local = await nativeQuery('sync_status');
+        const local = await nativeRepository.syncStatus();
         setStatus({
           ...web,
           syncing: web.syncing || nativeSyncing,
@@ -152,12 +152,12 @@ function SyncControl({ onSynced }) {
     if (failure) latest.error = failure;
     if (nativeDataActive()) {
       try {
-        const local = await nativeQuery('sync_status');
+        const local = await nativeRepository.syncStatus();
         latest.pending += local.pending;
         latest.error ||= local.error || local.outbox_error;
         latest.conflicts = local.conflicts || 0;
         latest.lastSynced = local.last_synced_at || latest.lastSynced;
-      } catch { /* IndexedDB status still remains useful */ }
+      } catch { /* retain the last known native status */ }
     }
     setStatus(latest);
     if (!latest.error && latest.pending === 0) onSynced?.();

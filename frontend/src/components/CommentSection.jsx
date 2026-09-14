@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { addComment, updateComment, deleteComment } from '../api';
+import { addComment, updateComment, deleteComment } from '../../../shared/api/papers.js';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
 import { confirmAction } from '../../../shared/confirmAction';

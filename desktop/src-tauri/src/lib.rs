@@ -175,7 +175,7 @@ fn opened_file_open(
 fn request_sign_in(app: tauri::AppHandle, register: Option<bool>) {
     use tauri::Emitter;
 
-    focus_library_window(app.clone());
+    focus_library_window(app.clone(), None);
     let _ = app.emit_to(
         "main",
         "papol://sign-in-requested",
@@ -306,14 +306,60 @@ fn pdf_viewer_make_default(app: tauri::AppHandle) -> Result<serde_json::Value, S
     }
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LocalDataQuery {
+    Account,
+    Board,
+    BoardGroup,
+    Boards,
+    Clips,
+    Comments,
+    Copies,
+    CopyTags,
+    Ink,
+    Nook,
+    Paper,
+    PaperByPdf,
+    Papers,
+    Shelves,
+    StorageStatus,
+    SyncStatus,
+    Tags,
+}
+
+impl LocalDataQuery {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Account => "account",
+            Self::Board => "board",
+            Self::BoardGroup => "board_group",
+            Self::Boards => "boards",
+            Self::Clips => "clips",
+            Self::Comments => "comments",
+            Self::Copies => "copies",
+            Self::CopyTags => "copy_tags",
+            Self::Ink => "ink",
+            Self::Nook => "nook",
+            Self::Paper => "paper",
+            Self::PaperByPdf => "paper_by_pdf",
+            Self::Papers => "papers",
+            Self::Shelves => "shelves",
+            Self::StorageStatus => "storage_status",
+            Self::SyncStatus => "sync_status",
+            Self::Tags => "tags",
+        }
+    }
+}
+
 #[tauri::command]
 fn data_query(
     store: tauri::State<'_, data::LocalStore>,
     account_uuid: String,
-    query_name: String,
+    query_name: LocalDataQuery,
     parameters: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    store.query(&account_uuid, &query_name, parameters)
+    store.query(&account_uuid, query_name.as_str(), parameters)
 }
 
 #[tauri::command]
@@ -335,6 +381,15 @@ fn data_mutate(
         serde_json::json!({"tables": tables}),
     );
     Ok(receipt)
+}
+
+#[tauri::command]
+fn shared_paper_cache(
+    store: tauri::State<'_, data::LocalStore>,
+    account_uuid: String,
+    rows: Vec<serde_json::Map<String, serde_json::Value>>,
+) -> Result<usize, String> {
+    store.cache_shared_paper(&account_uuid, rows)
 }
 
 #[tauri::command]
@@ -498,8 +553,8 @@ const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
-    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = () => \
-      window.__TAURI_INTERNALS__.invoke('focus_library_window');";
+    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperUuid) => \
+      window.__TAURI_INTERNALS__.invoke('focus_library_window', { paperUuid });";
 
 fn document_environment(surface: &str) -> String {
     format!(
@@ -510,8 +565,8 @@ fn document_environment(surface: &str) -> String {
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
            window.__TAURI_INTERNALS__.invoke('close_document_window'); \
-         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = () => \
-           window.__TAURI_INTERNALS__.invoke('focus_library_window');"
+         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperUuid) => \
+           window.__TAURI_INTERNALS__.invoke('focus_library_window', {{ paperUuid }});"
     )
 }
 
@@ -525,11 +580,20 @@ fn close_document_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-fn focus_library_window(app: tauri::AppHandle) {
+fn focus_library_window(app: tauri::AppHandle, paper_uuid: Option<String>) {
+    use tauri::Emitter;
+
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        if let Some(paper_uuid) = paper_uuid {
+            let _ = app.emit_to(
+                "main",
+                "papol://show-paper-requested",
+                serde_json::json!({"paper_uuid": paper_uuid}),
+            );
+        }
     }
 }
 
@@ -644,6 +708,19 @@ fn bundled_document_url(mut url: tauri::Url, document: &DocumentWindow) -> tauri
     url
 }
 
+fn should_navigate_existing_document(document: &DocumentWindow, url: &tauri::Url) -> bool {
+    if !document.entry.contains("/viewer/") {
+        return true;
+    }
+
+    // A plain Read request is only asking for the paper. Its window already
+    // has the reader's live position and UI state, so navigating it would
+    // needlessly reload the PDF. Deep links still need to move the existing
+    // viewer to the note, page, excerpt, or clip they identify.
+    url.query_pairs()
+        .any(|(key, _)| matches!(key.as_ref(), "note" | "page" | "y" | "mark" | "box"))
+}
+
 fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::Url) -> bool {
     let Some(document) = document_window(&url, papol_origin) else {
         return false;
@@ -656,10 +733,12 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
     };
     let environment = document_environment(surface);
 
-    // A document has one window. Asking for it again brings that window
-    // forward; a note URL may also retarget an already-open paper precisely.
+    // A document has one window. A normal Read request merely brings an open
+    // viewer forward; a deep link may also retarget it precisely.
     if let Some(window) = app.get_webview_window(&document.label) {
-        let _ = window.navigate(url);
+        if should_navigate_existing_document(&document, &url) {
+            let _ = window.navigate(url);
+        }
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
@@ -730,7 +809,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::MainEventsCleared) {
         let launch = app.state::<WindowLaunch>();
         if matches!(launch.finish(), Some(true)) {
-            focus_library_window(app.clone());
+            focus_library_window(app.clone(), None);
         }
     }
 
@@ -791,6 +870,7 @@ pub fn run() {
             open_document_window,
             data_query,
             data_mutate,
+            shared_paper_cache,
             blob_import,
             blob_read,
             blob_ensure,
@@ -904,6 +984,13 @@ fn open_in_browser(url: &tauri::Url) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn local_data_queries_are_a_closed_ipc_contract() {
+        let query: LocalDataQuery = serde_json::from_str("\"paper_by_pdf\"").unwrap();
+        assert_eq!(query.as_str(), "paper_by_pdf");
+        assert!(serde_json::from_str::<LocalDataQuery>("\"arbitrary_sql\"").is_err());
+    }
+
     fn parse(url: &str) -> tauri::Url {
         url.parse().expect("test URL should parse")
     }
@@ -959,6 +1046,37 @@ mod tests {
         assert_eq!(bundled.path(), "/viewer/index.html");
         assert_eq!(bundled.query(), Some("pdf=paper-123&page=4"));
         assert_eq!(bundled.fragment(), Some("note"));
+    }
+
+    #[test]
+    fn plain_read_focuses_an_existing_viewer_without_reloading_it() {
+        let plain = parse("tauri://localhost/viewer/?pdf=paper-123");
+        let document =
+            document_window(&plain, "tauri://localhost").expect("viewer URL should be recognized");
+
+        assert!(!should_navigate_existing_document(&document, &plain));
+
+        let opened_file = parse("tauri://localhost/viewer/?pdf=paper-123&file=1&name=Local+paper");
+        assert!(!should_navigate_existing_document(&document, &opened_file));
+    }
+
+    #[test]
+    fn deep_links_still_retarget_an_existing_viewer() {
+        let document = document_window(
+            &parse("tauri://localhost/viewer/?pdf=paper-123"),
+            "tauri://localhost",
+        )
+        .expect("viewer URL should be recognized");
+
+        for target in [
+            "note=note-456",
+            "page=4&y=0.25",
+            "page=4&mark=selection",
+            "page=4&box=clip",
+        ] {
+            let url = parse(&format!("tauri://localhost/viewer/?pdf=paper-123&{target}"));
+            assert!(should_navigate_existing_document(&document, &url));
+        }
     }
 
     #[test]

@@ -6,6 +6,7 @@ export default defineConfig({
   // a relative base would incorrectly request /paper/<doi>/assets/….
   base: process.env.VITE_BASE || '/',
   plugins: [react()],
+  resolve: { dedupe: ['react', 'react-dom'] },
   server: {
     // The demo world is shared between the two apps, a level above
     // either root.

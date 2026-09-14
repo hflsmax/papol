@@ -1,6 +1,6 @@
 import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
-import { localAnnotations } from '../../frontend/src/nativeData.js';
+import { localAnnotations } from '../../shared/nativeData.js';
 import { appPath } from './base.js';
 import {
   getPaperByPdf, getNookPaperByPdf, addOpenedFileToNook, getViewerPaperInfo,

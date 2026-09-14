@@ -19,21 +19,6 @@ import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
  * fraction of the page in PDF user space, origin bottom-left. `viewport`
  * converts between them, so nothing above this component ever sees a pixel.
  */
-// The laser is doing two things, so its trail behaves two ways. Passing
-// over the page it is a pointer, and wants only enough tail to show which
-// way it is going, each point fading a moment after it was made.
-const LASER_PASSING = 260;
-// Held down it is a drawing gesture — underlining a line, circling a term
-// while you talk about it — and while the button is down it does not fade
-// at all: the shape is not finished, and half of it going pale before the
-// rest is drawn is no help to anyone looking at it. Letting go is what
-// starts the clock, and then the whole shape goes together, slowly enough
-// to still be there while you say what it was for.
-const LASER_LINGER = 2000;
-// A laser's beam is one width: it is a pointer, not a brush.
-const LASER_WIDTH = 0.005;
-// Samples nearer than this to the last add nothing but points to draw.
-const LASER_STEP = 1.0;
 // Points nearer than this to the last one add bytes and no shape. In page
 // units, so it means the same thing on a tall page as on a wide one.
 const MIN_STEP = 1.2;
@@ -421,7 +406,6 @@ function PdfPage({
   inkWidth,
   inkOpacity,
   inkShape,
-  laserColor,
   onDrawStroke,
   onSelectInk,
   onHoverInkObjects,
@@ -537,15 +521,6 @@ function PdfPage({
   // under the hand.
   const inkDragRef = useRef(null);
   const [inkDrag, setInkDrag] = useState(null);
-  // The laser keeps nothing, so its trail is points with the moment each
-  // was made, thrown away by a frame loop rather than stored anywhere.
-  const laserRef = useRef([]);
-  // Which pass of the pointer a point belongs to. A trail that was let go
-  // of must not be joined to wherever the pointer wandered next, so letting
-  // go — and pressing again — starts a new one.
-  const laserRunRef = useRef(0);
-  const [, setLaserTick] = useState(0);
-  const rafRef = useRef(null);
 
   // Only pages near the view are drawn: a 40-page PDF should not cost 40
   // canvases up front. Measured against the scroller, which is what clips
@@ -1163,89 +1138,7 @@ function PdfPage({
     (a.y - b.y) * size.height
   );
 
-  const frameLaser = () => {
-    if (rafRef.current != null) return;
-    const step = () => {
-      const now = performance.now();
-      laserRef.current = laserRef.current.filter((p) => p.held || now - p.t < p.life);
-      setLaserTick((n) => n + 1);
-      // A held trail is not going anywhere, so there is nothing to redraw
-      // until it moves again or is let go of.
-      rafRef.current = laserRef.current.some((p) => !p.held)
-        ? requestAnimationFrame(step)
-        : null;
-    };
-    rafRef.current = requestAnimationFrame(step);
-  };
-
-  const pushLaser = (at, held) => {
-    const trail = laserRef.current;
-    const last = trail[trail.length - 1];
-    if (last && last.run === laserRunRef.current && inPageUnits(last, at) < LASER_STEP) return;
-    laserRef.current = [
-      ...trail,
-      { ...at, t: performance.now(), life: LASER_PASSING, held, run: laserRunRef.current },
-    ];
-    frameLaser();
-  };
-
-  // Letting go is what starts the fade, and the whole held shape fades as
-  // one: it was made as one gesture, and unravelling it from the tail
-  // would read as something coming apart rather than something ending.
-  const releaseLaser = () => {
-    const now = performance.now();
-    laserRef.current = laserRef.current.map((p) =>
-      p.held ? { ...p, held: false, t: now, life: LASER_LINGER } : p
-    );
-    // The shape is finished. What the pointer does next is a new one, and
-    // is not to be drawn back to the end of this — which is what left the
-    // last stroke of it hanging off the cursor.
-    laserRunRef.current += 1;
-    frameLaser();
-  };
-
-  // One path per pass of the pointer, not one per sample.
-  //
-  // Each sample used to be its own stroke with its own width and its own
-  // opacity, and a row of separately drawn semi-transparent strokes with
-  // round ends is not a line: it is beads. One path, curved through the
-  // midpoints so consecutive spans share a tangent, is a line — and it
-  // fades as a whole, at the age of its newest point, which is the age of
-  // the gesture. The tail still runs out, because points are dropped from
-  // the back as they expire; the trail shortens rather than greying.
-  const smoothPath = (pts) => {
-    const px = (p) => [p.x * size.width, (1 - p.y) * size.height];
-    const at = (q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`;
-    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    const P = pts.map(px);
-    if (P.length === 1) return `M${at(P[0])}L${at(P[0])}`;
-    let d = `M${at(P[0])}`;
-    for (let i = 1; i < P.length - 1; i += 1) d += `Q${at(P[i])} ${at(mid(P[i], P[i + 1]))}`;
-    return `${d}L${at(P[P.length - 1])}`;
-  };
-
-  const laserRuns = () => {
-    const pts = laserRef.current;
-    if (!pts.length) return [];
-    const now = performance.now();
-    const runs = [];
-    for (const p of pts) {
-      const last = runs[runs.length - 1];
-      if (!last || last.run !== p.run) runs.push({ run: p.run, pts: [p] });
-      else last.pts.push(p);
-    }
-    return runs.map((r) => {
-      const newest = r.pts[r.pts.length - 1];
-      return {
-        key: r.run,
-        d: smoothPath(r.pts),
-        fade: newest.held ? 1 : Math.max(0, 1 - (now - newest.t) / newest.life),
-      };
-    });
-  };
-
   useEffect(() => () => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     if (holdRef.current != null) clearTimeout(holdRef.current);
   }, []);
 
@@ -1427,9 +1320,6 @@ function PdfPage({
       setWet(wetRef.current);
     } else if (tool === 'eraser') {
       eraseUnder(at);
-    } else if (tool === 'laser') {
-      laserRunRef.current += 1;
-      pushLaser(at, true);
     }
   };
 
@@ -1443,37 +1333,6 @@ function PdfPage({
       return;
     }
     if (tool === 'brush') setBrushAt(at);
-    // The laser follows a pointer that is only passing over, not just one
-    // that is pressed: pointing at a figure while you talk about it is the
-    // ordinary way to use it, and holding a button down to do that is not
-    // how anyone points at anything.
-    if (tool === 'laser') {
-      const pressed = (e.buttons & 1) === 1;
-      // Ruled, while shift is down: the run keeps where it started and its
-      // far end follows the pointer square to the page. Everything it had
-      // wandered through in between is not part of a ruled line.
-      if (pressed && e.shiftKey) {
-        const trail = laserRef.current;
-        const run = laserRunRef.current;
-        const from = trail.findIndex((pt) => pt.run === run);
-        if (from >= 0) {
-          laserRef.current = [
-            ...trail.slice(0, from + 1),
-            {
-              ...axisSnap(trail[from], at),
-              t: performance.now(),
-              life: LASER_PASSING,
-              held: true,
-              run,
-            },
-          ];
-          frameLaser();
-          return;
-        }
-      }
-      pushLaser(at, pressed);
-      return;
-    }
     // The eraser lights up what it is over whether or not it is pressed:
     // knowing what would go is most useful before deciding to press.
     if (tool === 'eraser') {
@@ -1504,9 +1363,6 @@ function PdfPage({
       // Holding shift is a decision, not a pause: it needs no waiting for.
       if (e.shiftKey) stopStraighten();
       else armStraighten();
-    } else if (tool === 'laser') {
-      laserRef.current = [...laserRef.current, { ...at, t: performance.now() }];
-      frameLaser();
     }
   };
 
@@ -1539,10 +1395,6 @@ function PdfPage({
           h: frameH,
         },
       });
-      return;
-    }
-    if (tool === 'laser') {
-      releaseLaser();
       return;
     }
     stopStraighten();
@@ -1741,7 +1593,7 @@ function PdfPage({
   // The groups the frame loop writes to, found once when React puts a cow
   // on the page. The callback is kept and handed back for the same cow
   // every time, because a fresh one each render would have React take the
-  // whole herd off the page and put it back on for every laser frame.
+  // whole herd off the page and put it back on unnecessarily.
   const animalPartsRef = useRef(new Map());
   const animalRefsRef = useRef(new Map());
 
@@ -2227,37 +2079,6 @@ function PdfPage({
                 )}
               </g>
             ))}
-            {laserRuns().map((run) => (
-              <path
-                key={run.key}
-                d={run.d}
-                stroke={laserColor}
-                strokeWidth={size.width * LASER_WIDTH}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-                opacity={run.fade}
-              />
-            ))}
-            {laserRef.current.length > 0 && (
-              <circle
-                cx={laserRef.current[laserRef.current.length - 1].x * size.width}
-                cy={(1 - laserRef.current[laserRef.current.length - 1].y) * size.height}
-                r={size.width * LASER_WIDTH * 1.1}
-                fill={laserColor}
-                opacity={
-                  laserRef.current[laserRef.current.length - 1].held
-                    ? 1
-                    : Math.max(
-                        0,
-                        1 -
-                          (performance.now() -
-                            laserRef.current[laserRef.current.length - 1].t) /
-                            laserRef.current[laserRef.current.length - 1].life
-                      )
-                }
-              />
-            )}
           </svg>
         )}
         {/* With a tool in hand the page is a surface to draw on: this sits

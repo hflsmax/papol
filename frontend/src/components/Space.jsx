@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserSpace } from '../api';
+import { getUserSpace } from '../../../shared/api/people.js';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
-import BackLink from './BackLink';
+import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
 

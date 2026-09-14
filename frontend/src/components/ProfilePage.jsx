@@ -5,19 +5,19 @@ import {
   uploadAvatar,
   downloadMyData,
   deleteAccount,
-} from '../api';
+} from '../../../shared/api/account.js';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import {
   getLocalSyncPreference,
   setLocalSyncPreference,
-} from '../../../shared/offlineStore';
+} from '../../../shared/connectivity.js';
 import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
   openNativeStorageInFinder, pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData,
   subscribeNativeSyncProgress, syncAllNow,
-} from '../nativeData';
+} from '../../../shared/nativeData.js';
 
 const SYNC_PHASES = {
   uploading: 'Sending changes',

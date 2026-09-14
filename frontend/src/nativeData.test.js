@@ -1,8 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestIndexedDb } from './testIndexedDb.js';
-
-global.indexedDB = createTestIndexedDb();
 Object.defineProperty(globalThis, 'navigator', {
   value: { onLine: true }, configurable: true, writable: true,
 });
@@ -60,15 +57,15 @@ global.Event = class Event { constructor(type) { this.type = type; } };
 
 const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
-const { enterOfflineMode, inOfflineMode } = await import('../../shared/offlineStore.js');
+const { enterOfflineMode, inOfflineMode } = await import('../../shared/connectivity.js');
 
 const {
-  boardView, hydrateNativeSyncPreference,
-  nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeMutate, nativeSyncNow,
+  boardView, cacheNativeSharedPaper, hydrateNativeSyncPreference,
+  nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
-} = await import('./nativeData.js');
+} = await import('../../shared/nativeData.js');
 
 test('native SQLite is authoritative for the local sync preference', async () => {
   values.set('papol.syncPreference', 'automatic');
@@ -120,13 +117,55 @@ test('a successful native sync clears the offline latch', async () => {
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {
   assert.equal(nativeDataActive(), true);
-  await nativeMutate([{
+  await nativeRepository.transact([{
     table: 'boards', uuid: 'f5e4f3f9-a614-40a0-95d0-bad753642e2a',
     operation: 'upsert', values: { name: 'Offline' },
   }]);
   const call = calls.find(([command]) => command === 'data_mutate');
   assert.equal(call[1].accountUuid, ACCOUNT);
   assert.equal(call[1].changes[0].values.name, 'Offline');
+});
+
+test('the native repository owns query names and parameter shapes', async () => {
+  calls.length = 0;
+  const uuid = 'f5e4f3f9-a614-40a0-95d0-bad753642e2a';
+  await nativeRepository.board(uuid);
+  await nativeRepository.comments(uuid);
+
+  const queries = calls.filter(([command]) => command === 'data_query');
+  assert.deepEqual(queries.map(([, arguments_]) => ({
+    accountUuid: arguments_.accountUuid,
+    queryName: arguments_.queryName,
+    parameters: arguments_.parameters,
+  })), [
+    { accountUuid: ACCOUNT, queryName: 'board', parameters: { uuid } },
+    { accountUuid: ACCOUNT, queryName: 'comments', parameters: { parent_uuid: uuid } },
+  ]);
+});
+
+test('a shared paper and all of its editions can seed an offline nook copy', async () => {
+  calls.length = 0;
+  await cacheNativeSharedPaper({
+    uuid: '11111111-1111-4111-8111-111111111111', title: 'Shared paper',
+    created_at: '2026-09-14T00:00:00Z',
+    editions: [
+      {
+        uuid: '22222222-2222-4222-8222-222222222222', file_path: 'first.pdf',
+        sha256: 'a'.repeat(64), created_at: '2026-09-13T00:00:00Z',
+      },
+      {
+        uuid: '33333333-3333-4333-8333-333333333333', file_path: 'second.pdf',
+        sha256: 'b'.repeat(64), created_at: '2026-09-14T00:00:00Z',
+      },
+    ],
+  });
+  const call = calls.find(([command]) => command === 'shared_paper_cache');
+  assert.equal(call[1].accountUuid, ACCOUNT);
+  assert.deepEqual(call[1].rows.map((row) => row.table), [
+    'papers', 'paper_editions', 'paper_editions',
+  ]);
+  assert.equal(call[1].rows[2].paper_uuid, '11111111-1111-4111-8111-111111111111');
+  assert.equal(call[1].rows[2].sha256, 'b'.repeat(64));
 });
 
 test('native blob import transfers exact bytes and metadata', async () => {

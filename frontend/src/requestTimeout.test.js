@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { withAbortTimeout } from './requestTimeout.js';
+import { withAbortTimeout } from '../../shared/requestTimeout.js';
 
 test('aborts a request that exceeds its deadline', async () => {
   let signal;

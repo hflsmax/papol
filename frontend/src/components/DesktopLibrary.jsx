@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { boardFileBlob, deleteBoard, deletePaper, getBoard, getUserSpace, listPapers, paperHref, updateBoard, updatePaper } from '../api';
+import { boardFileBlob, deleteBoard, getBoard, updateBoard } from '../../../shared/api/boards.js';
+import { getUserSpace } from '../../../shared/api/people.js';
+import { deletePaper, listPapers, paperHref, updatePaper } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
   PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInSource,
@@ -16,7 +18,7 @@ import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
   makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
-} from '../nativeData';
+} from '../../../shared/nativeData.js';
 import { inDemo } from '../base';
 
 // Shared with the viewer, which asks the same question over an opened file:

@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../frontend/src/api.js';
-import ExperimentalBadge from '../../frontend/src/components/ExperimentalBadge.jsx';
-import BackLink from '../../frontend/src/components/BackLink.jsx';
+import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
+import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
+import BackLink from '../../shared/ui/BackLink.jsx';
 import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { mergeSelection, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
 import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow } from '../../shared/desktopShell.js';
-import DesktopNav from '../../frontend/src/components/DesktopNav.jsx';
-import DesktopSyncingStatus from '../../frontend/src/components/DesktopSyncingStatus.jsx';
+import DesktopNav from '../../shared/ui/DesktopNav.jsx';
+import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
-import { subscribeNativeData } from '../../frontend/src/nativeData.js';
-import { carriesFiles } from '../../frontend/src/fileDrop.js';
+import { subscribeNativeData } from '../../shared/nativeData.js';
+import { carriesFiles } from '../../shared/fileDrop.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const compareUuid = (a, b) => String(a).localeCompare(String(b));
