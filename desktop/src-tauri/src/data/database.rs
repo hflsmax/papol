@@ -536,6 +536,20 @@ impl LocalStore {
             .map_err(|error| error.to_string())
     }
 
+    pub fn retry_blocked_outbox(&self, account_uuid: &str) -> Result<usize, String> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        connection
+            .execute(
+                "UPDATE _local_outbox SET state='pending',last_error=NULL \
+                 WHERE account_uuid=?1 AND state='blocked'",
+                [account_uuid],
+            )
+            .map_err(|error| error.to_string())
+    }
+
     pub fn record_outbox_error(
         &self,
         account_uuid: &str,
@@ -3128,6 +3142,32 @@ mod tests {
         assert_eq!(status["pending"], 2);
         assert_eq!(status["blocked"], 1);
         assert_eq!(status["attempts"], 1);
+    }
+
+    #[test]
+    fn explicit_retry_returns_blocked_mutations_to_the_outbox() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let first = store
+            .mutate(
+                "7",
+                vec![board_change(&Uuid::new_v4().to_string(), "Retry me")],
+            )
+            .unwrap();
+        store
+            .record_outbox_error("7", first.local_sequence, "413 Payload Too Large", true)
+            .unwrap();
+
+        assert!(store.next_outbox("7").unwrap().is_none());
+        assert_eq!(store.retry_blocked_outbox("7").unwrap(), 1);
+        assert_eq!(
+            store.next_outbox("7").unwrap().unwrap().local_sequence,
+            first.local_sequence
+        );
+        let status = store.query("7", "sync_status", json!({})).unwrap();
+        assert_eq!(status["blocked"], 0);
+        assert_eq!(status["attempts"], 0);
+        assert_eq!(status["outbox_error"], Value::Null);
     }
 
     #[test]

@@ -248,7 +248,7 @@ impl Coordinator {
         token: &str,
     ) -> Result<SyncResult, String> {
         let ignore = |_: SyncProgress| {};
-        self.synchronize_with_progress(store, account_uuid, backend_url, token, &ignore)
+        self.synchronize_with_progress(store, account_uuid, backend_url, token, false, &ignore)
             .await
     }
 
@@ -258,12 +258,16 @@ impl Coordinator {
         account_uuid: &str,
         backend_url: &str,
         token: &str,
+        retry_blocked: bool,
         report: &(dyn Fn(SyncProgress) + Send + Sync),
     ) -> Result<SyncResult, String> {
         let _guard = self.gate.lock().await;
         let backend = validated_backend(backend_url)?;
         if token.trim().is_empty() {
             return Err("Sync requires a signed-in account".into());
+        }
+        if retry_blocked {
+            store.retry_blocked_outbox(account_uuid)?;
         }
         let mut meter = Meter::new(report);
         let pushed = self
@@ -394,12 +398,16 @@ impl Coordinator {
         account_uuid: &str,
         backend_url: &str,
         token: &str,
+        retry_blocked: bool,
         report: &(dyn Fn(SyncProgress) + Send + Sync),
     ) -> Result<SyncResult, String> {
         let _guard = self.gate.lock().await;
         let backend = validated_backend(backend_url)?;
         if token.trim().is_empty() {
             return Err("Sync requires a signed-in account".into());
+        }
+        if retry_blocked {
+            store.retry_blocked_outbox(account_uuid)?;
         }
         let mut meter = Meter::new(report);
         let pushed = self

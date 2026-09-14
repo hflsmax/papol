@@ -517,6 +517,7 @@ struct SyncRequest {
     backend_url: String,
     token: String,
     push_only: Option<bool>,
+    retry_blocked: Option<bool>,
 }
 
 #[tauri::command]
@@ -538,6 +539,7 @@ async fn sync_now(
     let report = move |progress: sync::SyncProgress| {
         let _ = progress_app.emit("papol://sync-progress", progress);
     };
+    let retry_blocked = request.retry_blocked.unwrap_or(false);
     let result = if request.push_only.unwrap_or(false) {
         coordinator
             .push_with_progress(
@@ -545,6 +547,7 @@ async fn sync_now(
                 &request.account_uuid,
                 &request.backend_url,
                 &request.token,
+                retry_blocked,
                 &report,
             )
             .await
@@ -555,6 +558,7 @@ async fn sync_now(
                 &request.account_uuid,
                 &request.backend_url,
                 &request.token,
+                retry_blocked,
                 &report,
             )
             .await

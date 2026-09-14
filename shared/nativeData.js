@@ -241,6 +241,7 @@ export async function nativeSyncNow({ manual = false, pushOnly = false } = {}) {
           backendUrl: nativeBackendUrl(),
           token,
           pushOnly,
+          retryBlocked: manual,
         },
       });
       exitOfflineMode();

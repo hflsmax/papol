@@ -120,12 +120,15 @@ test('a successful native sync clears the offline latch', async () => {
   enterOfflineMode();
   await nativeSyncNow({ manual: true });
   assert.equal(inOfflineMode(), false);
+  const call = calls.findLast(([command]) => command === 'sync_now');
+  assert.equal(call[1].request.retryBlocked, true);
 });
 
 test('a server prerequisite uses push-only sync', async () => {
   await nativeSyncNow({ manual: true, pushOnly: true });
   const call = calls.findLast(([command]) => command === 'sync_now');
   assert.equal(call[1].request.pushOnly, true);
+  assert.equal(call[1].request.retryBlocked, true);
 });
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {
