@@ -27,6 +27,7 @@ import ReferenceCard from './ReferenceCard';
 import { readNamedReference } from './references';
 import { GlyphFor, ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
+import { citationAt, superscriptCitationIndexes } from './citationText.js';
 import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
@@ -290,7 +291,8 @@ function selectedTextWithoutPdfCitations(selection, scroller) {
   const citationBoxes = [...scroller.querySelectorAll('.cite')]
     .map((citation) => citation.getBoundingClientRect())
     .filter((box) => box.width > 0 && box.height > 0);
-  const pieces = [];
+  const spans = [];
+  const characters = [];
 
   for (const span of scroller.querySelectorAll('.textLayer > span')) {
     const node = span.firstChild;
@@ -303,29 +305,39 @@ function selectedTextWithoutPdfCitations(selection, scroller) {
     const start = node === range.startContainer ? range.startOffset : 0;
     const end = node === range.endContainer ? range.endOffset : node.length;
     if (end <= start) continue;
-    let text = '';
     const selectedRange = document.createRange();
     selectedRange.setStart(node, start);
     selectedRange.setEnd(node, end);
     const pieceBox = selectedRange.getBoundingClientRect();
     selectedRange.detach();
+    const selectedCharacters = [];
     for (let offset = start; offset < end; offset += 1) {
       const characterRange = document.createRange();
       characterRange.setStart(node, offset);
       characterRange.setEnd(node, offset + 1);
       const boxes = [...characterRange.getClientRects()];
       characterRange.detach();
-      const isCitation = boxes.some((box) => citationBoxes.some((citation) => {
-        const cx = box.left + box.width / 2;
-        const cy = box.top + box.height / 2;
-        return cx >= citation.left - 1 && cx <= citation.right + 1 &&
-          cy >= citation.top - 1 && cy <= citation.bottom + 1;
-      }));
-      if (!isCitation) text += node.data[offset];
+      const box = boxes[0];
+      if (!box) continue;
+      const character = {
+        text: node.data[offset],
+        box,
+        citation: citationAt(box, citationBoxes),
+      };
+      selectedCharacters.push(character);
+      characters.push(character);
     }
-    if (text) pieces.push({ text, box: pieceBox });
+    spans.push({ characters: selectedCharacters, box: pieceBox });
   }
 
+  const omitted = superscriptCitationIndexes(characters, citationBoxes);
+  const pieces = spans.map(({ characters: spanCharacters, box }) => ({
+    text: spanCharacters
+      .filter(({ citation }) => !omitted.has(citation))
+      .map(({ text }) => text)
+      .join(''),
+    box,
+  })).filter(({ text }) => text);
   return joinTextPieces(pieces);
 }
 

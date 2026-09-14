@@ -1,5 +1,6 @@
 import { STRIP_RATIO } from './ink.js';
 import { selectionStrokes } from './selectionInk.js';
+import { citationAt, superscriptCitationIndexes } from './citationText.js';
 
 // The text under a paint mark.
 //
@@ -112,7 +113,8 @@ export function joinTextPieces(pieces) {
 
 // The characters of one page's text layer that could lie inside `within`
 // (page units), each { page, span, offset, text, box } in document order.
-// Citation markers are left out, as they are from selected text. The page
+// Raised citation markers are left out, as they are from selected text;
+// inline author-year citations remain. The page
 // element carries its unscaled size (data-page-width/-height), so boxes are
 // converted to page units whatever the zoom, or a zoom still in progress.
 export function pageCharacters(pageEl, within) {
@@ -151,15 +153,18 @@ export function pageCharacters(pageEl, within) {
       range.detach();
       if (!client.width && !client.height) continue;
       const box = toPage(client);
-      const middle = centre(box);
-      const isCitation = citations.some((c) => (
-        middle.x >= c.left - 0.5 && middle.x <= c.right + 0.5
-        && middle.y >= c.top - 0.5 && middle.y <= c.bottom + 0.5
-      ));
-      if (!isCitation) characters.push({ page, span: spanIndex, offset, text: node.data[offset], box });
+      characters.push({
+        page,
+        span: spanIndex,
+        offset,
+        text: node.data[offset],
+        box,
+        citation: citationAt(box, citations, 0.5),
+      });
     }
   });
-  return characters;
+  const omitted = superscriptCitationIndexes(characters, citations);
+  return characters.filter(({ citation }) => !omitted.has(citation));
 }
 
 // The text a set of strokes covers. `characters` is every candidate
