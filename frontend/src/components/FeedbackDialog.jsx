@@ -4,7 +4,7 @@ import appLimits from '../../../shared/appLimits.js';
 import { recentDiagnosticEvents } from '../../../shared/nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../../shared/diagnosticLog.js';
 
-export default function FeedbackDialog({ currentUser, initialContent = '', reportError = false, onClose }) {
+export default function FeedbackDialog({ initialContent = '', reportError = false, onClose }) {
   const [content, setContent] = useState(initialContent);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -56,11 +56,6 @@ export default function FeedbackDialog({ currentUser, initialContent = '', repor
           <h3>{sent ? (reportError ? 'Report sent' : 'Thank you') : (reportError ? 'Send an error report?' : 'Report a bug or ask for a feature')}</h3>
           {sent ? (
             <>
-              {currentUser && (
-                <p className="panel-note">
-                  If it needs a reply, it comes to your email.
-                </p>
-              )}
               <div className="form-actions">
                 <button className="primary" onClick={onClose}>
                   Close

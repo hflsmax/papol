@@ -2807,7 +2807,6 @@ export default function App() {
     scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
   };
 
-  const signedIn = !!getToken();
 
   // The paper joins the nook with everything already made on it; the window
   // then reopens it as the nook's paper.
@@ -3884,11 +3883,6 @@ export default function App() {
               <h3>{feedbackSent ? 'Thank you' : 'Report a bug or ask for a feature'}</h3>
               {feedbackSent ? (
                 <>
-                  {signedIn && (
-                    <p className="feedback-note">
-                      If it needs a reply, it comes to your email.
-                    </p>
-                  )}
                   <div className="feedback-actions">
                     <button type="button" className="primary" onClick={closeFeedback}>
                       Close
