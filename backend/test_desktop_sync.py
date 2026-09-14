@@ -4,6 +4,7 @@ Run in the repository's development environment with:
     cd backend && python -m unittest test_desktop_sync.py
 """
 
+import asyncio
 import hashlib
 import json
 import shutil
@@ -12,6 +13,8 @@ import unittest
 import uuid
 from pathlib import Path
 
+import httpx
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -99,6 +102,36 @@ class DesktopSyncContractTests(unittest.TestCase):
         response = self.client.request(method, path, headers=self.headers, **kwargs)
         self.assertLess(response.status_code, 400, response.text)
         return response
+
+    def test_mutating_requests_share_one_cooperative_sqlite_writer(self):
+        async def exercise_gate():
+            test_app = FastAPI()
+            test_app.state.sqlite_write_lock = asyncio.Lock()
+            test_app.middleware("http")(main.serialize_sqlite_writes)
+            active = 0
+            maximum_active = 0
+
+            @test_app.put("/write")
+            async def write():
+                nonlocal active, maximum_active
+                active += 1
+                maximum_active = max(maximum_active, active)
+                await asyncio.sleep(0.02)
+                active -= 1
+                return {"ok": True}
+
+            transport = httpx.ASGITransport(app=test_app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as client:
+                responses = await asyncio.gather(
+                    client.put("/write"), client.put("/write")
+                )
+            return maximum_active, responses
+
+        maximum_active, responses = asyncio.run(exercise_gate())
+        self.assertEqual(maximum_active, 1)
+        self.assertTrue(all(response.status_code == 200 for response in responses))
 
     def test_dependent_board_replay_contract(self):
         """Every ID-bearing response supports the client's ordered remapping."""

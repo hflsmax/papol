@@ -132,6 +132,7 @@ app = FastAPI(
     description="Papol keeps the papers and ideas that matter close at hand.",
 )
 app.state.session_factory = SessionLocal
+app.state.sqlite_write_lock = asyncio.Lock()
 app.include_router(sync_router)
 
 _IDEMPOTENCY_CLIENT_HEADER = "x-papol-client-uuid"
@@ -298,6 +299,21 @@ async def idempotent_desktop_mutations(request: Request, call_next):
         if context_token is not None:
             reset_request_session(context_token)
         db.close()
+
+
+@app.middleware("http")
+async def serialize_sqlite_writes(request: Request, call_next):
+    """Let one mutating request at a time own SQLite's single writer slot.
+
+    In particular, an identified mutation keeps its transaction open until
+    the idempotency middleware stores the response.  A cooperative async gate
+    prevents another synchronous SQLite call from blocking the event loop
+    while that first request is waiting to finish its commit.
+    """
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return await call_next(request)
+    async with request.app.state.sqlite_write_lock:
+        return await call_next(request)
 
 
 @app.exception_handler(Exception)
