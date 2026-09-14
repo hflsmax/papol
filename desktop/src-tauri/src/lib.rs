@@ -653,6 +653,19 @@ fn bundled_document_url(mut url: tauri::Url, document: &DocumentWindow) -> tauri
     url
 }
 
+fn should_navigate_existing_document(document: &DocumentWindow, url: &tauri::Url) -> bool {
+    if !document.entry.contains("/viewer/") {
+        return true;
+    }
+
+    // A plain Read request is only asking for the paper. Its window already
+    // has the reader's live position and UI state, so navigating it would
+    // needlessly reload the PDF. Deep links still need to move the existing
+    // viewer to the note, page, excerpt, or clip they identify.
+    url.query_pairs()
+        .any(|(key, _)| matches!(key.as_ref(), "note" | "page" | "y" | "mark" | "box"))
+}
+
 fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::Url) -> bool {
     let Some(document) = document_window(&url, papol_origin) else {
         return false;
@@ -665,10 +678,12 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
     };
     let environment = document_environment(surface);
 
-    // A document has one window. Asking for it again brings that window
-    // forward; a note URL may also retarget an already-open paper precisely.
+    // A document has one window. A normal Read request merely brings an open
+    // viewer forward; a deep link may also retarget it precisely.
     if let Some(window) = app.get_webview_window(&document.label) {
-        let _ = window.navigate(url);
+        if should_navigate_existing_document(&document, &url) {
+            let _ = window.navigate(url);
+        }
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
@@ -969,6 +984,37 @@ mod tests {
         assert_eq!(bundled.path(), "/viewer/index.html");
         assert_eq!(bundled.query(), Some("pdf=paper-123&page=4"));
         assert_eq!(bundled.fragment(), Some("note"));
+    }
+
+    #[test]
+    fn plain_read_focuses_an_existing_viewer_without_reloading_it() {
+        let plain = parse("tauri://localhost/viewer/?pdf=paper-123");
+        let document =
+            document_window(&plain, "tauri://localhost").expect("viewer URL should be recognized");
+
+        assert!(!should_navigate_existing_document(&document, &plain));
+
+        let opened_file = parse("tauri://localhost/viewer/?pdf=paper-123&file=1&name=Local+paper");
+        assert!(!should_navigate_existing_document(&document, &opened_file));
+    }
+
+    #[test]
+    fn deep_links_still_retarget_an_existing_viewer() {
+        let document = document_window(
+            &parse("tauri://localhost/viewer/?pdf=paper-123"),
+            "tauri://localhost",
+        )
+        .expect("viewer URL should be recognized");
+
+        for target in [
+            "note=note-456",
+            "page=4&y=0.25",
+            "page=4&mark=selection",
+            "page=4&box=clip",
+        ] {
+            let url = parse(&format!("tauri://localhost/viewer/?pdf=paper-123&{target}"));
+            assert!(should_navigate_existing_document(&document, &url));
+        }
     }
 
     #[test]
