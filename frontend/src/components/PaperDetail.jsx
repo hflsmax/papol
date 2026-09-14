@@ -324,7 +324,7 @@ export default function PaperDetail({
       }
 
       setEditMode(null);
-      loadPaper();
+      window.location.reload();
     } catch (err) {
       setError(err.message);
     } finally {
