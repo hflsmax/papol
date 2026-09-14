@@ -1,5 +1,9 @@
 import { desktopStyles } from './desktopStyles.js';
 
+// Light red makes a development desktop unmistakable. Packaged builds use
+// neutral chrome so that the development cue never becomes product branding.
+const desktopChrome = import.meta.env?.DEV ? '#f9ecea' : '#eaedf1';
+
 export const applicationStyles = `
 * {
   box-sizing: border-box;

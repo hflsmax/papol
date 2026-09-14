@@ -31,10 +31,6 @@ import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
 import { openDroppedPdf, subscribeShowPaperRequests, subscribeSignInRequests } from '../../shared/nativeData.js';
 
-// Light red makes a development desktop unmistakable. Packaged builds use
-// neutral chrome so that the development cue never becomes product branding.
-const desktopChrome = import.meta.env?.DEV ? '#f9ecea' : '#eaedf1';
-
 function parseRoute() {
   const rawPath = stripAppBase(window.location.pathname || '/');
   const demo = rawPath === '/demo' || rawPath.startsWith('/demo/');
