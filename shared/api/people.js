@@ -15,9 +15,10 @@ export async function getUserSpace(userUuid) {
     const [user, boards, nook, localPapers] = await Promise.all([
       nativeRepository.account(), nativeRepository.boards(), nativeRepository.nook(), nativeRepository.papers(),
     ]);
+    const papers = localPapers.map((row) => rememberPaperIdentity(paperView(row)));
     return {
       user,
-      papers: localPapers.map((row) => paperView(row)),
+      papers,
       boards: boards.map((row) => boardView(row)),
       shelves: nook.shelves.map(shelfView),
       tags: nook.tags,

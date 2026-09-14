@@ -4,11 +4,10 @@
 // Both /viewer and /demo/viewer run this build. Step back once from the
 // former and twice from the latter to reach Papol's root API and assets.
 import { appPath, backendPath } from './base.js';
-import { inOfflineMode } from '../../shared/connectivity.js';
 import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
   boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
-  nativeRepository, nativeSyncNow, noteView, openedFileBlob, openedFileBytes,
+  nativeRepository, noteView, openedFileBlob, openedFileBytes,
   openedFileUrl, paperView, newUuid,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
@@ -65,21 +64,6 @@ export async function getNookPaperByPdf(hash) {
   }
 }
 
-async function openedFileMetadata(blob) {
-  if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
-  const body = new FormData();
-  body.append('file', blob, 'paper.pdf');
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    return await request('/papers/extract', { method: 'POST', body, signal: controller.signal });
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 function storedAnchor(anchor) {
   if (!anchor) return { anchor_type: null, anchor: null };
   const { type, ...rest } = anchor;
@@ -87,8 +71,8 @@ function storedAnchor(anchor) {
 }
 
 // A file opened from disk becomes a nook paper, and the notes, ink and clips
-// made on it before then come along. The file is copied into the replica and
-// its details are looked up only now, because the reader asked.
+// made on it before then come along. The file and its filename-derived title
+// commit to the replica immediately; synchronization can enrich it later.
 export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [] }) {
   if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
   let paper = await getNookPaperByPdf(sha256);
@@ -96,46 +80,31 @@ export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], 
     const blob = await openedFileBlob(sha256);
     const stored = await nativeBlobImport(blob);
     if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
-    let shelves = await nativeRepository.shelves();
-    if (shelves.length === 0) {
-      // Just signed in: the nook has not arrived on this device yet, and it
-      // may already hold these exact bytes.
-      await nativeSyncNow();
-      paper = await getNookPaperByPdf(sha256);
-      shelves = paper ? [] : await nativeRepository.shelves();
-      if (!paper && shelves.length === 0) throw new Error('Your nook is still loading. Try again in a moment.');
-    }
-    if (!paper) {
-      const remote = await openedFileMetadata(blob);
-      const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
-        || shelves[0];
-      const paperUuid = newUuid();
-      const editionUuid = newUuid();
-      await nativeRepository.transact([
-        {
-          table: 'papers', uuid: paperUuid, operation: 'upsert',
-          values: {
-            doi: remote?.doi || null,
-            title: remote?.title || name,
-            authors: remote?.authors || null,
-            journal: remote?.journal || null,
-            year: remote?.year || null,
-          },
+    const shelves = await nativeRepository.shelves();
+    const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
+      || shelves[0];
+    const paperUuid = newUuid();
+    const editionUuid = newUuid();
+    await nativeRepository.transact([
+      {
+        table: 'papers', uuid: paperUuid, operation: 'upsert',
+        values: {
+          doi: null, title: name, authors: null, journal: null, year: null,
         },
-        {
-          table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
-          values: { paper_uuid: paperUuid, file_path: `${sha256}.pdf`, sha256 },
+      },
+      {
+        table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
+        values: { paper_uuid: paperUuid, file_path: `${sha256}.pdf`, sha256 },
+      },
+      {
+        table: 'copies', uuid: newUuid(), operation: 'upsert',
+        values: {
+          paper_uuid: paperUuid, shelf_uuid: shelf?.uuid ?? null,
+          edition_uuid: editionUuid, edition_sha256: sha256,
         },
-        {
-          table: 'copies', uuid: newUuid(), operation: 'upsert',
-          values: {
-            paper_uuid: paperUuid, shelf_uuid: shelf?.uuid ?? null,
-            edition_uuid: editionUuid, edition_sha256: sha256,
-          },
-        },
-      ]);
-      paper = { uuid: paperUuid, edition_uuid: editionUuid };
-    }
+      },
+    ]);
+    paper = { uuid: paperUuid, edition_uuid: editionUuid };
   }
 
   const paperUuid = paper.uuid;

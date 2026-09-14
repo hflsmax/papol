@@ -252,7 +252,7 @@ impl Coordinator {
             .await
     }
 
-    pub async fn synchronize_with_progress(
+    pub async fn push_with_progress(
         &self,
         store: &LocalStore,
         account_uuid: &str,
@@ -266,6 +266,25 @@ impl Coordinator {
             return Err("Sync requires a signed-in account".into());
         }
         let mut meter = Meter::new(report);
+        let pushed = self
+            .push_pending(store, account_uuid, &backend, token, &mut meter)
+            .await?;
+        meter.finish();
+        Ok(SyncResult {
+            pushed,
+            pulled: 0,
+            cursor: store.pull_cursor(account_uuid)?,
+        })
+    }
+
+    async fn push_pending(
+        &self,
+        store: &LocalStore,
+        account_uuid: &str,
+        backend: &Url,
+        token: &str,
+        meter: &mut Meter<'_>,
+    ) -> Result<usize, String> {
         let outbox = store
             .query(account_uuid, "sync_status", serde_json::json!({}))?
             .get("pending")
@@ -274,7 +293,6 @@ impl Coordinator {
         meter.begin(SyncPhase::Uploading, Some(outbox));
         let mut pushed = 0;
         while let Some(mutation) = store.next_outbox(account_uuid)? {
-            let meter = &mut meter;
             let attempted: Result<PushResponse, SyncFailure> = async {
                 for change in &mutation.changes {
                     let Some(sha256) = change.values.get("sha256").and_then(Value::as_str) else {
@@ -367,6 +385,26 @@ impl Coordinator {
             pushed += 1;
             meter.item_done();
         }
+        Ok(pushed)
+    }
+
+    pub async fn synchronize_with_progress(
+        &self,
+        store: &LocalStore,
+        account_uuid: &str,
+        backend_url: &str,
+        token: &str,
+        report: &(dyn Fn(SyncProgress) + Send + Sync),
+    ) -> Result<SyncResult, String> {
+        let _guard = self.gate.lock().await;
+        let backend = validated_backend(backend_url)?;
+        if token.trim().is_empty() {
+            return Err("Sync requires a signed-in account".into());
+        }
+        let mut meter = Meter::new(report);
+        let pushed = self
+            .push_pending(store, account_uuid, &backend, token, &mut meter)
+            .await?;
 
         // Push first so aliases can collapse a temporary offline import
         // before a snapshot introduces the same paper or edition UUID.

@@ -25,7 +25,7 @@ test('an already-known public paper becomes an owned local copy', () => {
   });
 });
 
-test('an offline addition waits for the nook snapshot when no shelf exists', () => {
-  assert.throws(() => planOfflineNookAddition({ uuid: PAPER }, [], () => COPY),
-    /nook is still loading/);
+test('an offline addition does not wait for a shelf snapshot', () => {
+  const planned = planOfflineNookAddition({ uuid: PAPER }, [], () => COPY);
+  assert.equal(planned.change.values.shelf_uuid, null);
 });

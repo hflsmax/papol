@@ -1137,6 +1137,38 @@ select:disabled { cursor: default; opacity: .65; }
   font-size: var(--fs-sm);
 }
 
+.paper-metadata-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.paper-metadata-heading h3 { margin: 0; }
+
+.metadata-parsing {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.metadata-spinner {
+  display: inline-block;
+  vertical-align: -2px;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: metadata-spin .8s linear infinite;
+}
+
+@keyframes metadata-spin { to { transform: rotate(360deg); } }
+
 .upload-review-form .form-group {
   margin-bottom: 12px;
 }

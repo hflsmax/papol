@@ -43,7 +43,7 @@ export async function listPapers() {
   return papers;
 }
 
-async function remotePaperMetadata(file) {
+export async function lookupPaperMetadata(file) {
   if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
   const formData = new FormData();
   formData.append('file', file);
@@ -62,16 +62,15 @@ export async function extractPaperMetadata(file) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     rememberPendingPaperBlob(blob);
-    const remote = await remotePaperMetadata(file);
     return {
-      doi: remote?.doi || null,
-      title: remote?.title || file.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim(),
-      authors: remote?.authors || null,
-      journal: remote?.journal || null,
-      year: remote?.year || null,
+      doi: null,
+      title: file.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim(),
+      authors: null,
+      journal: null,
+      year: null,
       file_path: `${blob.sha256}.pdf`,
       sha256: blob.sha256,
-      metadata_offline: inOfflineMode() || globalThis.navigator?.onLine === false,
+      metadata_offline: false,
     };
   }
   const formData = new FormData();
@@ -199,31 +198,93 @@ export async function addToNook(paper) {
   return paperView(await nativeRepository.paper(paperUuid));
 }
 
-export function addPaperEdition(uuid, file) {
+export async function addPaperEdition(uuid, file) {
+  if (nativeDataActive()) {
+    const stored = await nativeBlobImport(file);
+    try {
+      const paper = paperView(await nativeRepository.paper(uuid));
+      const editionUuid = newUuid();
+      await nativeRepository.transact([
+        {
+          table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
+          values: { paper_uuid: uuid, file_path: `${stored.sha256}.pdf`, sha256: stored.sha256 },
+        },
+        {
+          table: 'copies', uuid: paper.copy_uuid, operation: 'patch',
+          values: {
+            edition_uuid: editionUuid,
+            edition_sha256: stored.sha256,
+            ignored_edition_uuid: editionUuid,
+          },
+        },
+      ]);
+      return rememberPaperIdentity(paperView(await nativeRepository.paper(uuid)));
+    } catch (error) {
+      await discardNativeBlob(stored.sha256).catch(() => {});
+      throw error;
+    }
+  }
   const formData = new FormData();
   formData.append('file', file);
   return onServer(() => request(`/papers/${uuid}/editions`, { method: 'POST', body: formData }));
 }
 
-export function adoptEdition(uuid, editionUuid) {
+export async function adoptEdition(uuid, editionUuid) {
+  if (nativeDataActive()) {
+    const paper = paperView(await nativeRepository.paper(uuid));
+    const edition = (paper.editions || []).find((candidate) => candidate.uuid === editionUuid);
+    if (!edition?.sha256) throw new Error('Edition is not available in the local replica');
+    await nativeRepository.transact([{
+      table: 'copies', uuid: paper.copy_uuid, operation: 'patch',
+      values: {
+        edition_uuid: edition.uuid,
+        edition_sha256: edition.sha256,
+        ignored_edition_uuid: paper.latest_edition?.uuid || edition.uuid,
+      },
+    }]);
+    return rememberPaperIdentity(paperView(await nativeRepository.paper(uuid)));
+  }
   return onServer(() => jsonRequest(`/papers/${uuid}/adopt-edition`, 'POST', {
     edition_uuid: editionUuid ?? null,
   }));
 }
 
-export function ignoreEdition(uuid, editionUuid) {
+export async function ignoreEdition(uuid, editionUuid) {
+  if (nativeDataActive()) {
+    const paper = paperView(await nativeRepository.paper(uuid));
+    await nativeRepository.transact([{
+      table: 'copies', uuid: paper.copy_uuid, operation: 'patch',
+      values: { ignored_edition_uuid: editionUuid ?? paper.latest_edition?.uuid ?? null },
+    }]);
+    return rememberPaperIdentity(paperView(await nativeRepository.paper(uuid)));
+  }
   return onServer(() => jsonRequest(`/papers/${uuid}/ignore-edition`, 'POST', {
     edition_uuid: editionUuid ?? null,
   }));
 }
 
+async function localCopyUuid(uuid) {
+  const remembered = paperCopyUuid(uuid);
+  if (remembered) return remembered;
+  if (!nativeDataActive()) return null;
+  try {
+    const paper = await nativeRepository.paper(uuid);
+    setPaperCopyUuid(uuid, paper.copy_uuid);
+    return paper.copy_uuid;
+  } catch (error) {
+    if (String(error?.message ?? error) === 'Paper not found') return null;
+    throw error;
+  }
+}
+
 export async function updatePaper(uuid, data) {
-  const copyUuid = paperCopyUuid(uuid);
   const localFields = new Set([
     'summary', 'shelf_uuid', 'tag_uuids',
     'rating_expertise', 'rating_reading', 'rating_liking',
   ]);
-  if (nativeDataActive() && copyUuid && Object.keys(data).every((key) => localFields.has(key))) {
+  if (nativeDataActive() && Object.keys(data).every((key) => localFields.has(key))) {
+    const copyUuid = await localCopyUuid(uuid);
+    if (!copyUuid) return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${uuid}`, 'PUT', data)));
     const values = { ...data };
     const desiredTags = values.tag_uuids;
     delete values.tag_uuids;
@@ -252,8 +313,8 @@ export async function updatePaper(uuid, data) {
   return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${uuid}`, 'PUT', data)));
 }
 
-export function deletePaper(uuid) {
-  const copyUuid = paperCopyUuid(uuid);
+export async function deletePaper(uuid) {
+  const copyUuid = await localCopyUuid(uuid);
   if (nativeDataActive() && copyUuid) {
     return nativeRepository.transact([{
       table: 'copies', uuid: copyUuid, operation: 'delete', values: {},

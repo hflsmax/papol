@@ -135,7 +135,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // Desktop hydrates its trusted local account before React mounts. On the
   // web, a visitor with no token is already known to be a guest. Only a web
   // credential or a first desktop sign-in still needs to gate the shell.
-  const [authChecked, setAuthChecked] = useState(() => Boolean(startupUser) || !getToken());
+  const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
   const [feedbackRequest, setFeedbackRequest] = useState(null);

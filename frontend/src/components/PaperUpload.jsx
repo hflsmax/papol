@@ -1,12 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   createPaper, createTag, discardPaperImport, extractPaperMetadata, listShelves, listTags,
+  lookupPaperMetadata,
 } from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
+
+function editableAuthors(authors) {
+  if (!authors) return '';
+  try {
+    const parsed = JSON.parse(authors);
+    return Array.isArray(parsed) ? parsed.join(', ') : String(authors);
+  } catch {
+    return String(authors);
+  }
+}
 
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
@@ -15,6 +26,7 @@ export default function PaperUpload({
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isParsingMetadata, setIsParsingMetadata] = useState(false);
   const [error, setError] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
   const [formData, setFormData] = useState({});
@@ -25,10 +37,14 @@ export default function PaperUpload({
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
   const handledIncomingFile = useRef(null);
+  const metadataRequest = useRef(0);
+  const extractedDataRef = useRef(null);
 
+  extractedDataRef.current = extractedData;
   useEffect(() => () => {
-    if (extractedData) discardPaperImport(extractedData).catch(() => {});
-  }, [extractedData]);
+    metadataRequest.current += 1;
+    if (extractedDataRef.current) discardPaperImport(extractedDataRef.current).catch(() => {});
+  }, []);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -59,7 +75,10 @@ export default function PaperUpload({
   };
 
   const handleFile = async (file) => {
+    const requestId = metadataRequest.current + 1;
+    metadataRequest.current = requestId;
     setIsLoading(true);
+    setIsParsingMetadata(false);
     setError(null);
 
     try {
@@ -68,9 +87,9 @@ export default function PaperUpload({
       onReviewChange(true);
       const [tags, shelfData] = await Promise.all([listTags(), listShelves()]);
       setShelves(shelfData);
-      setFormData({
+      const initialForm = {
         title: data.title || '',
-        authors: data.authors ? JSON.parse(data.authors).join(', ') : '',
+        authors: editableAuthors(data.authors),
         journal: data.journal || '',
         year: data.year || '',
         doi: data.doi || '',
@@ -83,10 +102,49 @@ export default function PaperUpload({
         rating_expertise: null,
         rating_reading: null,
         rating_liking: null,
-      });
+      };
+      setFormData(initialForm);
       setSelectedTags([]);
       setTagDraft('');
       setAvailableTags(tags);
+      if (localImport) {
+        setIsParsingMetadata(true);
+        void lookupPaperMetadata(file).then((remote) => {
+          if (metadataRequest.current !== requestId) return;
+          if (!remote) {
+            setExtractedData((current) => current ? { ...current, metadata_offline: true } : current);
+            return;
+          }
+          const enriched = {
+            title: remote.title || initialForm.title,
+            authors: remote.authors ? editableAuthors(remote.authors) : initialForm.authors,
+            journal: remote.journal || initialForm.journal,
+            year: remote.year || initialForm.year,
+            doi: remote.doi || initialForm.doi,
+          };
+          // Do not replace a field the reader has already changed while the
+          // backend was parsing the PDF.
+          setFormData((current) => Object.fromEntries(Object.entries(current).map(([key, value]) => [
+            key,
+            Object.hasOwn(enriched, key) && value === initialForm[key] ? enriched[key] : value,
+          ])));
+          setExtractedData((current) => current ? {
+            ...current,
+            doi: remote.doi || null,
+            title: remote.title || current.title,
+            authors: remote.authors || null,
+            journal: remote.journal || null,
+            year: remote.year || null,
+            metadata_offline: false,
+          } : current);
+        }).catch(() => {
+          if (metadataRequest.current === requestId) {
+            setExtractedData((current) => current ? { ...current, metadata_offline: true } : current);
+          }
+        }).finally(() => {
+          if (metadataRequest.current === requestId) setIsParsingMetadata(false);
+        });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -152,6 +210,8 @@ export default function PaperUpload({
   };
 
   const handleCancel = async () => {
+    metadataRequest.current += 1;
+    setIsParsingMetadata(false);
     await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
     setFormData({});
@@ -179,10 +239,18 @@ export default function PaperUpload({
       <>
       <BackLink className={`back-btn upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
-        <h3>Review Paper Metadata</h3>
+        <div className="paper-metadata-heading">
+          <h3>Review Paper Metadata</h3>
+          {isParsingMetadata && (
+            <span className="metadata-parsing" role="status">
+              <span className="metadata-spinner" aria-hidden="true" />
+              Looking up metadata…
+            </span>
+          )}
+        </div>
         {extractedData.metadata_offline && (
           <div className="offline-notice" role="status">
-            Papol is offline, so metadata could not be looked up. Review the title and details before saving.
+            Metadata could not be looked up. You can still review and save the paper.
           </div>
         )}
         {error && <div className="error">{error}</div>}

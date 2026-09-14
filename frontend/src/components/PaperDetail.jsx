@@ -466,7 +466,9 @@ export default function PaperDetail({
               onClick={handleMetadataExtract}
               disabled={isExtractingMetadata}
             >
-              {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
+              {isExtractingMetadata ? (
+                <><span className="metadata-spinner" aria-hidden="true" /> Extracting…</>
+              ) : 'Extract metadata from PDF'}
             </button>
           </div>
 

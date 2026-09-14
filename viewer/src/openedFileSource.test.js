@@ -196,7 +196,7 @@ test('reopening after a partial Add to nook finishes migrating retained device a
   assert.equal(annotations.size, 0);
 });
 
-test('first sign-in supplies the credential before an open file asks for its nook snapshot', async () => {
+test('first sign-in adds an open file locally without waiting for its nook snapshot', async () => {
   values.delete('papol.localAccountUuid');
   values.delete('papol_token');
   await hydrateCredential();
@@ -213,8 +213,9 @@ test('first sign-in supplies the credential before an open file asks for its noo
   const paperUuid = await source.addToNook();
 
   assert.match(paperUuid, /^[0-9a-f-]{36}$/);
-  const sync = calls.find(([command]) => command === 'sync_now');
-  assert.equal(sync[1].token, 'new-session-token');
+  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
+  const paperGraph = calls.find(([, args]) => args.changes?.some((change) => change.table === 'copies'));
+  assert.equal(paperGraph[1].changes.find((change) => change.table === 'copies').values.shelf_uuid, null);
   assert.deepEqual(
     calls.filter(([command]) => command === 'data_mutate')
       .flatMap(([, args]) => args.changes.map((change) => change.table)),

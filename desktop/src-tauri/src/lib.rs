@@ -510,15 +510,22 @@ fn local_recovery_export(
     store.export_recovery(&account_uuid, &directory.join(filename))
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncRequest {
+    account_uuid: String,
+    backend_url: String,
+    token: String,
+    push_only: Option<bool>,
+}
+
 #[tauri::command]
 async fn sync_now(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     coordinator: tauri::State<'_, sync::Coordinator>,
     diagnostic_log: tauri::State<'_, diagnostics::DiagnosticLog>,
-    account_uuid: String,
-    backend_url: String,
-    token: String,
+    request: SyncRequest,
 ) -> Result<sync::SyncResult, String> {
     use tauri::Emitter;
 
@@ -531,9 +538,27 @@ async fn sync_now(
     let report = move |progress: sync::SyncProgress| {
         let _ = progress_app.emit("papol://sync-progress", progress);
     };
-    let result = coordinator
-        .synchronize_with_progress(&store, &account_uuid, &backend_url, &token, &report)
-        .await;
+    let result = if request.push_only.unwrap_or(false) {
+        coordinator
+            .push_with_progress(
+                &store,
+                &request.account_uuid,
+                &request.backend_url,
+                &request.token,
+                &report,
+            )
+            .await
+    } else {
+        coordinator
+            .synchronize_with_progress(
+                &store,
+                &request.account_uuid,
+                &request.backend_url,
+                &request.token,
+                &report,
+            )
+            .await
+    };
     if ACTIVE_SYNCS.fetch_sub(1, Ordering::SeqCst) == 1 {
         let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": false}));
     }
@@ -570,7 +595,7 @@ async fn sync_now(
                     serde_json::json!(started.elapsed().as_millis()),
                 )])),
             );
-            let _ = store.record_sync_error(&account_uuid, error);
+            let _ = store.record_sync_error(&request.account_uuid, error);
             let _ = app.emit("papol://sync-status", serde_json::json!({"error": error}));
         }
     }

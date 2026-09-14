@@ -226,7 +226,7 @@ export function discardNativeBlob(sha256) {
   return invoke('blob_discard', { sha256 });
 }
 
-export async function nativeSyncNow({ manual = false } = {}) {
+export async function nativeSyncNow({ manual = false, pushOnly = false } = {}) {
   const accountUuid = nativeAccountUuid();
   const token = currentCredential();
   if (!IS_DESKTOP || accountUuid == null || !token) return null;
@@ -236,9 +236,12 @@ export async function nativeSyncNow({ manual = false } = {}) {
   try {
     try {
       const result = await invoke('sync_now', {
-        accountUuid,
-        backendUrl: nativeBackendUrl(),
-        token,
+        request: {
+          accountUuid,
+          backendUrl: nativeBackendUrl(),
+          token,
+          pushOnly,
+        },
       });
       exitOfflineMode();
       return result;

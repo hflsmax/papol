@@ -2697,12 +2697,32 @@ fn paper_view(
         "rating_reading",
         "rating_liking",
         "edition_sha256",
+        "ignored_edition_uuid",
     ] {
         object.insert(
             field.into(),
             copy.get(field).cloned().unwrap_or(Value::Null),
         );
     }
+    let mut edition_statement = connection
+        .prepare(
+            "SELECT uuid FROM paper_editions WHERE paper_uuid=?1 AND deleted_at IS NULL \
+             ORDER BY created_at,uuid",
+        )
+        .map_err(|error| error.to_string())?;
+    let edition_uuids = edition_statement
+        .query_map([paper_uuid], |row| row.get::<_, String>(0))
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    let editions = edition_uuids
+        .iter()
+        .map(|uuid| read_row(connection, "paper_editions", uuid))
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Some(latest) = editions.last() {
+        object.insert("latest_edition".into(), latest.clone());
+    }
+    object.insert("editions".into(), Value::Array(editions));
     if let Some(edition_uuid) = copy.get("edition_uuid").and_then(Value::as_str) {
         let edition = read_row(connection, "paper_editions", edition_uuid)?;
         let edition_row = edition.as_object().ok_or("Invalid local edition")?;
@@ -2715,7 +2735,6 @@ fn paper_view(
             "edition_sha256".into(),
             edition_row.get("sha256").cloned().unwrap_or(Value::Null),
         );
-        object.insert("editions".into(), Value::Array(vec![edition]));
     }
     let mut statement = connection
         .prepare(

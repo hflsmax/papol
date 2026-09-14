@@ -15,6 +15,7 @@ const dispatchedEvents = [];
 let remoteBlobReady = false;
 let syncFailure = null;
 let syncGate = null;
+let queryPaper = null;
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -30,6 +31,9 @@ global.window = {
       calls.push([command, arguments_]);
       if (command === 'data_mutate') {
         return { local_sequence: 1, rows: [{ uuid: arguments_.changes[0].uuid }] };
+      }
+      if (command === 'data_query' && arguments_.queryName === 'paper' && queryPaper) {
+        return queryPaper;
       }
       if (command === 'blob_import') {
         return { sha256: 'a'.repeat(64), size: arguments_.bytes.length, mime_type: arguments_.mimeType };
@@ -66,6 +70,9 @@ const {
   prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('../../shared/nativeData.js');
+const {
+  addPaperEdition, adoptEdition, deletePaper, ignoreEdition, updatePaper,
+} = await import('../../shared/api/papers.js');
 
 test('native SQLite is authoritative for the local sync preference', async () => {
   values.set('papol.syncPreference', 'automatic');
@@ -115,6 +122,12 @@ test('a successful native sync clears the offline latch', async () => {
   assert.equal(inOfflineMode(), false);
 });
 
+test('a server prerequisite uses push-only sync', async () => {
+  await nativeSyncNow({ manual: true, pushOnly: true });
+  const call = calls.findLast(([command]) => command === 'sync_now');
+  assert.equal(call[1].request.pushOnly, true);
+});
+
 test('desktop native mutations carry the local account into Tauri IPC', async () => {
   assert.equal(nativeDataActive(), true);
   await nativeRepository.transact([{
@@ -124,6 +137,42 @@ test('desktop native mutations carry the local account into Tauri IPC', async ()
   const call = calls.find(([command]) => command === 'data_mutate');
   assert.equal(call[1].accountUuid, ACCOUNT);
   assert.equal(call[1].changes[0].values.name, 'Offline');
+});
+
+test('paper edits resolve their local copy without an in-memory identity cache', async () => {
+  calls.length = 0;
+  const paperUuid = '12121212-1212-4212-8212-121212121212';
+  const copyUuid = '34343434-3434-4434-8434-343434343434';
+  queryPaper = { uuid: paperUuid, copy_uuid: copyUuid, editions: [] };
+  await updatePaper(paperUuid, { shelf_uuid: null });
+  await deletePaper(paperUuid);
+  const mutations = calls.filter(([command]) => command === 'data_mutate');
+  assert.equal(mutations.length, 2);
+  assert.ok(mutations.every(([, args]) => args.changes[0].uuid === copyUuid));
+  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
+  queryPaper = null;
+});
+
+test('edition changes commit to the local paper graph without server operations', async () => {
+  calls.length = 0;
+  const paperUuid = '56565656-5656-4656-8656-565656565656';
+  const copyUuid = '78787878-7878-4878-8878-787878787878';
+  const editionUuid = '90909090-9090-4090-8090-909090909090';
+  queryPaper = {
+    uuid: paperUuid,
+    copy_uuid: copyUuid,
+    edition_uuid: editionUuid,
+    latest_edition: { uuid: editionUuid, sha256: 'b'.repeat(64) },
+    editions: [{ uuid: editionUuid, sha256: 'b'.repeat(64) }],
+  };
+  await adoptEdition(paperUuid, editionUuid);
+  await ignoreEdition(paperUuid, editionUuid);
+  await addPaperEdition(paperUuid, new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
+  const batches = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
+  assert.deepEqual(batches.slice(0, 2).map((changes) => changes[0].table), ['copies', 'copies']);
+  assert.deepEqual(batches[2].map((change) => change.table), ['paper_editions', 'copies']);
+  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
+  queryPaper = null;
 });
 
 test('the native repository owns query names and parameter shapes', async () => {
