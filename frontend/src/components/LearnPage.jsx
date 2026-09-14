@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { appPath } from '../base';
+import { IS_DESKTOP } from '../../../shared/appEnvironment.js';
+import { hydrateDesktopMedia, tutorialMedia } from '../../../shared/desktopMedia.js';
 
 const lessons = [
   {
@@ -7,7 +9,7 @@ const lessons = [
     art: 'upload',
     section: 'Library',
     title: 'Upload and organize a PDF',
-    video: '/assets/learn/uploading-a-pdf.mp4',
+    video: tutorialMedia.uploadingPdf,
     poster: '/assets/learn/uploading-a-pdf.jpg',
   },
   {
@@ -15,49 +17,49 @@ const lessons = [
     art: 'clip',
     section: 'Viewer',
     title: 'Keep a figure next to the text',
-    video: '/assets/learn/clipping-functionality.mp4',
+    video: tutorialMedia.clippingFigures,
   },
   {
     id: 'pdf-navigation',
     art: 'send',
     section: 'Viewer',
     title: 'Navigate PDFs with history and anchors',
-    video: '/assets/learn/pdf-navigation.mp4',
+    video: tutorialMedia.pdfNavigation,
   },
   {
     id: 'add-animal',
     art: 'animal',
     section: 'Viewer',
     title: 'Add animals to your viewer',
-    video: '/assets/learn/animal-functionality.mp4',
+    video: tutorialMedia.animalFunctionality,
   },
   {
     id: 'board-basics',
     art: 'board-basics',
     section: 'Board',
     title: 'Build a board with cards',
-    video: '/assets/learn/board-basics.mp4',
+    video: tutorialMedia.boardBasics,
   },
   {
     id: 'group-board-cards',
     art: 'group',
     section: 'Board',
     title: 'Group cards with booklets and collections',
-    video: '/assets/learn/board-grouping.mp4',
+    video: tutorialMedia.boardGrouping,
   },
   {
     id: 'viewer-to-board',
     art: 'send',
     section: 'Board',
     title: 'Send excerpts and figures to a board',
-    video: '/assets/learn/viewer-to-board.mp4',
+    video: tutorialMedia.viewerToBoard,
   },
   {
     id: 'note-making',
     art: 'send',
     section: 'Viewer',
     title: 'Make notes while reading',
-    video: '/assets/learn/note-making.mp4',
+    video: tutorialMedia.noteMaking,
   },
 ];
 
@@ -128,6 +130,7 @@ function LessonArt({ type }) {
 
 export default function LearnPage() {
   const [playing, setPlaying] = useState(null);
+  const [playerMedia, setPlayerMedia] = useState(null);
   const sections = ['Library', 'Viewer', 'Board'];
 
   useEffect(() => {
@@ -137,6 +140,32 @@ export default function LearnPage() {
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [playing]);
+
+  useEffect(() => {
+    if (!playing) {
+      setPlayerMedia(null);
+      return undefined;
+    }
+    if (!IS_DESKTOP) {
+      setPlayerMedia({ status: 'ready', url: appPath(playing.video.path) });
+      return undefined;
+    }
+
+    let active = true;
+    let objectUrl = null;
+    setPlayerMedia({ status: 'loading' });
+    hydrateDesktopMedia(playing.video).then((bytes) => {
+      if (!active) return;
+      objectUrl = URL.createObjectURL(new Blob([bytes], { type: playing.video.mimeType }));
+      setPlayerMedia({ status: 'ready', url: objectUrl });
+    }).catch(() => {
+      if (active) setPlayerMedia({ status: 'unavailable' });
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [playing]);
 
   return (
@@ -166,10 +195,14 @@ export default function LearnPage() {
         <div className="learn-player-backdrop" role="dialog" aria-modal="true" aria-label={playing.title} onMouseDown={() => setPlaying(null)}>
           <div className="learn-player" onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="learn-player-close" aria-label="Close video" onClick={() => setPlaying(null)} autoFocus>×</button>
-            <video controls autoPlay preload="auto" aria-label={`${playing.title} tutorial video`}>
-              <source src={appPath(playing.video)} type="video/mp4" />
-              Your browser does not support embedded video.
-            </video>
+            {playerMedia?.status === 'ready' && (
+              <video controls autoPlay preload="auto" aria-label={`${playing.title} tutorial video`}>
+                <source src={playerMedia.url} type="video/mp4" />
+                Your browser does not support embedded video.
+              </video>
+            )}
+            {playerMedia?.status === 'loading' && <p className="learn-player-status">This video is still loading.</p>}
+            {playerMedia?.status === 'unavailable' && <p className="learn-player-status">This video requires a network connection.</p>}
           </div>
         </div>
       )}

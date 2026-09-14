@@ -5,6 +5,9 @@ import '../../shared/desktopShell'
 import App from './App.jsx'
 import { hydrateCredential } from '../../shared/credentials.js'
 import { getStartupUser } from '../../shared/api/account.js'
+import { startDesktopMediaHydration } from '../../shared/desktopMedia.js'
+
+void startDesktopMediaHydration()
 
 let startupError = null
 await hydrateCredential().catch((error) => { startupError = error })

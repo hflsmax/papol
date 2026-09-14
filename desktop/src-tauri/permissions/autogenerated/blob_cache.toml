@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-blob-cache"
+description = "Enables the blob_cache command without any pre-configured scope."
+commands.allow = ["blob_cache"]
+
+[[permission]]
+identifier = "deny-blob-cache"
+description = "Denies the blob_cache command without any pre-configured scope."
+commands.deny = ["blob_cache"]

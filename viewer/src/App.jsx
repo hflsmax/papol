@@ -879,6 +879,10 @@ export default function App() {
           setError('This PDF has not finished downloading to this Mac. Connect to the internet and choose Sync, then open it again.');
           return;
         }
+        if (/requires a network connection/i.test(message)) {
+          setError(message);
+          return;
+        }
         setError(`PDF failed to open: ${message}`);
         if (!DESKTOP) return;
         const report = unexpectedDesktopErrorReport(failure, 'opening a PDF in the viewer', {

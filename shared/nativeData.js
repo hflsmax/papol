@@ -210,6 +210,20 @@ export async function nativeBlobImport(blob) {
   return invoke('blob_import', { bytes, mimeType: blob.type || null });
 }
 
+// Product media is a disposable cache, not user data. It is available before
+// sign-in and is verified by its published digest before the native store
+// adopts it. The content-addressed store ensures another surface cannot save
+// a second copy of the same bytes.
+export async function nativeBlobCache(expectedSha256, blob, mimeType = blob.type || null) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  await invoke('blob_cache', {
+    expectedSha256,
+    bytes,
+    mimeType,
+  });
+  return bytes;
+}
+
 export async function nativeBlobBytes(sha256) {
   // Rendering is strictly local. Synchronization hydrates every referenced
   // blob before it reports success; views must never initiate network I/O.

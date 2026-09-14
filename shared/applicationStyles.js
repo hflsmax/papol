@@ -348,6 +348,16 @@ input[type='checkbox'] {
   object-fit: contain;
 }
 
+.learn-player-status {
+  display: grid;
+  min-height: min(72vh, 720px);
+  margin: 0;
+  padding: 48px;
+  place-items: center;
+  color: white;
+  text-align: center;
+}
+
 .learn-player-close {
   position: absolute;
   z-index: 2;

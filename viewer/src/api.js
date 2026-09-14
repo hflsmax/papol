@@ -3,7 +3,9 @@
 // and no second idea of who a reader is.
 // Both /viewer and /demo/viewer run this build. Step back once from the
 // former and twice from the latter to reach Papol's root API and assets.
-import { appPath, backendPath } from './base.js';
+import { appPath, backendPath, inDemo } from './base.js';
+import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { demoPaperMedia, hydrateDesktopMedia } from '../../shared/desktopMedia.js';
 import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
   boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
@@ -152,6 +154,11 @@ export async function downloadablePdfHref(paper) {
 export async function pdfLoadInput(paper) {
   if (paper?.opened_file && !paper.uuid) {
     return { data: await openedFileBytes(paper.edition_sha256) };
+  }
+  if (IS_DESKTOP && inDemo()) {
+    const asset = demoPaperMedia(paper?.edition_sha256);
+    if (!asset) throw new Error('This paper requires a network connection.');
+    return { data: await hydrateDesktopMedia(asset) };
   }
   if (nativeDataActive()) {
     if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');

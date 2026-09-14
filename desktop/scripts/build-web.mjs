@@ -30,6 +30,16 @@ function copyApp(name, destination, root) {
   cpSync(join(rootDir, name, 'dist'), target, { recursive: true });
 }
 
+function copyDemoEntry(name, destination, sharedBase, root) {
+  const target = join(root, destination);
+  mkdirSync(target, { recursive: true });
+  const html = readFileSync(join(rootDir, name, 'dist', 'index.html'), 'utf8');
+  writeFileSync(join(target, 'index.html'), html.replace(
+    /<head>/,
+    `<head>\n    <base href="${sharedBase}">`,
+  ));
+}
+
 function fingerprint(directory) {
   const hash = createHash('sha256');
   const visit = (current, relative = '') => {
@@ -81,9 +91,22 @@ for (const name of ['frontend', 'viewer', 'board']) build(name);
 const stagedOutput = mkdtempSync(join(desktopDir, '.papol-dist.'));
 copyApp('frontend', '.', stagedOutput);
 copyApp('viewer', 'viewer', stagedOutput);
-copyApp('viewer', 'demo/viewer', stagedOutput);
 copyApp('board', 'boards', stagedOutput);
-copyApp('board', 'demo/boards', stagedOutput);
+// Demo routes execute the identical viewer and board builds. A base element
+// preserves those routes while sharing the already-embedded static files.
+copyDemoEntry('viewer', 'demo/viewer', '../../viewer/', stagedOutput);
+copyDemoEntry('board', 'demo/boards', '../../boards/', stagedOutput);
+
+// Large read-only media is hydrated into the native content-addressed cache.
+// Keep lightweight tutorial posters in the bundle so Learn remains useful
+// while the videos download.
+const learnAssets = join(stagedOutput, 'assets', 'learn');
+if (existsSync(learnAssets)) {
+  for (const name of readdirSync(learnAssets)) {
+    if (name.endsWith('.mp4')) rmSync(join(learnAssets, name));
+  }
+}
+rmSync(join(stagedOutput, 'assets', 'demo', 'papers'), { recursive: true, force: true });
 
 if (existsSync(outputDir) && fingerprint(outputDir) === fingerprint(stagedOutput)) {
   rmSync(stagedOutput, { recursive: true, force: true });

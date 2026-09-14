@@ -12,6 +12,7 @@ fn main() {
             "data_mutate",
             "import_shared_paper",
             "blob_import",
+            "blob_cache",
             "blob_read",
             "blob_ensure",
             "local_clear_data",

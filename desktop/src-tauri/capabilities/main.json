@@ -14,6 +14,7 @@
     "allow-data-mutate",
     "allow-import-shared-paper",
     "allow-blob-import",
+    "allow-blob-cache",
     "allow-blob-read",
     "allow-blob-ensure",
     "allow-local-clear-data",

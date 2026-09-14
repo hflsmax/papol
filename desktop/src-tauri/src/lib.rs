@@ -427,6 +427,16 @@ fn blob_import(
 }
 
 #[tauri::command]
+fn blob_cache(
+    store: tauri::State<'_, data::LocalStore>,
+    expected_sha256: String,
+    bytes: Vec<u8>,
+    mime_type: Option<String>,
+) -> Result<(), String> {
+    store.import_remote_blob(&expected_sha256, &bytes, mime_type)
+}
+
+#[tauri::command]
 fn blob_read(store: tauri::State<'_, data::LocalStore>, sha256: String) -> Result<Vec<u8>, String> {
     store.read_blob(&sha256)
 }
@@ -1021,6 +1031,7 @@ pub fn run() {
             data_mutate,
             import_shared_paper,
             blob_import,
+            blob_cache,
             blob_read,
             blob_ensure,
             local_clear_data,
