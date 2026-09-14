@@ -81,12 +81,12 @@ configureNetworkFetch(async (url, options) => {
 });
 
 const {
-  boardView, hydrateNativeSyncPreference, importNativeSharedPaper,
+  boardView, configureNativeBridge, hydrateNativeSyncPreference, importNativeSharedPaper,
   isNativeSyncResult, isReportableNativeBridgeError,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
-  scheduleAutomaticNativeSync, setNativeAccount,
+  scheduleAutomaticNativeSync, setNativeAccount, subscribeNativeData,
 } = await import('../../shared/nativeData.js');
 const {
   announceRoom, callSeminar, finishRoom, joinRoom, leadRoom, leaveRoom,
@@ -406,4 +406,35 @@ test('sign-out removes only the active native account replica', async () => {
   const call = calls.find(([command]) => command === 'local_account_remove');
   assert.deepEqual(call[1], { accountUuid: ACCOUNT });
   assert.deepEqual(dispatchedEvents, ['papol-offline-status']);
+});
+
+test('native event cleanup retries Tauri registration races', async () => {
+  const stopAttempts = new Map();
+  let listenerCount = 0;
+  configureNativeBridge({
+    invoke: async () => null,
+    listen: async (eventName) => {
+      // The bridge configuration also installs its permanent sync listener.
+      const listenerId = listenerCount++;
+      if (listenerId === 0) return () => {};
+      const key = `${eventName}:${listenerId}`;
+      stopAttempts.set(key, 0);
+      return () => {
+        const attempts = stopAttempts.get(key) + 1;
+        stopAttempts.set(key, attempts);
+        if (attempts === 1) return Promise.reject(new TypeError('listener entry is pending'));
+        return Promise.resolve();
+      };
+    },
+  });
+
+  const unsubscribe = subscribeNativeData(() => {});
+  await Promise.resolve();
+  unsubscribe();
+  for (let turn = 0; turn < 4; turn += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  const subscriberAttempts = [...stopAttempts.values()];
+  assert.deepEqual(subscriberAttempts, [2, 2]);
 });

@@ -369,14 +369,25 @@ function subscribeNativeEvents(eventNames, listener) {
   const unlisteners = [];
   for (const eventName of eventNames) {
     listen(eventName, (event) => listener(event.payload)).then((stop) => {
-      if (disposed) stop();
+      if (disposed) stopNativeListener(stop);
       else unlisteners.push(stop);
     });
   }
   return () => {
     disposed = true;
-    unlisteners.splice(0).forEach((stop) => stop());
+    unlisteners.splice(0).forEach((stop) => stopNativeListener(stop));
   };
+}
+
+// Tauri 2.11 can resolve listen() before WebKit has evaluated the script that
+// installs its page-side listener entry. React Strict Mode then cleans up the
+// first mount immediately, and unlisten() rejects while looking up that entry.
+// Retrying on the next task lets the pending eval land and, importantly, lets
+// Tauri remove both the JavaScript callback and its backend listener.
+function stopNativeListener(stop, retries = 2) {
+  Promise.resolve().then(stop).catch(() => {
+    if (retries > 0) setTimeout(() => stopNativeListener(stop, retries - 1), 0);
+  });
 }
 
 // A PDF opened from the file system, read from where it lies on disk.
