@@ -101,10 +101,24 @@ Build the production-backed application bundle and DMG with:
 `macos build` is an alias. Production builds run all tests and native lints by
 default; use `--no-check` only when iterating locally. `--universal` installs
 both Rust macOS targets and produces one Apple Silicon/Intel application.
-Local builds are ad-hoc signed, while tagged CI builds use the configured
-Developer ID identity and notarization credentials. Repeated local builds
-reuse an unchanged web payload and its matching DMG; changing application
-contents invalidates those caches automatically.
+Local builds are ad-hoc signed unless the repository root contains an ignored,
+owner-only `.env.macos-notarization` file. With that file, `deploy.sh` signs,
+notarizes, and validates the app in one build pass. Its contents are shell
+assignments:
+
+```sh
+APPLE_SIGNING_IDENTITY='Developer ID Application: Name (TEAMID)'
+APPLE_ID='developer@example.com'
+APPLE_PASSWORD='app-specific-password'
+APPLE_TEAM_ID='TEAMID'
+```
+
+Run `chmod 600 .env.macos-notarization` after creating it. App Store Connect
+Team API credentials (`APPLE_API_ISSUER`, `APPLE_API_KEY`, and
+`APPLE_API_KEY_PATH`) can replace the Apple ID authentication trio. Repeated
+ad-hoc local builds reuse an unchanged web payload and its matching DMG;
+notarized builds deliberately bypass that cache so an older ad-hoc artifact
+cannot be reused.
 
 The lower-level commands remain available from `desktop/` as `npm run dev`,
 `npm run build:web`, and `npm run build`.

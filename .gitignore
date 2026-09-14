@@ -23,6 +23,7 @@ nohup.out
 # Local environment. .env holds settings and secrets; .direnv is direnv's
 # cache of the nix shell.
 .env
+.env.macos-notarization
 .direnv/
 result
 result-*

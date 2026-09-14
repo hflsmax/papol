@@ -9,6 +9,7 @@
 #                  [--backend URL] (default: http://127.0.0.1:8000)
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
 #                  [--backend URL] [--universal] [--no-check]
+#                  loads .env.macos-notarization when present
 #
 # Code goes up with `prod`. Data never goes from development to production;
 # `pull` explicitly replaces development's database with production's.
@@ -108,6 +109,61 @@ build_tree() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "$1 is required for macOS desktop development"
+}
+
+# A local, ignored credential file lets a developer opt into Developer ID
+# signing and notarization without putting secrets in this script, shell
+# history, or the repository. Values already exported by the caller take the
+# same path; the file is simply a convenient persistent source for them.
+MACOS_NOTARIZING=no
+load_macos_notarization() {
+  local credentials_file permissions had_allexport=no
+  credentials_file="${PAPOL_NOTARIZATION_ENV_FILE:-$DEV_DIR/.env.macos-notarization}"
+
+  if [ -e "$credentials_file" ]; then
+    [ -f "$credentials_file" ] || die "macOS notarization credentials are not a regular file: $credentials_file"
+    permissions=$(/usr/bin/stat -f '%Lp' "$credentials_file")
+    case "$permissions" in
+      ?00) ;;
+      *) die "macOS notarization credentials must not be readable by other users:
+        chmod 600 $credentials_file" ;;
+    esac
+
+    case $- in *a*) had_allexport=yes ;; esac
+    set -a
+    # shellcheck disable=SC1090
+    if ! source "$credentials_file"; then
+      [ "$had_allexport" = yes ] || set +a
+      die "could not load macOS notarization credentials from $credentials_file"
+    fi
+    [ "$had_allexport" = yes ] || set +a
+  fi
+
+  # No real signing identity means the existing ad-hoc local build. Supplying
+  # any notarization credential without an identity is almost certainly a
+  # configuration mistake, so fail instead of silently producing that build.
+  if [ -z "${APPLE_SIGNING_IDENTITY:-}" ] || [ "$APPLE_SIGNING_IDENTITY" = - ]; then
+    if [ -n "${APPLE_ID:-}${APPLE_PASSWORD:-}${APPLE_TEAM_ID:-}${APPLE_API_ISSUER:-}${APPLE_API_KEY:-}${APPLE_API_KEY_PATH:-}" ]; then
+      die "notarization credentials were supplied without APPLE_SIGNING_IDENTITY"
+    fi
+    export APPLE_SIGNING_IDENTITY=-
+    return 0
+  fi
+
+  if [ -n "${APPLE_ID:-}${APPLE_PASSWORD:-}${APPLE_TEAM_ID:-}" ]; then
+    [ -n "${APPLE_ID:-}" ] || die "APPLE_ID is missing from $credentials_file"
+    [ -n "${APPLE_PASSWORD:-}" ] || die "APPLE_PASSWORD is missing from $credentials_file"
+    [ -n "${APPLE_TEAM_ID:-}" ] || die "APPLE_TEAM_ID is missing from $credentials_file"
+    MACOS_NOTARIZING=yes
+  elif [ -n "${APPLE_API_ISSUER:-}${APPLE_API_KEY:-}${APPLE_API_KEY_PATH:-}" ]; then
+    [ -n "${APPLE_API_ISSUER:-}" ] || die "APPLE_API_ISSUER is missing from $credentials_file"
+    [ -n "${APPLE_API_KEY:-}" ] || die "APPLE_API_KEY is missing from $credentials_file"
+    [ -n "${APPLE_API_KEY_PATH:-}" ] || die "APPLE_API_KEY_PATH is missing from $credentials_file"
+    [ -f "$APPLE_API_KEY_PATH" ] || die "APPLE_API_KEY_PATH does not exist: $APPLE_API_KEY_PATH"
+    MACOS_NOTARIZING=yes
+  elif [ -e "$credentials_file" ]; then
+    die "notarization authentication is missing from $credentials_file"
+  fi
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -432,6 +488,7 @@ macos_prod() {
   done
   valid_backend "$backend"
   prepare_macos
+  load_macos_notarization
 
   if [ "$checks" = yes ]; then
     say "Testing the macOS application"
@@ -439,7 +496,13 @@ macos_prod() {
   fi
 
   local -a args
-  args=(--bundles app)
+  if [ "$MACOS_NOTARIZING" = yes ]; then
+    # Build both outputs together. Tauri signs, submits, waits, and staples in
+    # this pass; a second bundle pass would submit the same app twice.
+    args=(--bundles app,dmg)
+  else
+    args=(--bundles app)
+  fi
   if [ "$universal" = yes ]; then
     require_command rustup
     say "Preparing universal macOS targets"
@@ -454,6 +517,7 @@ macos_prod() {
   say "Building Papol for macOS"
   note "backend: $backend"
   [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
+  [ "$MACOS_NOTARIZING" = no ] || note "distribution: Developer ID signed and notarized"
   if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
     (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}") || {
       rm -f "$marker"
@@ -469,7 +533,12 @@ macos_prod() {
   [ -n "$app" ] || die "the build completed but no new application bundle was found"
 
   bundle_root=${app%/macos/Papol.app}
-  dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -print 2>/dev/null | head -1)
+  if [ "$MACOS_NOTARIZING" = yes ]; then
+    dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -newer "$marker" -print 2>/dev/null | head -1)
+    [ -n "$dmg" ] || die "the notarized build completed but no new DMG was found"
+  else
+    dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -print 2>/dev/null | head -1)
+  fi
   dmg_marker="$bundle_root/dmg/.papol-app.sha256"
   app_hash=$(macos_app_fingerprint "$app")
   cached_app_hash=$(sed -n '1p' "$dmg_marker" 2>/dev/null || true)
@@ -479,7 +548,9 @@ macos_prod() {
     dmg_hash=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
   fi
 
-  if [ "$app_hash" = "$cached_app_hash" ] && [ "$dmg_hash" = "$cached_dmg_hash" ]; then
+  if [ "$MACOS_NOTARIZING" = yes ]; then
+    dmg_hash=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
+  elif [ "$app_hash" = "$cached_app_hash" ] && [ "$dmg_hash" = "$cached_dmg_hash" ]; then
     note "application is unchanged — reusing the matching DMG"
   else
     say "Building Papol disk image"
@@ -509,6 +580,13 @@ macos_prod() {
   fi
   rm -f "$marker"
 
+  if [ "$MACOS_NOTARIZING" = yes ]; then
+    say "Verifying Developer ID signature and notarization ticket"
+    codesign --verify --deep --strict --verbose=2 "$app"
+    xcrun stapler validate "$app"
+    spctl --assess --type execute --verbose=2 "$app"
+  fi
+
   if [ "$checks" = yes ]; then
     say "Smoke-testing the bundled macOS web application"
     (cd "$DEV_DIR/frontend" \
@@ -533,9 +611,10 @@ Usage:
   ./deploy.sh macos prod [--backend URL] [--universal] [--no-check]
 
 `prod` and its `build` alias create an application bundle and DMG, install the
-app in /Applications, and launch it. Local builds are ad-hoc signed; tagged
-GitHub releases use Developer ID signing and notarization. Add --universal to
-build one binary for Apple Silicon and Intel.
+app in /Applications, and launch it. Local builds are ad-hoc signed unless a
+.env.macos-notarization file supplies Developer ID and notarization credentials.
+Tagged GitHub releases also sign and notarize. Add --universal to build one
+binary for Apple Silicon and Intel.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, or build)" ;;
