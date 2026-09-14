@@ -1789,12 +1789,6 @@ button.link.danger { color: var(--red); }
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg stroke='%23ffffff' stroke-width='3.4' fill='none'%3E%3Ccircle cx='13' cy='5.6' r='2.6'/%3E%3Cpath d='M13 8.4v13M8 12.4h10M6.6 16.4a7 7 0 0 0 12.8 0'/%3E%3C/g%3E%3Cg stroke='%232b4a6f' stroke-width='1.9' fill='none' stroke-linecap='round'%3E%3Ccircle cx='13' cy='5.6' r='2.6'/%3E%3Cpath d='M13 8.4v13M8 12.4h10M6.6 16.4a7 7 0 0 0 12.8 0'/%3E%3C/g%3E%3C/svg%3E") 13 4, copy;
 }
 
-/* The laser's own mark is the trail it leaves, so the cursor stays out of
-   the way: a small ring, not a shape with a body. */
-.ink-surface.tool-laser {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='5' fill='none' stroke='%23ffffff' stroke-width='3'/%3E%3Ccircle cx='12' cy='12' r='5' fill='none' stroke='%23d0342c' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='1.6' fill='%23d0342c'/%3E%3C/svg%3E") 12 12, crosshair;
-}
-
 .pin {
   position: absolute;
   /* Centred on the spot it marks. It used to hang from its ring, which put

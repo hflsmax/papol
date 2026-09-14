@@ -139,14 +139,9 @@ const INK_DEFAULTS_VERSION = '2';
 // says how big that is in pixels.
 const SAMPLE_MAX = 24;
 
-// The laser's own colour. Nothing here is ever sent anywhere: a laser
-// leaves nothing on the paper, so what it is set to is a fact about this
-// reader's browser and no more.
-const LASER_COLOR = '#d92b1f';
-
 // Which tools keep a sheet of settings under them, so that reaching for one
 // already in your hand opens it.
-const SHEETS = new Set(['brush', 'laser', 'cow']);
+const SHEETS = new Set(['brush', 'cow']);
 
 const sampleSize = (width) => {
   const tall = (width / INK_WIDTHS[INK_WIDTHS.length - 1]) * SAMPLE_MAX;
@@ -167,17 +162,16 @@ const EMPTY_INK = [];
 // what is already on the page can be picked up and moved. The rest put
 // something in their hand, and the page stops being selectable while they
 // hold it.
-// z x c v, in the order the tools sit in the bar: four keys in a row under
+// z x v c, in the order the tools sit in the bar: four keys under
 // the hand that is not holding the mouse, so switching costs nothing in
 // the middle of marking a paper up. Each carries a way to remember it, for
 // the help sheet — a shortcut nobody can recall is a shortcut nobody uses,
 // and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
   { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools' },
-  { id: 'clipper', key: 'Z', badge: '⇧Z', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper', mnemonic: 'Zoom a clipping' },
-  { id: 'brush', key: 'x', badge: 'X', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'X marks' },
+  { id: 'clipper', key: 'x', badge: 'X', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper', mnemonic: 'X crops' },
+  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'Vivid marks' },
   { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' , mnemonic: 'Clean' },
-  { id: 'laser', key: 'v', badge: 'V', label: 'Laser', hint: 'Point at something. Leaves nothing behind' , mnemonic: 'Vanishes' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
   { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' , mnemonic: 'Menagerie' },
 ];
@@ -197,7 +191,6 @@ const HELP = {
   clipper: 'Draw a rectangle to make a movable, resizable view of that part of the paper.',
   brush: 'Hold the brush mid-stroke and the line snaps straight.',
   eraser: 'Remove paint and anchors.',
-  laser: 'A laser pointer.',
   anchor: 'Click to drop an anchor. Anchors can optionally be named and carry a note.',
   cow: 'An animal that wonders.',
 };
@@ -447,8 +440,7 @@ export default function App() {
     return kept == null ? true : kept === 'true';
   });
 
-  // Their ink on this edition. The laser is not in here — it leaves
-  // nothing, which is the point of it.
+  // Their ink on this edition.
   const [ink, setInk] = useState([]);
   const [selectedInk, setSelectedInk] = useState(null);
   const [hoveredInk, setHoveredInk] = useState({ pages: new Set(), objects: EMPTY_INK });
@@ -503,8 +495,8 @@ export default function App() {
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
   const [draggingNoteUuid, setDraggingNoteUuid] = useState(null);
-  // Cows. Nowhere near the server and gone on reload, like the laser's
-  // trail: they are not a mark on the paper, they are company.
+  // Cows. Nowhere near the server and gone on reload: they are not a mark
+  // on the paper, they are company.
   const [placedAnimals, setPlacedAnimals] = useState([]);
   const notesRef = useRef(notes);
   const inkRef = useRef(ink);
@@ -541,10 +533,7 @@ export default function App() {
   const [inkShape, setInkShape] = useState(
     () => localStorage.getItem('papol_viewer_ink_shape') || INK_SHAPE
   );
-  const [laserColor, setLaserColor] = useState(
-    () => localStorage.getItem('papol_viewer_laser') || LASER_COLOR
-  );
-  // The sheet that is open, if any: 'brush', 'laser', or nothing. One at a
+  // The sheet that is open, if any: 'brush', 'cow', or nothing. One at a
   // time, because it hangs off the tool it belongs to and only one tool is
   // ever in hand.
   const [sheet, setSheet] = useState(null);
@@ -856,10 +845,6 @@ export default function App() {
     localStorage.setItem('papol_viewer_ink_shape', inkShape);
   }, [inkColor, inkWidth, inkOpacity, inkShape]);
 
-  useEffect(() => {
-    localStorage.setItem('papol_viewer_laser', laserColor);
-  }, [laserColor]);
-
   // Putting a tool down closes the sheet that belonged to it.
   useEffect(() => {
     setSheet((open) => (open === tool ? open : null));
@@ -1009,9 +994,8 @@ export default function App() {
         }
         return;
       }
-      // a and A are looked up as typed — they are two tools, not one tool
-      // and a modifier — and everything else by its lower case, so a
-      // shifted X is still the brush.
+      // Keys are looked up by their lower case, so shifted shortcuts still
+      // choose the same tool.
       // Loading the brush, while the brush is what is in hand. Digits, so
       // nothing here is a letter another tool wanted.
       if (tool === 'brush') {
@@ -3042,8 +3026,7 @@ export default function App() {
         // A tool taken with the pointer should not be left holding keyboard
         // focus. Nothing shows while the pointer is what moved, but the
         // moment a key is pressed the browser promotes that parked focus to
-        // a ring — so picking up the laser with V drew a box around the
-        // brush, which is the one thing on the bar that is *not* in hand.
+        // a ring around a tool that is no longer in hand.
         // Two selections, disagreeing. Focus that arrives by Tab is left
         // alone, so the bar is still walkable and still says where you are.
         onClick={(e) => {
@@ -3123,7 +3106,7 @@ export default function App() {
                 aria-expanded={SHEETS.has(t.id) ? sheet === t.id : undefined}
                 title={
                   t.id === 'brush'
-                    ? `${t.label} (X) — ${t.hint}. X again for colour and width`
+                    ? `${t.label} (V) — ${t.hint}. V again for colour and width`
                     : t.id === 'cow'
                       ? `${t.label} (M) — ${t.hint}. M again to choose which`
                       : `${t.label} (${t.badge}) — ${t.hint}`
@@ -3381,29 +3364,6 @@ export default function App() {
                 </div>
               )}
 
-              {t.id === 'laser' && sheet === 'laser' && (
-                <div className="brush-pop" role="group" aria-label="The laser">
-                  <span className="brush-label">Colour</span>
-                  <div className="swatches">
-                    {INK_COLORS.map((c, i2) => (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        className={`swatch${c.hex === laserColor ? ' on' : ''}`}
-                        style={{ '--swatch': c.hex }}
-                        aria-pressed={c.hex === laserColor}
-                        aria-label={c.name}
-                        title={`${c.name} (${i2 + 1})`}
-                        onClick={() => setLaserColor(c.hex)}
-                      />
-                    ))}
-                  </div>
-
-                  <p className="brush-tip">
-                    Try holding shift while pressing.
-                  </p>
-                </div>
-              )}
             </span>
           ))}
         </span>
@@ -3691,7 +3651,6 @@ export default function App() {
               inkWidth={inkWidth}
               inkOpacity={inkOpacity}
               inkShape={inkShape}
-              laserColor={laserColor}
               onDrawStroke={pageDrawStroke}
               onSelectInk={pageSelectInk}
               onHoverInkObjects={pageHoverInk}

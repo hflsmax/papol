@@ -101,19 +101,6 @@ function EraserTool() {
   );
 }
 
-function LaserTool() {
-  return (
-    <>
-      <circle cx="12" cy="12" r="3.4" fill="currentColor" />
-      {/* Pointing at something, rather than sitting on it. */}
-      <path
-        fill="currentColor"
-        d="M11 2h2v4h-2zM11 18h2v4h-2zM2 11h4v2H2zM18 11h4v2h-4z"
-      />
-    </>
-  );
-}
-
 function AnchorTool() {
   return <AnchorPath />;
 }
@@ -336,7 +323,6 @@ const TOOL_GLYPHS = {
   clipper: ClipperTool,
   brush: BrushTool,
   eraser: EraserTool,
-  laser: LaserTool,
   anchor: AnchorTool,
   cow: AnimalTool,
 };
