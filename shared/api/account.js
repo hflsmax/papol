@@ -20,6 +20,16 @@ export function getToken() {
 export function setToken(token, accountUuid = null) {
   return storeCredential(token, accountUuid);
 }
+
+// Papol Desktop treats the local replica as the startup identity. Reading it
+// is deliberately separate from getMe(): the server may refresh network
+// authorization after the shell is visible, but it does not grant permission
+// to show the owner of this computer their local nook.
+export async function getStartupUser() {
+  if (!IS_DESKTOP || !nativeDataActive()) return null;
+  return nativeRepository.account();
+}
+
 async function desktopAuthRequest(requester) {
   if (!IS_DESKTOP) return requester(undefined);
   try {
@@ -112,6 +122,20 @@ export async function getMe() {
   return user;
 }
 
+export async function refreshStartupUser(localUser) {
+  try {
+    return await getMe();
+  } catch (error) {
+    const rejected = error?.status === 401 || error?.status === 403;
+    if (!IS_DESKTOP || !nativeDataActive() || !rejected) throw error;
+    // A rejected server credential removes network access, not the identity
+    // and local work stored on this computer. Reauthentication can restore
+    // remote operations without tearing down the local shell.
+    await setToken(null);
+    return localUser || nativeRepository.account();
+  }
+}
+
 export async function updateProfile(data) {
   const user = await jsonRequest('/auth/profile', 'PUT', data);
   await prepareNativeAccount(user);
@@ -181,4 +205,3 @@ export function changePassword(currentPassword, newPassword) {
     new_password: newPassword,
   });
 }
-

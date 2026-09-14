@@ -9,6 +9,15 @@ and data without loading the hosted frontend.
 
 ## Offline use
 
+### Startup identity
+
+Papol Desktop treats the local account on this computer as the reader's
+identity. It loads that profile from SQLite before mounting the application and
+renders the local nook without waiting for the backend. Server authentication
+and synchronization happen afterward in the background. An expired credential
+removes network access but does not remove the local identity or its data;
+explicit sign-out or account switching is the identity boundary.
+
 The user's boards, nook, papers, notes, ink, clips, tags, and shelves are stored
 in a Rust-owned SQLite database under Tauri's application data directory.
 Files use content-addressed SHA-256 names in a `blobs` directory beside that

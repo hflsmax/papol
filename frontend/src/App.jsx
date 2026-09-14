@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  getMe, getToken, setToken, logout, pendingLocalChanges,
+  getMe, getStartupUser, getToken, setToken, logout, pendingLocalChanges,
+  refreshStartupUser,
 } from '../../shared/api/account.js';
 import { getNotifications } from '../../shared/api/notifications.js';
 import { updatePaper } from '../../shared/api/papers.js';
@@ -126,9 +127,12 @@ function LibraryFileDropFeedback({ state, message, opensViewer = false }) {
   </>;
 }
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
+export default function App({ startupUser = null }) {
+  const [user, setUser] = useState(startupUser);
+  // Desktop hydrates its trusted local account before React mounts. On the
+  // web, a visitor with no token is already known to be a guest. Only a web
+  // credential or a first desktop sign-in still needs to gate the shell.
+  const [authChecked, setAuthChecked] = useState(() => Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -150,6 +154,27 @@ export default function App() {
   // otherwise a real authenticated reader wins; guest is only the public
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
+
+  const restoreRealUser = async () => {
+    const localUser = await getStartupUser().catch(() => null);
+    if (localUser) {
+      setUser(localUser);
+      if (getToken()) {
+        refreshStartupUser(localUser).then(setUser).catch(() => {});
+      }
+      return;
+    }
+    if (!getToken()) {
+      setUser(null);
+      return;
+    }
+    try {
+      setUser(await getMe());
+    } catch {
+      await setToken(null);
+      setUser(null);
+    }
+  };
 
   useEffect(() => {
     const importIntoLibrary = mode === 'signed-in';
@@ -244,16 +269,7 @@ export default function App() {
         setUser(await getMe());
       } else if (!next.demo && route.demo) {
         exitDemo();
-        if (getToken()) {
-          try {
-            setUser(await getMe());
-          } catch {
-            await setToken(null);
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-        }
+        await restoreRealUser();
       }
       setRoute(next);
     };
@@ -271,6 +287,14 @@ export default function App() {
       return;
     }
     exitDemo();
+    if (startupUser) {
+      // The local desktop identity is already on screen. Server auth now
+      // refreshes network capability and profile data in the background.
+      if (getToken()) {
+        refreshStartupUser(startupUser).then(setUser).catch(() => {});
+      }
+      return;
+    }
     if (initialRoute.page === 'paper') {
       if (getToken()) {
         getMe().then(setUser).catch(() => setToken(null)).finally(() => setAuthChecked(true));
@@ -363,12 +387,7 @@ export default function App() {
     window.history.replaceState(null, '', appPath('/'));
     setRoute(parseRoute());
     exitDemo();
-    try {
-      setUser(await getMe());
-    } catch {
-      await setToken(null);
-      setUser(null);
-    }
+    await restoreRealUser();
   };
 
   const handleDemo = () => {
