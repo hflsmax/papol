@@ -834,10 +834,14 @@ export function DesktopBrowser({
                     <span className="desktop-row-meta">
                       {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                     </span>
-                    <span className="desktop-row-sub">
-                      {[paper.journal, libraryView && readers ? `${readers} ${readers === 1 ? 'reader' : 'readers'}` : null]
-                        .filter(Boolean).join(' · ')}
-                    </span>
+                    {paper.journal && (
+                      <span className="desktop-row-sub">{paper.journal}</span>
+                    )}
+                    {libraryView && readers > 0 && (
+                      <span className="desktop-row-sub">
+                        {readers} {readers === 1 ? 'reader' : 'readers'}
+                      </span>
+                    )}
                   </span>
                   {/* A label here, not the explainer button: a button inside
                       the row's link would be a control inside a control. */}
