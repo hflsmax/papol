@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-diagnostic-recent"
+description = "Enables the diagnostic_recent command without any pre-configured scope."
+commands.allow = ["diagnostic_recent"]
+
+[[permission]]
+identifier = "deny-diagnostic-recent"
+description = "Denies the diagnostic_recent command without any pre-configured scope."
+commands.deny = ["diagnostic_recent"]

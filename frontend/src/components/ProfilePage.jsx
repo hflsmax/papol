@@ -15,8 +15,8 @@ import {
 } from '../../../shared/connectivity.js';
 import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
-  openNativeStorageInFinder, pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData,
-  subscribeNativeSyncProgress, syncAllNow,
+  openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
+  persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress, syncAllNow,
 } from '../../../shared/nativeData.js';
 
 const SYNC_PHASES = {
@@ -156,6 +156,15 @@ function LocalDeviceSettings({ onSynced }) {
     }
   };
 
+  const openLogs = async () => {
+    setStorageError(null);
+    try {
+      await openDiagnosticLogsInFinder();
+    } catch (failure) {
+      setStorageError(String(failure?.message ?? failure));
+    }
+  };
+
   return (
     <div className="panel local-settings-panel">
       <h2 className="panel-title">On this Mac</h2>
@@ -219,6 +228,7 @@ function LocalDeviceSettings({ onSynced }) {
             {storageError && <div className="local-storage-totals error">{storageError}</div>}
           </div>
           <div className="local-storage-actions">
+            {MAC && <button type="button" onClick={openLogs}>Open logs</button>}
             {MAC && <button type="button" onClick={openStorage}>Open in Finder</button>}
             <button
               type="button"

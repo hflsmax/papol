@@ -46,6 +46,21 @@ function announceNativeSyncState() {
   window.dispatchEvent(new Event('papol-offline-status'));
 }
 
+export function recordDiagnosticEvent({ level = 'info', component, event, message = null, fields = null }) {
+  if (!IS_DESKTOP) return Promise.resolve();
+  return invoke('diagnostic_log', { level, component, event, message, fields }).catch(() => {});
+}
+
+export function recentDiagnosticEvents(limit = 80) {
+  if (!IS_DESKTOP) return Promise.resolve([]);
+  return invoke('diagnostic_recent', { limit });
+}
+
+export function openDiagnosticLogsInFinder() {
+  if (!IS_DESKTOP) return Promise.resolve();
+  return invoke('open_diagnostic_logs');
+}
+
 // Native events are attached asynchronously. Keeping the lifecycle here as
 // well lets a screen mounted immediately after sign-in know that the initial
 // sync is already running, even if it missed the first Tauri event.
@@ -88,13 +103,37 @@ export function nativeDataActive() {
 async function nativeQuery(queryName, parameters = {}) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
-  return invoke('data_query', { accountUuid, queryName, parameters });
+  try {
+    return await invoke('data_query', { accountUuid, queryName, parameters });
+  } catch (error) {
+    void recordDiagnosticEvent({
+      level: 'error', component: 'native_data', event: 'query_failed',
+      message: error?.message || String(error),
+      fields: { operation: queryName },
+    });
+    throw error;
+  }
 }
 
 async function nativeMutate(changes) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
-  const receipt = await invoke('data_mutate', { accountUuid, changes });
+  const started = Date.now();
+  let receipt;
+  try {
+    receipt = await invoke('data_mutate', { accountUuid, changes });
+  } catch (error) {
+    void recordDiagnosticEvent({
+      level: 'error', component: 'native_data', event: 'mutation_failed',
+      message: error?.message || String(error),
+      fields: { operation: 'data_mutate', total: changes.length },
+    });
+    throw error;
+  }
+  void recordDiagnosticEvent({
+    component: 'native_data', event: 'mutation_committed',
+    fields: { duration_ms: Date.now() - started, total: changes.length },
+  });
   window.dispatchEvent(new Event('papol-offline-status'));
   if (getLocalSyncPreference() === 'automatic') scheduleNativeSync();
   return receipt;

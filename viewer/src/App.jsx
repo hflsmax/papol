@@ -15,8 +15,9 @@ import {
 import { resolveSource, getToken } from './source';
 import { appPath, backendPath } from './base';
 import {
-  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, requestSignIn,
+  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents, requestSignIn,
 } from '../../shared/nativeData.js';
+import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/diagnosticLog.js';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
 import {
@@ -498,6 +499,15 @@ export default function App() {
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackError, setFeedbackError] = useState(null);
+  const [feedbackLog, setFeedbackLog] = useState('');
+  const [feedbackIncludeLog, setFeedbackIncludeLog] = useState(true);
+
+  useEffect(() => {
+    if (!feedbackOpen) return;
+    recentDiagnosticEvents(40)
+      .then((events) => setFeedbackLog(diagnosticLogExcerpt(events)))
+      .catch(() => {});
+  }, [feedbackOpen]);
   // The anchor being carried across the page, so its row in the rail can
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
@@ -2881,9 +2891,13 @@ export default function App() {
     setFeedbackError(null);
     try {
       await submitFeedback({
-        content: feedbackContent.trim(),
+        content: feedbackWithDiagnosticLog(
+          feedbackContent,
+          feedbackIncludeLog ? feedbackLog : '',
+          appLimits.text.feedback,
+        ),
         // Where the reporter was standing, so an admin can retrace it.
-        page: window.location.href,
+        page: window.location.pathname || '/viewer/',
         contact: null,
       });
       setFeedbackSent(true);
@@ -3889,13 +3903,30 @@ export default function App() {
                     </label>
                     <textarea
                       rows="5"
-                      maxLength={appLimits.text.comment}
+                      maxLength={appLimits.text.feedback}
                       value={feedbackContent}
                       onChange={(e) => setFeedbackContent(e.target.value)}
                       placeholder="I clicked … and the page …, or: it would help if …"
                       autoFocus
                     />
                   </div>
+
+                  {feedbackLog && (
+                    <div className="feedback-diagnostics">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={feedbackIncludeLog}
+                          onChange={(event) => setFeedbackIncludeLog(event.target.checked)}
+                        />
+                        Include recent diagnostic events
+                      </label>
+                      <details>
+                        <summary>Review diagnostic log</summary>
+                        <pre>{feedbackLog}</pre>
+                      </details>
+                    </div>
+                  )}
 
                   {feedbackError && <p className="feedback-error">{feedbackError}</p>}
 

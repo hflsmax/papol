@@ -1584,6 +1584,31 @@ button.link.danger { color: var(--red); }
   color: var(--red);
 }
 
+.feedback-diagnostics {
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+  font: var(--fs-sm)/1.4 var(--font-ui);
+}
+
+.feedback-diagnostics > label { display: flex; align-items: center; gap: 7px; }
+.feedback-diagnostics input { width: auto; margin: 0; }
+.feedback-diagnostics details { margin-top: 8px; }
+.feedback-diagnostics summary { cursor: pointer; }
+.feedback-diagnostics pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  color: var(--ink-soft);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
 .feedback-actions {
   display: flex;
   justify-content: flex-end;

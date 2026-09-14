@@ -30,7 +30,10 @@ import { appPath, stripAppBase } from './base';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
-import { openDroppedPdf, subscribeShowPaperRequests, subscribeSignInRequests } from '../../shared/nativeData.js';
+import {
+  openDroppedPdf, recordDiagnosticEvent, subscribeShowPaperRequests, subscribeSignInRequests,
+} from '../../shared/nativeData.js';
+import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
 
 function parseRoute() {
   const rawPath = stripAppBase(window.location.pathname || '/');
@@ -127,7 +130,7 @@ function LibraryFileDropFeedback({ state, message, opensViewer = false }) {
   </>;
 }
 
-export default function App({ startupUser = null }) {
+export default function App({ startupUser = null, startupError = null }) {
   const [user, setUser] = useState(startupUser);
   // Desktop hydrates its trusted local account before React mounts. On the
   // web, a visitor with no token is already known to be a guest. Only a web
@@ -135,12 +138,13 @@ export default function App({ startupUser = null }) {
   const [authChecked, setAuthChecked] = useState(() => Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackRequest, setFeedbackRequest] = useState(null);
   const [libraryFileDrag, setLibraryFileDrag] = useState(null);
   const [libraryDropNotice, setLibraryDropNotice] = useState(null);
   const [incomingPaperFile, setIncomingPaperFile] = useState(null);
   const libraryDragDepth = useRef(0);
   const libraryDropNoticeTimer = useRef(null);
+  const offeredErrorReports = useRef(new Set());
   // The welcome modal greets every fresh demo visit. Returning from its
   // viewer is still the same visit, so consume the viewer's one-shot marker
   // rather than greeting the reader again after the full-page transition.
@@ -154,6 +158,40 @@ export default function App({ startupUser = null }) {
   // otherwise a real authenticated reader wins; guest is only the public
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
+
+  useEffect(() => {
+    if (!DESKTOP) return undefined;
+    const offer = (error, area) => {
+      const report = unexpectedDesktopErrorReport(error, area, {
+        surface: window.__PAPOL_ENV__?.surface,
+        platform: navigator.platform,
+      });
+      if (offeredErrorReports.current.has(report.signature)) return;
+      offeredErrorReports.current.add(report.signature);
+      void recordDiagnosticEvent({
+        level: 'error', component: 'frontend', event: 'unexpected_error',
+        message: error?.message || String(error),
+        fields: { error_type: error?.name || typeof error, operation: area },
+      });
+      setFeedbackRequest((current) => current || ({
+        key: `error:${report.signature}`,
+        content: report.content,
+        reportError: true,
+      }));
+    };
+    if (startupError) offer(startupError, 'desktop startup');
+    void recordDiagnosticEvent({
+      component: 'frontend', event: 'mounted', fields: { surface: 'main' },
+    });
+    const onError = (event) => offer(event.error || event.message, 'JavaScript runtime');
+    const onRejection = (event) => offer(event.reason, 'unhandled promise');
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, []);
 
   const restoreRealUser = async () => {
     const localUser = await getStartupUser().catch(() => null);
@@ -551,12 +589,15 @@ export default function App({ startupUser = null }) {
     </div>
   );
 
-  const feedbackDialog = feedbackOpen && (
+  const feedbackDialog = feedbackRequest && (
     <FeedbackDialog
+      key={feedbackRequest.key}
       // A demo visitor with no real token is a stranger to the backend,
       // so the dialog asks them for an address to reply to.
       currentUser={getToken() ? user : null}
-      onClose={() => setFeedbackOpen(false)}
+      initialContent={feedbackRequest.content}
+      reportError={feedbackRequest.reportError}
+      onClose={() => setFeedbackRequest(null)}
     />
   );
 
@@ -704,10 +745,15 @@ export default function App({ startupUser = null }) {
             groups={desktopGroups}
             user={user}
             profileActive={route.page === 'profile'}
-            onFeedback={() => setFeedbackOpen(true)}
+            onFeedback={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
             onManageNook={nook.space ? () => setManagingNook(true) : undefined}
             onMovePaper={nook.space ? movePaperToShelf : undefined}
             onNavigate={navigate}
+            onReportableError={(report) => setFeedbackRequest((current) => current || ({
+              key: `error:${report.signature}`,
+              content: report.content,
+              reportError: true,
+            }))}
             onSync={() => {
               nook.reload();
               setSyncRefresh((revision) => revision + 1);
@@ -751,7 +797,7 @@ export default function App({ startupUser = null }) {
       <button
         type="button"
         className="feedback-fab"
-        onClick={() => setFeedbackOpen(true)}
+        onClick={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
         title="Report a bug or ask for a feature"
       >
         Feedback

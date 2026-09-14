@@ -45,9 +45,19 @@ all owned edits local until Sync is chosen. Automatic mode synchronizes after
 an edit, at sign-in/startup, when connectivity returns, and when the app comes
 back to the foreground. A first sign-in and data not previously opened still
 require a connection. Permanent validation failures remain visible as blocked
-recovery records without freezing unrelated later work. Settings can save a
-portable recovery ZIP with queued mutations, current affected rows, conflict
-details, and unsynchronized files.
+recovery records without freezing unrelated later work. Papol offers to send
+the developer a user-reviewed diagnostic report for these failures, local
+database/IPC failures, and unexpected runtime errors. Reports contain bounded,
+redacted operational details rather than credentials or document content.
+Settings can save a portable recovery ZIP with queued mutations, current
+affected rows, conflict details, and unsynchronized files.
+
+Desktop diagnostic events are JSON Lines records in the application data
+directory. The native logger keeps four files of at most 1 MiB each and accepts
+only bounded identifiers, messages, and an allowlist of scalar metadata. It
+redacts macOS user-directory paths and bearer credentials before writing. The
+feedback dialog previews a bounded recent excerpt and lets the reader exclude
+it before sending; **Open logs** in Settings reveals the local files in Finder.
 
 ## Opening PDFs from the system
 

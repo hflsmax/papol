@@ -541,7 +541,9 @@ async fn http_error(response: reqwest::Response) -> SyncFailure {
 fn classify_status(status: u16) -> FailureKind {
     match status {
         401 => FailureKind::Authentication,
-        400 | 403 | 404 | 409 | 422 => FailureKind::Permanent,
+        // A payload rejected for size will not become valid by retrying it.
+        // Block that one mutation so unrelated work can continue syncing.
+        400 | 403 | 404 | 409 | 413 | 422 => FailureKind::Permanent,
         _ => FailureKind::Transient,
     }
 }
@@ -613,6 +615,7 @@ mod tests {
         assert_eq!(FailureKind::Permanent, classify_status(403));
         assert_eq!(FailureKind::Authentication, classify_status(401));
         assert_eq!(FailureKind::Permanent, classify_status(409));
+        assert_eq!(FailureKind::Permanent, classify_status(413));
         assert_eq!(FailureKind::Transient, classify_status(503));
     }
 

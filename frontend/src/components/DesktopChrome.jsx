@@ -10,7 +10,11 @@ import {
 } from '../../../shared/connectivity.js';
 import {
   nativeDataActive, nativeRepository, subscribeNativeData, syncAllNow,
+  recordDiagnosticEvent,
 } from '../../../shared/nativeData.js';
+import {
+  unexpectedDesktopErrorReport, unrecoverableSyncReport,
+} from '../syncDiagnostics.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol Desktop (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -112,16 +116,31 @@ function ItemMark({ item }) {
   return <Glyph name={item.glyph} />;
 }
 
-function SyncControl({ onSynced }) {
+function SyncControl({ onReportableError, onSynced }) {
   const [status, setStatus] = useState(getSyncStatus);
+  const reportedErrors = useRef(new Set());
 
   useEffect(() => {
     let nativeSyncing = false;
+    const offer = (report) => {
+      if (!report || reportedErrors.current.has(report.signature)) return;
+      reportedErrors.current.add(report.signature);
+      void recordDiagnosticEvent({
+        level: 'error', component: 'sync', event: 'reportable_error',
+        message: report.content,
+      });
+      onReportableError?.(report);
+    };
     const update = async () => {
       const web = getSyncStatus();
       if (!nativeDataActive()) { setStatus(web); return; }
       try {
         const local = await nativeRepository.syncStatus();
+        const report = unrecoverableSyncReport(local, {
+          surface: window.__PAPOL_ENV__?.surface,
+          platform: navigator.platform,
+        });
+        offer(report);
         setStatus({
           ...web,
           syncing: web.syncing || nativeSyncing,
@@ -130,7 +149,13 @@ function SyncControl({ onSynced }) {
           conflicts: local.conflicts || 0,
           lastSynced: local.last_synced_at || web.lastSynced,
         });
-      } catch { setStatus({ ...web, syncing: web.syncing || nativeSyncing }); }
+      } catch (error) {
+        setStatus({ ...web, syncing: web.syncing || nativeSyncing });
+        offer(unexpectedDesktopErrorReport(error, 'reading native sync status', {
+          surface: window.__PAPOL_ENV__?.surface,
+          platform: navigator.platform,
+        }));
+      }
     };
     window.addEventListener('papol-offline-status', update);
     const unsubscribeNative = subscribeNativeData((nativeStatus) => {
@@ -190,7 +215,7 @@ function SyncControl({ onSynced }) {
   );
 }
 
-export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onSync, notice }) {
+export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onReportableError, onSync, notice }) {
   const [dropKey, setDropKey] = useState(null);
   const openPath = (path) => onNavigate ? onNavigate(path) : window.location.assign(appPath(path));
 
@@ -297,7 +322,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
               <Avatar user={user} className="desktop-sidebar-avatar" />
               <span className="desktop-sidebar-text">{user.display_name}</span>
             </a>
-            <SyncControl onSynced={onSync} />
+            <SyncControl onReportableError={onReportableError} onSynced={onSync} />
           </div>
         )}
       </div>

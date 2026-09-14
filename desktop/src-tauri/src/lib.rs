@@ -8,6 +8,7 @@ use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
 
 pub mod data;
+mod diagnostics;
 mod limits;
 pub mod sync;
 
@@ -514,12 +515,15 @@ async fn sync_now(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     coordinator: tauri::State<'_, sync::Coordinator>,
+    diagnostic_log: tauri::State<'_, diagnostics::DiagnosticLog>,
     account_uuid: String,
     backend_url: String,
     token: String,
 ) -> Result<sync::SyncResult, String> {
     use tauri::Emitter;
 
+    let started = std::time::Instant::now();
+    let _ = diagnostic_log.record("info", "sync", "started", None, None);
     if ACTIVE_SYNCS.fetch_add(1, Ordering::SeqCst) == 0 {
         let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": true}));
     }
@@ -535,6 +539,20 @@ async fn sync_now(
     }
     match &result {
         Ok(status) => {
+            let _ = diagnostic_log.record(
+                "info",
+                "sync",
+                "completed",
+                None,
+                Some(&serde_json::Map::from_iter([
+                    (
+                        "duration_ms".into(),
+                        serde_json::json!(started.elapsed().as_millis()),
+                    ),
+                    ("pushed".into(), serde_json::json!(status.pushed)),
+                    ("pulled".into(), serde_json::json!(status.pulled)),
+                ])),
+            );
             let _ = app.emit(
                 "papol://data-changed",
                 serde_json::json!({"scope": "synchronized-data"}),
@@ -542,6 +560,16 @@ async fn sync_now(
             let _ = app.emit("papol://sync-status", status);
         }
         Err(error) => {
+            let _ = diagnostic_log.record(
+                "error",
+                "sync",
+                "failed",
+                Some(error),
+                Some(&serde_json::Map::from_iter([(
+                    "duration_ms".into(),
+                    serde_json::json!(started.elapsed().as_millis()),
+                )])),
+            );
             let _ = store.record_sync_error(&account_uuid, error);
             let _ = app.emit("papol://sync-status", serde_json::json!({"error": error}));
         }
@@ -620,6 +648,53 @@ fn open_storage_in_finder(app: tauri::AppHandle) -> Result<(), String> {
     {
         let _ = data_directory;
         Err("Opening Papol storage in Finder is available only on macOS".into())
+    }
+}
+
+#[tauri::command]
+fn diagnostic_log(
+    log: tauri::State<'_, diagnostics::DiagnosticLog>,
+    level: String,
+    component: String,
+    event: String,
+    message: Option<String>,
+    fields: Option<serde_json::Map<String, serde_json::Value>>,
+) -> Result<(), String> {
+    log.record(
+        &level,
+        &component,
+        &event,
+        message.as_deref(),
+        fields.as_ref(),
+    )
+}
+
+#[tauri::command]
+fn diagnostic_recent(
+    log: tauri::State<'_, diagnostics::DiagnosticLog>,
+    limit: Option<usize>,
+) -> Result<Vec<serde_json::Value>, String> {
+    log.recent(limit.unwrap_or(80))
+}
+
+#[tauri::command]
+fn open_diagnostic_logs(log: tauri::State<'_, diagnostics::DiagnosticLog>) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .arg(log.directory())
+            .status()
+            .map_err(|error| format!("Could not open Finder: {error}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("Finder could not open Papol’s diagnostic logs".into())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = log;
+        Err("Opening Papol logs in Finder is available only on macOS".into())
     }
 }
 struct DocumentWindow {
@@ -868,6 +943,9 @@ pub fn run() {
             close_document_window,
             focus_library_window,
             open_storage_in_finder,
+            diagnostic_log,
+            diagnostic_recent,
+            open_diagnostic_logs,
             open_document_window,
             data_query,
             data_mutate,
@@ -896,8 +974,46 @@ pub fn run() {
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_directory)?;
-            let store = data::LocalStore::open(&data_directory.join("papol.sqlite3"))
-                .map_err(std::io::Error::other)?;
+            let diagnostic_log = diagnostics::DiagnosticLog::new(&data_directory);
+            let _ = diagnostic_log.record(
+                "info",
+                "native",
+                "app_started",
+                None,
+                Some(&serde_json::Map::from_iter([
+                    ("operation".into(), serde_json::json!("startup")),
+                    ("surface".into(), serde_json::json!("main")),
+                    (
+                        "version".into(),
+                        serde_json::json!(env!("CARGO_PKG_VERSION")),
+                    ),
+                ])),
+            );
+            app.manage(diagnostic_log);
+            let store =
+                data::LocalStore::open(&data_directory.join("papol.sqlite3")).map_err(|error| {
+                    let _ = app.state::<diagnostics::DiagnosticLog>().record(
+                        "error",
+                        "native",
+                        "database_startup_failed",
+                        Some(&error),
+                        Some(&serde_json::Map::from_iter([(
+                            "operation".into(),
+                            serde_json::json!("open_database"),
+                        )])),
+                    );
+                    std::io::Error::other(error)
+                })?;
+            let _ = app.state::<diagnostics::DiagnosticLog>().record(
+                "info",
+                "native",
+                "database_ready",
+                None,
+                Some(&serde_json::Map::from_iter([(
+                    "operation".into(),
+                    serde_json::json!("migrations_complete"),
+                )])),
+            );
             app.manage(store);
             app.manage(sync::Coordinator::new().map_err(std::io::Error::other)?);
             // The window is declared in tauri.conf.json with `create: false`
