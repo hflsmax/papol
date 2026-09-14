@@ -3967,10 +3967,6 @@ export default function App() {
               reference={reference}
               error={referenceError}
               requiresNook={source?.openedFile && !paper?.edition_uuid}
-              onAddToNook={() => {
-                closeReference();
-                addToNook();
-              }}
               onClose={closeReference}
               position={openCite.index}
               count={openCite.referenceUuids.length}

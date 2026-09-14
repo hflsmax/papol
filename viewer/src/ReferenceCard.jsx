@@ -16,7 +16,7 @@ const WIDTH = 400;
 const MARGIN = 12;
 
 export default function ReferenceCard({
-  anchor, reference, error, requiresNook = false, onAddToNook, onClose,
+  anchor, reference, error, requiresNook = false, onClose,
   position = 0, count = 1, onPrevious, onNext,
 }) {
   const cardRef = useRef(null);
@@ -143,18 +143,9 @@ export default function ReferenceCard({
       </div>
 
       {requiresNook && (
-        <>
-          <p className="ref-unmatched">
-            Add this paper to your nook to enable citation lookup feature.
-          </p>
-          {onAddToNook && (
-            <div className="ref-links">
-              <button type="button" className="ref-link here" onClick={onAddToNook}>
-                Add to nook
-              </button>
-            </div>
-          )}
-        </>
+        <p className="ref-unmatched">
+          Add this paper to your nook to enable citation lookup feature.
+        </p>
       )}
 
       {waiting && <p className="ref-looking">{waitingMessage}</p>}
@@ -169,7 +160,7 @@ export default function ReferenceCard({
               target="_blank"
               rel="noreferrer"
             >
-              {status === 'pdf_text' ? 'Search for it' : 'Search now'}
+              {status === 'pdf_text' ? 'Search for it' : 'Open on Google Scholar'}
             </a>
           </div>
         </>
