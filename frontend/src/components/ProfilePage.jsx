@@ -12,7 +12,7 @@ import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import {
   getLocalSyncPreference,
   setLocalSyncPreference,
-} from '../../../shared/offlineStore';
+} from '../../../shared/connectivity.js';
 import {
   clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
   openNativeStorageInFinder, pdfViewerStatus, persistNativeSyncPreference, subscribeNativeData,

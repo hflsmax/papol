@@ -1,8 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestIndexedDb } from './testIndexedDb.js';
-
-global.indexedDB = createTestIndexedDb();
 Object.defineProperty(globalThis, 'navigator', {
   value: { onLine: true }, configurable: true, writable: true,
 });
@@ -60,7 +57,7 @@ global.Event = class Event { constructor(type) { this.type = type; } };
 
 const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
-const { enterOfflineMode, inOfflineMode } = await import('../../shared/offlineStore.js');
+const { enterOfflineMode, inOfflineMode } = await import('../../shared/connectivity.js');
 
 const {
   boardView, cacheNativeSharedPaper, hydrateNativeSyncPreference,

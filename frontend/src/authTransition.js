@@ -1,7 +1,6 @@
 export async function activateDesktopSession(result, {
-  rememberIdentity, storeToken, prepareAccount,
+  storeToken, prepareAccount,
 }) {
-  await rememberIdentity(result.token, result.user).catch(() => {});
   await storeToken(result.token, result.user.uuid);
   try {
     await prepareAccount(result.user);

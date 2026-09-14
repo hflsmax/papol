@@ -7,8 +7,8 @@ import { appPath, backendPath } from './base.js';
 import { fetch as tauriHttpFetch } from '@tauri-apps/plugin-http';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  configureNetworkFetch, configureReplayAuthorization, inOfflineMode, offlineFetch, offlinePdfUrl,
-} from '../../shared/offlineStore.js';
+  configureNetworkFetch, inOfflineMode, runtimeFetch,
+} from '../../shared/connectivity.js';
 import {
   boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
   nativeMutate, nativeQuery, nativeSyncNow, noteView, openedFileBlob, openedFileBytes,
@@ -20,10 +20,6 @@ const networkFetch = IS_DESKTOP
   ? tauriHttpFetch
   : (...args) => window.fetch(...args);
 configureNetworkFetch(networkFetch);
-configureReplayAuthorization(() => {
-  const token = currentCredential();
-  return token ? `Bearer ${token}` : null;
-});
 
 const API_BASE = backendPath('/api');
 // The edition a paper's located notes are placed on.
@@ -40,7 +36,7 @@ export function getToken() {
 
 async function request(path, options = {}) {
   const token = getToken();
-  const response = await offlineFetch(`${API_BASE}${path}`, {
+  const response = await runtimeFetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       ...(options.headers || {}),
@@ -93,7 +89,6 @@ export function getViewerPaperInfo(hash) {
 export function pdfHref(paper) {
   if (!paper?.file_path) return null;
   if (paper.file_path.startsWith('http')) return paper.file_path;
-  if (paper.file_path.startsWith('offline-file:')) return paper.file_path;
   return backendPath(`/uploads/${paper.file_path}`);
 }
 
@@ -213,13 +208,13 @@ export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], 
   return paperUuid;
 }
 
-export async function cachedPdfHref(paper) {
+export async function downloadablePdfHref(paper) {
   if (paper?.opened_file && !paper.uuid) return openedFileUrl(paper.edition_sha256);
   if (nativeDataActive()) {
     if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
     return nativeBlobUrl(paper.edition_sha256, 'application/pdf');
   }
-  return offlinePdfUrl(pdfHref(paper));
+  return pdfHref(paper);
 }
 
 // PDF.js treats a URL as a network request. macOS WebKit reports requests to
@@ -233,7 +228,7 @@ export async function pdfLoadInput(paper) {
     if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
     return { data: await nativeBlobBytes(paper.edition_sha256) };
   }
-  return { url: await offlinePdfUrl(pdfHref(paper)) };
+  return { url: pdfHref(paper) };
 }
 
 export function listBoards() {

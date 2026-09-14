@@ -2,9 +2,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  clearOfflineData, enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
-  inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference, syncOfflineQueue,
-} from '../../shared/offlineStore.js';
+  enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
+  inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference,
+} from '../../shared/connectivity.js';
 import { BACKEND_BASE, inDemo } from './base.js';
 import { currentCredential } from '../../shared/credentials.js';
 
@@ -130,17 +130,14 @@ export function openNativeStorageInFinder() {
 
 export async function clearNativeData() {
   const removed = await invoke('local_clear_data');
-  await clearOfflineData();
   window.dispatchEvent(new Event('papol-offline-status'));
   return removed;
 }
 
 export async function removeNativeAccount(accountUuid) {
   if (!IS_DESKTOP || !UUID.test(accountUuid || '')) return 0;
-  // IndexedDB is not keyed by account. Clear it in full so no response or
-  // queued request survives sign-out.
-  await clearOfflineData();
   const removed = await invoke('local_account_remove', { accountUuid });
+  window.dispatchEvent(new Event('papol-offline-status'));
   return removed;
 }
 
@@ -176,16 +173,14 @@ export async function nativeSyncNow({ manual = false } = {}) {
   }
 }
 
-// A user-initiated sync, from the sidebar or Settings: drain the IndexedDB
-// request queue first, then the native replica. Resolves to the first
-// failure message, or null.
+// A user-initiated sync reconciles the one local source of truth: SQLite.
+// Resolves to a failure message, or null.
 export async function syncAllNow() {
   exitOfflineMode();
-  const queued = await Promise.allSettled([syncOfflineQueue(undefined, { manual: true })]);
   const native = await Promise.allSettled([
     nativeDataActive() ? nativeSyncNow({ manual: true }) : Promise.resolve(),
   ]);
-  const failure = [...queued, ...native].find((result) => result.status === 'rejected');
+  const failure = native.find((result) => result.status === 'rejected');
   if (failure) {
     const detail = failure.reason?.message || String(failure.reason || 'Sync failed');
     return `${OFFLINE_MODE_MESSAGE} (${detail})`;

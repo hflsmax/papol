@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "node --test --test-concurrency=1 src/*.test.js",
-    "test:sync": "node --test --test-concurrency=1 src/offlineStore.test.js src/offlineSync.test.js",
+    "test:sync": "node --test --test-concurrency=1 src/connectivity.test.js src/nativeData.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

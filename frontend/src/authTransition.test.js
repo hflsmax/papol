@@ -10,17 +10,15 @@ const result = {
 test('the credential is visible before the native account activates', async () => {
   const calls = [];
   await activateDesktopSession(result, {
-    rememberIdentity: async () => calls.push('identity'),
     storeToken: async (token) => calls.push(token ? 'token' : 'clear'),
     prepareAccount: async () => calls.push('account'),
   });
-  assert.deepEqual(calls, ['identity', 'token', 'account']);
+  assert.deepEqual(calls, ['token', 'account']);
 });
 
 test('a failed native activation does not leave a half-signed-in credential', async () => {
   const calls = [];
   await assert.rejects(activateDesktopSession(result, {
-    rememberIdentity: async () => {},
     storeToken: async (token) => calls.push(token ? 'token' : 'clear'),
     prepareAccount: async () => { throw new Error('native failure'); },
   }), /native failure/);

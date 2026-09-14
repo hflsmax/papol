@@ -9,7 +9,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import {
-  pdfHref, cachedPdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
 import { resolveSource, getToken } from './source';
@@ -3456,7 +3456,7 @@ export default function App() {
                 if (!nativeDataActive()) return;
                 event.preventDefault();
                 const name = event.currentTarget.getAttribute('download');
-                cachedPdfHref(paper).then((href) => {
+                downloadablePdfHref(paper).then((href) => {
                   const link = document.createElement('a');
                   link.href = href;
                   link.download = name;

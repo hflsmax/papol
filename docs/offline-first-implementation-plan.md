@@ -34,7 +34,7 @@ _local_* infrastructure                       _server_* infrastructure
 7. A single Rust coordinator owns network synchronization for all Tauri windows.
 8. Ordinary tables use generic row synchronization. Only genuinely exceptional workflows get custom sync commands.
 9. No CRDT is introduced until Papol supports simultaneous editing of the same shared document.
-10. Existing IndexedDB data is retained until migration has been verified and is recoverable.
+10. HTTP is network-only; the retired IndexedDB response cache and mutation queue are not part of the application data model.
 
 ## Schema ownership
 
@@ -414,24 +414,22 @@ Exit criterion: every approved user-owned operation works across restart and syn
 Implementation status (2026-09-12): complete for the native rollout baseline.
 Blobs have unsynced/cache classes, verified downloads retained without an
 automatic size limit, reference protection, storage diagnostics, sign-out
-protection, and a portable recovery export. The legacy IndexedDB queue uses a restart-safe,
-idempotent drain-before-cutover bridge and remains intact for one rollback
-release; direct byte-for-byte database import was intentionally avoided because
-the old cache overlays are not the canonical domain schema.
+protection, and a portable recovery export. The legacy IndexedDB database is
+left physically untouched for recovery, but no runtime code reads it or treats
+it as application state.
 
 - implement unsynced/cache file classes without automatic eviction;
-- import existing IndexedDB queue and files with digest verification;
 - add diagnostics/export and unsynced-work logout protection;
 - soak-test before enabling native storage by default;
-- retain the old store for one rollback release, then remove it explicitly.
+- remove the old response cache and HTTP mutation queue explicitly.
 
 Exit criterion: upgrade from the current desktop build without losing queued edits or files, including after simulated crashes.
 
 ### Stage F — remove compatibility machinery
 
-Implementation status (2026-09-12): complete for newly created desktop work.
-Native screens no longer use response overlays or negative IDs after the legacy
-queue drains. Server integer keys and legacy routes remain temporarily for
+Implementation status (2026-09-14): complete for desktop storage. Native
+screens no longer use response overlays, negative IDs, or an HTTP mutation
+queue. Server integer keys and legacy routes remain temporarily for
 browser clients and the promised rollback release; their later deletion is a
 compatibility retirement, not part of enabling offline desktop use.
 
@@ -457,7 +455,7 @@ Exit criterion: synchronized feature work follows the four- or five-step extensi
 - interrupted blob upload and digest mismatch;
 - Manual mode produces no background network traffic;
 - explicit Sync performs upload, push, and pull without navigation or reload;
-- IndexedDB migration is restartable and idempotent.
+- HTTP failures never return cached domain responses or enqueue REST mutations.
 
 The automated suites cover these gates through backend contract/schema tests,
 Rust database/coordinator tests, frontend/viewer/board tests, and the disposable

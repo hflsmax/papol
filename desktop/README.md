@@ -91,8 +91,9 @@ Run `npm test` for all UI and Rust tests, and `npm run check:native` for Rust
 formatting and Clippy's warning-denying lint pass. The release workflow runs
 both before signing and publishing.
 
-The synchronization boundary has two focused suites. From `desktop/`, run
-`npm run test:sync` for the IndexedDB request queue. Run
+The synchronization boundary has focused suites. From `desktop/`, run
+`npm run test:sync` for the network-only connectivity boundary and native
+SQLite synchronization lifecycle. Run
 `npm run test:backend-contract` inside the repository's Python development
 environment to exercise the same dependent board operations against FastAPI
 and an isolated in-memory SQLite database. `npm run test:e2e:native-sync`

@@ -7,9 +7,8 @@ import {
   noteView, paperView, prepareNativeAccount, removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount, shelfView, newUuid,
 } from './nativeData.js';
 import {
-  cachedBlobUrl, clearOfflineData, configureNetworkFetch, configureReplayAuthorization, offlineFetch,
-  inOfflineMode, OnlineRequiredError, refreshSyncStatus, rememberOfflineIdentity, runtimeFetch,
-} from '../../shared/offlineStore';
+  configureNetworkFetch, inOfflineMode, OnlineRequiredError, runtimeFetch,
+} from '../../shared/connectivity.js';
 import { currentCredential, storeCredential } from '../../shared/credentials.js';
 import { withAbortTimeout } from './requestTimeout.js';
 import { activateDesktopSession } from './authTransition.js';
@@ -18,11 +17,6 @@ import { planOfflineNookAddition } from './nookTransition.js';
 configureNetworkFetch(IS_DESKTOP
   ? tauriHttpFetch
   : (...args) => window.fetch(...args));
-configureReplayAuthorization(() => {
-  const token = currentCredential();
-  return token ? `Bearer ${token}` : null;
-});
-
 // Relative, so it resolves against the app's own base URL — works at / and
 // under a proxied subpath like mc-pony.com/papol/.
 const API_BASE = backendPath('/api');
@@ -85,7 +79,7 @@ async function request(path, options = {}) {
   if (demoActive() && !alwaysReal.some((p) => path.startsWith(p))) {
     return demoRequest(path, options);
   }
-  const response = await offlineFetch(`${API_BASE}${path}`, {
+  const response = await runtimeFetch(`${API_BASE}${path}`, {
     ...options,
     headers: authHeaders(options.headers || {}),
   });
@@ -147,7 +141,6 @@ export async function register(email, displayName, affiliation, password) {
     signal,
   }));
   await activateDesktopSession(result, {
-    rememberIdentity: rememberOfflineIdentity,
     storeToken: setToken,
     prepareAccount: prepareNativeAccount,
   });
@@ -163,7 +156,6 @@ export async function login(email, password) {
     signal,
   }));
   await activateDesktopSession(result, {
-    rememberIdentity: rememberOfflineIdentity,
     storeToken: setToken,
     prepareAccount: prepareNativeAccount,
   });
@@ -173,7 +165,6 @@ export async function login(email, password) {
 
 export async function logout(accountUuid = nativeAccountUuid()) {
   if (IS_DESKTOP && accountUuid != null) await removeNativeAccount(accountUuid);
-  else await clearOfflineData();
   forgetAccountData();
   try {
     await desktopAuthRequest((signal) => request('/auth/logout', { method: 'POST', signal }));
@@ -189,10 +180,9 @@ export async function logout(accountUuid = nativeAccountUuid()) {
 }
 
 export async function pendingLocalChanges() {
-  const queued = await refreshSyncStatus();
-  if (!nativeDataActive()) return queued.pending;
+  if (!nativeDataActive()) return 0;
   const native = await nativeQuery('sync_status');
-  return queued.pending + native.pending;
+  return native.pending;
 }
 
 export async function getMe() {
@@ -320,7 +310,6 @@ export function paperHref(paper) {
 // canonical open-access copy; demo-created papers use a bundled placeholder.
 export function pdfHref(paper) {
   if (paper.file_path.startsWith('http')) return paper.file_path;
-  if (paper.file_path.startsWith('offline-file:')) return paper.file_path;
   return backendPath(`/uploads/${paper.file_path}`);
 }
 
@@ -554,13 +543,10 @@ export async function boardFileBlob(item) {
     if (!item.sha256) throw new Error('Board image is not available in the local replica');
     return nativeBlobUrl(item.sha256, item.mime_type);
   }
-  if (item.file_path?.startsWith('offline-file:')) return cachedBlobUrl(item.file_path);
   const key = `${API_BASE}/board-items/${item.uuid}/file`;
-  return cachedBlobUrl(key, async () => {
-    const response = await runtimeFetch(key, { headers: authHeaders() });
-    if (!response.ok) await handleResponse(response);
-    return response.blob();
-  });
+  const response = await runtimeFetch(key, { headers: authHeaders() });
+  if (!response.ok) await handleResponse(response);
+  return URL.createObjectURL(await response.blob());
 }
 
 export async function downloadBoardFile(item) {
