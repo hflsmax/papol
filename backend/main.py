@@ -14,7 +14,7 @@ import tempfile
 from functools import lru_cache
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import hashlib
@@ -43,21 +43,20 @@ from database import (
 from models import (
     User, AuthToken, AppliedMutation, Paper, Copy, CopyTagLink, Comment,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
-    Setting, Feedback, PaperEdition, EditionReference, EditionCitation, EditionLink,
+    PaperEdition, EditionReference, EditionCitation, EditionLink,
     InkStroke, PaperClip, Tag, Shelf, Board, BoardGroup, BoardItem,
 )
 import account
 from schemas import (
-    UserRegister, UserLogin, UserBase, UserPublic, UserPrivate, UserDirectoryEntry,
+    UserRegister, UserLogin, UserPublic, UserPrivate, UserDirectoryEntry,
     AuthResponse,
     ProfileUpdate, PasswordChange, AccountDeletion, ReaderEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
-    RoomMessageCreate, NotificationList, NotificationOut, AdminSQL,
+    RoomMessageCreate,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
     CommentCreate, Comment as CommentSchema, ExtractedMetadata,
     ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
-    FeedbackCreate, FeedbackOut, FeedbackUpdate,
     PaperEditionOut, EditionAdopt,
     CommentUpdate, PointAnchor,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
@@ -74,7 +73,6 @@ from auth import (
     hash_password, verify_password, create_token, get_current_user,
     get_optional_user, bearer_scheme
 )
-from emailer import send_email
 from pdf_parser import (
     arxiv_doi, extract_arxiv_id, extract_doi_from_pdf, get_title_from_filename,
 )
@@ -88,6 +86,10 @@ from reference_engine import (
 import dbmetrics
 from sync.api import router as sync_router
 from sync.changes import commit_sync
+from routes.admin import router as admin_router
+from routes.feedback import router as feedback_router
+from routes.notifications import router as notifications_router
+from services.notifications import setting_value
 
 # Uploads directory
 UPLOADS_DIR = Path(os.environ.get(
@@ -134,6 +136,9 @@ app = FastAPI(
 app.state.session_factory = SessionLocal
 app.state.sqlite_write_lock = asyncio.Lock()
 app.include_router(sync_router)
+app.include_router(notifications_router)
+app.include_router(feedback_router)
+app.include_router(admin_router)
 
 _IDEMPOTENCY_CLIENT_HEADER = "x-papol-client-uuid"
 _IDEMPOTENCY_MUTATION_HEADER = "x-papol-mutation-uuid"
@@ -428,7 +433,7 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
     db.refresh(user)
 
     # Greet every new reader with a first inbox message
-    template = _setting(db, "welcome_message") or DEFAULT_WELCOME
+    template = setting_value(db, "welcome_message") or DEFAULT_WELCOME
     db.add(Notification(
         user_uuid=user.uuid,
         content=template.replace("{name}", user.display_name),
@@ -3599,486 +3604,6 @@ async def finish_room(
     db.commit()
     db.refresh(room)
     return _room_detail(db, room, current_user)
-
-
-# ---------------- Notifications ----------------
-
-def _notification_out(n: Notification) -> NotificationOut:
-    return NotificationOut(
-        uuid=n.uuid,
-        content=n.content,
-        room_uuid=n.room.uuid if n.room else None,
-        read=n.read,
-        created_at=n.created_at,
-    )
-
-
-@app.get("/api/notifications", response_model=NotificationList)
-async def list_notifications(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    rows = (
-        db.query(Notification)
-        .filter(Notification.user_uuid == current_user.uuid)
-        .order_by(Notification.created_at.desc(), Notification.uuid.desc())
-        .limit(50)
-        .all()
-    )
-    unread = (
-        db.query(Notification)
-        .filter(Notification.user_uuid == current_user.uuid, Notification.read.is_(False))
-        .count()
-    )
-    return NotificationList(
-        unread_count=unread,
-        notifications=[_notification_out(n) for n in rows],
-    )
-
-
-def _site_url(db: Session) -> str:
-    return (
-        os.environ.get("PAPOL_URL")
-        or _setting(db, "site_url")
-        or "https://mc-pony.com/papol/"
-    )
-
-
-def _setting(db: Session, key: str):
-    row = db.query(Setting).filter(Setting.key == key).first()
-    return row.value if row and row.value else None
-
-
-def _smtp_cfg(db: Session):
-    """SMTP configuration: environment variables win, then the settings
-    table (keys smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from).
-    Returns None when no host is configured anywhere."""
-    def get(env, key, default=None):
-        return os.environ.get(env) or _setting(db, key) or default
-
-    host = get("SMTP_HOST", "smtp_host")
-    if not host:
-        return None
-    user = get("SMTP_USER", "smtp_user")
-    return {
-        "host": host,
-        "port": int(get("SMTP_PORT", "smtp_port", "587")),
-        "user": user,
-        "password": get("SMTP_PASS", "smtp_pass"),
-        "from_addr": get("SMTP_FROM", "smtp_from", user or "papol@localhost"),
-        "starttls": get("SMTP_STARTTLS", "smtp_starttls", "1") != "0",
-    }
-
-
-def send_daily_digest(db: Session) -> dict:
-    """Email each user their unread notifications from the past day.
-    A notification is emailed at most once."""
-    since = datetime.utcnow() - timedelta(days=1)
-    rows = (
-        db.query(Notification)
-        .filter(
-            Notification.read.is_(False),
-            Notification.emailed.is_(False),
-            Notification.created_at >= since,
-        )
-        .order_by(Notification.created_at)
-        .all()
-    )
-    by_user = {}
-    for n in rows:
-        by_user.setdefault(n.user_uuid, []).append(n)
-
-    cfg = _smtp_cfg(db)
-    if cfg is None:
-        return {"emails_sent": 0, "users_with_news": len(by_user), "skipped": "SMTP not configured"}
-
-    sent = 0
-    for uid, notifs in by_user.items():
-        user = db.query(User).filter(User.uuid == uid).first()
-        if not user:
-            continue
-        lines = "\n".join(f"  - {n.content}" for n in notifs)
-        count = len(notifs)
-        body = (
-            f"Hello {user.display_name},\n\n"
-            f"You have {count} new message{'s' if count != 1 else ''} in Papol today:\n\n"
-            f"{lines}\n\n"
-            f"Read and reply in your inbox: {_site_url(db).rstrip('/')}/inbox\n\n"
-            "— Papol"
-        )
-        try:
-            send_email(
-                cfg,
-                user.email,
-                f"Papol: {count} new message{'s' if count != 1 else ''} today",
-                body,
-            )
-        except Exception:
-            logger.exception("Digest email to %s failed", user.email)
-            continue
-        for n in notifs:
-            n.emailed = True
-        sent += 1
-    db.commit()
-    return {"emails_sent": sent, "users_with_news": len(by_user)}
-
-
-def _seconds_until(hour: int) -> float:
-    now = datetime.now()
-    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-    if target <= now:
-        target += timedelta(days=1)
-    return (target - now).total_seconds()
-
-
-@app.on_event("startup")
-async def _start_digest_loop():
-    async def loop():
-        while True:
-            # Send hour is the digest_hour setting (0-23, server time)
-            db = SessionLocal()
-            try:
-                hour = int(_setting(db, "digest_hour") or 21)
-            except (TypeError, ValueError):
-                hour = 21
-            finally:
-                db.close()
-            await asyncio.sleep(_seconds_until(hour))
-            db = SessionLocal()
-            try:
-                logger.info("Daily digest: %s", send_daily_digest(db))
-            except Exception:
-                logger.exception("Daily digest failed")
-            finally:
-                db.close()
-
-    asyncio.create_task(loop())
-
-
-@app.post("/api/notifications/{notif_uuid}/read")
-async def mark_notification_read(
-    notif_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Mark a single notification read — reading happens by clicking."""
-    n = (
-        db.query(Notification)
-        .filter(Notification.uuid == notif_uuid, Notification.user_uuid == current_user.uuid)
-        .first()
-    )
-    if not n:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    n.read = True
-    db.commit()
-    return {"message": "Notification marked read"}
-
-
-@app.post("/api/notifications/read")
-async def mark_notifications_read(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    db.query(Notification).filter(
-        Notification.user_uuid == current_user.uuid, Notification.read.is_(False)
-    ).update({"read": True})
-    db.commit()
-    return {"message": "All notifications marked read"}
-
-
-# ---------------- Feedback ----------------
-
-def _feedback_reporter(fb: Feedback) -> str:
-    if fb.user:
-        return f"{fb.user.display_name} <{fb.user.email}>"
-    if fb.contact:
-        return f"a visitor <{fb.contact}>"
-    return "an anonymous visitor"
-
-
-def _feedback_out(fb: Feedback) -> FeedbackOut:
-    return FeedbackOut(
-        uuid=fb.uuid,
-        content=fb.content,
-        page=fb.page,
-        contact=fb.contact,
-        resolved=fb.resolved,
-        created_at=fb.created_at,
-        user=UserBase.model_validate(fb.user) if fb.user else None,
-        user_email=fb.user.email if fb.user else None,
-    )
-
-
-def _feedback_message(fb: Feedback, reporter: str) -> str:
-    where = f" (from {fb.page})" if fb.page else ""
-    return f"Feedback from {reporter}{where}:\n\n{fb.content}"
-
-
-def _email_admins_feedback(feedback_uuid: str, notification_uuids: dict):
-    """Mail the admins a new report right away. Best effort: a report that
-    cannot be emailed is still in the database and in every admin's inbox,
-    and an admin whose mail fails keeps the notification unemailed so the
-    daily digest carries it. Runs after the response, on its own session."""
-    db = SessionLocal()
-    try:
-        fb = db.query(Feedback).filter(Feedback.uuid == feedback_uuid).first()
-        cfg = _smtp_cfg(db)
-        if fb is None or cfg is None:
-            return
-        reporter = _feedback_reporter(fb)
-        lines = [f"Feedback from {reporter}"]
-        if fb.page:
-            lines.append(f"Page: {fb.page}")
-        lines += [
-            "",
-            fb.content,
-            "",
-            f"Reports are listed on the admin page: {_site_url(db).rstrip('/')}/admin",
-            "",
-            "— Papol",
-        ]
-        body = "\n".join(lines)
-        headline = fb.content.strip().splitlines()[0][:60]
-        subject = f"Papol feedback: {headline}"
-        for admin in db.query(User).filter(User.is_admin.is_(True)).all():
-            try:
-                send_email(cfg, admin.email, subject, body)
-            except Exception:
-                logger.exception("Feedback email to %s failed", admin.email)
-                continue
-            notif_uuid = notification_uuids.get(admin.uuid)
-            if notif_uuid:
-                notif = db.query(Notification).filter(Notification.uuid == notif_uuid).first()
-                if notif:
-                    notif.emailed = True
-        db.commit()
-    except Exception:
-        logger.exception("Feedback notification email failed")
-    finally:
-        db.close()
-
-
-@app.post("/api/feedback", response_model=FeedbackOut)
-async def submit_feedback(
-    data: FeedbackCreate,
-    background: BackgroundTasks,
-    current_user: User | None = Depends(get_optional_user),
-    db: Session = Depends(get_db),
-):
-    """Report a bug or request a feature. Open to visitors too, so that a
-    reader who cannot sign in can still say so. The report is stored and
-    every admin gets it as an inbox message and an email."""
-    fb = Feedback(
-        user_uuid=current_user.uuid if current_user else None,
-        content=data.content.strip(),
-        page=(data.page or None),
-        contact=(data.contact or "").strip() or None,
-    )
-    db.add(fb)
-    db.commit()
-    db.refresh(fb)
-
-    admins = db.query(User).filter(User.is_admin.is_(True)).all()
-    message = _feedback_message(fb, _feedback_reporter(fb))
-    notifications = [Notification(user_uuid=a.uuid, content=message) for a in admins]
-    db.add_all(notifications)
-    db.commit()
-
-    background.add_task(
-        _email_admins_feedback,
-        fb.uuid,
-        {a.uuid: n.uuid for a, n in zip(admins, notifications)},
-    )
-    return _feedback_out(fb)
-
-
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
-    return current_user
-
-
-def _admin_table(table_name: str):
-    table = Base.metadata.tables.get(table_name)
-    if table is None:
-        raise HTTPException(status_code=404, detail="Table not found")
-    return table
-
-
-def _admin_single_pk(table):
-    pk_cols = list(table.primary_key.columns)
-    if len(pk_cols) != 1:
-        raise HTTPException(status_code=400, detail="Table has no single-column primary key")
-    return pk_cols[0]
-
-
-def _coerce_value(column, value):
-    """Coerce a JSON value from the admin UI to the column's Python type."""
-    if value is None or value == "":
-        return None
-    try:
-        python_type = column.type.python_type
-    except NotImplementedError:
-        return value
-    if python_type is datetime and isinstance(value, str):
-        return datetime.fromisoformat(value)
-    if python_type in (int, bool, float) and isinstance(value, str):
-        try:
-            return python_type(int(value)) if python_type is bool else python_type(value)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid value for {column.name}")
-    return value
-
-
-def _coerce_pk(table, pk_value: str):
-    pk_col = _admin_single_pk(table)
-    try:
-        if pk_col.type.python_type is int:
-            return pk_col, int(pk_value)
-    except NotImplementedError:
-        pass
-    return pk_col, pk_value
-
-
-@app.post("/api/admin/send-digest")
-async def admin_send_digest(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Run the daily email digest immediately (admin only)."""
-    if _smtp_cfg(db) is None:
-        raise HTTPException(
-            status_code=400,
-            detail="SMTP is not configured — fill the settings table "
-            "(smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from) "
-            "or set SMTP_* environment variables",
-        )
-    return send_daily_digest(db)
-
-
-@app.get("/api/admin/db-metrics")
-async def admin_db_metrics(admin: User = Depends(require_admin)):
-    """Aggregated timings of database operations since startup (or reset)."""
-    return dbmetrics.snapshot()
-
-
-@app.post("/api/admin/db-metrics/reset")
-async def admin_reset_db_metrics(admin: User = Depends(require_admin)):
-    dbmetrics.reset()
-    return dbmetrics.snapshot()
-
-
-@app.get("/api/admin/feedback", response_model=list[FeedbackOut])
-async def admin_list_feedback(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Every bug report and feature request, newest first."""
-    rows = (
-        db.query(Feedback)
-        .order_by(Feedback.resolved, Feedback.created_at.desc(), Feedback.uuid.desc())
-        .all()
-    )
-    return [_feedback_out(fb) for fb in rows]
-
-
-@app.put("/api/admin/feedback/{feedback_uuid}", response_model=FeedbackOut)
-async def admin_update_feedback(
-    feedback_uuid: str,
-    data: FeedbackUpdate,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Mark a report done, or reopen it."""
-    fb = db.query(Feedback).filter(Feedback.uuid == feedback_uuid).first()
-    if not fb:
-        raise HTTPException(status_code=404, detail="Report not found")
-    fb.resolved = data.resolved
-    db.commit()
-    db.refresh(fb)
-    return _feedback_out(fb)
-
-
-@app.get("/api/admin/tables")
-async def admin_list_tables(admin: User = Depends(require_admin)):
-    return {"tables": sorted(Base.metadata.tables.keys())}
-
-
-@app.get("/api/admin/tables/{table_name}")
-async def admin_get_table(
-    table_name: str,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    table = _admin_table(table_name)
-    rows = db.execute(table.select().limit(500)).mappings().all()
-    return {
-        "columns": [c.name for c in table.columns],
-        "primary_key": [c.name for c in table.primary_key.columns],
-        "rows": [dict(r) for r in rows],
-    }
-
-
-@app.put("/api/admin/tables/{table_name}/rows/{pk_value}")
-async def admin_update_row(
-    table_name: str,
-    pk_value: str,
-    data: dict,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    table = _admin_table(table_name)
-    pk_col, pkv = _coerce_pk(table, pk_value)
-    values = {
-        k: _coerce_value(table.columns[k], v)
-        for k, v in data.items()
-        if k in table.columns.keys() and k != pk_col.name
-    }
-    if not values:
-        raise HTTPException(status_code=400, detail="No editable columns in payload")
-    result = db.execute(table.update().where(pk_col == pkv).values(**values))
-    db.commit()
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Row not found")
-    return {"updated": result.rowcount}
-
-
-@app.delete("/api/admin/tables/{table_name}/rows/{pk_value}")
-async def admin_delete_row(
-    table_name: str,
-    pk_value: str,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    table = _admin_table(table_name)
-    pk_col, pkv = _coerce_pk(table, pk_value)
-    result = db.execute(table.delete().where(pk_col == pkv))
-    db.commit()
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Row not found")
-    return {"deleted": result.rowcount}
-
-
-@app.post("/api/admin/sql")
-async def admin_run_sql(
-    payload: AdminSQL,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Run one raw SQL statement against the database. Admin only."""
-    try:
-        result = db.execute(text(payload.query))
-        if result.returns_rows:
-            rows = [dict(r) for r in result.mappings().fetchmany(500)]
-            db.commit()
-            return {"rows": rows, "columns": list(rows[0].keys()) if rows else []}
-        db.commit()
-        return {"rowcount": result.rowcount}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # A name that never changes, for a file that does. Papol is reached both
