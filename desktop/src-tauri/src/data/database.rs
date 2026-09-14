@@ -111,6 +111,7 @@ impl LocalStore {
         let transaction = connection
             .transaction()
             .map_err(|error| error.to_string())?;
+        reject_duplicate_pdf_import(&transaction, account_uuid, &changes)?;
         let client_uuid = local_client_uuid(&transaction)?;
         let mutation_uuid = Uuid::new_v4().to_string();
         let mut queued = Vec::new();
@@ -1412,6 +1413,34 @@ fn validate_import_batch(changes: &[DataChange]) -> Result<(), String> {
                 && change.values.get("edition_uuid").and_then(Value::as_str) == Some(edition_uuid)
         }) {
             return Err("A local edition import must attach to an owned copy".into());
+        }
+    }
+    Ok(())
+}
+
+fn reject_duplicate_pdf_import(
+    connection: &Connection,
+    account_uuid: &str,
+    changes: &[DataChange],
+) -> Result<(), String> {
+    for digest in changes.iter().filter_map(|change| {
+        (change.table == "paper_editions")
+            .then(|| change.values.get("sha256").and_then(Value::as_str))
+            .flatten()
+    }) {
+        let existing: Option<i64> = connection
+            .query_row(
+                "SELECT 1 FROM copies LEFT JOIN paper_editions \
+                 ON paper_editions.uuid=copies.edition_uuid \
+                 WHERE copies.user_uuid=?1 AND copies.deleted_at IS NULL \
+                 AND (copies.edition_sha256=?2 OR paper_editions.sha256=?2) LIMIT 1",
+                params![account_uuid, digest],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if existing.is_some() {
+            return Err("This PDF is already in your nook".into());
         }
     }
     Ok(())
@@ -3005,6 +3034,39 @@ mod tests {
         }
     }
 
+    fn pdf_import_changes(sha256: &str, title: &str) -> Vec<DataChange> {
+        let paper_uuid = Uuid::new_v4().to_string();
+        let edition_uuid = Uuid::new_v4().to_string();
+        vec![
+            DataChange {
+                table: "papers".into(),
+                uuid: paper_uuid.clone(),
+                operation: "upsert".into(),
+                values: Map::from_iter([("title".into(), json!(title))]),
+            },
+            DataChange {
+                table: "paper_editions".into(),
+                uuid: edition_uuid.clone(),
+                operation: "upsert".into(),
+                values: Map::from_iter([
+                    ("paper_uuid".into(), json!(paper_uuid)),
+                    ("file_path".into(), json!(format!("{sha256}.pdf"))),
+                    ("sha256".into(), json!(sha256)),
+                ]),
+            },
+            DataChange {
+                table: "copies".into(),
+                uuid: Uuid::new_v4().to_string(),
+                operation: "upsert".into(),
+                values: Map::from_iter([
+                    ("paper_uuid".into(), json!(paper_uuid)),
+                    ("edition_uuid".into(), json!(edition_uuid)),
+                    ("edition_sha256".into(), json!(sha256)),
+                ]),
+            },
+        ]
+    }
+
     fn remote_board(uuid: &str, revision: i64, name: &str) -> Map<String, Value> {
         Map::from_iter([
             ("uuid".into(), json!(uuid)),
@@ -4540,5 +4602,33 @@ mod tests {
         assert_eq!(paper["edition_uuid"], canonical_edition_uuid);
         assert!(reopened.has_blob(paper["edition_sha256"].as_str().unwrap()));
         assert_eq!(reopened.outbox_count(), 0);
+    }
+
+    #[test]
+    fn repeated_pdf_import_is_rejected_inside_the_database_transaction() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let blob = store
+            .import_blob(b"%PDF-1.4\nsame bytes", Some("application/pdf".into()))
+            .unwrap();
+
+        store
+            .mutate("7", pdf_import_changes(&blob.sha256, "First name"))
+            .unwrap();
+        let error = store
+            .mutate("7", pdf_import_changes(&blob.sha256, "Second name"))
+            .unwrap_err();
+
+        assert_eq!(error, "This PDF is already in your nook");
+        assert_eq!(
+            store
+                .query("7", "papers", json!({}))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(store.outbox_count(), 1);
     }
 }

@@ -572,7 +572,16 @@ def _validate_import_batch(changes: list[RowChange]):
             raise HTTPException(status_code=422, detail="Edition import needs an owned copy")
 
 
-def _canonical_import_paper(db: Session, change: RowChange) -> Paper | None:
+def _canonical_import_paper(
+    db: Session, change: RowChange, sha256: str | None = None,
+) -> Paper | None:
+    if sha256:
+        edition = db.query(PaperEdition).filter(
+            PaperEdition.sha256 == sha256,
+            PaperEdition.deleted_at.is_(None),
+        ).first()
+        if edition is not None:
+            return edition.paper
     doi = change.values.get("doi")
     title = change.values.get("title")
     query = db.query(Paper).filter(Paper.deleted_at.is_(None))
@@ -602,6 +611,11 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
     touched = []
     aliases: dict[str, str] = {}
     _validate_import_batch(payload.changes)
+    import_digests = {
+        change.values.get("paper_uuid"): change.values.get("sha256")
+        for change in payload.changes
+        if change.table == "paper_editions"
+    }
     with db.no_autoflush:
         for original in payload.changes:
             change = original.model_copy(deep=True)
@@ -611,7 +625,9 @@ def push(payload: PushRequest, user: User = Depends(get_current_user), db: Sessi
             }
             requested_uuid = str(change.uuid)
             if change.table == "papers":
-                canonical = _canonical_import_paper(db, change)
+                canonical = _canonical_import_paper(
+                    db, change, import_digests.get(requested_uuid),
+                )
                 if canonical is not None and canonical.uuid != requested_uuid:
                     aliases[requested_uuid] = canonical.uuid
                     canonical._sync_import_user = user.uuid

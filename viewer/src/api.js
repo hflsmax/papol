@@ -13,9 +13,11 @@ import {
   openedFileUrl, paperView, newUuid,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
+import { lookupPaperMetadata } from '../../shared/api/papers.js';
 
 // The edition a paper's located notes are placed on.
 const activeEditionByPaper = new Map();
+const openedFileImports = new Map();
 
 export function rememberPaperIdentity(paper) {
   if (paper?.uuid != null && paper.edition_uuid) activeEditionByPaper.set(paper.uuid, paper.edition_uuid);
@@ -71,15 +73,31 @@ function storedAnchor(anchor) {
 }
 
 // A file opened from disk becomes a nook paper, and the notes, ink and clips
-// made on it before then come along. The file and its filename-derived title
-// commit to the replica immediately; synchronization can enrich it later.
+// made on it before then come along. Online imports are enriched before the
+// local commit; offline imports retain the filename-derived fallback.
 export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [] }) {
   if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
+  const pending = openedFileImports.get(sha256);
+  if (pending) return pending;
+  const importing = importOpenedFileToNook({ sha256, name, notes, ink, clips });
+  openedFileImports.set(sha256, importing);
+  try {
+    return await importing;
+  } finally {
+    if (openedFileImports.get(sha256) === importing) openedFileImports.delete(sha256);
+  }
+}
+
+async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
   let paper = await getNookPaperByPdf(sha256);
   if (!paper) {
     const blob = await openedFileBlob(sha256);
     const stored = await nativeBlobImport(blob);
     if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
+    // Opening a file remains private. Once the reader explicitly adds it,
+    // use the same authenticated parser as the upload form so the replica
+    // starts with bibliographic metadata instead of a filename-only stub.
+    const metadata = await lookupPaperMetadata(blob, name);
     const shelves = await nativeRepository.shelves();
     const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
       || shelves[0];
@@ -89,7 +107,11 @@ export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], 
       {
         table: 'papers', uuid: paperUuid, operation: 'upsert',
         values: {
-          doi: null, title: name, authors: null, journal: null, year: null,
+          doi: metadata?.doi ?? null,
+          title: metadata?.title || name,
+          authors: metadata?.authors ?? null,
+          journal: metadata?.journal ?? null,
+          year: metadata?.year ?? null,
         },
       },
       {

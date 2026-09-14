@@ -43,10 +43,11 @@ export async function listPapers() {
   return papers;
 }
 
-export async function lookupPaperMetadata(file) {
+export async function lookupPaperMetadata(file, filename = file?.name) {
   if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
   const formData = new FormData();
-  formData.append('file', file);
+  if (filename) formData.append('file', file, filename);
+  else formData.append('file', file);
   try {
     return await withAbortTimeout(async (signal) => handleResponse(
       await runtimeFetch(`${API_BASE}/papers/extract`, {

@@ -527,7 +527,9 @@ class DesktopSyncContractTests(unittest.TestCase):
             "changes": [
                 {
                     "table": "papers", "uuid": duplicate_paper, "operation": "upsert",
-                    "values": {"title": "Imported while offline", "doi": None},
+                    # The byte identity must win even when filename-derived
+                    # metadata differs between repeated desktop imports.
+                    "values": {"title": "A different filename", "doi": None},
                 },
                 {
                     "table": "paper_editions", "uuid": duplicate_edition,
