@@ -14,7 +14,9 @@ const STYLE = `
   gap: 4px;
   min-height: 28px;
   color: var(--ink-faint, #7e8794);
-  font: var(--fs-xs, 0.78rem)/1.5 var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: var(--fs-xs, 0.78rem);
+  line-height: 1.5;
   white-space: nowrap;
 }
 .desktop-syncing-status-label {
