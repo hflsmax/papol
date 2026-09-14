@@ -906,36 +906,36 @@ pull_data() {
   trap 'rm -f "$pulled"' RETURN
   say "Pulling production database into development"
   sqlite "$PROD_DIR/backend/papol.db" ".backup '$pulled'"
-  mv -f "$pulled" "$DEV_DIR/backend/papol.db"
-  note "$(du -h "$DEV_DIR/backend/papol.db" | cut -f1)"
+  note "$(du -h "$pulled" | cut -f1)"
 
   # Production sessions must not work in development. Preserve development
   # sessions only where the account identity still matches the pulled data.
   if [ -n "$dev_bak" ]; then
-    sqlite "$DEV_DIR/backend/papol.db" <<SQL
+    sqlite "$pulled" <<SQL
 ATTACH DATABASE '$dev_bak' AS olddev;
 BEGIN IMMEDIATE;
 DELETE FROM auth_tokens;
 INSERT INTO auth_tokens
   SELECT sessions.* FROM olddev.auth_tokens sessions
-  JOIN olddev.users old_user ON old_user.id = sessions.user_id
+  JOIN olddev.users old_user ON old_user.uuid = sessions.user_uuid
   JOIN users current_user
-    ON current_user.id = old_user.id AND current_user.email = old_user.email;
+    ON current_user.uuid = old_user.uuid AND current_user.email = old_user.email;
 COMMIT;
 DETACH DATABASE olddev;
 SQL
     note "development sessions preserved"
   else
-    sqlite "$DEV_DIR/backend/papol.db" "DELETE FROM auth_tokens"
+    sqlite "$pulled" "DELETE FROM auth_tokens"
   fi
 
   # Production credentials and URLs must not become active in development.
   say "Scrubbing production's reach out of the copy"
-  sqlite "$DEV_DIR/backend/papol.db" <<SQL
+  sqlite "$pulled" <<SQL
 DELETE FROM settings WHERE key LIKE 'smtp_%';
 INSERT INTO settings (key, value) VALUES ('site_url', 'http://papol.local/')
   ON CONFLICT(key) DO UPDATE SET value = excluded.value;
 SQL
+  mv -f "$pulled" "$DEV_DIR/backend/papol.db"
   note "production sessions and SMTP credentials dropped; site_url now points at development"
   trap - RETURN
   say "Done. Development now contains a sanitized copy of production's database."
