@@ -8,7 +8,7 @@
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8000)
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
-#                  [--backend URL] [--universal] [--no-check]
+#                  [--backend URL] [--universal] [--no-check] [--skip-notarize]
 #                  loads .env.macos-notarization when present
 #
 # Code goes up with `prod`. Data never goes from development to production;
@@ -117,7 +117,7 @@ require_command() {
 # same path; the file is simply a convenient persistent source for them.
 MACOS_NOTARIZING=no
 load_macos_notarization() {
-  local credentials_file permissions had_allexport=no
+  local skip_notarize="${1:-no}" credentials_file permissions had_allexport=no
   credentials_file="${PAPOL_NOTARIZATION_ENV_FILE:-$DEV_DIR/.env.macos-notarization}"
 
   if [ -e "$credentials_file" ]; then
@@ -147,6 +147,17 @@ load_macos_notarization() {
       die "notarization credentials were supplied without APPLE_SIGNING_IDENTITY"
     fi
     export APPLE_SIGNING_IDENTITY=-
+    return 0
+  fi
+
+  if [ "$skip_notarize" = yes ]; then
+    # Keep APPLE_SIGNING_IDENTITY so the app remains Developer ID signed, but
+    # remove every authentication route Tauri recognizes for notarization.
+    # Otherwise credentials loaded above would make `tauri bundle` submit even
+    # though the caller explicitly asked for a local-only build.
+    MACOS_NOTARIZING=no
+    unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+    unset APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH
     return 0
   fi
 
@@ -391,7 +402,8 @@ macos_dev() {
   if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
     (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run dev)
   else
-    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" cargo tauri dev)
+    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" \
+      cargo tauri dev --config src-tauri/tauri.dev.conf.json)
   fi
 }
 
@@ -470,7 +482,8 @@ macos_app_fingerprint() {
 }
 
 macos_prod() {
-  local backend="https://mc-pony.com/papol" universal=no checks=yes arg marker app dmg
+  local backend="https://mc-pony.com/papol" universal=no checks=yes skip_notarize=no
+  local arg marker app dmg
   local app_hash cached_app_hash cached_dmg_hash dmg_hash dmg_marker bundle_root
   while [ $# -gt 0 ]; do
     arg=$1
@@ -482,13 +495,14 @@ macos_prod() {
         ;;
       --universal) universal=yes ;;
       --no-check) checks=no ;;
-      *) die "unknown macos prod option: $arg (--backend URL, --universal, --no-check)" ;;
+      --skip-notarize) skip_notarize=yes ;;
+      *) die "unknown macos prod option: $arg (--backend URL, --universal, --no-check, --skip-notarize)" ;;
     esac
     shift
   done
   valid_backend "$backend"
   prepare_macos
-  load_macos_notarization
+  load_macos_notarization "$skip_notarize"
 
   if [ "$checks" = yes ]; then
     say "Testing the macOS application"
@@ -518,6 +532,9 @@ macos_prod() {
   note "backend: $backend"
   [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
   [ "$MACOS_NOTARIZING" = no ] || note "distribution: Developer ID signed and notarized"
+  if [ "$skip_notarize" = yes ] && [ "${APPLE_SIGNING_IDENTITY:-}" != - ]; then
+    note "distribution: Developer ID signed; notarization skipped"
+  fi
   if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
     (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}") || {
       rm -f "$marker"
@@ -608,13 +625,14 @@ run_macos() {
       cat <<'MSG'
 Usage:
   ./deploy.sh macos dev [--backend URL]
-  ./deploy.sh macos prod [--backend URL] [--universal] [--no-check]
+  ./deploy.sh macos prod [--backend URL] [--universal] [--no-check] [--skip-notarize]
 
 `prod` and its `build` alias create an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
 .env.macos-notarization file supplies Developer ID and notarization credentials.
 Tagged GitHub releases also sign and notarize. Add --universal to build one
-binary for Apple Silicon and Intel.
+binary for Apple Silicon and Intel. Add --skip-notarize to retain the configured
+signing mode without submitting the build to Apple's notarization service.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, or build)" ;;

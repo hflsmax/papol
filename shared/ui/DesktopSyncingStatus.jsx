@@ -66,6 +66,7 @@ export default function DesktopSyncingStatus() {
   const [status, setStatus] = useState({
     syncing: DESKTOP && nativeDataActive() && nativeSyncInProgress(),
     offline: initial.offline,
+    error: initial.error,
   });
   const processSyncing = useRef(false);
 
@@ -73,16 +74,22 @@ export default function DesktopSyncingStatus() {
     if (!DESKTOP) return undefined;
     const refreshLocalState = () => {
       const local = getSyncStatus();
-      setStatus({
+      setStatus((current) => ({
         syncing: nativeDataActive() && (processSyncing.current || nativeSyncInProgress()),
         offline: local.offline,
-      });
+        error: local.error || current.error,
+      }));
     };
     const unsubscribeNative = subscribeNativeData((status) => {
       if (typeof status?.syncing === 'boolean') {
         processSyncing.current = status.syncing;
-        refreshLocalState();
       }
+      if (typeof status?.error === 'string') {
+        setStatus((current) => ({ ...current, error: status.error }));
+      } else if (Number.isFinite(status?.cursor)) {
+        setStatus((current) => ({ ...current, error: null }));
+      }
+      refreshLocalState();
     });
     window.addEventListener('papol-offline-status', refreshLocalState);
     refreshLocalState();
@@ -93,19 +100,23 @@ export default function DesktopSyncingStatus() {
   }, []);
 
   const reconnect = async () => {
-    setStatus((current) => ({ ...current, syncing: true }));
-    await syncAllNow();
+    setStatus((current) => ({ ...current, syncing: true, error: null }));
+    const failure = await syncAllNow();
     const current = getSyncStatus();
-    setStatus({ syncing: false, offline: current.offline });
+    setStatus({ syncing: false, offline: current.offline, error: failure || current.error });
   };
 
-  if (!status.syncing && !status.offline) return null;
-  if (status.offline && !status.syncing) {
+  if (!status.syncing && !status.offline && !status.error) return null;
+  if (!status.syncing && (status.offline || status.error)) {
     return (
-      <span className="desktop-syncing-status offline" role="status" title={OFFLINE_MODE_MESSAGE}>
-        <span className="desktop-syncing-status-label">Offline</span>
+      <span
+        className="desktop-syncing-status offline"
+        role="status"
+        title={status.error || OFFLINE_MODE_MESSAGE}
+      >
+        <span className="desktop-syncing-status-label">{status.error ? 'Sync failed' : 'Offline'}</span>
         <span aria-hidden="true">·</span>
-        <button type="button" onClick={reconnect}>Sync</button>
+        <button type="button" onClick={reconnect}>{status.error ? 'Retry' : 'Sync'}</button>
       </span>
     );
   }

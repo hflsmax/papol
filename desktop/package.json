@@ -6,7 +6,7 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "dev:web": "node scripts/dev-web.mjs",
     "install:web": "npm ci --prefix ../frontend && npm ci --prefix ../viewer && npm ci --prefix ../board",
     "build:web": "node scripts/build-web.mjs",
