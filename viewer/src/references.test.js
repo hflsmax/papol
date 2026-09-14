@@ -53,6 +53,29 @@ test('consolidates analyzer rows for one continuous citation range', () => {
   assert.equal(consolidated[0].referenceUuid, 700);
 });
 
+test('consolidates adjacent PDF annotation fragments into one citation link', async () => {
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: 'cite.paper', rect: [10, 80, 14, 82] },
+      { subtype: 'Link', dest: 'cite.paper', rect: [14, 80, 18, 82] },
+      { subtype: 'Link', dest: 'cite.paper', rect: [18, 80, 22, 82] },
+    ],
+  };
+  const doc = { getPage: async () => page };
+
+  const overlays = await pageOverlays(doc, 1, null);
+
+  assert.equal(overlays.citations.length, 1);
+  assert.equal(overlays.citations[0].referenceUuid, 'pdf:cite.paper');
+  assert.deepEqual(overlays.citations[0].referenceUuids, ['pdf:cite.paper']);
+  assert.equal(overlays.citations[0].x, 0.1);
+  assert.equal(overlays.citations[0].w, 0.12);
+});
+
 test('reads the vertical position from each PDF destination shape', () => {
   const page = { num: 275, gen: 0 };
 

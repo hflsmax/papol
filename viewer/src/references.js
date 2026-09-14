@@ -82,7 +82,12 @@ export async function pageOverlays(doc, pageNumber, analysis) {
       ...annotated.links,
     ].some((known) => overlaps(known, candidate)));
 
-  let citations = annotated.citations.length ? annotated.citations : fromAnalyzer;
+  // A single PDF link is sometimes emitted as several adjacent annotation
+  // rectangles (one per text run). Treat those fragments the same way as
+  // analyzer rows so the printed citation is one clickable target rather
+  // than a row of tiny, independent buttons.
+  const fromPdf = consolidateCitations(annotated.citations);
+  let citations = fromPdf.length ? fromPdf : fromAnalyzer;
   if (references.length) {
     try {
       const inferred = await numberedCitations(doc, pageNumber, references);
