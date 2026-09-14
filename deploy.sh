@@ -116,6 +116,58 @@ require_command() {
 # history, or the repository. Values already exported by the caller take the
 # same path; the file is simply a convenient persistent source for them.
 MACOS_NOTARIZING=no
+
+# macOS's system Bash is still 3.2, so keep this deliberately simple: indexed
+# arrays and the shell's monotonic-ish SECONDS counter, with no associative
+# arrays or namerefs. The EXIT trap makes a failed build print the stages that
+# completed and the time spent in the stage that failed.
+MACOS_TIMING_LABELS=()
+MACOS_TIMING_SECONDS=()
+MACOS_TIMING_ACTIVE=
+MACOS_TIMING_STARTED=0
+MACOS_TIMING_TOTAL_STARTED=0
+
+format_elapsed() {
+  local elapsed=$1
+  if [ "$elapsed" -ge 3600 ]; then
+    printf '%dh %02dm %02ds' "$((elapsed / 3600))" "$(((elapsed % 3600) / 60))" "$((elapsed % 60))"
+  elif [ "$elapsed" -ge 60 ]; then
+    printf '%dm %02ds' "$((elapsed / 60))" "$((elapsed % 60))"
+  else
+    printf '%ds' "$elapsed"
+  fi
+}
+
+macos_timing_begin() {
+  MACOS_TIMING_ACTIVE=$1
+  MACOS_TIMING_STARTED=$SECONDS
+}
+
+macos_timing_finish() {
+  [ -n "$MACOS_TIMING_ACTIVE" ] || return 0
+  MACOS_TIMING_LABELS+=("$MACOS_TIMING_ACTIVE")
+  MACOS_TIMING_SECONDS+=("$((SECONDS - MACOS_TIMING_STARTED))")
+  MACOS_TIMING_ACTIVE=
+}
+
+macos_timing_summary() {
+  local index duration total
+  total=$((SECONDS - MACOS_TIMING_TOTAL_STARTED))
+  say "macOS pipeline timings"
+  for ((index = 0; index < ${#MACOS_TIMING_LABELS[@]}; index++)); do
+    duration=$(format_elapsed "${MACOS_TIMING_SECONDS[$index]}")
+    printf '    %-34s %10s\n' "${MACOS_TIMING_LABELS[$index]}" "$duration"
+  done
+  printf '    %-34s %10s\n' "Total" "$(format_elapsed "$total")"
+}
+
+macos_timing_on_exit() {
+  local status=$?
+  macos_timing_finish
+  macos_timing_summary
+  return "$status"
+}
+
 load_macos_notarization() {
   local skip_notarize="${1:-no}" credentials_file permissions had_allexport=no
   credentials_file="${PAPOL_NOTARIZATION_ENV_FILE:-$DEV_DIR/.env.macos-notarization}"
@@ -485,6 +537,12 @@ macos_prod() {
   local backend="https://mc-pony.com/papol" universal=no checks=yes skip_notarize=no
   local arg marker app dmg
   local app_hash cached_app_hash cached_dmg_hash dmg_hash dmg_marker bundle_root
+  MACOS_TIMING_LABELS=()
+  MACOS_TIMING_SECONDS=()
+  MACOS_TIMING_ACTIVE=
+  MACOS_TIMING_TOTAL_STARTED=$SECONDS
+  trap macos_timing_on_exit EXIT
+
   while [ $# -gt 0 ]; do
     arg=$1
     case "$arg" in
@@ -501,12 +559,20 @@ macos_prod() {
     shift
   done
   valid_backend "$backend"
+
+  macos_timing_begin "Prepare macOS environment"
   prepare_macos
+  macos_timing_finish
+
+  macos_timing_begin "Load signing configuration"
   load_macos_notarization "$skip_notarize"
+  macos_timing_finish
 
   if [ "$checks" = yes ]; then
+    macos_timing_begin "Test macOS application"
     say "Testing the macOS application"
     check_macos
+    macos_timing_finish
   fi
 
   local -a args
@@ -518,16 +584,25 @@ macos_prod() {
     args=(--bundles app)
   fi
   if [ "$universal" = yes ]; then
+    macos_timing_begin "Prepare universal targets"
     require_command rustup
     say "Preparing universal macOS targets"
     rustup target add aarch64-apple-darwin x86_64-apple-darwin
     args+=(--target universal-apple-darwin)
+    bundle_root="$DEV_DIR/desktop/src-tauri/target/universal-apple-darwin/release/bundle"
+    macos_timing_finish
+  else
+    bundle_root="$DEV_DIR/desktop/src-tauri/target/release/bundle"
   fi
+  app="$bundle_root/macos/Papol.app"
 
+  macos_timing_begin "Clean up mounted build images"
   unmount_macos_build_images \
     || die "a previous Papol build image is still in use; eject it and try again"
+  macos_timing_finish
 
   marker=$(mktemp -t papol-macos-build.XXXXXX)
+  macos_timing_begin "Build application bundles"
   say "Building Papol for macOS"
   note "backend: $backend"
   [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
@@ -546,10 +621,11 @@ macos_prod() {
     unmount_macos_build_images || true
     die "the macOS application build failed"
   fi
-  app=$(find "$DEV_DIR/desktop/src-tauri/target" -type d -name 'Papol.app' -newer "$marker" -prune -print | head -1)
-  [ -n "$app" ] || die "the build completed but no new application bundle was found"
+  macos_timing_finish
 
-  bundle_root=${app%/macos/Papol.app}
+  macos_timing_begin "Resolve build artifacts"
+  [ -d "$app" ] && [ "$app" -nt "$marker" ] \
+    || die "the build completed but no new application bundle was found at $app"
   if [ "$MACOS_NOTARIZING" = yes ]; then
     dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -newer "$marker" -print 2>/dev/null | head -1)
     [ -n "$dmg" ] || die "the notarized build completed but no new DMG was found"
@@ -570,6 +646,8 @@ macos_prod() {
   elif [ "$app_hash" = "$cached_app_hash" ] && [ "$dmg_hash" = "$cached_dmg_hash" ]; then
     note "application is unchanged — reusing the matching DMG"
   else
+    macos_timing_finish
+    macos_timing_begin "Build disk image"
     say "Building Papol disk image"
     local -a bundle_args
     bundle_args=(--bundles app,dmg)
@@ -595,26 +673,36 @@ macos_prod() {
     dmg_hash=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
     printf '%s\n%s\n' "$app_hash" "$dmg_hash" > "$dmg_marker"
   fi
+  macos_timing_finish
   rm -f "$marker"
 
   if [ "$MACOS_NOTARIZING" = yes ]; then
+    macos_timing_begin "Verify signature and notarization"
     say "Verifying Developer ID signature and notarization ticket"
     codesign --verify --deep --strict --verbose=2 "$app"
     xcrun stapler validate "$app"
     spctl --assess --type execute --verbose=2 "$app"
+    macos_timing_finish
   fi
 
   if [ "$checks" = yes ]; then
+    macos_timing_begin "Smoke-test bundled web app"
     say "Smoke-testing the bundled macOS web application"
     (cd "$DEV_DIR/frontend" \
       && PAPOL_SMOKE_DIST="$DEV_DIR/desktop/dist" npm run smoke:browser)
+    macos_timing_finish
   fi
 
   say "macOS application ready"
   note "$app"
   note "$dmg"
   note "$(du -h "$dmg" | cut -f1), SHA-256 $(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+  macos_timing_begin "Install and launch application"
   install_macos_app "$app"
+  macos_timing_finish
+
+  trap - EXIT
+  macos_timing_summary
 }
 
 run_macos() {
