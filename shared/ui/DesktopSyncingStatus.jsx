@@ -11,35 +11,43 @@ const STYLE = `
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
-  color: var(--ink-faint, #747c88);
-  font: var(--fs-xs, 12px) var(--font-ui, system-ui, sans-serif);
+  gap: 4px;
+  min-height: 28px;
+  color: var(--ink-faint, #7e8794);
+  font: var(--fs-xs, 0.78rem)/1.5 var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
   white-space: nowrap;
 }
-.desktop-syncing-status-mark {
-  display: inline-block;
-  width: 14px;
-  color: var(--accent, #2b4a6f);
-  font-size: 16px;
-  line-height: 1;
-  text-align: center;
-  animation: desktop-syncing-status-spin .8s linear infinite;
+.desktop-syncing-status-label {
+  padding-inline: 4px;
 }
 .desktop-syncing-status.offline {
-  color: var(--red, #9b342d);
+  color: var(--ink-faint, #7e8794);
 }
 .desktop-syncing-status button {
+  height: 28px;
   border: 0;
-  padding: 0;
+  border-radius: var(--chrome-radius, 6px);
+  padding: 4px 8px;
   background: transparent;
-  color: inherit;
+  box-shadow: none;
+  color: var(--ink-soft, #4d5561);
   font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
+  line-height: inherit;
+  text-decoration: none;
+  cursor: default;
 }
-@keyframes desktop-syncing-status-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .desktop-syncing-status-mark { animation-duration: 1.6s; }
+.desktop-syncing-status button:hover:not(:disabled) {
+  border: 0;
+  background: var(--chrome-hover, rgba(29, 33, 41, 0.06));
+  color: var(--ink, #1d2129);
+}
+.desktop-syncing-status button:active:not(:disabled) {
+  background: var(--chrome-selected, rgba(29, 33, 41, 0.1));
+}
+.desktop-syncing-status button:focus-visible {
+  border: 0;
+  outline: 2px solid var(--accent, #2b4a6f);
+  outline-offset: -2px;
 }
 `;
 
@@ -95,7 +103,7 @@ export default function DesktopSyncingStatus() {
   if (status.offline && !status.syncing) {
     return (
       <span className="desktop-syncing-status offline" role="status" title={OFFLINE_MODE_MESSAGE}>
-        <span>Offline</span>
+        <span className="desktop-syncing-status-label">Offline</span>
         <span aria-hidden="true">·</span>
         <button type="button" onClick={reconnect}>Sync</button>
       </span>
@@ -103,8 +111,7 @@ export default function DesktopSyncingStatus() {
   }
   return (
     <span className="desktop-syncing-status" role="status" aria-live="polite">
-      <span className="desktop-syncing-status-mark" aria-hidden="true">↻</span>
-      <span>Syncing…</span>
+      <span className="desktop-syncing-status-label">Syncing…</span>
     </span>
   );
 }
