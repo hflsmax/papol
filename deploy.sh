@@ -97,6 +97,11 @@ build_tree() {
       (cd "$dir" && nix develop --command bash -c "cd $app && npm run build")
     fi
   done
+
+  if [ "$dir" = "$PROD_DIR" ]; then
+    say "Browser smoke test ($dir)"
+    (cd "$dir/frontend" && npm run smoke:browser)
+  fi
 }
 
 # --- macOS desktop ----------------------------------------------------------
