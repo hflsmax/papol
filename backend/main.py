@@ -2088,7 +2088,9 @@ async def reextract_paper_metadata(
 
     doi, text = extract_doi_from_pdf(str(path))
     arxiv_id = extract_arxiv_id(text)
-    lookup_doi = paper.doi or (arxiv_doi(arxiv_id) if arxiv_id else doi)
+    # This action promises to re-read the PDF. Prefer the identifier printed
+    # in that edition over possibly stale or incorrectly entered paper data.
+    lookup_doi = (arxiv_doi(arxiv_id) if arxiv_id else doi) or paper.doi
     if not lookup_doi:
         raise HTTPException(status_code=422, detail="No DOI or arXiv identifier found")
     try:

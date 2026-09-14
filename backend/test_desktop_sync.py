@@ -12,6 +12,7 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastapi import FastAPI
@@ -903,6 +904,70 @@ class DesktopSyncContractTests(unittest.TestCase):
             "GET", f"/api/viewer-references/{digest}?edition_uuid={edition_uuid}",
         )
         self.assertEqual(response.json()["edition_uuid"], edition_uuid)
+
+    def test_metadata_reextraction_prefers_pdf_doi_over_stale_saved_doi(self):
+        digest = "4" * 64
+        with self.sessions() as db:
+            paper = Paper(
+                title="Incorrect imported title",
+                doi="10.0000/stale-doi",
+            )
+            db.add(paper)
+            db.flush()
+            edition = PaperEdition(
+                paper=paper,
+                paper_uuid=paper.uuid,
+                file_path="countersnapping.pdf",
+                sha256=digest,
+                uploaded_by=self.user_uuid,
+            )
+            db.add(edition)
+            db.flush()
+            db.add(Copy(
+                paper=paper,
+                paper_uuid=paper.uuid,
+                user_uuid=self.user_uuid,
+                edition=edition,
+                edition_uuid=edition.uuid,
+                edition_sha256=digest,
+            ))
+            db.commit()
+            paper_uuid = paper.uuid
+
+        metadata = {
+            "doi": "10.1073/pnas.2423301122",
+            "title": "Exotic mechanical properties enabled by countersnapping instabilities",
+            "authors": [
+                "Paul Ducarme", "Bart Weber", "Martin van Hecke",
+                "Johannes T. B. Overvelde",
+            ],
+            "venue": "Proceedings of the National Academy of Sciences",
+            "year": 2025,
+        }
+        lookup = AsyncMock(return_value=metadata)
+        with (
+            patch.object(main, "_edition_pdf_path", return_value=Path("paper.pdf")),
+            patch.object(
+                main,
+                "extract_doi_from_pdf",
+                return_value=("10.1073/pnas.2423301122", "PDF text"),
+            ),
+            patch.object(main.metadata_lookup, "by_doi", lookup),
+        ):
+            response = self.client.post(
+                f"/api/papers/{paper_uuid}/extract-metadata",
+                headers=self.headers,
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        lookup.assert_awaited_once_with("10.1073/pnas.2423301122")
+        self.assertEqual(response.json(), {
+            "doi": metadata["doi"],
+            "title": metadata["title"],
+            "authors": json.dumps(metadata["authors"]),
+            "journal": metadata["venue"],
+            "year": metadata["year"],
+        })
 
     def test_edition_choices_are_published_to_cursor_sync(self):
         with self.sessions() as db:

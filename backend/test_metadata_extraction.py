@@ -1,10 +1,12 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import fitz
 
 import crossref
 import grobid
-from pdf_parser import arxiv_doi, extract_arxiv_id
+from pdf_parser import arxiv_doi, extract_arxiv_id, extract_doi, extract_doi_from_pdf
 
 GROBID_HEADER = """<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
 <fileDesc><sourceDesc><biblStruct><analytic>
@@ -43,6 +45,37 @@ GROBID_JOURNAL_ONLY_REFERENCE = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
 
 
 class MetadataExtractionTests(unittest.TestCase):
+    def test_skips_line_wrapped_doi_fragment_for_complete_footer_doi(self):
+        text = (
+            "Supporting information at https://www.pnas.org/lookup/suppl/"
+            "doi:10.1073/pnas.\n2423301122/-/DCSupplemental.\n"
+            "2 of 8 https://doi.org/10.1073/pnas.2423301122 pnas.org"
+        )
+
+        self.assertEqual(extract_doi(text), "10.1073/pnas.2423301122")
+
+    def test_extracts_complete_footer_doi_from_pnas_pdf_layout(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "countersnapping.pdf"
+            document = fitz.open()
+            first_page = document.new_page()
+            first_page.insert_text((72, 72), "doi:10.1073/pnas.")
+            first_page.insert_text((72, 90), "2423301122/-/DCSupplemental.")
+            second_page = document.new_page()
+            second_page.insert_text(
+                (72, 72), "https://doi.org/10.1073/pnas.2423301122"
+            )
+            document.save(path)
+            document.close()
+
+            doi, text = extract_doi_from_pdf(str(path))
+
+        self.assertIn("10.1073/pnas.", text)
+        self.assertEqual(doi, "10.1073/pnas.2423301122")
+
+    def test_keeps_a_non_numeric_doi_suffix_as_a_fallback(self):
+        self.assertEqual(extract_doi("doi:10.1000/xyz."), "10.1000/xyz")
+
     def test_finds_versioned_arxiv_id_in_pdf_text(self):
         self.assertEqual(
             extract_arxiv_id("arXiv:1705.07354v3  [cs.PL]  6 Apr 2018"),

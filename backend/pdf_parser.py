@@ -9,6 +9,28 @@ ARXIV_ID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+DOI_PATTERN = re.compile(
+    r'10\.\d{4,9}/[^\s\]\)>"]+',
+    re.IGNORECASE,
+)
+
+
+def extract_doi(text: str) -> str | None:
+    """Return the first complete-looking DOI in extracted PDF text.
+
+    PDF layout extraction can split a DOI across lines. In particular, PNAS
+    papers print a supporting-information URL before the canonical footer DOI,
+    and the former can be extracted as the incomplete ``10.1073/pnas.``. Skip
+    suffixes without a digit when a later, complete identifier is available.
+    """
+    fallback = None
+    for match in DOI_PATTERN.finditer(text):
+        candidate = match.group(0).rstrip(".,;:")
+        fallback = fallback or candidate
+        if any(character.isdigit() for character in candidate.split("/", 1)[1]):
+            return candidate
+    return fallback
+
 
 def extract_doi_from_pdf(file_path: str) -> tuple[str | None, str]:
     """
@@ -26,17 +48,7 @@ def extract_doi_from_pdf(file_path: str) -> tuple[str | None, str]:
 
     doc.close()
 
-    # Search for DOI pattern
-    doi_pattern = r'10\.\d{4,}/[^\s\]\)>"]+'
-    match = re.search(doi_pattern, text)
-
-    doi = None
-    if match:
-        doi = match.group(0)
-        # Clean up trailing punctuation
-        doi = doi.rstrip(".,;:")
-
-    return doi, text
+    return extract_doi(text), text
 
 
 def extract_arxiv_id(text: str) -> str | None:
