@@ -31,18 +31,19 @@ export function getToken() {
 export async function getPaperByPdf(hash) {
   if (nativeDataActive()) {
     try {
-      const paper = rememberPaperIdentity(paperView(await nativeRepository.paperByPdf(hash)));
-      paper.comments = (await nativeRepository.comments(paper.uuid)).map(noteView);
-      return paper;
+      return rememberPaperIdentity(paperView(await nativeRepository.paperByPdf(hash)));
     } catch {
       // A public paper that has not been retained locally still comes from the service.
     }
   }
-  const paper = rememberPaperIdentity(await request(`/viewer/${hash}`));
+  return rememberPaperIdentity(await request(`/viewer/${hash}`));
+}
+
+export async function getPaperNotes(paper) {
   if (nativeDataActive()) {
-    paper.comments = (await nativeRepository.comments(paper.uuid)).map(noteView);
+    return (await nativeRepository.comments(paper.uuid)).map(noteView);
   }
-  return paper;
+  return paper.comments || [];
 }
 
 export function getViewerPaperInfo(hash) {

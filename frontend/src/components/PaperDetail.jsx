@@ -153,7 +153,10 @@ export default function PaperDetail({
     try {
       const data = await getPaper(paperUuid);
       setPaper(data);
-      if (currentUser && data.viewer_has_entry) setShelves(await listShelves());
+      setIsLoading(false);
+      if (currentUser && data.viewer_has_entry) {
+        listShelves().then(setShelves).catch((err) => setError(err.message));
+      }
       if (loadedOnce.current) onChanged?.();
       loadedOnce.current = true;
     } catch (err) {

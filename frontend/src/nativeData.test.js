@@ -16,6 +16,7 @@ let remoteBlobReady = false;
 let syncFailure = null;
 let syncGate = null;
 let queryPaper = null;
+let queryPaperGate = null;
 let networkMode = 'pdf';
 
 global.localStorage = {
@@ -34,8 +35,10 @@ global.window = {
         return { local_sequence: 1, rows: [{ uuid: arguments_.changes[0].uuid }] };
       }
       if (command === 'data_query' && arguments_.queryName === 'paper' && queryPaper) {
+        if (queryPaperGate) await queryPaperGate.promise;
         return queryPaper;
       }
+      if (command === 'data_query' && arguments_.queryName === 'comments') return [];
       if (command === 'data_query' && arguments_.queryName === 'shelves') {
         return [{ uuid: '88888888-8888-4888-8888-888888888888', is_default: 1 }];
       }
@@ -93,8 +96,28 @@ const {
   postRoomMessage, setRoomAvailability, uncallSeminar, unhostRoom,
 } = await import('../../shared/api/rooms.js');
 const {
-  addPaperEdition, addToNook, adoptEdition, deletePaper, ignoreEdition, updatePaper,
+  addPaperEdition, addToNook, adoptEdition, deletePaper, getPaper, ignoreEdition, updatePaper,
 } = await import('../../shared/api/papers.js');
+
+test('paper and comment reads start together', async () => {
+  const paperUuid = '11111111-1111-4111-8111-111111111111';
+  queryPaper = { uuid: paperUuid, copy_uuid: '22222222-2222-4222-8222-222222222222' };
+  let releasePaper;
+  queryPaperGate = {
+    promise: new Promise((resolve) => { releasePaper = resolve; }),
+  };
+  calls.length = 0;
+
+  const loading = getPaper(paperUuid);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.some(([, args]) => args?.queryName === 'paper'));
+  assert.ok(calls.some(([, args]) => args?.queryName === 'comments'));
+  releasePaper();
+  await loading;
+  queryPaperGate = null;
+  queryPaper = null;
+});
 
 test('native SQLite is authoritative for the local sync preference', async () => {
   values.set('papol.syncPreference', 'automatic');

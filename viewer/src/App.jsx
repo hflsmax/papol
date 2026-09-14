@@ -803,6 +803,7 @@ export default function App() {
       return undefined;
     }
     const loaded = source.load();
+    const loadedNotes = source.loadNotes?.();
     loaded
       .then(({ doc: paperDoc, notes: loaded }) => {
         if (cancelled) return;
@@ -811,6 +812,13 @@ export default function App() {
         markViewerPerformance('paper-loaded');
       })
       .catch((e) => { if (!cancelled) setError(e.message); });
+    if (loadedNotes) {
+      Promise.all([loaded, loadedNotes])
+        .then(([, found]) => {
+          if (!cancelled) setNotes(found);
+        })
+        .catch((e) => { if (!cancelled) setError(e.message); });
+    }
     // Exact-hash nook membership is useful for the toolbar, but it must not
     // delay an opened file. Start it beside the ordinary source load and
     // apply it only after that initial paper has landed.

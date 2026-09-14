@@ -2,7 +2,7 @@ import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { appPath } from './base.js';
 import {
-  getPaperByPdf, getNookPaperByPdf, addOpenedFileToNook,
+  getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
   createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getClips, addClip, moveClip, eraseClip,
@@ -30,16 +30,30 @@ export function resolveSource() {
   return apiSource(pdf);
 }
 
-function apiSource(pdfHash, loadPaper = () => getPaperByPdf(pdfHash)) {
+function apiSource(
+  pdfHash,
+  loadPaper = () => getPaperByPdf(pdfHash),
+  loadPaperNotes = (paper) => getPaperNotes(paper),
+) {
   let paperUuid = null;
+  let paperReady = null;
+  const paper = () => {
+    if (!paperReady) paperReady = loadPaper();
+    return paperReady;
+  };
   const source = {
     backHref: appPath('/'),
     requiresSignIn: true,
     async load() {
-      const paper = await loadPaper();
-      paperUuid = paper.uuid;
-      source.backHref = appPath(`/paper/${paper.uuid}`);
-      return { doc: paper, notes: paper.comments || [] };
+      const loaded = await paper();
+      paperUuid = loaded.uuid;
+      source.backHref = appPath(`/paper/${loaded.uuid}`);
+      return { doc: loaded, notes: [] };
+    },
+    async loadNotes() {
+      const loaded = await paper();
+      paperUuid = loaded.uuid;
+      return loadPaperNotes(loaded);
     },
     notes: {
       create: (note) => createNote(paperUuid, note),

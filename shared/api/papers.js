@@ -144,12 +144,17 @@ export async function createPaper(paperData) {
 }
 
 export async function getPaper(uuid) {
+  let localComments = null;
   if (nativeDataActive()) {
     // A nook paper is read from the replica: the server may not have it yet,
     // or may be out of reach.
     try {
-      const paper = paperView(await nativeRepository.paper(uuid));
-      paper.comments = (await nativeRepository.comments(uuid)).map(noteView);
+      localComments = nativeRepository.comments(uuid);
+      const [row, comments] = await Promise.all([
+        nativeRepository.paper(uuid), localComments,
+      ]);
+      const paper = paperView(row);
+      paper.comments = comments.map(noteView);
       setPaperCopyUuid(uuid, paper.copy_uuid);
       return paper;
     } catch (error) {
@@ -157,11 +162,14 @@ export async function getPaper(uuid) {
       if (String(error?.message ?? error) !== 'Paper not found') throw error;
     }
   }
-  const paper = rememberPaperIdentity(await request(`/papers/${uuid}`));
-  if (nativeDataActive()) {
-    const [comments, nook] = await Promise.all([
-      nativeRepository.comments(paper.uuid), nativeRepository.nook(),
-    ]);
+  const localState = nativeDataActive()
+    ? Promise.all([localComments || nativeRepository.comments(uuid), nativeRepository.nook()])
+    : null;
+  const remotePaper = request(`/papers/${uuid}`);
+  const [paperResult, state] = await Promise.all([remotePaper, localState]);
+  const paper = rememberPaperIdentity(paperResult);
+  if (state) {
+    const [comments, nook] = state;
     paper.comments = comments.map(noteView);
     const copy = nook.copies.find((candidate) => candidate.paper_uuid === paper.uuid);
     if (copy) {

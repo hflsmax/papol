@@ -20,6 +20,13 @@ global.window = {
     invoke: async (command, arguments_) => {
       calls.push([command, arguments_]);
       if (command === 'local_setting_get') return 'manual';
+      if (command === 'data_query' && arguments_.queryName === 'paper_by_pdf') {
+        return {
+          uuid: '11111111-1111-4111-8111-111111111111',
+          edition_uuid: '22222222-2222-4222-8222-222222222222',
+          edition_sha256: 'a'.repeat(64),
+        };
+      }
       if (command === 'data_query') return [];
       if (command === 'blob_read') return [37, 80, 68, 70];
       if (command === 'opened_file_read') return [37, 80, 68, 70, 45, 49, 46, 52];
@@ -36,7 +43,8 @@ global.window = {
 global.Event = class Event { constructor(type) { this.type = type; } };
 
 const {
-  addClip, addInk, createNote, eraseInk, getClips, getInk, pdfLoadInput, rememberPaperIdentity,
+  addClip, addInk, createNote, eraseInk, getClips, getInk, getPaperByPdf, getPaperNotes,
+  pdfLoadInput, rememberPaperIdentity,
 } = await import('./api.js');
 
 rememberPaperIdentity({
@@ -85,6 +93,17 @@ test('a local edition UUID reads annotations without falling through to integer 
   assert.deepEqual(reads.map(([, args]) => args.parameters.parent_uuid), [
     localEditionUuid, localEditionUuid,
   ]);
+});
+
+test('paper identity is available before its notes are queried', async () => {
+  calls.length = 0;
+  const paper = await getPaperByPdf('a'.repeat(64));
+
+  assert.equal(paper.uuid, '11111111-1111-4111-8111-111111111111');
+  assert.equal(calls.some(([, args]) => args?.queryName === 'comments'), false);
+
+  await getPaperNotes(paper);
+  assert.equal(calls.filter(([, args]) => args?.queryName === 'comments').length, 1);
 });
 
 test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', async () => {
