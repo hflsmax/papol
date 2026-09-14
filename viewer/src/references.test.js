@@ -99,3 +99,24 @@ test('turns an analyzed figure reference into an internal PDF link', async () =>
     spot: { page: 2, y: 0.55 },
   }]);
 });
+
+test('recognizes Springer Nature superscript reference destinations without analysis', async () => {
+  const dest = 'springernature_natcomputsci_673.indd:\uFEFF12.\uFEFF\tBertoldi, K. et al. Flexible mechanical metamaterials.:65';
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest, rect: [80, 20, 83, 25] },
+    ],
+  };
+  const doc = { getPage: async () => page };
+
+  const overlays = await pageOverlays(doc, 1, null);
+
+  assert.equal(overlays.links.length, 0);
+  assert.equal(overlays.citations.length, 1);
+  assert.equal(overlays.citations[0].reference.key, '12');
+  assert.equal(overlays.citations[0].reference.dest, dest);
+});

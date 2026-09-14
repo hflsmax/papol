@@ -290,12 +290,27 @@ async function fromAnnotations(doc, pageNumber, references) {
   return { citations, links: elsewhere };
 }
 
+function citationDestinationKey(dest) {
+  if (typeof dest !== 'string') return null;
+  if (/^cite\./i.test(dest)) return dest.replace(/^cite\./i, '');
+
+  // Springer Nature PDFs exported from InDesign use the bibliography entry
+  // itself as the destination name. Their in-text markers are bare
+  // superscript numbers, so treating these as ordinary document links also
+  // means selection cleanup cannot tell the citation number from prose.
+  // Strip the invisible layout characters before recognizing the leading
+  // bibliography number (for example, "...indd:\uFEFF1.\uFEFF\tRus, D. ...").
+  const printable = dest.replace(/[\uFEFF\u200B-\u200D]/g, '');
+  const springer = printable.match(/^springernature_.*\.indd:\s*(\d{1,3})\./i);
+  return springer?.[1] || null;
+}
+
 function isNamedCitation(dest) {
-  return typeof dest === 'string' && /^cite\./i.test(dest);
+  return citationDestinationKey(dest) != null;
 }
 
 function namedCitation(dest, box) {
-  const key = String(dest).replace(/^cite\./i, '');
+  const key = citationDestinationKey(dest);
   return {
     referenceUuid: `pdf:${dest}`,
     label: null,
@@ -344,7 +359,7 @@ export async function readNamedReference(doc, dest) {
   lines.sort((a, b) => b.y - a.y);
   const textOf = (line) => line.items.sort((a, b) => a.x - b.x)
     .map((item) => item.text).join(' ').replace(/\s+/g, ' ').trim();
-  const marker = /^\s*\[\d+\]/;
+  const marker = /^\s*(?:\[\d+\]|\d+\.)/;
   let start = lines.findIndex((line) => line.y <= targetY + 2 && marker.test(textOf(line)));
   const numbered = start >= 0;
   // Author-year bibliographies have no [n] boundary. Their named hyperref
