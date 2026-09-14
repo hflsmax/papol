@@ -90,8 +90,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
   const canUncall =
     room.creator.uuid === currentUser.uuid &&
     (room.status === 'open' || room.status === 'planning') &&
-    participants.length === 1 &&
-    participants[0].uuid === currentUser.uuid;
+    participants.every((participant) => participant.uuid === currentUser.uuid);
 
   const uncall = async () => {
     if (!(await confirmAction('Uncall this seminar? The empty cohort will be removed.', {

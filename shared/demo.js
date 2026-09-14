@@ -656,7 +656,7 @@ async function routeDemoRequest(path, options = {}) {
       if (room.status !== 'open' && room.status !== 'planning') {
         throw demoError('Only an active seminar can be uncalled');
       }
-      if (roomParts(room).length !== 1 || roomParts(room)[0].user_uuid !== ME) {
+      if (roomParts(room).some((x) => x.user_uuid !== ME)) {
         throw demoError('A seminar can only be uncalled when no one else is in the cohort');
       }
       d.notifications = d.notifications.filter((x) => x.room_uuid !== room.uuid);

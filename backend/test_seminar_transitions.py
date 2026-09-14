@@ -129,6 +129,13 @@ class SeminarTransitionTests(unittest.TestCase):
         with self.sessions() as db:
             self.assertIsNone(db.query(Room).filter(Room.uuid == called["uuid"]).first())
 
+    def test_caller_can_uncall_an_empty_cohort(self):
+        called = self.request("POST", f"/api/papers/{self.paper_uuid}/room")
+        self.request("POST", f"/api/rooms/{called['uuid']}/leave")
+
+        removed = self.request("POST", f"/api/rooms/{called['uuid']}/uncall")
+        self.assertEqual(removed["message"], "Seminar uncalled")
+
     def test_caller_cannot_uncall_after_someone_else_joins(self):
         called = self.request("POST", f"/api/papers/{self.paper_uuid}/room")
         response = self.client.post("/api/auth/register", json={

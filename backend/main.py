@@ -3453,16 +3453,16 @@ async def uncall_seminar(
 ):
     """Withdraw a call that never formed a cohort.
 
-    Only its caller may withdraw it, and only while it is active and they are
-    still the sole participant. Once another reader has joined, the seminar is
-    shared state and must remain available to its cohort.
+    Only its caller may withdraw it, and only while it is active and has no
+    participant other than them. Once another reader has joined, the seminar
+    is shared state and must remain available to its cohort.
     """
     room = _get_room_or_404(room_uuid, db)
     if room.created_by != current_user.uuid:
         raise HTTPException(status_code=403, detail="Only the caller can uncall this seminar")
     if room.status not in ("open", "planning"):
         raise HTTPException(status_code=400, detail="Only an active seminar can be uncalled")
-    if len(room.participants) != 1 or room.participants[0].user_uuid != current_user.uuid:
+    if any(p.user_uuid != current_user.uuid for p in room.participants):
         raise HTTPException(
             status_code=400,
             detail="A seminar can only be uncalled when no one else is in the cohort",

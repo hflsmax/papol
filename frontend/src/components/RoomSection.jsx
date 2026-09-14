@@ -37,8 +37,7 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
     currentUser &&
     room.creator.uuid === currentUser.uuid &&
     (room.status === 'open' || room.status === 'planning') &&
-    room.participants.length === 1 &&
-    room.participants[0].uuid === currentUser.uuid;
+    room.participants.every((participant) => participant.uuid === currentUser.uuid);
 
   if (room.status === 'finished' && !expanded) {
     return (
