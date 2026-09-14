@@ -25,7 +25,7 @@ database. A local row change and its outbox entry commit in one SQLite
 transaction; one process-wide coordinator uploads blobs, pushes mutations,
 refreshes bounded paper dependencies, then pulls the server cursor. Remote PDFs
 download lazily when opened. Unsynchronized files are durable; only the
-replaceable cache is subject to the 2 GiB LRU limit and Clear cache.
+replaceable cache has no automatic size limit and can be removed with Clear cache.
 
 Offline writes are deliberately limited to data owned by that reader: adding
 or removing a personal PDF, private paper fields, notes, ink, clips, tags, and

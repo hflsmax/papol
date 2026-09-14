@@ -31,6 +31,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
+from app_limits import limit, mebibytes
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -142,7 +143,7 @@ app.include_router(admin_router)
 
 _IDEMPOTENCY_CLIENT_HEADER = "x-papol-client-uuid"
 _IDEMPOTENCY_MUTATION_HEADER = "x-papol-mutation-uuid"
-_IDEMPOTENCY_RESPONSE_LIMIT = 5 * 1024 * 1024
+_IDEMPOTENCY_RESPONSE_LIMIT = mebibytes("files", "idempotency_response_mb")
 
 
 def _uuid_header(value: str | None) -> str | None:
@@ -332,8 +333,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         db.add(ErrorLog(
             method=request.method,
             path=str(request.url.path),
-            message=str(exc)[:2000],
-            traceback=traceback.format_exc()[:20000],
+            message=str(exc)[:limit("text", "error_message")],
+            traceback=traceback.format_exc()[:limit("text", "error_traceback")],
         ))
         db.commit()
     except Exception:
@@ -504,7 +505,7 @@ async def update_profile(
 
 
 _AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-_AVATAR_MAX_BYTES = 2 * 1024 * 1024
+_AVATAR_MAX_BYTES = mebibytes("files", "avatar_mb")
 
 
 def _delete_avatar_file(user: User):
@@ -525,7 +526,10 @@ async def upload_avatar(
         raise HTTPException(status_code=400, detail="Only PNG, JPEG, or WebP images are allowed")
     data = await file.read()
     if len(data) > _AVATAR_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Image must be under 2 MB")
+        raise HTTPException(
+            status_code=400,
+            detail=f'Image must be at most {limit("files", "avatar_mb")} MB',
+        )
 
     fname = f"avatars/{uuid.uuid4()}{ext}"
     (UPLOADS_DIR / fname).write_bytes(data)
@@ -649,7 +653,7 @@ async def delete_my_account(
 
 # ---------------- Boards ----------------
 
-BOARD_FILE_LIMIT = 25 * 1024 * 1024
+BOARD_FILE_LIMIT = mebibytes("files", "board_file_mb")
 
 
 def _owned_board(board_uuid: str, user: User, db: Session) -> Board:
@@ -852,7 +856,9 @@ async def stage_board_clip(
 ):
     """Stage a clipped PDF rectangle as an image, with its bounding-box backlink."""
     board = _owned_board(board_uuid, user, db)
-    if len(caption) > 10000 or len(source_url) > 4000 or len(source_label) > 500:
+    if (len(caption) > limit("text", "board_content")
+            or len(source_url) > limit("text", "source_url")
+            or len(source_label) > limit("text", "source_label")):
         raise HTTPException(status_code=422, detail="Clip metadata is too long")
     if not source_url.startswith(("http://", "https://")):
         raise HTTPException(status_code=422, detail="Invalid source URL")
@@ -866,7 +872,7 @@ async def stage_board_clip(
             while chunk := await file.read(1024 * 1024):
                 size += len(chunk)
                 if size > BOARD_FILE_LIMIT:
-                    raise HTTPException(status_code=413, detail="Board files may be at most 25 MB")
+                    raise HTTPException(status_code=413, detail=f'Board files may be at most {limit("files", "board_file_mb")} MB')
                 digest.update(chunk)
                 output.write(chunk)
     except Exception:
@@ -926,10 +932,10 @@ async def add_board_file(
     db: Session = Depends(get_db),
 ):
     board = _owned_board(board_uuid, user, db)
-    if len(caption) > 10000:
+    if len(caption) > limit("text", "board_content"):
         raise HTTPException(status_code=422, detail="Caption is too long")
-    original = Path(file.filename or "file").name[:255]
-    suffix = Path(original).suffix[:20]
+    original = Path(file.filename or "file").name[:limit("text", "uploaded_filename")]
+    suffix = Path(original).suffix[:limit("text", "uploaded_suffix")]
     relative = Path(str(board.uuid)) / f"{uuid.uuid4().hex}{suffix}"
     destination = BOARDS_DIR / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -940,13 +946,13 @@ async def add_board_file(
             while chunk := await file.read(1024 * 1024):
                 size += len(chunk)
                 if size > BOARD_FILE_LIMIT:
-                    raise HTTPException(status_code=413, detail="Board files may be at most 25 MB")
+                    raise HTTPException(status_code=413, detail=f'Board files may be at most {limit("files", "board_file_mb")} MB')
                 digest.update(chunk)
                 output.write(chunk)
     except Exception:
         destination.unlink(missing_ok=True)
         raise
-    mime = (file.content_type or "application/octet-stream")[:255]
+    mime = (file.content_type or "application/octet-stream")[:limit("text", "mime_type")]
     item = BoardItem(
         board_uuid=board.uuid,
         kind="image" if mime.startswith("image/") else "file",
@@ -1006,18 +1012,18 @@ def _fetch_youtube_thumbnail(url: str, video_id: str) -> tuple[bytes, str]:
         {"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}
     )
     request = urllib.request.Request(endpoint, headers={"User-Agent": "Papol/1.0"})
-    with urllib.request.urlopen(request, timeout=8) as response:
-        metadata = json.loads(response.read(256 * 1024))
+    with urllib.request.urlopen(request, timeout=limit("timeouts_ms", "youtube_metadata") / 1000) as response:
+        metadata = json.loads(response.read(limit("files", "youtube_metadata_kb") * 1024))
     thumbnail = str(metadata.get("thumbnail_url") or "")
     host = (urllib.parse.urlparse(thumbnail).hostname or "").lower()
     if host != "i.ytimg.com" and not host.endswith(".ytimg.com"):
         raise ValueError("YouTube returned an invalid thumbnail location")
     image_request = urllib.request.Request(thumbnail, headers={"User-Agent": "Papol/1.0"})
-    with urllib.request.urlopen(image_request, timeout=10) as response:
+    with urllib.request.urlopen(image_request, timeout=limit("timeouts_ms", "youtube_thumbnail") / 1000) as response:
         image = response.read(BOARD_FILE_LIMIT + 1)
     if not image or len(image) > BOARD_FILE_LIMIT:
         raise ValueError("YouTube thumbnail is empty or too large")
-    return image, str(metadata.get("title") or url)[:10000]
+    return image, str(metadata.get("title") or url)[:limit("text", "board_content")]
 
 
 def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
@@ -1041,7 +1047,7 @@ def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
                 raise ValueError("PAPOL_YOUTUBE_COOKIES does not name a readable file")
             download_command += ["--cookies", cookies]
         download_command += [
-            "--max-filesize", "200M",
+            "--max-filesize", f'{limit("files", "youtube_source_mb")}M',
             "--write-info-json",
             "-f", "bestvideo[height<=1080]/bestvideo/best[height<=1080]/best",
             "-o", template,
@@ -1051,7 +1057,7 @@ def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
             download_command,
             capture_output=True,
             text=True,
-            timeout=90,
+            timeout=limit("timeouts_ms", "youtube_download") / 1000,
             check=False,
         )
         if download_process.returncode != 0:
@@ -1081,7 +1087,7 @@ def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=limit("timeouts_ms", "media_capture") / 1000,
                 check=False,
             )
             if frame_process.returncode != 0:
@@ -1089,7 +1095,7 @@ def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
             image = output.read(BOARD_FILE_LIMIT + 1)
     if not image or len(image) > BOARD_FILE_LIMIT:
         raise ValueError("Captured frame is empty or too large")
-    return image, str(metadata.get("title") or url)[:10000]
+    return image, str(metadata.get("title") or url)[:limit("text", "board_content")]
 
 
 def _public_web_url(value: str) -> str:
@@ -1129,7 +1135,7 @@ def _capture_webpage(url: str) -> bytes:
             ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=limit("timeouts_ms", "media_capture") / 1000,
             check=False,
         )
         if process.returncode != 0:
@@ -1215,7 +1221,7 @@ async def add_webpage_to_board(
         content=hostname,
         file_path=str(relative),
         sha256=hashlib.sha256(image).hexdigest(),
-        original_filename=f"webpage-{hostname[:80]}.png",
+        original_filename=f'webpage-{hostname[:limit("text", "display_name")]}.png',
         mime_type="image/png",
         source_url=url,
         x=data.x,
@@ -2314,8 +2320,11 @@ async def create_shelf(
     db: Session = Depends(get_db),
 ):
     active_shelves = [s for s in current_user.shelves if s.deleted_at is None]
-    if len(active_shelves) >= 5:
-        raise HTTPException(status_code=400, detail="A nook can have at most five shelves")
+    if len(active_shelves) >= limit("counts", "shelves_per_nook"):
+        raise HTTPException(
+            status_code=400,
+            detail=f'A nook can have at most {limit("counts", "shelves_per_nook")} shelves',
+        )
     name = " ".join(data.name.split())
     if any(s.name.lower() == name.lower() for s in active_shelves):
         raise HTTPException(status_code=400, detail="You already have a shelf with that name")
@@ -2598,7 +2607,7 @@ async def _analyze_edition(edition_uuid: str):
             analysis = await grobid.analyze(str(path))
         except Exception as e:
             logger.warning(f"GROBID failed on edition {edition_uuid}: {e}")
-            _finish_analysis(db, edition, "failed", str(e)[:500])
+            _finish_analysis(db, edition, "failed", str(e)[:limit("text", "analysis_error")])
             return
 
         # A re-analysis replaces what was there. Resolutions are lost with
@@ -2672,7 +2681,7 @@ async def _analyze_edition(edition_uuid: str):
         try:
             edition = db.get(PaperEdition, edition_uuid)
             if edition is not None:
-                _finish_analysis(db, edition, "failed", str(e)[:500])
+                _finish_analysis(db, edition, "failed", str(e)[:limit("text", "analysis_error")])
         except Exception:
             db.rollback()
     finally:

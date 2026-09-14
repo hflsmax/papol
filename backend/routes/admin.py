@@ -10,6 +10,7 @@ from services.feedback import feedback_out
 from services.notifications import send_daily_digest, smtp_config
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app_limits import limit
 
 router = APIRouter()
 
@@ -132,7 +133,7 @@ async def admin_get_table(
     db: Session = Depends(get_db),
 ):
     table = _admin_table(table_name)
-    rows = db.execute(table.select().limit(500)).mappings().all()
+    rows = db.execute(table.select().limit(limit("counts", "admin_table_rows"))).mappings().all()
     return {
         "columns": [c.name for c in table.columns],
         "primary_key": [c.name for c in table.primary_key.columns],

@@ -10,6 +10,7 @@ import HintPop from './HintPop';
 import Avatar from './Avatar';
 import { RatingInput, RatingSummary } from './Rating';
 import Markdown, { MarkdownHint } from './Markdown';
+import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
 import { demoActive } from '../../../shared/demo.js';
 import { appPath } from '../base';
@@ -894,7 +895,7 @@ export default function PaperDetail({
                   <AutoTextarea
                     className="inline-edit-box"
                     value={thoughtDraft}
-                    maxLength={200}
+                    maxLength={appLimits.text.paper_thought}
                     rows={2}
                     autoFocus
                     placeholder="Your public one-line take on this paper"

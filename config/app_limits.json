@@ -1,0 +1,110 @@
+{
+  "files": {
+    "offline_blob_mb": 40,
+    "board_file_mb": 25,
+    "avatar_mb": 2,
+    "proxy_request_mb": 200,
+    "youtube_source_mb": 200,
+    "youtube_metadata_kb": 256,
+    "local_annotation_mb": 4,
+    "idempotency_response_mb": 5
+  },
+  "counts": {
+    "sync_push_changes": 250,
+    "sync_pull_default": 250,
+    "sync_pull_max": 1000,
+    "shelves_per_nook": 5,
+    "board_group_items": 100,
+    "ink_points": 4000,
+    "notifications": 50,
+    "admin_table_rows": 500,
+    "bibliography_results": 5
+  },
+  "text": {
+    "email": 254,
+    "display_name": 80,
+    "affiliation": 120,
+    "password": 200,
+    "admin_query": 10000,
+    "comment": 4000,
+    "annotation_name": 120,
+    "board_name": 120,
+    "board_description": 4000,
+    "board_content": 10000,
+    "source_url": 4000,
+    "source_label": 500,
+    "board_group_title": 240,
+    "board_group_header": 4000,
+    "external_url": 2000,
+    "room_message": 4000,
+    "availability": 500,
+    "scheduled_time": 200,
+    "platform": 200,
+    "room_style": 40,
+    "room_style_description": 300,
+    "feedback": 4000,
+    "feedback_page": 300,
+    "paper_thought": 200,
+    "tag_name": 60,
+    "shelf_name": 40,
+    "reference_key": 300,
+    "reference_raw": 5000,
+    "uploaded_filename": 255,
+    "uploaded_suffix": 20,
+    "mime_type": 255,
+    "error_message": 2000,
+    "error_traceback": 20000,
+    "analysis_error": 500,
+    "notification_email_headline": 60,
+    "crossref_query": 500
+  },
+  "board": {
+    "coordinate_abs_max": 1000000,
+    "item_width_min": 120,
+    "item_width_max": 1200,
+    "position_max": 1000000000
+  },
+  "annotations": {
+    "ink_width_max": 0.1,
+    "normalized_coordinate_min": 0,
+    "normalized_coordinate_max": 1,
+    "clip_frame_coordinate_abs_max": 10,
+    "clip_frame_size_max": 10
+  },
+  "ratings": {
+    "min": 1,
+    "max": 5
+  },
+  "viewer": {
+    "zoom_min": 0.5,
+    "zoom_max": 10,
+    "canvas_pixels_max": 16777216,
+    "rail_width_min": 220,
+    "rail_width_max": 520,
+    "fit_width_max": 1100,
+    "clip_frame_size_max": 0.9,
+    "clip_frame_width_min": 0.08,
+    "clip_width_px_min": 54,
+    "clip_height_px_min": 48,
+    "text_rescale_ratio_max": 2,
+    "ink_point_step_min": 1.2
+  },
+  "matching": {
+    "bibliography_year_distance_max": 3,
+    "title_search_length_min": 8
+  },
+  "timeouts_ms": {
+    "desktop_auth": 10000,
+    "desktop_metadata": 15000,
+    "sync_connect": 5000,
+    "sync_read": 20000,
+    "sync_request": 120000,
+    "youtube_metadata": 8000,
+    "youtube_thumbnail": 10000,
+    "youtube_download": 90000,
+    "media_capture": 30000,
+    "bibliography_http": 15000,
+    "grobid_http": 5000,
+    "smtp": 20000
+  }
+}

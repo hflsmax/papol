@@ -1,4 +1,5 @@
 use crate::data::{LocalStore, RemoteChange};
+use crate::limits::value as app_limit;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -222,9 +223,15 @@ impl Coordinator {
     pub fn new() -> Result<Self, String> {
         let client = Client::builder()
             .user_agent("Papol Desktop/0.1")
-            .connect_timeout(Duration::from_secs(5))
-            .read_timeout(Duration::from_secs(20))
-            .timeout(Duration::from_secs(120))
+            .connect_timeout(Duration::from_millis(app_limit(
+                "timeouts_ms",
+                "sync_connect",
+            )))
+            .read_timeout(Duration::from_millis(app_limit("timeouts_ms", "sync_read")))
+            .timeout(Duration::from_millis(app_limit(
+                "timeouts_ms",
+                "sync_request",
+            )))
             .build()
             .map_err(|error| error.to_string())?;
         Ok(Self {
@@ -398,7 +405,10 @@ impl Coordinator {
             url.query_pairs_mut()
                 .append_pair("cursor", &cursor.to_string())
                 .append_pair("client_uuid", &client_uuid)
-                .append_pair("limit", "250");
+                .append_pair(
+                    "limit",
+                    &app_limit("counts", "sync_pull_default").to_string(),
+                );
             let response = self
                 .client
                 .get(url)

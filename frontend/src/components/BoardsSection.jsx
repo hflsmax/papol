@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createBoard, listBoards, updateBoard } from '../../../shared/api/boards.js';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { subscribeNativeData } from '../../../shared/nativeData.js';
+import appLimits from '../../../shared/appLimits.js';
 
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: new Date(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
@@ -54,7 +55,7 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
         <form className="panel board-create" onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="board-name">Name</label>
-            <input id="board-name" value={name} onChange={(e) => setName(e.target.value)} maxLength="120" autoFocus required />
+            <input id="board-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={appLimits.text.board_name} autoFocus required />
           </div>
           <div className="form-group">
             <label htmlFor="board-shelf">Shelf</label>
@@ -64,7 +65,7 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
           </div>
           <div className="form-group">
             <label htmlFor="board-description">Description or guiding question <span className="optional">optional</span></label>
-            <textarea id="board-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength="4000" rows="3" />
+            <textarea id="board-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={appLimits.text.board_description} rows="3" />
           </div>
           <div className="form-actions">
             <button className="primary" type="submit">Create board</button>

@@ -5,6 +5,7 @@ from emailer import send_email
 from models import Feedback, Notification, User
 from schemas import FeedbackOut, UserBase
 from services.notifications import site_url, smtp_config
+from app_limits import limit
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def email_admins_feedback(feedback_uuid: str, notification_uuids: dict):
             "— Papol",
         ]
         body = "\n".join(lines)
-        headline = fb.content.strip().splitlines()[0][:60]
+        headline = fb.content.strip().splitlines()[0][:limit("text", "notification_email_headline")]
         subject = f"Papol feedback: {headline}"
         for admin in db.query(User).filter(User.is_admin.is_(True)).all():
             try:

@@ -1,3 +1,4 @@
+use crate::limits::{decimal as app_decimal_limit, mebibytes, value as app_limit};
 use rusqlite::{params, params_from_iter, types::Value as SqlValue, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -9,7 +10,6 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 const REGISTRY: &str = include_str!("../../../../schema/sync_registry.json");
-const MAX_UNSYNCED_BLOB_BYTES: usize = 25 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DataChange {
@@ -458,7 +458,7 @@ impl LocalStore {
         row.remove("uuid");
         row.remove("kind");
         let encoded = serde_json::to_string(&row).map_err(|error| error.to_string())?;
-        if encoded.len() > 4 * 1024 * 1024 {
+        if encoded.len() > mebibytes("files", "local_annotation_mb") {
             return Err("Annotation is too large".into());
         }
         let connection = self
@@ -781,8 +781,11 @@ impl LocalStore {
         bytes: &[u8],
         mime_type: Option<String>,
     ) -> Result<BlobRecord, String> {
-        if bytes.len() > MAX_UNSYNCED_BLOB_BYTES {
-            return Err("Offline files may be at most 25 MB".into());
+        if bytes.len() > mebibytes("files", "offline_blob_mb") {
+            return Err(format!(
+                "Offline files may be at most {} MB",
+                app_limit("files", "offline_blob_mb")
+            ));
         }
         self.store_blob(bytes, mime_type, "unsynced")
     }
@@ -1591,10 +1594,17 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
             match change.values.get(field) {
                 None | Some(Value::Null) => {}
                 Some(value)
-                    if value
-                        .as_i64()
-                        .is_some_and(|rating| (1..=5).contains(&rating)) => {}
-                Some(_) => return Err("Ratings must be whole numbers from 1 to 5".into()),
+                    if value.as_i64().is_some_and(|rating| {
+                        (app_limit("ratings", "min") as i64..=app_limit("ratings", "max") as i64)
+                            .contains(&rating)
+                    }) => {}
+                Some(_) => {
+                    return Err(format!(
+                        "Ratings must be whole numbers from {} to {}",
+                        app_limit("ratings", "min"),
+                        app_limit("ratings", "max")
+                    ))
+                }
             }
         }
     }
@@ -1614,14 +1624,14 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
             .unwrap_or("")
             .chars()
             .count()
-            > 4000
+            > app_limit("text", "comment") as usize
             || row
                 .get("name")
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .chars()
                 .count()
-                > 120
+                > app_limit("text", "annotation_name") as usize
         {
             return Err("Note text is too long".into());
         }
@@ -1649,10 +1659,11 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
             }
             let point: Value = serde_json::from_str(encoded).map_err(|_| "Invalid note anchor")?;
             for axis in ["x", "y"] {
-                if !point[axis]
-                    .as_f64()
-                    .is_some_and(|coordinate| (0.0..=1.0).contains(&coordinate))
-                {
+                if !point[axis].as_f64().is_some_and(|coordinate| {
+                    (app_decimal_limit("annotations", "normalized_coordinate_min")
+                        ..=app_decimal_limit("annotations", "normalized_coordinate_max"))
+                        .contains(&coordinate)
+                }) {
                     return Err("Note coordinates must be within the page".into());
                 }
             }
@@ -1674,14 +1685,19 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         )
         .map_err(|_| "Invalid ink points")?;
         let points = points.as_array().ok_or("Ink points must be an array")?;
-        if points.is_empty() || points.len() > 4000 {
-            return Err("Ink needs between 1 and 4000 points".into());
+        if points.is_empty() || points.len() > app_limit("counts", "ink_points") as usize {
+            return Err(format!(
+                "Ink needs between 1 and {} points",
+                app_limit("counts", "ink_points")
+            ));
         }
         if points.iter().any(|point| {
             ["x", "y"].iter().any(|axis| {
-                !point[*axis]
-                    .as_f64()
-                    .is_some_and(|coordinate| (0.0..=1.0).contains(&coordinate))
+                !point[*axis].as_f64().is_some_and(|coordinate| {
+                    (app_decimal_limit("annotations", "normalized_coordinate_min")
+                        ..=app_decimal_limit("annotations", "normalized_coordinate_max"))
+                        .contains(&coordinate)
+                })
             })
         }) {
             return Err("Ink coordinates must be within the page".into());
@@ -1690,7 +1706,7 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         let opacity = row.get("opacity").and_then(Value::as_f64).unwrap_or(0.0);
         let color = row.get("color").and_then(Value::as_str).unwrap_or("");
         if !(0.0 < width
-            && width <= 0.1
+            && width <= app_decimal_limit("annotations", "ink_width_max")
             && 0.0 < opacity
             && opacity <= 1.0
             && color.len() == 7
@@ -1726,8 +1742,11 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         number(&source, "w"),
         number(&source, "h"),
     );
+    let normalized_min = app_decimal_limit("annotations", "normalized_coordinate_min");
+    let normalized_max = app_decimal_limit("annotations", "normalized_coordinate_max");
     if !matches!((sx, sy, sw, sh), (Some(x), Some(y), Some(w), Some(h))
-        if (0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y)
+        if (normalized_min..=normalized_max).contains(&x)
+        && (normalized_min..=normalized_max).contains(&y)
         && w > 0.0 && h > 0.0 && x + w <= 1.000001 && y + h <= 1.000001)
     {
         return Err("Clip source must stay within its page".into());
@@ -1738,9 +1757,14 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         number(&frame, "w"),
         number(&frame, "h"),
     );
+    let coordinate_max = app_decimal_limit("annotations", "clip_frame_coordinate_abs_max");
     if !matches!((fx, fy, fw, fh), (Some(x), Some(y), Some(w), Some(h))
-        if (-10.0..=10.0).contains(&x) && (-10.0..=10.0).contains(&y)
-        && w > 0.0 && w <= 10.0 && h > 0.0 && h <= 10.0)
+        if (-coordinate_max..=coordinate_max).contains(&x)
+        && (-coordinate_max..=coordinate_max).contains(&y)
+        && w > 0.0
+        && w <= app_decimal_limit("annotations", "clip_frame_size_max")
+        && h > 0.0
+        && h <= app_decimal_limit("annotations", "clip_frame_size_max"))
     {
         return Err("Invalid clip frame".into());
     }

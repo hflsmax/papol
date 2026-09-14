@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../../../shared/api/papers.js';
 import { confirmAction } from '../../../shared/confirmAction';
+import appLimits from '../../../shared/appLimits.js';
 
 // The focused editor for a reader's shelves and private tags ("Shelf" in
 // DESIGN.md). My nook opens it from its gear on the website, and Papol
@@ -151,7 +152,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
             setNewTagName('');
             onChanged();
           }}>
-            <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="New private tag" aria-label="New private tag" maxLength="60" />
+            <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="New private tag" aria-label="New private tag" maxLength={appLimits.text.tag_name} />
             <button type="submit">Add tag</button>
           </form>
         </section>

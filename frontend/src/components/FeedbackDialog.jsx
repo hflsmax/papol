@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { submitFeedback } from '../../../shared/api/feedback.js';
+import appLimits from '../../../shared/appLimits.js';
 
 export default function FeedbackDialog({ currentUser, onClose }) {
   const [content, setContent] = useState('');
@@ -60,7 +61,7 @@ export default function FeedbackDialog({ currentUser, onClose }) {
                 </label>
                 <textarea
                   rows="5"
-                  maxLength={4000}
+                  maxLength={appLimits.text.feedback}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="I clicked … and the page …, or: it would help if …"

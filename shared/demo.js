@@ -8,6 +8,7 @@ import {
   demoPapers, demoNotes, demoEditionFor, demoPaperUuid, noteAsComment,
 } from './demoWorld.js';
 import { inDemo } from './appUrls.js';
+import appLimits from './appLimits.js';
 
 export function demoActive() {
   return inDemo();
@@ -438,7 +439,9 @@ async function routeDemoRequest(path, options = {}) {
   }
 
   if (path === '/shelves' && method === 'POST') {
-    if (d.shelves.length >= 5) throw demoError('A nook can have at most five shelves');
+    if (d.shelves.length >= appLimits.counts.shelves_per_nook) {
+      throw demoError(`A nook can have at most ${appLimits.counts.shelves_per_nook} shelves`);
+    }
     const shelf = { uuid: newUuid(), name: body.name, color: body.color, is_public: !!body.is_public, is_default: false, position: d.shelves.length };
     d.shelves.push(shelf);
     return { ...shelf, paper_count: 0 };

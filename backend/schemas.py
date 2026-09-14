@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
 from typing import Optional, List, Literal
+from app_limits import limit
 
 
 # ---------- Users / auth ----------
@@ -9,10 +10,10 @@ EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
 class UserRegister(BaseModel):
-    email: str = Field(max_length=254, pattern=EMAIL_PATTERN)
-    display_name: str = Field(min_length=1, max_length=80)
-    affiliation: Optional[str] = Field(default=None, max_length=120)
-    password: str = Field(min_length=6, max_length=200)
+    email: str = Field(max_length=limit("text", "email"), pattern=EMAIL_PATTERN)
+    display_name: str = Field(min_length=1, max_length=limit("text", "display_name"))
+    affiliation: Optional[str] = Field(default=None, max_length=limit("text", "affiliation"))
+    password: str = Field(min_length=6, max_length=limit("text", "password"))
 
 
 class UserLogin(BaseModel):
@@ -53,18 +54,18 @@ class UserPrivate(UserBase):
 
 
 class AdminSQL(BaseModel):
-    query: str = Field(min_length=1, max_length=10000)
+    query: str = Field(min_length=1, max_length=limit("text", "admin_query"))
 
 
 class ProfileUpdate(BaseModel):
-    display_name: Optional[str] = Field(default=None, max_length=80)
-    affiliation: Optional[str] = Field(default=None, max_length=120)
+    display_name: Optional[str] = Field(default=None, max_length=limit("text", "display_name"))
+    affiliation: Optional[str] = Field(default=None, max_length=limit("text", "affiliation"))
     email_public: Optional[bool] = None
 
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=6, max_length=200)
+    new_password: str = Field(min_length=6, max_length=limit("text", "password"))
 
 
 class AccountDeletion(BaseModel):
@@ -110,9 +111,9 @@ class InkStrokeCreate(BaseModel):
     # to make. The ceiling is what stops a stray gesture, or a script, from
     # posting a megabyte of coordinates: a stroke drawn across a page at
     # pointer resolution is a few hundred points.
-    points: List[InkPoint] = Field(min_length=1, max_length=4000)
+    points: List[InkPoint] = Field(min_length=1, max_length=limit("counts", "ink_points"))
     color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
-    width: float = Field(default=0.004, gt=0, le=0.1)
+    width: float = Field(default=0.004, gt=0, le=limit("annotations", "ink_width_max"))
     opacity: float = Field(default=1.0, gt=0, le=1)
     shape: Literal["flat", "round"] = "flat"
 
@@ -121,7 +122,7 @@ class InkStrokeUpdate(BaseModel):
     """A stroke that has been picked up and put down somewhere else. The
     shape is unchanged — moving ink is moving it, not redrawing it — so
     only the points travel, and they are checked the same way."""
-    points: List[InkPoint] = Field(min_length=1, max_length=4000)
+    points: List[InkPoint] = Field(min_length=1, max_length=limit("counts", "ink_points"))
 
 
 class InkStrokeOut(BaseModel):
@@ -159,10 +160,10 @@ class ClipFrame(BaseModel):
     a gutter or span neighboring pages. The generous finite bounds reject
     corrupt coordinates without imposing a visual boundary.
     """
-    x: float = Field(ge=-10, le=10)
-    y: float = Field(ge=-10, le=10)
-    w: float = Field(gt=0, le=10)
-    h: float = Field(gt=0, le=10)
+    x: float = Field(ge=-limit("annotations", "clip_frame_coordinate_abs_max"), le=limit("annotations", "clip_frame_coordinate_abs_max"))
+    y: float = Field(ge=-limit("annotations", "clip_frame_coordinate_abs_max"), le=limit("annotations", "clip_frame_coordinate_abs_max"))
+    w: float = Field(gt=0, le=limit("annotations", "clip_frame_size_max"))
+    h: float = Field(gt=0, le=limit("annotations", "clip_frame_size_max"))
 
 
 class PaperClipCreate(BaseModel):
@@ -184,11 +185,11 @@ class PaperClipOut(PaperClipCreate):
 class CommentCreate(BaseModel):
     # A bare anchor is allowed: the reader marks a place first and writes
     # about it later. A note with no place must say something.
-    content: str = Field(default="", max_length=4000)
+    content: str = Field(default="", max_length=limit("text", "comment"))
     # A located note carries both; a plain note carries neither.
     page: Optional[int] = Field(default=None, ge=1)
     anchor: Optional[Anchor] = None
-    name: Optional[str] = Field(default=None, max_length=120)
+    name: Optional[str] = Field(default=None, max_length=limit("text", "annotation_name"))
 
     @model_validator(mode="after")
     def _location_is_all_or_nothing(self):
@@ -203,10 +204,10 @@ class CommentUpdate(BaseModel):
     """Rewording a note, or moving its anchor — each independently, so a
     move never disturbs the words and vice versa. Only what is sent
     changes; an anchor may be emptied back to a bare mark."""
-    content: Optional[str] = Field(default=None, max_length=4000)
+    content: Optional[str] = Field(default=None, max_length=limit("text", "comment"))
     page: Optional[int] = Field(default=None, ge=1)
     anchor: Optional[Anchor] = None
-    name: Optional[str] = Field(default=None, max_length=120)
+    name: Optional[str] = Field(default=None, max_length=limit("text", "annotation_name"))
 
     @model_validator(mode="after")
     def _moving_needs_both(self):
@@ -235,77 +236,77 @@ class Comment(BaseModel):
 # ---------- Boards (private nook ideation spaces) ----------
 
 class BoardCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    description: Optional[str] = Field(default=None, max_length=4000)
+    name: str = Field(min_length=1, max_length=limit("text", "board_name"))
+    description: Optional[str] = Field(default=None, max_length=limit("text", "board_description"))
     shelf_uuid: Optional[str] = None
 
 
 class BoardUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    description: Optional[str] = Field(default=None, max_length=4000)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=limit("text", "board_name"))
+    description: Optional[str] = Field(default=None, max_length=limit("text", "board_description"))
     shelf_uuid: Optional[str] = None
 
 
 class BoardItemCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=10000)
-    x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
-    y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
+    content: str = Field(min_length=1, max_length=limit("text", "board_content"))
+    x: Optional[float] = Field(default=None, ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    y: Optional[float] = Field(default=None, ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
 
 
 class BoardStagingCreate(BaseModel):
-    excerpt_text: str = Field(min_length=1, max_length=10000)
-    content: Optional[str] = Field(default=None, max_length=10000)
-    source_url: str = Field(min_length=1, max_length=4000, pattern=r"^https?://")
-    source_label: str = Field(min_length=1, max_length=500)
+    excerpt_text: str = Field(min_length=1, max_length=limit("text", "board_content"))
+    content: Optional[str] = Field(default=None, max_length=limit("text", "board_content"))
+    source_url: str = Field(min_length=1, max_length=limit("text", "source_url"), pattern=r"^https?://")
+    source_label: str = Field(min_length=1, max_length=limit("text", "source_label"))
 
 
 class BoardStagingPlace(BaseModel):
-    x: float = Field(ge=-1000000, le=1000000)
-    y: float = Field(ge=-1000000, le=1000000)
+    x: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    y: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
 
 
 class BoardItemUpdate(BaseModel):
     group_uuid: Optional[str] = None
-    x: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
-    y: Optional[float] = Field(default=None, ge=-1000000, le=1000000)
-    width: Optional[float] = Field(default=None, ge=120, le=1200)
-    position: Optional[int] = Field(default=None, ge=0, le=1000000000)
-    content: Optional[str] = Field(default=None, max_length=10000)
+    x: Optional[float] = Field(default=None, ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    y: Optional[float] = Field(default=None, ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    width: Optional[float] = Field(default=None, ge=limit("board", "item_width_min"), le=limit("board", "item_width_max"))
+    position: Optional[int] = Field(default=None, ge=0, le=limit("board", "position_max"))
+    content: Optional[str] = Field(default=None, max_length=limit("text", "board_content"))
     text_align: Optional[Literal["left", "center", "right"]] = None
 
 
 class BoardGroupCreate(BaseModel):
     kind: Literal["booklet", "collection"] = "booklet"
-    title: str = Field(default="", max_length=240)
-    header: str = Field(default="", max_length=4000)
+    title: str = Field(default="", max_length=limit("text", "board_group_title"))
+    header: str = Field(default="", max_length=limit("text", "board_group_header"))
     auto_arrange: bool = False
-    item_uuids: List[str] = Field(min_length=2, max_length=100)
+    item_uuids: List[str] = Field(min_length=2, max_length=limit("counts", "board_group_items"))
 
 
 class BoardGroupUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=240)
-    header: Optional[str] = Field(default=None, max_length=4000)
+    title: Optional[str] = Field(default=None, max_length=limit("text", "board_group_title"))
+    header: Optional[str] = Field(default=None, max_length=limit("text", "board_group_header"))
     auto_arrange: Optional[bool] = None
 
 
 class BoardGroupMove(BaseModel):
-    dx: float = Field(ge=-1000000, le=1000000)
-    dy: float = Field(ge=-1000000, le=1000000)
+    dx: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    dy: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
 
 
 class BoardGroupRestoreItem(BaseModel):
     uuid: str
     group_uuid: Optional[str] = None
-    x: float = Field(ge=-1000000, le=1000000)
-    y: float = Field(ge=-1000000, le=1000000)
+    x: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    y: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
 
 
 class BoardGroupUngroup(BaseModel):
-    items: List[BoardGroupRestoreItem] = Field(min_length=2, max_length=100)
+    items: List[BoardGroupRestoreItem] = Field(min_length=2, max_length=limit("counts", "board_group_items"))
 
 
 class BoardGroupLayout(BaseModel):
-    items: List[BoardGroupRestoreItem] = Field(min_length=1, max_length=100)
+    items: List[BoardGroupRestoreItem] = Field(min_length=1, max_length=limit("counts", "board_group_items"))
 
 
 class BoardGroupOut(BaseModel):
@@ -321,9 +322,9 @@ class BoardGroupOut(BaseModel):
 
 
 class BoardYouTubeCreate(BaseModel):
-    url: str = Field(min_length=1, max_length=2000)
-    x: float = Field(ge=-1000000, le=1000000)
-    y: float = Field(ge=-1000000, le=1000000)
+    url: str = Field(min_length=1, max_length=limit("text", "external_url"))
+    x: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
+    y: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
 
 
 class BoardWebpageCreate(BoardYouTubeCreate):
@@ -423,20 +424,20 @@ class RoomDetail(RoomSummary):
 
 
 class RoomMessageCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=4000)
+    content: str = Field(min_length=1, max_length=limit("text", "room_message"))
 
 
 class AvailabilitySubmit(BaseModel):
-    availability: str = Field(min_length=1, max_length=500)
+    availability: str = Field(min_length=1, max_length=limit("text", "availability"))
 
 
 class RoomAnnounce(BaseModel):
-    scheduled_time: str = Field(min_length=1, max_length=200)
-    platform: str = Field(min_length=1, max_length=200)
+    scheduled_time: str = Field(min_length=1, max_length=limit("text", "scheduled_time"))
+    platform: str = Field(min_length=1, max_length=limit("text", "platform"))
     # A preset key from the frontend's style list, or a custom title —
     # in which case style_desc carries the leader's own description.
-    style: str = Field(min_length=1, max_length=40)
-    style_desc: Optional[str] = Field(default=None, max_length=300)
+    style: str = Field(min_length=1, max_length=limit("text", "room_style"))
+    style_desc: Optional[str] = Field(default=None, max_length=limit("text", "room_style_description"))
 
 
 class RoomLeave(BaseModel):
@@ -464,11 +465,11 @@ class NotificationList(BaseModel):
 # ---------- Feedback ----------
 
 class FeedbackCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=4000)
+    content: str = Field(min_length=1, max_length=limit("text", "feedback"))
     # The app location the report came from, for reproducing it.
-    page: Optional[str] = Field(default=None, max_length=300)
+    page: Optional[str] = Field(default=None, max_length=limit("text", "feedback_page"))
     # How to reach a reporter who has no account.
-    contact: Optional[str] = Field(default=None, max_length=254)
+    contact: Optional[str] = Field(default=None, max_length=limit("text", "email"))
 
 
 class FeedbackOut(BaseModel):
@@ -504,12 +505,12 @@ class PaperBase(BaseModel):
 class PaperCreate(PaperBase):
     file_path: str
     summary: Optional[str] = None
-    thought: Optional[str] = Field(default=None, max_length=200)
+    thought: Optional[str] = Field(default=None, max_length=limit("text", "paper_thought"))
     marketed: bool = True
     is_author: bool = False
-    rating_expertise: Optional[int] = Field(default=None, ge=1, le=5)
-    rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
-    rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
+    rating_expertise: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
+    rating_reading: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
+    rating_liking: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
     initial_comment: Optional[str] = None
     tag_uuids: List[str] = []
     shelf_uuid: Optional[str] = None
@@ -529,12 +530,12 @@ class PaperUpdate(BaseModel):
     year: Optional[int] = None
     # Personal fields (the viewer's own copy)
     summary: Optional[str] = None
-    thought: Optional[str] = Field(default=None, max_length=200)
+    thought: Optional[str] = Field(default=None, max_length=limit("text", "paper_thought"))
     marketed: Optional[bool] = None
     is_author: Optional[bool] = None
-    rating_expertise: Optional[int] = Field(default=None, ge=1, le=5)
-    rating_reading: Optional[int] = Field(default=None, ge=1, le=5)
-    rating_liking: Optional[int] = Field(default=None, ge=1, le=5)
+    rating_expertise: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
+    rating_reading: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
+    rating_liking: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
     tag_uuids: Optional[List[str]] = None
     shelf_uuid: Optional[str] = None
 
@@ -548,7 +549,7 @@ class TagOut(BaseModel):
 
 
 class TagCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=60)
+    name: str = Field(min_length=1, max_length=limit("text", "tag_name"))
 
 
 class ShelfOut(BaseModel):
@@ -563,13 +564,13 @@ class ShelfOut(BaseModel):
 
 
 class ShelfCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=limit("text", "shelf_name"))
     color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
     is_public: bool = False
 
 
 class ShelfUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=40)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=limit("text", "shelf_name"))
     color: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     is_public: Optional[bool] = None
     is_default: Optional[bool] = None
@@ -628,8 +629,8 @@ class ReferenceOut(BaseModel):
 
 class ReferencePreviewIn(BaseModel):
     """A PDF-native citation recovered without the document analyzer."""
-    key: str = Field(min_length=1, max_length=300)
-    raw: str = Field(min_length=3, max_length=5000)
+    key: str = Field(min_length=1, max_length=limit("text", "reference_key"))
+    raw: str = Field(min_length=3, max_length=limit("text", "reference_raw"))
 
 
 class CitationOut(BaseModel):

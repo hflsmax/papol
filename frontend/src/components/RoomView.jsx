@@ -10,6 +10,7 @@ import {
   announceRoom,
   finishRoom,
 } from '../../../shared/api/rooms.js';
+import appLimits from '../../../shared/appLimits.js';
 import { updatePaper } from '../../../shared/api/papers.js';
 import Avatar from './Avatar';
 import HintPop from './HintPop';
@@ -205,7 +206,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                     type="text"
                     className="style-custom-input"
                     value={customStyle}
-                    maxLength={40}
+                    maxLength={appLimits.text.room_style}
                     placeholder="title, e.g. Socratic dialogue"
                     onFocus={() => setAnnounceStyle('custom')}
                     onChange={(e) => setCustomStyle(e.target.value)}
@@ -214,7 +215,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
                     type="text"
                     className="style-custom-input"
                     value={customStyleDesc}
-                    maxLength={300}
+                    maxLength={appLimits.text.room_style_description}
                     placeholder="what participants should expect and prepare"
                     onFocus={() => setAnnounceStyle('custom')}
                     onChange={(e) => setCustomStyleDesc(e.target.value)}

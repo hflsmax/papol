@@ -8,12 +8,13 @@ import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../
 import { withAbortTimeout } from '../requestTimeout.js';
 import { planOfflineNookAddition } from '../nookTransition.js';
 import { onServer } from './serverOperation.js';
+import appLimits from '../appLimits.js';
 import {
   forgetPendingPaperBlob, hasPendingPaperBlob, paperCopyUuid, rememberPaperIdentity,
   rememberPendingPaperBlob, setPaperCopyUuid,
 } from './paperState.js';
 
-const DESKTOP_EXTRACT_TIMEOUT_MS = 15_000;
+const DESKTOP_EXTRACT_TIMEOUT_MS = appLimits.timeouts_ms.desktop_metadata;
 
 // ---------- Papers ----------
 

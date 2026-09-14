@@ -5,6 +5,7 @@ from models import Notification, User
 from schemas import NotificationList, NotificationOut
 from services.notifications import start_digest_loop
 from sqlalchemy.orm import Session
+from app_limits import limit
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ async def list_notifications(
         db.query(Notification)
         .filter(Notification.user_uuid == current_user.uuid)
         .order_by(Notification.created_at.desc(), Notification.uuid.desc())
-        .limit(50)
+        .limit(limit("counts", "notifications"))
         .all()
     )
     unread = (

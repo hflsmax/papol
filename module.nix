@@ -2,6 +2,7 @@
 
 let
   cfg = config.services.papol;
+  appLimits = builtins.fromJSON (builtins.readFile ./config/app_limits.json);
 
   # Imported through the flake as nixosModules.default, `papolPython` is
   # handed in, built from the one dependency list in flake.nix. Imported on
@@ -40,7 +41,7 @@ let
       # A paper is the whole point and nginx stops at 10 MB by default.
       # Scoped here rather than set globally: other vhosts on this host
       # are not papol's to widen.
-      client_max_body_size 200m;
+      client_max_body_size ${toString appLimits.files.proxy_request_mb}m;
     '';
   };
 

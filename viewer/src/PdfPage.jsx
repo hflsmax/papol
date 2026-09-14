@@ -11,6 +11,7 @@ import { resizeClipFrame } from './clipResize';
 import { anchorSpotAtPage } from './anchorDrag';
 import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
 import { markViewerPerformance, measureViewerPerformance } from './performance.js';
+import appLimits from '../../shared/appLimits.js';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -22,7 +23,7 @@ import { markViewerPerformance, measureViewerPerformance } from './performance.j
  */
 // Points nearer than this to the last one add bytes and no shape. In page
 // units, so it means the same thing on a tall page as on a wide one.
-const MIN_STEP = 1.2;
+const MIN_STEP = appLimits.viewer.ink_point_step_min;
 // How near the eraser has to pass. Generous, because rubbing something out
 // is a gesture rather than a click on a one-pixel line — and the same for
 // everything, whatever it was drawn at. It used to widen with the stroke,
@@ -40,7 +41,7 @@ const HALO_SPREAD = 5;
 const ANCHOR_REACH = 13;
 // The ceiling the API enforces, applied here so a stroke is never refused
 // after it has been drawn.
-const MAX_POINTS = 4000;
+const MAX_POINTS = appLimits.counts.ink_points;
 // One object, so clearing the highlight does not count as a change.
 const EMPTY_DOOMED = { ink: [], notes: [], animals: [] };
 // How wide a stroke is to take hold of, whatever it was drawn at.
@@ -65,7 +66,7 @@ const KEPT_MARGIN = '300% 100%';
 // and even a 56-megapixel page costs the main thread a few milliseconds.
 // For memory: that page holds about 225MB, and a scanned page at the same
 // zoom was 178 megapixels, about 700MB.
-const MAX_CANVAS_PIXELS = 2 ** 24;
+const MAX_CANVAS_PIXELS = appLimits.viewer.canvas_pixels_max;
 const outputRatio = (width, height) => Math.min(
   window.devicePixelRatio || 1,
   Math.sqrt(MAX_CANVAS_PIXELS / (width * height))
@@ -77,7 +78,7 @@ const DETAIL_MARGIN = 0.25;
 
 // A text layer laid out at one zoom is scaled to others, and rebuilt only
 // once the zoom is more than this many times larger or smaller.
-const TEXT_RESCALE_LIMIT = 2;
+const TEXT_RESCALE_LIMIT = appLimits.viewer.text_rescale_ratio_max;
 
 // A page's text, handed to pdf.js's TextLayer in slices: each in a task of
 // its own, and each only once scrolling has paused, so building a dense page

@@ -1,7 +1,9 @@
-const MIN_FRAME_WIDTH = 0.08;
-const MIN_CLIP_WIDTH = 54;
-const MIN_CLIP_HEIGHT = 48;
-const MAX_FRAME_SIZE = 0.9;
+import appLimits from '../../shared/appLimits.js';
+
+const MIN_FRAME_WIDTH = appLimits.viewer.clip_frame_width_min;
+const MIN_CLIP_WIDTH = appLimits.viewer.clip_width_px_min;
+const MIN_CLIP_HEIGHT = appLimits.viewer.clip_height_px_min;
+const MAX_FRAME_SIZE = appLimits.viewer.clip_frame_size_max;
 
 /** Resize a bottom-right handle while restoring the PDF selection's ratio. */
 export function resizeClipFrame(frame, rendered, delta, aspect, container) {

@@ -25,6 +25,7 @@ from models import (
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.registry import MODELS, registry
 from schemas import CommentCreate, InkStrokeCreate, PaperClipCreate
+from app_limits import limit, mebibytes
 
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
@@ -35,7 +36,7 @@ BLOBS_DIR = BOARD_FILES_DIR / "blobs"
 PDF_FILES_DIR = Path(os.environ.get(
     "PAPOL_UPLOADS_DIR", Path(__file__).parents[2] / "uploads",
 ))
-BLOB_LIMIT = 25 * 1024 * 1024
+BLOB_LIMIT = mebibytes("files", "offline_blob_mb")
 PROTOCOL_VERSION = 1
 
 
@@ -58,7 +59,7 @@ class PushRequest(BaseModel):
     client_uuid: UUID
     mutation_uuid: UUID
     local_sequence: int = Field(ge=0)
-    changes: list[RowChange] = Field(min_length=1, max_length=250)
+    changes: list[RowChange] = Field(min_length=1, max_length=limit("counts", "sync_push_changes"))
 
 
 def _canonical_payload(payload: PushRequest) -> bytes:
@@ -297,7 +298,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key != "deleted_at":
                 setattr(record, key, value)
         record.title = (record.title or "").strip()
-        if not record.title or len(record.title) > 500:
+        if not record.title or len(record.title) > limit("text", "source_label"):
             raise HTTPException(status_code=422, detail="Paper title must be 1–500 characters")
         return
     if isinstance(record, PaperEdition):
@@ -368,7 +369,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key != "deleted_at":
                 setattr(record, key, value)
         record.name = (record.name or "").strip()
-        if not record.name or len(record.name) > 40:
+        if not record.name or len(record.name) > limit("text", "shelf_name"):
             raise HTTPException(status_code=422, detail="Shelf name must be 1–40 characters")
         if (not isinstance(record.color, str) or len(record.color) != 7
                 or not record.color.startswith("#")):
@@ -379,7 +380,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key != "deleted_at":
                 setattr(record, key, value)
         record.name = (record.name or "").strip()
-        if not record.name or len(record.name) > 60:
+        if not record.name or len(record.name) > limit("text", "tag_name"):
             raise HTTPException(status_code=422, detail="Tag name must be 1–60 characters")
         return
     if isinstance(record, Copy):
@@ -415,9 +416,15 @@ def _assign_values(db: Session, record, values: dict, user: User):
         for key in ("rating_expertise", "rating_reading", "rating_liking"):
             rating = values.get(key)
             if rating is not None and (
-                isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5
+                isinstance(rating, bool)
+                or not isinstance(rating, int)
+                or not limit("ratings", "min") <= rating <= limit("ratings", "max")
             ):
-                raise HTTPException(status_code=422, detail="Ratings must be whole numbers from 1 to 5")
+                raise HTTPException(
+                    status_code=422,
+                    detail=(f'Ratings must be whole numbers from {limit("ratings", "min")} '
+                            f'to {limit("ratings", "max")}'),
+                )
         return
     if isinstance(record, CopyTagLink):
         if "copy_uuid" in values:
@@ -447,14 +454,15 @@ def _assign_values(db: Session, record, values: dict, user: User):
     if isinstance(record, BoardGroup):
         if record.kind not in {"booklet", "collection"}:
             raise HTTPException(status_code=422, detail="Invalid board group kind")
-        if len(record.title or "") > 240 or len(record.header or "") > 4000:
+        if (len(record.title or "") > limit("text", "board_group_title")
+                or len(record.header or "") > limit("text", "board_group_header")):
             raise HTTPException(status_code=422, detail="Board group text is too long")
     else:
         if record.kind not in {"comment", "excerpt", "image", "file", "youtube", "webpage"}:
             raise HTTPException(status_code=422, detail="Invalid board item kind")
         if record.text_align not in {"left", "center", "right"}:
             raise HTTPException(status_code=422, detail="Invalid text alignment")
-        if not 120 <= record.width <= 1200:
+        if not limit("board", "item_width_min") <= record.width <= limit("board", "item_width_max"):
             raise HTTPException(status_code=422, detail="Invalid board item width")
 
 
@@ -753,7 +761,7 @@ async def put_blob(
         raise HTTPException(status_code=422, detail="Blob identifier must be lowercase SHA-256")
     body = await request.body()
     if len(body) > BLOB_LIMIT:
-        raise HTTPException(status_code=413, detail="Offline files may be at most 25 MB")
+        raise HTTPException(status_code=413, detail=f'Offline files may be at most {limit("files", "offline_blob_mb")} MB')
     if hashlib.sha256(body).hexdigest() != sha256:
         raise HTTPException(status_code=422, detail="Blob digest does not match its content")
     BLOBS_DIR.mkdir(parents=True, exist_ok=True)
@@ -796,7 +804,11 @@ def get_blob(
 @router.get("/pull")
 def pull(
     cursor: int = Query(default=0, ge=0),
-    limit: int = Query(default=250, ge=1, le=1000),
+    limit: int = Query(
+        default=limit("counts", "sync_pull_default"),
+        ge=1,
+        le=limit("counts", "sync_pull_max"),
+    ),
     client_uuid: UUID | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

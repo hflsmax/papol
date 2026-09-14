@@ -10,6 +10,7 @@ import {
 import { formatAuthors } from '../paperFormat';
 import PaperDetail from './PaperDetail';
 import PaperUpload from './PaperUpload';
+import appLimits from '../../../shared/appLimits.js';
 import BoardCreateForm from './BoardCreateForm';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
@@ -268,7 +269,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
                     onChange={(event) => setDraftValue(event.target.value)}
                     onBlur={saveInline}
                     onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveInline(); } if (event.key === 'Escape') cancelInline(); }}
-                    maxLength="120"
+                    maxLength={appLimits.text.board_name}
                     autoFocus
                     aria-label="Board name"
                   />
@@ -301,7 +302,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
                   onChange={(event) => setDraftValue(event.target.value)}
                   onBlur={saveInline}
                   onKeyDown={(event) => { if (event.key === 'Escape') cancelInline(); if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveInline(); } }}
-                  maxLength="4000"
+                  maxLength={appLimits.text.board_description}
                   rows="3"
                   autoFocus
                   placeholder="What are you exploring on this board?"

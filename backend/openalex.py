@@ -23,6 +23,7 @@ import re
 from typing import Optional
 
 import httpx
+from app_limits import limit as app_limit
 
 API = "https://api.openalex.org"
 MAILTO = os.environ.get("PAPOL_CONTACT_EMAIL", "")
@@ -31,7 +32,7 @@ MAILTO = os.environ.get("PAPOL_CONTACT_EMAIL", "")
 API_KEY = os.environ.get("PAPOL_OPENALEX_KEY", "")
 USER_AGENT = f"Papol/1.0 (Spontaneous Seminar Paper Reading App{'; mailto:' + MAILTO if MAILTO else ''})"
 
-TIMEOUT = 15.0
+TIMEOUT = app_limit("timeouts_ms", "bibliography_http") / 1000
 
 
 class Throttled(Exception):
@@ -66,7 +67,7 @@ async def by_arxiv(arxiv_id: str) -> Optional[dict]:
     return await by_doi(f"10.48550/arXiv.{number}")
 
 
-async def by_title(title: str, limit: int = 5) -> list[dict]:
+async def by_title(title: str, limit: int | None = None) -> list[dict]:
     """Candidates matching a title, best first.
 
     Deliberately given a title and not a whole reference string:
@@ -78,8 +79,10 @@ async def by_title(title: str, limit: int = 5) -> list[dict]:
     hold different things: conference proceedings that never got a
     CrossRef DOI (USENIX, most of OSDI and NSDI) are in OpenAlex, and for
     those CrossRef can only offer something that is not the paper."""
+    if limit is None:
+        limit = app_limit("counts", "bibliography_results")
     title = " ".join(title.split())
-    if len(title) < 8:
+    if len(title) < app_limit("matching", "title_search_length_min"):
         return []
     data = await _get(f"{API}/works", {"per-page": limit, "search": title})
     return (data or {}).get("results") or []

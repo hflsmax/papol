@@ -24,6 +24,7 @@ import httpx
 import fitz
 
 from pdf_parser import extract_arxiv_id
+from app_limits import limit
 
 TEI = "{http://www.tei-c.org/ns/1.0}"
 XML_ID = "{http://www.w3.org/XML/1998/namespace}id"
@@ -124,7 +125,7 @@ async def alive() -> bool:
     if not GROBID_URL:
         return False
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=limit("timeouts_ms", "grobid_http") / 1000) as client:
             r = await client.get(f"{GROBID_URL}/api/isalive")
             return r.status_code == 200 and r.text.strip() == "true"
     except Exception:

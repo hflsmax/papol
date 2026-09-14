@@ -4,6 +4,7 @@ keys: host, port, user, password, from_addr, starttls."""
 import smtplib
 import logging
 from email.message import EmailMessage
+from app_limits import limit
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ def send_email(cfg: dict, to: str, subject: str, body: str):
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
-    with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as s:
+    with smtplib.SMTP(cfg["host"], cfg["port"], timeout=limit("timeouts_ms", "smtp") / 1000) as s:
         if cfg.get("starttls", True):
             s.starttls()
         if cfg.get("user"):

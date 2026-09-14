@@ -6,6 +6,7 @@ import { RatingInput } from './Rating';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
+import appLimits from '../../../shared/appLimits.js';
 
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
@@ -332,7 +333,7 @@ export default function PaperUpload({
                 name="thought"
                 value={formData.thought}
                 onChange={handleInputChange}
-                maxLength={200}
+                maxLength={appLimits.text.paper_thought}
                 placeholder="Your public one-line take on this paper"
               />
             </div>

@@ -57,6 +57,7 @@ from typing import Optional
 
 import crossref
 import openalex
+from app_limits import limit
 from pdf_parser import extract_arxiv_id
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ _SHORT_TITLE = 4
 # has already preferred anything closer. Proceedings are dated to the year
 # before their conference, and a paper printed as "submitted" may appear
 # two years later.
-_YEAR_LIMIT = 3
+_YEAR_LIMIT = limit("matching", "bibliography_year_distance_max")
 
 # What an unknown year counts as when ranking. Worse than agreeing, better
 # than disagreeing: a record with no date should lose to an exact match and

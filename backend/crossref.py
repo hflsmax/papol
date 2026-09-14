@@ -3,6 +3,7 @@ import re
 from html import unescape
 
 import httpx
+from app_limits import limit
 
 # CrossRef reads the contact address out of the User-Agent — that is what
 # puts these requests in its polite pool, which is faster and far less
@@ -27,22 +28,24 @@ class Unavailable(Exception):
 # the top hit is the answer.
 # Enough of the string to be identifying; beyond that, longer queries only
 # cost CrossRef time.
-_MAX_QUERY = 500
+_MAX_QUERY = limit("text", "crossref_query")
 
 
-async def match_reference(raw: str, rows: int = 5) -> list[dict]:
+async def match_reference(raw: str, rows: int | None = None) -> list[dict]:
     """Candidates for the work a printed reference names, best first.
 
     Several, not one. CrossRef ranks by text similarity alone, and its top
     hit is sometimes a different paper with a near-identical title — a
     later journal version of a conference paper, say. The caller decides
     which of these is really the work, using what else it knows."""
+    if rows is None:
+        rows = limit("counts", "bibliography_results")
     query = _query_for(raw)
     if not query:
         return []
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=limit("timeouts_ms", "bibliography_http") / 1000) as client:
             response = await client.get(
                 "https://api.crossref.org/works",
                 params={
@@ -65,7 +68,7 @@ async def by_doi(doi: str) -> dict | None:
     """Return the publisher-registered work for an exact DOI."""
     normalized = doi.strip().replace("https://doi.org/", "")
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=limit("timeouts_ms", "bibliography_http") / 1000) as client:
             response = await client.get(
                 f"https://api.crossref.org/works/{normalized}",
                 headers={"User-Agent": CROSSREF_UA},

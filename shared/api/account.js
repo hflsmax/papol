@@ -10,8 +10,9 @@ import { currentCredential, storeCredential } from '../credentials.js';
 import { withAbortTimeout } from '../requestTimeout.js';
 import { activateDesktopSession } from '../authTransition.js';
 import { resetPaperState } from './paperState.js';
+import appLimits from '../appLimits.js';
 
-const DESKTOP_AUTH_TIMEOUT_MS = 10_000;
+const DESKTOP_AUTH_TIMEOUT_MS = appLimits.timeouts_ms.desktop_auth;
 
 export function getToken() {
   return currentCredential();

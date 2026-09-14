@@ -8,6 +8,7 @@ use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
 
 pub mod data;
+mod limits;
 pub mod sync;
 
 static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);

@@ -50,14 +50,15 @@ import {
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
+import appLimits from '../../shared/appLimits.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
 const NARROW = 860;
-const MIN_RAIL_WIDTH = 220;
-const MAX_RAIL_WIDTH = 520;
+const MIN_RAIL_WIDTH = appLimits.viewer.rail_width_min;
+const MAX_RAIL_WIDTH = appLimits.viewer.rail_width_max;
 const DEFAULT_RAIL_WIDTH = 344;
 const clampRailWidth = (width) => Math.min(MAX_RAIL_WIDTH, Math.max(MIN_RAIL_WIDTH, width));
 const markReturnToPapol = () => {
@@ -67,7 +68,7 @@ const markReturnToPapol = () => {
   window.sessionStorage.setItem('papol.viewerReturn', '1');
 };
 
-const MIN_SCALE = 0.5;
+const MIN_SCALE = appLimits.viewer.zoom_min;
 // Four hundred per cent, which is as far as reading a paper ever needs to
 // go — and, not by coincidence, as far as the brush can be honest. A
 // cursor image is dropped by the browser past about 128px, so beyond this
@@ -79,7 +80,7 @@ const MIN_SCALE = 0.5;
 // so past that the strip in your hand stopped growing while the ink went
 // on getting thicker. The brush is drawn on the page now, in the stroke's
 // own coordinates, and has no ceiling to reach.
-const MAX_SCALE = 10;
+const MAX_SCALE = appLimits.viewer.zoom_max;
 // How long a pinch has to pause before the rest of the viewer hears of the
 // zoom it reached and the pages are redrawn sharp.
 const ZOOM_SETTLE_MS = 120;
@@ -88,7 +89,7 @@ const ZOOM_SETTLE_MS = 120;
 // nobody reads at. The reader can still zoom past this — it only bounds
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
-const FIT_MAX_WIDTH = 1100;
+const FIT_MAX_WIDTH = appLimits.viewer.fit_width_max;
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
 // against *each other*, and Papol's own palette is a set of muted siblings
@@ -3888,7 +3889,7 @@ export default function App() {
                     </label>
                     <textarea
                       rows="5"
-                      maxLength={4000}
+                      maxLength={appLimits.text.comment}
                       value={feedbackContent}
                       onChange={(e) => setFeedbackContent(e.target.value)}
                       placeholder="I clicked … and the page …, or: it would help if …"
@@ -3951,7 +3952,7 @@ export default function App() {
                     <span>Text</span>
                     <textarea
                       rows="7"
-                      maxLength="10000"
+                      maxLength={appLimits.text.board_content}
                       value={sendSelection.text}
                       onChange={(event) => setSendSelection({ ...sendSelection, text: event.target.value })}
                       autoFocus
@@ -3974,7 +3975,7 @@ export default function App() {
                     <span>Comment <small>optional</small></span>
                     <textarea
                       rows="3"
-                      maxLength="10000"
+                      maxLength={appLimits.text.board_content}
                       value={sendSelection.comment}
                       onChange={(event) => setSendSelection({ ...sendSelection, comment: event.target.value })}
                       placeholder="Why are you saving this?"
