@@ -102,7 +102,9 @@ Build the production-backed application bundle and DMG with:
 default; use `--no-check` only when iterating locally. `--universal` installs
 both Rust macOS targets and produces one Apple Silicon/Intel application.
 Local builds are ad-hoc signed, while tagged CI builds use the configured
-Developer ID identity and notarization credentials.
+Developer ID identity and notarization credentials. Repeated local builds
+reuse an unchanged web payload and its matching DMG; changing application
+contents invalidates those caches automatically.
 
 The lower-level commands remain available from `desktop/` as `npm run dev`,
 `npm run build:web`, and `npm run build`.

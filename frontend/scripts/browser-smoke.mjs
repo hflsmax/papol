@@ -7,7 +7,9 @@ import {
   delimiter, extname, isAbsolute, join, relative as pathRelative, resolve,
 } from 'node:path';
 
-const dist = resolve('dist');
+// Desktop builds can point this check at the exact web payload Tauri bundled.
+// Standalone frontend checks retain the conventional frontend/dist default.
+const dist = resolve(process.env.PAPOL_SMOKE_DIST || 'dist');
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',

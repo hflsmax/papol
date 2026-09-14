@@ -1,4 +1,8 @@
-import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync,
+  renameSync, rmSync, statSync, writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -7,6 +11,8 @@ import { normalizeBackendBase } from '../../shared/backendUrl.js';
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = resolve(desktopDir, '..');
 const outputDir = join(desktopDir, 'dist');
+const cacheDir = join(desktopDir, 'node_modules', '.cache', 'papol');
+const inputMarker = join(cacheDir, 'build-web.sha256');
 const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'https://mc-pony.com/papol');
 
 function build(name) {
@@ -18,19 +24,75 @@ function build(name) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-function copyApp(name, destination) {
-  const target = join(outputDir, destination);
+function copyApp(name, destination, root) {
+  const target = join(root, destination);
   mkdirSync(target, { recursive: true });
   cpSync(join(rootDir, name, 'dist'), target, { recursive: true });
 }
 
+function fingerprint(directory) {
+  const hash = createHash('sha256');
+  const visit = (current, relative = '') => {
+    for (const name of readdirSync(current).sort()) {
+      const path = join(current, name);
+      const childRelative = join(relative, name);
+      const stats = statSync(path);
+      hash.update(`${childRelative}\0${stats.mode}\0`);
+      if (stats.isDirectory()) visit(path, childRelative);
+      else hash.update(readFileSync(path));
+    }
+  };
+  visit(directory);
+  return hash.digest('hex');
+}
+
+function inputFingerprint() {
+  const hash = createHash('sha256');
+  const roots = ['frontend', 'viewer', 'board', 'shared'];
+  const visit = (path, relative) => {
+    const stats = statSync(path);
+    if (stats.isDirectory()) {
+      for (const name of readdirSync(path).sort()) {
+        if (name === 'dist' || name === 'node_modules') continue;
+        if (relative === 'viewer/public'
+            && (name === 'standard_fonts' || name === 'wasm')) continue;
+        visit(join(path, name), join(relative, name));
+      }
+      return;
+    }
+    hash.update(`${relative}\0${stats.mode}\0`);
+    hash.update(readFileSync(path));
+  };
+  for (const name of roots) visit(join(rootDir, name), name);
+  visit(fileURLToPath(import.meta.url), 'desktop/scripts/build-web.mjs');
+  hash.update(`backend\0${backend}`);
+  return hash.digest('hex');
+}
+
+const expectedInput = inputFingerprint();
+if (existsSync(join(outputDir, 'index.html')) && existsSync(inputMarker)
+    && readFileSync(inputMarker, 'utf8').trim() === expectedInput) {
+  console.log(`Reusing unchanged desktop web payload for backend ${backend}`);
+  process.exit(0);
+}
+
 for (const name of ['frontend', 'viewer', 'board']) build(name);
 
-rmSync(outputDir, { recursive: true, force: true });
-copyApp('frontend', '.');
-copyApp('viewer', 'viewer');
-copyApp('viewer', 'demo/viewer');
-copyApp('board', 'boards');
-copyApp('board', 'demo/boards');
+const stagedOutput = mkdtempSync(join(desktopDir, '.papol-dist.'));
+copyApp('frontend', '.', stagedOutput);
+copyApp('viewer', 'viewer', stagedOutput);
+copyApp('viewer', 'demo/viewer', stagedOutput);
+copyApp('board', 'boards', stagedOutput);
+copyApp('board', 'demo/boards', stagedOutput);
 
+if (existsSync(outputDir) && fingerprint(outputDir) === fingerprint(stagedOutput)) {
+  rmSync(stagedOutput, { recursive: true, force: true });
+  console.log('Desktop web payload is unchanged; preserving native build cache.');
+} else {
+  rmSync(outputDir, { recursive: true, force: true });
+  renameSync(stagedOutput, outputDir);
+}
+
+mkdirSync(cacheDir, { recursive: true });
+writeFileSync(inputMarker, `${expectedInput}\n`);
 console.log(`Bundled Papol web apps for backend ${backend}`);

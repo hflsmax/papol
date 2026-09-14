@@ -193,6 +193,47 @@ prepare_macos() {
   install_node_tree "$DEV_DIR/board"
 }
 
+# The UI suites do not share outputs, and Rust's test/lint pipeline has its own
+# target directory. Run those four lanes together; keeping the Rust commands in
+# one lane avoids making two cargo processes contend for the same build lock.
+check_macos() {
+  local logs failed=no failed_labels= index
+  local -a pids labels
+  logs=$(mktemp -d -t papol-macos-checks.XXXXXX)
+
+  (cd "$DEV_DIR/frontend" && npm run test:unit) >"$logs/frontend" 2>&1 &
+  pids+=("$!"); labels+=(frontend)
+  (cd "$DEV_DIR/viewer" && npm test) >"$logs/viewer" 2>&1 &
+  pids+=("$!"); labels+=(viewer)
+  (cd "$DEV_DIR/board" && npm test) >"$logs/board" 2>&1 &
+  pids+=("$!"); labels+=(board)
+  (
+    cd "$DEV_DIR/desktop"
+    cargo fmt --check --manifest-path src-tauri/Cargo.toml \
+      && cargo test --locked --manifest-path src-tauri/Cargo.toml \
+      && cargo clippy --locked --manifest-path src-tauri/Cargo.toml \
+        --all-targets --all-features -- -D warnings
+  ) >"$logs/native" 2>&1 &
+  pids+=("$!"); labels+=(native)
+
+  for index in "${!pids[@]}"; do
+    if wait "${pids[$index]}"; then
+      note "${labels[$index]} checks passed"
+    else
+      printf '\n%s checks failed:\n' "${labels[$index]}" >&2
+      cat "$logs/${labels[$index]}" >&2
+      failed=yes
+      failed_labels="${failed_labels:+$failed_labels, }${labels[$index]}"
+    fi
+  done
+  if [ "$failed" = no ]; then
+    rm -rf "$logs"
+    return 0
+  fi
+  die "macOS application checks failed: $failed_labels
+    Full logs were kept in $logs"
+}
+
 # create-dmg mounts a writable intermediate image while Finder lays out the
 # installer window. An interrupted build can leave that image attached, and a
 # previously opened output DMG can remain attached too. Both cases make a later
@@ -355,8 +396,18 @@ install_macos_app() {
   open "$destination_app"
 }
 
+macos_app_fingerprint() {
+  local app=$1
+  find "$app/Contents" -type f -exec shasum -a 256 {} + \
+    | sed "s|  $app/|  |" \
+    | LC_ALL=C sort \
+    | shasum -a 256 \
+    | cut -d' ' -f1
+}
+
 macos_prod() {
   local backend="https://mc-pony.com/papol" universal=no checks=yes arg marker app dmg
+  local app_hash cached_app_hash cached_dmg_hash dmg_hash dmg_marker bundle_root
   while [ $# -gt 0 ]; do
     arg=$1
     case "$arg" in
@@ -376,11 +427,11 @@ macos_prod() {
 
   if [ "$checks" = yes ]; then
     say "Testing the macOS application"
-    (cd "$DEV_DIR/desktop" && npm test && npm run check:native)
+    check_macos
   fi
 
   local -a args
-  args=(--bundles app,dmg)
+  args=(--bundles app)
   if [ "$universal" = yes ]; then
     require_command rustup
     say "Preparing universal macOS targets"
@@ -407,10 +458,54 @@ macos_prod() {
     die "the macOS application build failed"
   fi
   app=$(find "$DEV_DIR/desktop/src-tauri/target" -type d -name 'Papol.app' -newer "$marker" -prune -print | head -1)
-  dmg=$(find "$DEV_DIR/desktop/src-tauri/target" -type f -name '*.dmg' -newer "$marker" -print | head -1)
-  rm -f "$marker"
   [ -n "$app" ] || die "the build completed but no new application bundle was found"
-  [ -n "$dmg" ] || die "the build completed but no new DMG was found"
+
+  bundle_root=${app%/macos/Papol.app}
+  dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -print 2>/dev/null | head -1)
+  dmg_marker="$bundle_root/dmg/.papol-app.sha256"
+  app_hash=$(macos_app_fingerprint "$app")
+  cached_app_hash=$(sed -n '1p' "$dmg_marker" 2>/dev/null || true)
+  cached_dmg_hash=$(sed -n '2p' "$dmg_marker" 2>/dev/null || true)
+  dmg_hash=
+  if [ -n "$dmg" ] && [ -n "$cached_dmg_hash" ]; then
+    dmg_hash=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
+  fi
+
+  if [ "$app_hash" = "$cached_app_hash" ] && [ "$dmg_hash" = "$cached_dmg_hash" ]; then
+    note "application is unchanged — reusing the matching DMG"
+  else
+    say "Building Papol disk image"
+    local -a bundle_args
+    bundle_args=(--bundles app,dmg)
+    [ "$universal" = no ] || bundle_args+=(--target universal-apple-darwin)
+    if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
+      (cd "$DEV_DIR/desktop" \
+        && APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" \
+          ./node_modules/.bin/tauri bundle "${bundle_args[@]}") || {
+        rm -f "$marker"
+        unmount_macos_build_images || true
+        die "the macOS disk image build failed"
+      }
+    elif ! (cd "$DEV_DIR/desktop" \
+      && APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" \
+        cargo tauri bundle "${bundle_args[@]}"); then
+      rm -f "$marker"
+      unmount_macos_build_images || true
+      die "the macOS disk image build failed"
+    fi
+    dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -newer "$marker" -print | head -1)
+    [ -n "$dmg" ] || die "the build completed but no new DMG was found"
+    app_hash=$(macos_app_fingerprint "$app")
+    dmg_hash=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
+    printf '%s\n%s\n' "$app_hash" "$dmg_hash" > "$dmg_marker"
+  fi
+  rm -f "$marker"
+
+  if [ "$checks" = yes ]; then
+    say "Smoke-testing the bundled macOS web application"
+    (cd "$DEV_DIR/frontend" \
+      && PAPOL_SMOKE_DIST="$DEV_DIR/desktop/dist" npm run smoke:browser)
+  fi
 
   say "macOS application ready"
   note "$app"
