@@ -651,6 +651,21 @@ async function routeDemoRequest(path, options = {}) {
       room.status = 'open';
       return roomDetail(room);
     }
+    if (action === 'uncall') {
+      if (room.created_by !== ME) throw demoError('Only the caller can uncall this seminar', 403);
+      if (room.status !== 'open' && room.status !== 'planning') {
+        throw demoError('Only an active seminar can be uncalled');
+      }
+      if (roomParts(room).length !== 1 || roomParts(room)[0].user_uuid !== ME) {
+        throw demoError('A seminar can only be uncalled when no one else is in the cohort');
+      }
+      d.notifications = d.notifications.filter((x) => x.room_uuid !== room.uuid);
+      d.participants = d.participants.filter((x) => x.room_uuid !== room.uuid);
+      d.availabilities = d.availabilities.filter((x) => x.room_uuid !== room.uuid);
+      d.messages = d.messages.filter((x) => x.room_uuid !== room.uuid);
+      d.rooms = d.rooms.filter((x) => x !== room);
+      return { message: 'Seminar uncalled' };
+    }
     if (action === 'join') {
       requireReaderOf(room);
       ensureParticipant(room);

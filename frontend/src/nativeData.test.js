@@ -16,6 +16,7 @@ let remoteBlobReady = false;
 let syncFailure = null;
 let syncGate = null;
 let queryPaper = null;
+let networkMode = 'pdf';
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -67,6 +68,12 @@ await credentials.hydrateCredential();
 const { configureNetworkFetch, enterOfflineMode, inOfflineMode } = await import('../../shared/connectivity.js');
 configureNetworkFetch(async (url, options) => {
   calls.push(['network_fetch', { url: String(url), options }]);
+  if (networkMode === 'seminar') {
+    return new Response(JSON.stringify({ uuid: 'room-uuid', status: 'open' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   return new Response(new Blob(['%PDF-1.4\ntest\n%%EOF'], { type: 'application/pdf' }), {
     status: 200,
     headers: { 'Content-Type': 'application/pdf' },
@@ -75,12 +82,16 @@ configureNetworkFetch(async (url, options) => {
 
 const {
   boardView, hydrateNativeSyncPreference, importNativeSharedPaper,
-  isReportableNativeBridgeError,
+  isNativeSyncResult, isReportableNativeBridgeError,
   nativeBlobImport, nativeBlobUrl, nativeDataActive, nativeRepository, nativeSyncNow,
   nativeSyncInProgress, openDroppedPdf, openNativeStorageInFinder,
   prepareNativeAccount, removeNativeAccount, syncAllNow,
   scheduleAutomaticNativeSync, setNativeAccount,
 } = await import('../../shared/nativeData.js');
+const {
+  announceRoom, callSeminar, finishRoom, joinRoom, leadRoom, leaveRoom,
+  postRoomMessage, setRoomAvailability, uncallSeminar, unhostRoom,
+} = await import('../../shared/api/rooms.js');
 const {
   addPaperEdition, addToNook, adoptEdition, deletePaper, ignoreEdition, updatePaper,
 } = await import('../../shared/api/papers.js');
@@ -155,6 +166,58 @@ test('a server prerequisite uses push-only sync', async () => {
   const call = calls.findLast(([command]) => command === 'sync_now');
   assert.equal(call[1].request.pushOnly, true);
   assert.equal(call[1].request.retryBlocked, true);
+});
+
+test('successful uplink and downlink results both identify completed syncs', () => {
+  assert.equal(isNativeSyncResult({ pushed: 2, pulled: 0, cursor: 4 }), true);
+  assert.equal(isNativeSyncResult({ pushed: 0, pulled: 3, cursor: 7 }), true);
+  assert.equal(isNativeSyncResult({ syncing: false }), false);
+  assert.equal(isNativeSyncResult({ error: 'network unavailable' }), false);
+});
+
+test('every seminar mutation syncs desktop prerequisites up and reconciles down', async () => {
+  calls.length = 0;
+  networkMode = 'seminar';
+  const actions = [
+    ['/api/papers/paper-uuid/room', 'POST', () => callSeminar('paper-uuid')],
+    ['/api/rooms/room-uuid/lead', 'POST', () => leadRoom('room-uuid')],
+    ['/api/rooms/room-uuid/join', 'POST', () => joinRoom('room-uuid')],
+    ['/api/rooms/room-uuid/unhost', 'POST', () => unhostRoom('room-uuid')],
+    ['/api/rooms/room-uuid/uncall', 'POST', () => uncallSeminar('room-uuid')],
+    ['/api/rooms/room-uuid/leave', 'POST', () => leaveRoom('room-uuid')],
+    ['/api/rooms/room-uuid/messages', 'POST', () => postRoomMessage('room-uuid', 'Hello')],
+    ['/api/rooms/room-uuid/availability', 'POST', () => setRoomAvailability('room-uuid', 'Friday')],
+    ['/api/rooms/room-uuid/announce', 'PUT', () => announceRoom(
+      'room-uuid', 'Friday at 16:00', 'Room 2.13', 'discussion',
+    )],
+    ['/api/rooms/room-uuid/finish', 'POST', () => finishRoom('room-uuid')],
+  ];
+  try {
+    for (const [, , run] of actions) {
+      await run();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  } finally {
+    networkMode = 'pdf';
+  }
+
+  const syncs = calls.filter(([command]) => command === 'sync_now');
+  const syncDirections = syncs.map(([, args]) => ({
+    pushOnly: args.request.pushOnly,
+    pullOnly: args.request.pullOnly,
+  }));
+  assert.equal(syncDirections.length, actions.length * 2);
+  for (let index = 0; index < syncDirections.length; index += 2) {
+    assert.deepEqual(syncDirections.slice(index, index + 2), [
+      { pushOnly: true, pullOnly: false },
+      { pushOnly: false, pullOnly: false },
+    ]);
+  }
+  assert.deepEqual(
+    calls.filter(([command]) => command === 'network_fetch')
+      .map(([, args]) => [new URL(args.url, global.location).pathname, args.options.method]),
+    actions.map(([path, method]) => [path, method]),
+  );
 });
 
 test('desktop native mutations carry the local account into Tauri IPC', async () => {

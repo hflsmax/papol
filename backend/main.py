@@ -3445,6 +3445,37 @@ async def unhost_room(
     return _room_detail(db, room, current_user)
 
 
+@app.post("/api/rooms/{room_uuid}/uncall")
+async def uncall_seminar(
+    room_uuid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Withdraw a call that never formed a cohort.
+
+    Only its caller may withdraw it, and only while it is active and they are
+    still the sole participant. Once another reader has joined, the seminar is
+    shared state and must remain available to its cohort.
+    """
+    room = _get_room_or_404(room_uuid, db)
+    if room.created_by != current_user.uuid:
+        raise HTTPException(status_code=403, detail="Only the caller can uncall this seminar")
+    if room.status not in ("open", "planning"):
+        raise HTTPException(status_code=400, detail="Only an active seminar can be uncalled")
+    if len(room.participants) != 1 or room.participants[0].user_uuid != current_user.uuid:
+        raise HTTPException(
+            status_code=400,
+            detail="A seminar can only be uncalled when no one else is in the cohort",
+        )
+
+    # Invitations link to this room, so remove them before the room and its
+    # delete-orphan cohort rows disappear.
+    db.query(Notification).filter(Notification.room_uuid == room.uuid).delete()
+    db.delete(room)
+    db.commit()
+    return {"message": "Seminar uncalled"}
+
+
 @app.post("/api/rooms/{room_uuid}/join", response_model=RoomDetail)
 async def join_room(
     room_uuid: str,

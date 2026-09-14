@@ -1,25 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getRoom } from '../../../shared/api/rooms.js';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
 import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
+import { subscribeNativeSyncResults } from '../../../shared/nativeData.js';
 
 export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
   const [room, setRoom] = useState(null);
   const [error, setError] = useState(null);
+  const roomRevision = useRef(0);
 
   const load = useCallback(() => {
+    const requestedAt = roomRevision.current;
     getRoom(roomUuid)
-      .then(setRoom)
-      .catch((e) => setError(e.message));
+      .then((updated) => {
+        if (roomRevision.current === requestedAt) setRoom(updated);
+      })
+      .catch((e) => {
+        if (roomRevision.current === requestedAt) setError(e.message);
+      });
   }, [roomUuid]);
 
+  const applyRoomUpdate = useCallback((updated) => {
+    roomRevision.current += 1;
+    setRoom(updated);
+  }, []);
+
   useEffect(() => {
+    roomRevision.current += 1;
     setRoom(null);
     setError(null);
     load();
   }, [load]);
+
+  // A seminar may advance on another client. A completed desktop uplink or
+  // downlink is the user's explicit reconciliation point, so refresh the
+  // online-only room then as well as after actions performed in this view.
+  useEffect(() => subscribeNativeSyncResults(load), [load]);
 
   if (error) {
     return (
@@ -55,8 +73,9 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
         <RoomView
           room={room}
           currentUser={currentUser}
-          onRoomChange={setRoom}
+          onRoomChange={applyRoomUpdate}
           onReload={load}
+          onUncalled={onBack}
         />
       </div>
     </div>

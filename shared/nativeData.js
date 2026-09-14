@@ -345,6 +345,19 @@ export function subscribeNativeData(listener) {
   return subscribeNativeEvents(['papol://data-changed', 'papol://sync-status'], listener);
 }
 
+export function isNativeSyncResult(payload) {
+  return Number.isFinite(payload?.pushed) && Number.isFinite(payload?.pulled);
+}
+
+// Successful push-only and full/pull-only runs all carry both counters. This
+// deliberately excludes the adjacent {syncing:false} status event so callers
+// refresh shared online state exactly once per completed synchronization.
+export function subscribeNativeSyncResults(listener) {
+  return subscribeNativeEvents(['papol://sync-status'], (payload) => {
+    if (isNativeSyncResult(payload)) listener(payload);
+  });
+}
+
 // Payload: { phase, completed, total, fraction, bytes, bytes_per_second }.
 export function subscribeNativeSyncProgress(listener) {
   return subscribeNativeEvents(['papol://sync-progress'], listener);

@@ -5,6 +5,7 @@ import {
   joinRoom,
   leaveRoom,
   unhostRoom,
+  uncallSeminar,
   postRoomMessage,
   setRoomAvailability,
   announceRoom,
@@ -27,7 +28,7 @@ function formatWhen(dateString) {
 }
 
 // The interactive body of a seminar room.
-export default function RoomView({ room, currentUser, onRoomChange, onReload }) {
+export default function RoomView({ room, currentUser, onRoomChange, onReload, onUncalled }) {
   const [actionError, setActionError] = useState(null);
   const [message, setMessage] = useState('');
   const [availability, setAvailability] = useState(() => {
@@ -86,6 +87,27 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
   const participants = [...room.participants].sort(
     (a, b) => leadsRoom(b) - leadsRoom(a)
   );
+  const canUncall =
+    room.creator.uuid === currentUser.uuid &&
+    (room.status === 'open' || room.status === 'planning') &&
+    participants.length === 1 &&
+    participants[0].uuid === currentUser.uuid;
+
+  const uncall = async () => {
+    if (!(await confirmAction('Uncall this seminar? The empty cohort will be removed.', {
+      confirmLabel: 'Uncall seminar',
+      destructive: true,
+    }))) return;
+    setActionError(null);
+    setIsBusy(true);
+    try {
+      await uncallSeminar(room.uuid);
+      onUncalled();
+    } catch (e) {
+      setActionError(e.message);
+      setIsBusy(false);
+    }
+  };
 
   return (
     <div className="room-view">
@@ -408,10 +430,17 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
         {leaveOpen && isLeader && room.status !== 'finished' && (
           <div className="leave-handoff">
             {participants.filter((u) => u.uuid !== currentUser.uuid).length === 0 ? (
-              <p className="stage-hint">
-                You host this seminar and no one else is in the cohort — there
-                is no one to hand hosting to, so you cannot leave yet.
-              </p>
+              <>
+                <p className="stage-hint">
+                  You host this seminar and no one else is in the cohort — there
+                  is no one to hand hosting to.
+                </p>
+                {canUncall && (
+                  <button className="danger" disabled={isBusy} onClick={uncall}>
+                    Uncall seminar
+                  </button>
+                )}
+              </>
             ) : (
               <>
                 <label>Hand hosting to</label>
@@ -438,6 +467,11 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload }) 
               </>
             )}
           </div>
+        )}
+        {canUncall && !leaveOpen && (
+          <button className="danger" disabled={isBusy} onClick={uncall}>
+            Uncall seminar
+          </button>
         )}
       </div>
 

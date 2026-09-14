@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
-import { callSeminar } from '../../../shared/api/rooms.js';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  callSeminar, listPaperRooms, uncallSeminar,
+} from '../../../shared/api/rooms.js';
+import {
+  nativeDataActive, subscribeNativeSyncResults,
+} from '../../../shared/nativeData.js';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { styleLabel, roomStyleDesc } from '../seminarStyles';
 import { appPath } from '../base';
+import { confirmAction } from '../../../shared/confirmAction';
 
 function formatDay(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -25,8 +31,14 @@ function PersonLine({ user, children }) {
   );
 }
 
-function RoomCard({ room, paper, currentUser }) {
+function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
   const [expanded, setExpanded] = useState(false);
+  const canUncall =
+    currentUser &&
+    room.creator.uuid === currentUser.uuid &&
+    (room.status === 'open' || room.status === 'planning') &&
+    room.participants.length === 1 &&
+    room.participants[0].uuid === currentUser.uuid;
 
   if (room.status === 'finished' && !expanded) {
     return (
@@ -121,6 +133,11 @@ function RoomCard({ room, paper, currentUser }) {
           <a className="btn" href={appPath(`/room/${room.uuid}`)}>
             Open the room
           </a>
+          {canUncall && (
+            <button className="danger" disabled={isBusy} onClick={() => onUncall(room)}>
+              Uncall seminar
+            </button>
+          )}
         </p>
       ) : (
         <p className="interest-count-note">Sign in to take part.</p>
@@ -130,16 +147,71 @@ function RoomCard({ room, paper, currentUser }) {
 }
 
 export default function RoomSection({ paper, currentUser, onChanged }) {
-  const rooms = paper.rooms || [];
+  const [desktopRooms, setDesktopRooms] = useState(null);
+  const roomsRevision = useRef(0);
   const [callWarning, setCallWarning] = useState(null);
   const [isBusy, setIsBusy] = useState(false);
   const [callHint, setCallHint] = useState(false);
+
+  // The desktop paper view comes from SQLite, which intentionally contains
+  // the reader's offline data but not shared seminar cohorts. Enrich just this
+  // online-only section without holding up the rest of the paper page.
+  useEffect(() => {
+    roomsRevision.current += 1;
+    setDesktopRooms(null);
+    if (!nativeDataActive()) return undefined;
+    let active = true;
+    const refresh = () => {
+      const requestedAt = roomsRevision.current;
+      listPaperRooms(paper.uuid)
+        .then((rooms) => {
+          if (active && roomsRevision.current === requestedAt) setDesktopRooms(rooms);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const unsubscribe = subscribeNativeSyncResults(refresh);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [paper.uuid]);
+
+  const rooms = desktopRooms ?? paper.rooms ?? [];
 
   const call = async () => {
     setCallWarning(null);
     setIsBusy(true);
     try {
-      await callSeminar(paper.uuid);
+      const room = await callSeminar(paper.uuid);
+      // The server response is authoritative. Use it immediately because a
+      // subsequent desktop paper reload still reads its offline replica.
+      roomsRevision.current += 1;
+      setDesktopRooms((current) => [
+        room,
+        ...(current ?? paper.rooms ?? []).filter((item) => item.uuid !== room.uuid),
+      ]);
+      if (onChanged) onChanged();
+    } catch (err) {
+      setCallWarning(err.message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const uncall = async (room) => {
+    if (!(await confirmAction('Uncall this seminar? The empty cohort will be removed.', {
+      confirmLabel: 'Uncall seminar',
+      destructive: true,
+    }))) return;
+    setCallWarning(null);
+    setIsBusy(true);
+    try {
+      await uncallSeminar(room.uuid);
+      roomsRevision.current += 1;
+      setDesktopRooms((current) =>
+        (current ?? paper.rooms ?? []).filter((item) => item.uuid !== room.uuid)
+      );
       if (onChanged) onChanged();
     } catch (err) {
       setCallWarning(err.message);
@@ -169,8 +241,12 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
           room={room}
           paper={paper}
           currentUser={currentUser}
+          isBusy={isBusy}
+          onUncall={uncall}
         />
       ))}
+
+      {callWarning && activeCall && <div className="error">{callWarning}</div>}
 
       {currentUser && !activeCall && paper.viewer_is_reader && (
         <div className="call-block">
