@@ -45,6 +45,9 @@ jobs:
         working-directory: desktop
         run: npm run check:native
 
+      # The pushed tag already pins the release commit. Targeting the tag's SHA
+      # instead makes GitHub demand workflows permission (which GITHUB_TOKEN
+      # cannot have) whenever main's workflows have moved on since the tag.
       - name: Build, sign, notarize app, and draft release
         id: tauri
         uses: tauri-apps/tauri-action@v1
@@ -63,6 +66,7 @@ jobs:
           releaseName: Papol macOS v__VERSION__
           releaseBody: Download the signed and notarized Papol DMG below.
           releaseAssetNamePattern: "[name]_[version]_macOS_[arch][ext]"
+          releaseCommitish: ${{ github.event.repository.default_branch }}
           releaseDraft: true
           prerelease: false
 
