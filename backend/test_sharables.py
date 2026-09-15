@@ -256,6 +256,41 @@ class SharableTests(unittest.TestCase):
         detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
         self.assertTrue(detail["page_is_public"])
 
+    def test_a_link_does_not_care_which_shelf_the_paper_sits_on(self):
+        """Sharing is not displaying. A shelf says who may find the paper in
+        the Library; a link says who may read this PDF, and the link is the
+        whole of that permission. Moving the paper between a public and a
+        private shelf leaves a link out in the open exactly as it was."""
+        made = self.share()
+        self.assertEqual(made["kind"], "rich")
+
+        for displayed in (True, False, True):
+            with self.Session() as db:
+                copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
+                copy.marketed = displayed
+                db.commit()
+
+            opened = self.client.get(f"/api/shared/{made['uuid']}")
+            self.assertEqual(opened.status_code, 200, opened.text)
+            reading = opened.json()
+            self.assertEqual(reading["uuid"], made["uuid"])
+            self.assertEqual(reading["kind"], "rich")
+            self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
+            self.assertTrue(reading["notes"])
+
+    def test_a_private_paper_can_still_be_shared_from_scratch(self):
+        """The reader's copy sits on a private shelf throughout these tests,
+        which is what makes every link made here one made from a paper
+        nobody else can find."""
+        with self.Session() as db:
+            copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
+            self.assertFalse(copy.marketed)
+
+        made = self.share(include_marks=False)
+        self.assertEqual(
+            self.client.get(f"/api/shared/{made['uuid']}").status_code, 200,
+        )
+
     def test_revoking_closes_the_link_without_pretending_it_never_existed(self):
         made = self.share()
         revoked = self.client.delete(f"/api/sharables/{made['uuid']}")
