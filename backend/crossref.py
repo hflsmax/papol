@@ -108,6 +108,11 @@ def summarize_crossref(item: dict) -> dict:
     OpenAlex's — CrossRef often has no abstract, and its citation count is
     of works registered with CrossRef rather than of everything."""
     title = (item.get("title") or [None])[0]
+    subtitle = (item.get("subtitle") or [None])[0]
+    if title and subtitle:
+        title = f"{title.rstrip().rstrip(':')}: {subtitle}"
+    elif subtitle:
+        title = subtitle
     title = unescape(title) if title else None
     container = (item.get("container-title") or [None])[0]
     container = unescape(container) if container else None

@@ -2,9 +2,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import fitz
-
 import crossref
+import fitz
 import grobid
 from pdf_parser import arxiv_doi, extract_arxiv_id, extract_doi, extract_doi_from_pdf
 
@@ -105,6 +104,19 @@ class MetadataExtractionTests(unittest.TestCase):
             "container-title": ["Computers &amp; Graphics"],
         })
         self.assertEqual(summary["venue"], "Computers & Graphics")
+
+    def test_crossref_metadata_includes_the_subtitle(self):
+        summary = crossref.summarize_crossref({
+            "DOI": "10.1145/3354166.3354181",
+            "title": ["Under Control"],
+            "subtitle": [
+                "Compositionally Correct Closure Conversion with Mutable State"
+            ],
+        })
+        self.assertEqual(
+            summary["title"],
+            "Under Control: Compositionally Correct Closure Conversion with Mutable State",
+        )
 
     def test_parses_figure_reference_as_document_link(self):
         analysis = grobid.parse_tei(GROBID_FIGURE_LINK)
