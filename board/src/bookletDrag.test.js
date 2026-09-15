@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardPointFromClient, cardCenter, bookletDropTarget, bookletInsertionIndex, collectionMasonryLayout, collectionReorderLayout, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
+import { applyMembershipLayout, boardPointFromClient, cardCenter, bookletDropTarget, bookletInsertionIndex, collectionMasonryLayout, collectionReorderLayout, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 
 const booklet = { uuid: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -125,6 +125,47 @@ test('membership history captures both sides of a cross-group move', () => {
     { uuid: 2, group_uuid: 7, x: 100, y: 100 },
     { uuid: 3, group_uuid: 9, x: 600, y: 100 },
   ]);
+});
+
+test('completed membership layout updates cards and groups without a board reload', () => {
+  const board = {
+    name: 'Board',
+    items: [
+      { uuid: 'a', group_uuid: 'left', x: 0, y: 0 },
+      { uuid: 'b', group_uuid: 'left', x: 0, y: 100 },
+      { uuid: 'c', group_uuid: 'right', x: 400, y: 0 },
+    ],
+    groups: [
+      { uuid: 'left', item_uuids: ['a', 'b'] },
+      { uuid: 'right', item_uuids: ['c'] },
+    ],
+  };
+  const result = applyMembershipLayout(
+    board,
+    'b',
+    'right',
+    { x: 400, y: 100 },
+    [{ uuid: 'a', group_uuid: 'left', x: 0, y: 0 }],
+    [
+      { uuid: 'c', group_uuid: 'right', x: 400, y: 0 },
+      { uuid: 'b', group_uuid: 'right', x: 400, y: 100 },
+    ],
+  );
+  assert.deepEqual(result.groups.map((group) => group.item_uuids), [['a'], ['c', 'b']]);
+  assert.deepEqual(result.items.find((item) => item.uuid === 'b'), {
+    uuid: 'b', group_uuid: 'right', x: 400, y: 100,
+  });
+  assert.equal(result.name, board.name);
+});
+
+test('completed membership layout can detach a card from its group', () => {
+  const board = {
+    items: [{ uuid: 'a', group_uuid: 'left', x: 0, y: 0 }],
+    groups: [{ uuid: 'left', item_uuids: ['a'] }],
+  };
+  const result = applyMembershipLayout(board, 'a', null, { x: 80, y: 60 });
+  assert.deepEqual(result.groups[0].item_uuids, []);
+  assert.deepEqual(result.items[0], { uuid: 'a', group_uuid: null, x: 80, y: 60 });
 });
 
 test('collection tidy pulls distant cards closer', () => {

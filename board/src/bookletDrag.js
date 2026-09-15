@@ -77,6 +77,43 @@ export function membershipHistorySnapshots(items, draggedUuid, targetGroupUuid, 
   return { before, after: [...afterByUuid.values()] };
 }
 
+/** Apply a completed membership drag without re-fetching the whole board. */
+export function applyMembershipLayout(board, draggedUuid, targetGroupUuid, destination, originLayout = [], targetLayout = []) {
+  const dragged = board.items.find((item) => item.uuid === draggedUuid);
+  const originGroupUuid = dragged?.group_uuid || null;
+  const positions = new Map([
+    ...originLayout.map((position) => [position.uuid, position]),
+    ...targetLayout.map((position) => [position.uuid, position]),
+    [draggedUuid, {
+      uuid: draggedUuid,
+      group_uuid: targetGroupUuid || null,
+      x: destination.x,
+      y: destination.y,
+    }],
+  ]);
+  return {
+    ...board,
+    items: board.items.map((item) => {
+      const position = positions.get(item.uuid);
+      return position ? { ...item, ...position } : item;
+    }),
+    groups: board.groups.map((group) => {
+      if (group.uuid === targetGroupUuid) {
+        const itemUuids = targetLayout.length
+          ? targetLayout.map((position) => position.uuid)
+          : group.item_uuids.includes(draggedUuid)
+            ? group.item_uuids
+            : [...group.item_uuids, draggedUuid];
+        return itemUuids === group.item_uuids ? group : { ...group, item_uuids: itemUuids };
+      }
+      if (group.uuid === originGroupUuid) {
+        return { ...group, item_uuids: group.item_uuids.filter((uuid) => uuid !== draggedUuid) };
+      }
+      return group;
+    }),
+  };
+}
+
 export function tidyCollectionPositions(cards, maxGap = COLLECTION_TIDY_GAP) {
   const placed = [];
   return cards.map((card) => {
