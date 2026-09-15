@@ -3785,7 +3785,7 @@ export default function App() {
               Download
             </a>}
             {nookPromptOpen && ['confirm', 'ask', 'waiting'].includes(nookStep) && (
-              <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title">
+              <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title" data-tauri-drag-region="false">
                 <strong id="nook-ask-title">Add this paper to your nook</strong>
                 <p>
                   {nookStep === 'waiting'
@@ -3818,7 +3818,7 @@ export default function App() {
               </span>
             )}
             {paperInfoOpen && (
-              <div className="paper-info-pop" role="dialog" aria-label="Current paper information">
+              <div className="paper-info-pop" role="dialog" aria-label="Current paper information" data-tauri-drag-region="false">
                 <button type="button" className="card-x" onClick={() => setPaperInfoOpen(false)} aria-label="Close" title="Close">
                   ×
                 </button>
