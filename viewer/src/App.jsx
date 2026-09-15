@@ -57,6 +57,7 @@ import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
+import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
 
 // A full page carries the canvas, text layer, annotations, clips, and animal
 // renderer. None of that is needed to draw the real toolbar. Keep it out of
@@ -98,9 +99,7 @@ const MIN_SCALE = appLimits.viewer.zoom_min;
 // on getting thicker. The brush is drawn on the page now, in the stroke's
 // own coordinates, and has no ceiling to reach.
 const MAX_SCALE = appLimits.viewer.zoom_max;
-// How long a pinch has to pause before the rest of the viewer hears of the
-// zoom it reached and the pages are redrawn sharp.
-const ZOOM_SETTLE_MS = 120;
+const PINCH_BENCHMARK = new URLSearchParams(window.location.search).get('pinch_benchmark');
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
 // nobody reads at. The reader can still zoom past this — it only bounds
@@ -738,12 +737,11 @@ export default function App() {
   useEffect(() => {
     const root = scrollerRef.current;
     if (!doc || !scale || !root) return undefined;
-    const observer = new IntersectionObserver((entries) => {
-      const arrived = entries
-        .filter((entry) => entry.isIntersecting)
-        .map((entry) => Number(entry.target.dataset.page))
-        .filter((page) => Number.isInteger(page) && page > 0);
-      if (!arrived.length) return;
+    let cancelled = false;
+    const deferred = new Set();
+    let waitingForQuiet = false;
+    const materialize = (arrived) => {
+      if (!arrived.length || cancelled) return;
       setMaterializedPages((previous) => {
         const before = previous.doc === doc ? previous.pages : new Set([openingPage]);
         if (arrived.every((page) => before.has(page))) return previous;
@@ -751,9 +749,35 @@ export default function App() {
         for (const page of arrived) pages.add(page);
         return { doc, pages };
       });
+    };
+    const materializeWhenQuiet = () => {
+      if (waitingForQuiet) return;
+      waitingForQuiet = true;
+      pageRenderQueue().quiet().then(() => {
+        waitingForQuiet = false;
+        if (cancelled) return;
+        const arrived = [...deferred];
+        deferred.clear();
+        materialize(arrived);
+      });
+    };
+    const observer = new IntersectionObserver((entries) => {
+      const arrived = entries
+        .filter((entry) => entry.isIntersecting)
+        .map((entry) => Number(entry.target.dataset.page))
+        .filter((page) => Number.isInteger(page) && page > 0);
+      if (PINCH_BENCHMARK !== 'legacy' && root.classList.contains('zooming')) {
+        for (const page of arrived) deferred.add(page);
+        materializeWhenQuiet();
+      } else {
+        materialize(arrived);
+      }
     }, { root, rootMargin: '125% 50%' });
     for (const shell of root.querySelectorAll('[data-lazy-page]')) observer.observe(shell);
-    return () => observer.disconnect();
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
   }, [doc, scale, openingPage]);
   // Once page one is completely interactive, warm a tiny retained image for
   // every page, whether the PDF came from disk or the nook. Full canvases are
@@ -770,8 +794,18 @@ export default function App() {
     setPagePreviews({ doc, urls: new Map() });
 
     for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+      let task = null;
       const withdraw = pageRenderQueue().request({
         idle: true,
+        // PDF.js preview rendering occupies the main thread in slices. If a
+        // reader scrolls and immediately pinches during initial warm-up, stop
+        // that disposable work and retry it after the gesture is quiet.
+        interrupt: PINCH_BENCHMARK === 'legacy' ? undefined : () => {
+          if (!task) return false;
+          if (PINCH_BENCHMARK) performance.mark('papol-viewer:preview-interrupted');
+          task.cancel();
+          return true;
+        },
         priority: () => (cancelled ? null : pageNumber),
         run: async () => {
           const page = await doc.getPage(pageNumber);
@@ -786,7 +820,7 @@ export default function App() {
           const context = canvas.getContext('2d', { alpha: false });
           context.fillStyle = '#fff';
           context.fillRect(0, 0, canvas.width, canvas.height);
-          const task = page.render({ canvasContext: context, viewport });
+          task = page.render({ canvasContext: context, viewport });
           tasks.add(task);
           try {
             await task.promise;
@@ -795,6 +829,7 @@ export default function App() {
             throw error;
           } finally {
             tasks.delete(task);
+            task = null;
           }
           if (cancelled) return;
           const blob = await new Promise((resolve) => {
@@ -2344,7 +2379,10 @@ export default function App() {
   // scrolls each apply a stale correction, which is what made zooming
   // drift.
   const focus = useRef(null);
-  const pendingZoom = useRef({ factor: 1, at: null, frame: null });
+  const zoomPages = useRef(null);
+  if (zoomPages.current == null) {
+    zoomPages.current = createZoomPageCache({ enabled: PINCH_BENCHMARK !== 'legacy' });
+  }
 
   const captureFocus = (at) => {
     const el = scrollerRef.current;
@@ -2358,7 +2396,7 @@ export default function App() {
     // (elementFromPoint) hit-tests every span of every text layer — about
     // 4ms a zoom frame in WebKit on a text-dense paper, against almost
     // nothing for the reads.
-    const pages = el.querySelectorAll('.pdf-page');
+    const pages = zoomPages.current.get(el).map(({ page }) => page);
     const boxes = new Map();
     const boxFor = (index) => {
       if (!boxes.has(index)) boxes.set(index, pages[index].getBoundingClientRect());
@@ -2390,6 +2428,7 @@ export default function App() {
     const r = pageEl.getBoundingClientRect();
     return {
       page: pageEl.dataset.page,
+      element: pageEl,
       fx: (cx - r.left) / r.width,
       fy: (cy - r.top) / r.height,
       cx,
@@ -2417,14 +2456,13 @@ export default function App() {
     const el = scrollerRef.current;
     if (!el || value == null) return;
     el.dataset.scale = String(value);
-    for (const pageEl of el.querySelectorAll('.pdf-page')) {
+    for (const { page: pageEl, inner } of zoomPages.current.get(el)) {
       const width = Number(pageEl.dataset.pageWidth);
       const height = Number(pageEl.dataset.pageHeight);
       const drawnAt = Number(pageEl.dataset.renderScale);
       if (!width || !height) continue;
       pageEl.style.width = `${width * value}px`;
       pageEl.style.height = `${height * value}px`;
-      const inner = pageEl.querySelector(':scope > .page-inner');
       if (inner && drawnAt) inner.style.transform = value === drawnAt ? '' : `scale(${value / drawnAt})`;
     }
   };
@@ -2433,78 +2471,51 @@ export default function App() {
   // was taken at.
   const keepFocus = (f) => {
     const el = scrollerRef.current;
-    const pageEl = f && el?.querySelector(`[data-page="${f.page}"]`);
+    const pageEl = f?.element?.isConnected
+      ? f.element
+      : f && el?.querySelector(`[data-page="${f.page}"]`);
     if (!pageEl) return;
     const r = pageEl.getBoundingClientRect();
     el.scrollLeft += r.left + f.fx * r.width - f.cx;
     el.scrollTop += r.top + f.fy * r.height - f.cy;
   };
 
-  // Commits the zoom a gesture reached once input has paused for
-  // ZOOM_SETTLE_MS — counted from the last event, not the last frame, so one
-  // slow frame in the middle of a pinch is not taken for the fingers
-  // stopping.
-  const armZoomCommit = () => {
-    window.clearTimeout(zoomCommit.current);
-    zoomCommit.current = window.setTimeout(function commit() {
-      if (pendingZoom.current.frame != null) {
-        zoomCommit.current = window.setTimeout(commit, ZOOM_SETTLE_MS);
-        return;
-      }
-      zoomCommit.current = null;
-      gestureFocus.current = null;
-      // Text comes back once the view is still. There is nothing in it to
-      // see, and showing a dense paper's text again repaints it — tens of
-      // milliseconds, which here fall where nothing is moving.
-      pageRenderQueue().quiet().then(() => {
-        if (zoomCommit.current == null) scrollerRef.current?.classList.remove('zooming');
-      });
-      if (liveScale.current == null) return;
-      // The gesture has paused: the viewer takes the zoom, and the pages
-      // are redrawn sharp now rather than after a further wait.
-      setScale(liveScale.current);
-      setRenderScale(liveScale.current);
-    }, ZOOM_SETTLE_MS);
+  const finishZoom = () => {
+    zoomCommit.current = null;
+    gestureFocus.current = null;
+    pageRenderQueue().quiet().then(() => {
+      if (zoomCommit.current == null) scrollerRef.current?.classList.remove('zooming');
+    });
+    if (liveScale.current == null) return;
+    setScale(liveScale.current);
+    setRenderScale(liveScale.current);
   };
 
-  const zoomBy = (factor, at) => {
+  const applyZoomFrame = (combinedFactor, latestAt) => {
+    const frameStarted = PINCH_BENCHMARK ? performance.now() : null;
     const el = scrollerRef.current;
     if (!el) return;
-    chosenZoom.current = true;
-    const pending = pendingZoom.current;
-    pending.factor *= factor;
-    pending.at = at;
-    armZoomCommit();
-    // A pinch is the reader moving the page as much as a scroll is: work
-    // that waits for stillness (text layers, detail) waits for this too.
-    pageRenderQueue().scrolled();
-    if (pending.frame != null) return;
-    // Browsers can deliver several wheel events inside one display frame.
-    // Accumulate them and apply one geometry change for that frame.
-    pending.frame = requestAnimationFrame(() => {
-      pending.frame = null;
-      const combinedFactor = pending.factor;
-      const latestAt = pending.at;
-      pending.factor = 1;
-      pending.at = null;
-      const from = liveScale.current;
-      const next = from == null ? null : clampScale(from * combinedFactor);
-      if (next == null || next === from) return;
-      const held = gestureFocus.current;
-      const captured = held && latestAt && Math.abs(held.cx - latestAt.x) < 2 && Math.abs(held.cy - latestAt.y) < 2
-        ? held
-        : captureFocus(latestAt);
-      if (!captured) return;
-      gestureFocus.current = captured;
-      liveScale.current = next;
-      // Text layers are hidden until the gesture pauses (.zooming, styles.js).
-      el.classList.add('zooming');
-      applyScale(next);
-      keepFocus(captured);
-    });
+    const from = liveScale.current;
+    const next = from == null ? null : clampScale(from * combinedFactor);
+    if (next == null || next === from) return;
+    const held = gestureFocus.current;
+    const captured = held && latestAt && Math.abs(held.cx - latestAt.x) < 2 && Math.abs(held.cy - latestAt.y) < 2
+      ? held
+      : captureFocus(latestAt);
+    if (!captured) return;
+    gestureFocus.current = captured;
+    liveScale.current = next;
+    // Text layers are hidden until the gesture pauses (.zooming, styles.js).
+    el.classList.add('zooming');
+    applyScale(next);
+    keepFocus(captured);
+    if (frameStarted != null) {
+      performance.measure('papol-viewer:pinch-frame-work', {
+        start: frameStarted,
+        end: performance.now(),
+      });
+    }
   };
-
-  useEffect(() => () => window.clearTimeout(zoomCommit.current), []);
 
   useLayoutEffect(() => {
     // A gesture still under way owns the geometry, and this commit is
@@ -2543,22 +2554,46 @@ export default function App() {
     const el = scrollerRef.current;
     if (!el) return undefined;
 
+    const scheduler = createPinchScheduler({
+      onActivity: () => {
+        chosenZoom.current = true;
+        zoomCommit.current = scheduler;
+        // Hide selectable PDF text before the first gesture frame. In WebKit
+        // a scroll can otherwise schedule an expensive text repaint in the
+        // narrow interval between the pinch event and requestAnimationFrame.
+        scrollerRef.current?.classList.add('zooming');
+        pageRenderQueue().scrolled();
+      },
+      onFrame: applyZoomFrame,
+      onCommit: finishZoom,
+    });
+    // Lazy shells are replaced in place as pages approach the viewport.
+    // Invalidate once for that structural change; canvas/text mutations are
+    // descendants and deliberately do not disturb the geometry cache.
+    const pageObserver = new MutationObserver(() => zoomPages.current.invalidate());
+    pageObserver.observe(el, { childList: true });
+
     const onWheel = (e) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      zoomBy(Math.exp(-e.deltaY / 100), { x: e.clientX, y: e.clientY });
+      scheduler.update(Math.exp(-e.deltaY / 100), { x: e.clientX, y: e.clientY });
     };
 
     let gestureScale = 1;
     const onGestureStart = (e) => {
       e.preventDefault();
       gestureScale = e.scale;
+      scheduler.startNative();
     };
     const onGestureChange = (e) => {
       e.preventDefault();
       const factor = e.scale / gestureScale;
       gestureScale = e.scale;
-      zoomBy(factor, { x: e.clientX, y: e.clientY });
+      scheduler.update(factor, { x: e.clientX, y: e.clientY });
+    };
+    const onGestureEnd = (e) => {
+      e.preventDefault();
+      scheduler.endNative();
     };
 
     // passive: false — a passive listener is forbidden from calling
@@ -2566,16 +2601,16 @@ export default function App() {
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('gesturestart', onGestureStart, { passive: false });
     el.addEventListener('gesturechange', onGestureChange, { passive: false });
+    el.addEventListener('gestureend', onGestureEnd, { passive: false });
     return () => {
-      if (pendingZoom.current.frame != null) {
-        cancelAnimationFrame(pendingZoom.current.frame);
-        pendingZoom.current.frame = null;
-        pendingZoom.current.factor = 1;
-        pendingZoom.current.at = null;
-      }
+      scheduler.cancel();
+      pageObserver.disconnect();
+      zoomCommit.current = null;
+      zoomPages.current.invalidate();
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('gesturestart', onGestureStart);
       el.removeEventListener('gesturechange', onGestureChange);
+      el.removeEventListener('gestureend', onGestureEnd);
     };
   }, [doc]);
 

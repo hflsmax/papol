@@ -24,6 +24,7 @@ export function createRenderQueue({
   onError = (error) => console.error(error),
 } = {}) {
   const waiting = new Set();
+  const active = new Set();
   const running = { draw: 0, idle: 0 };
   let lastScroll = -Infinity;
   let pumping = false;
@@ -31,13 +32,18 @@ export function createRenderQueue({
 
   const start = (job) => {
     waiting.delete(job);
+    job.interrupted = false;
+    active.add(job);
     const lane = job.idle ? 'idle' : 'draw';
     running[lane] += 1;
     Promise.resolve()
       .then(job.run)
       .catch(onError)
       .finally(() => {
+        active.delete(job);
         running[lane] -= 1;
+        if (job.interrupted && job.priority() != null) waiting.add(job);
+        job.interrupted = false;
         schedule();
       });
   };
@@ -98,6 +104,14 @@ export function createRenderQueue({
     },
     scrolled() {
       lastScroll = now();
+      // Background preparation is useful only while the document is still.
+      // An interruptible idle job returns to the queue and retries after the
+      // gesture, instead of sharing the main thread with live scrolling or
+      // pinch frames.
+      for (const job of active) {
+        if (!job.idle || job.interrupted || !job.interrupt) continue;
+        if (job.interrupt() !== false) job.interrupted = true;
+      }
     },
     // Resolves in a later task, once scrolling has paused: for work split
     // into pieces that should step aside while the reader moves the page.

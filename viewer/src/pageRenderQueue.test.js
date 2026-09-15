@@ -107,6 +107,35 @@ test('an idle job waits for drawing to finish and for scrolling to pause', async
   assert.deepEqual(ran, ['draw', 'text']);
 });
 
+test('scrolling interrupts active background work and retries it after quiet', async () => {
+  const { queue, advance } = queueWithClock();
+  const attempts = [];
+  let current = gate();
+  queue.request({
+    idle: true,
+    priority: () => 0,
+    run: () => {
+      attempts.push('run');
+      return current.promise;
+    },
+    interrupt: () => {
+      attempts.push('interrupt');
+      current.open();
+      current = gate();
+      return true;
+    },
+  });
+  await flush();
+  assert.deepEqual(attempts, ['run']);
+
+  queue.scrolled();
+  await flush();
+  assert.deepEqual(attempts, ['run', 'interrupt']);
+  await advance(SCROLL_QUIET_MS);
+  assert.deepEqual(attempts, ['run', 'interrupt', 'run']);
+  current.open();
+});
+
 test('a scroll-sensitive page waits out a fling before drawing', async () => {
   const { queue, advance } = queueWithClock();
   const ran = [];
