@@ -1,48 +1,22 @@
-// The viewer is a separate app, so it carries its own copy of Papol's
-// tokens rather than importing across the boundary. Values must match
-// frontend/DESIGN.md — a reader crossing from a paper page into the viewer
-// should not feel they have left.
+import { designTokens } from '../../shared/designTokens.js';
+import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
+
 export const styles = `
 :root {
-  --font-serif: Georgia, 'Times New Roman', serif;
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  ${designTokens}
 
-  --ink: #1d2129;
-  --ink-soft: #4d5561;
-  --ink-faint: #7e8794;
-  --paper: #f5f6f8;
-  --paper-sunken: #f1f3f6;
-  --card: #ffffff;
-  --line: #dde2e8;
-  --line-strong: #b4becb;
-  --ink-inverse: #ffffff;
-  --accent: #2b4a6f;
-  --accent-strong: #1e3752;
-  --accent-soft: #eaeff5;
-  --gold-ink: #7a5b1e;
-  --gold: #b3923d;
+  /* Viewer-only annotation colors. These identify tools and marks rather
+     than product state, so they intentionally stay outside the core set. */
   --orange: #d2691e;
   --orange-soft: #fbeee2;
   --orange-line: #efd2b6;
-  --gold-soft: #faf3e3;
-  --gold-line: #e8d9b5;
-  --red: #8c2f22;
-  --red-soft: #f9ecea;
-  --red-line: #e5c4bd;
-
-  --fs-2xs: 0.7rem;
-  --fs-xs: 0.78rem;
-  --fs-sm: 0.85rem;
-  --fs-md: 0.92rem;
-  --fs-base: 0.95rem;
-  --fs-lg: 1.05rem;
-  --radius: 3px;
-  --radius-pill: 999px;
 
   /* The rail's width, in one place: the handle clings to its edge and the
      pages take what is left, so all three have to agree. */
   --rail-w: 344px;
 }
+
+${itemActionsStyles}
 
 * { box-sizing: border-box; }
 
@@ -70,6 +44,21 @@ body {
   line-height: 1.65;
 }
 
+::selection {
+  background: var(--accent-line);
+  color: var(--ink);
+}
+
+:where(a[href], button, input, textarea, select, summary, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
 button {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
@@ -80,6 +69,10 @@ button {
   color: var(--ink);
   cursor: pointer;
   line-height: 1.5;
+  transition: color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
 }
 
 button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -1082,53 +1075,9 @@ button.link.danger { color: var(--red); }
 .selection-actions {
   position: absolute;
   z-index: 30;
-  display: flex;
-  gap: 5px;
+  display: inline-flex;
   transform: translateX(-50%);
 }
-
-.selection-action {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  padding: 6px;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  color: var(--loaded);
-  background: var(--card);
-  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.2);
-  cursor: pointer;
-}
-
-.selection-action:hover { background: var(--accent-soft); }
-.selection-action:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.selection-brush svg { width: 100%; height: 100%; }
-.selection-send { color: var(--accent); }
-.selection-send svg {
-  display: block;
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* A selected paint mark's actions: the same round buttons as a selection's. */
-.ink-remove { color: var(--red); }
-.ink-remove svg {
-  display: block;
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.selection-action:disabled { opacity: 0.45; cursor: default; background: var(--card); }
 
 .provenance-highlight {
   pointer-events: none;
@@ -1413,16 +1362,18 @@ button.link.danger { color: var(--red); }
   place-items: center;
   padding: 24px;
   background: rgba(29, 33, 41, 0.42);
+  overscroll-behavior: contain;
 }
 
 .help-sheet {
   width: min(440px, 100%);
   max-height: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 20px 22px;
   border-radius: var(--radius);
   background: var(--card);
-  box-shadow: 0 18px 48px rgba(29, 33, 41, 0.28);
+  box-shadow: var(--shadow-overlay);
 }
 
 .help-sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
@@ -1736,57 +1687,10 @@ button.link.danger { color: var(--red); }
   position: absolute;
   z-index: 2;
   right: -1px;
-  top: -31px;
-  display: flex;
-  gap: 4px;
+  top: 0;
+  display: inline-flex;
   cursor: default;
 }
-.clip-float {
-  width: 27px;
-  height: 24px;
-  padding: 3px;
-  border: 1px solid rgba(43, 74, 111, .28);
-  border-radius: 12px;
-  color: var(--ink-soft);
-  background: rgba(255, 255, 255, .92);
-  cursor: pointer;
-}
-.clip-float:hover,
-.clip-float.floating { color: var(--accent); border-color: var(--accent); background: var(--paper); }
-.clip-float svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.clip-remove {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid rgba(43, 74, 111, .28);
-  border-radius: 50%;
-  color: var(--ink-soft);
-  background: rgba(255, 255, 255, .9);
-  font: 17px/1 var(--font-ui);
-  cursor: pointer;
-}
-.clip-remove:hover { color: var(--danger, #b42318); background: rgba(180, 35, 24, .08); }
-.clip-send {
-  width: 26px;
-  height: 24px;
-  padding: 3px;
-  border: 1px solid rgba(43, 74, 111, .28);
-  border-radius: 12px;
-  color: var(--accent);
-  background: rgba(255, 255, 255, .92);
-  cursor: pointer;
-}
-.clip-send:hover { background: var(--paper); border-color: var(--accent); }
-.clip-send svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; }
 .clip-canvas {
   display: block;
   width: 100%;
@@ -2275,5 +2179,14 @@ button.link.danger { color: var(--red); }
   .card-x { opacity: 1; }
   .anchor-row .card-x { width: 22px; height: 22px; }
   .note-card { padding-right: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 `;

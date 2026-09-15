@@ -17,8 +17,8 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
       .catch((e) => setError(e.message));
   }, []);
 
-  if (error) return <div className="error">{error}</div>;
-  if (!data) return <div className="loading">Loading inbox…</div>;
+  if (error) return <div className="error" role="alert">{error}</div>;
+  if (!data) return <div className="loading" role="status" aria-live="polite">Loading inbox…</div>;
 
   const formatWhen = (dateString) =>
     new Date(dateString).toLocaleDateString('en-US', {

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../../../shared/api/papers.js';
 import { confirmAction } from '../../../shared/confirmAction';
 import appLimits from '../../../shared/appLimits.js';
+import { useModalDialog } from '../../../shared/useModalDialog.js';
 
 // The focused editor for a reader's shelves and private tags ("Shelf" in
 // DESIGN.md). My nook opens it from its gear on the website, and Papol
@@ -9,14 +10,7 @@ import appLimits from '../../../shared/appLimits.js';
 export default function NookManager({ space, setSpace, onChanged, onClose, onTagDeleted }) {
   const [error, setError] = useState(null);
   const [newTagName, setNewTagName] = useState('');
-
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
+  const dialogRef = useModalDialog(true, onClose);
 
   // Publishing and default changes need the server, so any of these can fail.
   const attempt = async (action) => {
@@ -31,7 +25,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
 
   return (
     <div className="modal-overlay shelf-manager-overlay" onMouseDown={() => onClose()}>
-      <div className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" tabIndex="-1" onMouseDown={(event) => event.stopPropagation()}>
         <div className="shelf-manager-head">
           <div>
             <h3 id="shelf-manager-title">Manage nook</h3>

@@ -76,6 +76,12 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
     activeTag ? `#${activeTag.name}` : null,
     search.trim() ? `“${search.trim()}”` : null,
   ].filter(Boolean).join(' · ');
+  const hasActiveFilters = selectedShelf != null || selectedTag != null || Boolean(search.trim());
+  const clearFilters = () => {
+    setSelectedShelf(null);
+    onSelectTag?.(null);
+    setSearch('');
+  };
 
   return (
     <div
@@ -98,7 +104,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
         </button>
         {browserOpen && <div className="search-bar paper-search-tools">
         {shelves.length > 1 && (
-          <div className="shelf-filter" aria-label="Filter nook items by shelf">
+          <div className="shelf-filter" role="group" aria-label="Filter nook items by shelf">
             <div className="shelf-filter-case">
               {shelves.map((shelf) => (
                 <button
@@ -146,10 +152,10 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
           </div>
         )}
         {isOwn && tags.length > 0 && (
-          <div className="search-tag-filters" aria-label="Filter papers by tag">
-            <button className={selectedTag == null ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(null)}>All</button>
+          <div className="search-tag-filters" role="group" aria-label="Filter papers by tag">
+            <button className={selectedTag == null ? 'tag-chip selected' : 'tag-chip'} aria-pressed={selectedTag == null} onClick={() => onSelectTag(null)}>All</button>
             {tags.map((tag) => (
-              <button key={tag.uuid} className={selectedTag === tag.uuid ? 'tag-chip selected' : 'tag-chip'} onClick={() => onSelectTag(tag.uuid)}>
+              <button key={tag.uuid} className={selectedTag === tag.uuid ? 'tag-chip selected' : 'tag-chip'} aria-pressed={selectedTag === tag.uuid} onClick={() => onSelectTag(tag.uuid)}>
                 <span aria-hidden="true">#</span> {tag.name}
               </button>
             ))}
@@ -157,6 +163,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
         )}
         <input
           type="text"
+          aria-label={isOwn ? 'Search my nook' : 'Search this nook'}
           placeholder={
             isOwn ? 'Search papers and boards in your nook…' : 'Search papers and boards in this nook…'
           }
@@ -167,15 +174,16 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
       </div>
 
       {entries.length === 0 ? (
-        <p className="no-papers">
-          {papers.length === 0 && boards.length === 0
+        <div className="no-papers">
+          <p>{papers.length === 0 && boards.length === 0
             ? isOwn
               ? 'No papers or boards yet.'
               : 'Nothing in this nook yet.'
             : selectedShelf != null || selectedTag != null
               ? 'Nothing tucked away here matches those filters.'
-              : 'Nothing matches your search.'}
-        </p>
+              : 'Nothing matches your search.'}</p>
+          {hasActiveFilters && <button type="button" className="link-btn" onClick={clearFilters}>Clear filters</button>}
+        </div>
       ) : (
         <ul>
           {entries.map((entry) => {

@@ -380,13 +380,13 @@ export default function PaperDetail({
   };
 
   if (isLoading) {
-    return <div className="loading">Loading paper...</div>;
+    return <div className="loading" role="status" aria-live="polite">Loading paper…</div>;
   }
 
   if (error && !paper) {
     return (
       <div className="panel paper-detail">
-        <div className="error">{error}</div>
+        <div className="error" role="alert">{error}</div>
         {!hideBack && <BackLink href={backHref} onBack={onBack}>Back</BackLink>}
       </div>
     );
@@ -466,7 +466,7 @@ export default function PaperDetail({
         <BackLink className="back-btn" href={backHref} onBack={onBack} />
       )}
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" role="alert">{error}</div>}
 
       <div className="panel">
       {editMode === 'metadata' ? (
@@ -489,8 +489,9 @@ export default function PaperDetail({
           </div>
 
           <div className="form-group">
-            <label>Title</label>
+            <label htmlFor="paper-metadata-title">Title</label>
             <input
+              id="paper-metadata-title"
               type="text"
               name="title"
               value={editData.title}
@@ -499,8 +500,9 @@ export default function PaperDetail({
           </div>
 
           <div className="form-group">
-            <label>Authors (comma-separated)</label>
+            <label htmlFor="paper-metadata-authors">Authors (comma-separated)</label>
             <input
+              id="paper-metadata-authors"
               type="text"
               name="authors"
               value={editData.authors}
@@ -510,8 +512,9 @@ export default function PaperDetail({
 
           <div className="form-row">
             <div className="form-group">
-              <label>Journal</label>
+              <label htmlFor="paper-metadata-journal">Journal</label>
               <input
+                id="paper-metadata-journal"
                 type="text"
                 name="journal"
                 value={editData.journal}
@@ -520,8 +523,9 @@ export default function PaperDetail({
             </div>
 
             <div className="form-group">
-              <label>Year</label>
+              <label htmlFor="paper-metadata-year">Year</label>
               <input
+                id="paper-metadata-year"
                 type="number"
                 name="year"
                 value={editData.year}
@@ -531,8 +535,9 @@ export default function PaperDetail({
           </div>
 
           <div className="form-group">
-            <label>DOI</label>
+            <label htmlFor="paper-metadata-doi">DOI</label>
             <input
+              id="paper-metadata-doi"
               type="text"
               name="doi"
               value={editData.doi}
@@ -542,7 +547,7 @@ export default function PaperDetail({
 
           {hasEntry && (
             <div className="form-group">
-              <label>PDF</label>
+              <div className="form-label">PDF</div>
               <div className="pdf-row">
                 <a
                   className="btn"

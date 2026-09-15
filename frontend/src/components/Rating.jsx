@@ -47,8 +47,8 @@ export function RatingInput({ values, onChange }) {
     <div className="rating-inputs">
       {RATING_DIMENSIONS.map((d) => (
         <div key={d.key} className="rating-input-row">
-          <label title={d.hint}>{d.label}</label>
-          <div className="rating-buttons" role="radiogroup" aria-label={d.label}>
+          <span className="rating-question" title={d.hint}>{d.label}</span>
+          <div className="rating-buttons" role="group" aria-label={d.label}>
             {[1, 2, 3, 4, 5].map((i) => (
               <button
                 key={i}

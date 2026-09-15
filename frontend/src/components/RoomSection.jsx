@@ -245,7 +245,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
         />
       ))}
 
-      {callWarning && activeCall && <div className="error">{callWarning}</div>}
+      {callWarning && activeCall && <div className="error" role="alert">{callWarning}</div>}
 
       {currentUser && !activeCall && paper.viewer_is_reader && (
         <div className="call-block">

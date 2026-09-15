@@ -253,11 +253,12 @@ export default function PaperUpload({
             Metadata could not be looked up. You can still review and save the paper.
           </div>
         )}
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
         <form className="upload-review-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Title *</label>
+            <label htmlFor="upload-paper-title">Title <span aria-hidden="true">*</span></label>
             <input
+              id="upload-paper-title"
               type="text"
               name="title"
               value={formData.title}
@@ -268,7 +269,7 @@ export default function PaperUpload({
 
           <div className="form-group">
             <div className="field-label-row">
-              <label>Authors (comma-separated)</label>
+              <label htmlFor="upload-paper-authors">Authors (comma-separated)</label>
               {!localImport && <label
                 className="checkbox-row inline"
                 title="Marks your chip on this paper as an author"
@@ -284,6 +285,7 @@ export default function PaperUpload({
               </label>}
             </div>
             <input
+              id="upload-paper-authors"
               type="text"
               name="authors"
               value={formData.authors}
@@ -294,8 +296,9 @@ export default function PaperUpload({
 
           <div className="form-row">
             <div className="form-group">
-              <label>Journal</label>
+              <label htmlFor="upload-paper-journal">Journal</label>
               <input
+                id="upload-paper-journal"
                 type="text"
                 name="journal"
                 value={formData.journal}
@@ -304,8 +307,9 @@ export default function PaperUpload({
             </div>
 
             <div className="form-group">
-              <label>Year</label>
+              <label htmlFor="upload-paper-year">Year</label>
               <input
+                id="upload-paper-year"
                 type="number"
                 name="year"
                 value={formData.year}
@@ -317,8 +321,9 @@ export default function PaperUpload({
           </div>
 
           <div className="form-group">
-            <label>DOI</label>
+            <label htmlFor="upload-paper-doi">DOI</label>
             <input
+              id="upload-paper-doi"
               type="text"
               name="doi"
               value={formData.doi}
@@ -328,9 +333,9 @@ export default function PaperUpload({
           </div>
 
           <div className="form-group upload-private-field upload-shelf-field">
-            <label>Shelf</label>
+            <label htmlFor="upload-paper-shelf">Shelf</label>
             <div className="upload-shelf-select">
-              <select name="shelf_uuid" value={formData.shelf_uuid} onChange={handleInputChange}>
+              <select id="upload-paper-shelf" name="shelf_uuid" value={formData.shelf_uuid} onChange={handleInputChange}>
                 {shelves.map((shelf) => (
                   <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
                 ))}
@@ -340,7 +345,7 @@ export default function PaperUpload({
           </div>
 
           <div className="form-group upload-private-field">
-            <label>Private Tags</label>
+            <label htmlFor="upload-paper-tags">Private tags</label>
             <div className="tag-editor-card upload-tag-editor">
               <div className="tag-picker">
                 <div className="tag-editor">
@@ -350,6 +355,7 @@ export default function PaperUpload({
                     </button>
                   ))}
                   <input
+                    id="upload-paper-tags"
                     className="tag-input"
                     value={tagDraft}
                     placeholder="Add a private tag…"
@@ -381,9 +387,10 @@ export default function PaperUpload({
           </div>
 
           <div className="form-group upload-private-field upload-private-summary">
-            <label>Private summary</label>
+            <label htmlFor="upload-paper-summary">Private summary</label>
             <div className="upload-private-card">
               <textarea
+                id="upload-paper-summary"
                 name="summary"
                 value={formData.summary}
                 onChange={handleInputChange}
@@ -394,9 +401,10 @@ export default function PaperUpload({
           </div>
 
           {!localImport && <div className="form-group upload-public-field upload-public-thought">
-            <label>One-sentence thought</label>
+            <label htmlFor="upload-paper-thought">One-sentence thought</label>
             <div className="upload-public-card">
               <input
+                id="upload-paper-thought"
                 type="text"
                 name="thought"
                 value={formData.thought}
@@ -408,7 +416,7 @@ export default function PaperUpload({
           </div>}
 
           {!localImport && <div className="form-group upload-public-field">
-            <label>Public ratings</label>
+            <div className="form-label">Public ratings</div>
             <div className="upload-public-card">
               <RatingInput values={formData} onChange={handleRatingChange} />
             </div>
@@ -453,7 +461,7 @@ export default function PaperUpload({
           </>
         )}
       </div>
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" role="alert">{error}</div>}
     </div>
   );
 }

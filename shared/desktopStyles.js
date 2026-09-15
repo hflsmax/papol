@@ -649,15 +649,15 @@ export const desktopStyles = `
 
 .desktop-board-editable {
   cursor: text;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   outline: none;
   transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
 }
 
 .desktop-board-editable:hover,
 .desktop-board-editable:focus-visible {
-  background: var(--wash);
-  box-shadow: 0 0 0 4px var(--wash);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 4px var(--accent-soft);
   color: var(--accent);
 }
 

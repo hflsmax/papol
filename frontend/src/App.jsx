@@ -35,6 +35,7 @@ import {
   REPORTABLE_NATIVE_ERROR_EVENT,
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
+import { useModalDialog } from '../../shared/useModalDialog.js';
 
 function parseRoute() {
   const rawPath = stripAppBase(window.location.pathname || '/');
@@ -298,15 +299,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const dismissDemoIntro = () => setDemoIntroSeen(true);
 
   const demoIntroVisible = mode === 'demo' && Boolean(user) && !demoIntroSeen;
-
-  useEffect(() => {
-    if (!demoIntroVisible) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') setDemoIntroSeen(true);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [demoIntroVisible]);
+  const demoDialogRef = useModalDialog(demoIntroVisible, dismissDemoIntro);
 
   useEffect(() => {
     const onRouteChange = async () => {
@@ -485,7 +478,7 @@ export default function App({ startupUser = null, startupError = null }) {
     return (
       <>
         <style>{applicationStyles}</style>
-        <div className="loading">Loading…</div>
+        <div className="loading" role="status" aria-live="polite">Loading…</div>
       </>
     );
   }
@@ -524,9 +517,9 @@ export default function App({ startupUser = null, startupError = null }) {
 
   const demoIntro = demoIntroVisible && (
     <div className="modal-overlay" onClick={dismissDemoIntro}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+      <div ref={demoDialogRef} className="modal-box" role="dialog" aria-modal="true" aria-labelledby="demo-intro-title" tabIndex="-1" onClick={(e) => e.stopPropagation()}>
         <div className="panel demo-intro">
-          <h3>Welcome to Papol</h3>
+          <h3 id="demo-intro-title">Welcome to Papol</h3>
           <p>
             Papol is your paper reading companion. Stay close to the ideas
             that matter, and the people thinking about them.

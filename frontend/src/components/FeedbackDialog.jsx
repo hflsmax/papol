@@ -3,6 +3,7 @@ import { submitFeedback } from '../../../shared/api/feedback.js';
 import appLimits from '../../../shared/appLimits.js';
 import { recentDiagnosticEvents } from '../../../shared/nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../../shared/diagnosticLog.js';
+import { useModalDialog } from '../../../shared/useModalDialog.js';
 
 export default function FeedbackDialog({ initialContent = '', reportError = false, onClose }) {
   const [content, setContent] = useState(initialContent);
@@ -11,14 +12,7 @@ export default function FeedbackDialog({ initialContent = '', reportError = fals
   const [error, setError] = useState(null);
   const [logExcerpt, setLogExcerpt] = useState('');
   const [includeLog, setIncludeLog] = useState(true);
-
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
+  const dialogRef = useModalDialog(true, onClose);
 
   useEffect(() => {
     recentDiagnosticEvents(40)
@@ -51,7 +45,7 @@ export default function FeedbackDialog({ initialContent = '', reportError = fals
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" role="dialog" aria-modal="true" aria-label="Feedback" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className="modal-box" role="dialog" aria-modal="true" aria-label="Feedback" tabIndex="-1" onClick={(e) => e.stopPropagation()}>
         <div className="panel">
           <h3>{sent ? (reportError ? 'Report sent' : 'Thank you') : (reportError ? 'Send an error report?' : 'Report a bug or ask for a feature')}</h3>
           {sent ? (
@@ -71,10 +65,11 @@ export default function FeedbackDialog({ initialContent = '', reportError = fals
                 </p>
               )}
               <div className="form-group">
-                <label>
+                <label htmlFor="feedback-content">
                   {reportError ? 'Diagnostic details' : 'What went wrong, or what would you like Papol to do?'}
                 </label>
                 <textarea
+                  id="feedback-content"
                   rows="5"
                   maxLength={appLimits.text.feedback}
                   value={content}
@@ -101,7 +96,7 @@ export default function FeedbackDialog({ initialContent = '', reportError = fals
                 </div>
               )}
 
-              {error && <div className="error">{error}</div>}
+              {error && <div className="error" role="alert">{error}</div>}
 
               <div className="form-actions">
                 <button type="button" onClick={onClose} disabled={sending}>

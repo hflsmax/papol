@@ -68,8 +68,8 @@ export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBo
     };
   }, [userUuid]);
 
-  if (isLoading) return <div className="loading">Loading nook…</div>;
-  if (error) return <div className="error">{error}</div>;
+  if (isLoading) return <div className="loading" role="status" aria-live="polite">Loading nook…</div>;
+  if (error) return <div className="error" role="alert">{error}</div>;
   if (!space) return null;
 
   return (

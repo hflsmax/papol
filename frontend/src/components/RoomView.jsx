@@ -110,7 +110,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
 
   return (
     <div className="room-view">
-      {actionError && <div className="error">{actionError}</div>}
+      {actionError && <div className="error" role="alert">{actionError}</div>}
 
       {/* ---- Stage ---- */}
       {room.status === 'open' && (
@@ -164,8 +164,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
           </h6>
           <div className="announce-fields">
             <div className="form-group">
-              <label>Time</label>
+              <label htmlFor="seminar-time">Time</label>
               <input
+                id="seminar-time"
                 type="text"
                 value={announceTime}
                 onChange={(e) => setAnnounceTime(e.target.value)}
@@ -173,8 +174,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               />
             </div>
             <div className="form-group">
-              <label>Platform / place</label>
+              <label htmlFor="seminar-platform">Platform / place</label>
               <input
+                id="seminar-platform"
                 type="text"
                 value={announcePlatform}
                 onChange={(e) => setAnnouncePlatform(e.target.value)}
@@ -183,8 +185,8 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             </div>
           </div>
           <div className="form-group">
-            <label>Style</label>
-            <div className="style-options">
+            <div className="form-label" id="seminar-style-label">Style</div>
+            <div className="style-options" role="radiogroup" aria-labelledby="seminar-style-label">
               {SEMINAR_STYLES.map((s) => (
                 <label
                   key={s.key}
@@ -442,8 +444,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               </>
             ) : (
               <>
-                <label>Hand hosting to</label>
+                <label htmlFor="seminar-successor">Hand hosting to</label>
                 <select
+                  id="seminar-successor"
                   value={successorUuid}
                   onChange={(e) => setSuccessorUuid(e.target.value)}
                 >
@@ -533,52 +536,62 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
         <h6 className="mini-title">
           Discussion{room.messages.length > 0 ? ` (${room.messages.length})` : ''}
         </h6>
-        <div className="room-messages">
+        <ol className="room-messages" aria-label="Discussion messages">
           {room.messages.length === 0 ? (
-            <p className="no-comments">No messages yet.</p>
+            <li className="no-comments">No messages yet.</li>
           ) : (
             room.messages.map((m) => (
-              <div key={m.uuid} className="room-message">
+              <li key={m.uuid} className="room-message">
                 <Avatar user={m.user} className="entry-avatar" />
                 <div className="room-message-body">
-                  <p className="room-message-meta">
+                  <header className="room-message-meta">
                     <strong>{m.user.display_name}</strong>
-                    <span className="room-message-time">
+                    <time className="room-message-time" dateTime={m.created_at}>
                       {formatWhen(m.created_at)}
-                    </span>
-                  </p>
+                    </time>
+                  </header>
                   <p className="room-message-content">{m.content}</p>
                 </div>
-              </div>
+              </li>
             ))
           )}
-        </div>
+        </ol>
         {room.viewer_is_participant ? (
-          <div className="compose-row">
+          <form
+            className="compose-row"
+            onSubmit={(event) => {
+              event.preventDefault();
+              run(async () => {
+                const updated = await postRoomMessage(room.uuid, message.trim());
+                setMessage('');
+                return updated;
+              })();
+            }}
+          >
             <textarea
               className="room-textarea"
               rows="1"
+              aria-label="Message"
+              maxLength={appLimits.text.room_message}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Write a message…"
             />
             <button
+              type="submit"
               className="primary"
               disabled={isBusy || !message.trim()}
-              onClick={run(async () => {
-                const updated = await postRoomMessage(room.uuid, message.trim());
-                setMessage('');
-                return updated;
-              })}
             >
               Send
             </button>
-          </div>
+          </form>
         ) : (
           <div className="compose-row">
             <textarea
               className="room-textarea"
               rows="1"
+              aria-label="Message"
+              maxLength={appLimits.text.room_message}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Write a message…"

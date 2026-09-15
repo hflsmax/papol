@@ -80,7 +80,7 @@ export default function CommentSection({
         )}
       </h4>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" role="alert">{error}</div>}
 
       {composing && (
         <form onSubmit={handleSubmit} className="inline-edit comment-compose">

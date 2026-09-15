@@ -14,13 +14,13 @@ export default function UserDirectory({ currentUser, onVisit }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  if (isLoading) return <div className="loading">Loading the village…</div>;
+  if (isLoading) return <div className="loading" role="status" aria-live="polite">Loading the village…</div>;
 
   return (
     <div className="panel">
       <h2 className="panel-title">The Village</h2>
       <p className="village-subtitle">Every reader keeps a nook — pay one a visit.</p>
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" role="alert">{error}</div>}
       <ul className="user-list">
         {users.map((user) => (
           <li key={user.uuid} onClick={() => onVisit(user.uuid)}>

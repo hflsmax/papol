@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useModalDialog } from '../../../shared/useModalDialog.js';
 import { appPath } from '../base';
 import { IS_DESKTOP } from '../../../shared/appEnvironment.js';
 import { hydrateDesktopMedia, tutorialMedia } from '../../../shared/desktopMedia.js';
@@ -132,15 +133,7 @@ export default function LearnPage() {
   const [playing, setPlaying] = useState(null);
   const [playerMedia, setPlayerMedia] = useState(null);
   const sections = ['Library', 'Viewer', 'Board'];
-
-  useEffect(() => {
-    if (!playing) return undefined;
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setPlaying(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [playing]);
+  const playerDialogRef = useModalDialog(Boolean(playing), () => setPlaying(null));
 
   useEffect(() => {
     if (!playing) {
@@ -192,7 +185,7 @@ export default function LearnPage() {
         </section>
       ))}
       {playing && (
-        <div className="learn-player-backdrop" role="dialog" aria-modal="true" aria-label={playing.title} onMouseDown={() => setPlaying(null)}>
+        <div ref={playerDialogRef} className="learn-player-backdrop" role="dialog" aria-modal="true" aria-label={playing.title} tabIndex="-1" onMouseDown={() => setPlaying(null)}>
           <div className="learn-player" onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="learn-player-close" aria-label="Close video" onClick={() => setPlaying(null)} autoFocus>×</button>
             {playerMedia?.status === 'ready' && (

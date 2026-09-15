@@ -24,8 +24,8 @@ function DbMetricsPanel() {
     load(adminDbMetrics());
   }, []);
 
-  if (error) return <div className="error">{error}</div>;
-  if (!metrics) return <div className="loading">Loading metrics…</div>;
+  if (error) return <div className="error" role="alert">{error}</div>;
+  if (!metrics) return <div className="loading" role="status" aria-live="polite">Loading metrics…</div>;
 
   return (
     <>
@@ -117,8 +117,8 @@ function FeedbackPanel() {
     }
   };
 
-  if (error) return <div className="error">{error}</div>;
-  if (!items) return <div className="loading">Loading reports…</div>;
+  if (error) return <div className="error" role="alert">{error}</div>;
+  if (!items) return <div className="loading" role="status" aria-live="polite">Loading reports…</div>;
 
   const open = items.filter((f) => !f.resolved);
   const done = items.filter((f) => f.resolved);
@@ -207,7 +207,7 @@ function FeatureStatesPanel() {
           </button>
         )}
       </p>
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" role="alert">{error}</div>}
       <ul className="feature-state-list">
         {FEATURE_STATES.map((state) => {
           const on = states[state.key];
@@ -273,7 +273,7 @@ export default function AdminPage() {
     if (selected) loadTable(selected);
   }, [selected]);
 
-  if (error && !data) return <div className="error">{error}</div>;
+  if (error && !data) return <div className="error" role="alert">{error}</div>;
 
   const pkName = data?.primary_key?.[0];
 
@@ -358,11 +358,11 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
         {notice && <div className="success">{notice}</div>}
 
         {!data ? (
-          <div className="loading">Loading {selected}…</div>
+          <div className="loading" role="status" aria-live="polite">Loading {selected}…</div>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">

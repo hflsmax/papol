@@ -1,11 +1,18 @@
 # Papol Design System
 
-All styles live in the template string in `src/App.jsx`. The system is a set
-of CSS custom properties declared on `:root` at the top of that sheet; every
-rule below the token block should derive from them. When you add UI, pick
-tokens — don't invent new hexes, font sizes, or radii. Papol Desktop's rules
-live apart, in `src/desktopStyles.js`, which the sheet appends to itself; they
-use the same tokens.
+The canonical tokens and cross-product component styles live in
+`shared/applicationStyles.js`. The web app and board use that sheet; Papol
+Desktop's scoped rules live in `shared/desktopStyles.js`, which the canonical
+sheet appends. The PDF viewer is a separate application and mirrors the
+canonical foundations in `viewer/src/styles.js`. Token values must match
+across those files so moving from library to viewer to board feels like one
+product.
+
+Every rule should derive from the tokens where a role is shared. When adding
+UI, pick tokens — don't invent new hexes, font sizes, radii, focus colors,
+shadows, or animation timings. Runtime identity values such as shelf colors,
+brush colors, and board zoom variables are expected component inputs rather
+than design tokens.
 
 ## Color
 
@@ -13,7 +20,7 @@ use the same tokens.
 |---|---|---|
 | `--ink` | `#1d2129` | Primary text |
 | `--ink-soft` | `#4d5561` | Secondary text, labels |
-| `--ink-faint` | `#7e8794` | Hints, dates, disabled-ish text |
+| `--ink-faint` | `#66717f` | Hints and metadata; remains AA-legible on `--paper` |
 | `--paper` | `#f5f6f8` | Page background, subtle hovers |
 | `--paper-sunken` | `#f1f3f6` | Recessed rows (hidden nook entries) |
 | `--card` | `#ffffff` | Panels, inputs |
@@ -24,6 +31,7 @@ use the same tokens.
 | `--accent` | `#2b4a6f` | Brand navy: links, primary buttons, selection |
 | `--accent-strong` | `#1e3752` | Primary button hover |
 | `--accent-soft` | `#eaeff5` | Tinted cards (notes, summaries, quotes) |
+| `--focus` / `--focus-soft` | accent / translucent accent | Keyboard focus and inset field focus |
 | `--chrome` | `#eaedf1` (`#f9ecea` in development) | Papol Desktop sidebar ground; light red distinguishes development builds |
 | `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
 | `--chrome-radius` | `6px` | Desktop sidebar rows and toolbar buttons only |
@@ -97,6 +105,56 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - `--radius-pill` (999px) — state pills, badges, toggles.
 - Avatars are `border-radius: 50%`.
 
+## Space, elevation, and motion
+
+- `--space-1` through `--space-7` are 4, 8, 12, 16, 24, 32, and 48px.
+  Prefer these for new component padding and gaps. Existing optical offsets
+  may remain when they align text or icons rather than establish layout rhythm.
+- `--shadow-sm` separates a control or card from its immediate surface,
+  `--shadow-md` identifies a popover, and `--shadow-overlay` belongs to modal
+  layers. Shadows communicate stacking, never importance.
+- `--motion-fast` is for direct control feedback; `--motion-base` is for a
+  panel or state transition. Use `--ease-out`. Never use `transition: all`.
+- Motion must not be required to understand a state change. Under
+  `prefers-reduced-motion: reduce`, transitions and nonessential animation
+  collapse to effectively instantaneous feedback.
+
+## Interaction and accessibility
+
+- Ordinary interactive elements use the global `--focus` outline on
+  `:focus-visible`. A component may reshape that treatment when a rectangular
+  ring would misrepresent the object (for example an anchor placed on a PDF),
+  but it must retain a visible keyboard state.
+- Hover is enhancement, not disclosure. Actions hidden at rest become visible
+  on `:focus-within` and on non-hover/touch devices.
+- Every form label is associated using `htmlFor`/`id`, or wraps its control.
+  A heading for a compound control uses `.form-label` plus an accessible group
+  name; do not leave a freestanding `<label>` with no labelled control.
+- Placeholder text supplements a label and never replaces it. It uses
+  `--ink-faint` at full opacity so browser defaults cannot make it illegible.
+- `--ink-faint` is the lightest color for readable text. Disabled controls use
+  opacity in addition to an explicit disabled state and do not carry essential
+  information.
+- Touch-first layouts give primary actions and toolbar controls at least a
+  40px target; isolated actions should reach 44px where the layout permits.
+- Status updates that arrive asynchronously use `role="status"` and
+  `aria-live="polite"`; errors that need immediate correction use
+  `role="alert"`. Focus moves into modal dialogs and returns to their trigger.
+
+## Responsive layout
+
+- The web app is content-first at a 760px reading measure. At 560px, navigation
+  becomes a full-width tab row, forms become one column, paired actions stack,
+  and controls must remain usable without hover.
+- The PDF viewer changes from a two-column page/anchor layout to an overlay
+  rail at 860px, then compacts toolbar labels at 560px. Pages remain the only
+  document scroller at every width.
+- The board compacts its toolbar at 700px and scales canvas affordances against
+  zoom. Screen-space targets must remain usable even while board content is
+  transformed.
+- New breakpoints should follow one of those existing behavioral transitions,
+  not a particular device model. Test at 320, 560, 760/860, and a wide desktop.
+
 ## Recurring patterns
 
 - **Learn lesson** — tutorial videos live on the public Learn page in a
@@ -135,6 +193,15 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `title` and an `aria-label`: an icon has no name of its own. Use it only
   where the surrounding context makes the action obvious and space is
   genuinely tight — a labelled button is the default.
+- **Item actions** — `shared/ui/ItemActions.jsx`: the single contextual action
+  surface for a selected or bounded object (PDF selection, paint, clip, board
+  card). Selection is the disclosure gesture, so a compact glyph toolbar appears
+  immediately without an ellipsis or second click. Every glyph has a tooltip and
+  accessible name; danger is the final red control. The surface owns consistent
+  sizing, grouping, collision-aware placement, and Arrow/Home/End navigation. Use
+  `below-end` by default, `above-end` when the selection sits below its anchor,
+  and `right-start` on spacious canvases. Show it only for a single selected
+  object; do not recreate contextual actions with ad-hoc positioned buttons.
 - **Danger button** — `button.danger`: a modifier on the base button, for
   an action that changes what a reader's own work depends on (Replace PDF).
   It takes the red family in its tint/line/ink roles — `--red-soft` fill,

@@ -50,7 +50,7 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
         </div>
         {isOwn && !creating && <button className="primary" onClick={() => setCreating(true)}>New board</button>}
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {creating && (
         <form className="panel board-create" onSubmit={submit}>
           <div className="form-group">
@@ -76,7 +76,7 @@ export default function BoardsSection({ onSelectBoard, initialBoards = null, she
       {!creating && boards.length === 0 && <div className="panel"><p className="panel-note">No boards yet.</p></div>}
       <div className="board-list">
         {boards.map((board) => (
-          <div className="board-list-card board-list-card-board" role="button" tabIndex="0" key={board.uuid} style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === board.shelf_uuid)?.color || 'var(--line-strong)' }} onClick={() => onSelectBoard(board.uuid)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectBoard(board.uuid); }}>
+          <div className="board-list-card board-list-card-board" role="button" tabIndex="0" key={board.uuid} style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === board.shelf_uuid)?.color || 'var(--line-strong)' }} onClick={() => onSelectBoard(board.uuid)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectBoard(board.uuid); } }}>
             <span className="board-list-title">{board.name}</span>
             {board.description && <span className="board-list-description">{board.description}</span>}
             <span className="board-list-meta"><span>{board.item_count} {board.item_count === 1 ? 'item' : 'items'}</span><time dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time></span>

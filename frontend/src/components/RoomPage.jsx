@@ -42,12 +42,12 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
   if (error) {
     return (
       <div className="panel">
-        <div className="error">{error}</div>
+        <div className="error" role="alert">{error}</div>
         <BackLink href={backHref} onBack={onBack}>Back</BackLink>
       </div>
     );
   }
-  if (!room) return <div className="loading">Loading cohort…</div>;
+  if (!room) return <div className="loading" role="status" aria-live="polite">Loading cohort…</div>;
 
   return (
     <div className="room-page">

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import SeminarFlow from './SeminarFlow';
+import { useModalDialog } from '../../../shared/useModalDialog.js';
 
 const LABELS = {
   open: 'called',
@@ -15,15 +16,7 @@ export default function StatePill({ status, link = true }) {
   const [open, setOpen] = useState(false);
   const cls = status ? (status === 'open' ? 'called' : status) : 'none';
   const label = status ? LABELS[status] : 'none called';
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [open]);
+  const dialogRef = useModalDialog(open, () => setOpen(false));
   if (!link) {
     return <span className={`state-pill ${cls}`}>{label}</span>;
   }
@@ -48,7 +41,7 @@ export default function StatePill({ status, link = true }) {
             setOpen(false);
           }}
         >
-          <div className="modal-box" role="dialog" aria-modal="true" aria-label="How seminars work" onClick={(e) => e.stopPropagation()}>
+          <div ref={dialogRef} className="modal-box" role="dialog" aria-modal="true" aria-label="How seminars work" tabIndex="-1" onClick={(e) => e.stopPropagation()}>
             <SeminarFlow />
           </div>
         </div>

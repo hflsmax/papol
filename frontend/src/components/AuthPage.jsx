@@ -35,12 +35,13 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           Papol is your paper reading companion.
         </p>
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Email</label>
+            <label htmlFor="auth-email">Email</label>
             <input
+              id="auth-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -52,8 +53,9 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           {mode === 'register' && (
             <>
               <div className="form-group">
-                <label>Display name</label>
+                <label htmlFor="auth-display-name">Display name</label>
                 <input
+                  id="auth-display-name"
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
@@ -64,8 +66,9 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               </div>
 
               <div className="form-group">
-                <label>Affiliation</label>
+                <label htmlFor="auth-affiliation">Affiliation</label>
                 <input
+                  id="auth-affiliation"
                   type="text"
                   value={affiliation}
                   onChange={(e) => setAffiliation(e.target.value)}
@@ -76,8 +79,9 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           )}
 
           <div className="form-group">
-            <label>Password</label>
+            <label htmlFor="auth-password">Password</label>
             <input
+              id="auth-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

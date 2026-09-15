@@ -12,6 +12,8 @@ import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
 import { markViewerPerformance, measureViewerPerformance } from './performance.js';
 import appLimits from '../../shared/appLimits.js';
 import { pdfjsReady } from './pdfRuntime.js';
+import ItemActions from '../../shared/ui/ItemActions.jsx';
+import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -293,6 +295,37 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
     }
   };
 
+  const resizeWithKeyboard = (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const root = rootRef.current;
+    const pdfPage = root?.closest('.pdf-page')?.getBoundingClientRect();
+    const container = (clip.floating ? root?.closest('.pages') : root?.closest('.pdf-page'))?.getBoundingClientRect();
+    const rendered = root?.getBoundingClientRect();
+    if (!pdfPage || !container || !rendered) return;
+    const step = event.shiftKey ? 32 : 8;
+    const direction = ['ArrowRight', 'ArrowDown'].includes(event.key) ? step : -step;
+    const delta = ['ArrowLeft', 'ArrowRight'].includes(event.key)
+      ? { x: direction, y: 0 }
+      : { x: 0, y: direction };
+    const resized = resizeClipFrame(
+      liveFrame,
+      rendered,
+      delta,
+      (clip.source.w * pdfPage.width) / (clip.source.h * pdfPage.height),
+      container,
+    );
+    const frame = {
+      ...resized,
+      x: clip.floating ? Math.min(1 - resized.w, liveFrame.x) : liveFrame.x,
+      y: clip.floating ? Math.min(1 - resized.h, liveFrame.y) : liveFrame.y,
+    };
+    setLiveFrame(frame);
+    onChange({ frame });
+    onCommit({ frame });
+  };
+
   const toggleFloating = (event) => {
     event.stopPropagation();
     const floating = !clip.floating;
@@ -328,25 +361,27 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
     : boxStyle(liveFrame);
 
   const actions = selected && (
-    <span className="clip-actions" onPointerDown={(event) => event.stopPropagation()}>
-      <button
-        type="button"
-        className={`clip-float${clip.floating ? ' floating' : ''}`}
-        aria-label={clip.floating ? 'Lock clip to paper' : 'Let clip float with the viewport'}
-        title={clip.floating ? 'Lock to paper' : 'Free float'}
-        aria-pressed={clip.floating}
-        onClick={toggleFloating}
-      >
-        {clip.floating ? (
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="10" width="11" height="9" rx="2" /><path d="M10 10V7.5a4 4 0 0 1 7.2-2.4M4 12h1.5M3 16h2.5" /><circle cx="12.5" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>
-        ) : (
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="10" width="13" height="9" rx="2" /><path d="M8.5 10V7.2a3.5 3.5 0 0 1 7 0V10" /><circle cx="12" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>
-        )}
-      </button>
-      <button type="button" className="clip-send" aria-label="Send clipped content to a board" title="Send clipped content to a board" onClick={() => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" /></svg>
-      </button>
-      <button type="button" className="clip-remove" aria-label="Remove clipped view" title="Remove" onClick={onRemove}>×</button>
+    <span className="clip-actions">
+      <ItemActions
+        label="Clip actions"
+        placement="right-start"
+        actions={[
+          {
+            label: clip.floating ? 'Lock clip to paper' : 'Let clip float with the viewport',
+            title: clip.floating ? 'Lock to paper' : 'Free float',
+            icon: <ActionGlyph name={clip.floating ? 'unlock' : 'lock'} />,
+            pressed: clip.floating,
+            onSelect: toggleFloating,
+          },
+          {
+            label: 'Send clipped content to a board',
+            icon: <ActionGlyph name="send" />,
+            tone: 'accent',
+            onSelect: () => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png'),
+          },
+          { label: 'Remove clipped view', title: 'Remove', icon: <ActionGlyph name="trash" />, danger: true, onSelect: onRemove },
+        ]}
+      />
     </span>
   );
 
@@ -374,7 +409,8 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
         role="button"
         tabIndex="0"
         aria-label="Resize clipped view"
-        title="Resize"
+        title="Resize; use arrow keys for precise changes"
+        onKeyDown={resizeWithKeyboard}
         onPointerDown={(event) => begin(event, 'resize')}
         onPointerMove={move}
         onPointerUp={finish}

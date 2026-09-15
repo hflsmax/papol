@@ -65,8 +65,8 @@ export default function PapersPage({
 
   useEffect(load, []);
 
-  if (error) return <div className="error">{error}</div>;
-  if (papers === null || boards === null) return <div className="loading">Loading the library…</div>;
+  if (error) return <div className="error" role="alert">{error}</div>;
+  if (papers === null || boards === null) return <div className="loading" role="status" aria-live="polite">Loading the library…</div>;
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
@@ -93,6 +93,7 @@ export default function PapersPage({
     (board.name.toLowerCase().includes(searchLower) ||
       (board.owner?.display_name || '').toLowerCase().includes(searchLower))
   ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  const hasActiveFilters = selectedUser != null || Boolean(search.trim());
 
   return (
     <div className={reviewingUpload ? 'library-page upload-review-mode' : 'library-page'}>
@@ -111,10 +112,10 @@ export default function PapersPage({
       <div className="panel paper-list">
         <div className="search-bar library-search-tools">
           {readers.length > 0 && (
-            <div className="library-reader-filters" aria-label="Filter papers by reader">
-              <button className={selectedUser == null ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(null)}>All readers</button>
+            <div className="library-reader-filters" role="group" aria-label="Filter papers by reader">
+              <button className={selectedUser == null ? 'reader-filter selected' : 'reader-filter'} aria-pressed={selectedUser == null} onClick={() => setSelectedUser(null)}>All readers</button>
               {readers.map((reader) => (
-                <button key={reader.uuid} className={selectedUser === reader.uuid ? 'reader-filter selected' : 'reader-filter'} onClick={() => setSelectedUser(reader.uuid)}>
+                <button key={reader.uuid} className={selectedUser === reader.uuid ? 'reader-filter selected' : 'reader-filter'} aria-pressed={selectedUser === reader.uuid} onClick={() => setSelectedUser(reader.uuid)}>
                   <Avatar user={reader} className="reader-filter-avatar" />
                   <span>{reader.display_name}</span>
                 </button>
@@ -124,6 +125,7 @@ export default function PapersPage({
           <div className="library-search-line">
             <input
               type="text"
+              aria-label="Search the library"
               placeholder="Search the library…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -140,9 +142,10 @@ export default function PapersPage({
         </div>
 
         {shown.length === 0 && shownBoards.length === 0 ? (
-          <p className="no-papers">
-            {papers.length === 0 && boards.length === 0 ? 'The library is empty.' : 'Nothing matches your search.'}
-          </p>
+          <div className="no-papers">
+            <p>{papers.length === 0 && boards.length === 0 ? 'The library is empty.' : 'Nothing matches your filters.'}</p>
+            {hasActiveFilters && <button type="button" className="link-btn" onClick={() => { setSelectedUser(null); setSearch(''); }}>Clear filters</button>}
+          </div>
         ) : (
           <ul className="grouped-papers">
             {shownBoards.map((board) => (

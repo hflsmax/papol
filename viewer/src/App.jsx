@@ -21,6 +21,9 @@ import {
 } from '../../shared/nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/diagnosticLog.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
+import { useModalDialog } from '../../shared/useModalDialog.js';
+import ItemActions from '../../shared/ui/ItemActions.jsx';
+import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
 import { ANIMALS } from './animals';
@@ -602,6 +605,9 @@ export default function App() {
   const [feedbackLog, setFeedbackLog] = useState('');
   const [feedbackIncludeLog, setFeedbackIncludeLog] = useState(true);
   const reportedPdfErrors = useRef(new Set());
+  const helpDialogRef = useModalDialog(helpOpen, () => setHelpOpen(false));
+  const feedbackDialogRef = useModalDialog(feedbackOpen, () => closeFeedback());
+  const sendDialogRef = useModalDialog(Boolean(sendSelection), () => closeSendSelection());
 
   useEffect(() => {
     if (!feedbackOpen) return;
@@ -1217,29 +1223,9 @@ export default function App() {
         setPdfViewerTip(false);
         return;
       }
-      if (e.key === 'Escape' && sendSelection) {
-        e.preventDefault();
-        closeSendSelection();
-        return;
-      }
       if (e.key === 'Escape' && selectedClipUuid != null) {
         e.preventDefault();
         setSelectedClipUuid(null);
-        return;
-      }
-      // Escape closes the help sheet first, before anything else looks at
-      // the key: while it is up it is the thing in front of the reader.
-      if (e.key === 'Escape' && helpOpen) {
-        e.preventDefault();
-        setHelpOpen(false);
-        return;
-      }
-      if (e.key === 'Escape' && feedbackOpen) {
-        e.preventDefault();
-        setFeedbackOpen(false);
-        setFeedbackContent('');
-        setFeedbackError(null);
-        setFeedbackSent(false);
         return;
       }
       if (e.key === 'Escape' && searchOpen) {
@@ -1701,7 +1687,6 @@ export default function App() {
   // selected until the reader starts another selection or uses an action.
   useEffect(() => {
     let pointerSelecting = false;
-    let finishFrame = null;
     const update = () => {
       const selection = window.getSelection();
       const scroller = scrollerRef.current;
@@ -1747,8 +1732,10 @@ export default function App() {
     const pointerFinished = () => {
       if (!pointerSelecting) return;
       pointerSelecting = false;
-      // The browser finalizes its Range as the pointerup dispatch completes.
-      finishFrame = requestAnimationFrame(update);
+      // Capture as soon as pointerup dispatch finishes, before the next paint.
+      // Waiting for requestAnimationFrame made the actions trail the selection
+      // by a visible frame, especially on slower displays.
+      queueMicrotask(update);
     };
     update();
     document.addEventListener('selectionchange', selectionChanged);
@@ -1757,7 +1744,6 @@ export default function App() {
     document.addEventListener('pointercancel', pointerFinished);
     window.addEventListener('resize', update);
     return () => {
-      if (finishFrame != null) cancelAnimationFrame(finishFrame);
       document.removeEventListener('selectionchange', selectionChanged);
       document.removeEventListener('pointerdown', pointerDown);
       document.removeEventListener('pointerup', pointerFinished);
@@ -3231,7 +3217,7 @@ export default function App() {
     return (
       <>
         <div className="shell">
-          <div className="error">{error}</div>
+          <div className="error" role="alert">{error}</div>
           {!DOCUMENT_WINDOW && <p className="hint">
             <a
               href={source?.backHref || appPath('/')}
@@ -4040,29 +4026,25 @@ export default function App() {
                 top: selectionPaint.top,
               }}
             >
-              <button
-                type="button"
-                className="selection-action selection-brush"
-                style={{ '--loaded': inkColor }}
-                aria-label="Paint selected text"
-                title="Paint selected text"
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={paintSelection}
-              >
-                <ToolGlyph id="brush" />
-              </button>
-              <button
-                type="button"
-                className="selection-action selection-send"
-                aria-label="Send selected text to a board"
-                title="Send selected text to a board"
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={openSendSelection}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 17 17 7M9 7h8v8" />
-                </svg>
-              </button>
+              <ItemActions
+                label="Selected text actions"
+                placement="above-end"
+                preserveFocus
+                actions={[
+                  {
+                    label: 'Paint selected text',
+                    icon: <ToolGlyph id="brush" />,
+                    style: { color: inkColor, '--loaded': inkColor },
+                    onSelect: paintSelection,
+                  },
+                  {
+                    label: 'Send selected text to a board',
+                    icon: <ActionGlyph name="send" />,
+                    tone: 'accent',
+                    onSelect: openSendSelection,
+                  },
+                ]}
+              />
             </span>
           )}
           {inkActions && (
@@ -4070,45 +4052,41 @@ export default function App() {
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
             >
-              <button
-                type="button"
-                className="selection-action ink-remove"
-                aria-label="Remove paint"
-                title="Remove paint (Delete)"
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={removeSelectedInk}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 11v5M13.5 11v5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="selection-action selection-send"
-                aria-label="Send painted text to a board"
-                title={inkActions.text == null
-                  ? 'Reading the text under this paint…'
-                  : inkActions.text
-                    ? 'Send painted text to a board'
-                    : 'No text under this paint'}
-                disabled={!inkActions.text}
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={openSendPaint}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 17 17 7M9 7h8v8" />
-                </svg>
-              </button>
+              <ItemActions
+                label="Paint actions"
+                placement="above-end"
+                actions={[
+                  {
+                    label: 'Send painted text to a board',
+                    title: inkActions.text == null
+                      ? 'Reading the text under this paint…'
+                      : inkActions.text ? 'Send painted text to a board' : 'No text under this paint',
+                    icon: <ActionGlyph name="send" />,
+                    tone: 'accent',
+                    disabled: !inkActions.text,
+                    onSelect: openSendPaint,
+                  },
+                  {
+                    label: 'Remove paint',
+                    title: 'Remove paint (Delete)',
+                    icon: <ActionGlyph name="trash" />,
+                    danger: true,
+                    onSelect: removeSelectedInk,
+                  },
+                ]}
+              />
             </span>
           )}
         </div>
 
         {helpOpen && (
           <div
+            ref={helpDialogRef}
             className="help-back"
             role="dialog"
             aria-modal="true"
             aria-label="What the tools do"
+            tabIndex="-1"
             onClick={() => setHelpOpen(false)}
           >
             {/* Stopped here so a click inside the sheet does not close it. */}
@@ -4164,10 +4142,12 @@ export default function App() {
 
         {feedbackOpen && (
           <div
+            ref={feedbackDialogRef}
             className="help-back"
             role="dialog"
             aria-modal="true"
             aria-label={feedbackReportError ? 'Send an error report' : 'Report a bug or ask for a feature'}
+            tabIndex="-1"
             onClick={closeFeedback}
           >
             <div className="help-sheet feedback-sheet" onClick={(e) => e.stopPropagation()}>
@@ -4190,10 +4170,11 @@ export default function App() {
                     </p>
                   )}
                   <div className="feedback-field">
-                    <label>
+                    <label htmlFor="viewer-feedback-content">
                       {feedbackReportError ? 'Diagnostic details' : 'What went wrong, or what would you like the viewer to do?'}
                     </label>
                     <textarea
+                      id="viewer-feedback-content"
                       rows="5"
                       maxLength={appLimits.text.feedback}
                       value={feedbackContent}
@@ -4254,10 +4235,12 @@ export default function App() {
 
         {sendSelection && (
           <div
+            ref={sendDialogRef}
             className="help-back"
             role="dialog"
             aria-modal="true"
             aria-label={sendSelection.kind === 'clip' ? 'Send clipped area to a board' : 'Send selected text to a board'}
+            tabIndex="-1"
             onClick={closeSendSelection}
           >
             <div className="help-sheet send-selection-sheet" onClick={(event) => event.stopPropagation()}>
