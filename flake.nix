@@ -62,6 +62,9 @@
       python312 = prev.python312.override {
         packageOverrides = pyFinal: pyPrev: {
           fastapi = pyPrev.fastapi.overridePythonAttrs (_: { doCheck = false; });
+          # Pulled in by yt-dlp. Its suite starts local servers and hangs
+          # indefinitely inside the macOS build sandbox.
+          curl-cffi = pyPrev.curl-cffi.overridePythonAttrs (_: { doCheck = false; });
         };
       };
     };
@@ -91,12 +94,14 @@
       playwright-driver.browsers
     ];
 
-    # `deploy.sh macos` builds and tests the native app with the local Rust
-    # and Xcode toolchains. It needs Node for the three web workspaces, but
-    # not the backend, tutorial recording stack, or Linux-only Playwright
-    # browser bundle above. Backend contract and native-sync checks remain
-    # available as their explicitly named commands outside this default shell.
-    macosDevPackages = pkgs: [ pkgs.nodejs_22 ];
+    # The native app uses local Rust and Xcode toolchains. The ordinary
+    # `./deploy.sh dev` command also starts FastAPI, so macOS needs the same
+    # small backend runtime as a deployed server; keep the tutorial recorder
+    # and Linux-only Playwright browser bundle out of this shell.
+    macosDevPackages = pkgs: [
+      (pkgs.python312.withPackages backendPython)
+      pkgs.nodejs_22
+    ];
 
     # Tutorial recorders share one pinned browser driver. Build its npm closure
     # once through Nix and expose it to every recorder through NODE_PATH; the

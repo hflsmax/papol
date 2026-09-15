@@ -27,7 +27,16 @@ set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_DIR="${PAPOL_PROD_DIR:-/srv/papol/prod}"
-DEV_PORT="${PAPOL_DEV_PORT:-8000}"
+# Port 8000 is commonly occupied by local macOS tooling (including Codex),
+# while Papol's NixOS development host intentionally reserves it for this
+# server. Keep that established Linux default and make `./deploy.sh dev`
+# immediately usable on a Mac; PAPOL_DEV_PORT remains an explicit override.
+if [ "$(uname -s)" = Darwin ]; then
+  DEFAULT_DEV_PORT=8001
+else
+  DEFAULT_DEV_PORT=8000
+fi
+DEV_PORT="${PAPOL_DEV_PORT:-$DEFAULT_DEV_PORT}"
 PROD_BRANCH=production
 UNIT=papol
 KEEP_BACKUPS=10
@@ -1006,9 +1015,14 @@ run_dev() {
   done
 
   if port_busy "$DEV_PORT"; then
-    die "something already has port $DEV_PORT.
+    if [ "$(uname -s)" = Darwin ]; then
+      die "something already has port $DEV_PORT.
+    Choose an unused port with PAPOL_DEV_PORT=PORT ./deploy.sh dev."
+    else
+      die "something already has port $DEV_PORT.
     If that is still production, it has not been moved to 8001 yet — see the
     services.papol lines in /etc/nixos/configuration.nix."
+    fi
   fi
 
   # papol.local reaches this server, and this server hands out whatever is
@@ -1050,7 +1064,11 @@ run_dev() {
   # shell exit to reap the now-supervised background server.
   trap stop_dev EXIT INT TERM
 
-  say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
+  if [ "$(uname -s)" = Darwin ]; then
+    say "Development on http://127.0.0.1:$DEV_PORT"
+  else
+    say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
+  fi
   if [ "$watch" = yes ]; then
     note "saving a file rebuilds it: backend reloads itself; frontend, viewer,"
     note "and board rebuild into dist — reload the page to see them"

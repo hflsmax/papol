@@ -88,7 +88,7 @@ From the repository root, start the developer app against the local backend:
 This checks the local Node, Rust, and Xcode toolchains, installs changed npm
 dependencies, and starts the frontend, viewer, and board Vite servers before
 Tauri. UI edits live-reload and Rust edits rebuild and relaunch the app. The
-default backend is `http://127.0.0.1:8000`; choose another explicitly with
+default backend is `http://127.0.0.1:8001` on macOS; choose another explicitly with
 `--backend URL`. If it is unavailable, the app still opens for cached/offline
 work.
 
