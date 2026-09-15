@@ -5,7 +5,8 @@ import BackLink from '../../shared/ui/BackLink.jsx';
 import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { cardsIntersectingRect, mergeSelection, nearestCardWithin, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
-import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow } from '../../shared/desktopShell.js';
+import { appPath } from '../../shared/appUrls.js';
+import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow, openDesktopDocumentWindow } from '../../shared/desktopShell.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
@@ -15,6 +16,7 @@ import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { hasCardPreview } from './cardPreview.js';
+import { localViewerBacklink } from './sourceLink.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const compareUuid = (a, b) => String(a).localeCompare(String(b));
@@ -87,6 +89,14 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   const imageUrlsRef = useRef({});
   const [imageRevision, setImageRevision] = useState(0);
   const [draggingFiles, setDraggingFiles] = useState(false);
+  const openSource = (sourceUrl) => {
+    const desktopViewerUrl = DESKTOP && localViewerBacklink(sourceUrl, appPath);
+    if (desktopViewerUrl) {
+      openDesktopDocumentWindow(desktopViewerUrl, 'popup,width=1100,height=820');
+      return;
+    }
+    window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+  };
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedBooklet, setSelectedBooklet] = useState(null);
   const [marquee, setMarquee] = useState(null);
@@ -1975,10 +1985,10 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
                 placement="right-start"
                 actions={[
                   item.source_url && {
-                    label: item.kind === 'youtube' ? 'Open video' : 'Open page',
-                    icon: <ActionGlyph name="external" />,
+                    label: item.kind === 'youtube' ? 'Open video' : 'Open source in viewer',
+                    icon: <ActionGlyph name={item.kind === 'youtube' ? 'external' : 'backlink'} />,
                     tone: 'accent',
-                    onSelect: () => window.open(item.source_url, '_blank', 'noopener,noreferrer'),
+                    onSelect: () => openSource(item.source_url),
                   },
                   item.kind !== 'comment' && hasCardPreview(item) && {
                     label: 'Download card content',
@@ -2010,7 +2020,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
           {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.uuid
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={(item.text_align || 'left') === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align || 'left' }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength={appLimits.text.board_content} /></div>
             : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align || 'left' }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.uuid], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.uuid); }}>{item.content || 'Add description'}</p>)}
-          {['excerpt', 'image'].includes(item.kind) && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label || 'Open source'}</a>}
+          {['excerpt', 'image'].includes(item.kind) && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!DESKTOP || !localViewerBacklink(item.source_url, appPath)) return; event.preventDefault(); openSource(item.source_url); }}>{item.source_label || 'Open source'}</a>}
           </div>
           {board.can_edit && <button className="board-resize-handle" aria-label="Resize card" title="Resize card" onPointerDown={(event) => startResize(event, item)} />}
         </article>)}
