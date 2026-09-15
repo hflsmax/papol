@@ -11,7 +11,9 @@ import {
   pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
-import { resolveSource, getToken } from './source';
+import {
+  resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
+} from './source';
 import { appPath, backendPath } from './base';
 import {
   makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
@@ -839,14 +841,16 @@ export default function App() {
         })
         .catch((e) => { if (!cancelled) setError(e.message); });
     }
-    // Exact-hash nook membership is useful for the toolbar, but it must not
-    // delay an opened file. Start it beside the ordinary source load and
-    // apply it only after that initial paper has landed.
+    // Do not delay an opened file while checking its exact-hash nook
+    // membership. If it is already there, replace the ephemeral URL with the
+    // canonical nook URL so notes, ink, clips, and the rest of its paper state
+    // are loaded by the same source as when it is opened from the library.
     if (source.loadNookPaper) {
       const nookPaper = source.loadNookPaper();
       Promise.all([loaded, nookPaper])
         .then(([, found]) => {
-          if (!cancelled && found) setPaper(found);
+          if (cancelled || !found) return;
+          handoffOpenedFileToNookViewer(found);
         })
         .catch(() => {});
     }
@@ -3108,11 +3112,7 @@ export default function App() {
     setNookPromptOpen(false);
     try {
       await source.addToNook();
-      const nookUrl = new URL(window.location.href);
-      for (const key of [
-        'file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms',
-      ]) nookUrl.searchParams.delete(key);
-      window.location.assign(nookUrl.href);
+      window.location.assign(nookViewerHref());
     } catch (failure) {
       setNookStep('idle');
       setError(`Could not add this paper: ${messageOf(failure)}`);

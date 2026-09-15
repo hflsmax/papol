@@ -18,7 +18,8 @@ import {
  * Demo PDFs use the same hash identity; only their storage is local.
  *
  * Nook and demo sources expose the same annotation interfaces. A file source
- * intentionally omits them; the viewer must first import it into the nook.
+ * intentionally omits them; if its bytes already belong to a nook paper, the
+ * viewer hands the window over to that canonical source.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
@@ -28,6 +29,24 @@ export function resolveSource() {
   if (inDemo) return DEMO_PDFS[pdf] ? localSource(DEMO_PDFS[pdf]) : null;
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
   return apiSource(pdf);
+}
+
+export function nookViewerHref(href = window.location.href) {
+  const nookUrl = new URL(href);
+  for (const key of [
+    'file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms',
+  ]) nookUrl.searchParams.delete(key);
+  return nookUrl.href;
+}
+
+export function handoffOpenedFileToNookViewer(
+  nookPaper,
+  href = window.location.href,
+  replace = (nextHref) => window.location.replace(nextHref),
+) {
+  if (!nookPaper) return false;
+  replace(nookViewerHref(href));
+  return true;
 }
 
 function apiSource(
@@ -82,9 +101,9 @@ function apiSource(
 }
 
 // A file-system document is deliberately ephemeral. Opening a file never
-// reads or writes annotations, even when the same bytes already exist in the
-// reader's nook. Adding it to the nook moves the window onto the ordinary
-// nook URL, where annotation persistence is allowed.
+// reads or writes annotations by itself. An exact match in the reader's nook
+// moves the window onto the ordinary nook URL, where its saved paper state is
+// loaded; a new file stays ephemeral until the reader adds it.
 function openedFileSource(pdfHash, name) {
   const title = name || 'Untitled PDF';
   const params = new URLSearchParams(window.location.search);

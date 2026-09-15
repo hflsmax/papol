@@ -78,7 +78,9 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
 
-const { resolveSource } = await import('./source.js');
+const {
+  handoffOpenedFileToNookViewer, nookViewerHref, resolveSource,
+} = await import('./source.js');
 const { hydrateCredential } = await import('../../shared/credentials.js');
 
 test('a nook source exposes the content hash before its paper query resolves', () => {
@@ -90,6 +92,21 @@ test('a nook source exposes the content hash before its paper query resolves', (
     assert.equal(source.openedFile, undefined);
   } finally {
     location.search = previous;
+  }
+});
+
+test('the nook handoff keeps navigation context and removes file-only identity', () => {
+  const href = nookViewerHref(
+    `http://127.0.0.1/viewer/?pdf=${HASH}&file=1&name=Local%20paper`
+      + '&opened_at_ms=1&native_read_ms=2&native_hash_ms=3&page=7&note=kept'
+  );
+  const handedOff = new URL(href);
+
+  assert.equal(handedOff.searchParams.get('pdf'), HASH);
+  assert.equal(handedOff.searchParams.get('page'), '7');
+  assert.equal(handedOff.searchParams.get('note'), 'kept');
+  for (const key of ['file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms']) {
+    assert.equal(handedOff.searchParams.has(key), false);
   }
 });
 
@@ -143,6 +160,43 @@ test('an opened file already in the nook exposes its paper identity', async () =
   assert.equal(calls.filter(([, args]) => args.queryName === 'paper_by_pdf').length, 1);
   assert.equal(calls.some(([, args]) => args.queryName === 'comments'), false);
   assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
+});
+
+test('an opened file already in the nook hands the viewer to its canonical version', async () => {
+  values.set('papol.localAccountUuid', ACCOUNT);
+  existingPaper = {
+    uuid: '55555555-5555-4555-8555-555555555555',
+    title: 'Saved paper',
+    edition_uuid: '44444444-4444-4444-8444-444444444444',
+    edition_sha256: HASH,
+  };
+  const source = resolveSource();
+  const found = await source.loadNookPaper();
+  const navigations = [];
+
+  const handedOff = handoffOpenedFileToNookViewer(
+    found,
+    `${location.href}&page=4`,
+    (href) => navigations.push(href),
+  );
+
+  assert.equal(handedOff, true);
+  assert.deepEqual(navigations, [
+    `http://127.0.0.1/viewer/?pdf=${HASH}&page=4`,
+  ]);
+});
+
+test('an opened file absent from the nook stays in local-file mode', () => {
+  const navigations = [];
+
+  const handedOff = handoffOpenedFileToNookViewer(
+    null,
+    location.href,
+    (href) => navigations.push(href),
+  );
+
+  assert.equal(handedOff, false);
+  assert.deepEqual(navigations, []);
 });
 
 test('Add to nook imports only the paper graph, with no file-viewer annotations', async () => {
