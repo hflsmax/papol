@@ -4,8 +4,15 @@ import dbmetrics
 from auth import get_current_user
 from database import Base, get_db
 from fastapi import APIRouter, Depends, HTTPException
-from models import Feedback, User
-from schemas import AdminSQL, FeedbackOut, FeedbackUpdate
+from models import AdminMessage, AdminMessageDelivery, Feedback, User
+from schemas import (
+    AdminMessageCreate,
+    AdminMessageRecipient,
+    AdminMessageSendResult,
+    AdminSQL,
+    FeedbackOut,
+    FeedbackUpdate,
+)
 from services.feedback import feedback_out
 from services.notifications import send_daily_digest, smtp_config
 from sqlalchemy import text
@@ -60,6 +67,70 @@ def _coerce_pk(table, pk_value: str):
     except NotImplementedError:
         pass
     return pk_col, pk_value
+
+
+@router.post("/api/admin/messages", response_model=AdminMessageSendResult)
+async def admin_send_message(
+    data: AdminMessageCreate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Broadcast a message to every account that exists when it is sent."""
+    content = data.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    recipient_query = db.query(User).filter(User.deleted_at.is_(None))
+    if data.user_uuids is not None:
+        requested = set(data.user_uuids)
+        recipients = recipient_query.filter(User.uuid.in_(requested)).all()
+        if len(recipients) != len(requested):
+            raise HTTPException(
+                status_code=400,
+                detail="One or more selected users are unavailable",
+            )
+    else:
+        recipients = recipient_query.all()
+
+    message = AdminMessage(created_by_uuid=admin.uuid, content=content)
+    db.add(message)
+    db.flush()
+    db.add_all([
+        AdminMessageDelivery(message_uuid=message.uuid, user_uuid=user.uuid)
+        for user in recipients
+    ])
+    db.commit()
+    db.refresh(message)
+    return AdminMessageSendResult(
+        uuid=message.uuid,
+        content=message.content,
+        created_at=message.created_at,
+        recipient_count=len(recipients),
+    )
+
+
+@router.get("/api/admin/message-recipients", response_model=list[AdminMessageRecipient])
+async def admin_message_recipients(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Active accounts available to the admin message audience picker."""
+    users = (
+        db.query(User)
+        .filter(User.deleted_at.is_(None))
+        .order_by(User.display_name, User.email, User.uuid)
+        .all()
+    )
+    return [
+        AdminMessageRecipient(
+            uuid=user.uuid,
+            display_name=user.display_name,
+            affiliation=user.affiliation,
+            avatar_path=user.avatar_path,
+            email=user.email,
+        )
+        for user in users
+    ]
 
 
 @router.post("/api/admin/send-digest")

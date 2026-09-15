@@ -3,7 +3,7 @@ import {
   getMe, getStartupUser, getToken, setToken, logout, pendingLocalChanges,
   refreshStartupUser,
 } from '../../shared/api/account.js';
-import { getNotifications } from '../../shared/api/notifications.js';
+import { getNotifications, getPendingAdminMessages } from '../../shared/api/notifications.js';
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import Space from './components/Space';
@@ -18,6 +18,7 @@ import HomePage from './components/HomePage';
 import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
+import AdminMessageDialog from './components/AdminMessageDialog';
 import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
@@ -140,6 +141,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
   const [libraryFileDrag, setLibraryFileDrag] = useState(null);
   const [libraryDropNotice, setLibraryDropNotice] = useState(null);
@@ -368,6 +370,20 @@ export default function App({ startupUser = null, startupError = null }) {
       .then((d) => setUnreadCount(d.unread_count))
       .catch(() => {});
   }, [user, route]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || mode !== 'signed-in' || !getToken()) {
+      setAdminMessages([]);
+      return undefined;
+    }
+    getPendingAdminMessages()
+      .then((messages) => {
+        if (!cancelled) setAdminMessages(messages);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.uuid, mode]);
 
   // A document window asked for an account: a PDF opened from disk is being
   // added to a nook. Signing in happens here, in the library window.
@@ -603,6 +619,16 @@ export default function App({ startupUser = null, startupError = null }) {
     />
   );
 
+  const adminMessageDialog = adminMessages.length > 0 && (
+    <AdminMessageDialog
+      key={adminMessages[0].uuid}
+      message={adminMessages[0]}
+      onDismissed={(uuid) => {
+        setAdminMessages((messages) => messages.filter((message) => message.uuid !== uuid));
+      }}
+    />
+  );
+
   // Keyed by world and identity: leaving or entering the demo, or changing
   // real accounts, remounts every page so no nook or private paper state can
   // survive an identity boundary.
@@ -733,6 +759,7 @@ export default function App({ startupUser = null, startupError = null }) {
           opensViewer={mode === 'guest'}
         />
         {demoIntro}
+        {adminMessageDialog}
         {feedbackDialog}
         {managingNook && nook.space && (
           <NookManager
@@ -797,6 +824,7 @@ export default function App({ startupUser = null, startupError = null }) {
       <style>{applicationStyles}</style>
       <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
       {demoIntro}
+      {adminMessageDialog}
       {demoBanner}
       <button
         type="button"

@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     AuthToken,
+    AdminMessageDelivery,
     AppliedMutation,
     Comment,
     Copy,
@@ -559,6 +560,11 @@ def tombstone(
     removed["notifications"] = (
         db.query(Notification)
         .filter(Notification.user_uuid == user_uuid)
+        .delete(synchronize_session=False)
+    )
+    removed["admin_message_deliveries"] = (
+        db.query(AdminMessageDelivery)
+        .filter(AdminMessageDelivery.user_uuid == user_uuid)
         .delete(synchronize_session=False)
     )
     # Signed out of everywhere, and no way back in.

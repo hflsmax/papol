@@ -37,6 +37,7 @@
     "board_group_header": 4000,
     "external_url": 2000,
     "room_message": 4000,
+    "admin_message": 4000,
     "availability": 500,
     "scheduled_time": 200,
     "platform": 200,

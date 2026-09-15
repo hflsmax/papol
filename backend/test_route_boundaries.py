@@ -7,11 +7,15 @@ from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
 
 EXPECTED_ROUTES = {
+    ("GET", "/api/admin-messages/pending"): "routes.notifications",
+    ("POST", "/api/admin-messages/{message_uuid}/dismiss"): "routes.notifications",
     ("GET", "/api/notifications"): "routes.notifications",
     ("POST", "/api/notifications/{notif_uuid}/read"): "routes.notifications",
     ("POST", "/api/notifications/read"): "routes.notifications",
     ("POST", "/api/feedback"): "routes.feedback",
     ("POST", "/api/admin/send-digest"): "routes.admin",
+    ("POST", "/api/admin/messages"): "routes.admin",
+    ("GET", "/api/admin/message-recipients"): "routes.admin",
     ("GET", "/api/admin/db-metrics"): "routes.admin",
     ("POST", "/api/admin/db-metrics/reset"): "routes.admin",
     ("GET", "/api/admin/feedback"): "routes.admin",

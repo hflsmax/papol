@@ -1,8 +1,10 @@
+from datetime import datetime
+
 from auth import get_current_user
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from models import Notification, User
-from schemas import NotificationList, NotificationOut
+from models import AdminMessage, AdminMessageDelivery, Notification, User
+from schemas import AdminMessageOut, NotificationList, NotificationOut
 from services.notifications import start_digest_loop
 from sqlalchemy.orm import Session
 from app_limits import limit
@@ -15,6 +17,50 @@ def _start_digest_loop():
     start_digest_loop()
 
 # ---------------- Notifications ----------------
+
+@router.get("/api/admin-messages/pending", response_model=list[AdminMessageOut])
+async def pending_admin_messages(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Messages broadcast to this reader that they have not dismissed."""
+    rows = (
+        db.query(AdminMessage)
+        .join(AdminMessageDelivery)
+        .filter(
+            AdminMessageDelivery.user_uuid == current_user.uuid,
+            AdminMessageDelivery.dismissed_at.is_(None),
+        )
+        .order_by(AdminMessage.created_at, AdminMessage.uuid)
+        .limit(limit("counts", "notifications"))
+        .all()
+    )
+    return [
+        AdminMessageOut(uuid=row.uuid, content=row.content, created_at=row.created_at)
+        for row in rows
+    ]
+
+
+@router.post("/api/admin-messages/{message_uuid}/dismiss")
+async def dismiss_admin_message(
+    message_uuid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    delivery = (
+        db.query(AdminMessageDelivery)
+        .filter(
+            AdminMessageDelivery.message_uuid == message_uuid,
+            AdminMessageDelivery.user_uuid == current_user.uuid,
+        )
+        .first()
+    )
+    if delivery is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if delivery.dismissed_at is None:
+        delivery.dismissed_at = datetime.utcnow()
+        db.commit()
+    return {"message": "Admin message dismissed"}
 
 def _notification_out(n: Notification) -> NotificationOut:
     return NotificationOut(

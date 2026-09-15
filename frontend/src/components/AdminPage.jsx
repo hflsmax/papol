@@ -11,7 +11,166 @@ import {
   adminResetDbMetrics,
   adminListFeedback,
   adminSetFeedbackResolved,
+  adminSendMessage,
+  adminListMessageRecipients,
 } from '../../../shared/api/admin.js';
+import appLimits from '../../../shared/appLimits.js';
+
+function AdminMessagePanel() {
+  const [content, setContent] = useState('');
+  const [audience, setAudience] = useState('all');
+  const [recipients, setRecipients] = useState([]);
+  const [selected, setSelected] = useState(() => new Set());
+  const [search, setSearch] = useState('');
+  const [loadingRecipients, setLoadingRecipients] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    adminListMessageRecipients()
+      .then(setRecipients)
+      .catch((failure) => setError(failure.message))
+      .finally(() => setLoadingRecipients(false));
+  }, []);
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const shownRecipients = recipients.filter((recipient) =>
+    !normalizedSearch || [recipient.display_name, recipient.email, recipient.affiliation]
+      .some((value) => value?.toLowerCase().includes(normalizedSearch))
+  );
+
+  const toggleRecipient = (uuid) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(uuid)) next.delete(uuid);
+      else next.add(uuid);
+      return next;
+    });
+  };
+
+  const send = async (event) => {
+    event.preventDefault();
+    const message = content.trim();
+    if (!message) return;
+    const userUuids = audience === 'all' ? null : [...selected];
+    const audienceDescription = audience === 'all'
+      ? 'every current Papol user'
+      : `${selected.size} selected ${selected.size === 1 ? 'reader' : 'readers'}`;
+    if (!(await confirmAction(
+      `Send this message to ${audienceDescription}?`,
+      { confirmLabel: audience === 'all' ? 'Send to everyone' : 'Send to selected users' },
+    ))) return;
+
+    setSending(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await adminSendMessage(message, userUuids);
+      setContent('');
+      if (audience === 'selected') setSelected(new Set());
+      setNotice(
+        `Message sent to ${result.recipient_count} ${result.recipient_count === 1 ? 'reader' : 'readers'}.`,
+      );
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form className="admin-message-compose" onSubmit={send}>
+      <p className="panel-note">
+        This appears when each recipient next opens Papol. Once dismissed, it
+        will not appear to that reader again.
+      </p>
+      <fieldset className="admin-message-audience">
+        <legend className="form-label">Recipients</legend>
+        <label className="checkbox-row">
+          <input
+            type="radio"
+            name="admin-message-audience"
+            checked={audience === 'all'}
+            onChange={() => setAudience('all')}
+          />
+          <span>Everyone <small>All current users</small></span>
+        </label>
+        <label className="checkbox-row">
+          <input
+            type="radio"
+            name="admin-message-audience"
+            checked={audience === 'selected'}
+            onChange={() => setAudience('selected')}
+          />
+          <span>Selected users <small>Choose one or more readers</small></span>
+        </label>
+      </fieldset>
+      {audience === 'selected' && (
+        <div className="admin-recipient-picker">
+          <label htmlFor="admin-recipient-search">Find users</label>
+          <input
+            id="admin-recipient-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by name, email, or affiliation…"
+          />
+          <p className="admin-recipient-count" role="status">
+            {selected.size} selected
+          </p>
+          {loadingRecipients ? (
+            <p className="panel-note" role="status">Loading readers…</p>
+          ) : (
+            <ul className="admin-recipient-list">
+              {shownRecipients.map((recipient) => (
+                <li key={recipient.uuid}>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(recipient.uuid)}
+                      onChange={() => toggleRecipient(recipient.uuid)}
+                    />
+                    <span>
+                      <strong>{recipient.display_name}</strong>
+                      <small>{recipient.email}{recipient.affiliation ? ` · ${recipient.affiliation}` : ''}</small>
+                    </span>
+                  </label>
+                </li>
+              ))}
+              {shownRecipients.length === 0 && (
+                <li className="no-comments">No matching users.</li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+      <div className="form-group">
+        <label htmlFor="admin-message-content">Message</label>
+        <textarea
+          id="admin-message-content"
+          rows="5"
+          maxLength={appLimits.text.admin_message}
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          placeholder="Write a message to Papol readers…"
+        />
+      </div>
+      {error && <div className="error" role="alert">{error}</div>}
+      {notice && <div className="success" role="status">{notice}</div>}
+      <button
+        className="primary"
+        type="submit"
+        disabled={
+          sending || !content.trim() ||
+          (audience === 'selected' && (loadingRecipients || selected.size === 0))
+        }
+      >
+        {sending ? 'Sending…' : audience === 'all' ? 'Send to everyone' : 'Send to selected users'}
+      </button>
+    </form>
+  );
+}
 
 function DbMetricsPanel() {
   const [metrics, setMetrics] = useState(null);
@@ -332,6 +491,11 @@ export default function AdminPage() {
 
   return (
     <div className="admin-page">
+      <div className="panel">
+        <h2 className="panel-title">Message readers</h2>
+        <AdminMessagePanel />
+      </div>
+
       <div className="panel">
         <h2 className="panel-title">Bug reports and feature requests</h2>
         <FeedbackPanel />

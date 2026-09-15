@@ -13,3 +13,11 @@ export function markNotificationRead(uuid) {
 export function markNotificationsRead() {
   return request('/notifications/read', { method: 'POST' });
 }
+
+export function getPendingAdminMessages() {
+  return request('/admin-messages/pending');
+}
+
+export function dismissAdminMessage(uuid) {
+  return request(`/admin-messages/${uuid}/dismiss`, { method: 'POST' });
+}

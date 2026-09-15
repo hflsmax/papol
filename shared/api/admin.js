@@ -39,3 +39,14 @@ export function adminListFeedback() {
 export function adminSetFeedbackResolved(uuid, resolved) {
   return jsonRequest(`/admin/feedback/${uuid}`, 'PUT', { resolved });
 }
+
+export function adminSendMessage(content, userUuids = null) {
+  return jsonRequest('/admin/messages', 'POST', {
+    content,
+    ...(userUuids == null ? {} : { user_uuids: userUuids }),
+  });
+}
+
+export function adminListMessageRecipients() {
+  return request('/admin/message-recipients');
+}

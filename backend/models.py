@@ -665,6 +665,41 @@ class Notification(Base):
     room = relationship("Room")
 
 
+class AdminMessage(Base):
+    """A message an administrator broadcasts to the current readership."""
+    __tablename__ = "admin_messages"
+
+    uuid = uuid_key()
+    created_by_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    created_by = relationship("User")
+    deliveries = relationship(
+        "AdminMessageDelivery",
+        back_populates="message",
+        cascade="all, delete-orphan",
+    )
+
+
+class AdminMessageDelivery(Base):
+    """One reader's durable receipt and dismissal of an admin message."""
+    __tablename__ = "admin_message_deliveries"
+    __table_args__ = (
+        UniqueConstraint("message_uuid", "user_uuid", name="uq_admin_message_delivery"),
+    )
+
+    uuid = uuid_key()
+    message_uuid = Column(
+        String(36), ForeignKey("admin_messages.uuid"), nullable=False, index=True,
+    )
+    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
+    dismissed_at = Column(DateTime, nullable=True)
+
+    message = relationship("AdminMessage", back_populates="deliveries")
+    user = relationship("User")
+
+
 class Feedback(Base):
     """A bug report or feature request. Kept for the admins to work
     through; the reporter may be signed out, hence the nullable user."""

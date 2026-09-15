@@ -462,6 +462,27 @@ class NotificationList(BaseModel):
     notifications: List[NotificationOut]
 
 
+class AdminMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=limit("text", "admin_message"))
+    # None broadcasts to every current account; a non-empty list targets an
+    # explicit audience selected by the administrator.
+    user_uuids: Optional[List[str]] = Field(default=None, min_length=1)
+
+
+class AdminMessageRecipient(UserBase):
+    email: str
+
+
+class AdminMessageOut(BaseModel):
+    uuid: str
+    content: str
+    created_at: datetime
+
+
+class AdminMessageSendResult(AdminMessageOut):
+    recipient_count: int
+
+
 # ---------- Feedback ----------
 
 class FeedbackCreate(BaseModel):
