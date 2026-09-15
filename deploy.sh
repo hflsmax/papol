@@ -10,6 +10,8 @@
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
 #                  [--backend URL] [--universal] [--no-check] [--skip-notarize]
 #                  loads .env.macos-notarization when present
+#   ./deploy.sh macos credentials
+#                  print the local signing/notarization values for GitHub
 #
 # Code goes up with `prod`. Data never goes from development to production;
 # `pull` explicitly replaces development's database with production's.
@@ -227,6 +229,37 @@ load_macos_notarization() {
   elif [ -e "$credentials_file" ]; then
     die "notarization authentication is missing from $credentials_file"
   fi
+}
+
+macos_credentials() {
+  local credentials_file certificate_file certificate_password certificate_subject
+  [ $# -eq 0 ] || die "macos credentials does not accept options"
+  credentials_file="${PAPOL_NOTARIZATION_ENV_FILE:-$DEV_DIR/.env.macos-notarization}"
+  certificate_file="${PAPOL_SIGNING_CERTIFICATE:-$DEV_DIR/.credentials/macos/developer-id.p12}"
+
+  [ -f "$credentials_file" ] || die "cannot print credentials: $credentials_file does not exist"
+  [ -f "$certificate_file" ] || die "cannot print credentials: $certificate_file does not exist"
+  [ -t 0 ] || die "printing certificate credentials requires a terminal for the .p12 password prompt"
+  command -v openssl >/dev/null 2>&1 || die "openssl is required to verify $certificate_file"
+  printf 'Developer ID .p12 export password: ' >&2
+  IFS= read -r -s certificate_password
+  printf '\n' >&2
+  certificate_subject=$(openssl pkcs12 -in "$certificate_file" -clcerts -nokeys \
+    -passin "pass:$certificate_password" 2>/dev/null \
+    | openssl x509 -noout -subject 2>/dev/null || true)
+  case "$certificate_subject" in
+    *"Developer ID Application:"*) ;;
+    *) die "could not verify a Developer ID Application identity in $certificate_file" ;;
+  esac
+  load_macos_notarization
+  printf 'APPLE_CERTIFICATE='
+  base64 < "$certificate_file" | tr -d '\n'
+  printf '\n'
+  printf 'APPLE_CERTIFICATE_PASSWORD=%s\n' "$certificate_password"
+  printf 'APPLE_SIGNING_IDENTITY=%s\n' "$APPLE_SIGNING_IDENTITY"
+  printf 'APPLE_ID=%s\n' "${APPLE_ID:-}"
+  printf 'APPLE_PASSWORD=%s\n' "${APPLE_PASSWORD:-}"
+  printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID:-}"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -709,11 +742,13 @@ run_macos() {
   case "${1:-}" in
     dev) shift; macos_dev "$@" ;;
     prod|build) shift; macos_prod "$@" ;;
+    credentials) shift; macos_credentials "$@" ;;
     ""|-h|--help)
       cat <<'MSG'
 Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--universal] [--no-check] [--skip-notarize]
+  ./deploy.sh macos credentials
 
 `prod` and its `build` alias create an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
@@ -721,9 +756,12 @@ app in /Applications, and launch it. Local builds are ad-hoc signed unless a
 Tagged GitHub releases also sign and notarize. Add --universal to build one
 binary for Apple Silicon and Intel. Add --skip-notarize to retain the configured
 signing mode without submitting the build to Apple's notarization service.
+`credentials` lists the GitHub Actions secrets needed for a signed and
+notarized release, checks for a local Developer ID identity, and prints the
+values in the local credential file for copying to GitHub.
 MSG
       ;;
-    *) die "unknown macos target: $1 (try dev, prod, or build)" ;;
+    *) die "unknown macos target: $1 (try dev, prod, build, or credentials)" ;;
   esac
 }
 

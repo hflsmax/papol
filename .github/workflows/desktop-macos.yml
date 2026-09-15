@@ -61,5 +61,5 @@ jobs:
           tagName: desktop-v__VERSION__
           releaseName: Papol Desktop v__VERSION__
           releaseBody: Download the signed and notarized Papol DMG below.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
