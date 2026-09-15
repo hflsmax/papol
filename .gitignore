@@ -24,6 +24,7 @@ nohup.out
 # cache of the nix shell.
 .env
 .env.macos-notarization
+.credentials/
 .direnv/
 result
 result-*
