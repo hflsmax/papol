@@ -45,7 +45,8 @@ jobs:
         working-directory: desktop
         run: npm run check:native
 
-      - name: Build, sign, notarize, and publish
+      - name: Build, sign, notarize app, and draft release
+        id: tauri
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -62,5 +63,33 @@ jobs:
           releaseName: Papol for macOS v__VERSION__
           releaseBody: Download the signed and notarized Papol DMG below.
           releaseAssetNamePattern: "[name]_[version]_macOS_[arch][ext]"
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
+
+      # Tauri notarizes and staples the app, but only signs the DMG around it.
+      # Notarize the disk image as well, replace the draft's copy, and publish
+      # only once the download itself carries a notarization ticket.
+      - name: Notarize DMG and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          set -euo pipefail
+          dmg=$(jq -r '.[] | select(endswith(".dmg"))' <<<"$ARTIFACT_PATHS")
+          [ -f "$dmg" ] || { echo "no DMG among the build artifacts" >&2; exit 1; }
+          xcrun notarytool submit "$dmg" --wait \
+            --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+
+          release="repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
+          read -r asset_id asset_name < <(gh api "$release/assets" \
+            --jq '.[] | select(.name | endswith(".dmg")) | "\(.id) \(.name)"')
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          gh api -X POST "https://uploads.github.com/$release/assets?name=$asset_name" \
+            -H "Content-Type: application/octet-stream" --input "$dmg" --silent
+          gh api -X PATCH "$release" -F draft=false --silent
