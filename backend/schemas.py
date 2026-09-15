@@ -761,6 +761,10 @@ class Paper(PaperBase):
     # out, and what it carries. Never populated for anybody else's copy.
     sharable_uuid: Optional[str] = None
     sharable_kind: Optional[str] = None
+    # Whether this paper's own page opens for someone with no account here.
+    # A fact about the paper rather than about the reader asking, and the
+    # share menu's reason to offer that page as a link, or to stay quiet.
+    page_is_public: bool = False
 
     class Config:
         from_attributes = True

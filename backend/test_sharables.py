@@ -242,6 +242,20 @@ class SharableTests(unittest.TestCase):
             self.paper_uuid,
         )
 
+    def test_a_paper_says_whether_its_own_page_would_open_for_a_stranger(self):
+        """The share menu offers the paper's page as a link only when that
+        page will open for whoever is given it, so the paper has to say."""
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        self.assertFalse(detail["page_is_public"])
+
+        with self.Session() as db:
+            copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
+            copy.marketed = True
+            db.commit()
+
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        self.assertTrue(detail["page_is_public"])
+
     def test_revoking_closes_the_link_without_pretending_it_never_existed(self):
         made = self.share()
         revoked = self.client.delete(f"/api/sharables/{made['uuid']}")

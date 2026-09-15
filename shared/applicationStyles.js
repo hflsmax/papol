@@ -2163,7 +2163,7 @@ select:disabled { cursor: default; opacity: .65; }
   margin: 0;
 }
 
-.share-reading-label {
+.share-menu-heading {
   display: block;
   margin: 2px 3px 0;
   color: var(--ink-soft);
@@ -2765,6 +2765,13 @@ select:disabled { cursor: default; opacity: .65; }
   box-shadow: 0 12px 32px rgba(29, 33, 41, 0.18);
 }
 
+/* The menu of links is wider than the menu of actions: every row in it
+   holds a URL, and a URL the reader cannot read is a URL they cannot
+   check before handing it over. */
+.share-links-menu {
+  width: 310px;
+}
+
 .paper-actions .share-menu > button,
 .paper-actions .share-menu > a {
   display: block;
@@ -2797,14 +2804,6 @@ select:disabled { cursor: default; opacity: .65; }
   font-size: var(--fs-xs);
 }
 
-.canonical-share-menu label {
-  display: block;
-  margin: 2px 3px 6px;
-  color: var(--ink-soft);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-}
-
 .share-link-row {
   display: flex;
   align-items: center;
@@ -2823,9 +2822,11 @@ select:disabled { cursor: default; opacity: .65; }
   flex: none;
 }
 
-/* The reading below the paper URL: the same menu, but a link that carries
-   the reader's own marks, so it is set apart and says what it hands over. */
-.share-reading {
+/* One section per thing the menu can hand over — the PDF, the paper's own
+   page — each saying what its link opens before showing it. Ruled apart
+   because they are different things to give someone, not two spellings of
+   one thing. */
+.share-menu-section + .share-menu-section {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
@@ -2838,7 +2839,7 @@ select:disabled { cursor: default; opacity: .65; }
   line-height: 1.45;
 }
 
-.paper-actions .share-reading > button {
+.paper-actions .share-menu-section > button {
   width: auto;
   padding: 5px 9px;
   margin-left: 3px;

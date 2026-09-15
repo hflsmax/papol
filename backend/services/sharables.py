@@ -20,9 +20,10 @@ is what remains of it. Revoking is what closes a link altogether.
 
 from datetime import datetime
 
-from models import Comment, Copy, InkStroke, Paper, PaperClip, PaperEdition, Sharable, User
+from models import Comment, Copy, InkStroke, PaperClip, PaperEdition, Sharable, User
 from schemas import SharedNote, SharedPaper, SharedReading, UserPublic
 from services.annotations import anchor_of, clip_out, stroke_out
+from services.papers import page_is_public
 from sqlalchemy.orm import Session
 
 
@@ -134,7 +135,9 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
         created_at=sharable.created_at,
         reader=UserPublic.model_validate(sharable.user),
         paper=SharedPaper(
-            uuid=paper.uuid if _paper_is_public(paper) else None,
+            # A link to the paper's own page is worth carrying only when
+            # that page will open for whoever is holding this link.
+            uuid=paper.uuid if page_is_public(paper) else None,
             doi=paper.doi,
             title=paper.title,
             authors=paper.authors,
@@ -157,12 +160,6 @@ def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
         Copy.paper_uuid == sharable.paper_uuid,
         Copy.deleted_at.is_(None),
     ).first() is not None
-
-
-def _paper_is_public(paper: Paper) -> bool:
-    """Whether the paper's own page opens for a visitor. A shared reading
-    links to it when it does, and says nothing when it does not."""
-    return any(copy.marketed and copy.deleted_at is None for copy in paper.copies)
 
 
 def _notes(db: Session, sharable: Sharable) -> list[Comment]:

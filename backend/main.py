@@ -94,6 +94,7 @@ from routes.sharables import router as sharables_router
 from services.annotations import clip_out, note_out, stroke_out
 from services.editions import edition_for, latest_edition
 from services.notifications import setting_value
+from services.papers import displayed_copies, page_is_public
 from services.sharables import live_sharable_for, open_sharable
 
 # Uploads directory
@@ -1602,10 +1603,6 @@ def _add_edition(db: Session, paper: Paper, filename: str, user: User) -> PaperE
     )
 
 
-def _displayed_copies(paper: Paper) -> list[Copy]:
-    return [r for r in paper.copies if r.marketed and r.deleted_at is None]
-
-
 def _paper_list_entry(
     paper: Paper, user_copy: Copy | None, hide_private: bool, room_map: dict
 ) -> PaperList:
@@ -1637,7 +1634,7 @@ def _paper_list_entry(
         if not hide_private:
             entry.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
     entry.room_status = room_map.get(_paper_key_for(paper))
-    entry.readers = [_reader_entry(r) for r in _displayed_copies(paper)]
+    entry.readers = [_reader_entry(r) for r in displayed_copies(paper)]
     return entry
 
 
@@ -1709,7 +1706,7 @@ async def list_all_papers(
     return [
         _paper_list_entry(p, user_copy=None, hide_private=True, room_map=room_map)
         for p in papers
-        if _displayed_copies(p)
+        if displayed_copies(p)
     ]
 
 
@@ -1864,7 +1861,11 @@ def _paper_detail(
         )
         detail.sharable_uuid = shared.uuid if shared else None
         detail.sharable_kind = shared.kind if shared else None
-    detail.also_read_by = [_reader_entry(r) for r in _displayed_copies(paper)]
+    # Whether the paper's own page opens for whoever a reader hands a link
+    # to. The share menu asks, because the page is only worth offering when
+    # it will open for the person given it.
+    detail.page_is_public = page_is_public(paper)
+    detail.also_read_by = [_reader_entry(r) for r in displayed_copies(paper)]
 
     detail.rooms = [
         _room_summary(r)
@@ -1895,7 +1896,7 @@ def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
 
 def _require_visible(paper: Paper, viewer: User | None):
     """A paper is visible if anyone displays it, or the viewer has an entry."""
-    if _displayed_copies(paper) or _copy_of(paper, viewer) is not None:
+    if displayed_copies(paper) or _copy_of(paper, viewer) is not None:
         return
     raise HTTPException(status_code=404, detail="Paper not found")
 
@@ -3304,7 +3305,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     paper = next(iter(_papers_for_key(db, room.paper_key)), None)
     own = _copy_of(paper, viewer) if paper else None
     link_paper = (
-        paper if paper and (own is not None or _displayed_copies(paper)) else None
+        paper if paper and (own is not None or displayed_copies(paper)) else None
     )
     hidden_entry = paper if own is not None and not own.marketed else None
 
