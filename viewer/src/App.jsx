@@ -100,6 +100,32 @@ const MIN_SCALE = appLimits.viewer.zoom_min;
 // own coordinates, and has no ceiling to reach.
 const MAX_SCALE = appLimits.viewer.zoom_max;
 const PINCH_BENCHMARK = new URLSearchParams(window.location.search).get('pinch_benchmark');
+
+const hasAnchor = (note) => note.anchor != null;
+
+// Preserve each unchanged page's array as annotation state changes. PdfPage
+// uses shallow prop comparison, so rebuilding every bucket made a move on one
+// page reconcile the overlays on every other annotated page too.
+function usePageGroups(items, include = null) {
+  const previousRef = useRef(new Map());
+  return useMemo(() => {
+    const next = new Map();
+    for (const item of items) {
+      if (include && !include(item)) continue;
+      if (!next.has(item.page)) next.set(item.page, []);
+      next.get(item.page).push(item);
+    }
+    for (const [page, members] of next) {
+      const previous = previousRef.current.get(page);
+      if (previous?.length === members.length
+        && members.every((member, index) => Object.is(member, previous[index]))) {
+        next.set(page, previous);
+      }
+    }
+    previousRef.current = next;
+    return next;
+  }, [items, include]);
+}
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
 // nobody reads at. The reader can still zoom past this — it only bounds
@@ -1628,50 +1654,31 @@ export default function App() {
   // The rail is a map of the document: anchors run in page order, and
   // within a page in the order they were made. A note with no place in the
   // PDF has no page to sort by, so it sits at the end.
+  const numberedCache = useRef(new WeakMap());
+  const paperEditionUuid = paper?.edition_uuid;
   const numbered = useMemo(
-    () =>
-      notes
-        .map((n) => ({
-          ...n,
-          drifted:
-            n.anchor != null && paper != null && n.edition_uuid !== paper.edition_uuid,
-        }))
+    () => notes
+        .map((n) => {
+          const drifted = n.anchor != null && paperEditionUuid != null
+            && n.edition_uuid !== paperEditionUuid;
+          const cached = numberedCache.current.get(n);
+          if (cached?.drifted === drifted) return cached;
+          const decorated = { ...n, drifted };
+          numberedCache.current.set(n, decorated);
+          return decorated;
+        })
         .sort(
           (a, b) =>
             (a.page ?? Infinity) - (b.page ?? Infinity) ||
             String(a.created_at).localeCompare(String(b.created_at)) ||
             String(a.uuid).localeCompare(String(b.uuid))
         ),
-    [notes, paper]
+    [notes, paperEditionUuid]
   );
 
-  const notesByPage = useMemo(() => {
-    const map = new Map();
-    for (const n of numbered) {
-      if (!n.anchor) continue; // a note without a place has no pin
-      if (!map.has(n.page)) map.set(n.page, []);
-      map.get(n.page).push(n);
-    }
-    return map;
-  }, [numbered]);
-
-  const inkByPage = useMemo(() => {
-    const map = new Map();
-    for (const stroke of ink) {
-      if (!map.has(stroke.page)) map.set(stroke.page, []);
-      map.get(stroke.page).push(stroke);
-    }
-    return map;
-  }, [ink]);
-
-  const clipsByPage = useMemo(() => {
-    const map = new Map();
-    for (const clip of clips) {
-      if (!map.has(clip.page)) map.set(clip.page, []);
-      map.get(clip.page).push(clip);
-    }
-    return map;
-  }, [clips]);
+  const notesByPage = usePageGroups(numbered, hasAnchor);
+  const inkByPage = usePageGroups(ink);
+  const clipsByPage = usePageGroups(clips);
 
   const selectedInkPages = useMemo(() => {
     if (!selectedInk) return new Set();
@@ -1695,7 +1702,9 @@ export default function App() {
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
-      setInk((all) => all.map((s) => (s.uuid === provisional ? saved : s)));
+      setInk((all) => all.map((s) => (
+        s.uuid === provisional ? { ...saved, ...s, uuid: saved.uuid } : s
+      )));
       if (record && saved) {
         const entry = { uuid: saved.uuid, stroke };
         remember({
@@ -2147,10 +2156,6 @@ export default function App() {
         const real = await settledInkUuid(move.uuid);
         return real == null ? null : source.ink.move(real, move.after);
       }));
-      const savedByUuid = new Map(
-        saved.map((stroke, index) => stroke && [moves[index].uuid, stroke]).filter(Boolean)
-      );
-      setInk((all) => all.map((stroke) => savedByUuid.get(stroke.uuid) || stroke));
       if (record && saved.some(Boolean)) {
         const first = moves[0];
         remember({
@@ -2712,7 +2717,9 @@ export default function App() {
     const saving = source.notes
       .create({ ...spot, content: '' })
       .then((saved) => {
-        setNotes((prev) => prev.map((n) => (n.uuid === tempUuid ? saved : n)));
+        setNotes((prev) => prev.map((n) => (
+          n.uuid === tempUuid ? { ...saved, ...n, uuid: saved.uuid } : n
+        )));
         setActiveNoteUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
         const entry = { uuid: saved.uuid, snapshot: saved };
         remember({
@@ -2765,7 +2772,7 @@ export default function App() {
   const createClip = async (clip) => {
     if (await promptToAddForAnnotations()) return;
     const provisional = `clip-${Date.now()}`;
-    setClips((all) => [...all, { ...clip, uuid: provisional }]);
+    setClips((all) => [...all, { ...clip, uuid: provisional, _renderKey: provisional }]);
     // A clipper is a one-shot form of the reading cursor. Put it down as
     // soon as the rectangle lands; persistence must not keep it in hand.
     setTool('arrow');
@@ -2775,7 +2782,16 @@ export default function App() {
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
-        candidate.uuid === provisional ? { ...saved, frame: candidate.frame } : candidate
+        candidate.uuid === provisional
+          ? {
+              ...saved,
+              page: candidate.page,
+              source: candidate.source,
+              frame: candidate.frame,
+              floating: candidate.floating,
+              _renderKey: candidate._renderKey,
+            }
+          : candidate
       )));
       setSelectedClipUuid((selected) => (selected === provisional ? saved.uuid : selected));
     } catch (e) {
@@ -2801,10 +2817,11 @@ export default function App() {
       const current = clips.find((clip) => clip.uuid === uuid || clip.uuid === realUuid);
       const frame = change.frame || current?.frame;
       const floating = change.floating ?? current?.floating ?? false;
-      const saved = await source.clips.move(realUuid, frame, floating);
-      setClips((all) => all.map((clip) => (
-        clip.uuid === uuid || clip.uuid === realUuid ? saved : clip
-      )));
+      // updateClip already put the finished gesture in local state. Replacing
+      // it again with the persistence response needlessly repaints its clip
+      // canvas (and can overwrite a newer gesture if saves resolve out of
+      // order). A successful move has nothing else to reconcile.
+      await source.clips.move(realUuid, frame, floating);
     } catch (e) {
       setError(e.message);
     }
@@ -2859,7 +2876,6 @@ export default function App() {
       const real = await settledUuid(uuid);
       if (real == null) return;
       const saved = await source.notes.move(real, spot);
-      if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && was && saved) {
         remember({
           undo: () => moveNote(saved.uuid, { page: was.page, anchor: was.anchor }, false),
@@ -2882,7 +2898,6 @@ export default function App() {
       const real = await settledUuid(note.uuid);
       if (real == null) return;
       const saved = await source.notes.rename(real, name);
-      if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && saved) {
         remember({
           undo: () => renameNote(saved.uuid, note.name || '', false),
