@@ -58,7 +58,8 @@ export default function PapersPage({
   const [reviewingUpload, setReviewingUpload] = useState(false);
 
   const load = () => {
-    Promise.all([listPapers(), listLibraryBoards()])
+    // Boards are secondary here: if that list fails, the papers still show.
+    Promise.all([listPapers(), listLibraryBoards().catch(() => [])])
       .then(([nextPapers, nextBoards]) => { setPapers(nextPapers); setBoards(nextBoards); })
       .catch((err) => setError(err.message));
   };

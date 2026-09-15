@@ -487,6 +487,11 @@ async function routeDemoRequest(path, options = {}) {
     return null;
   }
 
+  // ----- boards -----
+  // The demo world has no boards. Listing them is answered with an empty
+  // list rather than the catch-all 404, so the Library still loads.
+  if ((path === '/boards' || path === '/library/boards') && method === 'GET') return [];
+
   // ----- papers -----
   if (path === '/papers' && method === 'GET') {
     const statusMap = roomStatusMap();
