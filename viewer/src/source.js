@@ -14,7 +14,7 @@ import {
  * so nothing below has to care which it is.
  *
  *   ?pdf=<sha256>          an exact PDF in the reader's nook: notes live in Papol
- *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol Desktop
+ *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  * Demo PDFs use the same hash identity; only their storage is local.
  *
  * Nook and demo sources expose the same annotation interfaces. A file source

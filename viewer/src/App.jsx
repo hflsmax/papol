@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, use
 import { flushSync } from 'react-dom';
 // The legacy build, not the modern one: the modern build calls JavaScript
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
-// fails in Safari and in Papol Desktop's macOS webview. The legacy build
+// fails in Safari and in Papol macOS's macOS webview. The legacy build
 // carries polyfills for exactly that, in the document and in the worker.
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
@@ -3391,7 +3391,7 @@ export default function App() {
   // viewer again. A direct visit has no Papol behind it, so it goes to the
   // paper's page instead.
   const returnToPapol = () => {
-    // Papol Desktop opens papers as document windows. Closing that window
+    // Papol macOS opens papers as document windows. Closing that window
     // returns to the library that has remained mounted behind it.
     if (closeDesktopDocumentWindow()) return;
     markReturnToPapol();
@@ -3462,7 +3462,7 @@ export default function App() {
     <>
       <header
         className="viewer-bar"
-        // Empty stretches of the bar move the window in Papol Desktop;
+        // Empty stretches of the bar move the window in Papol macOS;
         // everywhere else the attribute is inert.
         data-tauri-drag-region="deep"
         // A tool taken with the pointer should not be left holding keyboard

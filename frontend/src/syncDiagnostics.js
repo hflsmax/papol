@@ -12,7 +12,7 @@ export function unrecoverableSyncReport(status, environment = {}) {
   if (blocked < 1 || !error) return null;
 
   const lines = [
-    'Automatic Papol Desktop error report',
+    'Automatic Papol macOS error report',
     '',
     `Error: ${error}`,
     `Blocked changes: ${blocked}`,

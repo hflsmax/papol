@@ -18,7 +18,7 @@ export const applicationStyles = `
 :root {
   ${designTokens}
 
-  /* Desktop chrome — the sidebar and toolbars of Papol Desktop only */
+  /* Desktop chrome — the sidebar and toolbars of Papol macOS only */
   --chrome: ${desktopChrome};
   --chrome-hover: rgba(29, 33, 41, 0.06);
   --chrome-selected: rgba(29, 33, 41, 0.1);

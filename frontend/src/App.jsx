@@ -777,7 +777,7 @@ export default function App({ startupUser = null, startupError = null }) {
     </main>
   );
 
-  // Papol Desktop: a source-list sidebar in place of the website masthead.
+  // Papol macOS: a source-list sidebar in place of the website masthead.
   // Reading happens in a three-pane browser — source, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
@@ -911,8 +911,8 @@ export default function App({ startupUser = null, startupError = null }) {
               href={MACOS_DOWNLOAD_URL}
               target="_blank"
               rel="noreferrer"
-              aria-label="Download Papol for macOS"
-              title="Download Papol for macOS"
+              aria-label="Download Papol macOS"
+              title="Download Papol macOS"
             >
               <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                 <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />

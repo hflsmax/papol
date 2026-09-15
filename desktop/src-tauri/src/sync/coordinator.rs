@@ -228,7 +228,7 @@ struct SnapshotResponse {
 impl Coordinator {
     pub fn new() -> Result<Self, String> {
         let client = Client::builder()
-            .user_agent("Papol Desktop/0.1")
+            .user_agent("Papol macOS/0.1")
             .connect_timeout(Duration::from_millis(app_limit(
                 "timeouts_ms",
                 "sync_connect",

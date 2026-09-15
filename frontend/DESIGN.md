@@ -32,7 +32,7 @@ than design tokens.
 | `--accent-strong` | `#1e3752` | Primary button hover |
 | `--accent-soft` | `#eaeff5` | Tinted cards (notes, summaries, quotes) |
 | `--focus` / `--focus-soft` | accent / translucent accent | Keyboard focus and inset field focus |
-| `--chrome` | `#eaedf1` (`#f9ecea` in development) | Papol Desktop sidebar ground; light red distinguishes development builds |
+| `--chrome` | `#eaedf1` (`#f9ecea` in development) | Papol macOS sidebar ground; light red distinguishes development builds |
 | `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
 | `--chrome-radius` | `6px` | Desktop sidebar rows and toolbar buttons only |
 
@@ -257,7 +257,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   removes only that label from papers, never the papers themselves.
   Shelves use the same compact black × removal affordance as tags. Removing a
   shelf moves its papers to another shelf; the final shelf cannot be removed.
-- **Desktop shell** — inside Papol Desktop (the Tauri app;
+- **Desktop shell** — inside Papol macOS (the Tauri app;
   `shared/desktopShell.js` stamps `data-shell="desktop"` on `<html>`, and
   `?shell=desktop` previews it in a browser tab) the website masthead gives
   way to a native reference-manager layout. A 220px `--chrome` source-list

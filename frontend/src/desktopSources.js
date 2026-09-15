@@ -1,6 +1,6 @@
 import { newestFirst, seminarRank } from './paperFormat.js';
 
-// What Papol Desktop's paper browser is showing, how that is written in a URL,
+// What Papol macOS's paper browser is showing, how that is written in a URL,
 // and which papers it lists. Kept free of React and the page so it can be
 // tested on its own (DESIGN.md, "Desktop shell").
 

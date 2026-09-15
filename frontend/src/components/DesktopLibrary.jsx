@@ -360,7 +360,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
   );
 }
 
-// Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
+// Papol macOS's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
 // paper opens beside the list instead of replacing it. What a source means
 // and lists is decided in desktopSources.js.

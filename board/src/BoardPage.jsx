@@ -1899,7 +1899,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       data-tauri-drag-region="deep"
       onPointerDown={() => { setSelectedItems([]); setSelectedBooklet(null); }}
     >
-      {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
+      {/* In Papol macOS the toolbar leads with the native Back chevron. */}
       {DESKTOP
         ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
         : !DESKTOP

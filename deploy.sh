@@ -308,7 +308,7 @@ macos_release() {
       ;;
   esac
   [ "$version" != "$current" ] || die "desktop is already version $version"
-  tag="desktop-v$version"
+  tag="macos-v$version"
   if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     die "tag $tag already exists locally"
   fi
@@ -336,11 +336,11 @@ NODE
 
   git -C "$DEV_DIR" diff --check
   git -C "$DEV_DIR" add -- "${version_files[@]}"
-  git -C "$DEV_DIR" commit -m "Release Papol Desktop v$version"
+  git -C "$DEV_DIR" commit -m "Release Papol macOS v$version"
   git -C "$DEV_DIR" push origin main
-  git -C "$DEV_DIR" tag -a "$tag" -m "Papol Desktop v$version"
+  git -C "$DEV_DIR" tag -a "$tag" -m "Papol macOS v$version"
   git -C "$DEV_DIR" push origin "$tag"
-  say "Published Papol Desktop v$version"
+  say "Published Papol macOS v$version"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -633,7 +633,7 @@ install_macos_app() {
   [ -z "$previous_app" ] || as_root rm -rf "$previous_app"
   rm -rf "$staging_dir"
 
-  say "Installed Papol for macOS"
+  say "Installed Papol macOS"
   note "$destination_app"
   open "$destination_app"
 }
@@ -717,7 +717,7 @@ macos_prod() {
 
   marker=$(mktemp -t papol-macos-build.XXXXXX)
   macos_timing_begin "Build application bundles"
-  say "Building Papol for macOS"
+  say "Building Papol macOS"
   note "backend: $backend"
   [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
   [ "$MACOS_NOTARIZING" = no ] || note "distribution: Developer ID signed and notarized"
@@ -844,7 +844,7 @@ notarized release, checks for a local Developer ID identity, and prints the
 values in the local credential file for copying to GitHub.
 `release` increments the desktop patch version by default (or accepts a minor,
 major, or explicit stable version), commits only its three version files, and
-pushes the matching `desktop-v*` tag to trigger the GitHub release build.
+pushes the matching `macos-v*` tag to trigger the GitHub release build.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, build, credentials, or release)" ;;

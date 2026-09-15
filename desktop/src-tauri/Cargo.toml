@@ -1,7 +1,7 @@
 [package]
 name = "papol-desktop"
 version = "0.1.0"
-description = "The Papol desktop application"
+description = "The Papol macOS application"
 authors = ["Papol contributors"]
 edition = "2021"
 

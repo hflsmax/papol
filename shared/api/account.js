@@ -22,7 +22,7 @@ export function setToken(token, accountUuid = null) {
   return storeCredential(token, accountUuid);
 }
 
-// Papol Desktop treats the local replica as the startup identity. Reading it
+// Papol macOS treats the local replica as the startup identity. Reading it
 // is deliberately separate from getMe(): the server may refresh network
 // authorization after the shell is visible, but it does not grant permission
 // to show the owner of this computer their local nook.

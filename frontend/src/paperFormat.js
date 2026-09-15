@@ -1,5 +1,5 @@
 // Formatting and ordering rules for paper lists, shared by the website's nook
-// and library pages and Papol Desktop's list pane.
+// and library pages and Papol macOS's list pane.
 
 // "Diffie, Hellman" for two authors or fewer, "Vaswani et al." beyond. The
 // field is a JSON array; anything else is shown as it came.

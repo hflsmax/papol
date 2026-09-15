@@ -7,7 +7,7 @@ export function callSeminar(paperUuid) {
   return onServer(() => request(`/papers/${paperUuid}/room`, { method: 'POST' }));
 }
 
-// Seminar rooms are shared, online-only state in Papol Desktop rather than
+// Seminar rooms are shared, online-only state in Papol macOS rather than
 // rows in its private offline replica. The paper endpoint is the canonical
 // source for the summaries shown beside a paper.
 export async function listPaperRooms(paperUuid) {

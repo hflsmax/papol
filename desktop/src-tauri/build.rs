@@ -34,5 +34,5 @@ fn main() {
             "pdf_viewer_make_default",
         ]),
     ))
-    .expect("failed to prepare the Papol desktop build")
+    .expect("failed to prepare the Papol macOS build")
 }

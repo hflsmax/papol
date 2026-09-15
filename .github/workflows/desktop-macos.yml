@@ -1,9 +1,9 @@
-name: Papol desktop for macOS
+name: Papol macOS
 
 on:
   push:
     tags:
-      - "desktop-v*"
+      - "macos-v*"
 
 permissions:
   contents: write
@@ -59,8 +59,8 @@ jobs:
         with:
           projectPath: desktop
           args: --target universal-apple-darwin
-          tagName: desktop-v__VERSION__
-          releaseName: Papol for macOS v__VERSION__
+          tagName: macos-v__VERSION__
+          releaseName: Papol macOS v__VERSION__
           releaseBody: Download the signed and notarized Papol DMG below.
           releaseAssetNamePattern: "[name]_[version]_macOS_[arch][ext]"
           releaseDraft: true
