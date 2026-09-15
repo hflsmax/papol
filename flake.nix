@@ -89,6 +89,22 @@
       # Playwright will not download browsers here and should not try; these
       # are the ones Nix built, wired up by PLAYWRIGHT_BROWSERS_PATH below.
       playwright-driver.browsers
+      # The desktop crate. macOS builds and ships it; Linux cannot produce a
+      # release, but `cargo test`, `cargo fmt` and `cargo clippy` all run
+      # here, and the local replica's storage and sync logic are exactly the
+      # parts worth checking away from a Mac. The GTK and WebKit libraries
+      # are what Tauri's own crates link against while compiling.
+      cargo
+      rustc
+      rustfmt
+      clippy
+      pkg-config
+      dbus
+      glib
+      gtk3
+      libsoup_3
+      openssl
+      webkitgtk_4_1
     ];
 
     # `deploy.sh macos` builds and tests the native app with the local Rust
@@ -168,6 +184,13 @@
         packages = if pkgs.stdenv.isDarwin
           then macosDevPackages pkgs
           else linuxDevPackages pkgs;
+
+        # Tauri's build scripts find their system libraries through
+        # pkg-config, which mkShell only populates for what it is told about.
+        nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
+          dbus glib gtk3 libsoup_3 openssl webkitgtk_4_1
+        ]);
 
         shellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
           export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.libsndfile ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
