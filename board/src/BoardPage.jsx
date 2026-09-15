@@ -14,6 +14,7 @@ import appLimits from '../../shared/appLimits.js';
 import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
+import { hasCardPreview } from './cardPreview.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const compareUuid = (a, b) => String(a).localeCompare(String(b));
@@ -61,9 +62,6 @@ const itemTypeIcons = {
   image: '▧', file: '↧', youtube: '▶', webpage: '↗',
 };
 
-function hasCardPreview(item) {
-  return item.kind === 'image' || Boolean(item.sha256 || item.file_path);
-}
 const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
 const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
