@@ -1274,7 +1274,7 @@ export default function PaperDetail({
           <CommentSection
             paperUuid={paper.uuid}
             shared={paper.sharable_kind === 'rich'}
-            comments={(paper.comments || []).filter((c) => c.content)}
+            comments={(paper.notes || []).filter((note) => note.content)}
             noteHref={noteHref}
             onOpenNote={onRead}
             currentUser={currentUser}

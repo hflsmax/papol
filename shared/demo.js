@@ -287,9 +287,9 @@ function paperDetail(p) {
     rating_liking: mine ? mine.rating_liking : null,
     shelf_uuid: mine ? mine.shelf_uuid : null,
     tags: tagsOf(mine),
-    comments: mine
+    notes: mine
       ? ensure().comments.filter((c) => c.paper_uuid === p.uuid && c.user_uuid === ME)
-          .map((c) => ({ ...c, user: publicUser(userByUuid(c.user_uuid)) }))
+          .map((c) => ({ ...c, kind: 'note' }))
       : [],
     also_read_by: displayedCopies(p).map(readerEntry),
     rooms: paperRooms(p).map(roomSummary),
@@ -546,25 +546,35 @@ async function routeDemoRequest(path, options = {}) {
     mine.edition_uuid = body.edition_uuid || editions[editions.length - 1].uuid;
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/comments$/))) {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/annotations$/)) && method === 'POST') {
     const paper = findPaper(m[1]);
     if (!copyOf(paper, ME)) throw demoError('Add this paper to your nook first', 403);
-    const c = { uuid: newUuid(), paper_uuid: paper.uuid, user_uuid: ME,
-      content: body.content, created_at: now() };
+    const c = { uuid: newUuid(), kind: body.kind || 'note', paper_uuid: paper.uuid,
+      user_uuid: ME, content: body.content || '', page: body.page ?? null,
+      body: body.body || {}, created_at: now() };
     d.comments.push(c);
-    return { ...c, user: publicUser(userByUuid(ME)) };
+    return c;
   }
-  if ((m = path.match(/^\/comments\/([0-9a-f-]{36})$/)) && method === 'PUT') {
+  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/annotations$/))) {
+    const paper = findPaper(m[1]);
+    return ensure().comments
+      .filter((c) => c.paper_uuid === paper.uuid && c.user_uuid === ME)
+      .map((c) => ({ ...c, kind: c.kind || 'note', body: c.body || {} }));
+  }
+  if ((m = path.match(/^\/annotations\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const c = d.comments.find((x) => x.uuid === m[1] && x.user_uuid === ME);
-    if (!c) throw demoError('Comment not found', 404);
-    c.content = body.content;
-    return { ...c, user: publicUser(userByUuid(c.user_uuid)) };
+    if (!c) throw demoError('Annotation not found', 404);
+    if (body.content !== undefined) c.content = body.content;
+    if (body.name !== undefined) c.name = body.name;
+    if (body.page !== undefined) c.page = body.page;
+    if (body.body !== undefined) c.body = { ...(c.body || {}), ...body.body };
+    return { ...c, kind: c.kind || 'note', body: c.body || {} };
   }
-  if ((m = path.match(/^\/comments\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
+  if ((m = path.match(/^\/annotations\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
     const i = d.comments.findIndex((c) => c.uuid === m[1] && c.user_uuid === ME);
-    if (i < 0) throw demoError('Comment not found', 404);
+    if (i < 0) throw demoError('Annotation not found', 404);
     d.comments.splice(i, 1);
-    return { message: 'Comment deleted' };
+    return { message: 'Annotation deleted' };
   }
   if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/room$/))) {
     const paper = findPaper(m[1]);

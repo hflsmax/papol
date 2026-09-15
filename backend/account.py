@@ -291,8 +291,6 @@ def _notes_markdown(data: dict) -> str:
             head = f"### {label}"
             if note["name"] and note["page"]:
                 head += f" — page {note['page']}"
-            if note["is_my_place"]:
-                head += "  *(where I left off)*"
             lines += [head, ""]
             # An anchor with nothing written on it is a mark, not a note —
             # say so rather than leaving a blank.

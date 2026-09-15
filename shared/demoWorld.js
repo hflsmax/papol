@@ -253,12 +253,12 @@ export const demoNotes = [
 export function noteAsComment(note, userUuid, daysAgoToDate) {
   return {
     uuid: note.uuid,
+    kind: 'note',
     paper_uuid: note.paperUuid,
     user_uuid: userUuid,
     content: note.content,
     page: note.page,
-    anchor_type: 'point',
-    anchor: { type: 'point', x: note.x, y: note.y },
+    body: { anchor: { type: 'point', x: note.x, y: note.y } },
     created_at: daysAgoToDate(note.daysAgo),
   };
 }

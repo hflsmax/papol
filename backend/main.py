@@ -14,6 +14,7 @@ import tempfile
 from functools import lru_cache
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
+from pydantic import ValidationError
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -3126,7 +3127,16 @@ async def update_annotation(
         annotation.page = data.page
     if data.body is not None:
         merged = {**json.loads(annotation.body or "{}"), **data.body}
-        annotation.body = body_text(annotation.kind, merged)
+        try:
+            # Creating validates while the request is still being parsed; a
+            # change is only a few fields, so its shape is not known to be
+            # good until it has been merged with what is already stored.
+            annotation.body = body_text(annotation.kind, merged)
+        except ValidationError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=error.errors(include_context=False, include_url=False),
+            ) from error
     commit_sync(db)
     db.refresh(annotation)
     return annotation_out(annotation)

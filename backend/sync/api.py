@@ -345,7 +345,10 @@ def _assign_values(db: Session, record, values: dict, user: User):
                 body=json.loads(record.body or "{}"),
             )
         except (TypeError, ValueError, ValidationError) as error:
-            detail = error.errors() if isinstance(error, ValidationError) else str(error)
+            detail = (
+                error.errors(include_context=False, include_url=False)
+                if isinstance(error, ValidationError) else str(error)
+            )
             raise HTTPException(status_code=422, detail=detail)
         return
     if isinstance(record, Shelf):
