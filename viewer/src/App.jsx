@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 // The legacy build, not the modern one: the modern build calls JavaScript
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
 // fails in Safari and in Papol Desktop's macOS webview. The legacy build
@@ -1687,42 +1688,46 @@ export default function App() {
   // selected until the reader starts another selection or uses an action.
   useEffect(() => {
     let pointerSelecting = false;
-    const update = () => {
+    let finishTimer = null;
+    const update = (synchronous = false) => {
       const selection = window.getSelection();
       const scroller = scrollerRef.current;
-      if (!selection || selection.isCollapsed || !selection.rangeCount || !scroller) return;
+      if (!selection || selection.isCollapsed || !selection.rangeCount || !scroller) return false;
       const elementFor = (node) =>
         node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
       const anchor = elementFor(selection.anchorNode);
       const focusNode = elementFor(selection.focusNode);
-      if (!anchor?.closest('.textLayer') || !focusNode?.closest('.textLayer')) return;
+      if (!anchor?.closest('.textLayer') || !focusNode?.closest('.textLayer')) return false;
       const rects = [...selection.getRangeAt(0).getClientRects()];
       const usable = rects.filter((rect) => rect.width > 0.5 && rect.height > 1);
-      if (!usable.length) return;
+      if (!usable.length) return false;
       const pageBoxes = [...scroller.querySelectorAll('.pdf-page')].map((page) => ({
         page: Number(page.dataset.page),
         box: page.getBoundingClientRect(),
       }));
       const strokes = selectionStrokes(usable, pageBoxes);
-      if (!strokes.length) return;
+      if (!strokes.length) return false;
       const last = usable[usable.length - 1];
       const above = last.top - 38;
       const scrollerBox = scroller.getBoundingClientRect();
       const viewportLeft = Math.max(22, Math.min(window.innerWidth - 22, last.right));
       const viewportTop = above >= 8 ? above : Math.min(window.innerHeight - 44, last.bottom + 8);
-      setSelectionPaint({
+      const snapshot = {
         strokes,
         text: selectedTextWithoutPdfCitations(selection, scroller).trim(),
         left: viewportLeft - scrollerBox.left + scroller.scrollLeft,
         top: viewportTop - scrollerBox.top + scroller.scrollTop,
-      });
+      };
+      if (synchronous === true) flushSync(() => setSelectionPaint(snapshot));
+      else setSelectionPaint(snapshot);
       // The snapshot above now owns both the text and its page geometry. Do
       // not leave the browser Range attached to text-layer nodes that will be
       // discarded when this page scrolls out of the render window.
       selection.removeAllRanges();
+      return true;
     };
     const selectionChanged = () => {
-      if (!pointerSelecting) update();
+      if (!pointerSelecting) update(true);
     };
     const pointerDown = (event) => {
       if (!event.target.closest?.('.textLayer')) return;
@@ -1735,7 +1740,13 @@ export default function App() {
       // Capture as soon as pointerup dispatch finishes, before the next paint.
       // Waiting for requestAnimationFrame made the actions trail the selection
       // by a visible frame, especially on slower displays.
-      queueMicrotask(update);
+      queueMicrotask(() => {
+        if (update(true)) return;
+        // WebKit can finish the native Range after the pointer microtask.
+        // A zero-delay task is the earliest reliable fallback and still runs
+        // before the next user interaction.
+        finishTimer = window.setTimeout(() => update(true), 0);
+      });
     };
     update();
     document.addEventListener('selectionchange', selectionChanged);
@@ -1744,6 +1755,7 @@ export default function App() {
     document.addEventListener('pointercancel', pointerFinished);
     window.addEventListener('resize', update);
     return () => {
+      if (finishTimer != null) window.clearTimeout(finishTimer);
       document.removeEventListener('selectionchange', selectionChanged);
       document.removeEventListener('pointerdown', pointerDown);
       document.removeEventListener('pointerup', pointerFinished);
