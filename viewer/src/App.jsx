@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 // The legacy build, not the modern one: the modern build calls JavaScript
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
 // fails in Safari and in Papol Desktop's macOS webview. The legacy build
@@ -23,7 +23,6 @@ import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/di
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { canOpenPrivateSource } from './viewerAccess.js';
-import PdfPage from './PdfPage';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { readNamedReference } from './references';
@@ -54,6 +53,19 @@ import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
+
+// A full page carries the canvas, text layer, annotations, clips, and animal
+// renderer. None of that is needed to draw the real toolbar. Keep it out of
+// the entry module, then start fetching it just after the browser has had a
+// chance to paint the first React commit. By the time PDF.js has opened the
+// document it is normally already here; if it is not, the same page shell
+// remains in place until it is.
+let pdfPageModule;
+export const preloadPdfPage = () => {
+  pdfPageModule ||= import('./PdfPage');
+  return pdfPageModule;
+};
+const PdfPage = lazy(preloadPdfPage);
 
 // The width at which the rail stops having a column of its own — the same
 // number as the breakpoint in styles.js, and it has to stay that way.
@@ -3929,7 +3941,14 @@ export default function App() {
                   scale={scale}
                   previewUrl={previewUrls.get(n)}
                 />
-              ) : <PdfPage
+              ) : <Suspense fallback={(
+                <LazyPageShell
+                  pageNumber={n}
+                  size={defaultPageSize}
+                  scale={scale}
+                  previewUrl={previewUrls.get(n)}
+                />
+              )}><PdfPage
               doc={doc}
               pageNumber={n}
               initiallyNear={n === initiallyVisiblePage}
@@ -3987,7 +4006,7 @@ export default function App() {
               activeSearchId={searchResults[activeSearchResult]?.page === n
                 ? searchResults[activeSearchResult].id
                 : null}
-              />}
+              /></Suspense>}
             </React.Fragment>
           ))}
           {openCite && (

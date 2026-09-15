@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './configurePlatform.js';
 import '../../shared/desktopShell';
 import './readableStreamIteration';
-import App from './App';
+import App, { preloadPdfPage } from './App';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { markViewerPerformance } from './performance.js';
 import { styles } from './styles.js';
@@ -35,3 +35,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+
+// Let the browser paint the functional React chrome once, then fetch and
+// evaluate the much larger page renderer while PDF.js opens the document.
+// The nested task matters for a warm cache: module evaluation must not sneak
+// into the same pre-paint turn as the toolbar commit.
+requestAnimationFrame(() => setTimeout(() => {
+  void preloadPdfPage().catch(() => {});
+}, 0));
