@@ -147,7 +147,7 @@
         pname = "papol-frontend";
         version = "0.0.1";
         src = ./frontend;
-        npmDepsHash = "sha256-upWFNCBXEH7tTx55Sd7TuK+USPYnpO4l+tCq3JzawhU=";
+        npmDepsHash = "sha256-2BNW5WEI0OoPNgmFI+JKfIKjjYURnWvu7Gh9V6/z+L0=";
         installPhase = ''
           runHook preInstall
           mkdir -p $out
