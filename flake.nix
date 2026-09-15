@@ -80,6 +80,7 @@
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       sqlite               # papol.db is read and edited by hand often enough
       ripgrep              # fast repository-wide source search
+      gh                   # pull requests and releases on GitHub
       ruff
       ffmpeg
       # Native libraries used by the optional Kokoro tutorial voice generator.
@@ -101,6 +102,7 @@
     macosDevPackages = pkgs: [
       (pkgs.python312.withPackages backendPython)
       pkgs.nodejs_22
+      pkgs.gh              # pull requests and releases on GitHub
     ];
 
     # Tutorial recorders share one pinned browser driver. Build its npm closure
