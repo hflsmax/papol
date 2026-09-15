@@ -437,7 +437,12 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                   is no one to hand hosting to.
                 </p>
                 {canUncall && (
-                  <button className="danger" disabled={isBusy} onClick={uncall}>
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={isBusy}
+                    onClick={uncall}
+                  >
                     Uncall seminar
                   </button>
                 )}
@@ -471,7 +476,12 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
           </div>
         )}
         {canUncall && !leaveOpen && (
-          <button className="danger" disabled={isBusy} onClick={uncall}>
+          <button
+            type="button"
+            className="danger"
+            disabled={isBusy}
+            onClick={uncall}
+          >
             Uncall seminar
           </button>
         )}

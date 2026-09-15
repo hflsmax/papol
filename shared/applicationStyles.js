@@ -3759,7 +3759,19 @@ a.btn:hover {
 }
 
 .room-enter {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-top: 10px;
+}
+
+/* Open is an anchor and Uncall is a button. Give the paired controls an
+   explicit shared leading so their boxes have the same height despite the
+   body line-height inherited by the anchor. */
+.room-enter .btn,
+.room-enter button {
+  line-height: 1.5;
 }
 
 .call-block {
@@ -4732,7 +4744,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible { border-color: var(--accent); outline: none; box-shadow: inset 2px 2px rgba(255,255,255,.8), 3px 6px 13px rgba(43,74,111,.28); }
 .board-card-drag-handle.grip-foreground { z-index: 4; transform: translate3d(-20px, -17px, 0) rotate(-3deg) scale(1.04); box-shadow: inset 2px 2px rgba(255,255,255,.84), 4px 8px 17px rgba(43,74,111,.3); transition: opacity .16s ease, transform .24s cubic-bezier(.18,.9,.25,1.18), border-color .14s ease, box-shadow .2s ease, z-index 0s; }
 .board-canvas-card > .board-card-drag-handle.grip-dragging { z-index: 4; opacity: 1; pointer-events: auto; transform: translate3d(-20px, -17px, 0) rotate(-3deg) scale(1.04); }
-.board-canvas-card.selected > .board-card-drag-handle { opacity: 0; pointer-events: none; transform: translate3d(9px, 8px, 0) rotate(-2deg) scale(.62); }
+.board-canvas-card.selected > .board-card-drag-handle:not(.grip-visible):not(.grip-dragging) { opacity: 0; pointer-events: none; transform: translate3d(9px, 8px, 0) rotate(-2deg) scale(.62); }
 .board-card-drag-handle:active { cursor: grabbing; }
 .board-canvas-card.booklet-reorder-peer { z-index: 3; transition: transform 180ms cubic-bezier(.22,.9,.3,1), box-shadow 180ms ease, scale 180ms ease; }
 .board-canvas-card.booklet-reordering { z-index: 5; transition: none; box-shadow: 0 16px 36px rgba(29,33,41,.22); cursor: grabbing; }
