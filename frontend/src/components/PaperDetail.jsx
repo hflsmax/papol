@@ -47,9 +47,9 @@ export default function PaperDetail({
   const [thoughtDraft, setThoughtDraft] = useState('');
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
-  // Which link was last copied, and how it went. One state for every link
-  // on the page, keyed by which one, so a "Copied!" never appears on the
-  // wrong one.
+  // Which link was last copied, and how it went. One state for the link
+  // wherever it is shown — in the menu, and in the bar below — so a
+  // "Copied!" never appears on the wrong one.
   const [shareCopied, setShareCopied] = useState({ target: null, status: 'idle' });
   const [shareOpen, setShareOpen] = useState(false);
   const [isSharingReading, setIsSharingReading] = useState(false);
@@ -63,7 +63,6 @@ export default function PaperDetail({
   const pdfInputRef = useRef(null);
   const readControlRef = useRef(null);
   const shareControlRef = useRef(null);
-  const shareUrlRef = useRef(null);
   const readingUrlRef = useRef(null);
   const menuReadingUrlRef = useRef(null);
 
@@ -310,8 +309,6 @@ export default function PaperDetail({
     if (shareCopied.target !== target) return 'Copy';
     return shareCopied.status === 'copied' ? 'Copied!' : 'Copy failed';
   };
-
-  const paperUrl = () => `${window.location.origin}${appPath(`/paper/${paper.uuid}`)}`;
 
   // A sharable hands this reading — this PDF, with this reader's notes, ink
   // and clips on it — to anyone holding the link. Nothing is copied: what a
@@ -893,7 +890,7 @@ export default function PaperDetail({
                 {isAddingToNook ? 'Downloading PDF…' : 'Add to my nook'}
               </button>
             )}
-            {currentUser && !demoActive() && (canShareThisPdf || paper.page_is_public) && (
+            {currentUser && !demoActive() && canShareThisPdf && (
               <div className="share-control" ref={shareControlRef}>
                 <button
                   type="button"
@@ -909,91 +906,61 @@ export default function PaperDetail({
                         opened in Papol's viewer by whoever is given the
                         link. One link, whether or not the reader's marks
                         travel on it. */}
-                    {canShareThisPdf && (
-                      <div className="share-menu-section">
-                        <span className="share-menu-heading">This PDF</span>
-                        {paper.sharable_uuid ? (
-                          <>
-                            <p className="share-note">
-                              {paper.sharable_kind === 'rich'
-                                ? 'Opens in Papol’s viewer, with your notes, paint and clips on it.'
-                                : 'Opens in Papol’s viewer. Your notes, paint and clips are not part of it.'}
-                            </p>
-                            <div className="share-link-row">
-                              <input
-                                id="menu-share-url"
-                                aria-label="Link to this PDF"
-                                ref={menuReadingUrlRef}
-                                value={sharableHref(paper.sharable_uuid)}
-                                readOnly
-                                onFocus={(event) => event.target.select()}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => copyLink(
-                                  sharableHref(paper.sharable_uuid),
-                                  'menu-reading',
-                                  menuReadingUrlRef,
-                                )}
-                              >
-                                {copyLabel('menu-reading')}
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <p className="share-note">
-                              A read-only link that opens this PDF in Papol’s viewer.
-                            </p>
-                            {/* The one decision worth making here, named by what
-                                it gives away rather than by what we call it. */}
-                            <label className="share-marks-choice">
-                              <input
-                                type="checkbox"
-                                checked={shareIncludesMarks}
-                                onChange={(event) => setShareIncludesMarks(event.target.checked)}
-                              />
-                              Include my notes, paint and clips
-                            </label>
+                    <div className="share-menu-section">
+                      <span className="share-menu-heading">This PDF</span>
+                      {paper.sharable_uuid ? (
+                        <>
+                          <p className="share-note">
+                            {paper.sharable_kind === 'rich'
+                              ? 'Opens in Papol’s viewer, with your notes, paint and clips on it.'
+                              : 'Opens in Papol’s viewer. Your notes, paint and clips are not part of it.'}
+                          </p>
+                          <div className="share-link-row">
+                            <input
+                              id="menu-share-url"
+                              aria-label="Link to this PDF"
+                              ref={menuReadingUrlRef}
+                              value={sharableHref(paper.sharable_uuid)}
+                              readOnly
+                              onFocus={(event) => event.target.select()}
+                            />
                             <button
                               type="button"
-                              onClick={handleShareReading}
-                              disabled={isSharingReading}
+                              onClick={() => copyLink(
+                                sharableHref(paper.sharable_uuid),
+                                'menu-reading',
+                                menuReadingUrlRef,
+                              )}
                             >
-                              {isSharingReading ? 'Making a link…' : 'Create a link'}
+                              {copyLabel('menu-reading')}
                             </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    {/* The paper’s page is a different thing to hand over:
-                        not the PDF, but what Papol knows about the paper and
-                        who else is reading it. Offered only when it will open
-                        for the person given it. */}
-                    {paper.page_is_public && (
-                      <div className="share-menu-section">
-                        <span className="share-menu-heading">Paper page</span>
-                        <p className="share-note">
-                          What Papol knows about this paper, and who else reads it.
-                        </p>
-                        <div className="share-link-row">
-                          <input
-                            id="canonical-share-url"
-                            aria-label="Link to this paper’s page"
-                            ref={shareUrlRef}
-                            value={paperUrl()}
-                            readOnly
-                            onFocus={(event) => event.target.select()}
-                          />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="share-note">
+                            A read-only link that opens this PDF in Papol’s viewer.
+                          </p>
+                          {/* The one decision worth making here, named by what
+                              it gives away rather than by what we call it. */}
+                          <label className="share-marks-choice">
+                            <input
+                              type="checkbox"
+                              checked={shareIncludesMarks}
+                              onChange={(event) => setShareIncludesMarks(event.target.checked)}
+                            />
+                            Include my notes, paint and clips
+                          </label>
                           <button
                             type="button"
-                            onClick={() => copyLink(paperUrl(), 'paper', shareUrlRef)}
+                            onClick={handleShareReading}
+                            disabled={isSharingReading}
                           >
-                            {copyLabel('paper')}
+                            {isSharingReading ? 'Making a link…' : 'Create a link'}
                           </button>
-                        </div>
-                      </div>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

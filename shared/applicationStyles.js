@@ -2765,9 +2765,9 @@ select:disabled { cursor: default; opacity: .65; }
   box-shadow: 0 12px 32px rgba(29, 33, 41, 0.18);
 }
 
-/* The menu of links is wider than the menu of actions: every row in it
-   holds a URL, and a URL the reader cannot read is a URL they cannot
-   check before handing it over. */
+/* The menu that hands over a link is wider than the menu of actions: it
+   holds a URL, and a URL the reader cannot read is a URL they cannot check
+   before handing it over. */
 .share-links-menu {
   width: 310px;
 }
@@ -2820,16 +2820,6 @@ select:disabled { cursor: default; opacity: .65; }
 .paper-actions .share-link-row button {
   width: auto;
   flex: none;
-}
-
-/* One section per thing the menu can hand over — the PDF, the paper's own
-   page — each saying what its link opens before showing it. Ruled apart
-   because they are different things to give someone, not two spellings of
-   one thing. */
-.share-menu-section + .share-menu-section {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
 }
 
 .share-note {

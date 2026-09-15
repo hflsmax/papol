@@ -94,7 +94,7 @@ from routes.sharables import router as sharables_router
 from services.annotations import clip_out, note_out, stroke_out
 from services.editions import edition_for, latest_edition
 from services.notifications import setting_value
-from services.papers import displayed_copies, page_is_public
+from services.papers import displayed_copies
 from services.sharables import live_sharable_for, open_sharable
 
 # Uploads directory
@@ -1861,10 +1861,6 @@ def _paper_detail(
         )
         detail.sharable_uuid = shared.uuid if shared else None
         detail.sharable_kind = shared.kind if shared else None
-    # Whether the paper's own page opens for whoever a reader hands a link
-    # to. The share menu asks, because the page is only worth offering when
-    # it will open for the person given it.
-    detail.page_is_public = page_is_public(paper)
     detail.also_read_by = [_reader_entry(r) for r in displayed_copies(paper)]
 
     detail.rooms = [

@@ -242,20 +242,6 @@ class SharableTests(unittest.TestCase):
             self.paper_uuid,
         )
 
-    def test_a_paper_says_whether_its_own_page_would_open_for_a_stranger(self):
-        """The share menu offers the paper's page as a link only when that
-        page will open for whoever is given it, so the paper has to say."""
-        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
-        self.assertFalse(detail["page_is_public"])
-
-        with self.Session() as db:
-            copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
-            copy.marketed = True
-            db.commit()
-
-        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
-        self.assertTrue(detail["page_is_public"])
-
     def test_a_link_does_not_care_which_shelf_the_paper_sits_on(self):
         """Sharing is not displaying. A shelf says who may find the paper in
         the Library; a link says who may read this PDF, and the link is the
