@@ -81,6 +81,18 @@ global.fetch = async () => { throw new Error('an opened file must remain private
 const { resolveSource } = await import('./source.js');
 const { hydrateCredential } = await import('../../shared/credentials.js');
 
+test('a nook source exposes the content hash before its paper query resolves', () => {
+  const previous = location.search;
+  location.search = `?pdf=${HASH}`;
+  try {
+    const source = resolveSource();
+    assert.equal(source.pdfHash, HASH);
+    assert.equal(source.openedFile, undefined);
+  } finally {
+    location.search = previous;
+  }
+});
+
 test('a standalone file neither reads nor exposes persistent paper state', async () => {
   values.delete('papol.localAccountUuid');
   existingPaper = null;

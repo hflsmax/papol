@@ -43,6 +43,9 @@ function apiSource(
   };
   const source = {
     backHref: appPath('/'),
+    // The desktop blob store is content-addressed, so the viewer can begin
+    // reading these bytes before this source's paper metadata query returns.
+    pdfHash,
     requiresSignIn: true,
     async load() {
       const loaded = await paper();

@@ -25,7 +25,10 @@ if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in document) {
   document.head.append(viewerStyle);
 }
 
-await hydrateCredential().catch(() => {});
+// hydrateCredential reads localStorage synchronously before returning its
+// already-resolved promise. Do not make the whole entry module wait through a
+// top-level-await turn before mounting the real viewer controls.
+void hydrateCredential().catch(() => {});
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

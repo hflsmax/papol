@@ -158,7 +158,6 @@ const INK_SHAPES = [
 ];
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
-const FIRST_PAGE_ONLY = new Set([1]);
 const PAGE_PREVIEW_WIDTH = 320;
 const PAGE_PREVIEW_QUALITY = 0.72;
 
@@ -375,13 +374,26 @@ function savedReadingView() {
 
 export default function App() {
   const source = useMemo(resolveSource, []);
+  const immediatePdfPaper = useMemo(() => {
+    if (source?.openedFile) return source.initialPaper;
+    if (nativeDataActive() && source?.pdfHash) {
+      return { edition_sha256: source.pdfHash };
+    }
+    return null;
+  }, [source]);
+  // File-system viewers do not read or write state keyed to the PDF. Once a
+  // paper is added to the nook, its canonical viewer may remember its place.
+  const readingView = useRef(source?.openedFile
+    ? { key: null, view: null }
+    : savedReadingView());
+  const openingPage = Number(numberParam('page')) || readingView.current.view?.page || 1;
   const [firstPageReady, setFirstPageReady] = useState(false);
   const [firstPageInteractive, setFirstPageInteractive] = useState(false);
-  const [materializedFilePages, setMaterializedFilePages] = useState(() => ({
+  const [materializedPages, setMaterializedPages] = useState(() => ({
     doc: null,
-    pages: FIRST_PAGE_ONLY,
+    pages: new Set([openingPage]),
   }));
-  const [filePagePreviews, setFilePagePreviews] = useState(() => ({
+  const [pagePreviews, setPagePreviews] = useState(() => ({
     doc: null,
     urls: new Map(),
   }));
@@ -697,22 +709,22 @@ export default function App() {
   const [nameDraft, setNameDraft] = useState('');
   const [editText, setEditText] = useState('');
   const scrollerRef = useRef(null);
-  // Do not even mount off-screen local-file pages until the critical first
-  // page has painted. One observer handles every lightweight shell; using an
-  // observer per page would merely exchange pdf.js startup work for browser
-  // observer setup. The generous forward margin makes the next sheet ready
-  // before an ordinary scroll reaches it.
+  // Do not mount off-screen pages. A full PdfPage carries drawing, text,
+  // annotation and gesture effects; mounting one for every page puts that
+  // React/DOM work directly on the opening path of a long nook PDF. One
+  // observer handles every lightweight shell, and the generous forward margin
+  // makes the next sheet ready before an ordinary scroll reaches it.
   useEffect(() => {
     const root = scrollerRef.current;
-    if (!source?.openedFile || !doc || !scale || !firstPageInteractive || !root) return undefined;
+    if (!doc || !scale || !root) return undefined;
     const observer = new IntersectionObserver((entries) => {
       const arrived = entries
         .filter((entry) => entry.isIntersecting)
         .map((entry) => Number(entry.target.dataset.page))
-        .filter((page) => Number.isInteger(page) && page > 1);
+        .filter((page) => Number.isInteger(page) && page > 0);
       if (!arrived.length) return;
-      setMaterializedFilePages((previous) => {
-        const before = previous.doc === doc ? previous.pages : FIRST_PAGE_ONLY;
+      setMaterializedPages((previous) => {
+        const before = previous.doc === doc ? previous.pages : new Set([openingPage]);
         if (arrived.every((page) => before.has(page))) return previous;
         const pages = new Set(before);
         for (const page of arrived) pages.add(page);
@@ -721,19 +733,20 @@ export default function App() {
     }, { root, rootMargin: '125% 50%' });
     for (const shell of root.querySelectorAll('[data-lazy-page]')) observer.observe(shell);
     return () => observer.disconnect();
-  }, [doc, scale, firstPageInteractive, source]);
+  }, [doc, scale, openingPage]);
   // Once page one is completely interactive, warm a tiny retained image for
-  // every page. Full canvases are intentionally released far from the view;
-  // these compressed previews remain underneath them, so a fast scroll never
-  // exposes an empty sheet while the sharp canvas catches up. Preview work
-  // uses the idle lane and visible page drawing always remains the priority.
+  // every page, whether the PDF came from disk or the nook. Full canvases are
+  // intentionally released far from the view; these compressed previews
+  // remain underneath them, so a fast scroll never exposes an empty sheet
+  // while the sharp canvas catches up. Preview work uses the idle lane and
+  // visible page drawing always remains the priority.
   useEffect(() => {
-    if (!source?.openedFile || !doc || !firstPageInteractive) return undefined;
+    if (!doc || !firstPageInteractive) return undefined;
     let cancelled = false;
     const withdraws = [];
     const tasks = new Set();
     const objectUrls = new Set();
-    setFilePagePreviews({ doc, urls: new Map() });
+    setPagePreviews({ doc, urls: new Map() });
 
     for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
       const withdraw = pageRenderQueue().request({
@@ -771,7 +784,7 @@ export default function App() {
           if (!blob || cancelled) return;
           const url = URL.createObjectURL(blob);
           objectUrls.add(url);
-          setFilePagePreviews((previous) => {
+          setPagePreviews((previous) => {
             const urls = new Map(previous.doc === doc ? previous.urls : []);
             urls.set(pageNumber, url);
             if (urls.size === doc.numPages) {
@@ -791,11 +804,6 @@ export default function App() {
       for (const url of objectUrls) URL.revokeObjectURL(url);
     };
   }, [doc, firstPageInteractive, source]);
-  // File-system viewers do not read or write state keyed to the PDF. Once a
-  // paper is added to the nook, its canonical viewer may remember its place.
-  const readingView = useRef(source?.openedFile
-    ? { key: null, view: null }
-    : savedReadingView());
   const readingViewRestored = useRef(false);
   // Anchors placed but not yet acknowledged, keyed by their temporary id.
   const pending = useRef(new Map());
@@ -849,10 +857,11 @@ export default function App() {
     if (paper?.title) document.title = `${paper.title} — Papol`;
   }, [paper?.title]);
 
-  // Files opened by the operating system already have enough identity in the
-  // URL to load their bytes. Start that work alongside annotations and nook
-  // metadata instead of putting those local database reads in front of PDF.js.
-  const pdfPaper = source?.openedFile ? source.initialPaper : paper;
+  // A desktop viewer already has enough content identity in the URL to read
+  // its local blob. Start that work alongside annotations and nook metadata
+  // instead of putting those local database reads in front of PDF.js. Hosted
+  // viewers still wait for the authorized paper response and its file path.
+  const pdfPaper = immediatePdfPaper || paper;
   const pdfIdentity = pdfPaper
     ? `${pdfPaper.opened_file && !pdfPaper.uuid ? 'opened:' : 'paper:'}${pdfPaper.edition_sha256 || ''}`
     : null;
@@ -3231,12 +3240,12 @@ export default function App() {
   }
 
   const pages = doc ? Array.from({ length: doc.numPages }, (_, i) => i + 1) : [];
-  const initiallyVisiblePage = wantedPage || readingView.current.view?.page || 1;
-  const mountedFilePages = materializedFilePages.doc === doc
-    ? materializedFilePages.pages
-    : FIRST_PAGE_ONLY;
-  const pagePreviews = filePagePreviews.doc === doc
-    ? filePagePreviews.urls
+  const initiallyVisiblePage = Number(wantedPage) || readingView.current.view?.page || 1;
+  const mountedPages = materializedPages.doc === doc
+    ? materializedPages.pages
+    : new Set([initiallyVisiblePage]);
+  const previewUrls = pagePreviews.doc === doc
+    ? pagePreviews.urls
     : new Map();
 
   // A percentage once the server has said how big the file is; null while
@@ -3913,19 +3922,19 @@ export default function App() {
                   }}
                 />
               )}
-              {source?.openedFile && !mountedFilePages.has(n) ? (
+              {!mountedPages.has(n) ? (
                 <LazyPageShell
                   pageNumber={n}
                   size={defaultPageSize}
                   scale={scale}
-                  previewUrl={pagePreviews.get(n)}
+                  previewUrl={previewUrls.get(n)}
                 />
               ) : <PdfPage
               doc={doc}
               pageNumber={n}
-              initiallyNear={source?.openedFile || n === initiallyVisiblePage}
+              initiallyNear={n === initiallyVisiblePage}
               initialSize={defaultPageSize}
-              previewUrl={pagePreviews.get(n)}
+              previewUrl={previewUrls.get(n)}
               scale={scale}
               renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}
