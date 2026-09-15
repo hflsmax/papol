@@ -301,9 +301,8 @@ function boundingBoxParam() {
   }
 }
 
-function selectedTextWithoutPdfCitations(selection, scroller) {
-  if (!selection?.rangeCount || selection.isCollapsed || !scroller) return '';
-  const range = selection.getRangeAt(0);
+function selectedTextWithoutPdfCitations(range, scroller) {
+  if (!range || range.collapsed || !scroller) return '';
   const citationBoxes = [...scroller.querySelectorAll('.cite')]
     .map((citation) => citation.getBoundingClientRect())
     .filter((box) => box.width > 0 && box.height > 0);
@@ -494,6 +493,7 @@ export default function App() {
     renderScaleStore.set(renderScale);
   }, [renderScale]);
   const [selectionPaint, setSelectionPaint] = useState(null);
+  const selectionActionsRef = useRef(null);
   const selectionHighlightsByPage = useMemo(() => {
     const byPage = new Map();
     for (const stroke of selectionPaint?.strokes || []) {
@@ -1717,14 +1717,30 @@ export default function App() {
   };
 
   // A browser selection is a collection of visual line fragments, sometimes
-  // spanning columns or pages. Capture it into page-relative geometry as soon
-  // as the drag finishes. Off-screen PDF text layers are rebuilt while the
-  // reader scrolls, which invalidates a native Range; Papol's snapshot remains
-  // selected until the reader starts another selection or uses an action.
+  // spanning columns or pages. Preview its page-relative geometry during the
+  // drag, then finalize it as soon as the drag finishes. Off-screen PDF text
+  // layers are rebuilt while the reader scrolls, which invalidates a native
+  // Range; Papol's snapshot remains selected until the reader starts another
+  // selection or uses an action.
   useEffect(() => {
     let pointerSelecting = false;
     let finishTimer = null;
-    const update = (synchronous = false) => {
+    let captureQueued = false;
+    let textFrame = null;
+    let textTimer = null;
+    let pendingTextRange = null;
+    let captureVersion = 0;
+    let previewingSelection = false;
+    const cancelTextPreparation = () => {
+      captureVersion += 1;
+      if (textFrame != null) cancelAnimationFrame(textFrame);
+      if (textTimer != null) window.clearTimeout(textTimer);
+      textFrame = null;
+      textTimer = null;
+      pendingTextRange?.detach();
+      pendingTextRange = null;
+    };
+    const update = (synchronous = false, finalize = true) => {
       const selection = window.getSelection();
       const scroller = scrollerRef.current;
       if (!selection || selection.isCollapsed || !selection.rangeCount || !scroller) return false;
@@ -1733,7 +1749,8 @@ export default function App() {
       const anchor = elementFor(selection.anchorNode);
       const focusNode = elementFor(selection.focusNode);
       if (!anchor?.closest('.textLayer') || !focusNode?.closest('.textLayer')) return false;
-      const rects = [...selection.getRangeAt(0).getClientRects()];
+      const range = selection.getRangeAt(0);
+      const rects = [...range.getClientRects()];
       const usable = rects.filter((rect) => rect.width > 0.5 && rect.height > 1);
       if (!usable.length) return false;
       const pageBoxes = [...scroller.querySelectorAll('.pdf-page')].map((page) => ({
@@ -1749,52 +1766,104 @@ export default function App() {
       const viewportTop = above >= 8 ? above : Math.min(window.innerHeight - 44, last.bottom + 8);
       const snapshot = {
         strokes,
-        text: selectedTextWithoutPdfCitations(selection, scroller).trim(),
+        text: null,
         left: viewportLeft - scrollerBox.left + scroller.scrollLeft,
         top: viewportTop - scrollerBox.top + scroller.scrollTop,
       };
-      if (synchronous === true) flushSync(() => setSelectionPaint(snapshot));
-      else setSelectionPaint(snapshot);
+      if (synchronous === true) {
+        flushSync(() => setSelectionPaint(snapshot));
+        // WKWebView can defer compositing a newly inserted floating surface
+        // until the next pointer event. A layout read here makes the toolbar
+        // part of the same visual update as the completed selection.
+        selectionActionsRef.current?.getBoundingClientRect();
+      } else {
+        setSelectionPaint(snapshot);
+      }
+      if (!finalize) {
+        previewingSelection = true;
+        return true;
+      }
+      previewingSelection = false;
+      cancelTextPreparation();
+      const textRange = range.cloneRange();
+      const version = captureVersion;
       // The snapshot above now owns both the text and its page geometry. Do
       // not leave the browser Range attached to text-layer nodes that will be
       // discarded when this page scrolls out of the render window.
       selection.removeAllRanges();
+      // Citation-aware text cleanup measures individual characters and can be
+      // expensive for a long selection. Start it only after the browser has
+      // had a chance to paint the already-complete action toolbar.
+      pendingTextRange = textRange;
+      textFrame = requestAnimationFrame(() => {
+        textFrame = null;
+        textTimer = window.setTimeout(() => {
+          textTimer = null;
+          const text = selectedTextWithoutPdfCitations(textRange, scroller).trim();
+          textRange.detach();
+          if (pendingTextRange === textRange) pendingTextRange = null;
+          if (version !== captureVersion) return;
+          setSelectionPaint((current) => current ? { ...current, text } : current);
+        }, 0);
+      });
       return true;
     };
     const selectionChanged = () => {
-      if (!pointerSelecting) update(true);
+      // Mount and position the actions while the drag is still producing a
+      // native Range. By mouseup the surface has already been painted, so a
+      // WebKit compositor delay cannot trail the completed selection.
+      if (pointerSelecting) update(!previewingSelection, false);
+      else update(true);
     };
     const pointerDown = (event) => {
       if (!event.target.closest?.('.textLayer')) return;
       pointerSelecting = true;
+      previewingSelection = false;
+      cancelTextPreparation();
       setSelectionPaint(null);
     };
-    const pointerFinished = () => {
-      if (!pointerSelecting) return;
-      pointerSelecting = false;
+    const captureFinishedSelection = () => {
+      if (captureQueued) return;
+      captureQueued = true;
       // Capture as soon as pointerup dispatch finishes, before the next paint.
       // Waiting for requestAnimationFrame made the actions trail the selection
       // by a visible frame, especially on slower displays.
       queueMicrotask(() => {
+        captureQueued = false;
         if (update(true)) return;
         // WebKit can finish the native Range after the pointer microtask.
         // A zero-delay task is the earliest reliable fallback and still runs
         // before the next user interaction.
+        if (finishTimer != null) window.clearTimeout(finishTimer);
         finishTimer = window.setTimeout(() => update(true), 0);
       });
     };
+    const pointerFinished = () => {
+      if (!pointerSelecting) return;
+      pointerSelecting = false;
+      captureFinishedSelection();
+    };
+    const mouseFinished = () => {
+      // Safari/WebKit finalizes native text selection on mouseup, after its
+      // pointerup range can still be stale. Capture again at that boundary.
+      pointerSelecting = false;
+      captureFinishedSelection();
+    };
     update();
     document.addEventListener('selectionchange', selectionChanged);
-    document.addEventListener('pointerdown', pointerDown);
-    document.addEventListener('pointerup', pointerFinished);
-    document.addEventListener('pointercancel', pointerFinished);
+    window.addEventListener('pointerdown', pointerDown, true);
+    window.addEventListener('pointerup', pointerFinished, true);
+    window.addEventListener('pointercancel', pointerFinished, true);
+    window.addEventListener('mouseup', mouseFinished, true);
     window.addEventListener('resize', update);
     return () => {
       if (finishTimer != null) window.clearTimeout(finishTimer);
+      cancelTextPreparation();
       document.removeEventListener('selectionchange', selectionChanged);
-      document.removeEventListener('pointerdown', pointerDown);
-      document.removeEventListener('pointerup', pointerFinished);
-      document.removeEventListener('pointercancel', pointerFinished);
+      window.removeEventListener('pointerdown', pointerDown, true);
+      window.removeEventListener('pointerup', pointerFinished, true);
+      window.removeEventListener('pointercancel', pointerFinished, true);
+      window.removeEventListener('mouseup', mouseFinished, true);
       window.removeEventListener('resize', update);
     };
   }, [doc, scale, paper?.edition_uuid, source]);
@@ -4073,6 +4142,7 @@ export default function App() {
           )}
           {selectionPaint && (
             <span
+              ref={selectionActionsRef}
               className="selection-actions"
               style={{
                 left: selectionPaint.left,
@@ -4086,14 +4156,22 @@ export default function App() {
                 actions={[
                   {
                     label: 'Paint selected text',
+                    title: selectionPaint.text == null
+                      ? 'Preparing selected text…'
+                      : 'Paint selected text',
                     icon: <ToolGlyph id="brush" />,
                     style: { color: inkColor, '--loaded': inkColor },
+                    disabled: selectionPaint.text == null,
                     onSelect: paintSelection,
                   },
                   {
                     label: 'Send selected text to a board',
+                    title: selectionPaint.text == null
+                      ? 'Preparing selected text…'
+                      : 'Send selected text to a board',
                     icon: <ActionGlyph name="send" />,
                     tone: 'accent',
+                    disabled: selectionPaint.text == null,
                     onSelect: openSendSelection,
                   },
                 ]}

@@ -364,7 +364,7 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
     <span className="clip-actions">
       <ItemActions
         label="Clip actions"
-        placement="right-start"
+        placement="above-end"
         actions={[
           {
             label: clip.floating ? 'Lock clip to paper' : 'Let clip float with the viewport',
@@ -404,18 +404,20 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
     >
       <canvas ref={canvasRef} className="clip-canvas" />
       {actions}
-      <span
-        className="clip-resize"
-        role="button"
-        tabIndex="0"
-        aria-label="Resize clipped view"
-        title="Resize; use arrow keys for precise changes"
-        onKeyDown={resizeWithKeyboard}
-        onPointerDown={(event) => begin(event, 'resize')}
-        onPointerMove={move}
-        onPointerUp={finish}
-        onPointerCancel={finish}
-      />
+      {selected && (
+        <span
+          className="clip-resize"
+          role="button"
+          tabIndex="0"
+          aria-label="Resize clipped view"
+          title="Resize; use arrow keys for precise changes"
+          onKeyDown={resizeWithKeyboard}
+          onPointerDown={(event) => begin(event, 'resize')}
+          onPointerMove={move}
+          onPointerUp={finish}
+          onPointerCancel={finish}
+        />
+      )}
     </aside>
   </>);
 }

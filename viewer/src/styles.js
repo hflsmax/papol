@@ -1078,7 +1078,19 @@ button.link.danger { color: var(--red); }
   position: absolute;
   z-index: 30;
   display: inline-flex;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
+  will-change: transform;
+}
+
+/* WebKit occasionally leaves a newly mounted backdrop-filter surface waiting
+   for a later pointer-driven composite. Selection actions must appear in the
+   same frame as mouseup, so give this transient toolbar an opaque, dedicated
+   compositing surface instead of sharing the generic blurred menu treatment. */
+.selection-actions .item-actions-surface {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--card);
+  transform: translateZ(0);
 }
 
 .provenance-highlight {
