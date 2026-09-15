@@ -2831,10 +2831,6 @@ button.state-pill.none:hover:not(:disabled) {
   letter-spacing: 0.08em;
 }
 
-.admin-message-dialog h3 {
-  margin-bottom: var(--space-3);
-}
-
 .admin-message-content {
   margin-bottom: var(--space-4);
   font-size: var(--fs-lg);

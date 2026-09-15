@@ -28,13 +28,12 @@ export default function AdminMessageDialog({ message, onDismissed }) {
         className="modal-box admin-message-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="admin-message-title"
+        aria-label="Message from Papol"
         tabIndex="-1"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="panel">
           <p className="admin-message-kicker">From Papol</p>
-          <h3 id="admin-message-title">A message for our readers</h3>
           <p className="admin-message-content">{message.content}</p>
           {error && <div className="error" role="alert">{error}</div>}
           <div className="form-actions">
