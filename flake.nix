@@ -143,10 +143,16 @@
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in {
+      # The frontend imports ../shared, which reads ../config/app_limits.json,
+      # so the build gets those folders too and runs from frontend/.
       frontend = pkgs.buildNpmPackage {
         pname = "papol-frontend";
         version = "0.0.1";
-        src = ./frontend;
+        src = pkgs.lib.fileset.toSource {
+          root = ./.;
+          fileset = pkgs.lib.fileset.unions [ ./frontend ./shared ./config ];
+        };
+        sourceRoot = "source/frontend";
         npmDepsHash = "sha256-2BNW5WEI0OoPNgmFI+JKfIKjjYURnWvu7Gh9V6/z+L0=";
         installPhase = ''
           runHook preInstall
