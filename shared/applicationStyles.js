@@ -2061,6 +2061,65 @@ select:disabled { cursor: default; opacity: .65; }
   background: var(--accent-soft);
 }
 
+/* Neither public nor private: handed to particular people, by a link the
+   reader can take back. Gold, which is the colour Papol already uses for
+   a reader's own marks. */
+.visibility-badge.shared {
+  color: var(--gold-ink);
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+}
+
+/* A live link is a state of the paper, so it sits on the page rather than
+   inside the share menu, and stays visible for as long as it is true. */
+.shared-reading-bar {
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  background: var(--gold-soft);
+}
+
+.shared-reading-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.shared-reading-head .visibility-badge {
+  margin-left: 0;
+}
+
+.shared-reading-head p {
+  flex: 1 1 260px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.shared-reading-bar .share-link-row {
+  margin-top: 10px;
+}
+
+.shared-reading-bar .share-link-row input {
+  background: var(--card);
+}
+
+.shared-reading-bar .share-revoke {
+  flex: none;
+  color: var(--red);
+}
+
+.share-reading-label {
+  display: block;
+  margin: 2px 3px 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
 .inline-ratings {
   margin: 10px 0;
 }
@@ -2732,19 +2791,6 @@ select:disabled { cursor: default; opacity: .65; }
   width: auto;
   padding: 5px 9px;
   margin-left: 3px;
-}
-
-.paper-actions .share-reading > button.share-revoke {
-  padding: 0;
-  border: none;
-  box-shadow: none;
-  background: transparent;
-  color: var(--ink-soft);
-}
-
-.paper-actions .share-reading > button.share-revoke:hover:not(:disabled) {
-  background: transparent;
-  color: var(--red);
 }
 
 .signed-out-reviews {

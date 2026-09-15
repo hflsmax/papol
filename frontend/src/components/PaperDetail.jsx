@@ -881,56 +881,20 @@ export default function PaperDetail({
                     {/* The paper URL leads to the paper. This one leads to
                         the reader's own reading of it, which is a different
                         thing to hand someone. */}
-                    {hasEntry && (
+                    {hasEntry && !paper.sharable_uuid && (
                       <div className="share-reading">
-                        <label htmlFor="reading-share-url">Your reading</label>
-                        {paper.sharable_uuid ? (
-                          <>
-                            <div className="share-link-row">
-                              <input
-                                id="reading-share-url"
-                                ref={readingUrlRef}
-                                value={sharableHref(paper.sharable_uuid)}
-                                readOnly
-                                onFocus={(event) => event.target.select()}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => copyLink(
-                                  sharableHref(paper.sharable_uuid), 'reading', readingUrlRef,
-                                )}
-                              >
-                                {copyLabel('reading')}
-                              </button>
-                            </div>
-                            <p className="share-note">
-                              Anyone with this link can read your PDF with your notes,
-                              paint and clips on it. They cannot change anything, and
-                              what they see keeps up with what you write.
-                            </p>
-                            <button
-                              type="button"
-                              className="link share-revoke"
-                              onClick={handleStopSharingReading}
-                            >
-                              Stop sharing
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <p className="share-note">
-                              A read-only link to your PDF with your notes, paint and
-                              clips on it.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={handleShareReading}
-                              disabled={isSharingReading}
-                            >
-                              {isSharingReading ? 'Making a link…' : 'Create a link'}
-                            </button>
-                          </>
-                        )}
+                        <span className="share-reading-label">Your reading</span>
+                        <p className="share-note">
+                          A read-only link to your PDF with your notes, paint and
+                          clips on it.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleShareReading}
+                          disabled={isSharingReading}
+                        >
+                          {isSharingReading ? 'Making a link…' : 'Create a link'}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -938,6 +902,48 @@ export default function PaperDetail({
               </div>
             )}
           </div>
+
+          {/* A link out is a state of this paper, not an item in a menu.
+              It stays on the page so that nothing the reader does to the
+              paper — moving it to a private shelf, above all — can quietly
+              leave a link serving that they have forgotten about. */}
+          {hasEntry && paper.sharable_uuid && (
+            <div className="shared-reading-bar">
+              <div className="shared-reading-head">
+                <span className="visibility-badge shared">shared by link</span>
+                <p>
+                  Anyone with this link can read this PDF with your notes, paint
+                  and clips on it. They cannot change anything, and what they see
+                  keeps up with what you write.
+                </p>
+              </div>
+              <div className="share-link-row">
+                <input
+                  id="reading-share-url"
+                  aria-label="Link to your reading"
+                  ref={readingUrlRef}
+                  value={sharableHref(paper.sharable_uuid)}
+                  readOnly
+                  onFocus={(event) => event.target.select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => copyLink(
+                    sharableHref(paper.sharable_uuid), 'reading', readingUrlRef,
+                  )}
+                >
+                  {copyLabel('reading')}
+                </button>
+                <button
+                  type="button"
+                  className="share-revoke"
+                  onClick={handleStopSharingReading}
+                >
+                  Stop sharing
+                </button>
+              </div>
+            </div>
+          )}
 
           {!currentUser && (paper.also_read_by || []).length > 0 && (
             <p className="signed-out-reviews">
@@ -1183,6 +1189,7 @@ export default function PaperDetail({
 
           <CommentSection
             paperUuid={paper.uuid}
+            shared={Boolean(paper.sharable_uuid)}
             comments={(paper.comments || []).filter((c) => c.content)}
             noteHref={noteHref}
             onOpenNote={onRead}
