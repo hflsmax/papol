@@ -74,6 +74,19 @@ const SIGN_IN_PAGES = new Set([
   'space', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
+// The macOS application is signed, notarized, and attached to this project's
+// GitHub releases by .github/workflows/desktop-macos.yml.
+const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
+const MACOS_BANNER_DISMISSAL_KEY = 'papol.macosDownloadBannerDismissed';
+
+function macosBannerWasDismissed() {
+  try {
+    return window.localStorage.getItem(MACOS_BANNER_DISMISSAL_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function navigate(path, { replace = false } = {}) {
   const destination = demoActive() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
@@ -157,6 +170,9 @@ export default function App({ startupUser = null, startupError = null }) {
     window.sessionStorage.removeItem('papol.viewerReturn');
     return returnedFromViewer;
   });
+  const [showMacosDownloadBanner, setShowMacosDownloadBanner] = useState(
+    () => !DESKTOP && !macosBannerWasDismissed(),
+  );
 
   // State-machine precedence is deliberate: an explicit demo URL wins;
   // otherwise a real authenticated reader wins; guest is only the public
@@ -607,6 +623,30 @@ export default function App({ startupUser = null, startupError = null }) {
     </div>
   );
 
+  const macosDownloadBanner = showMacosDownloadBanner && (
+    <div className="macos-download-banner" role="status">
+      <span>Papol is now available as a Mac app.</span>
+      <a href={MACOS_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+        Download for macOS
+      </a>
+      <button
+        type="button"
+        className="macos-download-banner-dismiss"
+        aria-label="Dismiss macOS app announcement"
+        onClick={() => {
+          try {
+            window.localStorage.setItem(MACOS_BANNER_DISMISSAL_KEY, '1');
+          } catch {
+            // The banner can still be dismissed for this visit when storage is unavailable.
+          }
+          setShowMacosDownloadBanner(false);
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+
   const feedbackDialog = feedbackRequest && (
     <FeedbackDialog
       key={feedbackRequest.key}
@@ -825,6 +865,7 @@ export default function App({ startupUser = null, startupError = null }) {
       <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
       {demoIntro}
       {adminMessageDialog}
+      {macosDownloadBanner}
       {demoBanner}
       <button
         type="button"
@@ -864,6 +905,9 @@ export default function App({ startupUser = null, startupError = null }) {
             </a>
             <a href={appPath('/learn')} className={route.page === 'learn' ? 'active' : ''}>
               Learn
+            </a>
+            <a href={MACOS_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+              Download macOS
             </a>
           </nav>
           <span className="spacer" />

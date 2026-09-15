@@ -434,6 +434,46 @@ input[type='checkbox'] {
   font-size: var(--fs-sm);
 }
 
+.macos-download-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 7px 44px 7px 16px;
+  position: relative;
+  background: var(--accent);
+  color: var(--ink-inverse);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+
+.macos-download-banner a {
+  color: inherit;
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
+.macos-download-banner-dismiss {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.macos-download-banner-dismiss:hover {
+  background: color-mix(in srgb, var(--ink-inverse) 18%, transparent);
+}
+
 .demo-banner-actions {
   display: inline-flex;
   align-items: center;
