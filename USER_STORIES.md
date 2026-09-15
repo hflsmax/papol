@@ -9,7 +9,7 @@ Vocabulary ("The Nook" theme):
 - **On display** — an entry the host shows to other readers; hidden entries are visible only to their host.
 - **Located note** — a private note with a place in the PDF attached. Not a separate kind of thing: the same note, pinned.
 - **Edition** — one PDF file of a paper. A paper may have several; each reader's copy is pinned to the one they read, and only they can move it.
-- **Sharable** — a link to one reader's reading of one edition. The UUID in the link is the whole of the permission: whoever holds it may read, signed in or not. A **rich** link carries the reader's marks; a **lean** link carries the PDF alone.
+- **Sharable** — a link that opens a PDF in the viewer for whoever holds it, signed in or not: the UUID in the link is the whole of the permission. A **rich** link carries one reader's reading — their marks on that edition — and is theirs. A **lean** link carries the PDF alone, is one per edition, and is nobody's.
 - **Call** — requesting a spontaneous seminar on a paper; it notifies every reader of that paper.
 - **Cohort** — the group where a called seminar is planned: leader, availability, platform, discussion. A seminar moves through three named states, used consistently across the app: **called** (waiting for a leader) → **planning** (leader took charge) → **scheduled** (time and platform announced).
 - **Leader** — the reader who answers a call and takes charge of the seminar.
@@ -92,14 +92,14 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 ## 7c. Sharing a reading
 
 - **US-7.13** As a reader, I can hand someone a **link to the PDF I am reading**, from the Share menu on the paper page. It opens the PDF in Papol's viewer, read-only, for anyone holding it — no account, no sign-in.
-- **US-7.14** When I make the link I choose, with one tick box, whether **my notes, paint and clips travel with it**. It is off by default: handing over my marks is a thing to choose, not a thing to find out I have done. A link with them is a *reading*; a link without is the *paper*.
-- **US-7.15** A link is one or the other for its whole life. I have **one live link per edition I read** — asking again gives me the same link back, not a second one, and asking for the other kind is refused until I stop sharing.
-- **US-7.16** What a visitor sees is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding the link. They see the PDF, my name, my marks if the link carries them, and the paper's bibliography — and nothing else in my nook.
+- **US-7.14** One tick box decides **what the link carries, and therefore whose it is**. Left alone, I get the PDF's own link: the same link for everyone, carrying the paper and naming nobody — I copy it and pass it on, and that is the end of my part in it. Ticked, Papol makes **my** link, carrying my notes, paint and clips.
+- **US-7.15** A link is one or the other for its whole life. I have **one link of my own per edition I read** — asking again gives it back rather than making a second — and the PDF's own link is beside it, not instead of it: having handed over one is never a reason to be refused the other.
+- **US-7.16** What a visitor sees through my link is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding it. They see the PDF, my name, my marks, and the paper's bibliography — and nothing else in my nook. Through the PDF's own link they see the paper and no reader at all.
 - **US-7.17** **Sharing is not displaying.** A shelf says who can find the paper in the Library; a link says who may read this PDF. I can share a paper nobody else can find, and moving it between a public and a private shelf never changes a link I have already handed out.
-- **US-7.18** If I **take the paper out of my nook**, the reading the link named is gone, so the link becomes paper-only rather than dying — and permanently: putting the paper back does not quietly re-expose my marks to everyone still holding it.
-- **US-7.19** **Stopping** asks what I mean, when there is something to ask: I can *drop my marks* and leave the link working for whoever has it, or *close the link* so it stops opening. Closing is final — sharing again mints a new link, and the old one stays dead. Whoever follows a closed link is told it is no longer shared, not that it never existed.
-- **US-7.20** A live link is a **state of the paper, shown on its page** — not something buried in a menu — so nothing I do to the paper can leave a link serving that I have forgotten about.
-- **US-7.21** While a link is out, Papol **will not move my copy to another edition**: the link opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. Waving the newer edition away still works — it decides nothing about the PDF.
+- **US-7.18** If I **take the paper out of my nook**, my link keeps opening the PDF but stops carrying the reading — permanently, so putting the paper back does not quietly re-expose my marks — and stops being mine along with them.
+- **US-7.19** **Stopping** asks what I mean: *drop my marks*, which leaves the link working for whoever has it and hands it out of my keeping for good, or *close the link*, which stops it opening. Closing is final — sharing again mints a new link, and the old one stays dead. Whoever follows a closed link is told it is no longer shared, not that it never existed.
+- **US-7.20** **A link of mine is a state of the paper, shown on its page**, so nothing I do can leave one serving that I have forgotten about. The PDF's own link is never shown there and never counted against me: I am not told whether one exists, because nothing of mine is in it.
+- **US-7.21** While a link **of mine** is out, Papol will not move my copy to another edition: it opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. The PDF's own link is no obstacle — it says "here is this PDF", which stays true wherever I move.
 
 ## Non-functional
 

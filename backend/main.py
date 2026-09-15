@@ -1852,15 +1852,16 @@ def _paper_detail(
             for c in sorted(paper.comments, key=lambda c: (c.created_at, c.uuid))
             if c.user_uuid == viewer.uuid and c.deleted_at is None
         ]
-        # The link this reader already has out for the edition they read,
-        # so their share menu opens showing it rather than offering to make
-        # a second one.
+        # The link this reader already has out on the edition they read, so
+        # their share menu opens showing it rather than offering to make a
+        # second one. Only ever a link carrying their marks: the paper's own
+        # link is nobody's, and telling them one exists would make it sound
+        # like something of theirs is out.
         shared = (
             live_sharable_for(db, viewer, selected_edition.uuid)
             if selected_edition else None
         )
         detail.sharable_uuid = shared.uuid if shared else None
-        detail.sharable_kind = shared.kind if shared else None
     detail.also_read_by = [_reader_entry(r) for r in displayed_copies(paper)]
 
     detail.rooms = [
@@ -2523,12 +2524,11 @@ async def adopt_paper_edition(
     one is named. Only the reader may do this: located notes were placed
     on the file they had, and on a different PDF they may not line up.
 
-    A link out on the PDF they are leaving stops the move and says so. The
-    link names that reading and would go on opening it, out of sight of a
-    paper page that now shows a different edition — so the reader is asked
-    to close the link themselves rather than have one quietly left behind
-    or, worse, have a colleague's link moved onto a file they were never
-    given."""
+    A link carrying this reader's marks stops the move and says so: it names
+    that reading and would go on opening it, out of sight of a paper page
+    that now shows a different edition. A link carrying the paper alone is
+    not theirs to be stopped by — it says "here is this PDF", which stays
+    true however they move — so it does not stand in the way."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
 
@@ -2539,8 +2539,9 @@ async def adopt_paper_edition(
         raise HTTPException(
             status_code=409,
             detail=(
-                "Stop sharing this paper first. The link you handed out "
-                "opens the PDF you are reading now."
+                "Stop sharing your reading of this paper first. The link you "
+                "handed out opens the PDF you are reading now, with your marks "
+                "on it."
             ),
         )
     user_copy.edition_uuid = edition.uuid

@@ -25,7 +25,13 @@ async def create_sharable(
     What is shared is the edition they are reading now, so the link opens
     the file their notes and ink are actually on. Adopting a newer edition
     later does not move the link: it was this reading that was given away.
-    """
+
+    With the marks, the answer is their own link, made once and found again
+    on every later ask. Without them, it is the edition's link — the same
+    URL whoever asks — and asking for it is how a reader gets hold of it to
+    pass on, not a thing that happens to the paper. Either ask may be made
+    while the other link is out: they are different links to different
+    things, and neither is in the other's way."""
     paper = db.query(Paper).filter(
         Paper.uuid == paper_uuid, Paper.deleted_at.is_(None),
     ).first()
@@ -46,15 +52,9 @@ async def create_sharable(
             status_code=409, detail="This paper has no readable PDF to share",
         )
     kind = RICH if (data and data.include_marks) else LEAN
-    sharable = share_reading(db, current_user, copy, edition, kind)
-    if sharable.kind != kind:
-        # A link is one thing or the other for its whole life, so there is
-        # nothing to do here but say so: stop sharing, then share again.
-        raise HTTPException(
-            status_code=409,
-            detail="This paper already has a link. Stop sharing it first.",
-        )
-    return SharableOut.model_validate(sharable)
+    return SharableOut.model_validate(
+        share_reading(db, current_user, copy, edition, kind),
+    )
 
 
 @router.post("/api/sharables/{sharable_uuid}/lean", response_model=SharableOut)
@@ -81,7 +81,11 @@ async def revoke_sharable(
     db: Session = Depends(get_db),
 ):
     """Take a link back. Anyone still holding it is told it is no longer
-    shared, rather than that it never existed."""
+    shared, rather than that it never existed.
+
+    Only a link that is someone's can be taken back, and only by them. A
+    link to the paper alone is nobody's: there is no one it would be
+    answering to, and no one it is out of place with."""
     sharable = db.query(Sharable).filter(Sharable.uuid == sharable_uuid).first()
     if sharable is None or sharable.user_uuid != current_user.uuid:
         raise HTTPException(status_code=404, detail="Sharable not found")
