@@ -137,6 +137,9 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
           // Whose reading this is, so the viewer can say so. It is the one
           // thing on the page that is about a person rather than a paper.
           shared_by: shared.reader,
+          // A lean link shares the paper and nothing of theirs, so it is
+          // not a reading and must not be named as one.
+          shared_kind: shared.kind,
           editions: [edition],
           latest_edition: edition,
         },

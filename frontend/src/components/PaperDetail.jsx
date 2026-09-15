@@ -4,7 +4,7 @@ import {
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../../../shared/api/papers.js';
 import {
-  createSharable, revokeSharable, sharableHref,
+  createSharable, leanSharable, revokeSharable, sharableHref,
 } from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import CommentSection from './CommentSection';
@@ -52,6 +52,12 @@ export default function PaperDetail({
   const [shareCopied, setShareCopied] = useState({ target: null, status: 'idle' });
   const [shareOpen, setShareOpen] = useState(false);
   const [isSharingReading, setIsSharingReading] = useState(false);
+  // Off to begin with. Handing someone your private notes is a thing to
+  // choose, not a thing to find out you have done.
+  const [shareIncludesMarks, setShareIncludesMarks] = useState(false);
+  // Set while the reader is being asked what "stop sharing" should mean for
+  // a link that carries their marks.
+  const [stoppingShare, setStoppingShare] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
   const pdfInputRef = useRef(null);
   const readControlRef = useRef(null);
@@ -312,8 +318,12 @@ export default function PaperDetail({
     setError(null);
     setIsSharingReading(true);
     try {
-      const sharable = await createSharable(paper.uuid);
-      setPaper((current) => ({ ...current, sharable_uuid: sharable.uuid }));
+      const sharable = await createSharable(paper.uuid, {
+        includeMarks: shareIncludesMarks,
+      });
+      setPaper((current) => ({
+        ...current, sharable_uuid: sharable.uuid, sharable_kind: sharable.kind,
+      }));
       copyLink(sharableHref(sharable.uuid), 'reading', readingUrlRef);
     } catch (err) {
       setError(err?.message || String(err));
@@ -325,19 +335,47 @@ export default function PaperDetail({
     }
   };
 
-  const handleStopSharingReading = async () => {
+  // Taking a link back and taking your marks out of it are different
+  // things, and a link that carries marks can do either. Asking is what
+  // stops someone breaking a colleague's link when all they wanted was
+  // their notes back.
+  const handleStopSharing = async () => {
+    if (paper.sharable_kind === 'rich') {
+      setStoppingShare(true);
+      return;
+    }
     if (!(await confirmAction(
-      'Stop sharing your reading? The link you gave out stops working.',
+      'Stop sharing this paper? The link you gave out stops working.',
       { confirmLabel: 'Stop sharing', destructive: true },
     ))) return;
+    revokeShare();
+  };
+
+  const revokeShare = async () => {
     setError(null);
+    setStoppingShare(false);
     try {
       await revokeSharable(paper.sharable_uuid);
-      setPaper((current) => ({ ...current, sharable_uuid: null }));
+      setPaper((current) => ({ ...current, sharable_uuid: null, sharable_kind: null }));
+      setShareIncludesMarks(false);
     } catch (err) {
       setError(err?.message || String(err));
       if (err?.reportable !== false) {
         onReportableError?.(err, 'stopping the sharing of a reading');
+      }
+    }
+  };
+
+  const dropSharedMarks = async () => {
+    setError(null);
+    try {
+      const leaned = await leanSharable(paper.sharable_uuid);
+      setPaper((current) => ({ ...current, sharable_kind: leaned.kind }));
+      setStoppingShare(false);
+    } catch (err) {
+      setError(err?.message || String(err));
+      if (err?.reportable !== false) {
+        onReportableError?.(err, 'dropping marks from a shared link');
       }
     }
   };
@@ -883,11 +921,20 @@ export default function PaperDetail({
                         thing to hand someone. */}
                     {hasEntry && !paper.sharable_uuid && (
                       <div className="share-reading">
-                        <span className="share-reading-label">Your reading</span>
+                        <span className="share-reading-label">This PDF</span>
                         <p className="share-note">
-                          A read-only link to your PDF with your notes, paint and
-                          clips on it.
+                          A read-only link that opens this PDF in Papol's viewer.
                         </p>
+                        {/* The one decision worth making here, named by what
+                            it gives away rather than by what we call it. */}
+                        <label className="share-marks-choice">
+                          <input
+                            type="checkbox"
+                            checked={shareIncludesMarks}
+                            onChange={(event) => setShareIncludesMarks(event.target.checked)}
+                          />
+                          Include my notes, paint and clips
+                        </label>
                         <button
                           type="button"
                           onClick={handleShareReading}
@@ -910,11 +957,22 @@ export default function PaperDetail({
           {hasEntry && paper.sharable_uuid && (
             <div className="shared-reading-bar">
               <div className="shared-reading-head">
-                <span className="visibility-badge shared">shared by link</span>
+                <span className="visibility-badge shared">
+                  {paper.sharable_kind === 'rich' ? 'reading shared' : 'paper shared'}
+                </span>
                 <p>
-                  Anyone with this link can read this PDF with your notes, paint
-                  and clips on it. They cannot change anything, and what they see
-                  keeps up with what you write.
+                  {paper.sharable_kind === 'rich' ? (
+                    <>
+                      Anyone with this link can read this PDF with your notes, paint
+                      and clips on it. They cannot change anything, and what they see
+                      keeps up with what you write.
+                    </>
+                  ) : (
+                    <>
+                      Anyone with this link can read this PDF. Your notes, paint and
+                      clips are not part of it.
+                    </>
+                  )}
                 </p>
               </div>
               <div className="share-link-row">
@@ -937,11 +995,37 @@ export default function PaperDetail({
                 <button
                   type="button"
                   className="share-revoke"
-                  onClick={handleStopSharingReading}
+                  onClick={handleStopSharing}
                 >
                   Stop sharing
                 </button>
               </div>
+              {/* Asked rather than assumed: dropping the marks keeps the
+                  link alive for whoever was given it, and closing the link
+                  does not. Only a link carrying marks has both to offer. */}
+              {stoppingShare && (
+                <div className="shared-reading-ask" role="group" aria-label="Stop sharing">
+                  <p>
+                    Keep the link and take your notes, paint and clips out of it,
+                    or close the link altogether?
+                  </p>
+                  <div className="shared-reading-ask-actions">
+                    <button type="button" className="primary" onClick={dropSharedMarks}>
+                      Share the paper only
+                    </button>
+                    <button type="button" onClick={revokeShare}>
+                      Close the link
+                    </button>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setStoppingShare(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1189,7 +1273,7 @@ export default function PaperDetail({
 
           <CommentSection
             paperUuid={paper.uuid}
-            shared={Boolean(paper.sharable_uuid)}
+            shared={paper.sharable_kind === 'rich'}
             comments={(paper.comments || []).filter((c) => c.content)}
             noteHref={noteHref}
             onOpenNote={onRead}

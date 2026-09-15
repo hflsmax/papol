@@ -7,6 +7,7 @@ const HASH = 'b'.repeat(64);
 
 const reading = {
   uuid: SHARE,
+  kind: 'rich',
   created_at: '2026-09-01T10:00:00',
   reader: { uuid: '33333333-3333-4333-8333-333333333333', display_name: 'Ada Lovelace' },
   paper: {
@@ -83,6 +84,7 @@ test('a shared reading carries the paper, the reader, and their marks', async ()
     uuid: EDITION, file_path: `${HASH}.pdf`, sha256: HASH,
   });
   assert.equal(doc.shared_by.display_name, 'Ada Lovelace');
+  assert.equal(doc.shared_kind, 'rich');
   assert.deepEqual(notes, reading.notes);
   assert.deepEqual(await source.ink.list(EDITION), reading.ink);
   assert.deepEqual(await source.clips.list(EDITION), reading.clips);
@@ -107,6 +109,25 @@ test('a shared reading reads its bibliography on the authority of the link', asy
   assert.equal(url.pathname, `/api/viewer-references/${HASH}`);
   assert.equal(url.searchParams.get('share'), SHARE);
   assert.equal(url.searchParams.get('edition_uuid'), EDITION);
+});
+
+test('a lean link carries the paper and none of the reader\u2019s marks', async () => {
+  const rich = { ...reading };
+  Object.assign(reading, { kind: 'lean', notes: [], ink: [], clips: [] });
+  try {
+    const source = resolveSource();
+    const { doc, notes } = await source.load();
+
+    // The viewer reads shared_kind to decide whether to name a reading at
+    // all: a lean link was handed over by someone, but is not theirs.
+    assert.equal(doc.shared_kind, 'lean');
+    assert.equal(doc.shared_by.display_name, 'Ada Lovelace');
+    assert.deepEqual(notes, []);
+    assert.deepEqual(await source.ink.list(EDITION), []);
+    assert.deepEqual(await source.clips.list(EDITION), []);
+  } finally {
+    Object.assign(reading, rich);
+  }
 });
 
 test('a demo viewer never follows a share link', () => {

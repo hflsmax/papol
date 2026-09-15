@@ -2,9 +2,11 @@ from auth import get_current_user
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from models import Paper, Sharable, User
-from schemas import SharableOut, SharedReading
+from schemas import SharableCreate, SharableOut, SharedReading
 from services.editions import edition_for
-from services.sharables import open_sharable, revoke, share_reading, shared_reading
+from services.sharables import (
+    LEAN, RICH, make_lean, open_sharable, revoke, share_reading, shared_reading,
+)
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -14,10 +16,11 @@ router = APIRouter()
 @router.post("/api/papers/{paper_uuid}/sharable", response_model=SharableOut)
 async def create_sharable(
     paper_uuid: str,
+    data: SharableCreate | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Hand out this reader's reading of this paper.
+    """Hand out this paper, with or without this reader's marks on it.
 
     What is shared is the edition they are reading now, so the link opens
     the file their notes and ink are actually on. Adopting a newer edition
@@ -42,7 +45,33 @@ async def create_sharable(
         raise HTTPException(
             status_code=409, detail="This paper has no readable PDF to share",
         )
-    return SharableOut.model_validate(share_reading(db, current_user, copy, edition))
+    kind = RICH if (data and data.include_marks) else LEAN
+    sharable = share_reading(db, current_user, copy, edition, kind)
+    if sharable.kind != kind:
+        # A link is one thing or the other for its whole life, so there is
+        # nothing to do here but say so: stop sharing, then share again.
+        raise HTTPException(
+            status_code=409,
+            detail="This paper already has a link. Stop sharing it first.",
+        )
+    return SharableOut.model_validate(sharable)
+
+
+@router.post("/api/sharables/{sharable_uuid}/lean", response_model=SharableOut)
+async def lean_sharable(
+    sharable_uuid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Drop this reader's marks from a link they have already handed out.
+
+    The link keeps working, so nobody is left holding a dead URL; what it
+    opens is the paper alone from now on."""
+    sharable = db.query(Sharable).filter(Sharable.uuid == sharable_uuid).first()
+    if (sharable is None or sharable.user_uuid != current_user.uuid
+            or sharable.revoked_at is not None):
+        raise HTTPException(status_code=404, detail="Sharable not found")
+    return SharableOut.model_validate(make_lean(db, sharable))
 
 
 @router.delete("/api/sharables/{sharable_uuid}", status_code=204)

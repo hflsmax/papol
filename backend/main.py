@@ -1863,6 +1863,7 @@ def _paper_detail(
             if selected_edition else None
         )
         detail.sharable_uuid = shared.uuid if shared else None
+        detail.sharable_kind = shared.kind if shared else None
     detail.also_read_by = [_reader_entry(r) for r in _displayed_copies(paper)]
 
     detail.rooms = [

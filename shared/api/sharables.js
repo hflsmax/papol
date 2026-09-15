@@ -1,5 +1,5 @@
 import { appPath } from '../appUrls.js';
-import { request } from '../httpClient.js';
+import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
 
 // ---------- Sharables (a reader's reading of one edition, given by link) ----------
@@ -9,8 +9,16 @@ import { onServer } from './serverOperation.js';
 // nothing for the local replica to answer. Desktop callers publish their
 // pending work first, since the link names notes and ink that must have
 // arrived before anyone follows it.
-export function createSharable(paperUuid) {
-  return onServer(() => request(`/papers/${paperUuid}/sharable`, { method: 'POST' }));
+export function createSharable(paperUuid, { includeMarks = false } = {}) {
+  return onServer(() => jsonRequest(
+    `/papers/${paperUuid}/sharable`, 'POST', { include_marks: includeMarks },
+  ));
+}
+
+// Downwards only: a link that has been lean is never enriched again,
+// because the people holding it were not promised the marks.
+export function leanSharable(sharableUuid) {
+  return onServer(() => request(`/sharables/${sharableUuid}/lean`, { method: 'POST' }));
 }
 
 export function revokeSharable(sharableUuid) {

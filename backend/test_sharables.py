@@ -1,5 +1,6 @@
 import json
 import unittest
+from datetime import datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -137,10 +138,35 @@ class SharableTests(unittest.TestCase):
             self.shared_edition_uuid = shared.uuid
         type(self).current_user_uuid = self.reader_uuid
 
-    def share(self):
-        made = self.client.post(f"/api/papers/{self.paper_uuid}/sharable")
+    def share(self, include_marks=True):
+        made = self.client.post(
+            f"/api/papers/{self.paper_uuid}/sharable",
+            json={"include_marks": include_marks},
+        )
         self.assertEqual(made.status_code, 200, made.text)
         return made.json()
+
+    def test_a_link_carries_marks_only_when_its_maker_said_so(self):
+        lean = self.share(include_marks=False)
+        self.assertEqual(lean["kind"], "lean")
+
+        opened = self.client.get(f"/api/shared/{lean['uuid']}").json()
+        self.assertEqual(opened["kind"], "lean")
+        self.assertEqual(opened["paper"]["edition_sha256"], SHARED_HASH)
+        self.assertEqual(opened["notes"], [])
+        self.assertEqual(opened["ink"], [])
+        self.assertEqual(opened["clips"], [])
+
+    def test_the_quiet_link_is_what_an_unasked_request_gets(self):
+        made = self.client.post(f"/api/papers/{self.paper_uuid}/sharable")
+        self.assertEqual(made.json()["kind"], "lean")
+
+    def test_a_paper_has_one_link_at_a_time_whatever_it_carries(self):
+        self.assertEqual(self.share(include_marks=False)["kind"], "lean")
+        clash = self.client.post(
+            f"/api/papers/{self.paper_uuid}/sharable", json={"include_marks": True},
+        )
+        self.assertEqual(clash.status_code, 409)
 
     def test_a_sharable_names_the_edition_its_maker_reads(self):
         made = self.share()
@@ -239,27 +265,45 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/shared/{first['uuid']}").status_code, 404)
         self.assertEqual(self.client.get(f"/api/shared/{second['uuid']}").status_code, 200)
 
-    def test_leaving_the_nook_empties_the_reading_without_closing_the_link(self):
+    def test_leaving_the_nook_turns_a_rich_link_lean(self):
         made = self.share()
+        self.assertEqual(made["kind"], "rich")
         removed = self.client.delete(f"/api/papers/{self.paper_uuid}")
         self.assertEqual(removed.status_code, 200, removed.text)
 
         opened = self.client.get(f"/api/shared/{made['uuid']}")
 
         # The link still opens the PDF that was shared, under the name of
-        # the reader who shared it. There is simply no longer a reading on
-        # it — including the paint, which removal leaves in place.
+        # the reader who shared it. What it no longer carries is the reading
+        # — including the paint, which removal leaves in place untouched.
         self.assertEqual(opened.status_code, 200, opened.text)
         reading = opened.json()
+        self.assertEqual(reading["kind"], "lean")
         self.assertEqual(reading["reader"]["display_name"], "Ada")
         self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
         self.assertEqual(reading["notes"], [])
         self.assertEqual(reading["ink"], [])
         self.assertEqual(reading["clips"], [])
 
-    def test_taking_the_paper_back_brings_the_reading_back(self):
+    def test_a_synchronized_delete_demotes_the_link_too(self):
+        # Papol Desktop removes a paper by synchronizing a deleted copy, and
+        # never calls the endpoint above. Both roads have to end up here.
+        made = self.share()
+        with self.Session() as db:
+            copy = db.query(Copy).filter(
+                Copy.user_uuid == self.reader_uuid, Copy.paper_uuid == self.paper_uuid,
+            ).one()
+            copy.deleted_at = datetime.utcnow()
+            db.commit()
+
+        self.assertEqual(
+            self.client.get(f"/api/shared/{made['uuid']}").json()["kind"], "lean",
+        )
+
+    def test_taking_the_paper_back_does_not_re_enrich_a_demoted_link(self):
         made = self.share()
         self.client.delete(f"/api/papers/{self.paper_uuid}")
+        self.client.get(f"/api/shared/{made['uuid']}")
         with self.Session() as db:
             copy = db.query(Copy).filter(
                 Copy.user_uuid == self.reader_uuid, Copy.paper_uuid == self.paper_uuid,
@@ -267,10 +311,45 @@ class SharableTests(unittest.TestCase):
             copy.deleted_at = None
             db.commit()
 
+        # The demotion is written down, so whoever is still holding this
+        # link does not silently get the marks back.
         reading = self.client.get(f"/api/shared/{made['uuid']}").json()
+        self.assertEqual(reading["kind"], "lean")
+        self.assertEqual(reading["ink"], [])
+        self.assertEqual(reading["clips"], [])
 
-        self.assertEqual(len(reading["ink"]), 1)
-        self.assertEqual(len(reading["clips"]), 1)
+    def test_a_rich_link_can_drop_its_marks_instead_of_closing(self):
+        made = self.share()
+        self.assertEqual(made["kind"], "rich")
+
+        leaned = self.client.post(f"/api/sharables/{made['uuid']}/lean")
+
+        self.assertEqual(leaned.status_code, 200, leaned.text)
+        self.assertEqual(leaned.json()["kind"], "lean")
+        self.assertEqual(leaned.json()["uuid"], made["uuid"])
+        # The same link, still opening, carrying the paper and nothing else.
+        reading = self.client.get(f"/api/shared/{made['uuid']}").json()
+        self.assertEqual(reading["kind"], "lean")
+        self.assertEqual(reading["notes"], [])
+        self.assertEqual(reading["ink"], [])
+        self.assertEqual(reading["clips"], [])
+
+    def test_dropping_marks_is_one_way(self):
+        made = self.share()
+        self.client.post(f"/api/sharables/{made['uuid']}/lean")
+        # Nothing offers to put them back; asking again is simply a no-op.
+        again = self.client.post(f"/api/sharables/{made['uuid']}/lean")
+        self.assertEqual(again.json()["kind"], "lean")
+
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        self.assertEqual(detail["sharable_kind"], "lean")
+        self.assertEqual(detail["sharable_uuid"], made["uuid"])
+
+    def test_only_its_maker_may_drop_the_marks_from_a_link(self):
+        made = self.share()
+        type(self).current_user_uuid = self.stranger_uuid
+        refused = self.client.post(f"/api/sharables/{made['uuid']}/lean")
+        self.assertEqual(refused.status_code, 404)
 
     def test_only_its_maker_may_take_a_link_back(self):
         made = self.share()

@@ -7,9 +7,15 @@ permission, so everything here is about establishing that the UUID is live
 and then answering with exactly the reading it names, and nothing else in
 that reader's nook.
 
+A link carries one of two things. A *rich* link carries the reading: the PDF
+with this reader's notes, ink and clips on it. A *lean* link carries the PDF
+alone — here is the paper, and nothing of mine. Which one a link is gets
+decided when it is made, and never rises afterwards.
+
 The reading is named rather than copied, so what a visitor sees is what the
-reader has now — down to nothing at all, once they no longer keep the paper.
-Revoking is what closes the link itself.
+reader has now. Take the paper out of the nook and the reading a rich link
+named no longer exists, so the link becomes lean instead of dying: the paper
+is what remains of it. Revoking is what closes a link altogether.
 """
 
 from datetime import datetime
@@ -20,9 +26,18 @@ from services.annotations import anchor_of, clip_out, stroke_out
 from sqlalchemy.orm import Session
 
 
+RICH = "rich"
+LEAN = "lean"
+
+
 def open_sharable(db: Session, sharable_uuid: str) -> Sharable | None:
     """The live sharable named by a link, or None if there is no such link
-    or its maker has taken it back."""
+    or its maker has taken it back.
+
+    Every link comes through here, which is why the demotion lives here too:
+    a paper can leave a nook down two different roads — the web endpoint and
+    a synchronized delete from the desktop — and only this one is common to
+    both."""
     if not sharable_uuid:
         return None
     sharable = (
@@ -36,6 +51,11 @@ def open_sharable(db: Session, sharable_uuid: str) -> Sharable | None:
     # tombstone; nothing of theirs is handed out under their name again.
     if sharable.user is None or sharable.user.is_deleted:
         return None
+    if sharable.kind == RICH and not _still_in_their_nook(db, sharable):
+        # Written down rather than worked out on each read, so that putting
+        # the paper back cannot quietly re-enrich a link already handed out.
+        sharable.kind = LEAN
+        db.commit()
     return sharable
 
 
@@ -53,7 +73,9 @@ def live_sharable_for(db: Session, user: User, edition_uuid: str) -> Sharable | 
     )
 
 
-def share_reading(db: Session, user: User, copy: Copy, edition: PaperEdition) -> Sharable:
+def share_reading(
+    db: Session, user: User, copy: Copy, edition: PaperEdition, kind: str = LEAN,
+) -> Sharable:
     """The link for this reader's reading of this edition, made if needed.
 
     Asking twice gives the same link back rather than a second one: a reader
@@ -65,6 +87,7 @@ def share_reading(db: Session, user: User, copy: Copy, edition: PaperEdition) ->
     if existing is not None:
         return existing
     sharable = Sharable(
+        kind=kind,
         user_uuid=user.uuid,
         paper_uuid=copy.paper_uuid,
         edition_uuid=edition.uuid,
@@ -72,6 +95,19 @@ def share_reading(db: Session, user: User, copy: Copy, edition: PaperEdition) ->
     db.add(sharable)
     db.commit()
     db.refresh(sharable)
+    return sharable
+
+
+def make_lean(db: Session, sharable: Sharable) -> Sharable:
+    """Take the reader's marks out of a link without closing it.
+
+    The gentler half of stopping: whoever was given the link keeps the
+    paper, and stops seeing what was written on it. Only ever downwards —
+    a link that has been lean cannot be enriched again, because the people
+    holding it were never promised the marks."""
+    if sharable.kind != LEAN:
+        sharable.kind = LEAN
+        db.commit()
     return sharable
 
 
@@ -85,18 +121,16 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
     """Everything the link opens, and nothing else."""
     edition = sharable.edition
     paper = sharable.paper
-    # A reading belongs to a copy. Once the reader takes the paper out of
-    # their nook they are no longer reading it, and the link opens the PDF
-    # they shared with nothing on it — the same live view that carries a
-    # reworded note to everyone holding the link, carrying its absence.
-    # Their marks are not destroyed by this; leaving a nook is not meant to
-    # be a deletion, and re-adding the paper brings the reading back.
-    kept = _still_in_their_nook(db, sharable)
-    notes = _notes(db, sharable) if kept else []
-    ink = _ink(db, sharable) if kept else []
-    clips = _clips(db, sharable) if kept else []
+    # A lean link was never carrying marks, and a rich one that lost its copy
+    # has already been demoted by open_sharable. Either way the kind is the
+    # whole answer here.
+    rich = sharable.kind == RICH
+    notes = _notes(db, sharable) if rich else []
+    ink = _ink(db, sharable) if rich else []
+    clips = _clips(db, sharable) if rich else []
     return SharedReading(
         uuid=sharable.uuid,
+        kind=sharable.kind,
         created_at=sharable.created_at,
         reader=UserPublic.model_validate(sharable.user),
         paper=SharedPaper(

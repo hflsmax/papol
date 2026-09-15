@@ -579,6 +579,16 @@ class Sharable(Base):
     __tablename__ = "sharables"
 
     uuid = uuid_key()
+    # What the link carries. "rich" is the reading — this reader's notes,
+    # ink and clips on the PDF. "lean" is the PDF alone, which is a
+    # different and smaller thing to hand someone: here is the paper.
+    #
+    # A rich link depends on a copy in the reader's nook. Take the paper out
+    # and the reading it named is gone, so the link becomes lean rather than
+    # dying: what is left of it is still the paper. The demotion is
+    # permanent — putting the paper back must not silently re-expose marks
+    # to everyone still holding the link.
+    kind = Column(String(8), nullable=False, default="lean", server_default="lean")
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     # The exact PDF that was shared. A reader who later adopts a newer

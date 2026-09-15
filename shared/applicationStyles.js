@@ -2112,6 +2112,57 @@ select:disabled { cursor: default; opacity: .65; }
   color: var(--red);
 }
 
+/* The question a link carrying marks asks before it is closed. Inside the
+   bar rather than over the page: it is a choice between two ordinary
+   actions, not a warning about a dangerous one. */
+.shared-reading-ask {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gold-line);
+}
+
+.shared-reading-ask p {
+  margin: 0 0 9px;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.shared-reading-ask-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.shared-reading-ask-actions button {
+  flex: none;
+  padding: 5px 11px;
+}
+
+.shared-reading-ask-actions button.link {
+  padding: 0;
+  color: var(--ink-soft);
+}
+
+/* The one thing to decide when making a link, so it sits between the
+   description and the button rather than beside them. */
+.share-marks-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 3px 9px;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.share-marks-choice input {
+  flex: none;
+  margin: 0;
+}
+
 .share-reading-label {
   display: block;
   margin: 2px 3px 0;

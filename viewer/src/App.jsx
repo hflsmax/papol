@@ -1049,6 +1049,9 @@ export default function App() {
   // Whose reading this is. The one thing on the page that is about a
   // person rather than a paper, and it is only ever set by a shared source.
   const readerName = paper?.shared_by?.display_name || null;
+  // A lean link carries the paper alone. Someone handed it over, but there
+  // is no reading here and nothing of theirs to attribute.
+  const sharedReading = paper?.shared_kind === 'rich';
 
   const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip;
 
@@ -3832,8 +3835,15 @@ export default function App() {
             {/* Said where the bar says what this document is, because whose
                 reading it is is part of what it is. */}
             {readOnly && (
-              <span className="shared-reading" title="A reading someone shared with you">
-                {readerName ? `${readerName}’s reading` : 'A shared reading'}
+              <span
+                className="shared-reading"
+                title={sharedReading
+                  ? 'A reading someone shared with you'
+                  : 'A paper someone shared with you'}
+              >
+                {sharedReading
+                  ? (readerName ? `${readerName}’s reading` : 'A shared reading')
+                  : (readerName ? `Shared by ${readerName}` : 'A shared paper')}
               </span>
             )}
             <button
@@ -4502,7 +4512,7 @@ export default function App() {
           <div className="rail-header">
             <div className="rail-heading">
               <span className="rail-kicker">
-                {readerName ? `${readerName}’s notes` : 'Paper notes'}
+                {readerName && sharedReading ? `${readerName}’s notes` : 'Paper notes'}
               </span>
               <div className="rail-title-row">
                 <h2>Anchors</h2>
@@ -4541,9 +4551,11 @@ export default function App() {
               <h3>{readOnly ? 'No anchors here' : 'No anchors yet'}</h3>
               {readOnly ? (
                 <p>
-                  {readerName
-                    ? `${readerName} left no anchors on this paper.`
-                    : 'No anchors were left on this paper.'}
+                  {!sharedReading
+                    ? 'This link shares the paper only.'
+                    : readerName
+                      ? `${readerName} left no anchors on this paper.`
+                      : 'No anchors were left on this paper.'}
                 </p>
               ) : (
                 <>

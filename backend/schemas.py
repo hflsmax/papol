@@ -757,9 +757,10 @@ class Paper(PaperBase):
     tags: List[TagOut] = []
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
-    # The reader's own live link to this reading, when they have handed one
-    # out. Never populated for anybody else's copy.
+    # The reader's own live link to this paper, when they have handed one
+    # out, and what it carries. Never populated for anybody else's copy.
     sharable_uuid: Optional[str] = None
+    sharable_kind: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -767,9 +768,18 @@ class Paper(PaperBase):
 
 # ---------- Sharables ----------
 
+class SharableCreate(BaseModel):
+    """Whether the reader's marks travel with the link they are making.
+
+    The default is the quieter link. Handing someone your private notes is
+    a thing to choose, not a thing to discover you have done."""
+    include_marks: bool = False
+
+
 class SharableOut(BaseModel):
-    """A link its maker holds: which reading it opens, and since when."""
+    """A link its maker holds: what it carries, and since when."""
     uuid: str
+    kind: Literal["rich", "lean"]
     paper_uuid: str
     edition_uuid: str
     created_at: datetime
@@ -810,8 +820,10 @@ class SharedPaper(PaperBase):
 
 
 class SharedReading(BaseModel):
-    """One reader's reading of one edition, for anyone holding the link."""
+    """What a link opens: a reader's reading of one edition, or — when the
+    link is lean, or the reading has left their nook — the paper alone."""
     uuid: str
+    kind: Literal["rich", "lean"]
     reader: UserPublic
     paper: SharedPaper
     notes: List[SharedNote] = []
