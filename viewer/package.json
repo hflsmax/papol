@@ -11,7 +11,6 @@
     "test": "node --test src/*.test.js",
     "benchmark:pinch": "node ../scripts/benchmark-pinch-zoom.mjs",
     "benchmark:pinch:smoothness": "node ../scripts/benchmark-pinch-smoothness.mjs",
-    "prebuild": "mkdir -p public && cp -r node_modules/pdfjs-dist/standard_fonts node_modules/pdfjs-dist/wasm public/",
     "build": "vite build",
     "preview": "vite preview"
   },

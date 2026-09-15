@@ -64,8 +64,6 @@ function inputFingerprint() {
     if (stats.isDirectory()) {
       for (const name of readdirSync(path).sort()) {
         if (name === 'dist' || name === 'node_modules') continue;
-        if (relative === 'viewer/public'
-            && (name === 'standard_fonts' || name === 'wasm')) continue;
         visit(join(path, name), join(relative, name));
       }
       return;
