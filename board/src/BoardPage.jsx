@@ -448,6 +448,9 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     const viewport = viewportRef.current;
     if (!viewport) return undefined;
     const handleWheel = (event) => {
+      // Let editable controls retain their native wheel behavior. In
+      // particular, a textarea needs the event to scroll overflowing text.
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target?.isContentEditable) return;
       event.preventDefault();
       // Trackpads report two-finger movement as an ordinary wheel and a
       // pinch as a ctrl-modified wheel. Keep those two gestures distinct:
