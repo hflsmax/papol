@@ -4816,8 +4816,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card p { margin: 0; padding: 14px; white-space: pre-wrap; user-select: text; cursor: text; }
 .board-canvas-file { display: flex; align-items: center; gap: 10px; width: auto; margin: 0; padding: 16px 14px; overflow-wrap: anywhere; text-align: left; color: var(--accent); background: var(--card); font: var(--fs-sm) var(--font-ui); }
 .board-canvas-file > span:first-child { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 1px solid var(--accent-line); border-radius: 6px; background: var(--accent-soft); }
-.board-canvas-file > span:nth-child(2) { min-width: 0; flex: 1; }
-.board-canvas-card.selected .board-file-download { pointer-events: auto; }
 .board-resize-handle { position: absolute; z-index: 3; right: -7px; bottom: -7px; width: 14px; height: 14px; padding: 0; border: 1px solid var(--accent); border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px rgba(29,33,41,.2); opacity: 0; pointer-events: none; cursor: nwse-resize; transition: opacity .14s ease, transform .14s ease; }
 .board-canvas-card:hover > .board-resize-handle,
 .board-canvas-card.selected > .board-resize-handle,
