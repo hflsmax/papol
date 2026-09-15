@@ -126,10 +126,7 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.equal(source.requiresSignIn, false);
   assert.equal(loaded.doc.title, 'Local paper');
   assert.deepEqual(loaded.notes, []);
-  assert.equal(source.notes, undefined);
-  assert.equal(source.ink, undefined);
-  assert.equal(source.clips, undefined);
-  assert.deepEqual(source.marks(), { notes: [], ink: [] });
+  assert.equal(source.annotations, undefined);
   assert.equal(calls.some(([command]) => command === 'data_query'), false);
   assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
   await assert.rejects(source.addToNook(), /Sign in to add this paper/);

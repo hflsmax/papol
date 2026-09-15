@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from models import (
-    Board, BoardGroup, BoardItem, Comment, Copy, CopyTagLink, InkStroke, Paper, PaperClip,
+    Annotation, Board, BoardGroup, BoardItem, Copy, CopyTagLink, Paper,
     PaperEdition, Shelf, Tag,
 )
 
@@ -12,9 +12,7 @@ WRITABLE_MODELS = {
     "boards": Board,
     "board_groups": BoardGroup,
     "board_items": BoardItem,
-    "comments": Comment,
-    "ink_strokes": InkStroke,
-    "paper_clips": PaperClip,
+    "annotations": Annotation,
     "shelves": Shelf,
     "tags": Tag,
     "copies": Copy,

@@ -20,9 +20,9 @@ is what remains of it. Revoking is what closes a link altogether.
 
 from datetime import datetime
 
-from models import Comment, Copy, InkStroke, Paper, PaperClip, PaperEdition, Sharable, User
-from schemas import SharedNote, SharedPaper, SharedReading, UserPublic
-from services.annotations import anchor_of, clip_out, stroke_out
+from models import Annotation, Copy, Paper, PaperEdition, Sharable, User
+from schemas import SharedPaper, SharedReading, UserPublic
+from services.annotations import annotation_out, annotations_of
 from sqlalchemy.orm import Session
 
 
@@ -121,13 +121,9 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
     """Everything the link opens, and nothing else."""
     edition = sharable.edition
     paper = sharable.paper
-    # A lean link was never carrying marks, and a rich one that lost its copy
-    # has already been demoted by open_sharable. Either way the kind is the
-    # whole answer here.
-    rich = sharable.kind == RICH
-    notes = _notes(db, sharable) if rich else []
-    ink = _ink(db, sharable) if rich else []
-    clips = _clips(db, sharable) if rich else []
+    # A lean link was never carrying annotations, and a rich one that lost
+    # its copy has already been demoted by open_sharable. Either way the
+    # kind is the whole answer here.
     return SharedReading(
         uuid=sharable.uuid,
         kind=sharable.kind,
@@ -144,10 +140,25 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
             edition_uuid=edition.uuid,
             edition_sha256=edition.sha256,
         ),
-        notes=[_note_out(note) for note in notes],
-        ink=[stroke_out(stroke) for stroke in ink],
-        clips=[clip_out(clip) for clip in clips],
+        annotations=[
+            annotation_out(row) for row in _shared_annotations(db, sharable)
+        ],
     )
+
+
+def _shared_annotations(db: Session, sharable: Sharable) -> list[Annotation]:
+    """The reader's annotations on this reading: the ones made on this PDF,
+    and the notes they wrote about the paper without placing anywhere. Marks
+    made on a different edition are marks on a different file and stay where
+    they were made."""
+    if sharable.kind != RICH:
+        return []
+    return [
+        row for row in annotations_of(
+            db, sharable.user_uuid, paper_uuid=sharable.paper_uuid,
+        )
+        if row.edition_uuid in (sharable.edition_uuid, None)
+    ]
 
 
 def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
@@ -163,63 +174,3 @@ def _paper_is_public(paper: Paper) -> bool:
     """Whether the paper's own page opens for a visitor. A shared reading
     links to it when it does, and says nothing when it does not."""
     return any(copy.marketed and copy.deleted_at is None for copy in paper.copies)
-
-
-def _notes(db: Session, sharable: Sharable) -> list[Comment]:
-    """The reader's notes on this reading: the ones placed on this PDF, and
-    the ones they wrote about the paper without pinning anywhere. Notes
-    placed on a different edition are marks on a different file and stay
-    where they were made."""
-    return (
-        db.query(Comment)
-        .filter(
-            Comment.user_uuid == sharable.user_uuid,
-            Comment.paper_uuid == sharable.paper_uuid,
-            Comment.deleted_at.is_(None),
-            (Comment.edition_uuid == sharable.edition_uuid)
-            | (Comment.edition_uuid.is_(None)),
-        )
-        .order_by(Comment.created_at)
-        .all()
-    )
-
-
-def _ink(db: Session, sharable: Sharable) -> list[InkStroke]:
-    """Oldest first, which is the order it has to be drawn in for later ink
-    to sit over earlier ink."""
-    return (
-        db.query(InkStroke)
-        .filter(
-            InkStroke.user_uuid == sharable.user_uuid,
-            InkStroke.edition_uuid == sharable.edition_uuid,
-            InkStroke.deleted_at.is_(None),
-        )
-        .order_by(InkStroke.created_at)
-        .all()
-    )
-
-
-def _clips(db: Session, sharable: Sharable) -> list[PaperClip]:
-    return (
-        db.query(PaperClip)
-        .filter(
-            PaperClip.user_uuid == sharable.user_uuid,
-            PaperClip.edition_uuid == sharable.edition_uuid,
-            PaperClip.deleted_at.is_(None),
-        )
-        .order_by(PaperClip.created_at)
-        .all()
-    )
-
-
-def _note_out(note: Comment) -> SharedNote:
-    return SharedNote(
-        uuid=note.uuid,
-        content=note.content,
-        created_at=note.created_at,
-        page=note.page,
-        anchor_type=note.anchor_type,
-        anchor=anchor_of(note),
-        edition_uuid=note.edition_uuid,
-        name=note.name,
-    )

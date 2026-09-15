@@ -233,27 +233,10 @@ impl LocalStore {
                     .ok_or("board_group query requires a uuid")?;
                 query_board_group(&connection, account_uuid, uuid)
             }
-            "comments" => query_annotations(
-                &connection,
-                account_uuid,
-                "comments",
-                "paper_uuid",
-                parameters,
-            ),
-            "ink" => query_annotations(
-                &connection,
-                account_uuid,
-                "ink_strokes",
-                "edition_uuid",
-                parameters,
-            ),
-            "clips" => query_annotations(
-                &connection,
-                account_uuid,
-                "paper_clips",
-                "edition_uuid",
-                parameters,
-            ),
+            // Asked for by paper, because a note written about the paper and
+            // never placed on a page has no PDF to be found by. Narrowing to
+            // one PDF, or to one kind, is the caller's business.
+            "annotations" => query_annotations(&connection, account_uuid, parameters),
             "shelves" => {
                 query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid")
             }
@@ -729,9 +712,7 @@ impl LocalStore {
             }
             for table in [
                 "boards",
-                "comments",
-                "ink_strokes",
-                "paper_clips",
+                "annotations",
                 "copy_tags",
                 "copies",
                 "shelves",
@@ -1014,9 +995,7 @@ impl LocalStore {
                     "DELETE FROM copy_tags;
                      DELETE FROM board_items;
                      DELETE FROM board_groups;
-                     DELETE FROM comments;
-                     DELETE FROM ink_strokes;
-                     DELETE FROM paper_clips;
+                     DELETE FROM annotations;
                      DELETE FROM copies;
                      DELETE FROM boards;
                      DELETE FROM tags;
@@ -1071,9 +1050,7 @@ impl LocalStore {
                 "DELETE FROM copy_tags WHERE user_uuid=?1",
                 "DELETE FROM board_items WHERE board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?1)",
                 "DELETE FROM board_groups WHERE board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?1)",
-                "DELETE FROM comments WHERE user_uuid=?1",
-                "DELETE FROM ink_strokes WHERE user_uuid=?1",
-                "DELETE FROM paper_clips WHERE user_uuid=?1",
+                "DELETE FROM annotations WHERE user_uuid=?1",
                 "DELETE FROM copies WHERE user_uuid=?1",
                 "DELETE FROM boards WHERE user_uuid=?1",
                 "DELETE FROM tags WHERE user_uuid=?1",
@@ -1096,18 +1073,14 @@ impl LocalStore {
                        WHERE table_name='paper_editions' AND row_uuid IN (
                          SELECT paper_editions.uuid FROM paper_editions
                          WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=paper_editions.paper_uuid)
-                           AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_uuid=paper_editions.paper_uuid)
-                           AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_uuid=paper_editions.uuid)
-                           AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_uuid=paper_editions.uuid)
+                           AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_uuid=paper_editions.paper_uuid)
                        );
                      DELETE FROM paper_editions
                        WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=paper_editions.paper_uuid)
-                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_uuid=paper_editions.paper_uuid)
-                         AND NOT EXISTS (SELECT 1 FROM ink_strokes WHERE ink_strokes.edition_uuid=paper_editions.uuid)
-                         AND NOT EXISTS (SELECT 1 FROM paper_clips WHERE paper_clips.edition_uuid=paper_editions.uuid);
+                         AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_uuid=paper_editions.paper_uuid);
                      DELETE FROM papers
                        WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=papers.uuid)
-                         AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.paper_uuid=papers.uuid)
+                         AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_uuid=papers.uuid)
                          AND NOT EXISTS (SELECT 1 FROM paper_editions WHERE paper_editions.paper_uuid=papers.uuid);",
                 )
                 .map_err(|error| error.to_string())?;
@@ -1524,7 +1497,7 @@ fn validate_ownership(
     }
     if matches!(
         change.table.as_str(),
-        "comments" | "ink_strokes" | "paper_clips" | "copies" | "copy_tags" | "shelves" | "tags"
+        "annotations" | "copies" | "copy_tags" | "shelves" | "tags"
     ) {
         let owner: Option<String> = connection
             .query_row(
@@ -1657,12 +1630,33 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
 }
 
 fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Result<(), String> {
-    if !matches!(table, "comments" | "ink_strokes" | "paper_clips") {
+    if table != "annotations" {
         return Ok(());
     }
     let value = read_row(connection, table, uuid)?;
     let row = value.as_object().ok_or("Invalid annotation row")?;
-    if table == "comments" {
+    let kind = row
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or("An annotation needs a kind")?;
+    let body: Value = serde_json::from_str(
+        row.get("body")
+            .and_then(Value::as_str)
+            .ok_or("An annotation needs a body")?,
+    )
+    .map_err(|_| "Invalid annotation body")?;
+    let normalized_min = app_decimal_limit("annotations", "normalized_coordinate_min");
+    let normalized_max = app_decimal_limit("annotations", "normalized_coordinate_max");
+    let on_page = |point: &Value| {
+        ["x", "y"].iter().all(|axis| {
+            point[*axis]
+                .as_f64()
+                .is_some_and(|coordinate| (normalized_min..=normalized_max).contains(&coordinate))
+        })
+    };
+    let page = row.get("page").and_then(Value::as_i64);
+
+    if kind == "note" {
         if row
             .get("content")
             .and_then(Value::as_str)
@@ -1680,11 +1674,7 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         {
             return Err("Note text is too long".into());
         }
-        let anchor = row.get("anchor").and_then(Value::as_str);
-        let page = row.get("page").and_then(Value::as_i64);
-        if anchor.is_none() != row.get("anchor_type").and_then(Value::as_str).is_none() {
-            return Err("A note anchor needs its type and coordinates".into());
-        }
+        let anchor = body.get("anchor").filter(|anchor| !anchor.is_null());
         if anchor.is_none() != page.is_none() || page.is_some_and(|value| value < 1) {
             return Err("A located note needs a positive page and an anchor".into());
         }
@@ -1698,58 +1688,37 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         {
             return Err("An unlocated note needs text".into());
         }
-        if let Some(encoded) = anchor {
-            if row.get("anchor_type").and_then(Value::as_str) != Some("point") {
+        if let Some(anchor) = anchor {
+            if anchor.get("type").and_then(Value::as_str) != Some("point") {
                 return Err("Unknown note anchor type".into());
             }
-            let point: Value = serde_json::from_str(encoded).map_err(|_| "Invalid note anchor")?;
-            for axis in ["x", "y"] {
-                if !point[axis].as_f64().is_some_and(|coordinate| {
-                    (app_decimal_limit("annotations", "normalized_coordinate_min")
-                        ..=app_decimal_limit("annotations", "normalized_coordinate_max"))
-                        .contains(&coordinate)
-                }) {
-                    return Err("Note coordinates must be within the page".into());
-                }
+            if !on_page(anchor) {
+                return Err("Note coordinates must be within the page".into());
             }
         }
         return Ok(());
     }
-    if row
-        .get("page")
-        .and_then(Value::as_i64)
-        .is_none_or(|page| page < 1)
-    {
+
+    if page.is_none_or(|page| page < 1) {
         return Err("Annotation page must be positive".into());
     }
-    if table == "ink_strokes" {
-        let points: Value = serde_json::from_str(
-            row.get("points")
-                .and_then(Value::as_str)
-                .ok_or("Ink needs points")?,
-        )
-        .map_err(|_| "Invalid ink points")?;
-        let points = points.as_array().ok_or("Ink points must be an array")?;
+
+    if kind == "ink" {
+        let points = body["points"]
+            .as_array()
+            .ok_or("Ink points must be an array")?;
         if points.is_empty() || points.len() > app_limit("counts", "ink_points") as usize {
             return Err(format!(
                 "Ink needs between 1 and {} points",
                 app_limit("counts", "ink_points")
             ));
         }
-        if points.iter().any(|point| {
-            ["x", "y"].iter().any(|axis| {
-                !point[*axis].as_f64().is_some_and(|coordinate| {
-                    (app_decimal_limit("annotations", "normalized_coordinate_min")
-                        ..=app_decimal_limit("annotations", "normalized_coordinate_max"))
-                        .contains(&coordinate)
-                })
-            })
-        }) {
+        if !points.iter().all(on_page) {
             return Err("Ink coordinates must be within the page".into());
         }
-        let width = row.get("width").and_then(Value::as_f64).unwrap_or(0.0);
-        let opacity = row.get("opacity").and_then(Value::as_f64).unwrap_or(0.0);
-        let color = row.get("color").and_then(Value::as_str).unwrap_or("");
+        let width = body["width"].as_f64().unwrap_or(0.0);
+        let opacity = body["opacity"].as_f64().unwrap_or(0.0);
+        let color = body["color"].as_str().unwrap_or("");
         if !(0.0 < width
             && width <= app_decimal_limit("annotations", "ink_width_max")
             && 0.0 < opacity
@@ -1759,36 +1728,24 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
             && color[1..]
                 .chars()
                 .all(|character| character.is_ascii_hexdigit())
-            && matches!(
-                row.get("shape").and_then(Value::as_str),
-                Some("flat" | "round")
-            ))
+            && matches!(body["shape"].as_str(), Some("flat" | "round")))
         {
             return Err("Invalid ink style".into());
         }
         return Ok(());
     }
-    let source: Value = serde_json::from_str(
-        row.get("source")
-            .and_then(Value::as_str)
-            .ok_or("Clip needs a source")?,
-    )
-    .map_err(|_| "Invalid clip source")?;
-    let frame: Value = serde_json::from_str(
-        row.get("frame")
-            .and_then(Value::as_str)
-            .ok_or("Clip needs a frame")?,
-    )
-    .map_err(|_| "Invalid clip frame")?;
+
+    if kind != "clip" {
+        return Err("Unknown annotation kind".into());
+    }
     let number = |value: &Value, key: &str| value[key].as_f64();
+    let (source, frame) = (&body["source"], &body["frame"]);
     let (sx, sy, sw, sh) = (
-        number(&source, "x"),
-        number(&source, "y"),
-        number(&source, "w"),
-        number(&source, "h"),
+        number(source, "x"),
+        number(source, "y"),
+        number(source, "w"),
+        number(source, "h"),
     );
-    let normalized_min = app_decimal_limit("annotations", "normalized_coordinate_min");
-    let normalized_max = app_decimal_limit("annotations", "normalized_coordinate_max");
     if !matches!((sx, sy, sw, sh), (Some(x), Some(y), Some(w), Some(h))
         if (normalized_min..=normalized_max).contains(&x)
         && (normalized_min..=normalized_max).contains(&y)
@@ -1797,10 +1754,10 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
         return Err("Clip source must stay within its page".into());
     }
     let (fx, fy, fw, fh) = (
-        number(&frame, "x"),
-        number(&frame, "y"),
-        number(&frame, "w"),
-        number(&frame, "h"),
+        number(frame, "x"),
+        number(frame, "y"),
+        number(frame, "w"),
+        number(frame, "h"),
     );
     let coordinate_max = app_decimal_limit("annotations", "clip_frame_coordinate_abs_max");
     if !matches!((fx, fy, fw, fh), (Some(x), Some(y), Some(w), Some(h))
@@ -1848,7 +1805,7 @@ fn validate_remote_ownership(
     }
     if matches!(
         table,
-        "comments" | "ink_strokes" | "paper_clips" | "copies" | "copy_tags" | "shelves" | "tags"
+        "annotations" | "copies" | "copy_tags" | "shelves" | "tags"
     ) {
         if row.get("user_uuid").and_then(Value::as_str) != Some(account_uuid) {
             return Err("Server returned an annotation for a different account".into());
@@ -2006,7 +1963,7 @@ fn apply_identity_aliases(
             for (table, column) in [
                 ("paper_editions", "paper_uuid"),
                 ("copies", "paper_uuid"),
-                ("comments", "paper_uuid"),
+                ("annotations", "paper_uuid"),
             ] {
                 transaction
                     .execute(
@@ -2050,9 +2007,7 @@ fn apply_identity_aliases(
             for (table, column) in [
                 ("copies", "edition_uuid"),
                 ("copies", "ignored_edition_uuid"),
-                ("comments", "edition_uuid"),
-                ("ink_strokes", "edition_uuid"),
-                ("paper_clips", "edition_uuid"),
+                ("annotations", "edition_uuid"),
             ] {
                 transaction
                     .execute(
@@ -2381,14 +2336,7 @@ fn apply_local_change(
         fields.insert("created_at".into(), SqlValue::Text(now));
         if matches!(
             change.table.as_str(),
-            "boards"
-                | "comments"
-                | "ink_strokes"
-                | "paper_clips"
-                | "copies"
-                | "copy_tags"
-                | "shelves"
-                | "tags"
+            "boards" | "annotations" | "copies" | "copy_tags" | "shelves" | "tags"
         ) {
             fields.insert("user_uuid".into(), SqlValue::Text(account_uuid.to_owned()));
         }
@@ -2630,20 +2578,31 @@ fn query_group_items(connection: &Connection, group_uuid: &str) -> Result<Value,
 fn query_annotations(
     connection: &Connection,
     account_uuid: &str,
-    table: &str,
-    parent_column: &str,
     parameters: Value,
 ) -> Result<Value, String> {
-    let parent_uuid = parameters["parent_uuid"]
+    let paper_uuid = parameters["paper_uuid"]
         .as_str()
-        .ok_or("Annotation query requires parent_uuid")?;
+        .ok_or("Annotation query requires paper_uuid")?;
+    let edition_uuid = parameters["edition_uuid"].as_str();
+    let kind = parameters["kind"].as_str();
+    let mut sql = String::from(
+        "SELECT uuid FROM annotations WHERE user_uuid=?1 AND paper_uuid=?2 AND deleted_at IS NULL",
+    );
+    let mut bound: Vec<&str> = vec![account_uuid, paper_uuid];
+    if let Some(edition_uuid) = edition_uuid {
+        bound.push(edition_uuid);
+        sql.push_str(&format!(" AND edition_uuid=?{}", bound.len()));
+    }
+    if let Some(kind) = kind {
+        bound.push(kind);
+        sql.push_str(&format!(" AND kind=?{}", bound.len()));
+    }
+    sql.push_str(" ORDER BY created_at,uuid");
     let mut statement = connection
-        .prepare(&format!(
-            "SELECT uuid FROM {table} WHERE user_uuid=?1 AND {parent_column}=?2 AND deleted_at IS NULL ORDER BY created_at,uuid"
-        ))
+        .prepare(&sql)
         .map_err(|error| error.to_string())?;
     let ids = statement
-        .query_map(params![account_uuid, parent_uuid], |row| {
+        .query_map(rusqlite::params_from_iter(bound), |row| {
             row.get::<_, String>(0)
         })
         .map_err(|error| error.to_string())?
@@ -2652,35 +2611,16 @@ fn query_annotations(
     let rows = ids
         .into_iter()
         .map(|uuid| {
-            let mut value = read_row(connection, table, &uuid)?;
+            let mut value = read_row(connection, "annotations", &uuid)?;
             let row = value.as_object_mut().ok_or("Invalid annotation row")?;
-            for field in match table {
-                "ink_strokes" => &["points"][..],
-                "paper_clips" => &["source", "frame"][..],
-                _ => &[][..],
-            } {
-                if let Some(encoded) = row.get(*field).and_then(Value::as_str).map(str::to_owned) {
-                    row.insert(
-                        (*field).into(),
-                        serde_json::from_str(&encoded)
-                            .map_err(|_| "Invalid local annotation JSON")?,
-                    );
-                }
-            }
-            if table == "comments" {
-                let anchor_type = row
-                    .get("anchor_type")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned);
-                if let (Some(kind), Some(encoded)) = (
-                    anchor_type,
-                    row.get("anchor").and_then(Value::as_str).map(str::to_owned),
-                ) {
-                    let mut anchor: Map<String, Value> =
-                        serde_json::from_str(&encoded).map_err(|_| "Invalid local note anchor")?;
-                    anchor.insert("type".into(), Value::String(kind));
-                    row.insert("anchor".into(), Value::Object(anchor));
-                }
+            // One column of geometry now, whatever the kind. An anchor
+            // carries its own `type`, so nothing has to be reassembled from
+            // a second column on the way out.
+            if let Some(encoded) = row.get("body").and_then(Value::as_str).map(str::to_owned) {
+                row.insert(
+                    "body".into(),
+                    serde_json::from_str(&encoded).map_err(|_| "Invalid local annotation JSON")?,
+                );
             }
             Ok(value)
         })
@@ -3182,8 +3122,11 @@ mod tests {
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO ink_strokes(uuid,edition_uuid,user_uuid,page,points,color,width,opacity,shape,created_at,updated_at,revision) VALUES (?1,?2,'7',2,'[{\"x\":0.1,\"y\":0.2}]','#111111',0.01,0.8,'flat',?3,?3,1)",
-                    params![stroke_uuid, edition_uuid, now],
+                    "INSERT INTO annotations(uuid,kind,user_uuid,paper_uuid,edition_uuid,page,body,created_at,updated_at,revision) \
+                     VALUES (?1,'ink','7',?2,?3,2,\
+                     '{\"points\":[{\"x\":0.1,\"y\":0.2}],\"color\":\"#111111\",\"width\":0.01,\"opacity\":0.8,\"shape\":\"flat\"}',\
+                     ?4,?4,1)",
+                    params![stroke_uuid, paper_uuid, edition_uuid, now],
                 )
                 .unwrap();
         }
@@ -3192,29 +3135,40 @@ mod tests {
             .mutate(
                 "7",
                 vec![DataChange {
-                    table: "ink_strokes".into(),
+                    table: "annotations".into(),
                     uuid: stroke_uuid,
                     operation: "patch".into(),
-                    values: Map::from_iter([("color".into(), json!("#222222"))]),
+                    values: Map::from_iter([(
+                        "body".into(),
+                        json!(json!({
+                            "points": [{"x": 0.1, "y": 0.2}],
+                            "color": "#222222",
+                            "width": 0.01,
+                            "opacity": 0.8,
+                            "shape": "flat",
+                        })
+                        .to_string()),
+                    )]),
                 }],
             )
             .unwrap();
         let queued = store.next_outbox("7").unwrap().unwrap();
         let values = &queued.changes[0].values;
         for field in [
+            "kind",
+            "paper_uuid",
             "edition_uuid",
             "group_uuid",
             "page",
-            "points",
-            "color",
-            "width",
-            "opacity",
-            "shape",
+            "content",
+            "name",
+            "body",
             "deleted_at",
         ] {
             assert!(values.contains_key(field), "missing {field}");
         }
-        assert_eq!(values["color"], "#222222");
+        assert_eq!(values["kind"], "ink");
+        assert!(values["body"].as_str().unwrap().contains("#222222"));
     }
 
     #[test]
@@ -4054,7 +4008,7 @@ mod tests {
                     row.get(0)
                 })
                 .unwrap();
-            assert_eq!(migration_count, 3);
+            assert_eq!(migration_count, 4);
         }
     }
 
@@ -4252,16 +4206,19 @@ mod tests {
             .mutate(
                 "7",
                 vec![DataChange {
-                    table: "comments".into(),
+                    table: "annotations".into(),
                     uuid: note_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
+                        ("kind".into(), json!("note")),
                         ("paper_uuid".into(), json!(paper_uuid.clone())),
                         ("edition_uuid".into(), json!(edition_uuid.clone())),
                         ("content".into(), json!("Written offline")),
                         ("page".into(), json!(2)),
-                        ("anchor_type".into(), json!("point")),
-                        ("anchor".into(), json!(r#"{"x":0.2,"y":0.3}"#)),
+                        (
+                            "body".into(),
+                            json!(r#"{"anchor":{"type":"point","x":0.2,"y":0.3}}"#),
+                        ),
                     ]),
                 }],
             )
@@ -4270,11 +4227,15 @@ mod tests {
 
         let reopened = LocalStore::open(&path).unwrap();
         let notes = reopened
-            .query("7", "comments", json!({"parent_uuid": paper_uuid}))
+            .query(
+                "7",
+                "annotations",
+                json!({"paper_uuid": paper_uuid, "kind": "note"}),
+            )
             .unwrap();
         assert_eq!(notes[0]["uuid"], note_uuid);
         assert_eq!(notes[0]["content"], "Written offline");
-        assert_eq!(notes[0]["anchor"]["type"], "point");
+        assert_eq!(notes[0]["body"]["anchor"]["type"], "point");
         assert_eq!(reopened.outbox_count(), 1);
     }
 

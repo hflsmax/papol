@@ -11,12 +11,41 @@ import main
 from fastapi import HTTPException
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
-from models import (
-    Comment, Copy, InkStroke, Paper, PaperClip, PaperEdition, Sharable, Shelf, User,
-)
+from models import Annotation, Copy, Paper, PaperEdition, Sharable, Shelf, User
 
 SHARED_HASH = "a" * 64
 OTHER_HASH = "b" * 64
+
+
+def _note(paper, user, edition, content, page, x, y, name=None):
+    return Annotation(
+        kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
+        edition_uuid=edition.uuid, page=page, content=content, name=name,
+        body=json.dumps({"anchor": {"type": "point", "x": x, "y": y}}),
+    )
+
+
+def _ink(paper, user, edition, points):
+    return Annotation(
+        kind="ink", paper_uuid=paper.uuid, user_uuid=user.uuid,
+        edition_uuid=edition.uuid, page=2,
+        body=json.dumps({
+            "points": points, "color": "#b3923d", "width": 0.004,
+            "opacity": 1.0, "shape": "flat",
+        }),
+    )
+
+
+def _clip(paper, user, edition):
+    return Annotation(
+        kind="clip", paper_uuid=paper.uuid, user_uuid=user.uuid,
+        edition_uuid=edition.uuid, page=3,
+        body=json.dumps({
+            "source": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
+            "frame": {"x": 0.4, "y": 0.4, "w": 0.2, "h": 0.2},
+            "floating": False,
+        }),
+    )
 
 
 class SharableTests(unittest.TestCase):
@@ -97,38 +126,17 @@ class SharableTests(unittest.TestCase):
                 ),
                 # A note on the shared PDF, a note on the paper itself, and a
                 # note placed on the edition this reader no longer reads.
-                Comment(
-                    paper_uuid=paper.uuid, user_uuid=reader.uuid, content="On the page",
-                    edition_uuid=shared.uuid, page=2, anchor_type="point",
-                    anchor=json.dumps({"x": 0.25, "y": 0.5}), name="Lemma 3",
+                _note(paper, reader, shared, "On the page", 2, 0.25, 0.5, "Lemma 3"),
+                Annotation(
+                    kind="note", paper_uuid=paper.uuid, user_uuid=reader.uuid,
+                    content="About the paper", body="{}",
                 ),
-                Comment(
-                    paper_uuid=paper.uuid, user_uuid=reader.uuid, content="About the paper",
-                ),
-                Comment(
-                    paper_uuid=paper.uuid, user_uuid=reader.uuid, content="On the old PDF",
-                    edition_uuid=superseded.uuid, page=1, anchor_type="point",
-                    anchor=json.dumps({"x": 0.1, "y": 0.1}),
-                ),
+                _note(paper, reader, superseded, "On the old PDF", 1, 0.1, 0.1),
                 # Another reader's marks on the very same file.
-                Comment(
-                    paper_uuid=paper.uuid, user_uuid=stranger.uuid, content="Not yours",
-                    edition_uuid=shared.uuid, page=2, anchor_type="point",
-                    anchor=json.dumps({"x": 0.9, "y": 0.9}),
-                ),
-                InkStroke(
-                    edition_uuid=shared.uuid, user_uuid=reader.uuid, page=2,
-                    points=json.dumps([{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.2}]),
-                ),
-                InkStroke(
-                    edition_uuid=shared.uuid, user_uuid=stranger.uuid, page=2,
-                    points=json.dumps([{"x": 0.5, "y": 0.5}]),
-                ),
-                PaperClip(
-                    edition_uuid=shared.uuid, user_uuid=reader.uuid, page=3,
-                    source=json.dumps({"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}),
-                    frame=json.dumps({"x": 0.4, "y": 0.4, "w": 0.2, "h": 0.2}),
-                ),
+                _note(paper, stranger, shared, "Not yours", 2, 0.9, 0.9),
+                _ink(paper, reader, shared, [{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.2}]),
+                _ink(paper, stranger, shared, [{"x": 0.5, "y": 0.5}]),
+                _clip(paper, reader, shared),
             ])
             db.commit()
 
@@ -153,9 +161,7 @@ class SharableTests(unittest.TestCase):
         opened = self.client.get(f"/api/shared/{lean['uuid']}").json()
         self.assertEqual(opened["kind"], "lean")
         self.assertEqual(opened["paper"]["edition_sha256"], SHARED_HASH)
-        self.assertEqual(opened["notes"], [])
-        self.assertEqual(opened["ink"], [])
-        self.assertEqual(opened["clips"], [])
+        self.assertEqual(opened["annotations"], [])
 
     def test_the_quiet_link_is_what_an_unasked_request_gets(self):
         made = self.client.post(f"/api/papers/{self.paper_uuid}/sharable")
@@ -208,14 +214,21 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(reading["paper"]["title"], "On sharing a reading")
         self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
         self.assertEqual(reading["paper"]["file_path"], f"{SHARED_HASH}.pdf")
+        # One list, each saying its own kind, in the order they were made.
+        by_kind = {}
+        for row in reading["annotations"]:
+            by_kind.setdefault(row["kind"], []).append(row)
         self.assertEqual(
-            [note["content"] for note in reading["notes"]],
+            [note["content"] for note in by_kind["note"]],
             ["On the page", "About the paper"],
         )
-        self.assertEqual(reading["notes"][0]["anchor"], {"type": "point", "x": 0.25, "y": 0.5})
-        self.assertEqual(reading["notes"][0]["name"], "Lemma 3")
-        self.assertEqual(len(reading["ink"]), 1)
-        self.assertEqual(len(reading["clips"]), 1)
+        self.assertEqual(
+            by_kind["note"][0]["body"]["anchor"],
+            {"type": "point", "x": 0.25, "y": 0.5},
+        )
+        self.assertEqual(by_kind["note"][0]["name"], "Lemma 3")
+        self.assertEqual(len(by_kind["ink"]), 1)
+        self.assertEqual(len(by_kind["clip"]), 1)
         # The reader's private summary is not part of their reading.
         self.assertNotIn("summary", reading["paper"])
 
@@ -281,9 +294,7 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(reading["kind"], "lean")
         self.assertEqual(reading["reader"]["display_name"], "Ada")
         self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
-        self.assertEqual(reading["notes"], [])
-        self.assertEqual(reading["ink"], [])
-        self.assertEqual(reading["clips"], [])
+        self.assertEqual(reading["annotations"], [])
 
     def test_a_synchronized_delete_demotes_the_link_too(self):
         # Papol Desktop removes a paper by synchronizing a deleted copy, and
@@ -315,8 +326,7 @@ class SharableTests(unittest.TestCase):
         # link does not silently get the marks back.
         reading = self.client.get(f"/api/shared/{made['uuid']}").json()
         self.assertEqual(reading["kind"], "lean")
-        self.assertEqual(reading["ink"], [])
-        self.assertEqual(reading["clips"], [])
+        self.assertEqual(reading["annotations"], [])
 
     def test_a_rich_link_can_drop_its_marks_instead_of_closing(self):
         made = self.share()
@@ -330,9 +340,7 @@ class SharableTests(unittest.TestCase):
         # The same link, still opening, carrying the paper and nothing else.
         reading = self.client.get(f"/api/shared/{made['uuid']}").json()
         self.assertEqual(reading["kind"], "lean")
-        self.assertEqual(reading["notes"], [])
-        self.assertEqual(reading["ink"], [])
-        self.assertEqual(reading["clips"], [])
+        self.assertEqual(reading["annotations"], [])
 
     def test_dropping_marks_is_one_way(self):
         made = self.share()

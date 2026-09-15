@@ -84,7 +84,7 @@ class AuthResponse(BaseModel):
     user: UserPrivate
 
 
-# ---------- Comments (private notes) ----------
+# ---------- Annotations (a reader's marks on a paper) ----------
 
 class PointAnchor(BaseModel):
     """A place on a page, as fractions of its width and height in PDF user
@@ -102,41 +102,6 @@ class InkPoint(BaseModel):
     """A point on a stroke: a fraction of the page, y from the bottom."""
     x: float = Field(ge=0, le=1)
     y: float = Field(ge=0, le=1)
-
-
-class InkStrokeCreate(BaseModel):
-    group_uuid: Optional[str] = Field(default=None, max_length=36)
-    page: int = Field(ge=1)
-    # Two points is a dash and one is a dot; both are marks a reader meant
-    # to make. The ceiling is what stops a stray gesture, or a script, from
-    # posting a megabyte of coordinates: a stroke drawn across a page at
-    # pointer resolution is a few hundred points.
-    points: List[InkPoint] = Field(min_length=1, max_length=limit("counts", "ink_points"))
-    color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
-    width: float = Field(default=0.004, gt=0, le=limit("annotations", "ink_width_max"))
-    opacity: float = Field(default=1.0, gt=0, le=1)
-    shape: Literal["flat", "round"] = "flat"
-
-
-class InkStrokeUpdate(BaseModel):
-    """A stroke that has been picked up and put down somewhere else. The
-    shape is unchanged — moving ink is moving it, not redrawing it — so
-    only the points travel, and they are checked the same way."""
-    points: List[InkPoint] = Field(min_length=1, max_length=limit("counts", "ink_points"))
-
-
-class InkStrokeOut(BaseModel):
-    uuid: str
-    group_uuid: Optional[str] = None
-    page: int
-    points: List[InkPoint]
-    color: str
-    width: float
-    opacity: float
-    shape: str
-
-    class Config:
-        from_attributes = True
 
 
 class ClipRect(BaseModel):
@@ -166,68 +131,91 @@ class ClipFrame(BaseModel):
     h: float = Field(gt=0, le=limit("annotations", "clip_frame_size_max"))
 
 
-class PaperClipCreate(BaseModel):
-    page: int = Field(ge=1)
+# The three bodies: what each kind of annotation has that the others do not.
+
+class NoteBody(BaseModel):
+    """Where a note is fixed, when it is fixed anywhere at all."""
+    anchor: Optional[Anchor] = None
+
+
+class InkBody(BaseModel):
+    # Two points is a dash and one is a dot; both are marks a reader meant
+    # to make. The ceiling is what stops a stray gesture, or a script, from
+    # posting a megabyte of coordinates: a stroke drawn across a page at
+    # pointer resolution is a few hundred points.
+    points: List[InkPoint] = Field(min_length=1, max_length=limit("counts", "ink_points"))
+    color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
+    width: float = Field(default=0.004, gt=0, le=limit("annotations", "ink_width_max"))
+    # 1 is solid ink; less lets the words underneath show through, which is
+    # what a reader wants when marking a line rather than crossing it out.
+    opacity: float = Field(default=1.0, gt=0, le=1)
+    # The nib: "flat" is a chisel held upright, wide across the page and thin
+    # along it; "round" is the same weight whichever way it is drawn.
+    shape: Literal["flat", "round"] = "flat"
+
+
+class ClipBody(BaseModel):
     source: ClipRect
     frame: ClipFrame
     floating: bool = False
 
 
-class PaperClipUpdate(BaseModel):
-    frame: ClipFrame
-    floating: bool
+AnnotationBody = NoteBody | InkBody | ClipBody
 
 
-class PaperClipOut(PaperClipCreate):
-    uuid: str
-
-
-class CommentCreate(BaseModel):
-    # A bare anchor is allowed: the reader marks a place first and writes
-    # about it later. A note with no place must say something.
+class AnnotationCreate(BaseModel):
+    """A new annotation. `kind` decides which body is required, and which of
+    the shared fields mean anything: ink and clips are always on a page of a
+    PDF, while a note may be about the paper and placed nowhere."""
+    kind: Literal["note", "ink", "clip"]
+    edition_uuid: Optional[str] = Field(default=None, max_length=36)
+    page: Optional[int] = Field(default=None, ge=1)
+    group_uuid: Optional[str] = Field(default=None, max_length=36)
     content: str = Field(default="", max_length=limit("text", "comment"))
-    # A located note carries both; a plain note carries neither.
-    page: Optional[int] = Field(default=None, ge=1)
-    anchor: Optional[Anchor] = None
     name: Optional[str] = Field(default=None, max_length=limit("text", "annotation_name"))
+    body: AnnotationBody = NoteBody()
 
     @model_validator(mode="after")
-    def _location_is_all_or_nothing(self):
-        if (self.page is None) != (self.anchor is None):
-            raise ValueError("a located note needs both a page and an anchor")
-        if self.anchor is None and not self.content.strip():
-            raise ValueError("a note with no place needs something written in it")
+    def _kind_and_body_agree(self):
+        wanted = {"note": NoteBody, "ink": InkBody, "clip": ClipBody}[self.kind]
+        if not isinstance(self.body, wanted):
+            raise ValueError(f"a {self.kind} needs a {self.kind} body")
+        if self.kind == "note":
+            # A bare anchor is allowed: the reader marks a place first and
+            # writes about it later. A note with no place must say something.
+            if (self.page is None) != (self.body.anchor is None):
+                raise ValueError("a located note needs both a page and an anchor")
+            if self.body.anchor is None and not self.content.strip():
+                raise ValueError("a note with no place needs something written in it")
+        elif self.page is None:
+            raise ValueError(f"a {self.kind} belongs on a page")
         return self
 
 
-class CommentUpdate(BaseModel):
-    """Rewording a note, or moving its anchor — each independently, so a
-    move never disturbs the words and vice versa. Only what is sent
-    changes; an anchor may be emptied back to a bare mark."""
+class AnnotationUpdate(BaseModel):
+    """What may change after an annotation is made. Only what is sent
+    changes, so rewording a note never disturbs where it sits, and moving it
+    never disturbs the words.
+
+    `body` is merged into the stored geometry rather than replacing it —
+    carrying a stroke somewhere else says where its points are now, not what
+    colour it was drawn in — and the result is held to its kind's shape."""
+    page: Optional[int] = Field(default=None, ge=1)
     content: Optional[str] = Field(default=None, max_length=limit("text", "comment"))
-    page: Optional[int] = Field(default=None, ge=1)
-    anchor: Optional[Anchor] = None
     name: Optional[str] = Field(default=None, max_length=limit("text", "annotation_name"))
-
-    @model_validator(mode="after")
-    def _moving_needs_both(self):
-        if (self.page is None) != (self.anchor is None):
-            raise ValueError("moving a note needs both a page and an anchor")
-        return self
+    body: Optional[dict] = None
 
 
-class Comment(BaseModel):
+class AnnotationOut(BaseModel):
     uuid: str
-    paper_uuid: str
-    content: str
-    created_at: datetime
-    user: Optional[UserPublic] = None
-    # Where in the PDF this note is fixed, when it is.
-    page: Optional[int] = None
-    anchor_type: Optional[str] = None
-    anchor: Optional[Anchor] = None
+    kind: Literal["note", "ink", "clip"]
     edition_uuid: Optional[str] = None
+    page: Optional[int] = None
+    group_uuid: Optional[str] = None
+    content: str = ""
     name: Optional[str] = None
+    body: AnnotationBody
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -743,7 +731,7 @@ class Paper(PaperBase):
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None
     rating_liking: Optional[int] = None
-    comments: List[Comment] = []  # the viewer's own notes
+    notes: List[AnnotationOut] = []  # the viewer's own notes on this paper
     also_read_by: List[ReaderEntry] = []  # every displayed copy
     rooms: List[RoomSummary] = []  # this paper's seminar rooms, newest first
     viewer_is_reader: bool = False  # viewer has a displayed copy
@@ -788,25 +776,6 @@ class SharableOut(BaseModel):
         from_attributes = True
 
 
-class SharedNote(BaseModel):
-    """A note as a visitor sees it: what it says and where it sits.
-
-    Deliberately not `Comment`: that schema carries the paper's UUID and the
-    reader's record, and a shared reading names both once, at the top, under
-    its own rules about what a visitor may follow."""
-    uuid: str
-    content: str
-    created_at: datetime
-    page: Optional[int] = None
-    anchor_type: Optional[str] = None
-    anchor: Optional[Anchor] = None
-    edition_uuid: Optional[str] = None
-    name: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
 class SharedPaper(PaperBase):
     """The paper behind a shared reading.
 
@@ -826,9 +795,9 @@ class SharedReading(BaseModel):
     kind: Literal["rich", "lean"]
     reader: UserPublic
     paper: SharedPaper
-    notes: List[SharedNote] = []
-    ink: List[InkStrokeOut] = []
-    clips: List[PaperClipOut] = []
+    # One list, in the order they were made, because that is the order ink
+    # has to be painted in. Each says its own kind.
+    annotations: List[AnnotationOut] = []
     created_at: datetime
 
 

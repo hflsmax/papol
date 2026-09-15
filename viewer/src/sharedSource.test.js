@@ -21,9 +21,14 @@ const reading = {
     edition_uuid: EDITION,
     edition_sha256: HASH,
   },
-  notes: [{ uuid: 'note-1', content: 'Here', page: 2, anchor: { type: 'point', x: 0.1, y: 0.2 } }],
-  ink: [{ uuid: 'stroke-1', page: 2, points: [{ x: 0.1, y: 0.2 }] }],
-  clips: [{ uuid: 'clip-1', page: 3, source: {}, frame: {}, floating: false }],
+  annotations: [
+    {
+      uuid: 'note-1', kind: 'note', content: 'Here', page: 2,
+      body: { anchor: { type: 'point', x: 0.1, y: 0.2 } },
+    },
+    { uuid: 'stroke-1', kind: 'ink', page: 2, body: { points: [{ x: 0.1, y: 0.2 }] } },
+    { uuid: 'clip-1', kind: 'clip', page: 3, body: { source: {}, frame: {}, floating: false } },
+  ],
 };
 
 const values = new Map();
@@ -66,11 +71,11 @@ test('a share link resolves a read-only source without a hash in the URL', () =>
 
   assert.equal(source.readOnly, true);
   assert.equal(source.requiresSignIn, false);
-  // The writing half of every annotation interface is simply absent, so
-  // there is nothing for the viewer to call even by mistake.
-  assert.equal(source.notes, undefined);
-  assert.equal(source.ink.create, undefined);
-  assert.equal(source.clips.create, undefined);
+  // The writing half of the annotation interface is simply absent, so there
+  // is nothing for the viewer to call even by mistake.
+  assert.equal(source.annotations.create, undefined);
+  assert.equal(source.annotations.update, undefined);
+  assert.equal(source.annotations.remove, undefined);
 });
 
 test('a shared reading carries the paper, the reader, and their marks', async () => {
@@ -85,16 +90,25 @@ test('a shared reading carries the paper, the reader, and their marks', async ()
   });
   assert.equal(doc.shared_by.display_name, 'Ada Lovelace');
   assert.equal(doc.shared_kind, 'rich');
-  assert.deepEqual(notes, reading.notes);
-  assert.deepEqual(await source.ink.list(EDITION), reading.ink);
-  assert.deepEqual(await source.clips.list(EDITION), reading.clips);
+  assert.deepEqual(notes.map((row) => row.uuid), ['note-1']);
+  assert.deepEqual(
+    (await source.annotations.list(EDITION, 'ink')).map((row) => row.uuid), ['stroke-1'],
+  );
+  assert.deepEqual(
+    (await source.annotations.list(EDITION, 'clip')).map((row) => row.uuid), ['clip-1'],
+  );
+  assert.equal((await source.annotations.list(EDITION)).length, 3);
 });
 
 test('one request answers the whole reading', async () => {
   asked.length = 0;
   const source = resolveSource();
 
-  await Promise.all([source.load(), source.ink.list(EDITION), source.clips.list(EDITION)]);
+  await Promise.all([
+    source.load(),
+    source.annotations.list(EDITION, 'ink'),
+    source.annotations.list(EDITION, 'clip'),
+  ]);
 
   assert.deepEqual(asked.map((call) => new URL(call.url, 'http://127.0.0.1').pathname), [`/api/shared/${SHARE}`]);
 });
@@ -113,7 +127,7 @@ test('a shared reading reads its bibliography on the authority of the link', asy
 
 test('a lean link carries the paper and none of the reader\u2019s marks', async () => {
   const rich = { ...reading };
-  Object.assign(reading, { kind: 'lean', notes: [], ink: [], clips: [] });
+  Object.assign(reading, { kind: 'lean', annotations: [] });
   try {
     const source = resolveSource();
     const { doc, notes } = await source.load();
@@ -123,8 +137,7 @@ test('a lean link carries the paper and none of the reader\u2019s marks', async 
     assert.equal(doc.shared_kind, 'lean');
     assert.equal(doc.shared_by.display_name, 'Ada Lovelace');
     assert.deepEqual(notes, []);
-    assert.deepEqual(await source.ink.list(EDITION), []);
-    assert.deepEqual(await source.clips.list(EDITION), []);
+    assert.deepEqual(await source.annotations.list(EDITION), []);
   } finally {
     Object.assign(reading, rich);
   }

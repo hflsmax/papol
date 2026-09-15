@@ -25,13 +25,13 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from services.annotations import INK, NOTE, body_of
 from models import (
     AuthToken,
     AdminMessageDelivery,
+    Annotation,
     AppliedMutation,
-    Comment,
     Copy,
-    InkStroke,
     Notification,
     Paper,
     PaperEdition,
@@ -100,9 +100,9 @@ def gather(db: Session, user: User) -> dict:
         db.query(Copy).filter(Copy.user_uuid == user.uuid).order_by(Copy.created_at).all()
     )
     notes = (
-        db.query(Comment)
-        .filter(Comment.user_uuid == user.uuid)
-        .order_by(Comment.paper_uuid, Comment.page, Comment.created_at)
+        db.query(Annotation)
+        .filter(Annotation.user_uuid == user.uuid, Annotation.kind == NOTE)
+        .order_by(Annotation.paper_uuid, Annotation.page, Annotation.created_at)
         .all()
     )
     rooms = (
@@ -131,9 +131,9 @@ def gather(db: Session, user: User) -> dict:
         .all()
     )
     ink = (
-        db.query(InkStroke)
-        .filter(InkStroke.user_uuid == user.uuid)
-        .order_by(InkStroke.created_at)
+        db.query(Annotation)
+        .filter(Annotation.user_uuid == user.uuid, Annotation.kind == INK)
+        .order_by(Annotation.created_at)
         .all()
     )
     boards = (
@@ -179,8 +179,7 @@ def gather(db: Session, user: User) -> dict:
                 "name": n.name,
                 "content": n.content,
                 "page": n.page,
-                "anchor_type": n.anchor_type,
-                "anchor": json.loads(n.anchor) if n.anchor else None,
+                "anchor": body_of(n).anchor.model_dump() if body_of(n).anchor else None,
                 "written": _when(n.created_at),
             }
             for n in notes
@@ -193,11 +192,7 @@ def gather(db: Session, user: User) -> dict:
                 "page": i.page,
                 # Fractions of the page, y from the bottom — the same
                 # coordinates a note's anchor uses.
-                "points": json.loads(i.points),
-                "color": i.color,
-                "width": i.width,
-                "opacity": i.opacity,
-                "shape": i.shape,
+                **body_of(i).model_dump(),
                 "drawn": _when(i.created_at),
             }
             for i in ink
@@ -523,11 +518,8 @@ def tombstone(
     user_uuid = user.uuid
 
     # Private, and theirs alone.
-    removed["notes"] = (
-        db.query(Comment).filter(Comment.user_uuid == user_uuid).delete(synchronize_session=False)
-    )
-    removed["ink"] = (
-        db.query(InkStroke).filter(InkStroke.user_uuid == user_uuid).delete(
+    removed["annotations"] = (
+        db.query(Annotation).filter(Annotation.user_uuid == user_uuid).delete(
             synchronize_session=False
         )
     )

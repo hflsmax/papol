@@ -12,6 +12,7 @@ import {
   pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
+import { annotationKinds } from './annotationKinds.js';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
 } from './source';
@@ -394,6 +395,9 @@ export default function App() {
   // put there by them: it can be read, followed and searched, and nothing
   // in the viewer may change it.
   const readOnly = Boolean(source?.readOnly);
+  // Notes, ink and clips are one interface underneath and three things to
+  // draw. This is where the one becomes the three.
+  const marks = useMemo(() => annotationKinds(source?.annotations), [source]);
   // What the bar offers. A shared reading keeps the arrow, which is
   // reading — text selects, citations open — and the menagerie, whose
   // animals are nobody's mark: they wander and are never kept.
@@ -1392,9 +1396,9 @@ export default function App() {
 
   useEffect(() => {
     // A file opened from disk has no edition until it joins a nook.
-    if ((!paper?.edition_uuid && !paper?.opened_file) || !source?.clips) return undefined;
+    if ((!paper?.edition_uuid && !paper?.opened_file) || !marks?.clips) return undefined;
     let cancelled = false;
-    source.clips.list(paper.edition_uuid)
+    marks.clips.list(paper.edition_uuid)
       .then((loaded) => { if (!cancelled) setClips(loaded); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
@@ -1404,9 +1408,9 @@ export default function App() {
   // the file rather than to the paper, so it is asked for once the paper
   // has said which edition is open.
   useEffect(() => {
-    if (!paper || !source?.ink) return undefined;
+    if (!paper || !marks?.ink) return undefined;
     let cancelled = false;
-    source.ink
+    marks.ink
       .list(paper.edition_uuid)
       .then((loaded) => {
         if (!cancelled) setInk(loaded);
@@ -1712,10 +1716,10 @@ export default function App() {
   // which is the honest thing to do with a mark that was not kept.
   const drawStroke = async (stroke, record = true) => {
     if (await promptToAddForAnnotations()) return null;
-    if (!source?.ink) return;
+    if (!marks?.ink) return;
     const provisional = `wet-${++tempInkUuid.current}`;
     setInk((all) => [...all, { ...stroke, uuid: provisional }]);
-    const saving = source.ink.create(paper?.edition_uuid, stroke);
+    const saving = marks.ink.create(paper?.edition_uuid, stroke);
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
@@ -2141,7 +2145,7 @@ export default function App() {
   // Carried on screen as it is dragged and written down when it is put
   // down, so the page keeps up with the hand and the server hears once.
   const moveStroke = async (uuid, points, record = true) => {
-    if (!source?.ink?.move) return;
+    if (!marks?.ink?.move) return;
     const was = inkRef.current.find((s) => s.uuid === uuid);
     if (!was) return;
     const members = was.group_uuid
@@ -2169,7 +2173,7 @@ export default function App() {
     try {
       const saved = await Promise.all(moves.map(async (move) => {
         const real = await settledInkUuid(move.uuid);
-        return real == null ? null : source.ink.move(real, move.after);
+        return real == null ? null : marks.ink.move(real, move.after);
       }));
       const savedByUuid = new Map(
         saved.map((stroke, index) => stroke && [moves[index].uuid, stroke]).filter(Boolean)
@@ -2195,7 +2199,7 @@ export default function App() {
   };
 
   const eraseStroke = async (uuid, record = true) => {
-    if (!source?.ink) return;
+    if (!marks?.ink) return;
     // The eraser asks on every movement of the pointer, several times in a
     // frame, and `ink` is whatever it was when this render began — so the
     // same stroke was asked for twice, the first delete succeeded, the
@@ -2230,7 +2234,7 @@ export default function App() {
     setInk((all) => all.filter((s) => !goneUuids.has(s.uuid)));
     try {
       const realUuids = await Promise.all(gone.map((stroke) => settledInkUuid(stroke.uuid)));
-      await Promise.all(realUuids.filter((real) => real != null).map((real) => source.ink.remove(real)));
+      await Promise.all(realUuids.filter((real) => real != null).map((real) => marks.ink.remove(real)));
       if (record) {
         const entries = gone.map((stroke, index) => ({
           uuid: realUuids[index],
@@ -2733,7 +2737,7 @@ export default function App() {
     setNotes((prev) => [...prev, optimistic]);
     setActiveNoteUuid(tempUuid);
 
-    const saving = source.notes
+    const saving = marks.notes
       .create({ ...spot, content: '' })
       .then((saved) => {
         setNotes((prev) => prev.map((n) => (n.uuid === tempUuid ? saved : n)));
@@ -2798,7 +2802,7 @@ export default function App() {
     setTool('arrow');
     toolBefore.current = null;
     try {
-      const saving = source.clips.create(paper.edition_uuid, clip);
+      const saving = marks.clips.create(paper.edition_uuid, clip);
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
@@ -2828,7 +2832,7 @@ export default function App() {
       const current = clips.find((clip) => clip.uuid === uuid || clip.uuid === realUuid);
       const frame = change.frame || current?.frame;
       const floating = change.floating ?? current?.floating ?? false;
-      const saved = await source.clips.move(realUuid, frame, floating);
+      const saved = await marks.clips.move(realUuid, frame, floating);
       setClips((all) => all.map((clip) => (
         clip.uuid === uuid || clip.uuid === realUuid ? saved : clip
       )));
@@ -2841,7 +2845,7 @@ export default function App() {
     setSelectedClipUuid((selected) => (selected === uuid ? null : selected));
     setClips((all) => all.filter((clip) => clip.uuid !== uuid));
     try {
-      await source.clips.remove(await settledClipUuid(uuid));
+      await marks.clips.remove(await settledClipUuid(uuid));
     } catch (e) {
       setError(e.message);
     }
@@ -2885,7 +2889,7 @@ export default function App() {
     try {
       const real = await settledUuid(uuid);
       if (real == null) return;
-      const saved = await source.notes.move(real, spot);
+      const saved = await marks.notes.move(real, spot);
       if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && was && saved) {
         remember({
@@ -2908,7 +2912,7 @@ export default function App() {
     try {
       const real = await settledUuid(note.uuid);
       if (real == null) return;
-      const saved = await source.notes.rename(real, name);
+      const saved = await marks.notes.rename(real, name);
       if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && saved) {
         remember({
@@ -2987,7 +2991,7 @@ export default function App() {
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const updated = await source.notes.update(real, content);
+    const updated = await marks.notes.update(real, content);
     setNotes((prev) => prev.map((note) => (note.uuid === real ? updated : note)));
     return updated;
   };
@@ -2996,7 +3000,7 @@ export default function App() {
     const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const saved = await source.notes.rename(real, name);
+    const saved = await marks.notes.rename(real, name);
     if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
     if (record && note && saved) {
       remember({
@@ -3026,12 +3030,12 @@ export default function App() {
   };
 
   const restoreNote = async (snapshot) => {
-    let restored = await source.notes.create({
+    let restored = await marks.notes.create({
       page: snapshot.page,
       anchor: snapshot.anchor,
       content: snapshot.content || '',
     });
-    if (snapshot.name) restored = await source.notes.rename(restored.uuid, snapshot.name);
+    if (snapshot.name) restored = await marks.notes.rename(restored.uuid, snapshot.name);
     setNotes((prev) => [...prev, restored]);
     return restored;
   };
@@ -3048,7 +3052,7 @@ export default function App() {
     setDraggingNoteUuid((carried) => (carried === uuid ? null : carried));
     try {
       const real = await settledUuid(uuid);
-      if (real != null) await source.notes.remove(real);
+      if (real != null) await marks.notes.remove(real);
       if (record && gone) {
         const entry = { uuid: real, snapshot: gone };
         remember({

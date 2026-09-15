@@ -42,10 +42,10 @@ from database import (
     SessionLocal, set_request_session, reset_request_session,
 )
 from models import (
-    User, AuthToken, AppliedMutation, Paper, Copy, CopyTagLink, Comment,
+    User, AuthToken, AppliedMutation, Paper, Copy, CopyTagLink,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     PaperEdition, EditionReference, EditionCitation, EditionLink,
-    InkStroke, PaperClip, Tag, Shelf, Board, BoardGroup, BoardItem,
+    Annotation, Tag, Shelf, Board, BoardGroup, BoardItem,
 )
 import account
 from schemas import (
@@ -55,15 +55,13 @@ from schemas import (
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
-    CommentCreate, Comment as CommentSchema, ExtractedMetadata,
-    ReextractedMetadata, NookStats,
+    ExtractedMetadata, ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     PaperEditionOut, EditionAdopt,
-    CommentUpdate,
+    AnnotationCreate, AnnotationUpdate, AnnotationOut,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
     ResolvedWork,
-    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut,
-    PaperClipCreate, PaperClipUpdate, PaperClipOut, TagOut, TagCreate,
+    TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardStagingCreate, BoardStagingPlace,
     BoardYouTubeCreate, BoardWebpageCreate,
@@ -91,7 +89,9 @@ from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
-from services.annotations import clip_out, note_out, stroke_out
+from services.annotations import (
+    KINDS, NOTE, annotation_out, annotations_of, body_text,
+)
 from services.editions import edition_for, latest_edition
 from services.notifications import setting_value
 from services.sharables import live_sharable_for, open_sharable
@@ -1672,7 +1672,11 @@ async def get_user_space(
         stats = NookStats(
             papers=len(copies),
             displayed=sum(1 for c in copies if c.marketed),
-            notes=db.query(Comment).filter(Comment.user_uuid == user.uuid).count(),
+            notes=db.query(Annotation).filter(
+                Annotation.user_uuid == user.uuid,
+                Annotation.kind == NOTE,
+                Annotation.deleted_at.is_(None),
+            ).count(),
             seminars=db.query(RoomParticipant)
             .filter(RoomParticipant.user_uuid == user.uuid)
             .count(),
@@ -1850,10 +1854,11 @@ def _paper_detail(
         detail.rating_reading = user_copy.rating_reading
         detail.rating_liking = user_copy.rating_liking
         detail.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
-        detail.comments = [
-            note_out(c)
-            for c in sorted(paper.comments, key=lambda c: (c.created_at, c.uuid))
-            if c.user_uuid == viewer.uuid and c.deleted_at is None
+        detail.notes = [
+            annotation_out(row)
+            for row in sorted(paper.annotations, key=lambda a: (a.created_at, a.uuid))
+            if row.user_uuid == viewer.uuid and row.kind == NOTE
+            and row.deleted_at is None
         ]
         # The link this reader already has out for the edition they read,
         # so their share menu opens showing it rather than offering to make
@@ -2004,7 +2009,8 @@ async def create_paper(
     _set_copy_tags(db, user_copy, tags)
 
     if paper.initial_comment and paper.initial_comment.strip():
-        db.add(Comment(
+        db.add(Annotation(
+            kind=NOTE,
             paper=db_paper,
             user_uuid=current_user.uuid,
             content=paper.initial_comment.strip(),
@@ -2415,9 +2421,13 @@ async def delete_paper(
     user_copy = _require_copy(paper, current_user)
 
     user_copy.deleted_at = datetime.utcnow()
-    for c in paper.comments:
-        if c.user_uuid == current_user.uuid and c.deleted_at is None:
-            c.deleted_at = datetime.utcnow()
+    # Only the notes, as the confirmation promises. Ink and clips are left
+    # where they are: leaving a nook is not meant to be a deletion, and a
+    # reader who adds the paper again finds their paint still on the page.
+    for row in paper.annotations:
+        if (row.user_uuid == current_user.uuid and row.kind == NOTE
+                and row.deleted_at is None):
+            row.deleted_at = datetime.utcnow()
 
     commit_sync(db)
     return {"message": "Paper removed from your nook"}
@@ -3009,10 +3019,9 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
 def _readable_edition(edition_uuid: str, user: User, db: Session) -> PaperEdition:
     """The edition, if this reader is someone who may be reading it.
 
-    Ink is private, so letting it be stored against any edition would leak
-    nothing — but a reader who has not taken the paper has no page to draw
-    on, and notes already ask for the paper to be in the nook first. Ink is
-    the same kind of mark and answers the same way."""
+    An annotation is private, so letting one be stored against any edition
+    would leak nothing — but a reader who has not taken the paper has no page
+    to mark, so it is the copy that is asked for."""
     edition = db.query(PaperEdition).filter(PaperEdition.uuid == edition_uuid).first()
     if not edition or edition.paper is None:
         raise HTTPException(status_code=404, detail="Edition not found")
@@ -3020,254 +3029,119 @@ def _readable_edition(edition_uuid: str, user: User, db: Session) -> PaperEditio
     return edition
 
 
-@app.get("/api/editions/{edition_uuid}/ink", response_model=list[InkStrokeOut])
-async def list_ink(
-    edition_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Your marks on this edition, oldest first — which is the order they
-    have to be drawn in for later ink to sit over earlier ink."""
-    edition = _readable_edition(edition_uuid, current_user, db)
-    rows = (
-        db.query(InkStroke)
-        .filter(
-            InkStroke.edition_uuid == edition.uuid,
-            InkStroke.user_uuid == current_user.uuid,
-            InkStroke.deleted_at.is_(None),
-        )
-        .order_by(InkStroke.created_at)
-        .all()
-    )
-    return [stroke_out(r) for r in rows]
+def _own_annotation_or_404(uuid: str, user: User, db: Session) -> Annotation:
+    annotation = db.query(Annotation).filter(
+        Annotation.uuid == uuid,
+        Annotation.user_uuid == user.uuid,
+        Annotation.deleted_at.is_(None),
+    ).first()
+    if annotation is None:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    return annotation
 
 
-@app.post("/api/editions/{edition_uuid}/ink", response_model=InkStrokeOut)
-async def add_ink(
-    edition_uuid: str,
-    stroke: InkStrokeCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Keep one stroke. Posted when the pointer lifts, not as it moves: a
-    stroke is one mark, and half of one is not worth storing."""
-    edition = _readable_edition(edition_uuid, current_user, db)
-    row = InkStroke(
-        group_uuid=stroke.group_uuid,
-        edition=edition,
-        user_uuid=current_user.uuid,
-        page=stroke.page,
-        points=json.dumps([p.model_dump() for p in stroke.points]),
-        color=stroke.color,
-        width=stroke.width,
-        opacity=stroke.opacity,
-        shape=stroke.shape,
-    )
-    db.add(row)
-    commit_sync(db)
-    db.refresh(row)
-    return stroke_out(row)
-
-
-@app.put("/api/ink/{stroke_uuid}", response_model=InkStrokeOut)
-async def move_ink(
-    stroke_uuid: str,
-    move: InkStrokeUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Put a stroke down somewhere else. Sent when the drag ends rather
-    than as it moves, for the same reason a stroke is sent when the pointer
-    lifts: where it was passing through is not where it went."""
-    row = db.query(InkStroke).filter(InkStroke.uuid == stroke_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such stroke")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only move your own ink")
-    row.points = json.dumps([p.model_dump() for p in move.points])
-    commit_sync(db)
-    db.refresh(row)
-    return stroke_out(row)
-
-
-@app.delete("/api/ink/{stroke_uuid}")
-async def delete_ink(
-    stroke_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Rub out one stroke. The eraser works by the stroke rather than by
-    the pixel: it is what the reader drew, so it is what they undraw."""
-    row = db.query(InkStroke).filter(InkStroke.uuid == stroke_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such stroke")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only erase your own ink")
-    row.deleted_at = datetime.utcnow()
-    commit_sync(db)
-    return {"message": "Stroke erased"}
-
-
-@app.get("/api/editions/{edition_uuid}/clips", response_model=list[PaperClipOut])
-async def list_clips(
-    edition_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    edition = _readable_edition(edition_uuid, current_user, db)
-    rows = (
-        db.query(PaperClip)
-        .filter(
-            PaperClip.edition_uuid == edition.uuid,
-            PaperClip.user_uuid == current_user.uuid,
-            PaperClip.deleted_at.is_(None),
-        )
-        .order_by(PaperClip.created_at)
-        .all()
-    )
-    return [clip_out(row) for row in rows]
-
-
-@app.post("/api/editions/{edition_uuid}/clips", response_model=PaperClipOut)
-async def add_clip(
-    edition_uuid: str,
-    clip: PaperClipCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    edition = _readable_edition(edition_uuid, current_user, db)
-    row = PaperClip(
-        edition=edition,
-        user_uuid=current_user.uuid,
-        page=clip.page,
-        source=json.dumps(clip.source.model_dump()),
-        frame=json.dumps(clip.frame.model_dump()),
-        floating=clip.floating,
-    )
-    db.add(row)
-    commit_sync(db)
-    db.refresh(row)
-    return clip_out(row)
-
-
-@app.put("/api/clips/{clip_uuid}", response_model=PaperClipOut)
-async def move_clip(
-    clip_uuid: str,
-    change: PaperClipUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    row = db.query(PaperClip).filter(PaperClip.uuid == clip_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such clip")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only move your own clips")
-    row.frame = json.dumps(change.frame.model_dump())
-    row.floating = change.floating
-    commit_sync(db)
-    db.refresh(row)
-    return clip_out(row)
-
-
-@app.delete("/api/clips/{clip_uuid}")
-async def delete_clip(
-    clip_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    row = db.query(PaperClip).filter(PaperClip.uuid == clip_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such clip")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only remove your own clips")
-    row.deleted_at = datetime.utcnow()
-    commit_sync(db)
-    return {"message": "Clip removed"}
-
-
-@app.post("/api/papers/{paper_uuid}/comments", response_model=CommentSchema)
-async def add_comment(
+@app.get("/api/papers/{paper_uuid}/annotations", response_model=list[AnnotationOut])
+async def list_annotations(
     paper_uuid: str,
-    comment: CommentCreate,
+    edition_uuid: str | None = None,
+    kind: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Add a private note to a paper in your nook. Notes are visible only to
-    you. A note may be *located* — given a page and an anchor, as the PDF
-    viewer does — in which case it also records the edition it was placed
-    on, so a note taken on a different PDF can be told apart."""
+    """Your annotations on this paper, oldest first — which is the order they
+    have to be drawn in for later ink to sit over earlier ink.
+
+    Narrow to one PDF with `edition_uuid`, or to one kind with `kind`. A note
+    written about the paper and never placed on a page belongs to the paper
+    rather than to any of its PDFs, so it is returned whenever the whole
+    paper is asked for."""
     paper = _get_paper_or_404(paper_uuid, db)
-    user_copy = _require_copy(paper, current_user)
-    anchor_type = anchor_json = edition = None
-    if comment.anchor is not None:
-        payload = comment.anchor.model_dump()
-        anchor_type = payload.pop("type")
-        anchor_json = json.dumps(payload)
-        edition = edition_for(paper, user_copy)
-    db_comment = Comment(
-        paper=paper,
+    _require_copy(paper, current_user)
+    if kind is not None and kind not in KINDS:
+        raise HTTPException(status_code=422, detail="Unknown annotation kind")
+    return [
+        annotation_out(row) for row in annotations_of(
+            db, current_user.uuid,
+            paper_uuid=paper.uuid,
+            edition_uuid=edition_uuid,
+            kinds=(kind,) if kind else None,
+        )
+    ]
+
+
+@app.post("/api/papers/{paper_uuid}/annotations", response_model=AnnotationOut)
+async def create_annotation(
+    paper_uuid: str,
+    data: AnnotationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Leave a mark on a paper: a note, a stroke of ink, or a clipped view."""
+    paper = _get_paper_or_404(paper_uuid, db)
+    _require_copy(paper, current_user)
+    edition = None
+    if data.edition_uuid:
+        edition = _readable_edition(data.edition_uuid, current_user, db)
+        if edition.paper is not paper:
+            raise HTTPException(
+                status_code=409, detail="That PDF belongs to another paper",
+            )
+    elif data.kind != NOTE:
+        raise HTTPException(
+            status_code=422, detail=f"A {data.kind} belongs on a PDF",
+        )
+    annotation = Annotation(
+        kind=data.kind,
         user_uuid=current_user.uuid,
-        content=comment.content.strip(),
-        page=comment.page,
-        anchor_type=anchor_type,
-        anchor=anchor_json,
-        edition=edition,
-        name=(comment.name or "").strip() or None,
+        paper_uuid=paper.uuid,
+        edition_uuid=edition.uuid if edition else None,
+        page=data.page,
+        group_uuid=data.group_uuid,
+        content=data.content,
+        name=data.name,
+        body=body_text(data.kind, data.body),
     )
-    db.add(db_comment)
+    db.add(annotation)
     commit_sync(db)
-    db.refresh(db_comment)
-    return note_out(db_comment)
+    db.refresh(annotation)
+    return annotation_out(annotation)
 
 
-@app.put("/api/comments/{comment_uuid}", response_model=CommentSchema)
-async def edit_comment(
-    comment_uuid: str,
-    comment: CommentUpdate,
+@app.put("/api/annotations/{annotation_uuid}", response_model=AnnotationOut)
+async def update_annotation(
+    annotation_uuid: str,
+    data: AnnotationUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Edit a note (author only): reword it, move its anchor, or both.
-    Moving re-places it on the edition the reader is looking at, since that
-    is the page they moved it across."""
-    db_comment = db.query(Comment).filter(Comment.uuid == comment_uuid).first()
-    if not db_comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
-    if db_comment.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only edit your own notes")
-    if comment.content is not None:
-        db_comment.content = comment.content.strip()
-    if comment.anchor is not None:
-        payload = comment.anchor.model_dump()
-        db_comment.anchor_type = payload.pop("type")
-        db_comment.anchor = json.dumps(payload)
-        db_comment.page = comment.page
-        paper = db.get(Paper, db_comment.paper_uuid)
-        edition = edition_for(paper, _copy_of(paper, current_user))
-        db_comment.edition = edition
-    if comment.name is not None:
-        db_comment.name = comment.name.strip() or None
+    """Change an annotation (its author only). Only what is sent changes, so
+    rewording a note never disturbs where it sits, and moving it never
+    disturbs the words."""
+    annotation = _own_annotation_or_404(annotation_uuid, current_user, db)
+    if data.content is not None:
+        annotation.content = data.content
+    if data.name is not None:
+        annotation.name = data.name
+    if data.page is not None:
+        annotation.page = data.page
+    if data.body is not None:
+        merged = {**json.loads(annotation.body or "{}"), **data.body}
+        annotation.body = body_text(annotation.kind, merged)
     commit_sync(db)
-    db.refresh(db_comment)
-    return note_out(db_comment)
+    db.refresh(annotation)
+    return annotation_out(annotation)
 
 
-@app.delete("/api/comments/{comment_uuid}")
-async def delete_comment(
-    comment_uuid: str,
+@app.delete("/api/annotations/{annotation_uuid}")
+async def delete_annotation(
+    annotation_uuid: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a comment (author only)."""
-    comment = db.query(Comment).filter(Comment.uuid == comment_uuid).first()
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
-    if comment.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only delete your own comments")
-
-    comment.deleted_at = datetime.utcnow()
+    annotation = _own_annotation_or_404(annotation_uuid, current_user, db)
+    annotation.deleted_at = datetime.utcnow()
     commit_sync(db)
-    return {"message": "Comment deleted"}
+    return {"message": "Annotation deleted"}
 
 
 # ---------------- Seminar rooms ----------------

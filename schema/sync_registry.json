@@ -31,24 +31,11 @@
         "uploaded_by", "references_status", "references_error", "references_at"
       ]
     },
-    "comments": {
+    "annotations": {
       "owner": "user_uuid",
       "client_writable": [
-        "paper_uuid", "edition_uuid", "content", "page", "anchor_type",
-        "anchor", "name", "deleted_at"
-      ]
-    },
-    "ink_strokes": {
-      "owner": "user_uuid",
-      "client_writable": [
-        "edition_uuid", "group_uuid", "page", "points", "color", "width",
-        "opacity", "shape", "deleted_at"
-      ]
-    },
-    "paper_clips": {
-      "owner": "user_uuid",
-      "client_writable": [
-        "edition_uuid", "page", "source", "frame", "floating", "deleted_at"
+        "kind", "paper_uuid", "edition_uuid", "page", "group_uuid",
+        "content", "name", "body", "deleted_at"
       ]
     },
     "shelves": {

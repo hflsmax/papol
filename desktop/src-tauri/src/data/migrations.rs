@@ -2,6 +2,48 @@ use rusqlite::{Connection, OptionalExtension, Transaction};
 
 const DOMAIN: &str = include_str!("../../../../schema/domain/202609120001_initial.sql");
 
+// A replica written before notes, ink and clips shared a table applied the
+// domain DDL under its own migration id and will not see the new one, so the
+// rows are carried across here. Geometry that lived in its own columns moves
+// into `body`; an anchor's kind moves inside the anchor, where it always
+// belonged. Running this twice is harmless — the inserts select from tables
+// that the last statements drop.
+const UNIFY_ANNOTATIONS: &str = r#"
+INSERT INTO annotations
+  (uuid, kind, user_uuid, paper_uuid, edition_uuid, page, group_uuid,
+   content, name, body, created_at, updated_at, revision, deleted_at)
+SELECT uuid, 'note', user_uuid, paper_uuid, edition_uuid, page, NULL,
+       content, name,
+       CASE WHEN anchor IS NULL OR anchor_type IS NULL THEN '{}'
+            ELSE json_object('anchor', json_insert(anchor, '$.type', anchor_type)) END,
+       created_at, updated_at, revision, deleted_at
+  FROM comments;
+
+INSERT INTO annotations
+  (uuid, kind, user_uuid, paper_uuid, edition_uuid, page, group_uuid,
+   content, name, body, created_at, updated_at, revision, deleted_at)
+SELECT s.uuid, 'ink', s.user_uuid, e.paper_uuid, s.edition_uuid, s.page,
+       s.group_uuid, '', NULL,
+       json_object('points', json(s.points), 'color', s.color, 'width', s.width,
+                   'opacity', s.opacity, 'shape', s.shape),
+       s.created_at, s.updated_at, s.revision, s.deleted_at
+  FROM ink_strokes s JOIN paper_editions e ON e.uuid = s.edition_uuid;
+
+INSERT INTO annotations
+  (uuid, kind, user_uuid, paper_uuid, edition_uuid, page, group_uuid,
+   content, name, body, created_at, updated_at, revision, deleted_at)
+SELECT c.uuid, 'clip', c.user_uuid, e.paper_uuid, c.edition_uuid, c.page, NULL,
+       '', NULL,
+       json_object('source', json(c.source), 'frame', json(c.frame),
+                   'floating', json(CASE WHEN c.floating THEN 'true' ELSE 'false' END)),
+       c.created_at, c.updated_at, c.revision, c.deleted_at
+  FROM paper_clips c JOIN paper_editions e ON e.uuid = c.edition_uuid;
+
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS ink_strokes;
+DROP TABLE IF EXISTS paper_clips;
+"#;
+
 const LOCAL: &str = r#"
 CREATE TABLE IF NOT EXISTS _local_settings (
   key TEXT PRIMARY KEY NOT NULL,
@@ -93,6 +135,26 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         &transaction,
         "202609130001_local_annotations",
         LOCAL_ANNOTATIONS,
+    )?;
+    // A replica created after the unification never had the three tables, so
+    // there is nothing to carry across; record the migration and move on.
+    let legacy_annotations = transaction
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='comments'",
+            [],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .unwrap_or(false);
+    apply_sql(
+        &transaction,
+        "202609150001_unify_annotations",
+        if legacy_annotations {
+            UNIFY_ANNOTATIONS
+        } else {
+            ""
+        },
     )?;
     transaction.commit().map_err(|error| error.to_string())
 }
