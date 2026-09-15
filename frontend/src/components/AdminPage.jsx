@@ -379,7 +379,7 @@ function FeatureStatesPanel() {
                 <code>{state.key}</code>
               </div>
               <button
-                className={`market-toggle ${on ? 'on' : 'off'}`}
+                className={`switch-toggle ${on ? 'on' : 'off'}`}
                 role="switch"
                 aria-checked={on}
                 aria-label={`${state.name}: ${label}`}

@@ -2683,7 +2683,7 @@ fn paper_view(
         "shelf_uuid",
         "summary",
         "thought",
-        "marketed",
+        "is_public",
         "is_author",
         "rating_expertise",
         "rating_reading",
@@ -2752,7 +2752,7 @@ fn paper_view(
     object.insert("viewer_has_entry".into(), Value::Bool(true));
     object.insert(
         "viewer_is_reader".into(),
-        Value::Bool(copy.get("marketed").and_then(Value::as_i64) == Some(1)),
+        Value::Bool(copy.get("is_public").and_then(Value::as_i64) == Some(1)),
     );
     Ok(paper)
 }
@@ -4008,8 +4008,52 @@ mod tests {
                     row.get(0)
                 })
                 .unwrap();
-            assert_eq!(migration_count, 4);
+            assert_eq!(migration_count, 5);
         }
+    }
+
+    #[test]
+    fn a_replica_written_before_the_rename_keeps_each_copys_visibility() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        // A replica that applied the domain DDL under the old spelling: the
+        // migration is on record, so only the rename has anything left to do.
+        let legacy = Connection::open(&path).unwrap();
+        legacy
+            .execute_batch(
+                "CREATE TABLE _local_schema_migrations (\
+                   migration_id TEXT PRIMARY KEY NOT NULL,\
+                   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);\
+                 INSERT INTO _local_schema_migrations (migration_id) \
+                   VALUES ('202609120001_domain');\
+                 CREATE TABLE copies (\
+                   uuid TEXT PRIMARY KEY NOT NULL,\
+                   paper_uuid TEXT NOT NULL,\
+                   user_uuid TEXT NOT NULL,\
+                   marketed INTEGER NOT NULL DEFAULT 0);\
+                 INSERT INTO copies (uuid, paper_uuid, user_uuid, marketed) \
+                   VALUES ('kept-private', 'p', 'u', 0), ('on-display', 'p', 'u', 1);",
+            )
+            .unwrap();
+        drop(legacy);
+
+        let store = LocalStore::open(&path).unwrap();
+        let connection = store.connection.lock().unwrap();
+        let private: i64 = connection
+            .query_row(
+                "SELECT is_public FROM copies WHERE uuid='kept-private'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let public: i64 = connection
+            .query_row(
+                "SELECT is_public FROM copies WHERE uuid='on-display'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((private, public), (0, 1));
     }
 
     #[test]
@@ -4466,7 +4510,7 @@ mod tests {
                             ("ignored_edition_uuid".into(), Value::Null),
                             ("summary".into(), Value::Null),
                             ("thought".into(), Value::Null),
-                            ("marketed".into(), json!(0)),
+                            ("is_public".into(), json!(0)),
                             ("is_author".into(), json!(0)),
                             ("rating_expertise".into(), Value::Null),
                             ("rating_reading".into(), Value::Null),

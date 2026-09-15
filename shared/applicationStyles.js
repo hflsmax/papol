@@ -895,18 +895,18 @@ select:disabled { cursor: default; opacity: .65; }
   margin-left: 0;
 }
 
-.market-status {
+.visibility-status {
   font-size: var(--fs-md);
   color: var(--ink-soft);
   margin: 8px 0;
 }
 
-.market-status .visibility-badge {
+.visibility-status .visibility-badge {
   margin-left: 0;
   margin-right: 4px;
 }
 
-.market-toggle {
+.switch-toggle {
   padding: 2px;
   border: none;
   background: none;
@@ -924,15 +924,15 @@ select:disabled { cursor: default; opacity: .65; }
   white-space: nowrap;
 }
 
-.market-toggle.on .switch-text {
+.switch-toggle.on .switch-text {
   color: var(--ink-inverse);
 }
 
-.market-toggle.off .switch-text {
+.switch-toggle.off .switch-text {
   color: var(--ink-soft);
 }
 
-.market-toggle:hover:not(:disabled) {
+.switch-toggle:hover:not(:disabled) {
   border: none;
   background: none;
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -949,23 +949,23 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* Knob left + label right when hidden; label left + knob right when shown */
-.market-toggle.on .switch {
+.switch-toggle.on .switch {
   padding: 0 4px 0 8px;
 }
 
-.market-toggle.on .switch-knob {
+.switch-toggle.on .switch-knob {
   order: 2;
 }
 
-.market-toggle.on .switch {
+.switch-toggle.on .switch {
   background: var(--accent);
 }
 
-.market-toggle.off .switch {
+.switch-toggle.off .switch {
   background: var(--fill);
 }
 
-.market-toggle.off:hover .switch {
+.switch-toggle.off:hover .switch {
   background: var(--fill-strong);
 }
 
@@ -979,23 +979,23 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* Text-less variant: fixed track, knob slides between the ends */
-.market-toggle .switch.bare {
+.switch-toggle .switch.bare {
   width: 40px;
   padding: 0;
   position: relative;
 }
 
-.market-toggle .switch.bare .switch-knob {
+.switch-toggle .switch.bare .switch-knob {
   position: absolute;
   top: 3px;
   transition: left 0.15s;
 }
 
-.market-toggle.on .switch.bare .switch-knob {
+.switch-toggle.on .switch.bare .switch-knob {
   left: 21px;
 }
 
-.market-toggle.off .switch.bare .switch-knob {
+.switch-toggle.off .switch.bare .switch-knob {
   left: 3px;
 }
 

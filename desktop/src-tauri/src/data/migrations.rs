@@ -102,6 +102,12 @@ CREATE TABLE IF NOT EXISTS _local_blob_refs (
 CREATE INDEX IF NOT EXISTS ix_local_blob_refs_sha256 ON _local_blob_refs(sha256);
 "#;
 
+// A copy's visibility now goes by the same name the shelf uses. A replica
+// written before the rename applied the domain DDL under its own migration
+// id and will not see the new spelling, so the column is renamed in place;
+// the values it holds are already the right ones.
+const RENAME_MARKETED: &str = "ALTER TABLE copies RENAME COLUMN marketed TO is_public;";
+
 // Notes, ink and clips on a PDF opened from the file system, kept on this
 // device by the file's content hash until the paper is added to a nook.
 const LOCAL_ANNOTATIONS: &str = r#"
@@ -155,6 +161,22 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         } else {
             ""
         },
+    )?;
+    // A replica created after the rename already spells the column the new
+    // way; record the migration and move on.
+    let legacy_marketed = transaction
+        .query_row(
+            "SELECT 1 FROM pragma_table_info('copies') WHERE name='marketed'",
+            [],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .unwrap_or(false);
+    apply_sql(
+        &transaction,
+        "202609150002_rename_marketed",
+        if legacy_marketed { RENAME_MARKETED } else { "" },
     )?;
     transaction.commit().map_err(|error| error.to_string())
 }

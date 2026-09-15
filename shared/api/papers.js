@@ -181,7 +181,7 @@ export async function getPaper(uuid) {
         shelf_uuid: copy.shelf_uuid,
         summary: copy.summary,
         thought: copy.thought,
-        marketed: copy.marketed === true || copy.marketed === 1,
+        is_public: copy.is_public === true || copy.is_public === 1,
         is_author: copy.is_author === true || copy.is_author === 1,
         rating_expertise: copy.rating_expertise,
         rating_reading: copy.rating_reading,

@@ -64,7 +64,7 @@ function seed() {
   let cid = 1;
   // Seeds name a paper by its place in demoPapers, and a reader by ordinal.
   const copy = (paper, user, extra = {}) => ({
-    uuid: demoUuid('copy', cid++), paper_uuid: demoPaperUuid(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, marketed: true, is_author: false,
+    uuid: demoUuid('copy', cid++), paper_uuid: demoPaperUuid(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, is_public: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     tag_uuids: [], created_at: daysAgo(5), ...extra,
   });
@@ -94,7 +94,7 @@ function seed() {
     copy(1, 3, { rating_expertise: 1, rating_reading: 2, rating_liking: 4 }),
     copy(2, 1, { summary: 'Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.', thought: 'Attention weights are just soft lookups; that finally clicked.', rating_expertise: 2, rating_reading: 3, rating_liking: 4, tag_uuids: tagUuids(2, 3), created_at: daysAgo(20) }),
     copy(2, 2, { thought: 'Everything since is a footnote to this architecture.', rating_expertise: 5, rating_reading: 5, rating_liking: 4 }),
-    copy(3, 1, { marketed: false, summary: 'Working through how scale changes the few-shot regime before sharing a take.', tag_uuids: tagUuids(2), created_at: daysAgo(12) }),
+    copy(3, 1, { is_public: false, summary: 'Working through how scale changes the few-shot regime before sharing a take.', tag_uuids: tagUuids(2), created_at: daysAgo(12) }),
     copy(3, 3, { thought: 'GPUs go brrr and suddenly vision works.', rating_expertise: 2, rating_reading: 3, rating_liking: 5 }),
     copy(3, 6, { thought: 'Scale beats cleverness; I find that deeply unfair.', rating_expertise: 4, rating_reading: 4, rating_liking: 4 }),
     copy(4, 4, { thought: 'Tables. It was always going to be tables.', rating_expertise: 3, rating_reading: 5, rating_liking: 5 }),
@@ -114,15 +114,15 @@ function seed() {
     copy(10, 6, { thought: 'I have grave concerns about the threat model.', rating_expertise: 4, rating_reading: 5, rating_liking: 1 }),
     // A private exploration: filed in Deep dives and absent from the
     // public nook even though the public one-line thought stays attached.
-    copy(9, 1, { marketed: false, thought: 'Reading this in secret.', tag_uuids: tagUuids(1), created_at: daysAgo(0) }),
+    copy(9, 1, { is_public: false, thought: 'Reading this in secret.', tag_uuids: tagUuids(1), created_at: daysAgo(0) }),
   ];
-  for (const item of copies) item.shelf_uuid = demoUuid('shelf', item.marketed ? 1 : 2);
+  for (const item of copies) item.shelf_uuid = demoUuid('shelf', item.is_public ? 1 : 2);
   // Spread SpongeBob's papers across the shelves so every shelf demonstrates
   // real membership, color, visibility, and counts.
   for (const item of copies.filter((copyItem) => copyItem.user_uuid === ME)) {
     if (item.paper_uuid === demoPaperUuid(1) || item.paper_uuid === demoPaperUuid(10)) item.shelf_uuid = demoUuid('shelf', 3);
     if (item.paper_uuid === demoPaperUuid(9)) item.shelf_uuid = demoUuid('shelf', 4);
-    item.marketed = shelves.find((shelf) => shelf.uuid === item.shelf_uuid).is_public;
+    item.is_public = shelves.find((shelf) => shelf.uuid === item.shelf_uuid).is_public;
   }
 
   // SpongeBob's notes, as the API would return them. Bare anchors and his
@@ -231,7 +231,7 @@ const privateUser = (u) => ({
 const userByUuid = (uuid) => ensure().users.find((u) => u.uuid === uuid);
 const paperKey = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
 const paperCopies = (p) => ensure().copies.filter((c) => c.paper_uuid === p.uuid);
-const displayedCopies = (p) => paperCopies(p).filter((c) => c.marketed);
+const displayedCopies = (p) => paperCopies(p).filter((c) => c.is_public);
 const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_uuid === uid) || null;
 const roomParts = (r) => ensure().participants.filter((x) => x.room_uuid === r.uuid);
 
@@ -280,7 +280,7 @@ function paperDetail(p) {
     ignored_edition_uuid: mine ? mine.ignored_edition_uuid ?? null : null,
     summary: mine ? mine.summary : null,
     thought: mine ? mine.thought : null,
-    marketed: mine ? mine.marketed : null,
+    is_public: mine ? mine.is_public : null,
     is_author: mine ? !!mine.is_author : null,
     rating_expertise: mine ? mine.rating_expertise : null,
     rating_reading: mine ? mine.rating_reading : null,
@@ -293,7 +293,7 @@ function paperDetail(p) {
       : [],
     also_read_by: displayedCopies(p).map(readerEntry),
     rooms: paperRooms(p).map(roomSummary),
-    viewer_is_reader: !!(mine && mine.marketed),
+    viewer_is_reader: !!(mine && mine.is_public),
     viewer_has_entry: !!mine,
   };
 }
@@ -314,7 +314,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     edition_uuid: c ? c.edition_uuid ?? editionsOf(p)[0].uuid : null,
     summary: c && !hidePrivate ? c.summary : null,
     thought: c ? c.thought : null,
-    marketed: c ? c.marketed : null,
+    is_public: c ? c.is_public : null,
     is_author: c ? !!c.is_author : null,
     rating_expertise: c ? c.rating_expertise : null,
     rating_reading: c ? c.rating_reading : null,
@@ -330,7 +330,7 @@ function roomDetail(r) {
   const d = ensure();
   const paper = d.papers.find((p) => paperKey(p) === r.paper_key) || null;
   const mine = paper ? copyOf(paper, ME) : null;
-  const isReader = !!(mine && mine.marketed);
+  const isReader = !!(mine && mine.is_public);
   return {
     ...roomSummary(r),
     paper_title: r.paper_title,
@@ -344,7 +344,7 @@ function roomDetail(r) {
       roomParts(r).some((x) => x.user_uuid === ME),
     viewer_is_participant: roomParts(r).some((x) => x.user_uuid === ME),
     viewer_is_reader: isReader,
-    viewer_hidden_entry_uuid: mine && !mine.marketed && paper ? paper.uuid : null,
+    viewer_hidden_entry_uuid: mine && !mine.is_public && paper ? paper.uuid : null,
   };
 }
 
@@ -361,7 +361,7 @@ function requireReaderOf(room) {
   const d = ensure();
   const paper = d.papers.find((p) => paperKey(p) === room.paper_key);
   const mine = paper ? copyOf(paper, ME) : null;
-  if (!mine || !mine.marketed) {
+  if (!mine || !mine.is_public) {
     throw demoError('Add this paper to your nook, and keep it on display, to take part in the cohort', 403);
   }
 }
@@ -413,7 +413,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/users') {
     return d.users.map((u) => ({
       ...publicUser(u),
-      paper_count: d.copies.filter((c) => c.user_uuid === u.uuid && c.marketed).length,
+      paper_count: d.copies.filter((c) => c.user_uuid === u.uuid && c.is_public).length,
     }));
   }
   if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
@@ -424,13 +424,13 @@ async function routeDemoRequest(path, options = {}) {
     const own = u.uuid === ME;
     const statusMap = roomStatusMap();
     const list = d.copies
-      .filter((c) => c.user_uuid === u.uuid && (own || c.marketed))
+      .filter((c) => c.user_uuid === u.uuid && (own || c.is_public))
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((c) => paperListEntry(d.papers.find((p) => p.uuid === c.paper_uuid), c, !own, statusMap));
     const stats = own
       ? {
           papers: d.copies.filter((c) => c.user_uuid === u.uuid).length,
-          displayed: d.copies.filter((c) => c.user_uuid === u.uuid && c.marketed).length,
+          displayed: d.copies.filter((c) => c.user_uuid === u.uuid && c.is_public).length,
           notes: d.comments.filter((c) => c.user_uuid === u.uuid).length,
           seminars: d.participants.filter((x) => x.user_uuid === u.uuid).length,
         }
@@ -451,7 +451,7 @@ async function routeDemoRequest(path, options = {}) {
     if (!shelf) throw demoError('Shelf not found', 404);
     if (body.is_default) for (const item of d.shelves) item.is_default = item === shelf;
     Object.assign(shelf, body);
-    if ('is_public' in body) for (const copy of d.copies.filter((item) => item.user_uuid === ME && item.shelf_uuid === shelf.uuid)) copy.marketed = !!body.is_public;
+    if ('is_public' in body) for (const copy of d.copies.filter((item) => item.user_uuid === ME && item.shelf_uuid === shelf.uuid)) copy.is_public = !!body.is_public;
     return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length };
   }
   if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
@@ -462,7 +462,7 @@ async function routeDemoRequest(path, options = {}) {
     const destination = remaining.find((item) => item.is_default) || remaining[0];
     for (const copy of d.copies.filter((item) => item.user_uuid === ME && item.shelf_uuid === shelf.uuid)) {
       copy.shelf_uuid = destination.uuid;
-      copy.marketed = destination.is_public;
+      copy.is_public = destination.is_public;
     }
     if (shelf.is_default) destination.is_default = true;
     d.shelves = remaining;
@@ -521,7 +521,7 @@ async function routeDemoRequest(path, options = {}) {
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     const defaultShelf = d.shelves.find((shelf) => shelf.is_default) || d.shelves[0];
     d.copies.push({ uuid: newUuid(), paper_uuid: paper.uuid, user_uuid: ME,
-      summary: null, thought: null, marketed: defaultShelf.is_public, is_author: false, rating_expertise: null,
+      summary: null, thought: null, is_public: defaultShelf.is_public, is_author: false, rating_expertise: null,
       rating_reading: null, rating_liking: null,
       shelf_uuid: defaultShelf.uuid,
       created_at: now() });
@@ -569,7 +569,7 @@ async function routeDemoRequest(path, options = {}) {
   if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/room$/))) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
-    if (!mine || !mine.marketed) {
+    if (!mine || !mine.is_public) {
       throw demoError('Display this paper to call a seminar', 403);
     }
     const k = paperKey(paper);
@@ -585,20 +585,20 @@ async function routeDemoRequest(path, options = {}) {
   }
   if ((m = path.match(/^\/papers\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const paper = findPaper(m[1]);
-    const personal = ['summary', 'thought', 'marketed', 'is_author', 'rating_expertise', 'rating_reading', 'rating_liking'];
+    const personal = ['summary', 'thought', 'is_public', 'is_author', 'rating_expertise', 'rating_reading', 'rating_liking'];
     const metadata = ['title', 'authors', 'journal', 'year', 'doi'];
     if (personal.some((k) => k in body)) {
       const mine = copyOf(paper, ME);
       if (!mine) throw demoError('Add this paper to your nook first', 403);
-      if (body.marketed === false && inActiveCohort(paperKey(paper))) {
+      if (body.is_public === false && inActiveCohort(paperKey(paper))) {
         throw demoError('You are in a seminar cohort for this paper. Leave the cohort before hiding the paper.');
       }
       for (const k of personal) if (k in body) mine[k] = body[k];
-      if ('marketed' in body) {
-        const shelf = d.shelves.find((item) => item.is_public === body.marketed);
-        if (!shelf) throw demoError(`Create a ${body.marketed ? 'public' : 'private'} shelf first`);
+      if ('is_public' in body) {
+        const shelf = d.shelves.find((item) => item.is_public === body.is_public);
+        if (!shelf) throw demoError(`Create a ${body.is_public ? 'public' : 'private'} shelf first`);
         mine.shelf_uuid = shelf.uuid;
-        mine.marketed = shelf.is_public;
+        mine.is_public = shelf.is_public;
       }
     }
     if ('tag_uuids' in body) {
@@ -611,7 +611,7 @@ async function routeDemoRequest(path, options = {}) {
       const shelf = d.shelves.find((item) => item.uuid === body.shelf_uuid);
       if (!mine || !shelf) throw demoError('Shelf not found');
       mine.shelf_uuid = shelf.uuid;
-      mine.marketed = shelf.is_public;
+      mine.is_public = shelf.is_public;
     }
     for (const k of metadata) if (k in body) paper[k] = body[k];
     return paperDetail(paper);

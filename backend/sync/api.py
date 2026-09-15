@@ -106,7 +106,7 @@ def _visible_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
     if paper in db.new or getattr(paper, "_sync_import_user", None) == user_uuid:
         return paper
     visible = any(
-        copy.deleted_at is None and (copy.user_uuid == user_uuid or copy.marketed)
+        copy.deleted_at is None and (copy.user_uuid == user_uuid or copy.is_public)
         for copy in paper.copies
     )
     if not visible:
@@ -267,7 +267,7 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Copy(
             uuid=row_uuid, paper=paper, edition=edition, shelf=shelf,
-            user_uuid=user.uuid, marketed=False, is_author=False,
+            user_uuid=user.uuid, is_public=False, is_author=False,
         )
     if change.table == "copy_tags":
         copy_uuid, tag_uuid = values.get("copy_uuid"), values.get("tag_uuid")
@@ -375,13 +375,13 @@ def _assign_values(db: Session, record, values: dict, user: User):
             # Visibility belongs to the shelf: moving a copy publishes or
             # hides it exactly as the online move in update_paper does.
             if shelf is not None:
-                if (record.marketed and not shelf.is_public and record.paper is not None
+                if (record.is_public and not shelf.is_public and record.paper is not None
                         and in_active_cohort(db, user, paper_key_for(record.paper))):
                     raise HTTPException(
                         status_code=422,
                         detail="Leave the seminar before moving this paper to a private shelf",
                     )
-                record.marketed = bool(shelf.is_public)
+                record.is_public = bool(shelf.is_public)
             record.shelf = shelf
         if "edition_uuid" in values:
             edition_uuid = values["edition_uuid"]

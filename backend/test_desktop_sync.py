@@ -577,7 +577,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add_all([shelf, edition])
             db.flush()
             db.add(Copy(
-                paper=paper, user_uuid=other.uuid, shelf=shelf, marketed=True,
+                paper=paper, user_uuid=other.uuid, shelf=shelf, is_public=True,
                 edition=edition, edition_sha256=edition.sha256,
             ))
             db.commit()
@@ -1006,7 +1006,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.flush()
             copy = Copy(
                 paper=paper, user_uuid=self.user_uuid, edition=first,
-                edition_sha256=first.sha256, marketed=False,
+                edition_sha256=first.sha256, is_public=False,
             )
             db.add(copy)
             db.commit()
@@ -1040,7 +1040,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Offline nook")
             db.add(paper)
             db.flush()
-            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid, marketed=False)
+            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid, is_public=False)
             db.add(copy)
             commit_sync(db)
             paper_uuid, copy_uuid = paper.uuid, copy.uuid
@@ -1130,7 +1130,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Shelved offline")
             db.add_all([public, private, paper])
             db.flush()
-            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid, marketed=True)
+            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid, is_public=True)
             db.add(copy)
             commit_sync(db)
             public_uuid, private_uuid, copy_uuid = public.uuid, private.uuid, copy.uuid
@@ -1149,14 +1149,14 @@ class DesktopSyncContractTests(unittest.TestCase):
                 }],
             })
 
-        def marketed():
+        def is_public():
             with self.sessions() as db:
-                return db.query(Copy).filter(Copy.uuid == copy_uuid).one().marketed
+                return db.query(Copy).filter(Copy.uuid == copy_uuid).one().is_public
 
         self.assertLess(move(private_uuid, 1).status_code, 400)
-        self.assertFalse(marketed())
+        self.assertFalse(is_public())
         self.assertLess(move(public_uuid, 2).status_code, 400)
-        self.assertTrue(marketed())
+        self.assertTrue(is_public())
 
         with self.sessions() as db:
             room = Room(paper_key="title:shelved offline", paper_title="Shelved offline", created_by=self.user_uuid)
@@ -1166,7 +1166,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.commit()
         refused = move(private_uuid, 3)
         self.assertEqual(refused.status_code, 422, refused.text)
-        self.assertTrue(marketed())
+        self.assertTrue(is_public())
 
     def assert_no_id_fields(self, value):
         """Rows are named by `uuid` and refer to each other by `<name>_uuid`."""
@@ -1203,7 +1203,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Desktop paper")
             db.add_all([shelf, paper])
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid, marketed=False))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid, is_public=False))
             commit_sync(db)
             shelf_uuid, paper_uuid = shelf.uuid, paper.uuid
 
@@ -1212,7 +1212,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         with self.sessions() as db:
             copy = db.query(Copy).join(Paper).filter(Paper.uuid == paper_uuid).one()
             self.assertEqual(copy.thought, "Read on the train")
-            self.assertTrue(copy.marketed)
+            self.assertTrue(copy.is_public)
         self.request("DELETE", f"/api/shelves/{shelf_uuid}")
         with self.sessions() as db:
             self.assertIsNotNone(db.query(Shelf).filter(Shelf.uuid == shelf_uuid).one().deleted_at)

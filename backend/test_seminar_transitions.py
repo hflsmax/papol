@@ -67,7 +67,7 @@ class SeminarTransitionTests(unittest.TestCase):
                 paper=paper,
                 shelf=shelf,
                 user_uuid=self.user_uuid,
-                marketed=True,
+                is_public=True,
             ))
             db.commit()
             self.paper_uuid = paper.uuid
@@ -157,7 +157,7 @@ class SeminarTransitionTests(unittest.TestCase):
             )
             db.add(shelf)
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_uuid=reader_uuid, marketed=True))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=reader_uuid, is_public=True))
             db.commit()
 
         joined = self.client.post(

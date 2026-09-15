@@ -173,4 +173,4 @@ def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
 def _paper_is_public(paper: Paper) -> bool:
     """Whether the paper's own page opens for a visitor. A shared reading
     links to it when it does, and says nothing when it does not."""
-    return any(copy.marketed and copy.deleted_at is None for copy in paper.copies)
+    return any(copy.is_public and copy.deleted_at is None for copy in paper.copies)

@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS copies (
   ignored_edition_uuid TEXT REFERENCES paper_editions(uuid),
   summary TEXT,
   thought TEXT,
-  marketed INTEGER NOT NULL DEFAULT 0,
+  is_public INTEGER NOT NULL DEFAULT 0,
   is_author INTEGER NOT NULL DEFAULT 0,
   rating_expertise INTEGER,
   rating_reading INTEGER,

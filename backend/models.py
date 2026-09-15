@@ -309,7 +309,7 @@ class Copy(Base):
     ignored_edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
-    marketed = Column(Boolean, nullable=False, default=True, server_default="1")
+    is_public = Column(Boolean, nullable=False, default=True, server_default="1")
     # The reader is an author of this paper ("this is my paper").
     is_author = Column(Boolean, nullable=False, default=False, server_default="0")
     rating_expertise = Column(Integer, nullable=True)
@@ -336,7 +336,7 @@ class Copy(Base):
 
 class Shelf(Base):
     """One of a reader's five homes for papers. Visibility belongs to the
-    shelf; Copy.marketed is kept in sync for compatibility with seminar rules."""
+    shelf; Copy.is_public is kept in sync for compatibility with seminar rules."""
     __tablename__ = "shelves"
     __table_args__ = (UniqueConstraint("user_uuid", "name", name="uq_shelf_user_name"),)
 

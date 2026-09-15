@@ -515,7 +515,7 @@ class PaperCreate(PaperBase):
     file_path: str
     summary: Optional[str] = None
     thought: Optional[str] = Field(default=None, max_length=limit("text", "paper_thought"))
-    marketed: bool = True
+    is_public: bool = True
     is_author: bool = False
     rating_expertise: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
     rating_reading: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
@@ -540,7 +540,7 @@ class PaperUpdate(BaseModel):
     # Personal fields (the viewer's own copy)
     summary: Optional[str] = None
     thought: Optional[str] = Field(default=None, max_length=limit("text", "paper_thought"))
-    marketed: Optional[bool] = None
+    is_public: Optional[bool] = None
     is_author: Optional[bool] = None
     rating_expertise: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
     rating_reading: Optional[int] = Field(default=None, ge=limit("ratings", "min"), le=limit("ratings", "max"))
@@ -702,7 +702,7 @@ class PaperList(PaperBase):
     # Personal fields of the nook being viewed (None in the global list)
     summary: Optional[str] = None
     thought: Optional[str] = None
-    marketed: Optional[bool] = None
+    is_public: Optional[bool] = None
     is_author: Optional[bool] = None
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None
@@ -726,7 +726,7 @@ class Paper(PaperBase):
     created_at: datetime
     summary: Optional[str] = None
     thought: Optional[str] = None
-    marketed: Optional[bool] = None
+    is_public: Optional[bool] = None
     is_author: Optional[bool] = None
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None

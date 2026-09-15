@@ -536,10 +536,10 @@ export function paperView(row) {
   const bool = (value) => value === true || value === 1;
   return {
     ...row,
-    marketed: bool(row.marketed),
+    is_public: bool(row.is_public),
     is_author: bool(row.is_author),
     viewer_has_entry: true,
-    viewer_is_reader: bool(row.marketed),
+    viewer_is_reader: bool(row.is_public),
   };
 }
 

@@ -158,7 +158,7 @@ def gather(db: Session, user: User) -> dict:
                 "paper": _paper_ref(c.paper),
                 "summary": c.summary,
                 "thought": c.thought,
-                "on_display": c.marketed,
+                "on_display": c.is_public,
                 "shelf": c.shelf.name if c.shelf else None,
                 "i_am_an_author": c.is_author,
                 "ratings": {

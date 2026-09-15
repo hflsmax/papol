@@ -1507,7 +1507,7 @@ async def list_users(
             display_name=u.display_name,
             affiliation=u.affiliation,
             avatar_path=u.avatar_path,
-            paper_count=sum(1 for r in u.copies if r.marketed),
+            paper_count=sum(1 for r in u.copies if r.is_public),
         )
         for u in users
     ]
@@ -1603,7 +1603,7 @@ def _add_edition(db: Session, paper: Paper, filename: str, user: User) -> PaperE
 
 
 def _displayed_copies(paper: Paper) -> list[Copy]:
-    return [r for r in paper.copies if r.marketed and r.deleted_at is None]
+    return [r for r in paper.copies if r.is_public and r.deleted_at is None]
 
 
 def _paper_list_entry(
@@ -1629,7 +1629,7 @@ def _paper_list_entry(
         entry.copy_uuid = user_copy.uuid
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
-        entry.marketed = user_copy.marketed
+        entry.is_public = user_copy.is_public
         entry.is_author = bool(user_copy.is_author)
         entry.rating_expertise = user_copy.rating_expertise
         entry.rating_reading = user_copy.rating_reading
@@ -1658,7 +1658,7 @@ async def get_user_space(
     hide_private = current_user is None or current_user.uuid != user.uuid
     query = db.query(Copy).filter(Copy.user_uuid == user.uuid, Copy.deleted_at.is_(None))
     if hide_private:
-        query = query.filter(Copy.marketed.is_(True))
+        query = query.filter(Copy.is_public.is_(True))
     copies = query.order_by(Copy.created_at.desc()).all()
     board_query = db.query(Board).filter(
         Board.user_uuid == user.uuid, Board.deleted_at.is_(None),
@@ -1671,7 +1671,7 @@ async def get_user_space(
     if not hide_private:
         stats = NookStats(
             papers=len(copies),
-            displayed=sum(1 for c in copies if c.marketed),
+            displayed=sum(1 for c in copies if c.is_public),
             notes=db.query(Annotation).filter(
                 Annotation.user_uuid == user.uuid,
                 Annotation.kind == NOTE,
@@ -1783,7 +1783,7 @@ def _reader_uuids(db: Session, key: str, public_only: bool = True) -> set[str]:
         r.user_uuid
         for p in _papers_for_key(db, key)
         for r in p.copies
-        if r.marketed or not public_only
+        if r.is_public or not public_only
     }
 
 
@@ -1848,7 +1848,7 @@ def _paper_detail(
         detail.copy_uuid = user_copy.uuid
         detail.summary = user_copy.summary
         detail.thought = user_copy.thought
-        detail.marketed = user_copy.marketed
+        detail.is_public = user_copy.is_public
         detail.is_author = bool(user_copy.is_author)
         detail.rating_expertise = user_copy.rating_expertise
         detail.rating_reading = user_copy.rating_reading
@@ -1878,7 +1878,7 @@ def _paper_detail(
         .order_by(Room.created_at.desc(), Room.uuid.desc())
         .all()
     ]
-    detail.viewer_is_reader = user_copy is not None and user_copy.marketed
+    detail.viewer_is_reader = user_copy is not None and user_copy.is_public
     detail.viewer_has_entry = user_copy is not None
     return detail
 
@@ -1998,7 +1998,7 @@ async def create_paper(
         edition_sha256=edition.sha256,
         summary=paper.summary,
         thought=paper.thought,
-        marketed=bool(shelf.is_public),
+        is_public=bool(shelf.is_public),
         shelf=shelf,
         is_author=paper.is_author,
         rating_expertise=paper.rating_expertise,
@@ -2180,7 +2180,7 @@ def _viewer_edition_or_404(
 
 
 _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
-_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "marketed", "is_author"}
+_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"}
 
 
 @app.put("/api/papers/{paper_uuid}", response_model=PaperSchema)
@@ -2207,7 +2207,7 @@ async def update_paper(
 
     if personal:
         user_copy = _require_copy(paper, current_user)
-        requested_visibility = personal.pop("marketed", None)
+        requested_visibility = personal.pop("is_public", None)
         if requested_visibility is False and _in_active_cohort(
             db, current_user, _paper_key_for(paper)
         ):
@@ -2224,7 +2224,7 @@ async def update_paper(
                 visibility = "public" if requested_visibility else "private"
                 raise HTTPException(status_code=400, detail=f"Create a {visibility} shelf first")
             user_copy.shelf = target_shelf
-            user_copy.marketed = bool(target_shelf.is_public)
+            user_copy.is_public = bool(target_shelf.is_public)
         for key, value in personal.items():
             setattr(user_copy, key, value)
 
@@ -2241,12 +2241,12 @@ async def update_paper(
         shelf = db.query(Shelf).filter(Shelf.uuid == shelf_uuid, Shelf.user_uuid == current_user.uuid).first()
         if not shelf:
             raise HTTPException(status_code=400, detail="Shelf does not belong to you")
-        if not shelf.is_public and user_copy.marketed and _in_active_cohort(
+        if not shelf.is_public and user_copy.is_public and _in_active_cohort(
             db, current_user, _paper_key_for(paper)
         ):
             raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
-        user_copy.marketed = bool(shelf.is_public)
+        user_copy.is_public = bool(shelf.is_public)
 
     for key, value in metadata.items():
         setattr(paper, key, value)
@@ -2363,7 +2363,7 @@ async def update_shelf(
                 raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
         shelf.is_public = becoming_public
         for copy in shelf.copies:
-            copy.marketed = becoming_public
+            copy.is_public = becoming_public
     if changes.get("is_default"):
         for other in current_user.shelves:
             if other.deleted_at is not None:
@@ -2389,7 +2389,7 @@ async def delete_shelf(
     if not destination.is_public:
         blocked = [
             copy for copy in shelf.copies
-            if copy.marketed and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
+            if copy.is_public and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
         ]
         if blocked:
             raise HTTPException(
@@ -2398,7 +2398,7 @@ async def delete_shelf(
             )
     for copy in list(shelf.copies):
         copy.shelf = destination
-        copy.marketed = bool(destination.is_public)
+        copy.is_public = bool(destination.is_public)
     for board in list(shelf.boards):
         board.shelf = destination
     if shelf.is_default:
@@ -2451,7 +2451,7 @@ async def add_to_nook(
     db.add(Copy(
         paper=paper,
         user_uuid=current_user.uuid,
-        marketed=bool(shelf.is_public),
+        is_public=bool(shelf.is_public),
         shelf=shelf,
         edition=latest,
         edition_sha256=latest.sha256 if latest else None,
@@ -3180,7 +3180,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     link_paper = (
         paper if paper and (own is not None or _displayed_copies(paper)) else None
     )
-    hidden_entry = paper if own is not None and not own.marketed else None
+    hidden_entry = paper if own is not None and not own.is_public else None
 
     summary = _room_summary(room)
     return RoomDetail(
