@@ -813,7 +813,7 @@ impl LocalStore {
     ) -> Result<(), String> {
         use sha2::{Digest, Sha256};
 
-        let actual_sha256 = format!("{:x}", Sha256::digest(bytes));
+        let actual_sha256 = hex::encode(Sha256::digest(bytes));
         if actual_sha256 != expected_sha256 {
             return Err("Downloaded blob failed SHA-256 verification".into());
         }
@@ -835,7 +835,7 @@ impl LocalStore {
     ) -> Result<BlobRecord, String> {
         use sha2::{Digest, Sha256};
 
-        let sha256 = format!("{:x}", Sha256::digest(bytes));
+        let sha256 = hex::encode(Sha256::digest(bytes));
         let destination = self.blob_directory.join(&sha256);
         let created = !destination.exists();
         if created {
@@ -957,7 +957,7 @@ impl LocalStore {
 
         let path = self.blob_directory.join(sha256);
         let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
-        if format!("{:x}", Sha256::digest(&bytes)) != sha256 {
+        if hex::encode(Sha256::digest(&bytes)) != sha256 {
             std::fs::remove_file(&path).map_err(|error| error.to_string())?;
             return Ok(false);
         }
@@ -3587,7 +3587,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let bytes = b"kept from an earlier replica";
-        let kept = format!("{:x}", sha2::Sha256::digest(bytes));
+        let kept = hex::encode(sha2::Sha256::digest(bytes));
         let corrupt = "d".repeat(64);
         std::fs::write(store.blob_directory.join(&kept), bytes).unwrap();
         std::fs::write(store.blob_directory.join(&corrupt), b"not these bytes").unwrap();
@@ -3828,7 +3828,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
         let bytes = b"interrupted cache eviction";
-        let sha256 = format!("{:x}", sha2::Sha256::digest(bytes));
+        let sha256 = hex::encode(sha2::Sha256::digest(bytes));
         let store = LocalStore::open(&path).unwrap();
         store
             .import_remote_blob(&sha256, bytes, Some("application/pdf".into()))
