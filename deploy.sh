@@ -12,6 +12,8 @@
 #                  loads .env.macos-notarization when present
 #   ./deploy.sh macos credentials
 #                  print the local signing/notarization values for GitHub
+#   ./deploy.sh macos release [patch|minor|major|VERSION]
+#                  bump, commit, tag, and push a macOS release
 #
 # Code goes up with `prod`. Data never goes from development to production;
 # `pull` explicitly replaces development's database with production's.
@@ -260,6 +262,76 @@ macos_credentials() {
   printf 'APPLE_ID=%s\n' "${APPLE_ID:-}"
   printf 'APPLE_PASSWORD=%s\n' "${APPLE_PASSWORD:-}"
   printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID:-}"
+}
+
+macos_release() {
+  local requested="${1:-patch}" current version tag
+  local desktop_package="$DEV_DIR/desktop/package.json"
+  local desktop_lock="$DEV_DIR/desktop/package-lock.json"
+  local tauri_config="$DEV_DIR/desktop/src-tauri/tauri.conf.json"
+  local -a version_files=(
+    "desktop/package.json"
+    "desktop/package-lock.json"
+    "desktop/src-tauri/tauri.conf.json"
+  )
+
+  [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, or X.Y.Z"
+  command -v node >/dev/null 2>&1 || die "node is required to prepare a macOS release"
+  [ "$(git -C "$DEV_DIR" branch --show-current)" = main ] \
+    || die "macos releases must be cut from the main branch"
+  git -C "$DEV_DIR" diff --cached --quiet \
+    || die "stage or unstage existing changes before cutting a release"
+  git -C "$DEV_DIR" diff --quiet -- "${version_files[@]}" \
+    || die "desktop version files have uncommitted changes"
+
+  current=$(node -p "require('$desktop_package').version")
+  if [[ ! $current =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    die "desktop version is not a stable semantic version: $current"
+  fi
+  case "$requested" in
+    patch) version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))" ;;
+    minor) version="${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1)).0" ;;
+    major) version="$((BASH_REMATCH[1] + 1)).0.0" ;;
+    *)
+      [[ $requested =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+        || die "release version must be patch, minor, major, or X.Y.Z"
+      version=$requested
+      ;;
+  esac
+  [ "$version" != "$current" ] || die "desktop is already version $version"
+  tag="desktop-v$version"
+  if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+    die "tag $tag already exists locally"
+  fi
+  if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
+    die "tag $tag already exists on origin"
+  fi
+
+  node - "$version" "$desktop_package" "$desktop_lock" "$tauri_config" <<'NODE'
+const [version, packageFile, lockFile, tauriFile] = process.argv.slice(2);
+const replace = (file, pattern) => {
+  const source = require('node:fs').readFileSync(file, 'utf8');
+  let count = 0;
+  const updated = source.replace(pattern, (...parts) => {
+    count += 1;
+    return `${parts[1]}${version}${parts[2]}`;
+  });
+  if (count !== 1) throw new Error(`expected one version field in ${file}, found ${count}`);
+  require('node:fs').writeFileSync(file, updated);
+};
+replace(packageFile, /^(  "version": ")[^"]+(",)$/m);
+replace(lockFile, /^(  "version": ")[^"]+(",)$/m);
+replace(lockFile, /^(      "version": ")[^"]+(",)$/m);
+replace(tauriFile, /^(  "version": ")[^"]+(",)$/m);
+NODE
+
+  git -C "$DEV_DIR" diff --check
+  git -C "$DEV_DIR" add -- "${version_files[@]}"
+  git -C "$DEV_DIR" commit -m "Release Papol Desktop v$version"
+  git -C "$DEV_DIR" push origin main
+  git -C "$DEV_DIR" tag -a "$tag" -m "Papol Desktop v$version"
+  git -C "$DEV_DIR" push origin "$tag"
+  say "Published Papol Desktop v$version"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -743,12 +815,14 @@ run_macos() {
     dev) shift; macos_dev "$@" ;;
     prod|build) shift; macos_prod "$@" ;;
     credentials) shift; macos_credentials "$@" ;;
+    release) shift; macos_release "$@" ;;
     ""|-h|--help)
       cat <<'MSG'
 Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--universal] [--no-check] [--skip-notarize]
   ./deploy.sh macos credentials
+  ./deploy.sh macos release [patch|minor|major|VERSION]
 
 `prod` and its `build` alias create an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
@@ -759,9 +833,12 @@ signing mode without submitting the build to Apple's notarization service.
 `credentials` lists the GitHub Actions secrets needed for a signed and
 notarized release, checks for a local Developer ID identity, and prints the
 values in the local credential file for copying to GitHub.
+`release` increments the desktop patch version by default (or accepts a minor,
+major, or explicit stable version), commits only its three version files, and
+pushes the matching `desktop-v*` tag to trigger the GitHub release build.
 MSG
       ;;
-    *) die "unknown macos target: $1 (try dev, prod, build, or credentials)" ;;
+    *) die "unknown macos target: $1 (try dev, prod, build, credentials, or release)" ;;
   esac
 }
 
