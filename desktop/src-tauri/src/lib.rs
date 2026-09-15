@@ -105,7 +105,7 @@ fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
         };
         let read_ms = elapsed_ms(phase);
         let phase = Instant::now();
-        let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        let sha256 = hex::encode(Sha256::digest(&bytes));
         let hash_ms = elapsed_ms(phase);
         let Some(mut url) = opened_file_url(&origin, &sha256, &path) else {
             continue;
@@ -172,7 +172,7 @@ fn opened_file_open(
         .clone()
         .ok_or("Papol is still starting. Drop the PDF again.")?;
     let phase = Instant::now();
-    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let sha256 = hex::encode(Sha256::digest(&bytes));
     let hash_ms = elapsed_ms(phase);
     let path = PathBuf::from(name);
     let mut url =
