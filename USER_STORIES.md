@@ -99,6 +99,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.18** If I **take the paper out of my nook**, the reading the link named is gone, so the link becomes paper-only rather than dying — and permanently: putting the paper back does not quietly re-expose my marks to everyone still holding it.
 - **US-7.19** **Stopping** asks what I mean, when there is something to ask: I can *drop my marks* and leave the link working for whoever has it, or *close the link* so it stops opening. Closing is final — sharing again mints a new link, and the old one stays dead. Whoever follows a closed link is told it is no longer shared, not that it never existed.
 - **US-7.20** A live link is a **state of the paper, shown on its page** — not something buried in a menu — so nothing I do to the paper can leave a link serving that I have forgotten about.
+- **US-7.21** While a link is out, Papol **will not move my copy to another edition**: the link opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. Waving the newer edition away still works — it decides nothing about the PDF.
 
 ## Non-functional
 

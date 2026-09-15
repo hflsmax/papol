@@ -701,10 +701,21 @@ export default function PaperDetail({
                 <p className="edition-notice-warn">
                   Your notes sit on your current PDF and may not line up on the new one.
                 </p>
+                {/* A link out on the PDF being left is a reason the
+                    reader has to settle first, so the offer is withdrawn
+                    and named rather than left to fail when clicked. */}
+                {paper.sharable_uuid && (
+                  <p className="edition-notice-warn">
+                    The link you handed out opens the PDF you are reading now.
+                    Stop sharing it below before moving to this one.
+                  </p>
+                )}
                 <div className="edition-notice-actions">
-                  <button className="link-btn" onClick={handleAdoptEdition}>
-                    Update my nook
-                  </button>
+                  {!paper.sharable_uuid && (
+                    <button className="link-btn" onClick={handleAdoptEdition}>
+                      Update my nook
+                    </button>
+                  )}
                   <button className="link-btn" onClick={handleIgnoreEdition}>
                     Ignore
                   </button>

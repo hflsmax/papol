@@ -2521,11 +2521,28 @@ async def adopt_paper_edition(
 ):
     """Move the viewer's own copy to another edition — the latest unless
     one is named. Only the reader may do this: located notes were placed
-    on the file they had, and on a different PDF they may not line up."""
+    on the file they had, and on a different PDF they may not line up.
+
+    A link out on the PDF they are leaving stops the move and says so. The
+    link names that reading and would go on opening it, out of sight of a
+    paper page that now shows a different edition — so the reader is asked
+    to close the link themselves rather than have one quietly left behind
+    or, worse, have a colleague's link moved onto a file they were never
+    given."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
 
     edition = _named_edition_or_404(paper, data.edition_uuid)
+    if edition.uuid != user_copy.edition_uuid and user_copy.edition_uuid and (
+        live_sharable_for(db, current_user, user_copy.edition_uuid)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Stop sharing this paper first. The link you handed out "
+                "opens the PDF you are reading now."
+            ),
+        )
     user_copy.edition_uuid = edition.uuid
     user_copy.edition_sha256 = edition.sha256
     # Adopting settles every edition that exists now, including ones older

@@ -136,6 +136,7 @@ class SharableTests(unittest.TestCase):
             self.stranger_uuid = stranger.uuid
             self.paper_uuid = paper.uuid
             self.shared_edition_uuid = shared.uuid
+            self.superseded_edition_uuid = superseded.uuid
         type(self).current_user_uuid = self.reader_uuid
 
     def share(self, include_marks=True):
@@ -276,6 +277,45 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(
             self.client.get(f"/api/shared/{made['uuid']}").status_code, 200,
         )
+
+    def adopt(self, edition_uuid):
+        return self.client.post(
+            f"/api/papers/{self.paper_uuid}/adopt-edition",
+            json={"edition_uuid": edition_uuid},
+        )
+
+    def test_a_shared_pdf_cannot_be_left_until_the_link_is_closed(self):
+        """A link names the PDF its maker is reading. Moving the copy to
+        another edition would leave that link opening a file the paper page
+        no longer shows, so the reader is asked to settle it first."""
+        made = self.share()
+
+        refused = self.adopt(self.superseded_edition_uuid)
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("Stop sharing", refused.json()["detail"])
+
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        self.assertEqual(detail["edition_uuid"], self.shared_edition_uuid)
+        self.assertEqual(detail["sharable_uuid"], made["uuid"])
+
+    def test_the_quieter_link_stops_the_move_just_the_same(self):
+        """It is the link that is in the way, not the marks on it."""
+        self.share(include_marks=False)
+        self.assertEqual(self.adopt(self.superseded_edition_uuid).status_code, 409)
+
+    def test_closing_the_link_frees_the_reader_to_move(self):
+        made = self.share()
+        self.client.delete(f"/api/sharables/{made['uuid']}")
+
+        moved = self.adopt(self.superseded_edition_uuid)
+        self.assertEqual(moved.status_code, 200, moved.text)
+        self.assertEqual(moved.json()["edition_uuid"], self.superseded_edition_uuid)
+
+    def test_staying_where_they_are_is_not_a_move(self):
+        """Adopting the edition already read changes nothing, so a link out
+        is no reason to refuse it."""
+        self.share()
+        self.assertEqual(self.adopt(self.shared_edition_uuid).status_code, 200)
 
     def test_revoking_closes_the_link_without_pretending_it_never_existed(self):
         made = self.share()
