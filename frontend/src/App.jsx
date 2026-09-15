@@ -906,8 +906,18 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/learn')} className={route.page === 'learn' ? 'active' : ''}>
               Learn
             </a>
-            <a href={MACOS_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-              Download macOS
+            <a
+              className="macos-download-link"
+              href={MACOS_DOWNLOAD_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Download Papol for macOS"
+              title="Download Papol for macOS"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />
+              </svg>
+              Mac app
             </a>
           </nav>
           <span className="spacer" />

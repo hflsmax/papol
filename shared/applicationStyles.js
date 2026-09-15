@@ -123,6 +123,22 @@ input[type='checkbox'] {
   border-bottom-color: var(--accent);
 }
 
+.topnav nav .macos-download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.macos-download-link svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .topnav .inbox-link {
   color: var(--ink-soft);
   text-decoration: none;
