@@ -481,6 +481,11 @@ export function makePdfViewerDefault() {
   return invoke('pdf_viewer_make_default');
 }
 
+export function dismissPdfViewerPrompt() {
+  if (!IS_DESKTOP) return Promise.resolve();
+  return invoke('pdf_viewer_prompt_dismiss');
+}
+
 export function newUuid() {
   return globalThis.crypto.randomUUID();
 }

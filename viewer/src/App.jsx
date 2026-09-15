@@ -17,7 +17,7 @@ import {
 } from './source';
 import { appPath, backendPath } from './base';
 import {
-  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
+  dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
   recordDiagnosticEvent, requestSignIn,
 } from '../../shared/nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/diagnosticLog.js';
@@ -279,9 +279,6 @@ function useEvent(handler) {
   ref.current = handler;
   return useMemo(() => (...args) => ref.current(...args), []);
 }
-
-// Shared with the library window, which asks the same question.
-const PDF_VIEWER_PROMPT_KEY = 'papol.pdfViewerPrompt';
 
 // Native commands reject with a bare string rather than an Error.
 const messageOf = (failure) => String(failure?.message ?? failure);
@@ -607,16 +604,15 @@ export default function App() {
   // without cancelling a sign-in already under way in the library window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
-  // Asked once, over the first file opened from disk while another app is
-  // the system's PDF viewer.
+  // Asked over a file opened from disk while another app is the system's PDF
+  // viewer, until answered here or in the library window this launch.
   useEffect(() => {
     if (!source?.openedFile || !firstPageReady) return undefined;
-    let dismissed = false;
-    try { dismissed = localStorage.getItem(PDF_VIEWER_PROMPT_KEY) === 'dismissed'; } catch { /* ask */ }
-    if (dismissed) return undefined;
     let cancelled = false;
     pdfViewerStatus()
-      .then((status) => { if (!cancelled) setPdfViewerTip(status.supported && !status.is_default); })
+      .then((status) => {
+        if (!cancelled) setPdfViewerTip(status.supported && !status.is_default && !status.prompt_dismissed);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [firstPageReady, source]);
@@ -3269,7 +3265,7 @@ export default function App() {
   }, [nookStep, addToNookOnceSignedIn]);
 
   const dismissPdfViewerTip = () => {
-    try { localStorage.setItem(PDF_VIEWER_PROMPT_KEY, 'dismissed'); } catch { /* hide for now */ }
+    dismissPdfViewerPrompt().catch(() => {});
     setPdfViewerTip(false);
   };
   const makeDefaultPdfViewer = async () => {

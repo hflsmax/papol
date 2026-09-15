@@ -27,6 +27,7 @@
     "allow-local-annotations-clear",
     "allow-pdf-viewer-status",
     "allow-pdf-viewer-make-default",
+    "allow-pdf-viewer-prompt-dismiss",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "core:window:allow-start-dragging",

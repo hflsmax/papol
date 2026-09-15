@@ -32,6 +32,7 @@ fn main() {
             "local_annotations_clear",
             "pdf_viewer_status",
             "pdf_viewer_make_default",
+            "pdf_viewer_prompt_dismiss",
         ]),
     ))
     .expect("failed to prepare the Papol macOS build")

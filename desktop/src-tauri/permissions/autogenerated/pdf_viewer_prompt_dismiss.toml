@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-pdf-viewer-prompt-dismiss"
+description = "Enables the pdf_viewer_prompt_dismiss command without any pre-configured scope."
+commands.allow = ["pdf_viewer_prompt_dismiss"]
+
+[[permission]]
+identifier = "deny-pdf-viewer-prompt-dismiss"
+description = "Denies the pdf_viewer_prompt_dismiss command without any pre-configured scope."
+commands.deny = ["pdf_viewer_prompt_dismiss"]
