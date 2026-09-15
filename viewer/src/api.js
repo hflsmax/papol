@@ -46,8 +46,10 @@ export async function getPaperNotes(paper) {
   return paper.comments || [];
 }
 
-export function getViewerPaperInfo(hash) {
-  return request(`/viewer/${hash}/info`);
+// A share uuid stands in for a session: the same public metadata, asked for
+// by someone who is holding a link rather than signed in.
+export function getViewerPaperInfo(hash, share) {
+  return request(`/viewer/${hash}/info${share ? `?share=${share}` : ''}`);
 }
 
 export function pdfHref(paper) {
@@ -160,8 +162,13 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
   return paperUuid;
 }
 
+// A PDF someone shared is theirs, not this machine's: its bytes come from
+// the service even when a local replica is open in the same app.
+const sharedReading = (paper) => Boolean(paper?.shared_by);
+
 export async function downloadablePdfHref(paper) {
   if (paper?.opened_file && !paper.uuid) return openedFileUrl(paper.edition_sha256);
+  if (sharedReading(paper)) return pdfHref(paper);
   if (nativeDataActive()) {
     if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
     return nativeBlobUrl(paper.edition_sha256, 'application/pdf');
@@ -176,6 +183,7 @@ export async function pdfLoadInput(paper) {
   if (paper?.opened_file && !paper.uuid) {
     return { data: await openedFileBytes(paper.edition_sha256) };
   }
+  if (sharedReading(paper)) return { url: pdfHref(paper) };
   if (IS_DESKTOP && inDemo()) {
     const asset = demoPaperMedia(paper?.edition_sha256);
     if (!asset) throw new Error('This paper requires a network connection.');
@@ -295,6 +303,17 @@ export function getViewerReferences(pdfHash, editionUuid) {
 // One reference, looked up the first time anyone opens it.
 export function getViewerReference(uuid) {
   return request(`/viewer-references/item/${uuid}`);
+}
+
+// The same two questions, asked on the authority of a shared link. The
+// bibliography belongs to the PDF, so the answers are the same ones; only
+// what allows the asking differs.
+export function getSharedReferences(share, pdfHash, editionUuid) {
+  return request(`/viewer-references/${pdfHash}?edition_uuid=${editionUuid}&share=${share}`);
+}
+
+export function getSharedReference(share, referenceUuid) {
+  return request(`/viewer-references/item/${referenceUuid}?share=${share}`);
 }
 
 export function resolveViewerReference(pdfHash, { key, raw }) {

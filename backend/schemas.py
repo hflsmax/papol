@@ -757,9 +757,67 @@ class Paper(PaperBase):
     tags: List[TagOut] = []
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
+    # The reader's own live link to this reading, when they have handed one
+    # out. Never populated for anybody else's copy.
+    sharable_uuid: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+# ---------- Sharables ----------
+
+class SharableOut(BaseModel):
+    """A link its maker holds: which reading it opens, and since when."""
+    uuid: str
+    paper_uuid: str
+    edition_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedNote(BaseModel):
+    """A note as a visitor sees it: what it says and where it sits.
+
+    Deliberately not `Comment`: that schema carries the paper's UUID and the
+    reader's record, and a shared reading names both once, at the top, under
+    its own rules about what a visitor may follow."""
+    uuid: str
+    content: str
+    created_at: datetime
+    page: Optional[int] = None
+    anchor_type: Optional[str] = None
+    anchor: Optional[Anchor] = None
+    edition_uuid: Optional[str] = None
+    name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedPaper(PaperBase):
+    """The paper behind a shared reading.
+
+    `uuid` is carried only when the paper's own page would open for whoever
+    holds the link — a link to a page that answers "not found" is worse than
+    no link at all."""
+    uuid: Optional[str] = None
+    file_path: str
+    edition_uuid: str
+    edition_sha256: Optional[str] = None
+
+
+class SharedReading(BaseModel):
+    """One reader's reading of one edition, for anyone holding the link."""
+    uuid: str
+    reader: UserPublic
+    paper: SharedPaper
+    notes: List[SharedNote] = []
+    ink: List[InkStrokeOut] = []
+    clips: List[PaperClipOut] = []
+    created_at: datetime
 
 
 class NookStats(BaseModel):

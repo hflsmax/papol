@@ -390,6 +390,17 @@ function savedReadingView() {
 
 export default function App() {
   const source = useMemo(resolveSource, []);
+  // Someone else's reading, opened by link. Everything on these pages was
+  // put there by them: it can be read, followed and searched, and nothing
+  // in the viewer may change it.
+  const readOnly = Boolean(source?.readOnly);
+  // What the bar offers. A shared reading keeps the arrow, which is
+  // reading — text selects, citations open — and the menagerie, whose
+  // animals are nobody's mark: they wander and are never kept.
+  const availableTools = useMemo(
+    () => (readOnly ? TOOLS.filter((t) => !ANNOTATION_TOOLS.has(t.id)) : TOOLS),
+    [readOnly],
+  );
   const immediatePdfPaper = useMemo(() => {
     if (source?.openedFile) return source.initialPaper;
     if (nativeDataActive() && source?.pdfHash) {
@@ -536,7 +547,7 @@ export default function App() {
   // What the reader is holding. Remembered, like the rail: someone marking
   // up a paper puts the brush down between sittings, not between pages.
   const [tool, setTool] = useState(() => {
-    if (source?.annotationsRequireNook) return 'arrow';
+    if (source?.annotationsRequireNook || source?.readOnly) return 'arrow';
     const kept = localStorage.getItem('papol_viewer_tool');
     return TOOLS.some((candidate) => candidate.id === kept) ? kept : 'arrow';
   });
@@ -1035,6 +1046,10 @@ export default function App() {
     };
   }, [paper, paperInfo, paperInfoOpen, source]);
 
+  // Whose reading this is. The one thing on the page that is about a
+  // person rather than a paper, and it is only ever set by a shared source.
+  const readerName = paper?.shared_by?.display_name || null;
+
   const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip;
 
   // Everything hung from the paper menu is the same kind of transient
@@ -1156,7 +1171,9 @@ export default function App() {
     let wait = 1500;
 
     const ask = () => {
-      getViewerReferences(pdfHash, editionUuid)
+      // A shared reading reads the same bibliography on the authority of
+      // its link, so the source answers when it has its own way in.
+      (source?.references?.list || getViewerReferences)(pdfHash, editionUuid)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -1177,7 +1194,7 @@ export default function App() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [firstPageReady, paper]);
+  }, [firstPageReady, paper, source]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_rail_width', String(railWidth));
@@ -1434,6 +1451,10 @@ export default function App() {
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);
             if (!paper?.edition_uuid) return;
+            // Registering a citation read off the page writes to the
+            // edition. The card already shows what is printed there, which
+            // is what a shared reading can offer.
+            if (readOnly) return;
             const pdfHash = paper.edition_sha256 || paper.sha256;
             const full = await resolveViewerReference(pdfHash, {
               key: inlineReference.key,
@@ -1453,7 +1474,7 @@ export default function App() {
     }
     // Show a cached answer immediately, and ask the item endpoint, which
     // looks the reference up the first time anyone opens it.
-    getViewerReference(referenceUuid)
+    (source?.references?.open || getViewerReference)(referenceUuid)
       .then((full) => {
         setReference((current) =>
           current && current.uuid !== referenceUuid ? current : full
@@ -2739,6 +2760,9 @@ export default function App() {
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
   const takeTool = (picked) => {
+    // The marking tools are not in the bar of a shared reading, so nothing
+    // should be reaching for one; a remembered shortcut still might.
+    if (ANNOTATION_TOOLS.has(picked) && readOnly) return;
     if (ANNOTATION_TOOLS.has(picked) && source?.annotationsRequireNook) {
       void promptToAddForAnnotations();
       return;
@@ -3037,7 +3061,10 @@ export default function App() {
     }
   };
 
-  const noteContextMenu = (event, note) => openContextMenu(event, [
+  // An anchor in a shared reading is somewhere to go, and nothing else.
+  const noteContextMenu = (event, note) => openContextMenu(event, readOnly ? [
+    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
+  ] : [
     { label: 'Go to Anchor', onSelect: () => goToNote(note) },
     { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => startWriting(note) },
     { label: 'Rename Anchor…', onSelect: () => startNaming(note) },
@@ -3048,7 +3075,9 @@ export default function App() {
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
   ]);
 
-  const pageContextMenu = contextMenuHandler((event) => event.target.closest?.('.pdf-page') ? [
+  const pageContextMenu = contextMenuHandler((event) => (
+    !readOnly && event.target.closest?.('.pdf-page')
+  ) ? [
     { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
   ] : []);
@@ -3520,7 +3549,7 @@ export default function App() {
           )}
         </div>
         <span className="tools" role="group" aria-label="Tool">
-          {TOOLS.map((t) => (
+          {availableTools.map((t) => (
             <span className="tool-slot" key={t.id}>
               <button
                 type="button"
@@ -3800,6 +3829,13 @@ export default function App() {
             of you and this one leaves with a copy of it. */}
         {paper && (
           <span className="paper-menu" ref={paperMenuRef}>
+            {/* Said where the bar says what this document is, because whose
+                reading it is is part of what it is. */}
+            {readOnly && (
+              <span className="shared-reading" title="A reading someone shared with you">
+                {readerName ? `${readerName}’s reading` : 'A shared reading'}
+              </span>
+            )}
             <button
               type="button"
               className="bar-link paper-info-button"
@@ -4072,6 +4108,7 @@ export default function App() {
               onFollowLink={pageFollowLink}
               onSelectNote={pageSelectNote}
               onMoveNote={pageMoveNote}
+              readOnly={readOnly}
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
               provenanceHighlights={wantedSelectionByPage.get(n) || EMPTY_INK}
@@ -4140,7 +4177,7 @@ export default function App() {
               ) : null}
             />
           )}
-          {selectionPaint && (
+          {selectionPaint && !readOnly && (
             <span
               ref={selectionActionsRef}
               className="selection-actions"
@@ -4178,7 +4215,7 @@ export default function App() {
               />
             </span>
           )}
-          {inkActions && (
+          {inkActions && !readOnly && (
             <span
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
@@ -4224,7 +4261,7 @@ export default function App() {
             <div className="help-sheet" onClick={(e) => e.stopPropagation()}>
               <h3>What the tools do</h3>
               <dl>
-                {TOOLS.map((t) => (
+                {availableTools.map((t) => (
                   <React.Fragment key={t.id}>
                     {/* Four columns — key, glyph, name, mnemonic — so a
                         wide badge like the shifted one cannot shunt its row
@@ -4250,7 +4287,9 @@ export default function App() {
                 ))}
               </dl>
               <p className="help-foot">
-                Paint and anchors are stored with the paper.
+                {readOnly
+                  ? 'The paint and anchors on this paper belong to the reader who shared it.'
+                  : 'Paint and anchors are stored with the paper.'}
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done
@@ -4462,7 +4501,9 @@ export default function App() {
         <aside className="rail" aria-label="Paper anchors">
           <div className="rail-header">
             <div className="rail-heading">
-              <span className="rail-kicker">Paper notes</span>
+              <span className="rail-kicker">
+                {readerName ? `${readerName}’s notes` : 'Paper notes'}
+              </span>
               <div className="rail-title-row">
                 <h2>Anchors</h2>
                 <span className="rail-count" aria-label={`${numbered.length} ${numbered.length === 1 ? 'anchor' : 'anchors'}`}>
@@ -4497,9 +4538,19 @@ export default function App() {
               <span className="rail-empty-glyph" aria-hidden="true">
                 <ToolGlyph id="anchor" />
               </span>
-              <h3>No anchors yet</h3>
-              <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>
-              <button type="button" className="link" onClick={() => setHelpOpen(true)}>See all annotation tools</button>
+              <h3>{readOnly ? 'No anchors here' : 'No anchors yet'}</h3>
+              {readOnly ? (
+                <p>
+                  {readerName
+                    ? `${readerName} left no anchors on this paper.`
+                    : 'No anchors were left on this paper.'}
+                </p>
+              ) : (
+                <>
+                  <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>
+                  <button type="button" className="link" onClick={() => setHelpOpen(true)}>See all annotation tools</button>
+                </>
+              )}
             </div>
           )}
 
@@ -4538,26 +4589,30 @@ export default function App() {
                 >
                   <span aria-hidden="true">→</span>
                 </button>
-                <button
-                  className="link anchor-write"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startWriting(note);
-                  }}
-                >
-                  add a note
-                </button>
-                <button
-                  className="card-x"
-                  title="Delete this anchor"
-                  aria-label="Delete this anchor"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeNote(note.uuid);
-                  }}
-                >
-                  ×
-                </button>
+                {!readOnly && (
+                  <button
+                    className="link anchor-write"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startWriting(note);
+                    }}
+                  >
+                    add a note
+                  </button>
+                )}
+                {!readOnly && (
+                  <button
+                    className="card-x"
+                    title="Delete this anchor"
+                    aria-label="Delete this anchor"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeNote(note.uuid);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             ) : (
               <div
@@ -4569,17 +4624,19 @@ export default function App() {
                 onClick={() => goToNote(note)}
                 onContextMenu={(event) => noteContextMenu(event, note)}
               >
-                <button
-                  className="card-x"
-                  title="Delete this anchor"
-                  aria-label="Delete this anchor"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeNote(note.uuid);
-                  }}
-                >
-                  ×
-                </button>
+                {!readOnly && (
+                  <button
+                    className="card-x"
+                    title="Delete this anchor"
+                    aria-label="Delete this anchor"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeNote(note.uuid);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
                 <p className="note-where">
                   <span className="row-glyph">
                     <GlyphFor note={note} />
@@ -4637,15 +4694,17 @@ export default function App() {
                       >
                         go to anchor
                       </button>
-                      <button
-                        className="link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startWriting(note);
-                        }}
-                      >
-                        edit
-                      </button>
+                      {!readOnly && (
+                        <button
+                          className="link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startWriting(note);
+                          }}
+                        >
+                          edit
+                        </button>
+                      )}
                     </div>
                   </>
                 )}

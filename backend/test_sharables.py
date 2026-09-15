@@ -1,0 +1,303 @@
+import json
+import unittest
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+import main
+from fastapi import HTTPException
+from auth import get_current_user, get_optional_user
+from database import Base, get_db
+from models import (
+    Comment, Copy, InkStroke, Paper, PaperClip, PaperEdition, Sharable, Shelf, User,
+)
+
+SHARED_HASH = "a" * 64
+OTHER_HASH = "b" * 64
+
+
+class SharableTests(unittest.TestCase):
+    """A sharable hands one reader's reading of one edition to anyone with
+    the link — and hands over nothing else in that reader's nook."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        cls.Session = sessionmaker(bind=cls.engine)
+        Base.metadata.create_all(cls.engine)
+
+        def test_db():
+            with cls.Session() as db:
+                yield db
+
+        def signed_in_user():
+            if cls.current_user_uuid is None:
+                raise HTTPException(status_code=401, detail="Not authenticated")
+            with cls.Session() as db:
+                return db.query(User).filter(User.uuid == cls.current_user_uuid).one()
+
+        def whoever_is_here():
+            if cls.current_user_uuid is None:
+                return None
+            with cls.Session() as db:
+                return db.query(User).filter(User.uuid == cls.current_user_uuid).one()
+
+        main.app.dependency_overrides[get_db] = test_db
+        main.app.dependency_overrides[get_current_user] = signed_in_user
+        main.app.dependency_overrides[get_optional_user] = whoever_is_here
+        cls.client = TestClient(main.app)
+
+    @classmethod
+    def tearDownClass(cls):
+        main.app.dependency_overrides.pop(get_db, None)
+        main.app.dependency_overrides.pop(get_current_user, None)
+        main.app.dependency_overrides.pop(get_optional_user, None)
+        cls.engine.dispose()
+
+    def setUp(self):
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
+        with self.Session() as db:
+            reader = User(
+                email="reader@example.com", display_name="Ada", password_hash="unused",
+            )
+            stranger = User(
+                email="other@example.com", display_name="Grace", password_hash="unused",
+            )
+            db.add_all([reader, stranger])
+            db.commit()
+
+            paper = Paper(title="On sharing a reading", doi="10.1234/share")
+            db.add(paper)
+            db.commit()
+            shared = PaperEdition(
+                paper_uuid=paper.uuid, file_path=f"{SHARED_HASH}.pdf", sha256=SHARED_HASH,
+            )
+            superseded = PaperEdition(
+                paper_uuid=paper.uuid, file_path=f"{OTHER_HASH}.pdf", sha256=OTHER_HASH,
+            )
+            db.add_all([shared, superseded])
+            db.commit()
+
+            shelf = Shelf(user_uuid=reader.uuid, name="Reading", color="#b3923d")
+            db.add(shelf)
+            db.commit()
+            db.add_all([
+                Copy(
+                    paper_uuid=paper.uuid, user_uuid=reader.uuid, shelf_uuid=shelf.uuid,
+                    edition_uuid=shared.uuid, edition_sha256=SHARED_HASH,
+                    summary="Kept to myself", marketed=False,
+                ),
+                # A note on the shared PDF, a note on the paper itself, and a
+                # note placed on the edition this reader no longer reads.
+                Comment(
+                    paper_uuid=paper.uuid, user_uuid=reader.uuid, content="On the page",
+                    edition_uuid=shared.uuid, page=2, anchor_type="point",
+                    anchor=json.dumps({"x": 0.25, "y": 0.5}), name="Lemma 3",
+                ),
+                Comment(
+                    paper_uuid=paper.uuid, user_uuid=reader.uuid, content="About the paper",
+                ),
+                Comment(
+                    paper_uuid=paper.uuid, user_uuid=reader.uuid, content="On the old PDF",
+                    edition_uuid=superseded.uuid, page=1, anchor_type="point",
+                    anchor=json.dumps({"x": 0.1, "y": 0.1}),
+                ),
+                # Another reader's marks on the very same file.
+                Comment(
+                    paper_uuid=paper.uuid, user_uuid=stranger.uuid, content="Not yours",
+                    edition_uuid=shared.uuid, page=2, anchor_type="point",
+                    anchor=json.dumps({"x": 0.9, "y": 0.9}),
+                ),
+                InkStroke(
+                    edition_uuid=shared.uuid, user_uuid=reader.uuid, page=2,
+                    points=json.dumps([{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.2}]),
+                ),
+                InkStroke(
+                    edition_uuid=shared.uuid, user_uuid=stranger.uuid, page=2,
+                    points=json.dumps([{"x": 0.5, "y": 0.5}]),
+                ),
+                PaperClip(
+                    edition_uuid=shared.uuid, user_uuid=reader.uuid, page=3,
+                    source=json.dumps({"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}),
+                    frame=json.dumps({"x": 0.4, "y": 0.4, "w": 0.2, "h": 0.2}),
+                ),
+            ])
+            db.commit()
+
+            self.reader_uuid = reader.uuid
+            self.stranger_uuid = stranger.uuid
+            self.paper_uuid = paper.uuid
+            self.shared_edition_uuid = shared.uuid
+        type(self).current_user_uuid = self.reader_uuid
+
+    def share(self):
+        made = self.client.post(f"/api/papers/{self.paper_uuid}/sharable")
+        self.assertEqual(made.status_code, 200, made.text)
+        return made.json()
+
+    def test_a_sharable_names_the_edition_its_maker_reads(self):
+        made = self.share()
+        self.assertEqual(made["paper_uuid"], self.paper_uuid)
+        self.assertEqual(made["edition_uuid"], self.shared_edition_uuid)
+        # Its own identity, distinct from the paper's and the edition's.
+        self.assertNotIn(made["uuid"], {self.paper_uuid, self.shared_edition_uuid})
+
+    def test_asking_twice_gives_the_same_link_back(self):
+        self.assertEqual(self.share()["uuid"], self.share()["uuid"])
+
+    def test_the_paper_page_shows_the_reader_their_own_link(self):
+        made = self.share()
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}")
+        self.assertEqual(detail.json()["sharable_uuid"], made["uuid"])
+
+        # Another reader of the same paper is told nothing about it.
+        with self.Session() as db:
+            db.add(Copy(paper_uuid=self.paper_uuid, user_uuid=self.stranger_uuid))
+            db.commit()
+        type(self).current_user_uuid = self.stranger_uuid
+        self.assertIsNone(
+            self.client.get(f"/api/papers/{self.paper_uuid}").json()["sharable_uuid"],
+        )
+
+    def test_a_reader_without_a_copy_has_no_reading_to_share(self):
+        type(self).current_user_uuid = self.stranger_uuid
+        refused = self.client.post(f"/api/papers/{self.paper_uuid}/sharable")
+        self.assertEqual(refused.status_code, 403)
+
+    def test_the_link_opens_this_readers_marks_on_this_edition_and_no_others(self):
+        made = self.share()
+
+        opened = self.client.get(f"/api/shared/{made['uuid']}")
+        self.assertEqual(opened.status_code, 200, opened.text)
+        reading = opened.json()
+
+        self.assertEqual(reading["reader"]["display_name"], "Ada")
+        self.assertEqual(reading["paper"]["title"], "On sharing a reading")
+        self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
+        self.assertEqual(reading["paper"]["file_path"], f"{SHARED_HASH}.pdf")
+        self.assertEqual(
+            [note["content"] for note in reading["notes"]],
+            ["On the page", "About the paper"],
+        )
+        self.assertEqual(reading["notes"][0]["anchor"], {"type": "point", "x": 0.25, "y": 0.5})
+        self.assertEqual(reading["notes"][0]["name"], "Lemma 3")
+        self.assertEqual(len(reading["ink"]), 1)
+        self.assertEqual(len(reading["clips"]), 1)
+        # The reader's private summary is not part of their reading.
+        self.assertNotIn("summary", reading["paper"])
+
+    def test_the_link_needs_no_account(self):
+        made = self.share()
+        type(self).current_user_uuid = None
+
+        opened = self.client.get(f"/api/shared/{made['uuid']}")
+
+        self.assertEqual(opened.status_code, 200, opened.text)
+        self.assertEqual(opened.json()["reader"]["display_name"], "Ada")
+
+    def test_a_private_paper_offers_no_link_to_a_page_that_would_not_open(self):
+        made = self.share()
+        self.assertIsNone(self.client.get(f"/api/shared/{made['uuid']}").json()["paper"]["uuid"])
+
+        with self.Session() as db:
+            copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
+            copy.marketed = True
+            db.commit()
+
+        self.assertEqual(
+            self.client.get(f"/api/shared/{made['uuid']}").json()["paper"]["uuid"],
+            self.paper_uuid,
+        )
+
+    def test_revoking_closes_the_link_without_pretending_it_never_existed(self):
+        made = self.share()
+        revoked = self.client.delete(f"/api/sharables/{made['uuid']}")
+        self.assertEqual(revoked.status_code, 204)
+
+        closed = self.client.get(f"/api/shared/{made['uuid']}")
+        self.assertEqual(closed.status_code, 404)
+        self.assertEqual(closed.json()["detail"], "This reading is no longer shared")
+
+        with self.Session() as db:
+            self.assertIsNotNone(
+                db.query(Sharable).filter(Sharable.uuid == made["uuid"]).one().revoked_at,
+            )
+
+    def test_a_revoked_link_is_not_resurrected_by_sharing_again(self):
+        first = self.share()
+        self.client.delete(f"/api/sharables/{first['uuid']}")
+        second = self.share()
+
+        self.assertNotEqual(first["uuid"], second["uuid"])
+        self.assertEqual(self.client.get(f"/api/shared/{first['uuid']}").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/shared/{second['uuid']}").status_code, 200)
+
+    def test_leaving_the_nook_empties_the_reading_without_closing_the_link(self):
+        made = self.share()
+        removed = self.client.delete(f"/api/papers/{self.paper_uuid}")
+        self.assertEqual(removed.status_code, 200, removed.text)
+
+        opened = self.client.get(f"/api/shared/{made['uuid']}")
+
+        # The link still opens the PDF that was shared, under the name of
+        # the reader who shared it. There is simply no longer a reading on
+        # it — including the paint, which removal leaves in place.
+        self.assertEqual(opened.status_code, 200, opened.text)
+        reading = opened.json()
+        self.assertEqual(reading["reader"]["display_name"], "Ada")
+        self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
+        self.assertEqual(reading["notes"], [])
+        self.assertEqual(reading["ink"], [])
+        self.assertEqual(reading["clips"], [])
+
+    def test_taking_the_paper_back_brings_the_reading_back(self):
+        made = self.share()
+        self.client.delete(f"/api/papers/{self.paper_uuid}")
+        with self.Session() as db:
+            copy = db.query(Copy).filter(
+                Copy.user_uuid == self.reader_uuid, Copy.paper_uuid == self.paper_uuid,
+            ).one()
+            copy.deleted_at = None
+            db.commit()
+
+        reading = self.client.get(f"/api/shared/{made['uuid']}").json()
+
+        self.assertEqual(len(reading["ink"]), 1)
+        self.assertEqual(len(reading["clips"]), 1)
+
+    def test_only_its_maker_may_take_a_link_back(self):
+        made = self.share()
+        type(self).current_user_uuid = self.stranger_uuid
+        refused = self.client.delete(f"/api/sharables/{made['uuid']}")
+        self.assertEqual(refused.status_code, 404)
+        self.assertEqual(self.client.get(f"/api/shared/{made['uuid']}").status_code, 200)
+
+    def test_a_link_authorizes_the_bibliography_of_the_file_it_opens(self):
+        made = self.share()
+        query = f"edition_uuid={self.shared_edition_uuid}&share={made['uuid']}"
+
+        allowed = self.client.get(f"/api/viewer-references/{SHARED_HASH}?{query}")
+        self.assertEqual(allowed.status_code, 200, allowed.text)
+        self.assertEqual(allowed.json()["edition_uuid"], self.shared_edition_uuid)
+
+        # The link opens one file. It is not a key to every other PDF.
+        elsewhere = self.client.get(f"/api/viewer-references/{OTHER_HASH}?{query}")
+        self.assertEqual(elsewhere.status_code, 404)
+
+        # And without one, a visitor is simply not someone who may ask.
+        type(self).current_user_uuid = None
+        unshared = self.client.get(
+            f"/api/viewer-references/{SHARED_HASH}?edition_uuid={self.shared_edition_uuid}"
+        )
+        self.assertEqual(unshared.status_code, 401)
+
+
+if __name__ == "__main__":
+    unittest.main()

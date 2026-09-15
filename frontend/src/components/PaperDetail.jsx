@@ -3,6 +3,9 @@ import {
   getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../../../shared/api/papers.js';
+import {
+  createSharable, revokeSharable, sharableHref,
+} from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
@@ -44,13 +47,17 @@ export default function PaperDetail({
   const [thoughtDraft, setThoughtDraft] = useState('');
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
-  const [shareCopyStatus, setShareCopyStatus] = useState('idle');
+  // Which link was last copied, and how it went. One state for both links
+  // in the share menu, so a "Copied!" never appears on the wrong one.
+  const [shareCopied, setShareCopied] = useState({ target: null, status: 'idle' });
   const [shareOpen, setShareOpen] = useState(false);
+  const [isSharingReading, setIsSharingReading] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
   const pdfInputRef = useRef(null);
   const readControlRef = useRef(null);
   const shareControlRef = useRef(null);
   const shareUrlRef = useRef(null);
+  const readingUrlRef = useRef(null);
 
   useEffect(() => {
     if (!readMenuOpen) return undefined;
@@ -266,8 +273,7 @@ export default function PaperDetail({
     }
   };
 
-  const handleShare = async () => {
-    const link = `${window.location.origin}${appPath(`/paper/${paper.uuid}`)}`;
+  const copyLink = async (link, target, field) => {
     let copied = false;
     try {
       if (navigator.clipboard?.writeText) {
@@ -278,18 +284,62 @@ export default function PaperDetail({
       // Permissions policies and older browsers may block the async API;
       // selecting the visible URL gives them the established copy path.
     }
-    if (!copied && shareUrlRef.current) {
-      shareUrlRef.current.focus();
-      shareUrlRef.current.select();
-      shareUrlRef.current.setSelectionRange(0, link.length);
+    if (!copied && field.current) {
+      field.current.focus();
+      field.current.select();
+      field.current.setSelectionRange(0, link.length);
       try {
         copied = document.execCommand('copy');
       } catch {
         copied = false;
       }
     }
-    setShareCopyStatus(copied ? 'copied' : 'failed');
-    window.setTimeout(() => setShareCopyStatus('idle'), 1800);
+    setShareCopied({ target, status: copied ? 'copied' : 'failed' });
+    window.setTimeout(() => setShareCopied({ target: null, status: 'idle' }), 1800);
+  };
+
+  const copyLabel = (target) => {
+    if (shareCopied.target !== target) return 'Copy';
+    return shareCopied.status === 'copied' ? 'Copied!' : 'Copy failed';
+  };
+
+  const paperUrl = () => `${window.location.origin}${appPath(`/paper/${paper.uuid}`)}`;
+
+  // A sharable hands this reading — this PDF, with this reader's notes, ink
+  // and clips on it — to anyone holding the link. Nothing is copied: what a
+  // visitor sees is what the reader has now, until the link is taken back.
+  const handleShareReading = async () => {
+    setError(null);
+    setIsSharingReading(true);
+    try {
+      const sharable = await createSharable(paper.uuid);
+      setPaper((current) => ({ ...current, sharable_uuid: sharable.uuid }));
+      copyLink(sharableHref(sharable.uuid), 'reading', readingUrlRef);
+    } catch (err) {
+      setError(err?.message || String(err));
+      if (err?.reportable !== false) {
+        onReportableError?.(err, 'sharing a reading of a paper');
+      }
+    } finally {
+      setIsSharingReading(false);
+    }
+  };
+
+  const handleStopSharingReading = async () => {
+    if (!(await confirmAction(
+      'Stop sharing your reading? The link you gave out stops working.',
+      { confirmLabel: 'Stop sharing', destructive: true },
+    ))) return;
+    setError(null);
+    try {
+      await revokeSharable(paper.sharable_uuid);
+      setPaper((current) => ({ ...current, sharable_uuid: null }));
+    } catch (err) {
+      setError(err?.message || String(err));
+      if (err?.reportable !== false) {
+        onReportableError?.(err, 'stopping the sharing of a reading');
+      }
+    }
   };
 
   const handleDelete = async () => {
@@ -817,18 +867,72 @@ export default function PaperDetail({
                       <input
                         id="canonical-share-url"
                         ref={shareUrlRef}
-                        value={`${window.location.origin}${appPath(`/paper/${paper.uuid}`)}`}
+                        value={paperUrl()}
                         readOnly
                         onFocus={(event) => event.target.select()}
                       />
-                      <button type="button" onClick={handleShare}>
-                        {shareCopyStatus === 'copied'
-                          ? 'Copied!'
-                          : shareCopyStatus === 'failed'
-                            ? 'Copy failed'
-                            : 'Copy'}
+                      <button
+                        type="button"
+                        onClick={() => copyLink(paperUrl(), 'paper', shareUrlRef)}
+                      >
+                        {copyLabel('paper')}
                       </button>
                     </div>
+                    {/* The paper URL leads to the paper. This one leads to
+                        the reader's own reading of it, which is a different
+                        thing to hand someone. */}
+                    {hasEntry && (
+                      <div className="share-reading">
+                        <label htmlFor="reading-share-url">Your reading</label>
+                        {paper.sharable_uuid ? (
+                          <>
+                            <div className="share-link-row">
+                              <input
+                                id="reading-share-url"
+                                ref={readingUrlRef}
+                                value={sharableHref(paper.sharable_uuid)}
+                                readOnly
+                                onFocus={(event) => event.target.select()}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => copyLink(
+                                  sharableHref(paper.sharable_uuid), 'reading', readingUrlRef,
+                                )}
+                              >
+                                {copyLabel('reading')}
+                              </button>
+                            </div>
+                            <p className="share-note">
+                              Anyone with this link can read your PDF with your notes,
+                              paint and clips on it. They cannot change anything, and
+                              what they see keeps up with what you write.
+                            </p>
+                            <button
+                              type="button"
+                              className="link share-revoke"
+                              onClick={handleStopSharingReading}
+                            >
+                              Stop sharing
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="share-note">
+                              A read-only link to your PDF with your notes, paint and
+                              clips on it.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleShareReading}
+                              disabled={isSharingReading}
+                            >
+                              {isSharingReading ? 'Making a link…' : 'Create a link'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

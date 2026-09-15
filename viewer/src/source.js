@@ -1,8 +1,10 @@
 import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { readSharable } from '../../shared/api/sharables.js';
 import { appPath } from './base.js';
 import {
   getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
+  getSharedReferences, getSharedReference, getViewerPaperInfo,
   createNote, updateNote, moveNote, renameNote, deleteNote,
   getInk, addInk, moveInk, eraseInk,
   getClips, addClip, moveClip, eraseClip,
@@ -15,15 +17,21 @@ import {
  *
  *   ?pdf=<sha256>          an exact PDF in the reader's nook: notes live in Papol
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol Desktop
+ *   ?share=<uuid>          someone's reading of a PDF, handed over by link
  * Demo PDFs use the same hash identity; only their storage is local.
  *
  * Nook and demo sources expose the same annotation interfaces. A file source
  * intentionally omits them; if its bytes already belong to a nook paper, the
- * viewer hands the window over to that canonical source.
+ * viewer hands the window over to that canonical source. A shared source
+ * declares itself read-only: its marks are someone else's.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
   const inDemo = window.location.pathname.includes('/demo/viewer');
+  const share = (params.get('share') || '').toLowerCase();
+  // A link is the whole permission, so it is answered before anything else
+  // and without a hash: the sharable says which PDF it opens.
+  if (!inDemo && /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
   if (inDemo) return DEMO_PDFS[pdf] ? localSource(DEMO_PDFS[pdf]) : null;
@@ -98,6 +106,61 @@ function apiSource(
     },
   };
   return source;
+}
+
+// Someone else's reading, opened by link. Everything about it is settled by
+// one request: which PDF, whose marks, and what they say. The interfaces it
+// exposes are the reading half of the ones a nook source exposes — list, and
+// no more — so the parts of the viewer that write have nothing to call.
+function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
+  let readingReady = null;
+  const reading = () => {
+    if (!readingReady) readingReady = load();
+    return readingReady;
+  };
+  return {
+    // A visitor following a link has no nook to go back to, so the way out
+    // is Papol's front door.
+    backHref: appPath('/'),
+    requiresSignIn: false,
+    readOnly: true,
+    async load() {
+      const shared = await reading();
+      const edition = {
+        uuid: shared.paper.edition_uuid,
+        file_path: shared.paper.file_path,
+        sha256: shared.paper.edition_sha256,
+      };
+      return {
+        doc: {
+          ...shared.paper,
+          // Whose reading this is, so the viewer can say so. It is the one
+          // thing on the page that is about a person rather than a paper.
+          shared_by: shared.reader,
+          editions: [edition],
+          latest_edition: edition,
+        },
+        notes: shared.notes,
+      };
+    },
+    ink: {
+      list: async () => (await reading()).ink,
+    },
+    clips: {
+      list: async () => (await reading()).clips,
+    },
+    // What the PDF cites belongs to the file, so a shared reading carries
+    // its bibliography — read through the link, which is the only
+    // permission whoever is holding it has.
+    references: {
+      list: (pdfHash, editionUuid) => getSharedReferences(shareUuid, pdfHash, editionUuid),
+      open: (referenceUuid) => getSharedReference(shareUuid, referenceUuid),
+    },
+    async info() {
+      const shared = await reading();
+      return getViewerPaperInfo(shared.paper.edition_sha256, shareUuid);
+    },
+  };
 }
 
 // A file-system document is deliberately ephemeral. Opening a file never

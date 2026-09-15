@@ -561,6 +561,41 @@ class PaperClip(Base):
     user = relationship("User")
 
 
+class Sharable(Base):
+    """One reader's reading of one edition, handed to anyone with the link.
+
+    The link carries this row's UUID and nothing else, so the UUID is the
+    whole of the permission: distinct from the paper's and the edition's,
+    because what it opens is neither of those. It opens a reading — the PDF
+    this reader chose, the notes they wrote on it, the ink they drew and the
+    clips they cut.
+
+    The reading is named, not copied. A note reworded after the link was
+    given out is reworded for everyone holding it, which is what a reader
+    means by sharing what they are reading rather than a snapshot of it.
+    Revoking stamps `revoked_at`: the row stays, so a link handed out is
+    answered with "no longer shared" instead of a 404 that reads as a typo.
+    """
+    __tablename__ = "sharables"
+
+    uuid = uuid_key()
+    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
+    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    # The exact PDF that was shared. A reader who later adopts a newer
+    # edition has shared this one, and their marks on it are still here.
+    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+    paper = relationship("Paper")
+    edition = relationship("PaperEdition")
+
+    @property
+    def is_revoked(self) -> bool:
+        return self.revoked_at is not None
+
+
 class Room(Base):
     """A seminar cohort for a paper (keyed like the paper)."""
     __tablename__ = "rooms"

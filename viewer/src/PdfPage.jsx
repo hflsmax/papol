@@ -134,7 +134,7 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
-function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, onSend }) {
+function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, onSelect, onSend }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const renderRef = useRef(null);
@@ -391,20 +391,22 @@ function ClipBox({ clip, doc, selected, onChange, onCommit, onRemove, onSelect, 
       className={`paper-clip${selected ? ' selected' : ''}`}
       style={positionStyle}
       aria-label="Clipped paper content"
-      title="Drag clipped view"
-      onPointerDown={(event) => begin(event, 'move')}
-      onPointerMove={move}
-      onPointerUp={finish}
-      onPointerCancel={finish}
-      onClick={(event) => {
+      // Someone else's clip is a view they cut and placed. It is theirs to
+      // move, so here it is simply part of the page.
+      title={readOnly ? 'A clipped view of this paper' : 'Drag clipped view'}
+      onPointerDown={readOnly ? undefined : (event) => begin(event, 'move')}
+      onPointerMove={readOnly ? undefined : move}
+      onPointerUp={readOnly ? undefined : finish}
+      onPointerCancel={readOnly ? undefined : finish}
+      onClick={readOnly ? undefined : (event) => {
         event.stopPropagation();
         if (!draggedRef.current) onSelect();
         draggedRef.current = false;
       }}
     >
       <canvas ref={canvasRef} className="clip-canvas" />
-      {actions}
-      {selected && (
+      {!readOnly && actions}
+      {selected && !readOnly && (
         <span
           className="clip-resize"
           role="button"
@@ -438,6 +440,7 @@ function PdfPage({
   onFollowLink,
   onSelectNote,
   onMoveNote,
+  readOnly = false,
   tool,
   ink,
   provenanceHighlights = [],
@@ -1088,7 +1091,9 @@ function PdfPage({
   };
 
   const startDrag = (e, note) => {
-    if (e.button !== 0) return;
+    // An anchor in a shared reading was placed by the reader who shared it.
+    // It can be pressed to go there, and not picked up.
+    if (readOnly || e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     // Where the pointer sits relative to the anchor's own point, so the
@@ -1554,7 +1559,7 @@ function PdfPage({
   // tools each do their own thing to a stroke, and the hand that is not
   // holding one is the hand that rearranges what is already there.
   const startInkDrag = (e, stroke) => {
-    if (tool !== 'arrow' || e.button !== 0) return;
+    if (readOnly || tool !== 'arrow' || e.button !== 0) return;
     e.stopPropagation();
     onSelectInk(stroke);
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -2062,7 +2067,7 @@ function PdfPage({
                       listens is a fat transparent copy of it. Only with the
                       arrow: the brush and the eraser have their own business
                       with a stroke. */}
-                  {tool === 'arrow' && (
+                  {tool === 'arrow' && !readOnly && (
                     <path
                       className="ink-grab"
                       d={pathFor(points)}
@@ -2289,6 +2294,7 @@ function PdfPage({
           key={clip.uuid}
           clip={clip}
           doc={doc}
+          readOnly={readOnly}
           selected={selectedClipUuid === clip.uuid}
           onChange={(change) => onUpdateClip(clip.uuid, change)}
           onCommit={(frame) => onCommitClip(clip.uuid, frame)}

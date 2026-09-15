@@ -2713,6 +2713,40 @@ select:disabled { cursor: default; opacity: .65; }
   flex: none;
 }
 
+/* The reading below the paper URL: the same menu, but a link that carries
+   the reader's own marks, so it is set apart and says what it hands over. */
+.share-reading {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.share-note {
+  margin: 6px 3px 8px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.paper-actions .share-reading > button {
+  width: auto;
+  padding: 5px 9px;
+  margin-left: 3px;
+}
+
+.paper-actions .share-reading > button.share-revoke {
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.paper-actions .share-reading > button.share-revoke:hover:not(:disabled) {
+  background: transparent;
+  color: var(--red);
+}
+
 .signed-out-reviews {
   margin-top: 18px;
   color: var(--ink-soft);
