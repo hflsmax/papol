@@ -93,6 +93,7 @@ function LocalDeviceSettings({ onSynced }) {
   const [sync, setSync] = useState({
     running: nativeSyncInProgress(), progress: null, error: null, lastBytes: null,
   });
+  const processSyncing = useRef(false);
 
   useEffect(() => {
     hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
@@ -101,6 +102,7 @@ function LocalDeviceSettings({ onSynced }) {
       setSync((current) => ({ ...current, running: true, error: null, progress }));
     });
     const stopStatus = subscribeNativeData((payload) => {
+      if (typeof payload?.syncing === 'boolean') processSyncing.current = payload.syncing;
       if (payload?.syncing === true) {
         setSync((current) => ({ ...current, running: true, error: null, progress: null }));
       } else if (payload?.syncing === false) {
@@ -120,13 +122,17 @@ function LocalDeviceSettings({ onSynced }) {
     // by another surface is still visible here.
     nativeRepository.syncStatus().then((status) => {
       if (typeof status?.syncing === 'boolean') {
+        processSyncing.current = status.syncing;
         setSync((current) => ({ ...current, running: status.syncing || nativeSyncInProgress() }));
       }
     }).catch(() => {});
+    // A scheduled sync can end without reaching the native coordinator (offline
+    // or signed out), so no {syncing:false} follows; recompute both ways.
     const refreshWindowSync = () => {
-      if (nativeSyncInProgress()) {
-        setSync((current) => ({ ...current, running: true, error: null }));
-      }
+      const running = processSyncing.current || nativeSyncInProgress();
+      setSync((current) => (current.running === running
+        ? current
+        : { ...current, running, ...(running ? { error: null } : {}) }));
     };
     window.addEventListener('papol-offline-status', refreshWindowSync);
     return () => {
@@ -140,6 +146,7 @@ function LocalDeviceSettings({ onSynced }) {
     setSync((current) => ({ ...current, running: true, error: null, progress: null }));
     const failure = await syncAllNow();
     const status = await nativeRepository.syncStatus().catch(() => null);
+    if (typeof status?.syncing === 'boolean') processSyncing.current = status.syncing;
     setSync((current) => ({
       ...current,
       running: Boolean(status?.syncing || nativeSyncInProgress()),
