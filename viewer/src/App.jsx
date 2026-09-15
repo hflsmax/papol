@@ -3841,7 +3841,13 @@ export default function App() {
                 {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
                 <div className="ref-links">
                   {paper.uuid && (
-                    <a className="ref-link here" href={appPath(`/paper/${paper.uuid}`)}>In Papol</a>
+                    <a
+                      className="ref-link here"
+                      href={appPath(`/paper/${paper.uuid}`)}
+                      onClick={(event) => {
+                        if (focusDesktopLibraryWindow(paper.uuid)) event.preventDefault();
+                      }}
+                    >Show in Papol</a>
                   )}
                   {paperInfo?.pdf_url && (
                     <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>

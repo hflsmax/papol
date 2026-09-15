@@ -361,6 +361,8 @@ button.link.danger { color: var(--red); }
   box-shadow: 0 8px 28px rgba(29, 33, 41, 0.18);
   text-align: left;
   font-family: var(--font-ui);
+  -webkit-user-select: text;
+  user-select: text;
 }
 /* What the reader is holding. Icon buttons rather than a menu: the choice
    changes often enough while marking a paper up that it should cost one
