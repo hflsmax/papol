@@ -99,13 +99,12 @@ This gives one actual schema source without first creating a bespoke code genera
       "group_id", "content", "staged", "text_align",
       "position", "x", "y", "width", "deleted_at"
     ],
-    "conflict": "field_patch",
     "blob_columns": ["sha256"]
   }
 }
 ```
 
-The registry does not restate all columns or types. Full rows are serialized from database metadata. The registry controls authorization, which fields an offline client may change, the conflict handler, and file dependencies.
+The registry does not restate all columns or types. Full rows are serialized from database metadata. The registry controls authorization, which fields an offline client may change, and file dependencies. It does not select a conflict policy: there is only one.
 
 Python validates the registry against SQLAlchemy metadata. Rust embeds the same file at build time and validates incoming/outgoing table and column names. A CI test fails if the registry names a missing table or column.
 
@@ -298,16 +297,14 @@ YouTube frames and web captures are jobs derived from a user-owned board card. T
 
 ## Conflict behavior
 
-The generic default is field-level optimistic concurrency:
+One rule for every table: **the writer restates the whole row, and the last write wins.**
 
+- a local edit queues every client-writable column of the row, not only the fields it touched;
 - if `base_revision` matches, apply;
-- if it is stale but changed fields do not overlap, merge;
-- if the same scalar field changed, later server application wins and the old value enters `_local_conflicts` briefly;
-- note-text overlap creates a recoverable conflict copy;
-- delete beats update but remains recoverable during the tombstone window;
-- compound board-group changes reject when membership changed and remain visible as needing attention.
+- if it is stale, the write still applies and the superseded values enter `_local_conflicts` so the user's work stays recoverable;
+- delete beats update but remains recoverable during the tombstone window.
 
-Conflict handlers are named in the registry. Most new tables choose an existing handler; a developer writes new conflict code only when the product semantics are genuinely new.
+The registry names no conflict handler. It briefly carried a per-table `conflict` key with three values, but only one of them ever changed behavior — whether the desktop outbox restated the row or sent a narrow patch — and the server merged identically either way. Two of the three tables that chose narrow patches had a single mutable field, so the choice did nothing. Concurrent edits to *different* fields of one row no longer merge; that is the cost of having one rule, and it is accepted.
 
 ## Extension workflow
 
@@ -331,7 +328,7 @@ Example: private board labels.
 
 1. Add the shared table migration with UUID, revision, timestamps, tombstone, and ownership relationship.
 2. Add its SQLAlchemy mapping.
-3. Add one registry entry selecting ownership and an existing conflict policy.
+3. Add one registry entry selecting ownership and the writable columns.
 4. Add local queries and UI mutations.
 5. Add authorization, push/pull, deletion, and account-isolation tests.
 
@@ -449,7 +446,7 @@ Exit criterion: synchronized feature work follows the four- or five-step extensi
 - duplicate push and ambiguous network response;
 - cursor page replay and crash before cursor commit;
 - two-window concurrent sync request;
-- two-device conflict for every conflict handler;
+- two-device conflict on a shared row;
 - delete/update conflict and tombstone recovery;
 - disk full during local edit and blob import;
 - interrupted blob upload and digest mismatch;

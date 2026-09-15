@@ -169,17 +169,19 @@ impl LocalStore {
             validate_local_row(&transaction, &change.table, &change.uuid)?;
             refresh_blob_reference(&transaction, &change.table, &change.uuid)?;
             let row = read_row(&transaction, &change.table, &change.uuid)?;
-            let values =
-                if rule["conflict"].as_str() == Some("whole_row") && change.operation != "delete" {
-                    row.as_object()
-                        .ok_or("Local synchronized row is not an object")?
-                        .iter()
-                        .filter(|(field, _)| writable.contains(field.as_str()))
-                        .map(|(field, value)| (field.clone(), value.clone()))
-                        .collect()
-                } else {
-                    change.values.clone()
-                };
+            // Every table merges the same way: the writer restates the whole
+            // row, and the last write wins. A delete says only that the row
+            // is gone, so it still travels as itself.
+            let values = if change.operation != "delete" {
+                row.as_object()
+                    .ok_or("Local synchronized row is not an object")?
+                    .iter()
+                    .filter(|(field, _)| writable.contains(field.as_str()))
+                    .map(|(field, value)| (field.clone(), value.clone()))
+                    .collect()
+            } else {
+                change.values.clone()
+            };
             queued.push(QueuedChange {
                 table: change.table.clone(),
                 uuid: change.uuid.clone(),
@@ -3157,7 +3159,7 @@ mod tests {
     }
 
     #[test]
-    fn whole_row_conflicts_enqueue_the_complete_writable_row() {
+    fn a_patch_enqueues_the_complete_writable_row() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let paper_uuid = Uuid::new_v4().to_string();
@@ -3213,6 +3215,47 @@ mod tests {
             assert!(values.contains_key(field), "missing {field}");
         }
         assert_eq!(values["color"], "#222222");
+    }
+
+    #[test]
+    fn every_table_restates_its_whole_row_including_untouched_fields() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board_uuid = Uuid::new_v4().to_string();
+        let now = chrono_text();
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO boards(uuid,user_uuid,name,description,created_at,updated_at,revision) \
+                     VALUES (?1,'7','Named','Described',?2,?2,1)",
+                    params![board_uuid, now],
+                )
+                .unwrap();
+        }
+
+        store
+            .mutate(
+                "7",
+                vec![DataChange {
+                    table: "boards".into(),
+                    uuid: board_uuid,
+                    operation: "patch".into(),
+                    values: Map::from_iter([("name".into(), json!("Renamed"))]),
+                }],
+            )
+            .unwrap();
+
+        // `boards` chose field-level merging before the registry stopped
+        // offering the choice. One rule now: the writer restates the row,
+        // so the untouched description travels with the new name.
+        let queued = store.next_outbox("7").unwrap().unwrap();
+        let values = &queued.changes[0].values;
+        for field in ["name", "description", "shelf_uuid", "deleted_at"] {
+            assert!(values.contains_key(field), "missing {field}");
+        }
+        assert_eq!(values["name"], "Renamed");
+        assert_eq!(values["description"], "Described");
     }
 
     #[test]
@@ -3347,7 +3390,7 @@ mod tests {
                 vec![row],
                 vec![json!({
                     "table": "boards", "uuid": uuid,
-                    "strategy": "field_patch", "resolution": "client_won",
+                    "resolution": "client_won",
                     "server_revision": 1, "previous": {"name": "Remote"},
                 })],
                 Map::new(),

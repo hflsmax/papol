@@ -629,7 +629,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             response = self.client.post("/api/sync/push", headers=self.headers, json=payload)
             self.assertEqual(response.status_code, 422, response.text)
 
-    def test_stale_field_patch_reports_a_recoverable_conflict(self):
+    def test_a_stale_board_edit_wins_and_reports_a_recoverable_conflict(self):
         board_uuid = str(uuid.uuid4())
         first_client = str(uuid.uuid4())
         create = {
@@ -665,7 +665,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual(result["rows"][0]["revision"], 3)
         self.assertEqual(result["rows"][0]["name"], "Later edit")
         self.assertEqual(result["conflicts"][0]["previous"]["name"], "First edit")
-        self.assertEqual(result["conflicts"][0]["strategy"], "field_patch")
         self.assertEqual(result["conflicts"][0]["resolution"], "client_won")
 
     def test_delete_wins_over_a_stale_update_and_preserves_recovery_values(self):
@@ -700,7 +699,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             stale["conflicts"][0]["rejected_values"], {"name": "Unsynced edit"}
         )
 
-    def test_stale_compound_membership_uses_the_declared_client_wins_policy(self):
+    def test_a_stale_board_group_edit_wins_and_reports_a_recoverable_conflict(self):
         board_uuid, group_uuid = str(uuid.uuid4()), str(uuid.uuid4())
         client = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
@@ -729,10 +728,9 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         }).json()
         self.assertEqual(stale["rows"][0]["title"], "Device two")
-        self.assertEqual(stale["conflicts"][0]["strategy"], "compound_membership")
         self.assertEqual(stale["conflicts"][0]["resolution"], "client_won")
 
-    def test_stale_whole_row_ink_uses_the_declared_client_wins_policy(self):
+    def test_a_stale_ink_edit_wins_and_reports_a_recoverable_conflict(self):
         with self.sessions() as db:
             paper = Paper(title="Conflict paper")
             db.add(paper)
@@ -778,7 +776,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         }).json()
         self.assertEqual(stale["rows"][0]["color"], "#333333")
         self.assertEqual(stale["conflicts"][0]["previous"]["color"], "#222222")
-        self.assertEqual(stale["conflicts"][0]["strategy"], "whole_row")
         self.assertEqual(stale["conflicts"][0]["resolution"], "client_won")
 
     def test_annotation_snapshot_and_offline_mutations_use_uuid_relationships(self):

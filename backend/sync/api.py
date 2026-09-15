@@ -506,7 +506,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         return record, {
             "table": change.table,
             "uuid": row_uuid,
-            "strategy": rule.get("conflict", "whole_row"),
             "resolution": "server_won",
             "reason": "row_deleted",
             "server_revision": record.revision,
@@ -518,7 +517,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         conflict = {
             "table": change.table,
             "uuid": row_uuid,
-            "strategy": rule.get("conflict", "whole_row"),
             "resolution": "client_won",
             "server_revision": record.revision,
             "previous": {

@@ -41,6 +41,14 @@ def validate_registry():
         model = MODELS.get(table_name)
         if model is None:
             raise RuntimeError(f"Sync registry has no model for {table_name}")
+        # Every table merges the same way — the writer restates the whole row
+        # and the last write wins — so naming a strategy would be a setting
+        # that silently does nothing.
+        if "conflict" in rule:
+            raise RuntimeError(
+                f"Sync registry declares a conflict strategy for {table_name}; "
+                "every table now restates its whole row"
+            )
         columns = set(model.__table__.columns.keys())
         exposed = columns - set(rule.get("server_columns", []))
         missing = set(rule.get("client_writable", [])) - exposed
