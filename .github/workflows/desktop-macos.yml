@@ -59,7 +59,8 @@ jobs:
           projectPath: desktop
           args: --target universal-apple-darwin
           tagName: desktop-v__VERSION__
-          releaseName: Papol Desktop v__VERSION__
+          releaseName: Papol for macOS v__VERSION__
           releaseBody: Download the signed and notarized Papol DMG below.
+          releaseAssetNamePattern: "[name]_[version]_macOS_[arch][ext]"
           releaseDraft: false
           prerelease: false
