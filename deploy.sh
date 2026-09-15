@@ -334,7 +334,8 @@ replace(lockFile, /^(      "version": ")[^"]+(",)$/m);
 replace(tauriFile, /^(  "version": ")[^"]+(",)$/m);
 NODE
 
-  git -C "$DEV_DIR" diff --check
+  # A terminal makes diff open the pager even when it has nothing to say.
+  git -C "$DEV_DIR" --no-pager diff --check
   git -C "$DEV_DIR" add -- "${version_files[@]}"
   git -C "$DEV_DIR" commit -m "Release Papol macOS v$version"
   git -C "$DEV_DIR" push origin main
