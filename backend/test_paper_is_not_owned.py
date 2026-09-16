@@ -148,13 +148,13 @@ class PaperIsNotOwned(unittest.TestCase):
 
     # --- The account boundary is not ownership ------------------------
 
-    def test_a_visitor_with_no_account_still_gets_nothing(self):
-        """Removing ownership widened the Library, not the open web: a
-        visitor is outside it altogether (US-1.4), and a paper no user
-        displays is the one case where that is visible."""
+    def test_a_paper_page_is_never_built_for_a_visitor(self):
+        """Removing ownership widened the Library, not the open web. The
+        Library is for people with accounts (US-1.4), so the paper page
+        asks for one — whoever displays the paper, and whatever it is."""
         self.as_visitor()
         page = self.client.get(f"/api/papers/{self.paper_uuid}")
-        self.assertEqual(page.status_code, 404, page.text)
+        self.assertEqual(page.status_code, 401, page.text)
 
 
 if __name__ == "__main__":

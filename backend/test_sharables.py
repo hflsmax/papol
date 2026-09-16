@@ -286,19 +286,23 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(opened.status_code, 200, opened.text)
         self.assertEqual(opened.json()["user"]["display_name"], "Ada")
 
-    def test_a_private_paper_offers_no_link_to_a_page_that_would_not_open(self):
+    def test_a_shared_reading_names_no_paper_page(self):
+        """A link hands over one reading of one PDF. The page behind it is
+        the Library's, which asks for an account and is not what was
+        shared — so the way out is the home button, not a paper."""
         made = self.share()
-        self.assertIsNone(self.client.get(f"/api/shared/{made['uuid']}").json()["paper"]["uuid"])
+        shared = self.client.get(f"/api/shared/{made['uuid']}").json()
+        self.assertNotIn("uuid", shared["paper"])
 
+        # Displaying the copy does not add one either: it was never about
+        # whether the page would open.
         with self.Session() as db:
             copy = db.query(Copy).filter(Copy.user_uuid == self.user_uuid).one()
             copy.shelf.is_public = True
             db.commit()
 
-        self.assertEqual(
-            self.client.get(f"/api/shared/{made['uuid']}").json()["paper"]["uuid"],
-            self.paper_uuid,
-        )
+        shared = self.client.get(f"/api/shared/{made['uuid']}").json()
+        self.assertNotIn("uuid", shared["paper"])
 
     def test_a_link_does_not_care_which_shelf_the_paper_sits_on(self):
         """Sharing is not displaying. A shelf says who may find the paper in

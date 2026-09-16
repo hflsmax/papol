@@ -1865,11 +1865,19 @@ def _copy_of(paper: Paper, viewer: User | None) -> Copy | None:
 def _paper_detail(
     db: Session,
     paper: Paper,
-    viewer: User | None,
+    viewer: User,
     edition_override: PaperEdition | None = None,
 ) -> PaperSchema:
     """The canonical paper, merged with the viewer's own copy (summary,
-    ratings, display, private notes) when they have one."""
+    ratings, display, private notes) when they have one.
+
+    There is always a viewer. Every route that reaches here takes a
+    signed-in user, and this asserts it rather than quietly building a
+    page for nobody: a None here would mean a caller had opened the
+    Library to someone outside it, which is a bug and not a permission
+    to be decided this far in.
+    """
+    assert viewer is not None, "a paper page is only ever built for a signed-in user"
     user_copy = _copy_of(paper, viewer)
     detail = PaperSchema(
         uuid=paper.uuid,
@@ -1944,21 +1952,6 @@ def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
     if not shelf:
         raise HTTPException(status_code=404, detail="Shelf not found")
     return shelf
-
-
-def _require_readable(paper: Paper, viewer: User | None):
-    """Whether this paper opens for whoever is asking.
-
-    No user's shelf decides who may read a paper: a signed-in user may
-    open any of them.
-
-    A visitor with no account is outside the Library altogether (US-1.4)
-    and reaches a paper only where someone displays it, which is the door
-    a shared canonical URL opens.
-    """
-    if viewer is not None or displayed_copies(paper):
-        return
-    raise HTTPException(status_code=404, detail="Paper not found")
 
 
 def _require_copy(paper: Paper, user: User) -> Copy:
@@ -2090,17 +2083,16 @@ async def create_paper(
 @app.get("/api/papers/{paper_uuid}", response_model=PaperSchema)
 async def get_paper(
     paper_uuid: str,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get a paper by UUID, merged with the viewer's own copy and notes.
 
-    A signed-in user may open any paper: the Library holds every one, and
-    whose nook it sits in is nobody's business but theirs. A visitor with
-    no account still reaches only a publicly displayed paper, which is
-    what a shared canonical URL has always opened."""
+    Any signed-in user may open any paper: the Library holds every one,
+    and whose nook it sits in is nobody's business but theirs. The
+    Library is for people with accounts (US-1.4), so there is no visitor
+    case here — a paper page is not a thing Papol shows to nobody."""
     paper = _get_paper_or_404(paper_uuid, db)
-    _require_readable(paper, current_user)
     return _paper_detail(db, paper, current_user)
 
 

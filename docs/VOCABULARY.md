@@ -93,7 +93,7 @@ first user of a PDF waits.
 | **Card** | One item on a board. Its `kind` is `comment`, `excerpt`, `image`, `file`, `youtube` or `webpage`. | `board_items`. "Card" is the product word; "item" is the schema word. |
 | **Board group** | A visual and behavioural grouping of cards: a **booklet** or a **collection**. | `board_groups.kind`. Unrelated to a stroke group (§3). |
 | **Excerpt** | Text carried out of the viewer onto a board — a selection, a painted passage, or a clip's contents. | Unwrapped from the PDF's visual line breaks on the way out; genuine paragraph breaks kept. |
-| **Backlink** | The canonical viewer URL a card keeps, so it can send the user back to the place it came from. | Stored canonical rather than machine-local so it survives leaving one computer. |
+| **Backlink** | The canonical viewer URL a *board card* keeps, so it can send the user back to the place its excerpt came from. | Stored canonical rather than machine-local so it survives leaving one computer. Only a card has one; the viewer's way out to Papol is the **home button** (§6), which is a different thing and not a backlink. |
 | **Staged** | A card that has arrived but not yet been placed — it waits in a tray until dragged onto the board. | |
 
 ## 6. Sharing
@@ -101,6 +101,7 @@ first user of a PDF waits.
 | Term | Meaning | Notes |
 | --- | --- | --- |
 | **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The UUID in the link is the whole of the permission. | |
+| **Home button** | The house worn by the viewer, the board and the desktop toolbar alike: out of this document and into Papol itself. | `homePath()`, `source.homeHref`. It names nothing it leaves behind — no paper, no board, no nook — because a home button pointing back at what you just closed is a back button wearing a house. That is what lets a shared reading use it: a link hands over one reading of one PDF, not a place in the Library. Not a **backlink** (§5), which is a board card's link to where its excerpt came from; and not the library app's **Back**, which is ordinary page history. |
 | **Rich** | A sharable carrying one user's **reading** — their annotations on that edition. Belongs to them; shown on their paper page; theirs to revoke. | |
 | **Lean** | A sharable carrying the PDF alone. One per edition, belongs to nobody, names no user. | Never shown on a paper page and never counted against its maker: nothing of theirs is in it. |
 | **Demote** | To turn a rich link lean, permanently, when the user takes the paper out of their nook or drops their annotations. | Permanent by design — putting the paper back must not quietly re-expose annotations to everyone still holding the link. |

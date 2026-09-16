@@ -54,11 +54,9 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-2.12** **What a user keeps to themselves.** My summary, my notes, my ink
   and clips — and that I keep this paper at all: a user who does not display
   their copy is named nowhere on the paper.
-- **US-2.13** **A visitor still needs an account.** Signing in is what the
-  Library asks for (US-1.4). Without an account a paper opens only where
-  someone displays it, which is the door a shared canonical URL opens. That is
-  the account boundary, and it is the only thing display decides beyond the
-  copy it belongs to.
+- **US-2.13** **A paper page is for people with accounts.** The Library asks
+  for one (US-1.4), and the paper page is the Library's. Display decides
+  nothing here: it governs the copy it belongs to and nothing else.
 
 ## 3. Browsing
 
@@ -116,7 +114,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.13** As a user, I can hand someone a **link to the PDF I am reading**, from the Share menu on the paper page. It opens the PDF in Papol's viewer, read-only, for anyone holding it — no account, no sign-in.
 - **US-7.14** One tick box decides **what the link carries, and therefore whose it is**. Left alone, I get the PDF's own link: the same link for everyone, carrying the paper and naming nobody — I copy it and pass it on, and that is the end of my part in it. Ticked, Papol makes **my** link, carrying my notes, paint and clips.
 - **US-7.15** A link is one or the other for its whole life. I have **one link of my own per edition I read** — asking again gives it back rather than making a second — and the PDF's own link is beside it, not instead of it: having handed over one is never a reason to be refused the other.
-- **US-7.16** What a visitor sees through my link is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding it. They see the PDF, my name, my annotations, and the paper's bibliography — and nothing else in my nook. Through the PDF's own link they see the paper and no user at all.
+- **US-7.16** What a visitor sees through my link is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding it. They see the PDF, my name, my annotations, and the paper's bibliography — and nothing else in my nook. The way out is the **home button**, which leads to Papol itself and names no paper: a link hands over a reading, not a place in the Library. Through the PDF's own link they see the paper and no user at all.
 - **US-7.17** **Sharing is not displaying.** A shelf says who can find the paper in the Library; a link says who may read this PDF. I can share a paper nobody else can find, and moving it between a public and a private shelf never changes a link I have already handed out.
 - **US-7.18** If I **take the paper out of my nook**, my link keeps opening the PDF but stops carrying the reading — permanently, so putting the paper back does not quietly re-expose my annotations — and stops being mine along with them.
 - **US-7.19** **Stopping** asks what I mean: *drop my annotations*, which leaves the link working for whoever has it and hands it out of my keeping for good, or *revoke the link*, which stops it opening. Revoking is final — sharing again mints a new link, and the old one stays dead. Whoever follows a revoked link is told it is no longer shared, not that it never existed.

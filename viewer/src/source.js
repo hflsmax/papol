@@ -69,7 +69,7 @@ function apiSource(
     return paperReady;
   };
   const source = {
-    backHref: appPath('/'),
+    homeHref: appPath('/'),
     // The desktop blob store is content-addressed, so the viewer can begin
     // reading these bytes before this source's paper metadata query returns.
     pdfHash,
@@ -77,7 +77,7 @@ function apiSource(
     async load() {
       const loaded = await paper();
       paperUuid = loaded.uuid;
-      source.backHref = appPath(`/paper/${loaded.uuid}`);
+      source.homeHref = appPath(`/paper/${loaded.uuid}`);
       return { doc: loaded, notes: [] };
     },
     async loadNotes() {
@@ -114,10 +114,10 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     return readingReady;
   };
   return {
-    // A visitor following a link has no nook to go back to, and no paper
-    // page they could open either: the sharer's is not theirs to see. The
-    // way out is Papol's front door.
-    backHref: appPath('/'),
+    // Where the home button leads. A link hands over one reading of one
+    // PDF, not a place in the Library — and the Library asks for an account
+    // besides — so the way out names no paper and goes to Papol itself.
+    homeHref: appPath('/'),
     requiresSignIn: false,
     // Their annotations are theirs: whatever is already on these pages was put
     // there by the sharer and nothing in the viewer may change it.
@@ -210,7 +210,7 @@ function openedFileSource(pdfHash, name) {
   };
 
   const source = {
-    backHref: appPath('/'),
+    homeHref: appPath('/'),
     requiresSignIn: false,
     openedFile: true,
     // The same pair a shared paper carries, and for the same reason. Nothing
@@ -277,7 +277,7 @@ function localSource(paperUuid) {
   let annotations = seedFor(paperUuid);
 
   return {
-    backHref: appPath(`/demo/paper/${paperUuid}`),
+    homeHref: appPath(`/demo/paper/${paperUuid}`),
     // The paper's details panel shows the demo paper's own fields; there is
     // no catalogue entry to add to them.
     async info() {

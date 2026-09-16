@@ -3448,7 +3448,7 @@ export default function App() {
           <div className="error" role="alert">{error}</div>
           {!DOCUMENT_WINDOW && <p className="hint">
             <a
-              href={source?.backHref || appPath('/')}
+              href={source?.homeHref || appPath('/')}
               onClick={(event) => {
                 if (closeDesktopDocumentWindow()) {
                   event.preventDefault();
@@ -3496,7 +3496,7 @@ export default function App() {
     // returns to the library that has remained mounted behind it.
     if (closeDesktopDocumentWindow()) return;
     markReturnToPapol();
-    window.location.assign(source?.backHref || appPath('/'));
+    window.location.assign(source?.homeHref || appPath('/'));
   };
   // The document's own history, kept apart from the window's Back: the return
   // pill over the pages names the page each way leads to.
@@ -3591,14 +3591,16 @@ export default function App() {
             }}
           />
         ) : !DESKTOP ? (
-          // The same house the desktop toolbar wears, for the same errand:
-          // out of this paper and back to Papol. The href stays for a direct
-          // visit, and for opening in a new tab.
+          // The home button: the same house the desktop toolbar wears, for
+          // the same errand — out of this document and into Papol itself.
+          // It names no paper, which is what makes it usable from a shared
+          // reading, where there is no paper page to send anyone to. The
+          // href stays for a direct visit, and for opening in a new tab.
           <a
-            className="back"
-            href={source?.backHref || appPath('/')}
-            aria-label="Back to Papol"
-            title="Back to Papol"
+            className="home"
+            href={source?.homeHref || appPath('/')}
+            aria-label="Papol home"
+            title="Papol home"
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
                 markReturnToPapol();

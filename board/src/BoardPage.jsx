@@ -79,7 +79,7 @@ const stagedSourceLabel = (item) => {
   }
 };
 
-export default function BoardPage({ boardUuid, onBack, backHref }) {
+export default function BoardPage({ boardUuid, onHome, homeHref }) {
   const [board, setBoard] = useState(null);
   const [view, setView] = useState(() => initialBoardView(boardUuid));
   const [error, setError] = useState(null);
@@ -1761,8 +1761,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     try {
       await deleteBoard(board.uuid);
       try { localStorage.removeItem(`papol_board_view_${board.uuid}`); } catch { /* best effort */ }
-      // Nothing to reveal in the nook any more: the board is gone.
-      onBack(null);
+      onHome();
     } catch (err) { setError(err.message); setBusy(false); }
   };
 
@@ -1905,14 +1904,15 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
         ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
         : !DESKTOP
           ? <BackLink
-              className="board-back"
-              href={backHref(board)}
-              onBack={() => onBack(board)}
-              aria-label="Back to Papol"
-              title="Back to Papol"
+              className="board-home"
+              href={homeHref()}
+              onBack={onHome}
+              aria-label="Papol home"
+              title="Papol home"
             >
               {/* The house the desktop toolbar wears, and the viewer with
-                  it: one way home across all three. */}
+                  it: one home button across all three, naming nothing it
+                  leaves behind. */}
               <svg viewBox="0 0 16 16" aria-hidden="true">
                 <path d="m2.25 7.25 5.75-4.5 5.75 4.5" />
                 <path d="M3.75 6.5v6.75h8.5V6.5M6.5 13.25V9h3v4.25" />
