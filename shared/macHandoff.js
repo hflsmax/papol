@@ -15,7 +15,7 @@ export const HANDOFF_SCHEME = 'papol';
 // that identify a document and a place in it survive the crossing. Anything
 // else a page might hope to smuggle into the app's own URL is dropped.
 export const HANDOFF_QUERY_KEYS = Object.freeze([
-  'pdf', 'board', 'share', 'demo', 'page', 'note', 'y', 'mark', 'box',
+  'pdf', 'board', 'share', 'page', 'note', 'y', 'mark', 'box',
 ]);
 
 export const RETIRED_KEY = 'papol.handoff.retired';
@@ -29,12 +29,31 @@ export const DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 // think about it.
 export const DETECTION_MS = 1500;
 
+// Losing focus is the weakest of the three signals, because a browser that
+// cannot open the address may say so in a panel attached to this window —
+// which takes focus away exactly as the application would. So a blur alone
+// buys a longer look, in the hope of seeing focus come back: a reader who
+// dismisses a panel is here again within a second or two, and a reader whose
+// Papol just opened is not.
+export const BLUR_GRACE_MS = 3000;
+
 function parse(href) {
   try {
     return new URL(href);
   } catch {
     return null;
   }
+}
+
+// Whether this is a computer a handoff could land on. iPadOS asks for the
+// desktop site by default and answers to every Mac test a browser can run —
+// same platform string, same user agent — so the one thing that still tells
+// them apart is that nobody has ten fingers on a trackpad. An iPad offered
+// Papol for Mac is offered something it cannot install (US-7.24).
+export function handoffCapableMac(nav) {
+  if (!nav) return false;
+  if (!/Mac/.test(nav.platform || nav.userAgent || '')) return false;
+  return !(nav.maxTouchPoints > 1);
 }
 
 // What the reader is looking at, named the way the offer will name it
@@ -45,7 +64,10 @@ export function handoffDocument(href) {
   if (!url) return null;
   if (!/^https?:$/.test(url.protocol)) return null;
   const path = url.pathname;
+  // The demo is named two ways — by the path the library links to and by the
+  // flag a board carries once it is open — and neither is a reading of mine.
   if (/\/demo\//.test(path)) return null;
+  if (url.searchParams.get('demo') === '1') return null;
   if (/\/viewer(\/|$)/.test(path)) {
     if (!url.searchParams.get('pdf') && !url.searchParams.get('share')) return null;
     return { kind: 'paper', noun: 'this paper' };
@@ -155,39 +177,77 @@ export function handoffOffer({
 }
 
 // Asking the system to open the address, and listening for the only evidence
-// a browser will ever give: this tab losing attention. There is no API that
+// a browser will ever give: this tab losing the reader. There is no API that
 // answers "is it installed", so this is a guess with a clock on it, and the
 // caller is told which of the two it got rather than being told a verdict
 // about the reader's computer (US-7.34).
 //
+// The three signals are not equally good, and treating them as if they were
+// is how this goes wrong. Going hidden, or being unloaded, means the page is
+// no longer in front of anyone — only the application arriving does that.
+// Losing focus does not: a browser asked for a scheme it does not know may
+// answer with a panel of its own, attached to this very window, which blurs
+// the page while leaving it perfectly visible. Believing that blur is how a
+// reader with no Papol gets an error they did not ask for *and* loses the
+// download offer that was the whole point of asking. So a blur only extends
+// the wait, and focus returning inside it settles the question the other way.
+//
+// What remains is a reader who leaves such a panel standing for longer than
+// BLUR_GRACE_MS: that still reads as 'opened'. It is the residue of a
+// question no browser will answer, and it errs toward silence rather than
+// toward telling someone their computer is missing something it may have.
+//
 // Assigning `location.href` a scheme the system does not handle does not
 // unload the document in any current browser, which is what lets the reading
 // stay exactly where it was behind the offer (US-7.26).
-export function attemptHandoff(address, { win, timeoutMs = DETECTION_MS } = {}) {
+export function attemptHandoff(address, { win, timeoutMs = DETECTION_MS, blurMs = BLUR_GRACE_MS } = {}) {
   const view = win || (typeof window === 'undefined' ? null : window);
   if (!view) return Promise.resolve('unknown');
   return new Promise((resolve) => {
     let settled = false;
     let timer = null;
+    let blurred = false;
     const finish = (verdict) => {
       if (settled) return;
       settled = true;
       if (timer !== null) view.clearTimeout(timer);
       view.removeEventListener('blur', left);
-      view.removeEventListener('pagehide', left);
+      view.removeEventListener('focus', back);
+      view.removeEventListener('pagehide', gone);
       view.document?.removeEventListener('visibilitychange', hidden);
       resolve(verdict);
     };
-    function left() {
+    function gone() {
       finish('opened');
     }
     function hidden() {
       if (view.document?.visibilityState === 'hidden') finish('opened');
     }
+    // Noted, not believed. The wait is extended instead, so that focus coming
+    // back has somewhere to land.
+    function left() {
+      if (blurred || settled) return;
+      blurred = true;
+      if (timer !== null) view.clearTimeout(timer);
+      timer = view.setTimeout(decide, blurMs);
+    }
+    // Whatever took the focus gave it back, so it was something this reader
+    // could dismiss, and dismissing it is not a handoff.
+    function back() {
+      if (blurred) finish('unknown');
+    }
+    function decide() {
+      // A page that lost the reader and has not got them back is behind
+      // something. `hasFocus` is what says so where a browser offers it; a
+      // browser that does not is taken at its blur.
+      const focused = view.document?.hasFocus?.();
+      finish(blurred && focused !== true ? 'opened' : 'unknown');
+    }
     view.addEventListener('blur', left);
-    view.addEventListener('pagehide', left);
+    view.addEventListener('focus', back);
+    view.addEventListener('pagehide', gone);
     view.document?.addEventListener('visibilitychange', hidden);
-    timer = view.setTimeout(() => finish('unknown'), timeoutMs);
+    timer = view.setTimeout(decide, timeoutMs);
     try {
       view.location.href = address;
     } catch {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { DESKTOP, MAC } from '../desktopShell.js';
+import { DESKTOP } from '../desktopShell.js';
 import {
   ALWAYS_KEY, DOWNLOAD_URL, RETIRED_KEY,
-  attemptHandoff, deferDocument, handoffOffer, writeFlag,
+  attemptHandoff, deferDocument, handoffCapableMac, handoffOffer, writeFlag,
 } from '../macHandoff.js';
 
 // Shown at the top of a document the Mac app could open better, in the
@@ -20,7 +20,7 @@ export default function MacHandoffBar() {
     const made = handoffOffer({
       href: window.location.href,
       desktop: DESKTOP,
-      mac: MAC,
+      mac: handoffCapableMac(window.navigator),
       session: window.sessionStorage,
       local: window.localStorage,
     });
@@ -29,20 +29,6 @@ export default function MacHandoffBar() {
     setAlways(made.always);
   }, []);
 
-  // "Always open in Papol" is the reader's standing answer, so the offer is
-  // not put to them again — it is simply carried out. A failed attempt still
-  // lands on the download rather than repeating silently.
-  useEffect(() => {
-    if (!offer || !offer.always || tried.current) return;
-    tried.current = true;
-    setState('trying');
-    attemptHandoff(offer.address).then((verdict) => {
-      setState(verdict === 'opened' ? 'opened' : 'missing');
-    });
-  }, [offer]);
-
-  if (!offer || state === 'opened') return null;
-
   const hand = () => {
     tried.current = true;
     setState('trying');
@@ -50,6 +36,16 @@ export default function MacHandoffBar() {
       setState(verdict === 'opened' ? 'opened' : 'missing');
     });
   };
+
+  // "Always open in Papol" is the reader's standing answer, so the offer is
+  // not put to them again — it is simply carried out. A failed attempt still
+  // lands on the download rather than repeating silently.
+  useEffect(() => {
+    if (!offer || !offer.always || tried.current) return;
+    hand();
+  }, [offer]);
+
+  if (!offer) return null;
 
   const notNow = () => {
     deferDocument(window.sessionStorage, offer.identity);
@@ -61,11 +57,35 @@ export default function MacHandoffBar() {
     setOffer(null);
   };
 
+  const stopAlways = () => {
+    writeFlag(window.localStorage, ALWAYS_KEY, false);
+    setAlways(false);
+    setOffer(null);
+  };
+
+  if (state === 'opened') {
+    // A reader who asked for this once can see their Papol and does not need
+    // telling (US-7.34). A standing answer is different: it acted without
+    // asking, so the tab it acted from says where the paper went and how to
+    // stop it doing so again (US-7.27).
+    if (!offer.always) return null;
+    return (
+      <div className="mac-handoff-bar" role="status">
+        <span>Opened in Papol for Mac.</span>
+        <button type="button" className="mac-handoff-dismiss" onClick={stopAlways}>
+          Stop opening in Papol
+        </button>
+      </div>
+    );
+  }
+
   if (state === 'missing') {
     return (
       <div className="mac-handoff-bar" role="status">
-        <span>Papol for Mac isn’t installed.</span>
-        <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download it</a>
+        {/* What this tab saw, not a verdict about the reader's computer
+            (US-7.34): Papol may well be installed and simply slow. */}
+        <span>Papol didn’t open.</span>
+        <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download Papol for Mac</a>
         <button type="button" className="mac-handoff-dismiss" onClick={notNow}>
           Not now
         </button>

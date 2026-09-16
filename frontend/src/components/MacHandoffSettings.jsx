@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { DESKTOP, MAC } from '../../../shared/desktopShell';
-import { ALWAYS_KEY, RETIRED_KEY, writeFlag } from '../../../shared/macHandoff.js';
+import { DESKTOP } from '../../../shared/desktopShell';
+import {
+  ALWAYS_KEY, RETIRED_KEY, handoffCapableMac, writeFlag,
+} from '../../../shared/macHandoff.js';
 
 function flag(key) {
   try {
@@ -17,7 +19,7 @@ export default function MacHandoffSettings() {
   const [retired, setRetired] = useState(() => flag(RETIRED_KEY));
   const [always, setAlways] = useState(() => flag(ALWAYS_KEY));
 
-  if (DESKTOP || !MAC) return null;
+  if (DESKTOP || !handoffCapableMac(window.navigator)) return null;
   if (!retired && !always) return null;
 
   return (

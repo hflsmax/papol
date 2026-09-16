@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  ALWAYS_KEY, DETECTION_MS, RETIRED_KEY,
-  attemptHandoff, deferDocument, documentIsDeferred,
-  handoffAddress, handoffDocument, handoffIdentity, handoffOffer, writeFlag,
+  ALWAYS_KEY, BLUR_GRACE_MS, DETECTION_MS, RETIRED_KEY,
+  attemptHandoff, deferDocument, documentIsDeferred, handoffAddress,
+  handoffCapableMac, handoffDocument, handoffIdentity, handoffOffer, writeFlag,
 } from '../../shared/macHandoff.js';
 
 const VIEWER = 'https://mc-pony.com/papol/viewer/?pdf=abc123';
@@ -223,6 +223,8 @@ function fakeWindow() {
     location: { href: VIEWER },
     document: {
       visibilityState: 'visible',
+      focused: false,
+      hasFocus() { return this.focused; },
       addEventListener: (name, fn) => listeners.set(`document:${name}`, fn),
       removeEventListener: (name) => listeners.delete(`document:${name}`),
     },
@@ -247,7 +249,7 @@ test('asking the system to open the address does exactly that', async () => {
   const win = fakeWindow();
   const settled = attemptHandoff('papol://mc-pony.com/papol/viewer/?pdf=abc', { win });
   assert.equal(win.location.href, 'papol://mc-pony.com/papol/viewer/?pdf=abc');
-  win.fire('blur');
+  win.fire('pagehide');
   assert.equal(await settled, 'opened');
 });
 
@@ -286,8 +288,8 @@ test('the wait has a bound', async () => {
 test('every listener and timer is given back once the question is settled', async () => {
   const win = fakeWindow();
   const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
-  assert.equal(win.listeners.size, 3);
-  win.fire('blur');
+  assert.equal(win.listeners.size, 4);
+  win.fire('pagehide');
   await settled;
   assert.equal(win.listeners.size, 0);
   assert.equal(win.timers.size, 0);
@@ -296,9 +298,9 @@ test('every listener and timer is given back once the question is settled', asyn
 test('a second departure cannot settle the question twice', async () => {
   const win = fakeWindow();
   const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
-  win.fire('blur');
+  win.fire('pagehide');
   assert.equal(await settled, 'opened');
-  assert.doesNotThrow(() => win.fire('pagehide'));
+  assert.doesNotThrow(() => win.fire('blur'));
 });
 
 test('a browser that refuses the address at all is an unknown, not a crash', async () => {
@@ -308,4 +310,100 @@ test('a browser that refuses the address at all is an unknown, not a crash', asy
     get() { return VIEWER; },
   });
   assert.equal(await attemptHandoff('papol://x/viewer/?pdf=a', { win }), 'unknown');
+});
+
+// US-7.34. A browser asked for a scheme it does not know may answer with a
+// panel attached to this window: the page keeps its pixels and loses its
+// focus, which is exactly what an application arriving looks like. Reading
+// that as success is a reader with no Papol getting an error they did not
+// ask for and losing the download offer that was the point of asking.
+test('focus taken by something dismissable, and given back, is not a handoff', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur');
+  assert.equal(win.timers.size, 1, 'still looking');
+  win.fire('focus');
+  assert.equal(await settled, 'unknown');
+});
+
+test('focus taken and not given back is a handoff', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur');
+  win.expire();
+  assert.equal(await settled, 'opened');
+});
+
+test('a page that still holds the focus it never lost has seen nothing', async () => {
+  const win = fakeWindow();
+  win.document.focused = true;
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.expire();
+  assert.equal(await settled, 'unknown');
+});
+
+test('losing the focus buys a longer look than losing nothing does', async () => {
+  const win = fakeWindow();
+  attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  assert.equal([...win.timers.values()][0].ms, DETECTION_MS);
+  win.fire('blur');
+  assert.equal(win.timers.size, 1, 'the first wait was given back');
+  assert.equal([...win.timers.values()][0].ms, BLUR_GRACE_MS);
+});
+
+test('going hidden settles it at once, however the focus went', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur');
+  win.document.visibilityState = 'hidden';
+  win.fire('document:visibilitychange');
+  assert.equal(await settled, 'opened');
+});
+
+test('focus returning before anything was ever lost settles nothing', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('focus');
+  assert.equal(win.timers.size, 1, 'still waiting');
+  win.expire();
+  assert.equal(await settled, 'unknown');
+});
+
+// US-7.31: the demo is named by the path the library links to, and by the
+// flag a board carries once it is open. Neither is a reading of mine.
+test('a board flagged as the demo is not a document to hand over', () => {
+  assert.equal(handoffDocument('https://mc-pony.com/papol/boards/b-42?demo=1'), null);
+  assert.equal(handoffDocument('https://mc-pony.com/papol/viewer/?pdf=abc&demo=1'), null);
+  assert.equal(handoffOffer({ href: 'https://mc-pony.com/papol/boards/b-42?demo=1', mac: true }), null);
+});
+
+test('nothing about the demo can be carried into an address', () => {
+  const address = handoffAddress('https://mc-pony.com/papol/boards/b-42?board=b-42&demo=0');
+  assert.ok(address);
+  assert.ok(!address.includes('demo'), address);
+});
+
+// US-7.24: there is nothing to hand off to on a device that cannot install it.
+test('a Mac is a computer a handoff could land on', () => {
+  assert.equal(handoffCapableMac({ platform: 'MacIntel', maxTouchPoints: 0 }), true);
+  assert.equal(handoffCapableMac({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }), true);
+});
+
+// iPadOS asks for the desktop site by default: same platform string, same
+// user agent, no Papol for Mac to install. The fingers are the giveaway.
+test('an iPad calling itself a Mac is still not offered a Mac application', () => {
+  assert.equal(handoffCapableMac({ platform: 'MacIntel', maxTouchPoints: 5 }), false);
+  assert.equal(
+    handoffCapableMac({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/17.0 Safari/605.1.15',
+      maxTouchPoints: 5,
+    }),
+    false,
+  );
+});
+
+test('nothing else is a Mac', () => {
+  assert.equal(handoffCapableMac({ platform: 'Win32', maxTouchPoints: 0 }), false);
+  assert.equal(handoffCapableMac({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)' }), false);
+  assert.equal(handoffCapableMac(null), false);
 });
