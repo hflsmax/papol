@@ -45,6 +45,31 @@ GROBID_JOURNAL_ONLY_REFERENCE = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
 <note type="raw_reference">M. Schenk, Proceedings of the National Academy of Sciences 110, 3276 (2013).</note>
 </biblStruct></listBibl></back></text></TEI>"""
 
+# An Elsevier paper cites in brackets and numbers its display equations at
+# the right margin; GROBID reads "(7)" beside one of them as a citation of
+# reference 7.
+GROBID_EQUATION_NUMBER = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<facsimile><surface n="4" lrx="600" lry="800"/></facsimile>
+<text><body>
+<p>Inspired by prior work <ref type="bibr" coords="4,100,100,12,10" target="#b0">[1]</ref>
+and by linkages <ref type="bibr" coords="4,200,100,12,10" target="#b6">[7]</ref>.</p>
+<p>A out-plane = (b 0 , b 1 ) <ref type="bibr" coords="4,552,308,11,8" target="#b6">(7)</ref> where</p>
+</body><back><listBibl>
+<biblStruct xml:id="b0" coords="4,60,700,200,10"><note type="raw_reference">Yao L. Pneui.</note></biblStruct>
+<biblStruct xml:id="b6" coords="4,60,712,200,10"><note type="raw_reference">Iwafune M. Coded skeleton.</note></biblStruct>
+</listBibl></back></text></TEI>"""
+
+# Science and the journals that follow it really do cite as "(7)".
+GROBID_PARENTHESIZED_CITATIONS = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<facsimile><surface n="1" lrx="600" lry="800"/></facsimile>
+<text><body>
+<p>As reported <ref type="bibr" coords="1,100,100,12,10" target="#b0">(1)</ref>
+and later confirmed <ref type="bibr" coords="1,200,100,12,10" target="#b6">(7)</ref>.</p>
+</body><back><listBibl>
+<biblStruct xml:id="b0" coords="1,60,700,200,10"><note type="raw_reference">Yao L. Pneui.</note></biblStruct>
+<biblStruct xml:id="b6" coords="1,60,712,200,10"><note type="raw_reference">Iwafune M. Coded skeleton.</note></biblStruct>
+</listBibl></back></text></TEI>"""
+
 
 class MetadataExtractionTests(unittest.TestCase):
     def test_skips_line_wrapped_doi_fragment_for_complete_footer_doi(self):
@@ -151,6 +176,16 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertEqual((links[0].kind, links[0].label), ("figure", "2"))
         self.assertEqual((links[0].page, links[0].target_page), (1, 2))
         document.close()
+
+    def test_does_not_read_a_display_equation_number_as_a_citation(self):
+        analysis = grobid.parse_tei(GROBID_EQUATION_NUMBER)
+
+        self.assertEqual([c.label for c in analysis.citations], ["[1]", "[7]"])
+
+    def test_keeps_parenthesized_markers_where_that_is_how_the_paper_cites(self):
+        analysis = grobid.parse_tei(GROBID_PARENTHESIZED_CITATIONS)
+
+        self.assertEqual([c.label for c in analysis.citations], ["(1)", "(7)"])
 
     def test_does_not_use_journal_as_missing_article_title(self):
         reference = grobid.parse_tei(GROBID_JOURNAL_ONLY_REFERENCE).references[0]

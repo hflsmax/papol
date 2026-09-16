@@ -319,11 +319,27 @@ def parse_tei(xml: str) -> Analysis:
         references.append(ref)
         by_key[key] = ref
 
+    markers = [
+        marker for marker in root.iter(f"{TEI}ref")
+        if marker.get("type") == "bibr"
+    ]
+    # A display equation is numbered at the right margin — "(7)" — and GROBID
+    # reads that number as a citation of reference 7. Nothing in the marker
+    # itself gives it away; what does is the company it keeps. A paper cites
+    # one way throughout, so where its markers are mostly bracketed a bare
+    # "(7)" is not one of them. Where they are not — Science and the journals
+    # that follow it really do cite as "(7)" — every marker is kept, and an
+    # equation number among them is by far the smaller loss.
+    labels = ["".join(marker.itertext()).strip() for marker in markers]
+    equations = sum(1 for label in labels if _EQUATION_NUMBER.fullmatch(label))
+    bracketed = sum(1 for label in labels if "[" in label or "]" in label)
+    cites_in_brackets = bracketed > equations
+
     citations: list[Citation] = []
-    for marker in root.iter(f"{TEI}ref"):
-        if marker.get("type") != "bibr":
-            continue
+    for marker in markers:
         label = "".join(marker.itertext()).strip()
+        if cites_in_brackets and _EQUATION_NUMBER.fullmatch(label):
+            continue
         target = (marker.get("target") or "").lstrip("#")
         inferred = False
         if target not in by_key:
@@ -473,6 +489,11 @@ def _link_overlap(a: DocumentLink, b: DocumentLink) -> bool:
 # in "Curry [2]". The bracket is required — without it every year and
 # section number in the text would look like a citation.
 _MARKER_NUMBER = re.compile(r"[\[(]\s*(\d{1,3})")
+
+# The number set beside a display equation. Only a bare one in round
+# brackets and nothing else: "(2016)" is a year, "(Smith, 2016)" an
+# author-year citation, and "[7]" is the very thing this must not touch.
+_EQUATION_NUMBER = re.compile(r"\(\s*\d{1,3}\s*\)")
 
 
 def _numbered_target(label: str, references: list[Reference]) -> Optional[str]:
