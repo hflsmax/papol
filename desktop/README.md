@@ -149,6 +149,39 @@ route: use `https://host/papol` for a mounted production app and
 normalizes either form to a trailing-slash directory URL, so browser requests
 and native synchronization retain that path prefix.
 
+### Driving the interface
+
+Apple ships no WebDriver for WKWebView, so the usual desktop test drivers do
+not work here. The accessibility API does, and `scripts/papol-ui.swift` is the
+small amount of it Papol needs:
+
+```sh
+cd desktop/scripts
+xcrun swift papol-ui.swift windows            # every running Papol, and its windows
+xcrun swift papol-ui.swift dump 1234          # every named element in the first window
+xcrun swift papol-ui.swift press 1234 "Not now"
+xcrun swift papol-ui.swift shot 1234 /tmp/papol.png
+```
+
+WebKit publishes the page as real elements — `AXButton`, `AXTextField`,
+`AXStaticText`, each carrying the name a reader sees — and pressing one runs
+the handler a click would run. That works against the application as shipped:
+no plugin compiled in, no debug build, no development server. It needs
+Accessibility permission for whatever runs it, in System Settings → Privacy &
+Security → Accessibility.
+
+Two things mislead anyone who tries this without the script. AppleScript's
+System Events cannot see the page at all: its `entire contents` stops at the
+web area and reports a few unnamed groups, which reads exactly like a webview
+that publishes nothing. And `screencapture -R` captures a rectangle of the
+screen rather than a window, so an occluded Papol yields a picture of whatever
+is in front of it; `shot` raises the window first.
+
+Typing is the one thing this cannot do. Setting a field's value through the
+accessibility API reports success and leaves the field empty, because React
+never sees the change — a test that must type should send keystrokes, or drive
+the same screens in a browser against the development server instead.
+
 ### Extending offline data
 
 For a nullable field on an existing synchronized row: add it to the ordered
