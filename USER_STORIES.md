@@ -50,6 +50,10 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
   display (US-2.5) says whether *I* am shown standing against the paper. Every
   paper is in the Library whoever displays it, and anyone signed in can open
   one and take a copy of their own.
+- **US-2.11a** **A paper nobody holds is still in the Library**, listed like
+  any other with no readers shown against it. The last reader leaving is not a
+  deletion, and a file that arrived without anyone keeping it is still a file
+  Papol has — either way the paper is there to be found, opened and taken.
 - **US-2.12** **What a user keeps to themselves.** My summary, my notes, my ink
   and clips — and that I keep this paper at all: a user who does not display
   their copy is named nowhere on the paper.

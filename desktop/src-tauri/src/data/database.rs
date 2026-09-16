@@ -3842,7 +3842,7 @@ mod tests {
                     row.get(0)
                 })
                 .unwrap();
-            assert_eq!(migration_count, 6);
+            assert_eq!(migration_count, 7);
         }
     }
 

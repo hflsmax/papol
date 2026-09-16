@@ -68,6 +68,17 @@ CREATE TABLE paper_clips (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
 );
+CREATE TABLE tags (
+  uuid TEXT PRIMARY KEY NOT NULL, user_uuid TEXT NOT NULL, name TEXT NOT NULL,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
+);
+CREATE TABLE copy_tags (
+  uuid TEXT PRIMARY KEY NOT NULL, copy_uuid TEXT NOT NULL, tag_uuid TEXT NOT NULL,
+  user_uuid TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT,
+  UNIQUE(copy_uuid, tag_uuid)
+);
 CREATE TABLE sharables (
   uuid TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL DEFAULT 'lean',
   user_uuid TEXT, paper_uuid TEXT NOT NULL, edition_uuid TEXT NOT NULL,
@@ -115,6 +126,10 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         The shown paper has two editions: the one the user reads, and a newer
         one nobody took. Folding editions away has to make two papers of them
         and leave the copy on the file it was reading.
+
+        A third paper holds the very file the shown one does — the pair the
+        old DOI-keyed upload path could leave behind — with a copy of its own,
+        so the merge has something to close.
         """
         db = sqlite3.connect(self.path)
         db.executescript(PREVIOUS_RELEASE)
@@ -128,6 +143,8 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.sharable, self.reference, self.citation, self.link = (
             _uuid(), _uuid(), _uuid(), _uuid(),
         )
+        self.twin_paper, self.twin_edition, self.twin_copy = _uuid(), _uuid(), _uuid()
+        self.tag, self.copy_tag = _uuid(), _uuid()
         other_paper = _uuid()
 
         db.execute("INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,1,NULL)",
@@ -154,6 +171,15 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
             "INSERT INTO edition_links VALUES (?,?,'figure','Fig 1',2,0.1,0.2,"
             "0.05,0.02,7,0.4)",
             (self.link, self.edition))
+        # The same bytes, written down a second time under another title.
+        db.execute("INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,1,NULL)",
+                   (self.twin_paper, "10.1/shown", "Shown, again", '["Ada"]',
+                    "A journal", 2026, "2026-09-17T12:00:00", "2026-09-17T12:00:00"))
+        db.execute("INSERT INTO paper_editions VALUES (?,?,?,?,?,?,1,NULL)",
+                   (self.twin_edition, self.twin_paper, "a.pdf", "a" * 64,
+                    "2026-09-17T12:00:00", "2026-09-17T12:00:00"))
+        db.execute("INSERT INTO tags VALUES (?,?,?,?,?,0,NULL)",
+                   (self.tag, self.user, "Consensus", NOW, NOW))
         db.execute("INSERT INTO shelves VALUES (?,?,?,?,1,1,0,?,?,0,NULL)",
                    (self.public_shelf, self.user, "Display", "#7ba26c", NOW, NOW))
         db.execute("INSERT INTO shelves VALUES (?,?,?,?,0,0,1,?,?,0,NULL)",
@@ -167,6 +193,16 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
             "INSERT INTO copies VALUES (?,?,?,?,NULL,NULL,NULL,NULL,NULL,0,0,"
             "NULL,NULL,NULL,?,?,0,NULL)",
             (self.hidden_copy, other_paper, self.user, self.private_shelf, NOW, NOW))
+        # The same user's copy of the twin, carrying what their other copy of
+        # that file does not: a summary, a rating, and a tag.
+        db.execute(
+            "INSERT INTO copies VALUES (?,?,?,?,?,?,NULL,?,NULL,1,1,?,"
+            "NULL,NULL,?,?,0,NULL)",
+            (self.twin_copy, self.twin_paper, self.user, self.private_shelf,
+             self.twin_edition, "a" * 64, "Worth rereading", 4,
+             "2026-09-17T12:00:00", "2026-09-17T12:00:00"))
+        db.execute("INSERT INTO copy_tags VALUES (?,?,?,?,?,?,0,NULL)",
+                   (self.copy_tag, self.twin_copy, self.tag, self.user, NOW, NOW))
 
         db.execute(
             "INSERT INTO comments VALUES (?,?,?,?,2,?,'point',?,?,?,?,0,NULL)",
@@ -310,6 +346,85 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         columns = {row[1] for row in self.rows("PRAGMA table_info(sharables)")}
         self.assertNotIn("edition_uuid", columns)
 
+    # --- one paper per file ------------------------------------------------
+
+    def test_two_papers_on_one_file_become_one(self):
+        self.upgrade()
+        self.assertEqual(
+            self.rows("SELECT uuid FROM papers WHERE sha256=?", "a" * 64),
+            [(self.paper,)],
+            "the earlier row survives and the later one is gone",
+        )
+        self.assertEqual(
+            self.rows("SELECT sha256 FROM papers GROUP BY sha256 HAVING COUNT(*) > 1"),
+            [],
+            "no two papers may hold the same bytes",
+        )
+
+    def test_a_user_holding_both_rows_keeps_one_copy_and_loses_nothing(self):
+        self.upgrade()
+        kept = self.rows(
+            "SELECT uuid, summary, is_author, rating_expertise FROM copies "
+            "WHERE paper_uuid=? AND user_uuid=?", self.paper, self.user,
+        )
+        self.assertEqual(len(kept), 1, "one paper, one copy")
+        uuid, summary, is_author, expertise = kept[0]
+        self.assertEqual(uuid, self.shown_copy, "the copy on the survivor is kept")
+        # What only the other copy carried came across rather than being lost.
+        self.assertEqual(summary, "Worth rereading")
+        self.assertEqual(is_author, 1)
+        self.assertEqual(expertise, 4)
+        self.assertEqual(
+            self.rows("SELECT uuid FROM copies WHERE uuid=?", self.twin_copy), [],
+        )
+
+    def test_a_tag_follows_the_copy_it_was_on(self):
+        self.upgrade()
+        self.assertEqual(
+            self.rows("SELECT copy_uuid FROM copy_tags WHERE uuid=?", self.copy_tag),
+            [(self.shown_copy,)],
+        )
+
+    def test_a_merged_copy_is_not_replayed_to_a_replica(self):
+        """A desktop still behind the cursor must not put back a copy of a
+        paper that no longer exists, so the log entries go with the rows."""
+        with sqlite3.connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE _server_change_log ("
+                "  sequence INTEGER PRIMARY KEY AUTOINCREMENT, user_uuid TEXT NOT NULL,"
+                "  table_name TEXT NOT NULL, row_uuid TEXT NOT NULL,"
+                "  revision INTEGER NOT NULL, operation TEXT NOT NULL,"
+                "  row_json TEXT NOT NULL, created_at TEXT NOT NULL)"
+            )
+            for table, row_uuid in (
+                ("copies", self.twin_copy),
+                ("copy_tags", self.copy_tag),
+                ("copies", self.shown_copy),
+            ):
+                db.execute(
+                    "INSERT INTO _server_change_log"
+                    "  (user_uuid, table_name, row_uuid, revision, operation,"
+                    "   row_json, created_at) VALUES (?,?,?,1,'upsert','{}',?)",
+                    (self.user, table, row_uuid, NOW),
+                )
+        self.upgrade()
+        self.assertEqual(
+            self.rows("SELECT row_uuid FROM _server_change_log WHERE row_uuid=?",
+                      self.twin_copy),
+            [],
+        )
+        self.assertEqual(
+            self.rows("SELECT row_uuid FROM _server_change_log WHERE row_uuid=?",
+                      self.copy_tag),
+            [],
+        )
+        # The surviving copy's own history is untouched.
+        self.assertEqual(
+            len(self.rows("SELECT row_uuid FROM _server_change_log WHERE row_uuid=?",
+                          self.shown_copy)),
+            1,
+        )
+
     def test_the_bibliography_follows_its_file(self):
         self.upgrade()
         for table, row_uuid in (
@@ -353,7 +468,10 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
             "SELECT c.uuid, COALESCE(s.is_public, 0) FROM copies c "
             "LEFT JOIN shelves s ON s.uuid = c.shelf_uuid"
         ))
-        self.assertEqual(after, before)
+        # A copy merged into another has no "after" of its own; the question
+        # is whether the copies that survive answer as they did.
+        self.assertEqual(after, {uuid: was for uuid, was in before.items() if uuid in after})
+        self.assertNotIn(self.twin_copy, after)
         self.assertEqual(after[self.shown_copy], 1)
         self.assertEqual(after[self.hidden_copy], 0)
 

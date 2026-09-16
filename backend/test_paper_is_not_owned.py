@@ -23,6 +23,8 @@ from auth import get_current_user, get_optional_user
 from database import Base, get_db
 from models import Copy, Paper, Shelf, User
 
+NOBODYS_HASH = "d" * 64
+
 HIDDEN_HASH = "c" * 64
 
 
@@ -118,6 +120,43 @@ class PaperIsNotOwned(unittest.TestCase):
         """Displaying a copy is not what puts a paper in the Library."""
         listing = self.client.get("/api/papers")
         self.assertEqual(listing.status_code, 200, listing.text)
+        self.assertIn(self.paper_uuid, [p["uuid"] for p in listing.json()])
+
+    def test_the_library_lists_a_paper_nobody_holds(self):
+        """A paper with no copies at all is still a paper the Library holds.
+
+        Leaving a paper is not a deletion, and a file that arrived without
+        anyone taking it is still a file Papol has: either way the row is
+        there to be found and added, with no readers shown against it."""
+        with self.Session() as db:
+            nobodys = Paper(
+                title="Held by nobody", doi="10.1234/unheld",
+                file_path=f"{NOBODYS_HASH}.pdf", sha256=NOBODYS_HASH,
+            )
+            db.add(nobodys)
+            db.commit()
+            nobodys_uuid = nobodys.uuid
+
+        listing = self.client.get("/api/papers")
+        self.assertEqual(listing.status_code, 200, listing.text)
+        row = next(
+            (p for p in listing.json() if p["uuid"] == nobodys_uuid), None,
+        )
+        self.assertIsNotNone(row, "a paper nobody holds must still be listed")
+        self.assertEqual(row["users"], [], "and be shown with no readers")
+        self.assertEqual(row["file_path"], f"{NOBODYS_HASH}.pdf")
+
+        # And it opens, so the row is one a user can act on rather than a
+        # line they cannot follow.
+        page = self.client.get(f"/api/papers/{nobodys_uuid}")
+        self.assertEqual(page.status_code, 200, page.text)
+        self.assertFalse(page.json()["viewer_has_entry"])
+
+    def test_leaving_a_paper_does_not_take_it_out_of_the_library(self):
+        """The last reader walking away is not a deletion."""
+        self.client.post(f"/api/papers/{self.paper_uuid}/add-to-nook")
+        self.client.delete(f"/api/papers/{self.paper_uuid}")
+        listing = self.client.get("/api/papers")
         self.assertIn(self.paper_uuid, [p["uuid"] for p in listing.json()])
 
     def test_any_signed_in_user_opens_it(self):

@@ -149,22 +149,6 @@ def _unify_annotations(conn):
                 conn.execute(text(statement))
 
 
-# Editions are gone: a paper is one PDF, named by its content hash. A
-# database written when a paper could have several has to be taken apart
-# along that line, and this is where it happens.
-#
-# Each edition becomes a paper. The oldest keeps the paper's own UUID, so
-# everything already pointing at it — copies, notes, seminar rooms, the
-# desktop replica's idea of what it holds — goes on pointing at the same
-# row. Every later edition becomes a paper of its own, cloning the shared
-# metadata, and whatever named that edition is carried over to it.
-#
-# Nothing is thrown away. An edition nobody was reading becomes a paper
-# nobody holds, which is simply absent from the Library until someone adds
-# it, and its file stays where it is.
-#
-# Idempotent by construction: `paper_editions` is dropped at the end, and
-# its absence is what says the work is done.
 def _table_columns(conn, name: str) -> list:
     """The table's columns in declaration order, or [] if it does not exist."""
     return [row[1] for row in conn.execute(text(f"PRAGMA table_info({name})"))]
@@ -231,8 +215,8 @@ def _rebuild_table(conn, target: str, source: str, alias: str,
 # metadata, and whatever named that edition is carried over to it.
 #
 # Nothing is thrown away. An edition nobody was reading becomes a paper
-# nobody holds, which is simply absent from the Library until someone adds
-# it, and its file stays where it is.
+# nobody holds — listed in the Library like any other, with no readers
+# against it — and its file stays where it is.
 #
 # Idempotent by construction: `paper_editions` is dropped at the end, and
 # its absence is what says the work is done.
@@ -387,6 +371,126 @@ def _fold_editions(conn):
 
 
 
+# One paper per file.
+#
+# A paper is its PDF, so two rows holding the same bytes are one paper
+# written down twice. The old upload path could produce that pair: it
+# matched on DOI, so a second upload of the same file under a title it had
+# not seen became a paper of its own. The earliest row survives and
+# everything pointing at the others is carried onto it.
+#
+# Run on every start rather than once. It is a no-op on a database that has
+# no duplicates — which is every database the current upload path writes —
+# and it means a pair that appears any other way is closed at the next
+# restart instead of living on.
+_PAPER_DEPENDENTS = (
+    "annotations", "sharables", "paper_references", "paper_citations", "paper_links",
+)
+
+# What a copy knows that is the user's own. A user holding both rows was
+# always holding one paper, so the surviving copy takes anything it has not
+# got rather than either version being thrown away.
+_COPY_FIELDS = (
+    "summary", "thought",
+    "rating_expertise", "rating_reading", "rating_liking",
+)
+
+
+def _merge_duplicate_papers(conn):
+    tables = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "papers" not in tables:
+        return
+    digests = [row[0] for row in conn.execute(text(
+        "SELECT sha256 FROM papers WHERE sha256 IS NOT NULL "
+        "GROUP BY sha256 HAVING COUNT(*) > 1"
+    ))]
+    for digest in digests:
+        rows = [row[0] for row in conn.execute(
+            text("SELECT uuid FROM papers WHERE sha256 = :digest "
+                 "ORDER BY created_at, uuid"),
+            {"digest": digest},
+        )]
+        survivor, losers = rows[0], rows[1:]
+        for loser in losers:
+            _merge_paper_into(conn, tables, loser, survivor)
+
+
+def _merge_paper_into(conn, tables: set, loser: str, survivor: str):
+    # A user with a copy on both rows keeps the one on the survivor, since
+    # that is what everything else already points at.
+    paired = list(conn.execute(
+        text("SELECT losing.uuid, keeping.uuid "
+             "  FROM copies losing "
+             "  JOIN copies keeping ON keeping.paper_uuid = :survivor "
+             "                     AND keeping.user_uuid = losing.user_uuid "
+             " WHERE losing.paper_uuid = :loser"),
+        {"survivor": survivor, "loser": loser},
+    ))
+    for losing_copy, keeping_copy in paired:
+        bound = {"losing": losing_copy, "keeping": keeping_copy}
+        filled = ", ".join(
+            f"{field} = COALESCE({field}, "
+            f"(SELECT {field} FROM copies WHERE uuid = :losing))"
+            for field in _COPY_FIELDS
+        )
+        conn.execute(text(
+            f"UPDATE copies SET {filled}, "
+            # Either row saying so is the user saying so.
+            "  is_author = MAX(is_author, "
+            "    (SELECT is_author FROM copies WHERE uuid = :losing)), "
+            # Keeping the paper outranks having let it go: a user who holds
+            # it under either row still holds it.
+            "  deleted_at = CASE "
+            "    WHEN (SELECT deleted_at FROM copies WHERE uuid = :losing) IS NULL "
+            "    THEN NULL ELSE deleted_at END "
+            " WHERE uuid = :keeping"
+        ), bound)
+        # Noted before they move: a link that ends up on the surviving copy
+        # has still stopped being the row the log describes.
+        tag_links = [row[0] for row in conn.execute(
+            text("SELECT uuid FROM copy_tags WHERE copy_uuid = :losing"), bound,
+        )]
+        # Tags follow the copy, minus any the surviving copy already carries.
+        conn.execute(text(
+            "UPDATE copy_tags SET copy_uuid = :keeping WHERE copy_uuid = :losing "
+            "  AND tag_uuid NOT IN "
+            "      (SELECT tag_uuid FROM copy_tags WHERE copy_uuid = :keeping)"
+        ), bound)
+        conn.execute(text("DELETE FROM copy_tags WHERE copy_uuid = :losing"), bound)
+        conn.execute(text("DELETE FROM copies WHERE uuid = :losing"), bound)
+        _forget_change_log(conn, tables, "copy_tags", tag_links)
+        _forget_change_log(conn, tables, "copies", [losing_copy])
+
+    for table in ("copies", *_PAPER_DEPENDENTS):
+        if table not in tables:
+            continue
+        conn.execute(
+            text(f"UPDATE {table} SET paper_uuid = :survivor WHERE paper_uuid = :loser"),
+            {"survivor": survivor, "loser": loser},
+        )
+    conn.execute(text("DELETE FROM papers WHERE uuid = :loser"), {"loser": loser})
+
+
+def _forget_change_log(conn, tables: set, table_name: str, row_uuids: list):
+    """Drop the log entries for rows this merge removed.
+
+    A replica still behind the cursor would otherwise replay them and put
+    back a copy of a paper that no longer exists. The cursor only has to
+    grow, so the gap costs nothing."""
+    if "_server_change_log" not in tables or not row_uuids:
+        return
+    for row_uuid in row_uuids:
+        conn.execute(
+            text("DELETE FROM _server_change_log "
+                 "WHERE table_name = :table_name AND row_uuid = :row_uuid"),
+            {"table_name": table_name, "row_uuid": row_uuid},
+        )
+
+
 def migrate():
     """Retire obsolete tables and columns, and add columns an existing table
     lacks.
@@ -404,6 +508,9 @@ def migrate():
         # `papers.sha256` as an empty column the fold then has to fill.
         _fold_editions(conn)
         _unify_annotations(conn)
+        # After the fold, which can leave two papers on one file when they
+        # were two papers before.
+        _merge_duplicate_papers(conn)
         for table_name, column_name in _DROPPED_COLUMNS:
             columns = {
                 row[1] for row in conn.execute(text(f"PRAGMA table_info({table_name})"))

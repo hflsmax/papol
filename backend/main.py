@@ -2423,9 +2423,11 @@ async def delete_paper(
     db: Session = Depends(get_db),
 ):
     """Remove the paper from the viewer's nook: their copy and notes.
-    The paper and its file stay — one user leaving
-    destroys nothing shared, and a paper with no users is simply absent
-    from the Library until someone adds it again."""
+
+    The paper and its file stay, and the paper stays in the Library — one
+    user leaving destroys nothing shared, and the Library holds every paper
+    whoever happens to keep one. What leaving takes away is this user's
+    name from the row of readers shown against it."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
 

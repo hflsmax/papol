@@ -283,6 +283,83 @@ DROP TABLE _edition_paper;
 DROP TABLE _paper_file;
 "#;
 
+// One paper per file, on the replica as on the service.
+//
+// A paper is its PDF, so two rows holding the same bytes are one paper
+// written down twice — a pair the old upload path could produce, because it
+// matched on DOI rather than on content. The earliest row survives and
+// everything pointing at the others is carried onto it.
+//
+// A user holding a copy on both rows was holding one paper. The copy on the
+// survivor is the one kept, and it takes whatever the other alone knew, so
+// nothing the user wrote is dropped.
+//
+// Harmless on a replica with no duplicates: `_paper_merge` comes out empty
+// and every statement after it matches nothing.
+const MERGE_DUPLICATE_PAPERS: &str = r#"
+CREATE TABLE _paper_merge AS
+  SELECT losing.uuid AS loser,
+         (SELECT keeping.uuid FROM papers keeping
+           WHERE keeping.sha256 = losing.sha256
+           ORDER BY keeping.created_at, keeping.uuid LIMIT 1) AS survivor
+    FROM papers losing
+   WHERE losing.sha256 IS NOT NULL;
+DELETE FROM _paper_merge WHERE loser = survivor;
+
+CREATE TABLE _copy_merge AS
+  SELECT losing.uuid AS losing, keeping.uuid AS keeping
+    FROM copies losing
+    JOIN _paper_merge m ON m.loser = losing.paper_uuid
+    JOIN copies keeping ON keeping.paper_uuid = m.survivor
+                       AND keeping.user_uuid = losing.user_uuid;
+
+UPDATE copies SET
+  summary = COALESCE(summary, (SELECT other.summary FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid WHERE cm.keeping = copies.uuid)),
+  thought = COALESCE(thought, (SELECT other.thought FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid WHERE cm.keeping = copies.uuid)),
+  rating_expertise = COALESCE(rating_expertise, (SELECT other.rating_expertise FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid WHERE cm.keeping = copies.uuid)),
+  rating_reading = COALESCE(rating_reading, (SELECT other.rating_reading FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid WHERE cm.keeping = copies.uuid)),
+  rating_liking = COALESCE(rating_liking, (SELECT other.rating_liking FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid WHERE cm.keeping = copies.uuid)),
+  -- Either row saying so is the user saying so.
+  is_author = MAX(is_author, COALESCE((SELECT other.is_author FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid WHERE cm.keeping = copies.uuid), 0)),
+  -- Keeping the paper outranks having let it go.
+  deleted_at = CASE WHEN EXISTS (SELECT 1 FROM copies other
+     JOIN _copy_merge cm ON cm.losing = other.uuid
+    WHERE cm.keeping = copies.uuid AND other.deleted_at IS NULL)
+    THEN NULL ELSE deleted_at END
+WHERE uuid IN (SELECT keeping FROM _copy_merge);
+
+-- Tags follow the copy, minus any the surviving copy already carries.
+UPDATE copy_tags SET copy_uuid =
+    (SELECT cm.keeping FROM _copy_merge cm WHERE cm.losing = copy_tags.copy_uuid)
+ WHERE copy_uuid IN (SELECT losing FROM _copy_merge)
+   AND tag_uuid NOT IN (
+     SELECT held.tag_uuid FROM copy_tags held
+      WHERE held.copy_uuid =
+        (SELECT cm.keeping FROM _copy_merge cm WHERE cm.losing = copy_tags.copy_uuid));
+DELETE FROM copy_tags WHERE copy_uuid IN (SELECT losing FROM _copy_merge);
+DELETE FROM copies WHERE uuid IN (SELECT losing FROM _copy_merge);
+
+UPDATE copies SET paper_uuid =
+    (SELECT survivor FROM _paper_merge WHERE loser = copies.paper_uuid)
+ WHERE paper_uuid IN (SELECT loser FROM _paper_merge);
+UPDATE annotations SET paper_uuid =
+    (SELECT survivor FROM _paper_merge WHERE loser = annotations.paper_uuid)
+ WHERE paper_uuid IN (SELECT loser FROM _paper_merge);
+
+DELETE FROM _local_blob_refs
+ WHERE table_name = 'papers' AND row_uuid IN (SELECT loser FROM _paper_merge);
+DELETE FROM papers WHERE uuid IN (SELECT loser FROM _paper_merge);
+
+DROP TABLE _copy_merge;
+DROP TABLE _paper_merge;
+"#;
+
 pub fn run(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection
         .transaction()
@@ -358,6 +435,23 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         &transaction,
         "202609160001_fold_editions",
         if had_editions { FOLD_EDITIONS } else { "" },
+    )?;
+    // After the fold, which can leave two papers on one file when they were
+    // two papers before. A replica with no duplicates runs it for nothing,
+    // which is what "no-op" is supposed to cost.
+    let has_papers = transaction
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='papers'",
+            [],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .unwrap_or(false);
+    apply_sql(
+        &transaction,
+        "202609160002_one_paper_per_file",
+        if has_papers { MERGE_DUPLICATE_PAPERS } else { "" },
     )?;
     transaction.commit().map_err(|error| error.to_string())
 }
@@ -453,6 +547,17 @@ CREATE TABLE shelves (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
 );
+CREATE TABLE copy_tags (
+  uuid TEXT PRIMARY KEY NOT NULL, copy_uuid TEXT NOT NULL, tag_uuid TEXT NOT NULL,
+  user_uuid TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT,
+  UNIQUE(copy_uuid, tag_uuid)
+);
+CREATE TABLE tags (
+  uuid TEXT PRIMARY KEY NOT NULL, user_uuid TEXT NOT NULL, name TEXT NOT NULL,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
+);
 CREATE TABLE _local_blobs (
   sha256 TEXT PRIMARY KEY NOT NULL, bytes INTEGER NOT NULL DEFAULT 0
 );
@@ -467,6 +572,7 @@ INSERT INTO _local_schema_migrations(migration_id) VALUES
   ('202609130001_local_annotations');
 INSERT INTO shelves VALUES ('s1','u1','Nook','#123456',0,1,0,
    '2026-01-01','2026-01-01',1,NULL);
+INSERT INTO tags VALUES ('t1','u1','Folding','2026-01-01','2026-01-01',1,NULL);
 INSERT INTO papers VALUES
   ('p1','10.0/x','A paper','["Ann"]','A journal',2026,
    '2026-01-01','2026-01-01',1,NULL);
@@ -476,6 +582,17 @@ INSERT INTO paper_editions VALUES ('e2','p1','p2.pdf','def','2026-01-02','2026-0
 INSERT INTO copies VALUES
   ('c1','p1','u1','s1','e1','abc',NULL,NULL,NULL,1,0,NULL,NULL,NULL,
    '2026-01-01','2026-01-01',1,NULL);
+-- The same file uploaded a second time under a title Papol had not seen, so
+-- the old DOI-keyed path made a paper of it. Two rows, one file.
+INSERT INTO papers VALUES
+  ('p2','10.0/x','A paper, again','["Ann"]','A journal',2026,
+   '2026-02-01','2026-02-01',1,NULL);
+INSERT INTO paper_editions VALUES ('e3','p2','p1.pdf','abc','2026-02-01','2026-02-01',1,NULL);
+-- The same user holds both. This copy alone carries a summary and a tag.
+INSERT INTO copies VALUES
+  ('c2','p2','u1','s1','e3','abc',NULL,'Worth rereading',NULL,1,1,4,NULL,NULL,
+   '2026-02-01','2026-02-01',1,NULL);
+INSERT INTO copy_tags VALUES ('ct1','c2','t1','u1','2026-02-01','2026-02-01',1,NULL);
 INSERT INTO _local_blobs VALUES ('abc',10);
 INSERT INTO _local_blob_refs VALUES ('paper_editions','e1','abc');
 INSERT INTO comments VALUES
@@ -551,7 +668,23 @@ INSERT INTO paper_clips VALUES
         // Editions are folded away: each file became a paper of its own, and
         // the copy stayed on the file it was reading.
         assert!(!has_table(&connection, "paper_editions"));
+        // Three files across the two old papers, but only two distinct ones:
+        // p2 held the very bytes p1 did, so it is folded into p1.
         assert_eq!(count(&connection, "SELECT COUNT(*) FROM papers"), 2);
+        assert_eq!(
+            count(&connection, "SELECT COUNT(*) FROM papers WHERE uuid='p2'"),
+            0,
+            "the duplicate paper should be gone",
+        );
+        assert_eq!(
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM (SELECT sha256 FROM papers \
+                 GROUP BY sha256 HAVING COUNT(*) > 1)",
+            ),
+            0,
+            "no two papers may hold the same bytes",
+        );
         assert_eq!(
             count(
                 &connection,
@@ -570,9 +703,26 @@ INSERT INTO paper_clips VALUES
             1,
             "the second file became a paper of its own",
         );
+        // One copy, not two: the user was holding one paper all along.
         assert_eq!(
             count(&connection, "SELECT COUNT(*) FROM copies WHERE paper_uuid='p1'"),
             1,
+        );
+        assert_eq!(count(&connection, "SELECT COUNT(*) FROM copies"), 1);
+        // And it kept what only the other copy knew.
+        assert_eq!(
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM copies WHERE uuid='c1' \
+                 AND summary='Worth rereading' AND is_author=1 AND rating_expertise=4",
+            ),
+            1,
+            "the surviving copy did not take what the other alone carried",
+        );
+        assert_eq!(
+            count(&connection, "SELECT COUNT(*) FROM copy_tags WHERE copy_uuid='c1' AND tag_uuid='t1'"),
+            1,
+            "the tag did not follow the copy",
         );
         // Every annotation followed its file, and none was left behind.
         assert_eq!(
