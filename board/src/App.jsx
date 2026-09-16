@@ -5,7 +5,7 @@ import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
-import { boardHomePath } from '../../shared/appUrls.js';
+import { homePath } from '../../shared/appUrls.js';
 
 function route() {
   const match = window.location.pathname.match(/\/(?:demo\/)?boards\/([^/]+)\/?$/);
@@ -14,13 +14,13 @@ function route() {
     : new URLSearchParams(window.location.search).get('board');
 }
 
-const boardReturnPath = (board) => boardHomePath(board, {
+const papolHome = () => homePath({
   demo: window.location.pathname.includes('/demo/boards/'),
 });
 
-function returnToPapol(board) {
+function goHome() {
   if (closeDesktopDocumentWindow()) return;
-  window.location.assign(boardReturnPath(board));
+  window.location.assign(papolHome());
 }
 
 export default function App() {
@@ -39,7 +39,7 @@ export default function App() {
     <CompatibilityBar />
     <MacHandoffBar />
     {boardUuid
-      ? <BoardPage boardUuid={boardUuid} onBack={returnToPapol} backHref={boardReturnPath} />
+      ? <BoardPage boardUuid={boardUuid} onHome={goHome} homeHref={papolHome} />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;
 }

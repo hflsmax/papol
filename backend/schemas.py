@@ -783,10 +783,11 @@ class SharableOut(BaseModel):
 class SharedPaper(PaperBase):
     """The paper behind a shared reading.
 
-    `uuid` is carried only when the paper's own page would open for whoever
-    holds the link — a link to a page that answers "not found" is worse than
-    no link at all."""
-    uuid: Optional[str] = None
+    No `uuid`, and so no way to the paper's own page. A link hands over one
+    reading of one PDF; the page behind it belongs to the Library, which is
+    for people with accounts (US-1.4) and is not what was shared. The way out
+    of a shared reading is the home button, which goes to Papol itself and
+    names no paper."""
     file_path: str
     edition_uuid: str
     edition_sha256: Optional[str] = None

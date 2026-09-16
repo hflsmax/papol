@@ -115,7 +115,7 @@ test('the way out of a shared paper is Papol itself', () => {
   // sharer's paper page is not this visitor's to open. Papol's front door
   // is the whole of where they can go, and the way home says so rather
   // than stepping back into wherever the link was.
-  assert.equal(resolveSource().backHref, '/');
+  assert.equal(resolveSource().homeHref, '/');
 });
 
 test('a visitor with no account is never asked about a nook they have not', async () => {

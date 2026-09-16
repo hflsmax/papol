@@ -178,7 +178,7 @@ button.link.danger { color: var(--red); }
 /* The way out of a paper, drawn as the house the desktop toolbar uses so
    the two shells read the same. It is an anchor, not a button, so a middle
    click or Command-click still opens Papol in a new tab. */
-.viewer-bar .back {
+.viewer-bar .home {
   display: grid;
   place-items: center;
   flex: none;
@@ -189,15 +189,15 @@ button.link.danger { color: var(--red); }
   text-decoration: none;
 }
 
-.viewer-bar .back:hover {
+.viewer-bar .home:hover {
   background: rgba(29, 33, 41, 0.07);
 }
 
-.viewer-bar .back:active {
+.viewer-bar .home:active {
   background: rgba(29, 33, 41, 0.13);
 }
 
-.viewer-bar .back svg {
+.viewer-bar .home svg {
   width: 19px;
   height: 19px;
   fill: none;

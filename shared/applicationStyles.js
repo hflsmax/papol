@@ -1607,19 +1607,6 @@ select:disabled { cursor: default; opacity: .65; }
   min-width: 0;
 }
 
-/* Coming back from a board, the nook says which row you came from — a wash
-   of the accent that fades out on its own. It lasts long enough to find,
-   and never long enough to be a state the user has to dismiss. */
-.paper-list li.revealed {
-  animation: nook-reveal 2.6s ease-out;
-}
-
-@keyframes nook-reveal {
-  0%, 55% { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  100% { background: transparent; }
-}
-
-
 /* Whether a paper is on display, drawn as the row's own left edge.
    That edge already carried this: a hidden row went dashed there. Making
    it the control means one thing says the state and changes it, rather
@@ -4947,10 +4934,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
 /* The way home, drawn as the house the desktop toolbar and the viewer both
    wear, so one glyph means one thing everywhere in Papol. */
-.board-toolbar .board-back { display: grid; flex: none; place-items: center; width: 32px; height: 28px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--accent); text-decoration: none; }
-.board-toolbar .board-back:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.board-toolbar .board-back:active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
-.board-toolbar .board-back svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.board-toolbar .board-home { display: grid; flex: none; place-items: center; width: 32px; height: 28px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--accent); text-decoration: none; }
+.board-toolbar .board-home:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.board-toolbar .board-home:active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
+.board-toolbar .board-home svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
@@ -5120,7 +5107,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 
 @media (max-width: 700px) {
   .board-toolbar { gap: 6px; min-height: 55px; padding: 7px 10px; overflow: visible; }
-  .board-toolbar .board-back { width: 40px; height: 40px; }
+  .board-toolbar .board-home { width: 40px; height: 40px; }
   .board-toolbar-title { flex: 1; width: 0; min-width: 0; max-width: none; padding-inline: 5px; overflow: hidden; text-overflow: ellipsis; }
   .board-toolbar-edited,
   .board-toolbar > .experimental-badge { display: none; }

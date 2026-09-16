@@ -1647,7 +1647,7 @@ async def get_user_space(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """A user's nook. Signed-in users only; summaries stay host-only."""
+    """A user's nook. Signed-in users only; summaries stay with their own user."""
     user = db.query(User).filter(User.uuid == user_uuid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1711,14 +1711,17 @@ async def list_all_papers(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Every paper displayed in at least one nook, newest first.
-    Signed-in users only. One row per canonical paper."""
+    """Every paper, newest first. Signed-in users only, one row per
+    canonical paper.
+
+    Nothing is filtered out: no user's shelf decides what the Library
+    holds. What display governs is the row of users shown against a
+    paper, which is each user's own business."""
     papers = db.query(Paper).order_by(Paper.created_at.desc()).all()
     room_map = _room_status_map(db)
     return [
         _paper_list_entry(p, user_copy=None, hide_private=True, room_map=room_map)
         for p in papers
-        if displayed_copies(p)
     ]
 
 
@@ -1862,11 +1865,19 @@ def _copy_of(paper: Paper, viewer: User | None) -> Copy | None:
 def _paper_detail(
     db: Session,
     paper: Paper,
-    viewer: User | None,
+    viewer: User,
     edition_override: PaperEdition | None = None,
 ) -> PaperSchema:
     """The canonical paper, merged with the viewer's own copy (summary,
-    ratings, display, private notes) when they have one."""
+    ratings, display, private notes) when they have one.
+
+    There is always a viewer. Every route that reaches here takes a
+    signed-in user, and this asserts it rather than quietly building a
+    page for nobody: a None here would mean a caller had opened the
+    Library to someone outside it, which is a bug and not a permission
+    to be decided this far in.
+    """
+    assert viewer is not None, "a paper page is only ever built for a signed-in user"
     user_copy = _copy_of(paper, viewer)
     detail = PaperSchema(
         uuid=paper.uuid,
@@ -1941,13 +1952,6 @@ def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
     if not shelf:
         raise HTTPException(status_code=404, detail="Shelf not found")
     return shelf
-
-
-def _require_visible(paper: Paper, viewer: User | None):
-    """A paper is visible if anyone displays it, or the viewer has an entry."""
-    if displayed_copies(paper) or _copy_of(paper, viewer) is not None:
-        return
-    raise HTTPException(status_code=404, detail="Paper not found")
 
 
 def _require_copy(paper: Paper, user: User) -> Copy:
@@ -2079,14 +2083,16 @@ async def create_paper(
 @app.get("/api/papers/{paper_uuid}", response_model=PaperSchema)
 async def get_paper(
     paper_uuid: str,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get a paper by UUID, merged with the viewer's own copy and notes.
-    Publicly displayed papers may be opened from a shared canonical URL;
-    signed-in users additionally receive their own nook fields and notes."""
+
+    Any signed-in user may open any paper: the Library holds every one,
+    and whose nook it sits in is nobody's business but theirs. The
+    Library is for people with accounts (US-1.4), so there is no visitor
+    case here — a paper page is not a thing Papol shows to nobody."""
     paper = _get_paper_or_404(paper_uuid, db)
-    _require_visible(paper, current_user)
     return _paper_detail(db, paper, current_user)
 
 
@@ -2101,7 +2107,6 @@ async def reextract_paper_metadata(
 ):
     """Re-read a paper's selected PDF metadata for the edit form."""
     paper = _get_paper_or_404(paper_uuid, db)
-    _require_visible(paper, current_user)
     edition = edition_for(paper, _copy_of(paper, current_user)) or latest_edition(paper)
     path = _edition_pdf_path(edition) if edition else None
     if path is None:
@@ -2253,7 +2258,6 @@ async def update_paper(
     canonical paper: any signed-in user may edit it, for everyone.
     """
     paper = _get_paper_or_404(paper_uuid, db)
-    _require_visible(paper, current_user)
 
     update_data = paper_update.model_dump(exclude_unset=True)
     tag_uuids = update_data.pop("tag_uuids", None)
@@ -2495,7 +2499,6 @@ async def add_to_nook(
     """Add the paper to the viewer's nook: a new copy of the one
     canonical paper. The PDF and metadata are shared."""
     paper = _get_paper_or_404(paper_uuid, db)
-    _require_visible(paper, current_user)
     if _copy_of(paper, current_user) is not None:
         raise HTTPException(status_code=400, detail="This paper is already in your nook")
 
@@ -2828,7 +2831,6 @@ async def edition_references(
     edition = db.query(PaperEdition).filter(PaperEdition.uuid == edition_uuid).first()
     if edition is None:
         raise HTTPException(status_code=404, detail="Edition not found")
-    _require_visible(edition.paper, current_user)
     return await _edition_references(edition, background, db, refresh)
 
 
@@ -2918,7 +2920,6 @@ async def open_reference(
     ).first()
     if reference is None:
         raise HTTPException(status_code=404, detail="Reference not found")
-    _require_visible(reference.edition.paper, current_user)
     return await _open_reference(reference, db)
 
 
@@ -2949,7 +2950,6 @@ async def preview_pdf_reference(
     edition = db.query(PaperEdition).filter(PaperEdition.uuid == edition_uuid).first()
     if edition is None:
         raise HTTPException(status_code=404, detail="Edition not found")
-    _require_visible(edition.paper, current_user)
 
     key = data.key.strip()
     raw = " ".join(data.raw.split())
@@ -3276,9 +3276,11 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     # The canonical paper this room is about, and the viewer's copy of it
     paper = next(iter(_papers_for_key(db, room.paper_key)), None)
     own = _copy_of(paper, viewer) if paper else None
-    link_paper = (
-        paper if paper and (own is not None or displayed_copies(paper)) else None
-    )
+    # Every paper has a page and this viewer is signed in, so the cohort
+    # always names the paper it is about. Whether the viewer keeps a copy,
+    # and whether they display it, decides what they may do in the cohort
+    # below — never whether they may look at the paper.
+    link_paper = paper
     hidden_entry = paper if own is not None and not own.is_public else None
 
     summary = _room_summary(room)
@@ -3309,7 +3311,6 @@ async def call_seminar(
     """Call for a seminar on this paper. Only users of it may call.
     Notifies every user — including those who keep their copy hidden."""
     paper = _get_paper_or_404(paper_uuid, db)
-    _require_visible(paper, current_user)
 
     key = _paper_key_for(paper)
     if current_user.uuid not in _paper_user_uuids(db, key, public_only=True):

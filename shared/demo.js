@@ -497,8 +497,9 @@ async function routeDemoRequest(path, options = {}) {
   // ----- papers -----
   if (path === '/papers' && method === 'GET') {
     const statusMap = roomStatusMap();
+    // Every paper. Nobody owns one, so no shelf decides whether it is in
+    // the Library; display decides only whose names are shown against it.
     return d.papers
-      .filter((p) => displayedCopies(p).length > 0)
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       .map((p) => paperListEntry(p, null, true, statusMap));
   }
