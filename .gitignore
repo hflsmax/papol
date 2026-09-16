@@ -25,3 +25,6 @@ nohup.out
 .direnv/
 result
 result-*
+
+# Agent worktrees — scratch checkouts, not source
+.claude/worktrees/
