@@ -683,12 +683,19 @@ def push(
                     continue
             if change.table == "copies" and change.base_revision in {None, 0}:
                 paper = _visible_paper(db, change.values.get("paper_uuid"), user.uuid)
-                canonical = db.query(Copy).filter(
+                owned = db.query(Copy).filter(
                     Copy.user_uuid == user.uuid, Copy.paper_uuid == paper.uuid,
-                ).first()
+                )
+                canonical = owned.filter(Copy.deleted_at.is_(None)).first() or owned.first()
                 if canonical is not None and canonical.uuid != requested_uuid:
                     aliases[requested_uuid] = canonical.uuid
                     change.uuid = UUID(canonical.uuid)
+                # A reader has one copy per paper (uq_copy), so adding back a
+                # paper they once removed has to revive that tombstone rather
+                # than insert a second row. Only a fresh addition may do this:
+                # a stale edit still loses to the delete.
+                if canonical is not None and canonical.deleted_at is not None:
+                    canonical.deleted_at = None
             if change.table == "copy_tags" and change.base_revision in {None, 0}:
                 copy = _owned_copy(db, change.values.get("copy_uuid"), user.uuid)
                 tag = _owned_tag(db, change.values.get("tag_uuid"), user.uuid)
