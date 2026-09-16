@@ -2683,7 +2683,6 @@ fn paper_view(
         "shelf_uuid",
         "summary",
         "thought",
-        "is_public",
         "is_author",
         "rating_expertise",
         "rating_reading",
@@ -2750,11 +2749,28 @@ fn paper_view(
         ),
     );
     object.insert("viewer_has_entry".into(), Value::Bool(true));
-    object.insert(
-        "viewer_is_reader".into(),
-        Value::Bool(copy.get("is_public").and_then(Value::as_i64) == Some(1)),
-    );
+    let on_display = copy_is_public(connection, copy)?;
+    object.insert("is_public".into(), Value::Bool(on_display));
+    object.insert("viewer_is_reader".into(), Value::Bool(on_display));
     Ok(paper)
+}
+
+/// Whether a copy is on display, which is its shelf's answer and only ever
+/// the shelf's. A copy on no shelf — or on one already gone — is on no
+/// display: there is nothing standing behind it.
+fn copy_is_public(connection: &Connection, copy: &Map<String, Value>) -> Result<bool, String> {
+    let Some(shelf_uuid) = copy.get("shelf_uuid").and_then(Value::as_str) else {
+        return Ok(false);
+    };
+    connection
+        .query_row(
+            "SELECT is_public FROM shelves WHERE uuid=?1 AND deleted_at IS NULL",
+            params![shelf_uuid],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())
+        .map(|value| value == Some(1))
 }
 
 fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
@@ -4013,11 +4029,12 @@ mod tests {
     }
 
     #[test]
-    fn a_replica_written_before_the_rename_keeps_each_copys_visibility() {
+    fn a_replica_written_before_the_shelf_owned_visibility_drops_the_column() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        // A replica that applied the domain DDL under the old spelling: the
-        // migration is on record, so only the rename has anything left to do.
+        // A replica that applied the domain DDL back when a copy carried its
+        // own visibility: the migration is on record, so dropping the column
+        // is all that is left to do.
         let legacy = Connection::open(&path).unwrap();
         legacy
             .execute_batch(
@@ -4039,21 +4056,20 @@ mod tests {
 
         let store = LocalStore::open(&path).unwrap();
         let connection = store.connection.lock().unwrap();
-        let private: i64 = connection
+        let left: i64 = connection
             .query_row(
-                "SELECT is_public FROM copies WHERE uuid='kept-private'",
+                "SELECT COUNT(*) FROM pragma_table_info('copies') \
+                 WHERE name IN ('marketed', 'is_public')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        let public: i64 = connection
-            .query_row(
-                "SELECT is_public FROM copies WHERE uuid='on-display'",
-                [],
-                |row| row.get(0),
-            )
+        assert_eq!(left, 0, "a copy should hold no visibility of its own");
+        // The rows themselves are untouched; only the column went.
+        let rows: i64 = connection
+            .query_row("SELECT COUNT(*) FROM copies", [], |row| row.get(0))
             .unwrap();
-        assert_eq!((private, public), (0, 1));
+        assert_eq!(rows, 2);
     }
 
     #[test]
@@ -4510,7 +4526,6 @@ mod tests {
                             ("ignored_edition_uuid".into(), Value::Null),
                             ("summary".into(), Value::Null),
                             ("thought".into(), Value::Null),
-                            ("is_public".into(), json!(0)),
                             ("is_author".into(), json!(0)),
                             ("rating_expertise".into(), Value::Null),
                             ("rating_reading".into(), Value::Null),

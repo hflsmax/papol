@@ -309,7 +309,6 @@ class Copy(Base):
     ignored_edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
-    is_public = Column(Boolean, nullable=False, default=True, server_default="1")
     # The reader is an author of this paper ("this is my paper").
     is_author = Column(Boolean, nullable=False, default=False, server_default="0")
     rating_expertise = Column(Integer, nullable=True)
@@ -333,10 +332,20 @@ class Copy(Base):
     )
     shelf = relationship("Shelf", back_populates="copies")
 
+    @property
+    def is_public(self) -> bool:
+        """Whether this copy is on display, which is the shelf's answer and
+        only ever the shelf's. Asked each time rather than kept alongside:
+        a second copy of one fact is a second thing to keep true, and the
+        two drift the moment any path forgets. A copy on no shelf is on no
+        display — there is nothing standing behind it."""
+        return self.shelf is not None and bool(self.shelf.is_public)
+
 
 class Shelf(Base):
     """One of a reader's five homes for papers. Visibility belongs to the
-    shelf; Copy.is_public is kept in sync for compatibility with seminar rules."""
+    shelf, and to nothing else: a copy is public exactly while the shelf it
+    sits on is."""
     __tablename__ = "shelves"
     __table_args__ = (UniqueConstraint("user_uuid", "name", name="uq_shelf_user_name"),)
 

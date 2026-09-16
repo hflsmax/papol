@@ -1656,7 +1656,12 @@ async def get_user_space(
     hide_private = current_user is None or current_user.uuid != user.uuid
     query = db.query(Copy).filter(Copy.user_uuid == user.uuid, Copy.deleted_at.is_(None))
     if hide_private:
-        query = query.filter(Copy.is_public.is_(True))
+        # On display means sitting on a public shelf, so the shelf is what
+        # the question is put to. An inner join also drops the shelfless,
+        # which is right: nothing stands behind them.
+        query = query.join(Shelf, Copy.shelf_uuid == Shelf.uuid).filter(
+            Shelf.is_public.is_(True),
+        )
     copies = query.order_by(Copy.created_at.desc()).all()
     board_query = db.query(Board).filter(
         Board.user_uuid == user.uuid, Board.deleted_at.is_(None),
@@ -1997,7 +2002,6 @@ async def create_paper(
         edition_sha256=edition.sha256,
         summary=paper.summary,
         thought=paper.thought,
-        is_public=bool(shelf.is_public),
         shelf=shelf,
         is_author=paper.is_author,
         rating_expertise=paper.rating_expertise,
@@ -2223,7 +2227,6 @@ async def update_paper(
                 visibility = "public" if requested_visibility else "private"
                 raise HTTPException(status_code=400, detail=f"Create a {visibility} shelf first")
             user_copy.shelf = target_shelf
-            user_copy.is_public = bool(target_shelf.is_public)
         for key, value in personal.items():
             setattr(user_copy, key, value)
 
@@ -2245,7 +2248,6 @@ async def update_paper(
         ):
             raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
-        user_copy.is_public = bool(shelf.is_public)
 
     for key, value in metadata.items():
         setattr(paper, key, value)
@@ -2360,9 +2362,9 @@ async def update_shelf(
             blocked = [c for c in shelf.copies if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
             if blocked:
                 raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
+        # Every copy on the shelf moves with it, because none of them was
+        # holding a visibility of its own to update.
         shelf.is_public = becoming_public
-        for copy in shelf.copies:
-            copy.is_public = becoming_public
     if changes.get("is_default"):
         for other in current_user.shelves:
             if other.deleted_at is not None:
@@ -2397,7 +2399,6 @@ async def delete_shelf(
             )
     for copy in list(shelf.copies):
         copy.shelf = destination
-        copy.is_public = bool(destination.is_public)
     for board in list(shelf.boards):
         board.shelf = destination
     if shelf.is_default:
@@ -2450,7 +2451,6 @@ async def add_to_nook(
     db.add(Copy(
         paper=paper,
         user_uuid=current_user.uuid,
-        is_public=bool(shelf.is_public),
         shelf=shelf,
         edition=latest,
         edition_sha256=latest.sha256 if latest else None,

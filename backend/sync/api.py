@@ -267,7 +267,7 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Copy(
             uuid=row_uuid, paper=paper, edition=edition, shelf=shelf,
-            user_uuid=user.uuid, is_public=False, is_author=False,
+            user_uuid=user.uuid, is_author=False,
         )
     if change.table == "copy_tags":
         copy_uuid, tag_uuid = values.get("copy_uuid"), values.get("tag_uuid")
@@ -375,8 +375,8 @@ def _assign_values(db: Session, record, values: dict, user: User):
             record.paper = _visible_paper(db, values["paper_uuid"], user.uuid)
         if "shelf_uuid" in values:
             shelf = _owned_shelf(db, values["shelf_uuid"], user.uuid)
-            # Visibility belongs to the shelf: moving a copy publishes or
-            # hides it exactly as the online move in update_paper does.
+            # Visibility belongs to the shelf, so the move is the whole of
+            # it: there is nothing on the copy left to bring into line.
             if shelf is not None:
                 if (record.is_public and not shelf.is_public and record.paper is not None
                         and in_active_cohort(db, user, paper_key_for(record.paper))):
@@ -384,7 +384,6 @@ def _assign_values(db: Session, record, values: dict, user: User):
                         status_code=422,
                         detail="Leave the seminar before moving this paper to a private shelf",
                     )
-                record.is_public = bool(shelf.is_public)
             record.shelf = shelf
         if "edition_uuid" in values:
             edition_uuid = values["edition_uuid"]

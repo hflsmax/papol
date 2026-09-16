@@ -577,7 +577,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add_all([shelf, edition])
             db.flush()
             db.add(Copy(
-                paper=paper, user_uuid=other.uuid, shelf=shelf, is_public=True,
+                paper=paper, user_uuid=other.uuid, shelf=shelf,
                 edition=edition, edition_sha256=edition.sha256,
             ))
             db.commit()
@@ -1006,7 +1006,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.flush()
             copy = Copy(
                 paper=paper, user_uuid=self.user_uuid, edition=first,
-                edition_sha256=first.sha256, is_public=False,
+                edition_sha256=first.sha256,
             )
             db.add(copy)
             db.commit()
@@ -1040,7 +1040,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Offline nook")
             db.add(paper)
             db.flush()
-            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid, is_public=False)
+            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid)
             db.add(copy)
             commit_sync(db)
             paper_uuid, copy_uuid = paper.uuid, copy.uuid
@@ -1130,7 +1130,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Shelved offline")
             db.add_all([public, private, paper])
             db.flush()
-            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid, is_public=True)
+            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid)
             db.add(copy)
             commit_sync(db)
             public_uuid, private_uuid, copy_uuid = public.uuid, private.uuid, copy.uuid
@@ -1203,7 +1203,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Desktop paper")
             db.add_all([shelf, paper])
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid, is_public=False))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))
             commit_sync(db)
             shelf_uuid, paper_uuid = shelf.uuid, paper.uuid
 

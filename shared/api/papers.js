@@ -181,7 +181,10 @@ export async function getPaper(uuid) {
         shelf_uuid: copy.shelf_uuid,
         summary: copy.summary,
         thought: copy.thought,
-        is_public: copy.is_public === true || copy.is_public === 1,
+        // On display is the shelf's answer, so the shelf is where it is
+        // read from; a copy on no shelf has nothing standing behind it.
+        is_public: (nook.shelves || []).some((shelf) => shelf.uuid === copy.shelf_uuid
+          && (shelf.is_public === true || shelf.is_public === 1)),
         is_author: copy.is_author === true || copy.is_author === 1,
         rating_expertise: copy.rating_expertise,
         rating_reading: copy.rating_reading,

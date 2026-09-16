@@ -102,11 +102,12 @@ CREATE TABLE IF NOT EXISTS _local_blob_refs (
 CREATE INDEX IF NOT EXISTS ix_local_blob_refs_sha256 ON _local_blob_refs(sha256);
 "#;
 
-// A copy's visibility now goes by the same name the shelf uses. A replica
-// written before the rename applied the domain DDL under its own migration
-// id and will not see the new spelling, so the column is renamed in place;
-// the values it holds are already the right ones.
-const RENAME_MARKETED: &str = "ALTER TABLE copies RENAME COLUMN marketed TO is_public;";
+// A copy no longer keeps its own copy of its shelf's visibility — the shelf
+// is asked instead — so the column goes. A replica written earlier applied
+// the domain DDL under its own migration id and will not see the new shape,
+// and it may hold the column under either spelling, so both are dropped.
+const DROP_COPY_VISIBILITY: &str = "ALTER TABLE copies DROP COLUMN marketed;";
+const DROP_COPY_IS_PUBLIC: &str = "ALTER TABLE copies DROP COLUMN is_public;";
 
 // Notes, ink and clips on a PDF opened from the file system, kept on this
 // device by the file's content hash until the paper is added to a nook.
@@ -162,22 +163,27 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
             ""
         },
     )?;
-    // A replica created after the rename already spells the column the new
-    // way; record the migration and move on.
-    let legacy_marketed = transaction
-        .query_row(
-            "SELECT 1 FROM pragma_table_info('copies') WHERE name='marketed'",
-            [],
-            |_| Ok(true),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?
-        .unwrap_or(false);
-    apply_sql(
-        &transaction,
-        "202609150002_rename_marketed",
-        if legacy_marketed { RENAME_MARKETED } else { "" },
-    )?;
+    // A replica created after this change never had the column under either
+    // name; record the migration and move on.
+    let column = |name: &str| -> Result<bool, String> {
+        transaction
+            .query_row(
+                "SELECT 1 FROM pragma_table_info('copies') WHERE name=?1",
+                [name],
+                |_| Ok(true),
+            )
+            .optional()
+            .map_err(|error| error.to_string())
+            .map(|value| value.unwrap_or(false))
+    };
+    let sql = if column("marketed")? {
+        DROP_COPY_VISIBILITY
+    } else if column("is_public")? {
+        DROP_COPY_IS_PUBLIC
+    } else {
+        ""
+    };
+    apply_sql(&transaction, "202609150002_shelf_owns_visibility", sql)?;
     transaction.commit().map_err(|error| error.to_string())
 }
 

@@ -63,12 +63,7 @@ class SeminarTransitionTests(unittest.TestCase):
             paper = Paper(title="State Machines for Seminars")
             db.add_all([shelf, paper])
             db.flush()
-            db.add(Copy(
-                paper=paper,
-                shelf=shelf,
-                user_uuid=self.user_uuid,
-                is_public=True,
-            ))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))
             db.commit()
             self.paper_uuid = paper.uuid
 
@@ -157,7 +152,7 @@ class SeminarTransitionTests(unittest.TestCase):
             )
             db.add(shelf)
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_uuid=reader_uuid, is_public=True))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=reader_uuid))
             db.commit()
 
         joined = self.client.post(

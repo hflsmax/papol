@@ -70,15 +70,17 @@ def _add_column_ddl(column) -> str:
     return CreateColumn(column).compile(dialect=engine.dialect).string
 
 
-# Columns that only changed their name. A rename has to happen before the
-# add-column pass below, or the loop would see the new name missing and add
-# a fresh column at its default — losing what the old one held.
-_RENAMED_COLUMNS = [("copies", "marketed", "is_public")]
+# Columns the models no longer carry. A copy used to keep its own copy of
+# its shelf's visibility, under either spelling; the shelf answers for it
+# now, so the column is dropped rather than carried along as a second
+# version of one fact. Named explicitly because nothing in the metadata
+# says what a table used to have.
+_DROPPED_COLUMNS = [("copies", "marketed"), ("copies", "is_public")]
 
 
 def migrate():
-    """Retire obsolete tables, rename columns that only changed their
-    spelling, and add columns an existing table lacks.
+    """Retire obsolete tables and columns, and add columns an existing table
+    lacks.
     create_all only creates missing tables, so a database written under an
     earlier schema needs these ALTERs. Driven off the model metadata, so
     there is no second list to keep in step: declare the column on the
@@ -88,13 +90,13 @@ def migrate():
         # Remove tables belonging to retired features before reconciling the
         # live model metadata. DROP IF EXISTS keeps fresh installs unchanged.
         conn.execute(text("DROP TABLE IF EXISTS presence_pings"))
-        for table_name, old, new in _RENAMED_COLUMNS:
+        for table_name, column_name in _DROPPED_COLUMNS:
             columns = {
                 row[1] for row in conn.execute(text(f"PRAGMA table_info({table_name})"))
             }
-            if old in columns and new not in columns:
+            if column_name in columns:
                 conn.execute(text(
-                    f"ALTER TABLE {table_name} RENAME COLUMN {old} TO {new}"
+                    f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
                 ))
         for table in Base.metadata.tables.values():
             existing = {

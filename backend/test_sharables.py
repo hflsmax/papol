@@ -122,7 +122,7 @@ class SharableTests(unittest.TestCase):
                 Copy(
                     paper_uuid=paper.uuid, user_uuid=reader.uuid, shelf_uuid=shelf.uuid,
                     edition_uuid=shared.uuid, edition_sha256=SHARED_HASH,
-                    summary="Kept to myself", is_public=False,
+                    summary="Kept to myself",
                 ),
                 # A note on the shared PDF, a note on the paper itself, and a
                 # note placed on the edition this reader no longer reads.
@@ -288,7 +288,7 @@ class SharableTests(unittest.TestCase):
 
         with self.Session() as db:
             copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
-            copy.is_public = True
+            copy.shelf.is_public = True
             db.commit()
 
         self.assertEqual(
@@ -307,7 +307,7 @@ class SharableTests(unittest.TestCase):
         for displayed in (True, False, True):
             with self.Session() as db:
                 copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
-                copy.is_public = displayed
+                copy.shelf.is_public = displayed
                 db.commit()
 
             opened = self.client.get(f"/api/shared/{made['uuid']}")
