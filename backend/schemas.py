@@ -746,9 +746,10 @@ class Paper(PaperBase):
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
     # The reader's own live link to this paper, when they have handed one
-    # out, and what it carries. Never populated for anybody else's copy.
+    # out: always one carrying their marks, since a link to the paper alone
+    # belongs to nobody and is never reported to anyone. Not populated for
+    # anybody else's copy.
     sharable_uuid: Optional[str] = None
-    sharable_kind: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -765,7 +766,10 @@ class SharableCreate(BaseModel):
 
 
 class SharableOut(BaseModel):
-    """A link its maker holds: what it carries, and since when."""
+    """A link as its asker receives it: what it carries, and since when.
+
+    A rich link is theirs and goes on being reported to them. A lean one is
+    answered once, to be copied and handed on, and never mentioned again."""
     uuid: str
     kind: Literal["rich", "lean"]
     paper_uuid: str
@@ -790,10 +794,14 @@ class SharedPaper(PaperBase):
 
 class SharedReading(BaseModel):
     """What a link opens: a reader's reading of one edition, or — when the
-    link is lean, or the reading has left their nook — the paper alone."""
+    link is lean, or the reading has left their nook — the paper alone.
+
+    `reader` comes with a reading and only with one. The paper alone is
+    nobody's to be credited with, and naming whoever asked for the link
+    would tell its holder something the link does not mean."""
     uuid: str
     kind: Literal["rich", "lean"]
-    reader: UserPublic
+    reader: Optional[UserPublic] = None
     paper: SharedPaper
     # One list, in the order they were made, because that is the order ink
     # has to be painted in. Each says its own kind.

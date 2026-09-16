@@ -127,15 +127,15 @@ test('a shared reading reads its bibliography on the authority of the link', asy
 
 test('a lean link carries the paper and none of the reader\u2019s marks', async () => {
   const rich = { ...reading };
-  Object.assign(reading, { kind: 'lean', annotations: [] });
+  Object.assign(reading, { kind: 'lean', reader: null, annotations: [] });
   try {
     const source = resolveSource();
     const { doc, notes } = await source.load();
 
-    // The viewer reads shared_kind to decide whether to name a reading at
-    // all: a lean link was handed over by someone, but is not theirs.
+    // A lean link is nobody's: it names no reader, so the viewer has none
+    // to show and says the paper was shared rather than whose reading it is.
     assert.equal(doc.shared_kind, 'lean');
-    assert.equal(doc.shared_by.display_name, 'Ada Lovelace');
+    assert.equal(doc.shared_by, null);
     assert.deepEqual(notes, []);
     assert.deepEqual(await source.annotations.list(EDITION), []);
   } finally {

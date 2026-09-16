@@ -514,9 +514,11 @@ class Sharable(Base):
 
     The link carries this row's UUID and nothing else, so the UUID is the
     whole of the permission: distinct from the paper's and the edition's,
-    because what it opens is neither of those. It opens a reading — the PDF
-    this reader chose, the notes they wrote on it, the ink they drew and the
-    clips they cut.
+    because what it opens is neither of those. A *rich* link opens a reading
+    — the PDF this reader chose, the notes they wrote on it, the ink they
+    drew and the clips they cut — and belongs to them. A *lean* link opens
+    the PDF alone and belongs to nobody: one per edition, handed to whoever
+    asks for it, with no reader named on it and none implied.
 
     The reading is named, not copied. A note reworded after the link was
     given out is reworded for everyone holding it, which is what a reader
@@ -537,7 +539,12 @@ class Sharable(Base):
     # permanent — putting the paper back must not silently re-expose marks
     # to everyone still holding the link.
     kind = Column(String(8), nullable=False, default="lean", server_default="lean")
-    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
+    # Whose reading this is — and nobody's, when the link carries the paper
+    # alone. A lean link makes no claim about a reader: it says "here is this
+    # PDF", which is true of the paper and not of anyone's nook. Leaving it
+    # null is what keeps it out of its maker's hands: not on their paper
+    # page, not theirs to close, and not a thing they are told exists.
+    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True, index=True)
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     # The exact PDF that was shared. A reader who later adopts a newer
     # edition has shared this one, and their marks on it are still here.

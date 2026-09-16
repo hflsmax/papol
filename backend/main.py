@@ -95,6 +95,7 @@ from services.annotations import (
 )
 from services.editions import edition_for, latest_edition
 from services.notifications import setting_value
+from services.papers import displayed_copies
 from services.sharables import live_sharable_for, open_sharable
 
 # Uploads directory
@@ -1603,10 +1604,6 @@ def _add_edition(db: Session, paper: Paper, filename: str, user: User) -> PaperE
     )
 
 
-def _displayed_copies(paper: Paper) -> list[Copy]:
-    return [r for r in paper.copies if r.is_public and r.deleted_at is None]
-
-
 def _paper_list_entry(
     paper: Paper, user_copy: Copy | None, hide_private: bool, room_map: dict
 ) -> PaperList:
@@ -1638,7 +1635,7 @@ def _paper_list_entry(
         if not hide_private:
             entry.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
     entry.room_status = room_map.get(_paper_key_for(paper))
-    entry.readers = [_reader_entry(r) for r in _displayed_copies(paper)]
+    entry.readers = [_reader_entry(r) for r in displayed_copies(paper)]
     return entry
 
 
@@ -1714,7 +1711,7 @@ async def list_all_papers(
     return [
         _paper_list_entry(p, user_copy=None, hide_private=True, room_map=room_map)
         for p in papers
-        if _displayed_copies(p)
+        if displayed_copies(p)
     ]
 
 
@@ -1861,16 +1858,17 @@ def _paper_detail(
             if row.user_uuid == viewer.uuid and row.kind == NOTE
             and row.deleted_at is None
         ]
-        # The link this reader already has out for the edition they read,
-        # so their share menu opens showing it rather than offering to make
-        # a second one.
+        # The link this reader already has out on the edition they read, so
+        # their share menu opens showing it rather than offering to make a
+        # second one. Only ever a link carrying their marks: the paper's own
+        # link is nobody's, and telling them one exists would make it sound
+        # like something of theirs is out.
         shared = (
             live_sharable_for(db, viewer, selected_edition.uuid)
             if selected_edition else None
         )
         detail.sharable_uuid = shared.uuid if shared else None
-        detail.sharable_kind = shared.kind if shared else None
-    detail.also_read_by = [_reader_entry(r) for r in _displayed_copies(paper)]
+    detail.also_read_by = [_reader_entry(r) for r in displayed_copies(paper)]
 
     detail.rooms = [
         _room_summary(r)
@@ -1901,7 +1899,7 @@ def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
 
 def _require_visible(paper: Paper, viewer: User | None):
     """A paper is visible if anyone displays it, or the viewer has an entry."""
-    if _displayed_copies(paper) or _copy_of(paper, viewer) is not None:
+    if displayed_copies(paper) or _copy_of(paper, viewer) is not None:
         return
     raise HTTPException(status_code=404, detail="Paper not found")
 
@@ -2535,11 +2533,28 @@ async def adopt_paper_edition(
 ):
     """Move the viewer's own copy to another edition — the latest unless
     one is named. Only the reader may do this: located notes were placed
-    on the file they had, and on a different PDF they may not line up."""
+    on the file they had, and on a different PDF they may not line up.
+
+    A link carrying this reader's marks stops the move and says so: it names
+    that reading and would go on opening it, out of sight of a paper page
+    that now shows a different edition. A link carrying the paper alone is
+    not theirs to be stopped by — it says "here is this PDF", which stays
+    true however they move — so it does not stand in the way."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
 
     edition = _named_edition_or_404(paper, data.edition_uuid)
+    if edition.uuid != user_copy.edition_uuid and user_copy.edition_uuid and (
+        live_sharable_for(db, current_user, user_copy.edition_uuid)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Stop sharing your reading of this paper first. The link you "
+                "handed out opens the PDF you are reading now, with your marks "
+                "on it."
+            ),
+        )
     user_copy.edition_uuid = edition.uuid
     user_copy.edition_sha256 = edition.sha256
     # Adopting settles every edition that exists now, including ones older
@@ -3188,7 +3203,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     paper = next(iter(_papers_for_key(db, room.paper_key)), None)
     own = _copy_of(paper, viewer) if paper else None
     link_paper = (
-        paper if paper and (own is not None or _displayed_copies(paper)) else None
+        paper if paper and (own is not None or displayed_copies(paper)) else None
     )
     hidden_entry = paper if own is not None and not own.is_public else None
 

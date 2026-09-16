@@ -144,6 +144,7 @@ class SharableTests(unittest.TestCase):
             self.stranger_uuid = stranger.uuid
             self.paper_uuid = paper.uuid
             self.shared_edition_uuid = shared.uuid
+            self.superseded_edition_uuid = superseded.uuid
         type(self).current_user_uuid = self.reader_uuid
 
     def share(self, include_marks=True):
@@ -167,12 +168,52 @@ class SharableTests(unittest.TestCase):
         made = self.client.post(f"/api/papers/{self.paper_uuid}/sharable")
         self.assertEqual(made.json()["kind"], "lean")
 
-    def test_a_paper_has_one_link_at_a_time_whatever_it_carries(self):
-        self.assertEqual(self.share(include_marks=False)["kind"], "lean")
-        clash = self.client.post(
-            f"/api/papers/{self.paper_uuid}/sharable", json={"include_marks": True},
-        )
-        self.assertEqual(clash.status_code, 409)
+    def test_the_paper_s_link_and_a_reading_of_it_are_different_links(self):
+        """One carries the PDF, the other carries a reading of it. Having
+        handed over the first is no reason to be refused the second."""
+        paper_link = self.share(include_marks=False)
+        reading_link = self.share(include_marks=True)
+
+        self.assertEqual(paper_link["kind"], "lean")
+        self.assertEqual(reading_link["kind"], "rich")
+        self.assertNotEqual(paper_link["uuid"], reading_link["uuid"])
+        for link in (paper_link, reading_link):
+            self.assertEqual(
+                self.client.get(f"/api/shared/{link['uuid']}").status_code, 200,
+            )
+
+    def test_the_paper_s_link_is_the_same_link_for_everyone(self):
+        """It is the PDF's own address, not anyone's. Two readers handing the
+        same paper on hand on the same link."""
+        mine = self.share(include_marks=False)
+
+        with self.Session() as db:
+            db.add(Copy(
+                paper_uuid=self.paper_uuid, user_uuid=self.stranger_uuid,
+                edition_uuid=self.shared_edition_uuid, edition_sha256=SHARED_HASH,
+            ))
+            db.commit()
+        type(self).current_user_uuid = self.stranger_uuid
+        theirs = self.share(include_marks=False)
+
+        self.assertEqual(theirs["uuid"], mine["uuid"])
+
+    def test_the_paper_s_link_names_nobody(self):
+        """Whoever asked for it first is not part of what it says, and
+        nothing reports it back to them afterwards."""
+        made = self.share(include_marks=False)
+
+        self.assertIsNone(self.client.get(f"/api/shared/{made['uuid']}").json()["reader"])
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        self.assertIsNone(detail["sharable_uuid"])
+
+    def test_the_paper_s_link_is_nobody_s_to_take_back(self):
+        """Not theirs to be told about, and not theirs to close either."""
+        made = self.share(include_marks=False)
+
+        refused = self.client.delete(f"/api/sharables/{made['uuid']}")
+        self.assertEqual(refused.status_code, 404)
+        self.assertEqual(self.client.get(f"/api/shared/{made['uuid']}").status_code, 200)
 
     def test_a_sharable_names_the_edition_its_maker_reads(self):
         made = self.share()
@@ -255,6 +296,83 @@ class SharableTests(unittest.TestCase):
             self.paper_uuid,
         )
 
+    def test_a_link_does_not_care_which_shelf_the_paper_sits_on(self):
+        """Sharing is not displaying. A shelf says who may find the paper in
+        the Library; a link says who may read this PDF, and the link is the
+        whole of that permission. Moving the paper between a public and a
+        private shelf leaves a link out in the open exactly as it was."""
+        made = self.share()
+        self.assertEqual(made["kind"], "rich")
+
+        for displayed in (True, False, True):
+            with self.Session() as db:
+                copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
+                copy.is_public = displayed
+                db.commit()
+
+            opened = self.client.get(f"/api/shared/{made['uuid']}")
+            self.assertEqual(opened.status_code, 200, opened.text)
+            reading = opened.json()
+            self.assertEqual(reading["uuid"], made["uuid"])
+            self.assertEqual(reading["kind"], "rich")
+            self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
+            self.assertTrue(reading["annotations"])
+
+    def test_a_private_paper_can_still_be_shared_from_scratch(self):
+        """The reader's copy sits on a private shelf throughout these tests,
+        which is what makes every link made here one made from a paper
+        nobody else can find."""
+        with self.Session() as db:
+            copy = db.query(Copy).filter(Copy.user_uuid == self.reader_uuid).one()
+            self.assertFalse(copy.is_public)
+
+        made = self.share(include_marks=False)
+        self.assertEqual(
+            self.client.get(f"/api/shared/{made['uuid']}").status_code, 200,
+        )
+
+    def adopt(self, edition_uuid):
+        return self.client.post(
+            f"/api/papers/{self.paper_uuid}/adopt-edition",
+            json={"edition_uuid": edition_uuid},
+        )
+
+    def test_a_shared_pdf_cannot_be_left_until_the_link_is_closed(self):
+        """A link names the PDF its maker is reading. Moving the copy to
+        another edition would leave that link opening a file the paper page
+        no longer shows, so the reader is asked to settle it first."""
+        made = self.share()
+
+        refused = self.adopt(self.superseded_edition_uuid)
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("Stop sharing", refused.json()["detail"])
+
+        detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        self.assertEqual(detail["edition_uuid"], self.shared_edition_uuid)
+        self.assertEqual(detail["sharable_uuid"], made["uuid"])
+
+    def test_a_link_to_the_paper_alone_does_not_stand_in_the_way(self):
+        """It is the marks that are in the way, not the link. A link
+        carrying the paper alone says "here is this PDF", which stays true
+        wherever its maker moves."""
+        self.share(include_marks=False)
+        moved = self.adopt(self.superseded_edition_uuid)
+        self.assertEqual(moved.status_code, 200, moved.text)
+
+    def test_closing_the_link_frees_the_reader_to_move(self):
+        made = self.share()
+        self.client.delete(f"/api/sharables/{made['uuid']}")
+
+        moved = self.adopt(self.superseded_edition_uuid)
+        self.assertEqual(moved.status_code, 200, moved.text)
+        self.assertEqual(moved.json()["edition_uuid"], self.superseded_edition_uuid)
+
+    def test_staying_where_they_are_is_not_a_move(self):
+        """Adopting the edition already read changes nothing, so a link out
+        is no reason to refuse it."""
+        self.share()
+        self.assertEqual(self.adopt(self.shared_edition_uuid).status_code, 200)
+
     def test_revoking_closes_the_link_without_pretending_it_never_existed(self):
         made = self.share()
         revoked = self.client.delete(f"/api/sharables/{made['uuid']}")
@@ -286,13 +404,14 @@ class SharableTests(unittest.TestCase):
 
         opened = self.client.get(f"/api/shared/{made['uuid']}")
 
-        # The link still opens the PDF that was shared, under the name of
-        # the reader who shared it. What it no longer carries is the reading
-        # — including the paint, which removal leaves in place untouched.
+        # The link still opens the PDF that was shared. What it no longer
+        # carries is the reading — including the paint, which removal leaves
+        # in place untouched — nor the reader: what is left is the paper,
+        # and the paper is nobody's.
         self.assertEqual(opened.status_code, 200, opened.text)
         reading = opened.json()
         self.assertEqual(reading["kind"], "lean")
-        self.assertEqual(reading["reader"]["display_name"], "Ada")
+        self.assertIsNone(reading["reader"])
         self.assertEqual(reading["paper"]["edition_sha256"], SHARED_HASH)
         self.assertEqual(reading["annotations"], [])
 
@@ -342,16 +461,26 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(reading["kind"], "lean")
         self.assertEqual(reading["annotations"], [])
 
-    def test_dropping_marks_is_one_way(self):
+    def test_dropping_marks_hands_the_link_away(self):
+        """Taking the marks out is also letting go. What is left carries the
+        paper alone, which is nobody's — so it leaves the reader's page, and
+        there is nothing further for them to do to it."""
         made = self.share()
         self.client.post(f"/api/sharables/{made['uuid']}/lean")
-        # Nothing offers to put them back; asking again is simply a no-op.
-        again = self.client.post(f"/api/sharables/{made['uuid']}/lean")
-        self.assertEqual(again.json()["kind"], "lean")
 
         detail = self.client.get(f"/api/papers/{self.paper_uuid}").json()
-        self.assertEqual(detail["sharable_kind"], "lean")
-        self.assertEqual(detail["sharable_uuid"], made["uuid"])
+        self.assertIsNone(detail["sharable_uuid"])
+        # Not theirs to enrich again, and not theirs to close.
+        self.assertEqual(
+            self.client.post(f"/api/sharables/{made['uuid']}/lean").status_code, 404,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/sharables/{made['uuid']}").status_code, 404,
+        )
+        # And still opening, for whoever was given it.
+        self.assertEqual(
+            self.client.get(f"/api/shared/{made['uuid']}").json()["kind"], "lean",
+        )
 
     def test_only_its_maker_may_drop_the_marks_from_a_link(self):
         made = self.share()
