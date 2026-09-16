@@ -10,6 +10,8 @@ Vocabulary ("The Nook" theme):
 - **Located note** — a private note with a place in the PDF attached. Not a separate kind of thing: the same note, pinned.
 - **Edition** — one PDF file of a paper. A paper may have several; each reader's copy is pinned to the one they read, and only they can move it.
 - **Sharable** — a link that opens a PDF in the viewer for whoever holds it, signed in or not: the UUID in the link is the whole of the permission. A **rich** link carries one reader's reading — their marks on that edition — and is theirs. A **lean** link carries the PDF alone, is one per edition, and is nobody's.
+- **Papol for Mac** — the native macOS application. It carries the same three surfaces (library, viewer, boards) and reads the same account, so a paper open in a browser and the same paper open in the app are one paper, not a copy.
+- **Handoff** — moving what I am reading right now from the browser into Papol for Mac: the same document, at the same place, in the app instead of the tab.
 - **Call** — requesting a spontaneous seminar on a paper; it notifies every reader of that paper.
 - **Cohort** — the group where a called seminar is planned: leader, availability, platform, discussion. A seminar moves through three named states, used consistently across the app: **called** (waiting for a leader) → **planning** (leader took charge) → **scheduled** (time and platform announced).
 - **Leader** — the reader who answers a call and takes charge of the seminar.
@@ -100,6 +102,22 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.19** **Stopping** asks what I mean: *drop my marks*, which leaves the link working for whoever has it and hands it out of my keeping for good, or *close the link*, which stops it opening. Closing is final — sharing again mints a new link, and the old one stays dead. Whoever follows a closed link is told it is no longer shared, not that it never existed.
 - **US-7.20** **A link of mine is a state of the paper, shown on its page**, so nothing I do can leave one serving that I have forgotten about. The PDF's own link is never shown there and never counted against me: I am not told whether one exists, because nothing of mine is in it.
 - **US-7.21** While a link **of mine** is out, Papol will not move my copy to another edition: it opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. The PDF's own link is no obstacle — it says "here is this PDF", which stays true wherever I move.
+
+## 7d. Handing a reading to Papol for Mac
+
+The download banner tells a visitor the Mac app exists. This is the other
+half: when I am *already* looking at something the app can open better — a
+PDF, a board — Papol offers to move it there, and only there.
+
+- **US-7.22** As a reader on a Mac with a paper open in the browser's viewer, or a board open in the board app, Papol offers to **open this one in Papol for Mac**. The offer is a quiet bar at the top of what I am reading, never a dialog over it: I came here to read, and an offer that blocks the page is worse than no offer.
+- **US-7.23** The offer names **what it will open** — "Open this paper in Papol" or "Open this board in Papol" — not the app. A handoff is about the thing in front of me; an advertisement for software is what the download banner already does elsewhere.
+- **US-7.24** The offer is made only where it can be honoured: a Mac browser, a document the app can open, and never inside Papol for Mac itself. On Windows, Linux, or a phone there is nothing to hand off to, so nothing is said.
+- **US-7.25** A handoff carries **the place, not just the document**. The page I am on, the note I followed, the excerpt or clip a link named — all of it arrives. A handoff that drops me at page 1 of a paper I was reading on page 14 is worse than no handoff, and an already-open window in the app is moved to that place rather than a second window being opened.
+- **US-7.26** **The browser is never left broken.** The tab keeps the reading exactly as it was, behind the offer. If the app does not open — not installed, or the request is simply swallowed by the system — I am still reading where I was, and the bar quietly becomes the way to *get* Papol for Mac instead of an error about one I do not have.
+- **US-7.27** I decide, and I decide once. **Not now** puts the offer away for this document; **Don't ask again** retires it for this browser, and my profile can bring it back. Ticking **Always open in Papol** sends viewer and board links straight to the app from then on, with the tab left saying where the paper went and how to stop. Papol never ticks that for me.
+- **US-7.28** **The handoff is not a sign-in.** The app opens as whoever is signed in on this computer. If that is nobody, or somebody else, the app says so and asks — it never quietly shows one reader's Papol to another, and it never carries a browser session across.
+- **US-7.29** A **sharable** someone handed me is offered too, but only to a browser that has handed off before: a reader who has the app gets their reading in it, and a stranger following a colleague's link is met by the paper rather than by an installer. What opens is the same read-only reading, carrying no more of the sharer than the browser does.
+- **US-7.30** The demo makes no offer. A visitor exploring papers that are not theirs has nothing of their own to open, and the demo's job is to show Papol, not to ask for an installation.
 
 ## Future direction: a paper is not owned
 
