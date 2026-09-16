@@ -36,6 +36,20 @@ const COLUMN_GAP = 0.15;
 // drops back towards the top where a column breaks. That fall is how the
 // layout gives itself away without anyone measuring across the page.
 const COLUMN_RESET = 0.02;
+// Two printed entries whose numbers start this far apart across the page
+// begin different columns. Entries within one column share a left edge to
+// within a rounding error, so this only has to be wider than that.
+const COLUMN_SPLIT = 0.05;
+// How far left of its entry numbers a column still reaches. Only enough to
+// forgive the rounding: a hanging indent sets continuation lines to the
+// right, never the left, and reaching any further picks up the tail of the
+// column alongside.
+const COLUMN_EDGE = 0.005;
+// Blank space this wide within one printed line is a gutter, not a word
+// space. It catches the column alongside even where that column numbers no
+// entry of its own — the tail of a long reference carried over, which the
+// entry marks cannot see.
+const COLUMN_GUTTER = 0.02;
 // hyperref raises a destination slightly above the bibliography line so a
 // jump does not pin the text flush to the window edge. Matching the nearest
 // line mistakes a tightly spaced next entry for the preceding one. This is
@@ -397,12 +411,48 @@ function namedCitation(dest, box) {
 }
 
 /**
+ * One page's text as printed lines, alongside every numbered entry it sets.
+ *
+ * The entry marks are collected here because they are the only thing on the
+ * page that says where its columns are: "[24]" at the head of an item, and
+ * the x it was set at.
+ */
+async function printedLines(page) {
+  const content = await page.getTextContent();
+  const width = page.getViewport({ scale: 1 })?.width || 0;
+  const lines = [];
+  const printed = [];
+  for (const item of content.items || []) {
+    const y = item?.transform?.[5];
+    const x = item?.transform?.[4];
+    if (typeof y !== 'number' || typeof x !== 'number' || !item.str) continue;
+    const entry = /^\s*\[(\d{1,3})\]/.exec(item.str);
+    if (entry) printed.push({ number: Number(entry[1]), x, y });
+    let line = lines.find((candidate) => Math.abs(candidate.y - y) < 1.5);
+    if (!line) {
+      line = { y, items: [] };
+      lines.push(line);
+    }
+    line.items.push({ x, w: item.width || 0, text: item.str });
+  }
+  lines.sort((a, b) => b.y - a.y);
+  return { lines, printed, width };
+}
+
+/**
  * Read the printed bibliography entry behind a named PDF citation.
  *
  * This is the no-server fallback used while reference analysis is absent.
- * Hyperref destinations sit just above an entry; text is grouped into its
- * printed lines, then collected from the first numbered entry below that
- * destination until the next entry begins.
+ * Text is grouped into its printed lines, then collected from the entry the
+ * destination names until the next entry begins.
+ *
+ * Which entry that is comes from the destination's *name* wherever it has
+ * one, not from where it lands. A columned bibliography gives every y to two
+ * entries at once, and a publisher is free to raise a destination well clear
+ * of the line it points at — Elsevier's "bib0027" is set some twenty points
+ * above entry [27], which is nearer entry [26] and nearer still to [19] in
+ * the column alongside. Landing position cannot tell those apart. The number
+ * printed on the page can, and the destination is carrying it.
  */
 export async function readNamedReference(doc, dest) {
   if (!isNamedCitation(dest)) return null;
@@ -413,51 +463,83 @@ export async function readNamedReference(doc, dest) {
   const targetY = destinationY(target);
   if (targetY == null) return null;
 
-  const content = await page.getTextContent();
-  const width = page.getViewport({ scale: 1 })?.width || 0;
-  const lines = [];
-  for (const item of content.items || []) {
-    const y = item?.transform?.[5];
-    const x = item?.transform?.[4];
-    if (typeof y !== 'number' || typeof x !== 'number' || !item.str) continue;
-    let line = lines.find((candidate) => Math.abs(candidate.y - y) < 1.5);
-    if (!line) {
-      line = { y, items: [] };
-      lines.push(line);
+  const number = destinationNumber(dest);
+  let { lines, printed, width } = await printedLines(page);
+  let named = number == null
+    ? null
+    : printed.find((entry) => entry.number === number);
+  // A destination set right at a page break points at the seam: Elsevier's
+  // "bib0016" lands at the foot of page 9, and entry [16] is the first thing
+  // printed on page 10. The number says which entry is meant, so follow it
+  // over the fold rather than reading whatever the mark happened to land on.
+  if (number != null && !named && pageIndex + 2 <= (doc.numPages || 0)) {
+    const overleaf = await printedLines(await doc.getPage(pageIndex + 2));
+    const found = overleaf.printed.find((entry) => entry.number === number);
+    if (found) {
+      ({ lines, printed, width } = overleaf);
+      named = found;
     }
-    line.items.push({ x, text: item.str });
   }
-  lines.sort((a, b) => b.y - a.y);
 
   // A bibliography is usually set in columns, and two entries side by side
   // share every y a line of either one has. Grouping by height alone splices
   // the neighbouring column's words into the entry being read. Keep only the
-  // column the entry starts in; on a single-column page every line starts in
-  // the same one and nothing is dropped.
-  const gutter = width * COLUMN_GAP;
-  const columnOf = (line) => Math.min(...line.items.map((item) => item.x));
-  const inColumn = (line, column) => (
-    column == null ? line.items : line.items.filter(
-      (item) => item.x >= column - gutter && item.x < column + gutter * 2
-    )
-  );
-  const textOf = (line, column) => inColumn(line, column)
-    .sort((a, b) => a.x - b.x)
-    .map((item) => item.text).join(' ').replace(/\s+/g, ' ').trim();
+  // column the entry starts in — measured from where the page set its own
+  // entry numbers, so a column runs to wherever the next one begins and no
+  // further, and a single-column page keeps its full measure.
+  const edges = [...new Set(printed.map((entry) => entry.x))].sort((a, b) => a - b);
+  const columnFrom = (left) => {
+    const next = edges.find((edge) => edge > left + width * COLUMN_SPLIT);
+    if (edges.length) return { from: left - width * COLUMN_EDGE, to: next ?? Infinity };
+    // Nothing numbered to read the columns off — an author-year
+    // bibliography. Guess at how wide a column is, as this did before the
+    // entries themselves could say.
+    const gutter = width * COLUMN_GAP;
+    return { from: left - gutter, to: left + gutter * 2 };
+  };
+  const leftOf = (line) => Math.min(...line.items.map((item) => item.x));
+  const textOf = (line, column) => {
+    const across = line.items
+      .filter((item) => !column || (item.x >= column.from && item.x < column.to))
+      .sort((a, b) => a.x - b.x);
+    const kept = [];
+    for (const item of across) {
+      const previous = kept[kept.length - 1];
+      if (previous && item.x - (previous.x + previous.w) > width * COLUMN_GUTTER) break;
+      kept.push(item);
+    }
+    return kept.map((item) => item.text).join(' ').replace(/\s+/g, ' ').trim();
+  };
   const marker = /^\s*(?:\[\d+\]|\d+\.)/;
-  let start = lines.findIndex(
-    (line) => line.y <= targetY + 2 && marker.test(textOf(line, columnOf(line)))
-  );
-  const numbered = start >= 0;
-  // Author-year bibliographies have no [n] boundary. Their named hyperref
-  // destination still sits immediately above the first line, so begin at
-  // the first printed line below it and stop when another surname-led entry
-  // begins. This is deliberately only the PDF-native fallback; analyzed
-  // references continue to use GROBID's structure.
-  if (!numbered) start = lines.findIndex((line) => line.y <= targetY + 2);
-  if (start < 0) return null;
 
-  const column = columnOf(lines[start]);
+  let start = named
+    ? lines.findIndex((line) => Math.abs(line.y - named.y) < 1.5)
+    : -1;
+  let column = named ? columnFrom(named.x) : null;
+  if (start < 0) {
+    // An opaque destination such as hyperref's "cite.knuth74" names no
+    // number, so its landing position is all there is. Take the column from
+    // the destination's own x where it has one; /XYZ often carries it, and a
+    // publisher that writes left=0 leaves this exactly as it was.
+    const x = target[1]?.name === 'XYZ' && typeof target[2] === 'number' ? target[2] : 0;
+    const anchored = x > 0
+      ? [...edges].reverse().find((edge) => edge <= x + width * COLUMN_SPLIT)
+      : null;
+    const bandFor = (line) => columnFrom(anchored ?? leftOf(line));
+    start = lines.findIndex(
+      (line) => line.y <= targetY + 2 && marker.test(textOf(line, bandFor(line)))
+    );
+    // Author-year bibliographies have no [n] boundary. Their named hyperref
+    // destination still sits immediately above the first line, so begin at
+    // the first printed line below it and stop when another surname-led entry
+    // begins. This is deliberately only the PDF-native fallback; analyzed
+    // references continue to use GROBID's structure.
+    if (start < 0) start = lines.findIndex((line) => line.y <= targetY + 2);
+    if (start < 0) return null;
+    column = bandFor(lines[start]);
+  }
+
+  const numbered = marker.test(textOf(lines[start], column));
   const gathered = [];
   for (let i = start; i < lines.length && gathered.length < 8; i += 1) {
     const text = textOf(lines[i], column);

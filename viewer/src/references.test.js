@@ -274,3 +274,64 @@ test('reads a bibliography entry without splicing in the next column', async () 
   assert.doesNotMatch(raw, /doi\.acm\.org/, 'the next column must not bleed in');
   assert.doesNotMatch(raw, /Tabula Rasa/, 'the next entry must not bleed in');
 });
+
+test('reads the entry a destination names, not the column it lands beside', async () => {
+  // Elsevier sets "bib0027" some twenty points above entry [27], which puts
+  // it nearer [26] in its own column and nearer still to [19] in the column
+  // alongside. Where it landed cannot tell those apart; what it is called can.
+  const span = (text, x, y) => ({ str: text, transform: [1, 0, 0, 1, x, y] });
+  const page = {
+    getViewport: () => ({ width: 600, height: 800, scale: 1 }),
+    getTextContent: async () => ({
+      items: [
+        span('[26] Grima JN. Auxetic behaviour from connected squares.', 312, 666),
+        span('[19] Wang P, Casadei F. Harnessing buckling to design tunable', 43, 658),
+        span('locally resonant acoustic metamaterials. Phys Rev Lett.', 58, 650),
+        span('[27] Coumans E. Bullet physics simulation. SIGGRAPH 2015.', 312, 650),
+        span('[20] Hoberman C. Hoberman sphere. 1990.', 43, 634),
+        span('[28] Mamou K. Github repository of v-hacd.', 312, 626),
+      ],
+    }),
+  };
+  const doc = {
+    numPages: 10,
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 670],
+    getPageIndex: async () => 9,
+    getPage: async () => page,
+  };
+
+  const raw = await readNamedReference(doc, 'bib0027');
+
+  assert.match(raw, /Bullet physics simulation/);
+  assert.doesNotMatch(raw, /Harnessing buckling/, 'the column alongside must not win');
+  assert.doesNotMatch(raw, /Auxetic behaviour/, 'the entry above must not win');
+  assert.doesNotMatch(raw, /v-hacd/, 'the next entry must not bleed in');
+});
+
+test('follows a destination set at a page break to the entry overleaf', async () => {
+  // The first entry of a bibliography page has its mark set at the foot of
+  // the page before, where nothing is numbered at all.
+  const span = (text, x, y) => ({ str: text, transform: [1, 0, 0, 1, x, y] });
+  const printed = {
+    9: [span('mechanism, we can create self-actuated structures.', 43, 60)],
+    10: [
+      span('[16] Lakes R, Elms K. Indentability of conventional foams.', 43, 730),
+      span('[17] Choi JB. Fracture toughness of re-entrant foam.', 43, 706),
+    ],
+  };
+  const doc = {
+    numPages: 10,
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 59],
+    getPageIndex: async () => 8,
+    getPage: async (number) => ({
+      getViewport: () => ({ width: 600, height: 800, scale: 1 }),
+      getTextContent: async () => ({ items: printed[number] }),
+    }),
+  };
+
+  const raw = await readNamedReference(doc, 'bib0016');
+
+  assert.match(raw, /Indentability of conventional/);
+  assert.doesNotMatch(raw, /self-actuated/, 'the page it landed on prints no entry 16');
+  assert.doesNotMatch(raw, /Fracture toughness/, 'the next entry must not bleed in');
+});
