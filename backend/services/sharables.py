@@ -24,11 +24,12 @@ is what remains of it. Revoking is what closes a link altogether.
 
 from datetime import datetime
 
-from models import Annotation, Copy, PaperEdition, Sharable, User
+from models import Annotation, Copy, PaperEdition, Shelf, Sharable, User
 from schemas import SharedPaper, SharedReading, UserPublic
 from services.annotations import annotation_out, annotations_of
 from services.papers import page_is_public
 from sqlalchemy.orm import Session
+from sync.changes import commit_sync
 
 
 RICH = "rich"
@@ -226,3 +227,62 @@ def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
         Copy.paper_uuid == sharable.paper_uuid,
         Copy.deleted_at.is_(None),
     ).first() is not None
+
+
+def copy_in_nook(db: Session, user: User, sharable: Sharable) -> Copy | None:
+    """This visitor's own copy of the shared paper, if they keep one.
+
+    Asked of the paper rather than the edition: a reader who adopted a
+    different PDF of the same paper still has it, and pointing them at what
+    they already keep is the honest answer to "is this mine yet".
+    """
+    return db.query(Copy).filter(
+        Copy.user_uuid == user.uuid,
+        Copy.paper_uuid == sharable.paper_uuid,
+        Copy.deleted_at.is_(None),
+    ).first()
+
+
+def take_into_nook(db: Session, user: User, sharable: Sharable) -> Copy:
+    """Give this visitor the shared paper, and none of the sharer's marks.
+
+    The paper comes across; the marks stay with their author. A copied note
+    would be indistinguishable from one of this reader's own forever — no
+    mark records where it came from — and resharing would send the sharer's
+    words out under a name that is not theirs. So what lands is a clean
+    copy: the paper, on the exact PDF the link opened, with nothing written
+    on it.
+
+    The edition is the shared one, not the paper's newest. The link handed
+    over a particular file, and the marks its holder just read were on that
+    file; landing them on a different PDF would be answering a question
+    they did not ask. A newer edition is offered on the paper page
+    afterwards, the same as for anyone else.
+    """
+    # Their default shelf, the same one the ordinary add uses: a paper that
+    # arrives is a paper that arrives, and where it lands should not depend
+    # on how it was found. Worth knowing that the default shelf is usually a
+    # displayed one, so this can make public a paper nobody was displaying —
+    # which the ordinary add never can, since it requires the paper to be
+    # visible already. Chosen deliberately: one rule for where an added
+    # paper goes, and moving it is a shelf away.
+    #
+    # Asked of the session doing the work rather than of the user object,
+    # which may have been loaded somewhere else entirely.
+    shelves = db.query(Shelf).filter(
+        Shelf.user_uuid == user.uuid, Shelf.deleted_at.is_(None),
+    ).order_by(Shelf.created_at).all()
+    shelf = next((s for s in shelves if s.is_default), None) or shelves[0]
+    copy = Copy(
+        paper_uuid=sharable.paper_uuid,
+        user_uuid=user.uuid,
+        shelf=shelf,
+        edition_uuid=sharable.edition_uuid,
+        edition_sha256=sharable.edition.sha256,
+    )
+    db.add(copy)
+    # Through the change log, like every other copy: a reader who adds a
+    # shared paper on the web must find it on their Mac too.
+    commit_sync(db)
+    db.refresh(copy)
+    return copy

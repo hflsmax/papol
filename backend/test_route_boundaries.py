@@ -18,6 +18,8 @@ EXPECTED_ROUTES = {
     ("POST", "/api/sharables/{sharable_uuid}/lean"): "routes.sharables",
     ("DELETE", "/api/sharables/{sharable_uuid}"): "routes.sharables",
     ("GET", "/api/shared/{sharable_uuid}"): "routes.sharables",
+    ("GET", "/api/shared/{sharable_uuid}/nook"): "routes.sharables",
+    ("POST", "/api/shared/{sharable_uuid}/add-to-nook"): "routes.sharables",
     ("POST", "/api/admin/send-digest"): "routes.admin",
     ("POST", "/api/admin/messages"): "routes.admin",
     ("GET", "/api/admin/message-recipients"): "routes.admin",

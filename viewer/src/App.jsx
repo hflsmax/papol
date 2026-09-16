@@ -15,8 +15,10 @@ import {
 import { annotationKinds } from './annotationKinds.js';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
+  signedIn as signedInHere,
 } from './source';
-import { appPath, backendPath } from './base';
+import { appPath, backendPath, stripAppBase } from './base';
+import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
   recordDiagnosticEvent, requestSignIn,
@@ -398,12 +400,28 @@ export default function App() {
   // Notes, ink and clips are one interface underneath and three things to
   // draw. This is where the one becomes the three.
   const marks = useMemo(() => annotationKinds(source?.annotations), [source]);
-  // What the bar offers. A shared reading keeps the arrow, which is
-  // reading — text selects, citations open — and the menagerie, whose
-  // animals are nobody's mark: they wander and are never kept.
+  // Whether a mark this reader makes would have somewhere to live. A
+  // shared paper and a file opened from disk both read fully and hold
+  // nothing yet, so the tools are offered and reaching for one asks for
+  // the paper first.
+  const marksNeedANook = Boolean(source?.annotationsRequireNook);
+  // Read-only says the marks already on the page are not this reader's to
+  // change. It says nothing about marks they have not made yet — those are
+  // a question for the nook. Only where both are true is the paper one
+  // nobody can ever write on, and only then is an affordance worth
+  // withholding rather than offering and asking.
+  const neverMarkable = readOnly && !marksNeedANook;
+  // What the bar offers. A paper nobody can write on keeps the arrow,
+  // which is reading — text selects, citations open — and the menagerie,
+  // whose animals are nobody's mark: they wander and are never kept. Where
+  // the marks could be made once the paper is theirs, the whole bar stays:
+  // a reader should meet the tools, not an absence they have no way to
+  // read.
   const availableTools = useMemo(
-    () => (readOnly ? TOOLS.filter((t) => !ANNOTATION_TOOLS.has(t.id)) : TOOLS),
-    [readOnly],
+    () => (neverMarkable
+      ? TOOLS.filter((t) => !ANNOTATION_TOOLS.has(t.id))
+      : TOOLS),
+    [neverMarkable],
   );
   const immediatePdfPaper = useMemo(() => {
     if (source?.openedFile) return source.initialPaper;
@@ -595,6 +613,10 @@ export default function App() {
   // Kept apart from the sign-in step so clicking away can hide the prompt
   // without cancelling a sign-in already under way in the library window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
+  // This reader's own copy of the paper in front of them, when they keep
+  // one. What turns "add to nook" into "show in nook": the offer should be
+  // the one they can still act on.
+  const [nookCopy, setNookCopy] = useState(null);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Asked once, over the first file opened from disk while another app is
   // the system's PDF viewer.
@@ -682,7 +704,7 @@ export default function App() {
     setTool('arrow');
     setSheet(null);
     await hydrateCredential();
-    setNookStep(nativeDataActive() ? 'confirm' : 'ask');
+    setNookStep(signedInHere() ? 'confirm' : 'ask');
     setNookPromptOpen(true);
     return true;
   };
@@ -919,7 +941,13 @@ export default function App() {
       Promise.all([loaded, nookPaper])
         .then(([, found]) => {
           if (cancelled || !found) return;
-          handoffOpenedFileToNookViewer(found);
+          setNookCopy(found);
+          // The same bytes opened from disk go straight to their canonical
+          // nook URL. A shared reading does not: the visitor came to read
+          // what someone else marked up, and moving them to their own
+          // blank copy would take that away without being asked. The bar
+          // offers it instead.
+          if (source.openedFile) handoffOpenedFileToNookViewer(found);
         })
         .catch(() => {});
     }
@@ -1056,6 +1084,11 @@ export default function App() {
   // A lean link carries the paper alone. Someone handed it over, but there
   // is no reading here and nothing of theirs to attribute.
   const sharedReading = paper?.shared_kind === 'rich';
+  // Whether this paper arrived by link at all, either kind. Distinct from
+  // read-only, which is about whose the marks are: a file opened from disk
+  // is read-only too — vacuously, having no marks on it — and nobody
+  // shared it with anyone.
+  const fromALink = Boolean(paper?.shared_kind);
 
   const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip;
 
@@ -2767,13 +2800,15 @@ export default function App() {
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
   const takeTool = (picked) => {
-    // The marking tools are not in the bar of a shared reading, so nothing
-    // should be reaching for one; a remembered shortcut still might.
-    if (ANNOTATION_TOOLS.has(picked) && readOnly) return;
-    if (ANNOTATION_TOOLS.has(picked) && source?.annotationsRequireNook) {
+    // Asking for the paper comes first, when there is a nook for it to go
+    // into. Only a reading that can never be written on ignores the reach
+    // — its marking tools are not in the bar, so nothing should be
+    // reaching for one, though a remembered shortcut still might.
+    if (ANNOTATION_TOOLS.has(picked) && marksNeedANook) {
       void promptToAddForAnnotations();
       return;
     }
+    if (ANNOTATION_TOOLS.has(picked) && neverMarkable) return;
     // Reaching for what is already in your hand opens what belongs to it,
     // whether you reached with the pointer or with the key.
     if (picked === tool && SHEETS.has(picked)) {
@@ -3253,7 +3288,7 @@ export default function App() {
   // is the only surface allowed to load or persist paper state.
   const addToNook = async () => {
     await hydrateCredential();
-    if (!nativeDataActive()) {
+    if (!signedInHere()) {
       setNookStep('ask');
       setNookPromptOpen(true);
       return;
@@ -3261,15 +3296,43 @@ export default function App() {
     setNookStep('adding');
     setNookPromptOpen(false);
     try {
-      await source.addToNook();
-      window.location.assign(nookViewerHref());
+      const added = await source.addToNook();
+      // Where the paper now is. A file opened from disk becomes the
+      // ordinary nook URL it was always destined for; a shared paper
+      // becomes this reader's own copy of that PDF, which is the only
+      // place their marks can go.
+      window.location.assign(source.nookHref?.(added) || nookViewerHref());
     } catch (failure) {
       setNookStep('idle');
       setError(`Could not add this paper: ${messageOf(failure)}`);
     }
   };
   const addToNookOnceSignedIn = useEvent(addToNook);
+  // Whether there is a copy of this paper to be shown at all. An opened
+  // file that matched a nook paper says so on the paper itself; a shared
+  // paper says so through the nook lookup its source made.
+  const showInNookHref = source?.openedFile
+    ? (paper?.uuid || null)
+    : (nookCopy && source?.nookHref?.(nookCopy)) || null;
+  const showInNook = () => {
+    // The desktop keeps the library in its own window, so showing a paper
+    // means raising that window rather than leaving this one.
+    if (source?.openedFile) {
+      focusDesktopLibraryWindow(paper.uuid);
+      return;
+    }
+    window.location.assign(showInNookHref);
+  };
   const askToSignIn = () => {
+    // On the desktop the library window does the signing in and this one
+    // waits for it. On the web there is no other window: the visitor goes
+    // to the sign-in page and is brought back to the link they were
+    // reading, where the paper is still theirs to add.
+    if (!IS_DESKTOP) {
+      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+      window.location.assign(appPath(`/signin?next=${encodeURIComponent(back)}`));
+      return;
+    }
     setNookStep('waiting');
     setNookPromptOpen(true);
     requestSignIn().catch(() => setNookStep('ask'));
@@ -3837,17 +3900,15 @@ export default function App() {
         {paper && (
           <span className="paper-menu" ref={paperMenuRef}>
             {/* Said where the bar says what this document is, because whose
-                reading it is is part of what it is. */}
-            {readOnly && (
-              <span
-                className="shared-reading"
-                title={sharedReading
-                  ? 'A reading someone shared with you'
-                  : 'A paper someone shared with you'}
-              >
-                {sharedReading
-                  ? (readerName ? `${readerName}’s reading` : 'A shared reading')
-                  : (readerName ? `Shared by ${readerName}` : 'A shared paper')}
+                reading it is is part of what it is — and only then. A link
+                carrying the paper alone is nobody's and names nobody, so
+                there is nothing here to say about it: announcing "a shared
+                paper" would report the link rather than the paper, which is
+                the one thing a lean link is meant not to do. What is left
+                is the paper, which the bar is already showing. */}
+            {sharedReading && (
+              <span className="shared-reading" title="A reading someone shared with you">
+                {readerName ? `${readerName}’s reading` : 'A shared reading'}
               </span>
             )}
             <button
@@ -3863,12 +3924,17 @@ export default function App() {
             >
               <span className="info-glyph" aria-hidden="true">i</span> Info
             </button>
-            {source?.openedFile && (
-              paper.uuid ? (
+            {/* A paper that is not yet this reader's, and could be: a file
+                they opened, or one somebody shared with them. Either way
+                the offer is the same two-sided one — go to your copy, or
+                make one. A visitor with no account sees "Add to nook" too,
+                and pressing it is where they are asked to sign in. */}
+            {source?.addToNook && (
+              showInNookHref ? (
                 <button
                   type="button"
                   className="bar-link nook-add-button"
-                  onClick={() => focusDesktopLibraryWindow(paper.uuid)}
+                  onClick={showInNook}
                 >
                   Show in nook
                 </button>
@@ -4191,7 +4257,7 @@ export default function App() {
               ) : null}
             />
           )}
-          {selectionPaint && !readOnly && (
+          {selectionPaint && !neverMarkable && (
             <span
               ref={selectionActionsRef}
               className="selection-actions"
@@ -4229,7 +4295,7 @@ export default function App() {
               />
             </span>
           )}
-          {inkActions && !readOnly && (
+          {inkActions && !neverMarkable && (
             <span
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
@@ -4300,10 +4366,19 @@ export default function App() {
                   </React.Fragment>
                 ))}
               </dl>
+              {/* Two separate facts, and each is said only when it is true.
+                  Whose the marks on the page are is worth saying only where
+                  they are somebody's — a reading that names its reader. Where
+                  a new mark would go is worth saying wherever it has nowhere
+                  to go yet, which is a shared paper and a file opened from
+                  disk alike. The bar has just offered six tools; the sheet
+                  that explains them should not leave out the one condition
+                  on using them. */}
               <p className="help-foot">
-                {readOnly
+                {sharedReading
                   ? 'The paint and anchors on this paper belong to the reader who shared it.'
                   : 'Paint and anchors are stored with the paper.'}
+                {marksNeedANook && ' Add this paper to your nook to make marks of your own.'}
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done
@@ -4552,15 +4627,22 @@ export default function App() {
               <span className="rail-empty-glyph" aria-hidden="true">
                 <ToolGlyph id="anchor" />
               </span>
-              <h3>{readOnly ? 'No anchors here' : 'No anchors yet'}</h3>
-              {readOnly ? (
-                <p>
-                  {!sharedReading
-                    ? 'This link shares the paper only.'
-                    : readerName
-                      ? `${readerName} left no anchors on this paper.`
-                      : 'No anchors were left on this paper.'}
-                </p>
+              <h3>{fromALink ? 'No anchors here' : 'No anchors yet'}</h3>
+              {fromALink ? (
+                <>
+                  <p>
+                    {!sharedReading
+                      ? 'This link shares the paper only.'
+                      : readerName
+                        ? `${readerName} left no anchors on this paper.`
+                        : 'No anchors were left on this paper.'}
+                  </p>
+                  {/* Why the rail is empty is only half of it. The other
+                      half is that it need not stay that way. */}
+                  {marksNeedANook && (
+                    <p>Add this paper to your nook to write your own.</p>
+                  )}
+                </>
               ) : (
                 <>
                   <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>

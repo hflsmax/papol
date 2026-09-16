@@ -809,6 +809,15 @@ class SharedReading(BaseModel):
     created_at: datetime
 
 
+class SharedInNook(BaseModel):
+    """Where a shared paper sits in the visitor's own nook, once it does.
+
+    Enough to walk them over to their own copy and no more: the link opened
+    a PDF, and what they want next is that PDF as theirs."""
+    paper_uuid: str
+    edition_sha256: Optional[str] = None
+
+
 class NookStats(BaseModel):
     """The owner's reading-journey numbers, shown on their own nook."""
     papers: int = 0

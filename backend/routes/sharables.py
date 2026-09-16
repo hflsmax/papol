@@ -2,10 +2,11 @@ from auth import get_current_user
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from models import Paper, Sharable, User
-from schemas import SharableCreate, SharableOut, SharedReading
+from schemas import SharableCreate, SharableOut, SharedInNook, SharedReading
 from services.editions import edition_for
 from services.sharables import (
-    LEAN, RICH, make_lean, open_sharable, revoke, share_reading, shared_reading,
+    LEAN, RICH, copy_in_nook, make_lean, open_sharable, revoke, share_reading,
+    shared_reading, take_into_nook,
 )
 from sqlalchemy.orm import Session
 
@@ -103,3 +104,60 @@ async def read_sharable(sharable_uuid: str, db: Session = Depends(get_db)):
             status_code=404, detail="This reading is no longer shared",
         )
     return shared_reading(db, sharable)
+
+
+@router.get("/api/shared/{sharable_uuid}/nook", response_model=SharedInNook | None)
+async def shared_in_nook(
+    sharable_uuid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Whether whoever is reading this link already keeps the paper.
+
+    Asked so the viewer can offer the right thing — their own copy, or the
+    chance to make one — rather than making them find out by pressing. Signed
+    in, because the answer is about their nook and nobody else can be told
+    it."""
+    sharable = open_sharable(db, sharable_uuid)
+    if sharable is None:
+        raise HTTPException(
+            status_code=404, detail="This reading is no longer shared",
+        )
+    copy = copy_in_nook(db, current_user, sharable)
+    if copy is None:
+        return None
+    return SharedInNook(
+        paper_uuid=copy.paper_uuid, edition_sha256=copy.edition_sha256,
+    )
+
+
+@router.post("/api/shared/{sharable_uuid}/add-to-nook", response_model=SharedInNook)
+async def add_shared_to_nook(
+    sharable_uuid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Take the shared paper into the reader's own nook, clean.
+
+    Its own route rather than the ordinary add, because the ordinary one
+    asks whether the paper is visible — and a paper nobody displays is
+    exactly what a link is for. Here the link is the authorization, the same
+    as it is for reading: holding it is what entitles you to the paper, so
+    holding it is what entitles you to keep the paper.
+
+    What lands carries none of the sharer's marks, and sits on the PDF the
+    link opened rather than the paper's newest."""
+    sharable = open_sharable(db, sharable_uuid)
+    if sharable is None:
+        raise HTTPException(
+            status_code=404, detail="This reading is no longer shared",
+        )
+    existing = copy_in_nook(db, current_user, sharable)
+    if existing is not None:
+        raise HTTPException(
+            status_code=400, detail="This paper is already in your nook",
+        )
+    copy = take_into_nook(db, current_user, sharable)
+    return SharedInNook(
+        paper_uuid=copy.paper_uuid, edition_sha256=copy.edition_sha256,
+    )

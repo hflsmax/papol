@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
 from models import Annotation, Copy, Paper, PaperEdition, Sharable, Shelf, User
+from services.editions import latest_edition
 
 SHARED_HASH = "a" * 64
 OTHER_HASH = "b" * 64
@@ -517,3 +518,155 @@ class SharableTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TakingASharedPaperIntoYourNook(SharableTests):
+    """What a link lets its holder keep: the paper, on the PDF it opened,
+    with none of the sharer's marks on it."""
+
+    def setUp(self):
+        super().setUp()
+        with self.Session() as db:
+            db.add(Shelf(
+                user_uuid=self.stranger_uuid, name="Mine", color="#b3923d",
+                is_default=True,
+            ))
+            db.commit()
+
+    def as_stranger(self):
+        type(self).current_user_uuid = self.stranger_uuid
+
+    def test_the_paper_comes_across_and_the_marks_stay_with_their_author(self):
+        link = self.share(include_marks=True)
+        self.as_stranger()
+        added = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(added.status_code, 200, added.text)
+        self.assertEqual(added.json()["paper_uuid"], self.paper_uuid)
+
+        with self.Session() as db:
+            copy = db.query(Copy).filter(
+                Copy.user_uuid == self.stranger_uuid,
+                Copy.paper_uuid == self.paper_uuid,
+            ).one()
+            # The PDF the link opened, not the paper's newest.
+            self.assertEqual(copy.edition_uuid, self.shared_edition_uuid)
+            self.assertEqual(copy.edition_sha256, SHARED_HASH)
+            # Nothing of the sharer's was duplicated under this reader's name.
+            self.assertEqual(
+                db.query(Annotation).filter(
+                    Annotation.user_uuid == self.stranger_uuid,
+                    Annotation.paper_uuid == self.paper_uuid,
+                    Annotation.deleted_at.is_(None),
+                ).count(),
+                2,  # the two they already had; none of the sharer's
+            )
+            # And the sharer still has every one of theirs.
+            self.assertEqual(
+                db.query(Annotation).filter(
+                    Annotation.user_uuid == self.reader_uuid,
+                    Annotation.deleted_at.is_(None),
+                ).count(),
+                5,
+            )
+
+    def test_a_paper_nobody_displays_can_still_be_kept_from_a_link(self):
+        """The ordinary add refuses it; holding the link is the permission."""
+        link = self.share(include_marks=False)
+        self.as_stranger()
+        ordinary = self.client.post(f"/api/papers/{self.paper_uuid}/add-to-nook")
+        self.assertEqual(ordinary.status_code, 404)
+        by_link = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(by_link.status_code, 200, by_link.text)
+
+    def test_a_lean_link_hands_over_the_paper_just_the_same(self):
+        link = self.share(include_marks=False)
+        self.as_stranger()
+        added = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(added.status_code, 200, added.text)
+        self.assertEqual(added.json()["edition_sha256"], SHARED_HASH)
+
+    def test_the_paper_cannot_be_kept_twice(self):
+        link = self.share()
+        self.as_stranger()
+        self.assertEqual(
+            self.client.post(f"/api/shared/{link['uuid']}/add-to-nook").status_code, 200,
+        )
+        again = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(again.status_code, 400)
+        self.assertIn("already in your nook", again.json()["detail"])
+
+    def test_a_closed_link_hands_over_nothing(self):
+        link = self.share()
+        self.client.delete(f"/api/sharables/{link['uuid']}")
+        self.as_stranger()
+        refused = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(refused.status_code, 404)
+
+    def test_the_link_says_whether_the_reader_already_keeps_the_paper(self):
+        link = self.share()
+        self.as_stranger()
+        before = self.client.get(f"/api/shared/{link['uuid']}/nook")
+        self.assertEqual(before.status_code, 200)
+        self.assertIsNone(before.json())
+
+        self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        after = self.client.get(f"/api/shared/{link['uuid']}/nook")
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.json()["paper_uuid"], self.paper_uuid)
+        self.assertEqual(after.json()["edition_sha256"], SHARED_HASH)
+
+    def test_its_own_maker_is_told_they_have_it_already(self):
+        """The sharer follows their own link: it is their paper, and the
+        offer must be their copy rather than a second one."""
+        link = self.share()
+        mine = self.client.get(f"/api/shared/{link['uuid']}/nook")
+        self.assertEqual(mine.status_code, 200)
+        self.assertEqual(mine.json()["paper_uuid"], self.paper_uuid)
+
+    def test_a_reader_on_another_pdf_of_it_still_has_the_paper(self):
+        """Keeping a different edition is still keeping the paper, so the
+        answer is their copy — not an offer to add a second one."""
+        link = self.share()
+        self.as_stranger()
+        with self.Session() as db:
+            shelf = db.query(Shelf).filter(
+                Shelf.user_uuid == self.stranger_uuid,
+            ).one()
+            db.add(Copy(
+                paper_uuid=self.paper_uuid, user_uuid=self.stranger_uuid,
+                shelf_uuid=shelf.uuid, edition_uuid=self.superseded_edition_uuid,
+                edition_sha256=OTHER_HASH,
+            ))
+            db.commit()
+        theirs = self.client.get(f"/api/shared/{link['uuid']}/nook")
+        self.assertEqual(theirs.json()["edition_sha256"], OTHER_HASH)
+        refused = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(refused.status_code, 400)
+
+    def test_the_pdf_that_was_shared_is_the_pdf_that_is_kept(self):
+        """A newer edition arriving after the link went out must not
+        redirect it. The holder read a particular file, and that file is
+        what they are keeping."""
+        link = self.share()
+        newest_hash = "c" * 64
+        with self.Session() as db:
+            paper = db.query(Paper).filter(Paper.uuid == self.paper_uuid).one()
+            db.add(PaperEdition(
+                paper_uuid=paper.uuid, file_path=f"{newest_hash}.pdf",
+                sha256=newest_hash,
+            ))
+            db.commit()
+            paper = db.query(Paper).filter(Paper.uuid == self.paper_uuid).one()
+            self.assertEqual(latest_edition(paper).sha256, newest_hash)
+
+        self.as_stranger()
+        added = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
+        self.assertEqual(added.status_code, 200, added.text)
+        # The PDF the link opened, not the one that has since arrived.
+        self.assertEqual(added.json()["edition_sha256"], SHARED_HASH)
+        with self.Session() as db:
+            copy = db.query(Copy).filter(
+                Copy.user_uuid == self.stranger_uuid,
+                Copy.paper_uuid == self.paper_uuid,
+            ).one()
+            self.assertEqual(copy.edition_uuid, self.shared_edition_uuid)

@@ -31,10 +31,24 @@ export function readSharable(sharableUuid) {
   return request(`/shared/${sharableUuid}`);
 }
 
-// Where a link leads: the viewer, in its read-only shape. Absolute, because
-// the only use for it is being given to someone else.
+// Where a link leads: the viewer, opened on what the link carries. Absolute,
+// because the only use for it is being given to someone else.
 export function sharableHref(sharableUuid) {
   const path = appPath(`/viewer/?share=${sharableUuid}`);
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
+}
+
+// Whether the reader following this link already keeps the paper. Answered
+// only for someone signed in; a visitor with no account has no nook to be
+// asked about, and the link stays readable either way.
+export function sharedInNook(sharableUuid) {
+  return onServer(() => request(`/shared/${sharableUuid}/nook`));
+}
+
+// The paper, into this reader's nook, with none of the sharer's marks on
+// it. The link is the authorization, so no paper needs to be visible for
+// this to work — which is the whole point of having been given one.
+export function addSharedToNook(sharableUuid) {
+  return onServer(() => request(`/shared/${sharableUuid}/add-to-nook`, { method: 'POST' }));
 }

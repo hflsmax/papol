@@ -1,6 +1,7 @@
 import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
-import { readSharable } from '../../shared/api/sharables.js';
+import { nativeDataActive } from '../../shared/nativeData.js';
+import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
 import { notesIn } from './annotationKinds.js';
 import { appPath } from './base.js';
 import {
@@ -100,6 +101,12 @@ function apiSource(
 // one request: which PDF, whose marks, and what they say. The interfaces it
 // exposes are the reading half of the ones a nook source exposes — list, and
 // no more — so the parts of the viewer that write have nothing to call.
+// Someone with an account here, however they proved it: a session on the
+// web, a signed-in account on the desktop. A link reads without either.
+export function signedIn() {
+  return nativeDataActive() || Boolean(getToken());
+}
+
 function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
   let readingReady = null;
   const reading = () => {
@@ -107,11 +114,40 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     return readingReady;
   };
   return {
-    // A visitor following a link has no nook to go back to, so the way out
-    // is Papol's front door.
+    // A visitor following a link has no nook to go back to, and no paper
+    // page they could open either: the sharer's is not theirs to see. The
+    // way out is Papol's front door.
     backHref: appPath('/'),
     requiresSignIn: false,
+    // Their marks are theirs: whatever is already on these pages was put
+    // there by the sharer and nothing in the viewer may change it.
     readOnly: true,
+    // A visitor's own marks are a different matter. The tools stay in the
+    // bar, because a shared paper should read like any other PDF — and
+    // reaching for one asks for the paper to be theirs first, which is the
+    // honest price of writing on it.
+    annotationsRequireNook: true,
+    // Whether this visitor already keeps the paper, so the bar can offer
+    // their own copy instead of a second one. Never asked of someone with
+    // no account: there is no nook to ask about, and the link reads either
+    // way.
+    async loadNookPaper() {
+      if (!signedIn()) return null;
+      try {
+        return await sharedInNook(shareUuid);
+      } catch {
+        // Not knowing is the same as not having it: the offer becomes "add",
+        // and adding says so plainly if the paper is already there.
+        return null;
+      }
+    },
+    addToNook: () => addSharedToNook(shareUuid),
+    // Their own copy of this PDF, once they have one. The link's own URL
+    // would keep showing them the sharer's reading; what they asked for
+    // was the paper as theirs, which is the ordinary nook viewer.
+    nookHref: (nook) => (nook?.edition_sha256
+      ? appPath(`/viewer/?pdf=${nook.edition_sha256}`)
+      : null),
     async load() {
       const shared = await reading();
       const edition = {
@@ -177,6 +213,12 @@ function openedFileSource(pdfHash, name) {
     backHref: appPath('/'),
     requiresSignIn: false,
     openedFile: true,
+    // The same pair a shared paper carries, and for the same reason. Nothing
+    // on these pages is this reader's to change — vacuously so, an opened
+    // file having no marks on it at all — and any mark they make needs a
+    // nook to go into. One reading of a PDF that is not yet yours, whether
+    // it came from a link or from the file system.
+    readOnly: true,
     annotationsRequireNook: true,
     initialPaper,
     openingTimings: {
