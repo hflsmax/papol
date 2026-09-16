@@ -27,7 +27,7 @@ acting on.
 | **Visitor** | A user who is not signed in. | Sees the demo, a sharable, and the sign-in pages — nothing else. |
 | **Nook** | One user's public reading corner: their copies, shelves, boards, tags. | Product word. The code calls the same payload a **Space** (`getUserSpace`, `Space.jsx`). See §12.1. |
 | **Shelf** | One of a user's five homes for papers, each **public** or **private**. | *Visibility lives here and nowhere else.* `Copy.is_public` asks the shelf each time rather than keeping a second copy of the fact. |
-| **Library** | Everything in Papol that is not one user's own: every paper anyone shows, and every user who shows one. The place a paper is found rather than owned. | In the macOS sidebar, `'library'` is the source that lists it; `USER_STORIES.md` §3.3 still calls the same thing the "Papers tab". See §12.3. There is no separate word for the list of users — browsing papers and browsing the people who read them are two views of one library, not two places. |
+| **Library** | **Every** paper there is, and every user who displays one. The place a paper is found rather than owned. | No display gates it: a paper nobody shows is still listed, still has a page, and can still be taken into a nook (§2b). What display governs is the row of users shown against a paper. There is no separate word for the list of users — papers and the people who read them are two views of one Library, not two places. |
 | **Demo** | A fictional Papol that lives entirely in the browser; the URL is the sole authority for whether it is on. | `shared/demo.js`, `shared/demoWorld.js`. No request reaches the backend in demo. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
@@ -35,15 +35,15 @@ acting on.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. |
+| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is; `USER_STORIES.md` §2b is the rule. |
 | **Edition** | One PDF file of a paper. | A re-upload *adds* an edition; it never replaces the file someone is reading. A byte-identical upload reuses the existing edition (`sha256`). |
-| **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags, and the edition they read. | The product prose also says "entry" and "my copy". Prefer **copy**; see §12.2. |
+| **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags, and the edition they read. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
 | **Adopt** | To move my copy to a newer edition. | Only the user's own click ever moves it, and Papol never realigns annotations afterwards. `ignored_edition_uuid` records the newest edition already waved away. |
-| **Summary** | My private prose about a paper. Owner-only, whatever the shelf says. | |
+| **Summary** | My private prose about a paper. Mine alone, whatever the shelf says. | Belongs to the copy, so only its own user reads or writes it. |
 | **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | Labelled "My thought". Distinct from Summary in both length and audience — the labels are the only thing keeping the pair apart. |
 | **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored as `rating_expertise`, `rating_reading`, `rating_liking`. The third column's name predates its label. See §12.6. |
 | **Tag** | A user's own label, applied to their copies. | Private to the user; `copy_tags` joins them. |
-| **Unattended paper** | A paper no user currently shows. | Not private — merely unattended. Coined in `USER_STORIES.md`'s "a paper is not owned" section and worth keeping: it names the state today's `page_is_public` gate handles badly. |
+| **Unattended paper** | A paper no user currently displays. | Not private — merely unattended. It is in the Library like any other and opens for any signed-in user (US-2.12). The old `page_is_public` gate, which hid it, is gone. |
 
 ## 3. Annotations — what a user leaves on a PDF
 
@@ -177,13 +177,15 @@ For new prose and new identifiers.
 | reading | "my notes and annotations" | The reading is the unit a rich link carries. |
 | revoke | close | A revoked link does not reopen. |
 | library | directory | Papers and the people who read them are two views of one library. |
+| the copy's user | the paper's owner | A copy is owned; a paper is not. |
 
 ---
 
 ## 12. Drift and collisions
 
-Each of these is one word doing two jobs, or two words doing one. Every entry
-carries a recommendation; **nothing has been renamed by this document.**
+Each of these is one word doing two jobs, or two words doing one. Entries
+marked **settled** have been acted on and are kept as the record of what was
+decided; the rest carry a recommendation and nothing more.
 
 ### 12.1 Nook / Space
 
@@ -205,18 +207,18 @@ paper" for the same row. The code says `Copy` throughout.
 
 *Recommend* **copy** everywhere, and retire "entry".
 
-### 12.3 On display / public
+### 12.3 On display / public — settled
 
-The largest drift in the project. `USER_STORIES.md` defines **on display** as a
-per-paper switch ("I toggle with the switch in my nook's side column") and
-builds §3, §4 and §5 on "a **displayed** entry". The product no longer works
-that way: visibility belongs to the **shelf**, the toggle in `NookManager.jsx`
-reads **Public / Private**, and `Copy.is_public` is a property that asks the
-shelf rather than a column anyone can set.
+Was the largest drift in the project: `USER_STORIES.md` defined **on display**
+as a per-paper switch and built §§3–5 on "a **displayed** entry", while the
+product had already moved visibility onto the **shelf**.
 
-*Recommend* rewriting US-2.5 and every "displayed entry" in §§3–5 as "a copy on
-a public shelf", and replacing the vocabulary entry with **Shelf visibility**.
-Until that is done, the stories describe a control that is not there.
+Settled twice over. Visibility belongs to the shelf, and the toggle in
+`NookManager.jsx` reads **Public / Private**; and display was narrowed to what
+it actually governs — *a copy*, never the paper (§2b, US-2.11). A paper is in
+the Library whoever displays it, so "displayed paper" is not a category any
+more. Say **a copy on a public shelf**, and for the paper say nothing: there
+is nothing to say.
 
 ### 12.4 Ink / paint
 
@@ -283,18 +285,17 @@ also called a frame; and `viewport` / `frame` sit together in `PdfPage`.
 still a **still** or a **thumbnail** (`'thumbnail'` is already a kind used
 nearby).
 
-### 12.9 Host
+### 12.9 Host — settled
 
-`USER_STORIES.md` defines **Host** as "the owner of a paper entry".
-`seminarStyles.js` uses *host* for the user running the seminar — the
-**leader**. And in the source, `host` is overwhelmingly a hostname: `url.host`
-throughout the handoff address, `SMTP_HOST`, and the DOM element a layer is
-drawn into.
+`USER_STORIES.md` used to define **Host** as "the owner of a paper entry",
+while `seminarStyles.js` used *host* for the user running a seminar and the
+source used `host` overwhelmingly for a hostname — `url.host`, `SMTP_HOST`,
+the DOM element a layer is drawn into.
 
-Three meanings, one of which the handoff work touches on nearly every line.
-
-*Recommend* retiring **host** as a person entirely. Say **owner** in code, "the
-user whose nook it is" in prose, and **leader** for a seminar.
+Settled by removing the idea rather than the word: a paper has no owner, so
+there is nobody for "host" to name. The vocabulary entry is gone. In a seminar
+say **leader**; of a copy say **its user**; and `host` now means a hostname
+everywhere it appears.
 
 ### 12.10 Source
 
@@ -331,8 +332,9 @@ already does but had no noun for:
   conventions, told apart.
 - **Adopt** (§2) — the user's own move to a newer edition.
 - **Demote** (§6) — a rich link becoming lean, permanently.
-- **Unattended paper** (§2) — a paper no user shows, which is not the same as
-  a private one.
+- **Unattended paper** (§2) — a paper no user displays, which is not the same
+  as a private one. Now a real state rather than a coinage: such a paper is in
+  the Library like any other (US-2.12).
 - **Surface** (§9) — one of the three browser applications.
 - **Handoff address** (§8) — the web address re-addressed to the app.
 - **Stroke group** / **board group** (§§3, 5) — the two groups, told apart.

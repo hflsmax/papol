@@ -4,11 +4,11 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import main
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
 from models import Annotation, Copy, Paper, PaperEdition, Sharable, Shelf, User
@@ -67,17 +67,20 @@ class SharableTests(unittest.TestCase):
             with cls.Session() as db:
                 yield db
 
-        def signed_in_user():
+        # Bound to the request's own session, as the real dependency is
+        # (auth.get_current_user takes Depends(get_db)). Reading the user
+        # out of a session that has already closed leaves it detached, and
+        # the first lazy load on it — user.shelves, say — raises rather
+        # than answering.
+        def signed_in_user(db: Session = Depends(get_db)):
             if cls.current_user_uuid is None:
                 raise HTTPException(status_code=401, detail="Not authenticated")
-            with cls.Session() as db:
-                return db.query(User).filter(User.uuid == cls.current_user_uuid).one()
+            return db.query(User).filter(User.uuid == cls.current_user_uuid).one()
 
-        def whoever_is_here():
+        def whoever_is_here(db: Session = Depends(get_db)):
             if cls.current_user_uuid is None:
                 return None
-            with cls.Session() as db:
-                return db.query(User).filter(User.uuid == cls.current_user_uuid).one()
+            return db.query(User).filter(User.uuid == cls.current_user_uuid).one()
 
         main.app.dependency_overrides[get_db] = test_db
         main.app.dependency_overrides[get_current_user] = signed_in_user
@@ -607,14 +610,19 @@ class TakingASharedPaperIntoYourNook(SharableTests):
                 5,
             )
 
-    def test_a_paper_nobody_displays_can_still_be_kept_from_a_link(self):
-        """The ordinary add refuses it; holding the link is the permission."""
+    def test_a_paper_nobody_displays_can_be_kept_either_way(self):
+        """Nobody owns a paper, so no display stands between a signed-in
+        user and a copy of their own. The ordinary add works on a paper
+        nobody shows, and the link is still its own permission — it has to
+        be, because whoever holds one may have no account at all."""
         link = self.share(include_annotations=False)
         self.as_stranger()
         ordinary = self.client.post(f"/api/papers/{self.paper_uuid}/add-to-nook")
-        self.assertEqual(ordinary.status_code, 404)
+        self.assertEqual(ordinary.status_code, 200, ordinary.text)
+        # Already kept, so the link says so rather than making a second copy.
         by_link = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
-        self.assertEqual(by_link.status_code, 200, by_link.text)
+        self.assertEqual(by_link.status_code, 400, by_link.text)
+        self.assertIn("already in your nook", by_link.json()["detail"])
 
     def test_a_lean_link_hands_over_the_paper_just_the_same(self):
         link = self.share(include_annotations=False)

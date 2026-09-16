@@ -1,9 +1,12 @@
 """Facts about a paper that hold for everyone, not for one user.
 
-A paper is one thing; what each user keeps of it is a copy. The questions
-here are about the paper as the Library shows it — above all whether its own
-page opens for someone who is not signed in, which decides what there is to
-hand out when a user shares it.
+A paper is one thing; what each user keeps of it is a copy. Nobody owns the
+paper, so nothing here asks whose it is or whether anyone has consented to
+its being seen: every paper is in the Library, and a paper no user displays
+is unattended rather than private.
+
+What display still answers is narrower and belongs to the copy, not the
+paper: which users are shown standing against it.
 """
 
 from models import Copy, Paper
@@ -14,11 +17,16 @@ def displayed_copies(paper: Paper) -> list[Copy]:
     return [copy for copy in paper.copies if copy.is_public and copy.deleted_at is None]
 
 
-def page_is_public(paper: Paper) -> bool:
-    """Whether this paper's own page opens for a visitor with no account.
+def opens_without_account(paper: Paper) -> bool:
+    """Whether this paper's page opens for someone with no account.
 
-    One user displaying it is enough: the page is the paper's, and it is
-    public as soon as anyone stands behind it. Sharing asks this because a
-    link to a page that answers "not found" is worse than no link at all.
+    Not a question about whose the paper is — nobody's — but about the
+    edge of the Library. A signed-in user may open any paper; a visitor
+    may open one only where someone displays it (US-1.4).
+
+    Sharing asks because a sharable is deliberately unauthenticated and
+    cannot know whether the person holding it has an account. Offering a
+    link that answers "not found" is worse than offering none, so the
+    answer given is the one that holds for a visitor.
     """
     return bool(displayed_copies(paper))

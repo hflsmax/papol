@@ -27,7 +27,7 @@ from datetime import datetime
 from models import Annotation, Copy, PaperEdition, Shelf, Sharable, User
 from schemas import SharedPaper, SharedReading, UserPublic
 from services.annotations import annotation_out, annotations_of
-from services.papers import page_is_public
+from services.papers import opens_without_account
 from sqlalchemy.orm import Session
 from sync.changes import commit_sync
 
@@ -187,9 +187,13 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
             if sharable.user is not None else None
         ),
         paper=SharedPaper(
-            # A link to the paper's own page is worth carrying only when
-            # that page will open for whoever is holding this link.
-            uuid=paper.uuid if page_is_public(paper) else None,
+            # A link to the paper's own page, carried only when that page
+            # will open for whoever holds this one. Nobody owns the paper,
+            # so this asks nothing about whose it is — only whether the
+            # holder needs an account to get in, which this deliberately
+            # unauthenticated route cannot know. The answer given is the
+            # one that holds for a visitor.
+            uuid=paper.uuid if opens_without_account(paper) else None,
             doi=paper.doi,
             title=paper.title,
             authors=paper.authors,
