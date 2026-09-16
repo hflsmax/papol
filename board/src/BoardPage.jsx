@@ -1761,7 +1761,8 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     try {
       await deleteBoard(board.uuid);
       try { localStorage.removeItem(`papol_board_view_${board.uuid}`); } catch { /* best effort */ }
-      onBack();
+      // Nothing to reveal in the nook any more: the board is gone.
+      onBack(null);
     } catch (err) { setError(err.message); setBusy(false); }
   };
 
@@ -1903,7 +1904,20 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       {DESKTOP
         ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
         : !DESKTOP
-          ? <BackLink className="board-back" href={backHref} onBack={onBack}>← <span>Back</span></BackLink>
+          ? <BackLink
+              className="board-back"
+              href={backHref(board)}
+              onBack={() => onBack(board)}
+              aria-label="Back to Papol"
+              title="Back to Papol"
+            >
+              {/* The house the desktop toolbar wears, and the viewer with
+                  it: one way home across all three. */}
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m2.25 7.25 5.75-4.5 5.75 4.5" />
+                <path d="M3.75 6.5v6.75h8.5V6.5M6.5 13.25V9h3v4.25" />
+              </svg>
+            </BackLink>
           : null}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>

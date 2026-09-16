@@ -110,6 +110,14 @@ test('a share link opens without a hash in the URL, and without a sign-in', () =
   assert.equal(source.annotationsRequireNook, true);
 });
 
+test('the way out of a shared paper is Papol itself', () => {
+  // A link is followed from a mail, a chat, someone else's page, and the
+  // sharer's paper page is not this visitor's to open. Papol's front door
+  // is the whole of where they can go, and the way home says so rather
+  // than stepping back into wherever the link was.
+  assert.equal(resolveSource().backHref, '/');
+});
+
 test('a visitor with no account is never asked about a nook they have not', async () => {
   asked.length = 0;
   const source = resolveSource();

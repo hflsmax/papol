@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { updateBoard } from '../../../shared/api/boards.js';
 import { updatePaper, paperHref } from '../../../shared/api/papers.js';
 import { RatingSummary } from './Rating';
@@ -9,7 +9,7 @@ import { appPath } from '../base';
 import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
-export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
+export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged, revealBoard = null, onRevealed }) {
   const [search, setSearch] = useState('');
   const [selectedShelf, setSelectedShelf] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(
@@ -17,10 +17,38 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   );
   const [toggleWarning, setToggleWarning] = useState(null); // { uuid, text }
   const [openShelfPicker, setOpenShelfPicker] = useState(null);
+  // The row this nook was asked to reveal, while it is being shown. Coming
+  // back from a board lands here, and the row it came from should be the
+  // one the eye finds.
+  const [revealed, setRevealed] = useState(null);
+  const revealedRow = useRef(null);
 
   useEffect(() => {
     window.sessionStorage.setItem('papol.paperBrowserOpen', String(browserOpen));
   }, [browserOpen]);
+
+  useEffect(() => {
+    if (!revealBoard) return undefined;
+    // A shelf, a tag or a search left over from before would each hide the
+    // very row that was asked for, so revealing it means showing the whole
+    // nook first.
+    setSelectedShelf(null);
+    setSearch('');
+    onSelectTag?.(null);
+    setRevealed(revealBoard);
+    onRevealed?.();
+    const settle = setTimeout(() => setRevealed(null), 2600);
+    return () => clearTimeout(settle);
+    // Asked once per arrival: the address is cleared as it is honoured.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealBoard]);
+
+  useEffect(() => {
+    const row = revealedRow.current;
+    if (!revealed || !row) return;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    row.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+  }, [revealed]);
 
   const handleShelfMove = async (paper, shelfUuid) => {
     setToggleWarning(null);
@@ -190,7 +218,12 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             if (entry.kind === 'board') {
               const board = entry.value;
               const pickerUuid = `board:${board.uuid}`;
-              return <li key={pickerUuid} className="nook-board-row" onContextMenu={contextMenuHandler(() => [
+              const showing = revealed === board.uuid;
+              return <li
+                key={pickerUuid}
+                ref={showing ? revealedRow : null}
+                className={showing ? 'nook-board-row revealed' : 'nook-board-row'}
+                onContextMenu={contextMenuHandler(() => [
                 { label: 'Open Board', onSelect: () => onSelectBoard(board.uuid) },
                 isOwn && shelves.length > 0 && { separator: true },
                 isOwn && shelves.length > 0 && {
