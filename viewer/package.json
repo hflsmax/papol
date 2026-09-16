@@ -11,16 +11,15 @@
     "test": "node --test src/*.test.js",
     "benchmark:pinch": "node ../scripts/benchmark-pinch-zoom.mjs",
     "benchmark:pinch:smoothness": "node ../scripts/benchmark-pinch-smoothness.mjs",
-    "prebuild": "mkdir -p public && cp -r node_modules/pdfjs-dist/standard_fonts node_modules/pdfjs-dist/wasm public/",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-http": "^2.6.0",
-    "pdfjs-dist": "^6.2.108",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.1",

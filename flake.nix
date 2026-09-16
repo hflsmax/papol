@@ -62,6 +62,9 @@
       python312 = prev.python312.override {
         packageOverrides = pyFinal: pyPrev: {
           fastapi = pyPrev.fastapi.overridePythonAttrs (_: { doCheck = false; });
+          # Pulled in by yt-dlp. Its suite starts local servers and hangs
+          # indefinitely inside the macOS build sandbox.
+          curl-cffi = pyPrev.curl-cffi.overridePythonAttrs (_: { doCheck = false; });
         };
       };
     };
@@ -77,7 +80,7 @@
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       sqlite               # papol.db is read and edited by hand often enough
       ripgrep              # fast repository-wide source search
-      gh                   # GitHub CLI, for pull requests and releases
+      gh                   # pull requests and releases on GitHub
       ruff
       ffmpeg
       # Native libraries used by the optional Kokoro tutorial voice generator.
@@ -108,13 +111,15 @@
       webkitgtk_4_1
     ];
 
-    # `deploy.sh macos` builds and tests the native app with the local Rust
-    # and Xcode toolchains. It needs Node for the three web workspaces and
-    # gh to cut the release, but not the backend, tutorial recording stack,
-    # or the Linux-only Playwright browser bundle above. Backend contract
-    # and native-sync checks remain available as their explicitly named
-    # commands outside this default shell.
-    macosDevPackages = pkgs: [ pkgs.nodejs_22 pkgs.gh ];
+    # The native app uses local Rust and Xcode toolchains. The ordinary
+    # `./deploy.sh dev` command also starts FastAPI, so macOS needs the same
+    # small backend runtime as a deployed server; keep the tutorial recorder
+    # and Linux-only Playwright browser bundle out of this shell.
+    macosDevPackages = pkgs: [
+      (pkgs.python312.withPackages backendPython)
+      pkgs.nodejs_22
+      pkgs.gh              # pull requests and releases on GitHub
+    ];
 
     # Tutorial recorders share one pinned browser driver. Build its npm closure
     # once through Nix and expose it to every recorder through NODE_PATH; the
@@ -154,11 +159,17 @@
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in {
+      # The frontend imports ../shared, which reads ../config/app_limits.json,
+      # so the build gets those folders too and runs from frontend/.
       frontend = pkgs.buildNpmPackage {
         pname = "papol-frontend";
         version = "0.0.1";
-        src = ./frontend;
-        npmDepsHash = "sha256-upWFNCBXEH7tTx55Sd7TuK+USPYnpO4l+tCq3JzawhU=";
+        src = pkgs.lib.fileset.toSource {
+          root = ./.;
+          fileset = pkgs.lib.fileset.unions [ ./frontend ./shared ./config ];
+        };
+        sourceRoot = "source/frontend";
+        npmDepsHash = "sha256-2BNW5WEI0OoPNgmFI+JKfIKjjYURnWvu7Gh9V6/z+L0=";
         installPhase = ''
           runHook preInstall
           mkdir -p $out

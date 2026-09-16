@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
-import { boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
+import { applyMembershipLayout, boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 import { cardsIntersectingRect, mergeSelection, nearestCardWithin, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
 import { appPath } from '../../shared/appUrls.js';
@@ -104,7 +104,6 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   const [showNewBoardHint, setShowNewBoardHint] = useState(false);
   const urlLoadingRef = useRef([]);
   const [bookletLayouts, setBookletLayouts] = useState([]);
-  const [bookletRedraws, setBookletRedraws] = useState({});
   const [dropBooklet, setDropBooklet] = useState(null);
   const [visibleGrip, setVisibleGrip] = useState(null);
   const [foregroundGrip, setForegroundGrip] = useState(null);
@@ -127,6 +126,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   const pendingView = useRef(view);
   const viewSaveTimer = useRef(null);
   const cardPaintFlip = useRef(false);
+  const cardPaintZoom = useRef(view.zoom);
   const cardBoundsRef = useRef(new Map());
   const gripFrame = useRef(null);
   const pendingGripSample = useRef(null);
@@ -143,15 +143,6 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
   }, [board?.name]);
   const showGrip = (itemUuid) => {
     setVisibleGrip(itemUuid);
-  };
-  const redrawBooklets = (groupUuids) => {
-    const ids = [...new Set(groupUuids.filter((uuid) => uuid != null))];
-    if (!ids.length) return;
-    setBookletRedraws((current) => {
-      const next = { ...current };
-      ids.forEach((uuid) => { next[uuid] = (next[uuid] || 0) + 1; });
-      return next;
-    });
   };
   const measureGripProximity = (sample) => {
     if (sample.pointerType === 'touch' || gesture.current) return;
@@ -405,14 +396,20 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     const observer = new ResizeObserver(measure);
     stageRef.current.querySelectorAll('.board-canvas-card').forEach((element) => observer.observe(element));
     return () => { cancelAnimationFrame(frame); observer.disconnect(); if (reflowTimer != null) clearTimeout(reflowTimer); };
-  }, [bookletKey, imageUuids, board?.items, bookletRedraws]);
+  }, [bookletKey, imageUuids, board?.items]);
 
   const paintView = (next) => {
     if (stageRef.current) {
       stageRef.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
       stageRef.current.style.setProperty('--board-ui-scale', 1 / next.zoom);
-      cardPaintFlip.current = !cardPaintFlip.current;
-      stageRef.current.style.setProperty('--board-card-paint-state', cardPaintFlip.current ? 'hidden' : 'visible');
+      // A translation can stay entirely in the compositor. WebKit needs the
+      // card-layer invalidation when its scale changes, but doing it while
+      // merely panning repainted every card on every animation frame.
+      if (next.zoom !== cardPaintZoom.current) {
+        cardPaintFlip.current = !cardPaintFlip.current;
+        stageRef.current.style.setProperty('--board-card-paint-state', cardPaintFlip.current ? 'hidden' : 'visible');
+        cardPaintZoom.current = next.zoom;
+      }
     }
     if (viewportRef.current) {
       viewportRef.current.style.setProperty('--board-grid-size', `${24 * next.zoom}px`);
@@ -1180,16 +1177,19 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
         const history = membershipHistorySnapshots(
           board.items, item.uuid, target?.uuid, destination, originLayout || [], targetLayout || [],
         );
+        setBoard((current) => applyMembershipLayout(
+          current,
+          item.uuid,
+          target?.uuid || null,
+          destination,
+          originLayout || [],
+          targetLayout || [],
+        ));
         await updateBoardItem(item.uuid, { group_uuid: target?.uuid || null, x: destination.x, y: destination.y });
         if (originLayout?.length) await layoutBoardGroup(origin.uuid, originLayout);
         if (targetLayout) await layoutBoardGroup(target.uuid, targetLayout);
         undoStack.current.push({ type: 'membership', ...history });
         redoStack.current = [];
-        await load();
-        redrawBooklets([
-          origin?.kind === 'booklet' ? origin.uuid : null,
-          target?.kind === 'booklet' ? target.uuid : null,
-        ]);
       };
       if (item && g.moved) {
         g.collectionPreview?.element.classList.remove('moving-active');
@@ -1223,7 +1223,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
           setBoard((current) => ({ ...current, items: current.items.map((item) => positions.has(item.uuid) ? { ...item, ...positions.get(item.uuid) } : item) }));
           setTimeout(() => g.collectionPreview?.members?.forEach((member) => member.element.classList.remove('booklet-reorder-peer')), 190);
           setBusy(true);
-          layoutBoardGroup(group.uuid, layout).then(load).catch((err) => { setError(err.message); load(); }).finally(() => setBusy(false));
+          layoutBoardGroup(group.uuid, layout).catch((err) => { setError(err.message); load(); }).finally(() => setBusy(false));
         } else {
           undoStack.current.push({ type: 'move', uuid: g.uuid, from: { x: g.x, y: g.y }, to: point });
           redoStack.current = [];
@@ -1804,8 +1804,8 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
     ));
     const opened = openContextMenu(event, [
       !isSelection && item.source_url && {
-        label: item.kind === 'youtube' ? 'Open Video' : 'Open Page',
-        onSelect: () => window.open(item.source_url, '_blank', 'noopener,noreferrer'),
+        label: item.kind === 'youtube' ? 'Open Video' : 'Open source in viewer',
+        onSelect: () => openSource(item.source_url),
       },
       !isSelection && item.kind !== 'comment' && {
         label: 'Download', onSelect: () => downloadItem(item),
@@ -1899,7 +1899,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       data-tauri-drag-region="deep"
       onPointerDown={() => { setSelectedItems([]); setSelectedBooklet(null); }}
     >
-      {/* In Papol Desktop the toolbar leads with the native Back chevron. */}
+      {/* In Papol macOS the toolbar leads with the native Back chevron. */}
       {DESKTOP
         ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
         : !DESKTOP
@@ -1959,7 +1959,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
       )}
       {marquee && <div ref={marqueeRef} className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, '--board-card-paint-state': 'visible', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {bookletLayouts.map((booklet) => <div key={`${booklet.uuid}:${bookletRedraws[booklet.uuid] || 0}`} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
+        {bookletLayouts.map((booklet) => <div key={booklet.uuid} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
           {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setSelectedItems([]); setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid); }} />}
           <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
             {editingBooklet === booklet.uuid
@@ -1974,7 +1974,7 @@ export default function BoardPage({ boardUuid, onBack, backHref }) {
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
         {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={`${item.uuid}:${bookletRedraws[item.group_uuid] || 0}`} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: (item.position || 0) + 1, width: item.width || 300, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>

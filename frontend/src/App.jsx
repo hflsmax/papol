@@ -19,6 +19,7 @@ import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
 import AdminMessageDialog from './components/AdminMessageDialog';
+import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
 import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
@@ -32,9 +33,13 @@ import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
 import {
-  openDroppedPdf, recordDiagnosticEvent, subscribeShowPaperRequests, subscribeSignInRequests,
+  nativeCompatibilityVerdict, openDroppedPdf, recordDiagnosticEvent,
+  subscribeShowPaperRequests, subscribeSignInRequests,
   REPORTABLE_NATIVE_ERROR_EVENT,
 } from '../../shared/nativeData.js';
+import {
+  checkClientCompatibility, setClientCompatibility,
+} from '../../shared/clientCompatibility.js';
 import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 
@@ -205,6 +210,14 @@ export default function App({ startupUser = null, startupError = null }) {
     void recordDiagnosticEvent({
       component: 'frontend', event: 'mounted', fields: { surface: 'main' },
     });
+    // What the synchronizer already learned comes first, so a window opened
+    // without a network still carries yesterday's answer; then ask, because
+    // the reader may have just installed the version that fixes it.
+    void (async () => {
+      const remembered = await nativeCompatibilityVerdict();
+      if (remembered) setClientCompatibility({ verdict: remembered });
+      await checkClientCompatibility();
+    })();
     const onError = (event) => offerDesktopError(event.error || event.message, 'JavaScript runtime');
     const onRejection = (event) => offerDesktopError(event.reason, 'unhandled promise');
     const onNativeError = (event) => offerDesktopError(
@@ -785,7 +798,7 @@ export default function App({ startupUser = null, startupError = null }) {
     </main>
   );
 
-  // Papol Desktop: a source-list sidebar in place of the website masthead.
+  // Papol macOS: a source-list sidebar in place of the website masthead.
   // Reading happens in a three-pane browser — source, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
@@ -807,6 +820,7 @@ export default function App({ startupUser = null, startupError = null }) {
           opensViewer={mode === 'guest'}
         />
         {demoIntro}
+        <CompatibilityBar />
         {adminMessageDialog}
         {feedbackDialog}
         {managingNook && nook.space && (
@@ -919,8 +933,8 @@ export default function App({ startupUser = null, startupError = null }) {
               href={MACOS_DOWNLOAD_URL}
               target="_blank"
               rel="noreferrer"
-              aria-label="Download Papol for macOS"
-              title="Download Papol for macOS"
+              aria-label="Download Papol macOS"
+              title="Download Papol macOS"
             >
               <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                 <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />

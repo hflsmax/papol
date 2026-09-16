@@ -138,6 +138,10 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const renderRef = useRef(null);
+  const clipPaintedRef = useRef(null);
+  const paintClipRef = useRef(null);
+  const resizeNeedsPaintRef = useRef(false);
+  const resizePaintFrameRef = useRef(null);
   const gestureRef = useRef(null);
   const draggedRef = useRef(false);
   const [floatViewport, setFloatViewport] = useState(null);
@@ -177,6 +181,22 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
       const ratio = window.devicePixelRatio || 1;
       const width = Math.max(1, Math.round(bounds.width * ratio));
       const height = Math.max(1, Math.round(bounds.height * ratio));
+      const wanted = {
+        doc,
+        page: clip.page,
+        source: `${clip.source.x}:${clip.source.y}:${clip.source.w}:${clip.source.h}`,
+        width,
+        height,
+      };
+      const painted = clipPaintedRef.current;
+      if (painted?.doc === wanted.doc
+        && painted.page === wanted.page
+        && painted.source === wanted.source
+        && painted.width === wanted.width
+        && painted.height === wanted.height) return;
+      // Record the requested bitmap before changing canvas dimensions: that
+      // change can itself produce another ResizeObserver notification.
+      clipPaintedRef.current = wanted;
       if (output.width !== width) output.width = width;
       if (output.height !== height) output.height = height;
       const page = await doc.getPage(clip.page);
@@ -203,15 +223,39 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
         if (error?.name !== 'RenderingCancelledException') throw error;
       }
     };
-    paint().catch(() => {});
-    const observer = new ResizeObserver(paint);
+    const requestPaint = () => paint().catch(() => {});
+    paintClipRef.current = requestPaint;
+    requestPaint();
+    const observer = new ResizeObserver(() => {
+      // The existing bitmap scales cleanly while the handle is moving. A
+      // fresh PDF.js render for every pointer sample only cancels the one
+      // before it; paint once at the final size after the gesture instead.
+      if (gestureRef.current?.kind === 'resize') {
+        resizeNeedsPaintRef.current = true;
+        return;
+      }
+      resizeNeedsPaintRef.current = false;
+      requestPaint();
+    });
     observer.observe(output);
     return () => {
       cancelled = true;
+      if (paintClipRef.current === requestPaint) paintClipRef.current = null;
+      if (resizePaintFrameRef.current != null) {
+        cancelAnimationFrame(resizePaintFrameRef.current);
+        resizePaintFrameRef.current = null;
+      }
       renderRef.current?.cancel();
       observer.disconnect();
     };
-  }, [doc, clip.page, clip.source, clip.frame.w, clip.frame.h]);
+  }, [
+    doc,
+    clip.page,
+    clip.source.x,
+    clip.source.y,
+    clip.source.w,
+    clip.source.h,
+  ]);
 
   const begin = (event, kind) => {
     event.preventDefault();
@@ -288,6 +332,14 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
       setLiveFrame(draggedRef.current ? gesture.lastFrame : gesture.frame);
       rootRef.current.style.transform = '';
       rootRef.current.style.willChange = '';
+    }
+    if (gesture?.kind === 'resize') {
+      if (resizePaintFrameRef.current != null) cancelAnimationFrame(resizePaintFrameRef.current);
+      resizePaintFrameRef.current = requestAnimationFrame(() => {
+        resizePaintFrameRef.current = null;
+        resizeNeedsPaintRef.current = false;
+        paintClipRef.current?.();
+      });
     }
     if (gesture && draggedRef.current) {
       onChange({ frame: gesture.lastFrame });
@@ -2291,7 +2343,7 @@ function PdfPage({
       </div>
       {clips.map((clip) => (
         <ClipBox
-          key={clip.uuid}
+          key={clip._renderKey || clip.uuid}
           clip={clip}
           doc={doc}
           readOnly={readOnly}

@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Line glyphs for Papol Desktop's chrome, drawn in currentColor on a 24-unit
+// Line glyphs for Papol macOS's chrome, drawn in currentColor on a 24-unit
 // grid so each takes its colour and size from the control around it.
 const GLYPHS = {
   papers: <><path d="M8 3.5h7l4 4V18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" /><path d="M15 3.5v4h4M4.5 7v12.5a1 1 0 0 0 1 1H15" /></>,

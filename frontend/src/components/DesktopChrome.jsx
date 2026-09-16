@@ -17,7 +17,7 @@ import {
 } from '../syncDiagnostics.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
-// Papol Desktop (see DESIGN.md, "Desktop shell"). Destinations are ordinary
+// Papol macOS (see DESIGN.md, "Desktop shell"). Destinations are ordinary
 // same-origin anchors, so the app routes them like any other link.
 
 const MOD = MAC ? '⌘' : 'Ctrl+';

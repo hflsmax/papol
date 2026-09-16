@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, use
 import { flushSync } from 'react-dom';
 // The legacy build, not the modern one: the modern build calls JavaScript
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
-// fails in Safari and in Papol Desktop's macOS webview. The legacy build
+// fails in Safari and in Papol macOS's macOS webview. The legacy build
 // carries polyfills for exactly that, in the document and in the worker.
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
@@ -20,7 +20,7 @@ import {
 import { appPath, backendPath, stripAppBase } from './base';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
+  dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
   recordDiagnosticEvent, requestSignIn,
 } from '../../shared/nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/diagnosticLog.js';
@@ -58,6 +58,7 @@ import {
 } from '../../shared/featureStates';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
+import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
@@ -103,6 +104,32 @@ const MIN_SCALE = appLimits.viewer.zoom_min;
 // own coordinates, and has no ceiling to reach.
 const MAX_SCALE = appLimits.viewer.zoom_max;
 const PINCH_BENCHMARK = new URLSearchParams(window.location.search).get('pinch_benchmark');
+
+const hasAnchor = (note) => note.anchor != null;
+
+// Preserve each unchanged page's array as annotation state changes. PdfPage
+// uses shallow prop comparison, so rebuilding every bucket made a move on one
+// page reconcile the overlays on every other annotated page too.
+function usePageGroups(items, include = null) {
+  const previousRef = useRef(new Map());
+  return useMemo(() => {
+    const next = new Map();
+    for (const item of items) {
+      if (include && !include(item)) continue;
+      if (!next.has(item.page)) next.set(item.page, []);
+      next.get(item.page).push(item);
+    }
+    for (const [page, members] of next) {
+      const previous = previousRef.current.get(page);
+      if (previous?.length === members.length
+        && members.every((member, index) => Object.is(member, previous[index]))) {
+        next.set(page, previous);
+      }
+    }
+    previousRef.current = next;
+    return next;
+  }, [items, include]);
+}
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
 // nobody reads at. The reader can still zoom past this — it only bounds
@@ -256,9 +283,6 @@ function useEvent(handler) {
   ref.current = handler;
   return useMemo(() => (...args) => ref.current(...args), []);
 }
-
-// Shared with the library window, which asks the same question.
-const PDF_VIEWER_PROMPT_KEY = 'papol.pdfViewerPrompt';
 
 // Native commands reject with a bare string rather than an Error.
 const messageOf = (failure) => String(failure?.message ?? failure);
@@ -618,16 +642,15 @@ export default function App() {
   // the one they can still act on.
   const [nookCopy, setNookCopy] = useState(null);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
-  // Asked once, over the first file opened from disk while another app is
-  // the system's PDF viewer.
+  // Asked over a file opened from disk while another app is the system's PDF
+  // viewer, until answered here or in the library window this launch.
   useEffect(() => {
     if (!source?.openedFile || !firstPageReady) return undefined;
-    let dismissed = false;
-    try { dismissed = localStorage.getItem(PDF_VIEWER_PROMPT_KEY) === 'dismissed'; } catch { /* ask */ }
-    if (dismissed) return undefined;
     let cancelled = false;
     pdfViewerStatus()
-      .then((status) => { if (!cancelled) setPdfViewerTip(status.supported && !status.is_default); })
+      .then((status) => {
+        if (!cancelled) setPdfViewerTip(status.supported && !status.is_default && !status.prompt_dismissed);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [firstPageReady, source]);
@@ -1689,50 +1712,31 @@ export default function App() {
   // The rail is a map of the document: anchors run in page order, and
   // within a page in the order they were made. A note with no place in the
   // PDF has no page to sort by, so it sits at the end.
+  const numberedCache = useRef(new WeakMap());
+  const paperEditionUuid = paper?.edition_uuid;
   const numbered = useMemo(
-    () =>
-      notes
-        .map((n) => ({
-          ...n,
-          drifted:
-            n.anchor != null && paper != null && n.edition_uuid !== paper.edition_uuid,
-        }))
+    () => notes
+        .map((n) => {
+          const drifted = n.anchor != null && paperEditionUuid != null
+            && n.edition_uuid !== paperEditionUuid;
+          const cached = numberedCache.current.get(n);
+          if (cached?.drifted === drifted) return cached;
+          const decorated = { ...n, drifted };
+          numberedCache.current.set(n, decorated);
+          return decorated;
+        })
         .sort(
           (a, b) =>
             (a.page ?? Infinity) - (b.page ?? Infinity) ||
             String(a.created_at).localeCompare(String(b.created_at)) ||
             String(a.uuid).localeCompare(String(b.uuid))
         ),
-    [notes, paper]
+    [notes, paperEditionUuid]
   );
 
-  const notesByPage = useMemo(() => {
-    const map = new Map();
-    for (const n of numbered) {
-      if (!n.anchor) continue; // a note without a place has no pin
-      if (!map.has(n.page)) map.set(n.page, []);
-      map.get(n.page).push(n);
-    }
-    return map;
-  }, [numbered]);
-
-  const inkByPage = useMemo(() => {
-    const map = new Map();
-    for (const stroke of ink) {
-      if (!map.has(stroke.page)) map.set(stroke.page, []);
-      map.get(stroke.page).push(stroke);
-    }
-    return map;
-  }, [ink]);
-
-  const clipsByPage = useMemo(() => {
-    const map = new Map();
-    for (const clip of clips) {
-      if (!map.has(clip.page)) map.set(clip.page, []);
-      map.get(clip.page).push(clip);
-    }
-    return map;
-  }, [clips]);
+  const notesByPage = usePageGroups(numbered, hasAnchor);
+  const inkByPage = usePageGroups(ink);
+  const clipsByPage = usePageGroups(clips);
 
   const selectedInkPages = useMemo(() => {
     if (!selectedInk) return new Set();
@@ -1756,7 +1760,9 @@ export default function App() {
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
-      setInk((all) => all.map((s) => (s.uuid === provisional ? saved : s)));
+      setInk((all) => all.map((s) => (
+        s.uuid === provisional ? { ...saved, ...s, uuid: saved.uuid } : s
+      )));
       if (record && saved) {
         const entry = { uuid: saved.uuid, stroke };
         remember({
@@ -2208,10 +2214,6 @@ export default function App() {
         const real = await settledInkUuid(move.uuid);
         return real == null ? null : marks.ink.move(real, move.after);
       }));
-      const savedByUuid = new Map(
-        saved.map((stroke, index) => stroke && [moves[index].uuid, stroke]).filter(Boolean)
-      );
-      setInk((all) => all.map((stroke) => savedByUuid.get(stroke.uuid) || stroke));
       if (record && saved.some(Boolean)) {
         const first = moves[0];
         remember({
@@ -2773,7 +2775,9 @@ export default function App() {
     const saving = marks.notes
       .create({ ...spot, content: '' })
       .then((saved) => {
-        setNotes((prev) => prev.map((n) => (n.uuid === tempUuid ? saved : n)));
+        setNotes((prev) => prev.map((n) => (
+          n.uuid === tempUuid ? { ...saved, ...n, uuid: saved.uuid } : n
+        )));
         setActiveNoteUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
         const entry = { uuid: saved.uuid, snapshot: saved };
         remember({
@@ -2831,7 +2835,7 @@ export default function App() {
   const createClip = async (clip) => {
     if (await promptToAddForAnnotations()) return;
     const provisional = `clip-${Date.now()}`;
-    setClips((all) => [...all, { ...clip, uuid: provisional }]);
+    setClips((all) => [...all, { ...clip, uuid: provisional, _renderKey: provisional }]);
     // A clipper is a one-shot form of the reading cursor. Put it down as
     // soon as the rectangle lands; persistence must not keep it in hand.
     setTool('arrow');
@@ -2841,7 +2845,16 @@ export default function App() {
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
-        candidate.uuid === provisional ? { ...saved, frame: candidate.frame } : candidate
+        candidate.uuid === provisional
+          ? {
+              ...saved,
+              page: candidate.page,
+              source: candidate.source,
+              frame: candidate.frame,
+              floating: candidate.floating,
+              _renderKey: candidate._renderKey,
+            }
+          : candidate
       )));
       setSelectedClipUuid((selected) => (selected === provisional ? saved.uuid : selected));
     } catch (e) {
@@ -2867,10 +2880,11 @@ export default function App() {
       const current = clips.find((clip) => clip.uuid === uuid || clip.uuid === realUuid);
       const frame = change.frame || current?.frame;
       const floating = change.floating ?? current?.floating ?? false;
-      const saved = await marks.clips.move(realUuid, frame, floating);
-      setClips((all) => all.map((clip) => (
-        clip.uuid === uuid || clip.uuid === realUuid ? saved : clip
-      )));
+      // updateClip already put the finished gesture in local state. Replacing
+      // it again with the persistence response needlessly repaints its clip
+      // canvas (and can overwrite a newer gesture if saves resolve out of
+      // order). A successful move has nothing else to reconcile.
+      await marks.clips.move(realUuid, frame, floating);
     } catch (e) {
       setError(e.message);
     }
@@ -2925,7 +2939,6 @@ export default function App() {
       const real = await settledUuid(uuid);
       if (real == null) return;
       const saved = await marks.notes.move(real, spot);
-      if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && was && saved) {
         remember({
           undo: () => moveNote(saved.uuid, { page: was.page, anchor: was.anchor }, false),
@@ -2948,7 +2961,6 @@ export default function App() {
       const real = await settledUuid(note.uuid);
       if (real == null) return;
       const saved = await marks.notes.rename(real, name);
-      if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
       if (record && saved) {
         remember({
           undo: () => renameNote(saved.uuid, note.name || '', false),
@@ -3353,7 +3365,7 @@ export default function App() {
   }, [nookStep, addToNookOnceSignedIn]);
 
   const dismissPdfViewerTip = () => {
-    try { localStorage.setItem(PDF_VIEWER_PROMPT_KEY, 'dismissed'); } catch { /* hide for now */ }
+    dismissPdfViewerPrompt().catch(() => {});
     setPdfViewerTip(false);
   };
   const makeDefaultPdfViewer = async () => {
@@ -3475,7 +3487,7 @@ export default function App() {
   // viewer again. A direct visit has no Papol behind it, so it goes to the
   // paper's page instead.
   const returnToPapol = () => {
-    // Papol Desktop opens papers as document windows. Closing that window
+    // Papol macOS opens papers as document windows. Closing that window
     // returns to the library that has remained mounted behind it.
     if (closeDesktopDocumentWindow()) return;
     markReturnToPapol();
@@ -3544,9 +3556,10 @@ export default function App() {
 
   return (
     <>
+      <CompatibilityBar />
       <header
         className="viewer-bar"
-        // Empty stretches of the bar move the window in Papol Desktop;
+        // Empty stretches of the bar move the window in Papol macOS;
         // everywhere else the attribute is inert.
         data-tauri-drag-region="deep"
         // A tool taken with the pointer should not be left holding keyboard

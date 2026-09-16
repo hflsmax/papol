@@ -105,7 +105,7 @@ fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
         };
         let read_ms = elapsed_ms(phase);
         let phase = Instant::now();
-        let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        let sha256 = hex::encode(Sha256::digest(&bytes));
         let hash_ms = elapsed_ms(phase);
         let Some(mut url) = opened_file_url(&origin, &sha256, &path) else {
             continue;
@@ -172,7 +172,7 @@ fn opened_file_open(
         .clone()
         .ok_or("Papol is still starting. Drop the PDF again.")?;
     let phase = Instant::now();
-    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let sha256 = hex::encode(Sha256::digest(&bytes));
     let hash_ms = elapsed_ms(phase);
     let path = PathBuf::from(name);
     let mut url =
@@ -297,20 +297,33 @@ mod pdf_handler {
     }
 }
 
+/// Set when the reader answers the default-viewer prompt. Held in memory so
+/// every window stops asking for the rest of this launch, and the next launch
+/// asks again.
+static PDF_VIEWER_PROMPT_DISMISSED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 #[tauri::command]
 fn pdf_viewer_status(app: tauri::AppHandle) -> serde_json::Value {
+    let prompt_dismissed = PDF_VIEWER_PROMPT_DISMISSED.load(std::sync::atomic::Ordering::Relaxed);
     #[cfg(target_os = "macos")]
     {
         serde_json::json!({
             "supported": true,
             "is_default": pdf_handler::is_default(&app.config().identifier),
+            "prompt_dismissed": prompt_dismissed,
         })
     }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = app;
-        serde_json::json!({"supported": false, "is_default": false})
+        serde_json::json!({"supported": false, "is_default": false, "prompt_dismissed": prompt_dismissed})
     }
+}
+
+#[tauri::command]
+fn pdf_viewer_prompt_dismiss() {
+    PDF_VIEWER_PROMPT_DISMISSED.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[tauri::command]
@@ -1050,7 +1063,8 @@ pub fn run() {
             local_annotation_delete,
             local_annotations_clear,
             pdf_viewer_status,
-            pdf_viewer_make_default
+            pdf_viewer_make_default,
+            pdf_viewer_prompt_dismiss
         ])
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;

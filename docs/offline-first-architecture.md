@@ -118,7 +118,7 @@ There is no reference counting, download management, or distinction between irre
 Bundled React UI: library / viewer / board windows
               │ Tauri commands + status channel
               ▼
-      Papol desktop data service (Rust, one per process)
+      Papol macOS data service (Rust, one per process)
         ├─ repository/domain operations
         ├─ SQLite local replica + durable outbox
         ├─ content-addressed file store

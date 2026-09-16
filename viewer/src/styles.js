@@ -145,7 +145,7 @@ button.link.danger { color: var(--red); }
   border-bottom: 1px solid var(--line);
 }
 
-/* In Papol Desktop the bar is the window's title bar: the same height as
+/* In Papol macOS the bar is the window's title bar: the same height as
    the app's toolbar, draggable, and clear of the macOS traffic lights. */
 [data-shell='desktop'] .viewer-bar {
   min-height: 52px;

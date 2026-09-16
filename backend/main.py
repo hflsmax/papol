@@ -87,6 +87,7 @@ import dbmetrics
 from sync.api import router as sync_router
 from sync.changes import commit_sync
 from routes.admin import router as admin_router
+from routes.client_requirements import router as client_requirements_router
 from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
@@ -147,6 +148,7 @@ app.include_router(notifications_router)
 app.include_router(feedback_router)
 app.include_router(admin_router)
 app.include_router(sharables_router)
+app.include_router(client_requirements_router)
 
 _IDEMPOTENCY_CLIENT_HEADER = "x-papol-client-uuid"
 _IDEMPOTENCY_MUTATION_HEADER = "x-papol-mutation-uuid"

@@ -1,6 +1,6 @@
 import { IS_DESKTOP } from './appEnvironment.js';
 
-// Connectivity is process-external state, not a data store. Papol Desktop's
+// Connectivity is process-external state, not a data store. Papol macOS's
 // user data lives in SQLite; HTTP requests are always real network requests.
 const LOCAL_SYNC_PREFERENCE_KEY = 'papol.syncPreference';
 

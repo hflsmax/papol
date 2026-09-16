@@ -170,7 +170,7 @@ export default function PaperDetail({
   }, [paperUuid, editMode, editingSummary, editingThought]);
 
   // Every load after the first follows a change made here, so whatever lists
-  // this paper beside the page (Papol Desktop's nook) is told to catch up.
+  // this paper beside the page (Papol macOS's nook) is told to catch up.
   const loadedOnce = useRef(false);
   const loadPaper = async () => {
     setError(null);
@@ -524,7 +524,7 @@ export default function PaperDetail({
     if (onRead) onRead(href);
     else window.location.assign(href);
   };
-  // Papol Desktop keeps the reader's PDF in its local store. Save that copy,
+  // Papol macOS keeps the reader's PDF in its local store. Save that copy,
   // which needs no network and exists before the paper syncs, and read it
   // only when asked, since a PDF can be large.
   const localPdf = nativeDataActive() && hasEntry && Boolean(paper.edition_sha256);
@@ -888,7 +888,7 @@ export default function PaperDetail({
               </span>
             )}
             {/* Leaves with a copy of the PDF, saved under the paper's title
-                (Papol Desktop puts it in Downloads). A copy hosted elsewhere
+                (Papol macOS puts it in Downloads). A copy hosted elsewhere
                 cannot be named from here, so it opens in a new tab instead
                 of taking the reader away from Papol. */}
             {paper.file_path && (

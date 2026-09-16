@@ -1,7 +1,7 @@
 import React from 'react';
 import { MAC } from '../desktopShell.js';
 
-// Papol Desktop's Back: a lone chevron at the leading edge of a toolbar,
+// Papol macOS's Back: a lone chevron at the leading edge of a toolbar,
 // before its title, as the App Store and System Settings have it. Only the
 // viewer and boards need one — they replace Papol's sidebar, and Back returns
 // to it — and nothing ever lies ahead of them, so there is no Forward beside

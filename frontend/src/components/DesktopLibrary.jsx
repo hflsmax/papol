@@ -18,32 +18,31 @@ import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
-  makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
+  dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
 } from '../../../shared/nativeData.js';
 import { inDemo } from '../base';
 
-// Shared with the viewer, which asks the same question over an opened file:
-// a reader who has answered it once is not asked again in either place.
-const PDF_VIEWER_PROMPT_KEY = 'papol.pdfViewerPrompt';
-
+// Asked on every launch while another app is the PDF viewer. The viewer asks
+// the same question over an opened file; answering in either place quiets
+// both until the app is relaunched.
 function DefaultViewerPrompt() {
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    let dismissed = false;
-    try { dismissed = localStorage.getItem(PDF_VIEWER_PROMPT_KEY) === 'dismissed'; } catch { /* ask */ }
-    if (dismissed || inDemo()) return undefined;
+    if (inDemo()) return undefined;
     let active = true;
     pdfViewerStatus()
-      .then((status) => { if (active) setVisible(status.supported && !status.is_default); })
+      .then((status) => {
+        if (active) setVisible(status.supported && !status.is_default && !status.prompt_dismissed);
+      })
       .catch(() => {});
     return () => { active = false; };
   }, []);
 
   if (!visible) return null;
   const dismiss = () => {
-    try { localStorage.setItem(PDF_VIEWER_PROMPT_KEY, 'dismissed'); } catch { /* hide for now */ }
+    dismissPdfViewerPrompt().catch(() => {});
     setVisible(false);
   };
   const makeDefault = async () => {
@@ -360,7 +359,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
   );
 }
 
-// Papol Desktop's three-pane browser (DESIGN.md, "Desktop shell"): the
+// Papol macOS's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
 // paper opens beside the list instead of replacing it. What a source means
 // and lists is decided in desktopSources.js.

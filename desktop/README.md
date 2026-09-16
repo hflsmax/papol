@@ -1,17 +1,17 @@
-# Papol Desktop
+# Papol macOS
 
-Papol Desktop is a standalone Tauri application. Its three web surfaces and
+Papol macOS is a standalone Tauri application. Its three web surfaces and
 their runtime dependencies (the library, PDF viewer, boards, PDF.js fonts and
 WASM, tutorials, and demo assets) are compiled into the application and DMG.
 Only data and uploaded files come from the hosted FastAPI backend at
-`https://mc-pony.com/papol`, so the desktop and browser clients share accounts
+`https://mc-pony.com/papol`, so the macOS app and browser clients share accounts
 and data without loading the hosted frontend.
 
 ## Offline use
 
 ### Startup identity
 
-Papol Desktop treats the local account on this computer as the reader's
+Papol macOS treats the local account on this computer as the reader's
 identity. It loads that profile from SQLite before mounting the application and
 renders the local nook without waiting for the backend. Server authentication
 and synchronization happen afterward in the background. An expired credential
@@ -88,7 +88,7 @@ From the repository root, start the developer app against the local backend:
 This checks the local Node, Rust, and Xcode toolchains, installs changed npm
 dependencies, and starts the frontend, viewer, and board Vite servers before
 Tauri. UI edits live-reload and Rust edits rebuild and relaunch the app. The
-default backend is `http://127.0.0.1:8000`; choose another explicitly with
+default backend is `http://127.0.0.1:8001` on macOS; choose another explicitly with
 `--backend URL`. If it is unavailable, the app still opens for cached/offline
 work.
 
@@ -207,7 +207,7 @@ and built in `src-tauri/src/lib.rs`, so handlers can be attached to it:
 
 The final macOS build must run on macOS. The repository release workflow builds
 a universal Apple Silicon/Intel binary, signs and notarizes it, and attaches its
-DMG to a GitHub release when a tag matching `desktop-v*` is pushed.
+DMG to a GitHub release when a tag matching `macos-v*` is pushed.
 
 Configure these GitHub Actions secrets first:
 
@@ -219,7 +219,7 @@ Configure these GitHub Actions secrets first:
 - `APPLE_TEAM_ID`: Apple Developer team identifier
 
 Then update the version in both `package.json` and `src-tauri/tauri.conf.json`,
-commit it, and push a matching tag, for example `desktop-v0.1.0`.
+commit it, and push a matching tag, for example `macos-v0.1.0`.
 
 A local `npm run build` uses an ad-hoc macOS signature so its DMG is internally
 consistent. Tagged workflow builds replace that with the configured Developer

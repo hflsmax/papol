@@ -1,6 +1,6 @@
 import { APP_ENV, IS_DESKTOP } from './appEnvironment.js';
 
-// Papol Desktop loads bundled pages inside a Tauri window. Tauri injects the
+// Papol macOS loads bundled pages inside a Tauri window. Tauri injects the
 // shared runtime environment before these modules execute. For working on
 // the desktop layout in an ordinary browser, `?shell=desktop` opts the tab in
 // (for the rest of the tab's session, across the viewer and boards) and

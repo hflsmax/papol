@@ -6,7 +6,7 @@ import { useModalDialog } from '../../../shared/useModalDialog.js';
 
 // The focused editor for a reader's shelves and private tags ("Shelf" in
 // DESIGN.md). My nook opens it from its gear on the website, and Papol
-// Desktop from its sidebar.
+// macOS from its sidebar.
 export default function NookManager({ space, setSpace, onChanged, onClose, onTagDeleted }) {
   const [error, setError] = useState(null);
   const [newTagName, setNewTagName] = useState('');

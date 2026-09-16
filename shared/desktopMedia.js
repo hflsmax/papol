@@ -40,7 +40,7 @@ export function demoPaperMedia(sha256) {
 }
 
 export function hydrateDesktopMedia(asset) {
-  if (!IS_DESKTOP) throw new Error('Desktop media hydration is only available in Papol Desktop');
+  if (!IS_DESKTOP) throw new Error('Desktop media hydration is only available in Papol macOS');
   if (!asset?.sha256 || !asset?.path) throw new TypeError('A valid media asset is required');
 
   let hydration = inFlightBySha.get(asset.sha256);

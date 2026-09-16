@@ -1,4 +1,4 @@
-// Papol Desktop's styles (frontend/DESIGN.md, "Desktop shell"), appended to the
+// Papol macOS's styles (frontend/DESIGN.md, "Desktop shell"), appended to the
 // shared application sheet. Rules scoped to [data-shell='desktop'] apply only
 // in the desktop application shell.
 export const desktopStyles = `

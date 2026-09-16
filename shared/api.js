@@ -9,3 +9,4 @@ export * from './api/sharables.js';
 export * from './api/notifications.js';
 export * from './api/feedback.js';
 export * from './api/admin.js';
+export * from './api/clientRequirements.js';

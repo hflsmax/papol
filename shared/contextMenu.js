@@ -1,7 +1,7 @@
 import { DESKTOP } from './desktopShell';
 import { menuEntries, menuPosition, nextEnabled, submenuPosition } from './menuModel';
 
-// Right-click menus for Papol Desktop.
+// Right-click menus for Papol macOS.
 //
 // The menu is drawn by the page, not asked of macOS. A native menu would mean
 // granting the hosted page another Tauri permission, and the window
@@ -11,7 +11,7 @@ import { menuEntries, menuPosition, nextEnabled, submenuPosition } from './menuM
 // and Escape closes, and a click anywhere else, a scroll or the window losing
 // focus dismisses it.
 //
-// Only inside Papol Desktop. On the web a right-click keeps the browser's own
+// Only inside Papol macOS. On the web a right-click keeps the browser's own
 // menu, which is what people there expect; ⌥ brings that menu back in the app
 // too (it has Inspect Element).
 //
@@ -76,7 +76,7 @@ function ensureStyle() {
 }
 
 // Opens a menu for a contextmenu event. Returns whether it did: outside
-// Papol Desktop, with ⌥ held, or with nothing to offer, the event is left
+// Papol macOS, with ⌥ held, or with nothing to offer, the event is left
 // alone and the browser shows its own menu.
 export function openContextMenu(event, items) {
   if (!DESKTOP || event.altKey) return false;
@@ -281,7 +281,7 @@ export function contextMenuHandler(build) {
   };
 }
 
-// Anywhere without a menu of its own, a right-click in Papol Desktop shows
+// Anywhere without a menu of its own, a right-click in Papol macOS shows
 // nothing, as in a native app — the web view's menu offers Reload and Inspect
 // Element. Text fields, links and selected text keep the system's menu (Cut,
 // Copy, Paste, Look Up), and ⌥ brings the web view's back anywhere.

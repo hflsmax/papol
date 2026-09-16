@@ -12,9 +12,6 @@ viewer/dist/
 viewer/node_modules/
 board/dist/
 board/node_modules/
-# Copied from pdfjs-dist at build time (see viewer/package.json prebuild)
-viewer/public/standard_fonts/
-viewer/public/wasm/
 __pycache__/
 *.pyc
 

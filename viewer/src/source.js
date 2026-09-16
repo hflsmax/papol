@@ -16,7 +16,7 @@ import {
  * so nothing below has to care which it is.
  *
  *   ?pdf=<sha256>          an exact PDF in the reader's nook: notes live in Papol
- *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol Desktop
+ *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  *   ?share=<uuid>          someone's reading of a PDF, handed over by link
  * Demo PDFs use the same hash identity; only their storage is local.
  *

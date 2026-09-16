@@ -44,6 +44,6 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
   process.once(signal, () => stop(signal));
 }
 
-console.log(`Papol desktop development UI uses backend ${backend}`);
+console.log(`Papol macOS development UI uses backend ${backend}`);
 
 await Promise.all(children.map((child) => new Promise((resolveChild) => child.once('exit', resolveChild))));

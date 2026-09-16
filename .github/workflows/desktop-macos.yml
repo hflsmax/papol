@@ -1,21 +1,30 @@
-name: Papol desktop for macOS
+name: Papol macOS
 
 on:
   push:
     tags:
-      - "desktop-v*"
+      - "macos-v*"
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: macos-14
+  test:
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - name: Check tag matches app version
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version desktop/src-tauri/tauri.conf.json)
+          [ "$GITHUB_REF_NAME" = "macos-v$version" ] || {
+            echo "tag $GITHUB_REF_NAME does not match app version $version" >&2
+            exit 1
+          }
+
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -26,8 +35,6 @@ jobs:
             board/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Install desktop dependencies
         working-directory: desktop
@@ -45,10 +52,46 @@ jobs:
         working-directory: desktop
         run: npm run check:native
 
-      - name: Build, sign, notarize, and publish
+  build:
+    needs: test
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            label: AppleSilicon
+          - target: x86_64-apple-darwin
+            label: Intel
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            desktop/package-lock.json
+            frontend/package-lock.json
+            viewer/package-lock.json
+            board/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Install bundled UI dependencies
+        working-directory: desktop
+        run: npm run install:web
+
+      - name: Build, sign, and notarize app
+        id: tauri
         uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -57,9 +100,55 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
-          args: --target universal-apple-darwin
-          tagName: desktop-v__VERSION__
-          releaseName: Papol Desktop v__VERSION__
-          releaseBody: Download the signed and notarized Papol DMG below.
-          releaseDraft: false
-          prerelease: false
+          args: --target ${{ matrix.target }}
+
+      # Tauri notarizes and staples the app, but only signs the DMG around it.
+      # Notarize the disk image as well so the download itself carries a ticket.
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+          VERSION: ${{ steps.tauri.outputs.appVersion }}
+        run: |
+          set -euo pipefail
+          dmg=$(jq -r '.[] | select(endswith(".dmg"))' <<<"$ARTIFACT_PATHS")
+          [ -f "$dmg" ] || { echo "no DMG among the build artifacts" >&2; exit 1; }
+          xcrun notarytool submit "$dmg" --wait \
+            --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          mkdir -p release
+          mv "$dmg" "release/Papol_${VERSION}_macOS_${{ matrix.label }}.dmg"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dmg-${{ matrix.label }}
+          path: release/*.dmg
+          if-no-files-found: error
+
+  # Publish only once every architecture's DMG is notarized, so a failed build
+  # never leaves a partial release behind. The pushed tag already pins the
+  # release commit; gh omits target_commitish, which would otherwise make
+  # GitHub demand workflows permission (which GITHUB_TOKEN cannot have).
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: dmg-*
+          path: release
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" release/*.dmg \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Papol macOS v${GITHUB_REF_NAME#macos-v}" \
+            --notes "Download the signed and notarized Papol DMG for your Mac: Apple Silicon or Intel."

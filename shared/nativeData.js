@@ -275,6 +275,27 @@ export async function clearNativeData() {
   return removed;
 }
 
+// Everything queued, conflicted or not yet uploaded, written out as a zip.
+// Reachable from the compatibility bar, because a reader being asked to
+// replace the application needs somewhere to put the work only this copy
+// holds before they do.
+export function exportNativeRecovery(accountUuid = nativeAccountUuid()) {
+  if (!IS_DESKTOP || accountUuid == null) return Promise.resolve(null);
+  return invoke('local_recovery_export', { accountUuid });
+}
+
+// What the synchronizer last heard about this build. Written natively when
+// a push or pull is refused with 426, and read here at startup so a window
+// opened offline carries the verdict rather than starting hopeful.
+export async function nativeCompatibilityVerdict() {
+  if (!IS_DESKTOP) return null;
+  try {
+    return await invoke('local_setting_get', { key: 'client_compatibility' });
+  } catch {
+    return null;
+  }
+}
+
 export async function removeNativeAccount(accountUuid) {
   if (!IS_DESKTOP || !UUID.test(accountUuid || '')) return 0;
   const removed = await invoke('local_account_remove', { accountUuid });
@@ -481,6 +502,11 @@ export function pdfViewerStatus() {
 
 export function makePdfViewerDefault() {
   return invoke('pdf_viewer_make_default');
+}
+
+export function dismissPdfViewerPrompt() {
+  if (!IS_DESKTOP) return Promise.resolve();
+  return invoke('pdf_viewer_prompt_dismiss');
 }
 
 export function newUuid() {

@@ -1,6 +1,6 @@
 import { DESKTOP } from './desktopShell';
 
-// window.confirm() is the browser's own dialog. Papol Desktop's macOS webview
+// window.confirm() is the browser's own dialog. Papol macOS's macOS webview
 // implements no JavaScript dialogs at all: confirm() answers false without
 // showing anything, so every "are you sure?" in the app silently cancelled
 // the thing it was guarding. Inside the app this asks with a sheet of its

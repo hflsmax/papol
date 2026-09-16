@@ -27,7 +27,16 @@ set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_DIR="${PAPOL_PROD_DIR:-/srv/papol/prod}"
-DEV_PORT="${PAPOL_DEV_PORT:-8000}"
+# Port 8000 is commonly occupied by local macOS tooling (including Codex),
+# while Papol's NixOS development host intentionally reserves it for this
+# server. Keep that established Linux default and make `./deploy.sh dev`
+# immediately usable on a Mac; PAPOL_DEV_PORT remains an explicit override.
+if [ "$(uname -s)" = Darwin ]; then
+  DEFAULT_DEV_PORT=8001
+else
+  DEFAULT_DEV_PORT=8000
+fi
+DEV_PORT="${PAPOL_DEV_PORT:-$DEFAULT_DEV_PORT}"
 PROD_BRANCH=production
 UNIT=papol
 KEEP_BACKUPS=10
@@ -299,7 +308,7 @@ macos_release() {
       ;;
   esac
   [ "$version" != "$current" ] || die "desktop is already version $version"
-  tag="desktop-v$version"
+  tag="macos-v$version"
   if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     die "tag $tag already exists locally"
   fi
@@ -325,13 +334,14 @@ replace(lockFile, /^(      "version": ")[^"]+(",)$/m);
 replace(tauriFile, /^(  "version": ")[^"]+(",)$/m);
 NODE
 
-  git -C "$DEV_DIR" diff --check
+  # A terminal makes diff open the pager even when it has nothing to say.
+  git -C "$DEV_DIR" --no-pager diff --check
   git -C "$DEV_DIR" add -- "${version_files[@]}"
-  git -C "$DEV_DIR" commit -m "Release Papol Desktop v$version"
+  git -C "$DEV_DIR" commit -m "Release Papol macOS v$version"
   git -C "$DEV_DIR" push origin main
-  git -C "$DEV_DIR" tag -a "$tag" -m "Papol Desktop v$version"
+  git -C "$DEV_DIR" tag -a "$tag" -m "Papol macOS v$version"
   git -C "$DEV_DIR" push origin "$tag"
-  say "Published Papol Desktop v$version"
+  say "Published Papol macOS v$version"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -624,7 +634,7 @@ install_macos_app() {
   [ -z "$previous_app" ] || as_root rm -rf "$previous_app"
   rm -rf "$staging_dir"
 
-  say "Installed Papol for macOS"
+  say "Installed Papol macOS"
   note "$destination_app"
   open "$destination_app"
 }
@@ -708,7 +718,7 @@ macos_prod() {
 
   marker=$(mktemp -t papol-macos-build.XXXXXX)
   macos_timing_begin "Build application bundles"
-  say "Building Papol for macOS"
+  say "Building Papol macOS"
   note "backend: $backend"
   [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
   [ "$MACOS_NOTARIZING" = no ] || note "distribution: Developer ID signed and notarized"
@@ -835,7 +845,7 @@ notarized release, checks for a local Developer ID identity, and prints the
 values in the local credential file for copying to GitHub.
 `release` increments the desktop patch version by default (or accepts a minor,
 major, or explicit stable version), commits only its three version files, and
-pushes the matching `desktop-v*` tag to trigger the GitHub release build.
+pushes the matching `macos-v*` tag to trigger the GitHub release build.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, build, credentials, or release)" ;;
@@ -1006,9 +1016,14 @@ run_dev() {
   done
 
   if port_busy "$DEV_PORT"; then
-    die "something already has port $DEV_PORT.
+    if [ "$(uname -s)" = Darwin ]; then
+      die "something already has port $DEV_PORT.
+    Choose an unused port with PAPOL_DEV_PORT=PORT ./deploy.sh dev."
+    else
+      die "something already has port $DEV_PORT.
     If that is still production, it has not been moved to 8001 yet — see the
     services.papol lines in /etc/nixos/configuration.nix."
+    fi
   fi
 
   # papol.local reaches this server, and this server hands out whatever is
@@ -1050,7 +1065,11 @@ run_dev() {
   # shell exit to reap the now-supervised background server.
   trap stop_dev EXIT INT TERM
 
-  say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
+  if [ "$(uname -s)" = Darwin ]; then
+    say "Development on http://127.0.0.1:$DEV_PORT"
+  else
+    say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
+  fi
   if [ "$watch" = yes ]; then
     note "saving a file rebuilds it: backend reloads itself; frontend, viewer,"
     note "and board rebuild into dist — reload the page to see them"
