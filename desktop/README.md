@@ -185,7 +185,7 @@ rendered. Ask a dump what roles it actually found before concluding anything is
 missing:
 
 ```sh
-xcrun swift papol-ui.swift dump 1234 | awk -F: '{print $1}' | sort | uniq -c
+xcrun swift papol-ui.swift roles 1234       # what the page actually published
 ```
 
 When the question is what the page itself thinks — which props it rendered
