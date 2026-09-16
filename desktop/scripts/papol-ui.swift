@@ -18,7 +18,7 @@
 //
 // Apple ships no WebDriver for WKWebView, so the usual desktop drivers do not
 // work here. The accessibility API does: WebKit publishes the page as real
-// elements — AXButton, AXTextField, AXStaticText, each with the name a reader
+// elements — AXButton, AXTextField, AXStaticText, each with the name a user
 // sees — and pressing one runs the same handler a click would. That works
 // against the application as shipped, with no plugin compiled in, no debug
 // build, and no development server.
@@ -39,7 +39,7 @@
 //     so whatever sits on top is what lands in the file. `shot` raises the
 //     window first.
 //
-// A reader's own Papol is not a fixture. `press` and `shot` refuse a pid
+// A user's own Papol is not a fixture. `press` and `shot` refuse a pid
 // belonging to an installed build unless PAPOL_UI_ALLOW_INSTALLED=1, and
 // `dev` names the development build alone.
 //
@@ -65,7 +65,7 @@ func role(of element: AXUIElement) -> String {
     attribute(element, kAXRoleAttribute as String) ?? "?"
 }
 
-/// What a reader would call this element. WebKit puts a control's label in
+/// What a user would call this element. WebKit puts a control's label in
 /// the title, static text in the value, and an image's alternative text in
 /// the description, so all three are worth asking for.
 func name(of element: AXUIElement) -> String? {
@@ -122,7 +122,7 @@ func refuseInstalled(_ pid: pid_t, _ what: String) {
     guard isInstalled(pid),
           ProcessInfo.processInfo.environment["PAPOL_UI_ALLOW_INSTALLED"] != "1" else { return }
     print("""
-    refusing to \(what) pid \(pid): it is an installed Papol, with a reader's \
+    refusing to \(what) pid \(pid): it is an installed Papol, with a user's \
     own papers in it. Use `dev` to find the development build, or set \
     PAPOL_UI_ALLOW_INSTALLED=1 if you really mean this one.
     """)
@@ -142,7 +142,7 @@ func listWindows() {
 }
 
 /// The development build's pid, and nothing else, so that a command meant
-/// for it is never aimed at a reader's own copy by accident.
+/// for it is never aimed at a user's own copy by accident.
 func developmentPid() -> Int32 {
     let candidates = processes().filter { !isInstalled($0) }
     switch candidates.count {

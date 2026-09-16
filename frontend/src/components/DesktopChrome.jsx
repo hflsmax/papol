@@ -331,7 +331,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
 }
 
 // ⌘1…⌘4 open the sidebar's numbered rows. Papol has no in-app history to
-// walk, so there is no Back or Forward: the sidebar is how a reader moves.
+// walk, so there is no Back or Forward: the sidebar is how a user moves.
 export function useDesktopShortcuts({ groups, onNavigate }) {
   const latest = useRef(null);
   latest.current = {

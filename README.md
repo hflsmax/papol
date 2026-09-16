@@ -1,6 +1,6 @@
 # Papol
 
-Papol is your paper reading companion. It helps readers stay close to the
+Papol is your paper reading companion. It helps users stay close to the
 papers, ideas, and people that shape their thinking.
 
 For native-resolution YouTube frames on boards, set

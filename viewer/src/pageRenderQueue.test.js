@@ -63,7 +63,7 @@ test('priority is asked when a job could start, so the view at that moment decid
   queue.request({ priority: () => aDistance, run: () => { order.push('a'); } });
   queue.request({ priority: () => bDistance, run: () => { order.push('b'); } });
   await flush();
-  // The reader scrolled while the first page was drawing.
+  // The user scrolled while the first page was drawing.
   aDistance = 800;
   bDistance = 0;
   first.open();

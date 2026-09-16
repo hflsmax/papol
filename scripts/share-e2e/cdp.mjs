@@ -2,7 +2,7 @@
 //
 // Papol's browser smoke test spawns Chrome but never talks to it: it serves
 // its own copy of the page with a readiness probe injected. That works when
-// the harness owns the HTML. Driving the real application — putting a reader
+// the harness owns the HTML. Driving the real application — putting a user
 // in, pressing things, reading what rendered — needs the protocol itself.
 //
 // Node 22 has a global WebSocket, so this is the whole of it.
@@ -142,7 +142,7 @@ export class Browser {
     return this.evaluate('return document.body.innerText;');
   }
 
-  /// Put a reader in the way the application itself does, by storing the
+  /// Put a user in the way the application itself does, by storing the
   /// credential it would have stored. The token comes from the backend's own
   /// API, so no password is typed into any field.
   async signIn({ token, accountUuid, origin }) {

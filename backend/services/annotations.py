@@ -1,4 +1,4 @@
-"""Everything a reader leaves on a paper, on the wire.
+"""Everything a user leaves on a paper, on the wire.
 
 One row shape covers notes, ink and clips, because they were never three
 kinds of thing — they are three ways of marking one page. What differs
@@ -7,7 +7,7 @@ where a polyline and an anchor already lived before this module existed.
 
 Reading a stored annotation back into the typed shape an application
 understands is one job, done here, so that every surface handing annotations
-out — a reader's own viewer, a link they shared, the desktop replica's
+out — a user's own viewer, a link they shared, the desktop replica's
 snapshot — hands out the same shapes.
 """
 
@@ -56,7 +56,7 @@ def annotation_out(annotation: Annotation) -> AnnotationOut:
 
 def annotations_of(db, user_uuid: str, *, paper_uuid=None, edition_uuid=None,
                    kinds=None) -> list[Annotation]:
-    """One reader's annotations, oldest first.
+    """One user's annotations, oldest first.
 
     Oldest first is not a preference: later ink has to be drawn over earlier
     ink, so the order rows come back in is the order they are painted.

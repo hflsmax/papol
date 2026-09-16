@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const ACCOUNT = '77777777-7777-4777-8777-777777777777';
-const localUser = { uuid: ACCOUNT, display_name: 'Local Reader' };
+const localUser = { uuid: ACCOUNT, display_name: 'Local User' };
 const values = new Map([
   ['papol.localAccountUuid', ACCOUNT],
   ['papol.syncPreference', 'manual'],

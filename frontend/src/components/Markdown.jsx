@@ -1,15 +1,15 @@
 import React from 'react';
 
-// A small Markdown subset for the prose a reader writes — summaries and
+// A small Markdown subset for the prose a user writes — summaries and
 // notes. It renders to React elements, never to HTML, so nothing typed in
 // an edit box can inject markup: text is text, and the only tags that
 // appear are the ones this file names.
 //
 // Supported: headings, bullet and numbered lists (nested), blockquotes,
 // fenced code, rules, and the inline marks below. Anything unrecognised
-// stays as the literal characters the reader typed.
+// stays as the literal characters the user typed.
 
-// Links are the one place a reader's text reaches the browser as a URL, so
+// Links are the one place a user's text reaches the browser as a URL, so
 // the scheme is checked rather than trusted. A rejected href renders as
 // plain text.
 const SAFE_HREF = /^(?:https?:\/\/|mailto:|#|\/)/i;
@@ -38,7 +38,7 @@ const link = (href, label, key) =>
     <React.Fragment key={key}>{label}</React.Fragment>
   );
 
-// Newlines inside a paragraph are kept as breaks: a reader who pressed
+// Newlines inside a paragraph are kept as breaks: a user who pressed
 // Enter meant a new line, whatever Markdown's own rules say about it.
 const withBreaks = (nodes, key) =>
   nodes.flatMap((node, i) =>

@@ -19,7 +19,7 @@ import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
  * One rendered page, plus the pins that live on it.
  *
  * Two coordinate systems meet here and only here. pdf.js draws in device
- * pixels at whatever scale the reader has chosen; a note is stored as a
+ * pixels at whatever scale the user has chosen; a note is stored as a
  * fraction of the page in PDF user space, origin bottom-left. `viewport`
  * converts between them, so nothing above this component ever sees a pixel.
  */
@@ -31,7 +31,7 @@ const MIN_STEP = appLimits.viewer.ink_point_step_min;
 // everything, whatever it was drawn at. It used to widen with the stroke,
 // on the reasoning that a heavier line covers more page; what that meant in
 // the hand was that the eraser reached further for some ink than for other
-// ink, and reaching is the part the reader has to aim.
+// ink, and reaching is the part the user has to aim.
 const ERASE_REACH = 9;
 // How far the glow stands out from a stroke the eraser is over. A margin,
 // not a multiple: the halo used to be drawn at a multiple of the stroke's
@@ -567,8 +567,8 @@ function PdfPage({
   // count that goes up whenever a new one is in, for the search highlights.
   const textLayerRef = useRef(null);
   const [textReady, setTextReady] = useState(0);
-  // Whether the reader's selection reaches into this page's text. A page that
-  // holds it keeps its text layer, however far away the reader scrolls:
+  // Whether the user's selection reaches into this page's text. A page that
+  // holds it keeps its text layer, however far away the user scrolls:
   // taking the spans away, or rebuilding them, would drop the selection.
   const [holdsSelection, setHoldsSelection] = useState(false);
   const renderScaleRef = useRef(renderScale);
@@ -608,7 +608,7 @@ function PdfPage({
   // never thrown away — only drawn over.
   const shiftRef = useRef(false);
   // What the eraser is over. Shown lit rather than left to be guessed at:
-  // rubbing out is not undoable here, and a reader should be able to see
+  // rubbing out is not undoable here, and a user should be able to see
   // what is about to go before they press.
   const [doomed, setDoomed] = useState(EMPTY_DOOMED);
   // Where the brush is hovering, so its own footprint can be drawn on the
@@ -729,7 +729,7 @@ function PdfPage({
         drawing = null;
         holderRef.current.dataset.painted = String(renderScale);
         setDrawn({ doc, scale: renderScale });
-        // Whichever near page wins the queue is what the reader sees first.
+        // Whichever near page wins the queue is what the user sees first.
         // This is deliberately not restricted to numbered page 1: restored
         // reading positions can open elsewhere in the document.
         markViewerPerformance('first-page-painted', { page: pageNumber, scale: renderScale });
@@ -777,11 +777,11 @@ function PdfPage({
     return () => document.removeEventListener('selectionchange', check);
   }, []);
 
-  // Its text layer goes once the reader pauses: taking a dense page's
+  // Its text layer goes once the user pauses: taking a dense page's
   // thousand spans out of the document held a frame for 37ms, and nothing
   // needs that memory back this instant. Coming near again first, it keeps
   // the text — and it keeps it while the selection, or the selected paint
-  // mark, is on it.
+  // annotation, is on it.
   useEffect(() => {
     if (kept || holdsSelection || selectedInk || !textLayerRef.current) return undefined;
     let cancelled = false;
@@ -807,7 +807,7 @@ function PdfPage({
   }, []);
 
   // A page whose bitmap was limited (MAX_CANVAS_PIXELS) goes soft past a
-  // certain zoom. Once the reader pauses, the part of it on screen is drawn
+  // certain zoom. Once the user pauses, the part of it on screen is drawn
   // again at full resolution and laid over the whole — placed in fractions
   // of the page, so while a later zoom stretches the page it stays in place
   // until the next one replaces it.
@@ -942,7 +942,7 @@ function PdfPage({
   // what makes the page's text selectable and searchable by the browser.
   // Nobody selects words mid-scroll or mid-zoom, so all of it waits: it
   // starts once the page is drawn — drawing registers the PDF's embedded
-  // fonts the spans are measured in — and the reader has stopped, and pdf.js
+  // fonts the spans are measured in — and the user has stopped, and pdf.js
   // is handed the text a slice at a time, stepping aside again whenever
   // scrolling resumes. Built in one go, a text-dense page held the main
   // thread for 50ms. The layer is built out of sight and swapped in whole,
@@ -950,8 +950,8 @@ function PdfPage({
   // zoom has moved too far from the one it was laid out at.
   useEffect(() => {
     const host = textHostRef.current;
-    // A page holding the selected paint mark builds its text whether or not
-    // it is near: the mark's text is read from it (paintText.js).
+    // A page holding the selected ink stroke builds its text whether or not
+    // it is near: the annotation's text is read from it (paintText.js).
     if (!near && !selectedInk) return undefined;
     if ((drawn?.doc !== doc && !selectedInk) || !host || !renderScale || !size.width) return undefined;
     const built = textLayerRef.current;
@@ -1123,7 +1123,7 @@ function PdfPage({
     };
   }, [doc, pageNumber, near, analysis]);
 
-  // Anchors are placed with the explicit tool, at a spot the reader can see
+  // Anchors are placed with the explicit tool, at a spot the user can see
   // before committing to it. An ordinary double-click remains text selection.
 
   // A pin is dragged with the pointer captured, so the gesture survives
@@ -1143,7 +1143,7 @@ function PdfPage({
   };
 
   const startDrag = (e, note) => {
-    // An anchor in a shared reading was placed by the reader who shared it.
+    // An anchor in a shared reading was placed by the user who shared it.
     // It can be pressed to go there, and not picked up.
     if (readOnly || e.button !== 0) return;
     e.stopPropagation();
@@ -1248,7 +1248,7 @@ function PdfPage({
 
   // --- Ink ---------------------------------------------------------------
   //
-  // Strokes are stored as fractions of the page, like every other mark in
+  // Strokes are stored as fractions of the page, like every other annotation in
   // this file, so they sit where they were drawn at any zoom. The work
   // here is all in page units: x and y are fractions of different lengths,
   // and treating them as the same one makes a circle into an ellipse.
@@ -1272,7 +1272,7 @@ function PdfPage({
     }
     // Reaching for the brush while the pointer is already over the page put
     // it in your hand and showed you nothing, because nothing had moved
-    // since — so the mark you were about to make only appeared once you
+    // since — so the annotation you were about to make only appeared once you
     // jogged the mouse. It is drawn where the pointer already is.
     if (tool !== 'brush') setBrushAt(null);
     else if (overRef.current) setBrushAt(lastAtRef.current);
@@ -1338,7 +1338,7 @@ function PdfPage({
     straightRef.current = false;
   };
 
-  // The eraser works by the stroke, not by the pixel: what the reader drew
+  // The eraser works by the stroke, not by the pixel: what the user drew
   // is what they undraw. A stroke counts as touched if the pointer passes
   // near any of its points, which for hand-drawn ink is every part of it.
   // How near the pointer came to the stroke — to the line, not to the
@@ -1394,7 +1394,7 @@ function PdfPage({
     for (const stroke of ink) {
       if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.uuid);
     }
-    // An anchor is a mark on the page, so the eraser takes it. What it does
+    // An anchor is an annotation on the page, so the eraser takes it. What it does
     // not take is a note with words in it: that is
     // writing, there is no undo here, and a swipe of the hand is no way to
     // lose it. Those are still deleted from the pin's own menu.
@@ -1486,7 +1486,7 @@ function PdfPage({
     }
   };
 
-  // Kept when the pointer lifts, not as it moves: a stroke is one mark,
+  // Kept when the pointer lifts, not as it moves: a stroke is one annotation,
   // and half of one is not worth storing.
   const inkUp = () => {
     if (tool === 'clipper') {
@@ -1547,15 +1547,15 @@ function PdfPage({
   //
   // A stroke used to be drawn as a line of constant thickness, which is a
   // round pipe dragged over the page: it looked the same whichever way the
-  // hand went, and so had nothing to do with the upright strip the reader
+  // hand went, and so had nothing to do with the upright strip the user
   // was holding. A real flat brush is wide across and thin along, so moving
   // sideways leaves a broad band and moving up the page leaves a hairline,
-  // and the mark records the direction it was made in.
+  // and the annotation records the direction it was made in.
   //
   // The shape is the region the nib swept: for each step of the hand, the
   // convex hull of the nib in both places. Consecutive hulls overlap on the
   // point they share, so the joins fill themselves, and all of them wound
-  // the same way means a nonzero fill unions the lot into one mark.
+  // the same way means a nonzero fill unions the lot into one annotation.
   const convexHull = (pts) => {
     const by = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const cross = (o, a, b) =>
@@ -1599,7 +1599,7 @@ function PdfPage({
     return d;
   };
 
-  // A lone point is a dot the reader meant to make, and a path that only
+  // A lone point is a dot the user meant to make, and a path that only
   // moves draws nothing — so it is given somewhere to go.
   const pathFor = (points) => {
     const at = (p) => `${(p.x * size.width).toFixed(2)} ${((1 - p.y) * size.height).toFixed(2)}`;
@@ -1697,7 +1697,7 @@ function PdfPage({
   // Reduced motion means reduced motion. A cow wandering across a page is
   // a decoration, and a decoration is the kind of thing that setting is
   // about: it stands where it was put instead, and can still be picked up
-  // and moved, because that is the reader doing it and not the page.
+  // and moved, because that is the user doing it and not the page.
   const [stillAnimals, setStillAnimals] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   );
@@ -1813,7 +1813,7 @@ function PdfPage({
         c.head = 0;
         c.ear = 0;
         // Everything an activity was holding the body in, let go of: a
-        // reader who turns the setting on halfway through should get an
+        // user who turns the setting on halfway through should get an
         // animal standing where it was put, not one frozen mid-scratch
         // with a foot in the air or sunk down into a loaf.
         c.paw = 0;
@@ -1920,7 +1920,7 @@ function PdfPage({
   // A click leaves the brush's own footprint: the upright strip that was
   // under the hand, not a square. A square cap on a stroke with no length
   // draws a square block, which is neither the shape of the brush nor
-  // anything the reader was shown before they pressed.
+  // anything the user was shown before they pressed.
   const markFor = (points, thick, shape, extra) => {
     const swept = nibPath(points, thick, shape);
     if (swept) return <path d={swept} fillRule="nonzero" stroke="none" {...extra} />;
@@ -2043,7 +2043,7 @@ function PdfPage({
             through it to the page, so both reading and marking work. */}
         <div className="text-host" ref={textHostRef} />
         {provenanceBox && <div className="provenance-box" style={boxStyle(provenanceBox)} />}
-        {/* Ink: over the page and under the pins, because a mark belongs to
+        {/* Ink: over the page and under the pins, because an annotation belongs to
             the paper and a pin is a control sitting on top of it. Drawn in
             page units so a stroke keeps its weight at every zoom. */}
         {size.width > 0 && (
@@ -2092,7 +2092,7 @@ function PdfPage({
               return (
                 <g
                   key={stroke.uuid}
-                  // The uuid, on the mark. Ink that would not rub out has
+                  // The uuid, on the annotation. Ink that would not rub out has
                   // been hard to catch precisely because there was no way
                   // to ask the page which stroke it was looking at.
                   data-ink={stroke.uuid}
@@ -2148,8 +2148,8 @@ function PdfPage({
                 capped the zoom. Here it is in the stroke's own coordinates,
                 so it is the stroke's own thickness at any zoom, exactly,
                 with nothing to clamp and no ceiling to reach. No rim: the
-                brush is the mark, and a white edge around it is a thing the
-                mark will not have. */}
+                brush is the annotation, and a white edge around it is a thing the
+                annotation will not have. */}
             {tool === 'brush' && brushAt && (
               <g pointerEvents="none">
                 {inkShape === 'round' ? (

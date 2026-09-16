@@ -98,8 +98,8 @@ class SyncGateTests(unittest.TestCase):
 
         with self.Session() as db:
             user = User(
-                uuid=str(uuid.uuid4()), email="reader@example.com",
-                display_name="Reader", password_hash="x",
+                uuid=str(uuid.uuid4()), email="user@example.com",
+                display_name="User", password_hash="x",
             )
             db.add(user)
             db.add(Setting(key="desktop_minimum_version", value="0.2.0"))

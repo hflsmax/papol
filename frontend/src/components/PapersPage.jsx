@@ -9,7 +9,7 @@ import { appPath } from '../base';
 import { formatAuthors, newestFirst as newest, seminarRank } from '../paperFormat';
 
 const avgMerit = (p) => {
-  const rated = (p.readers || [])
+  const rated = (p.users || [])
     .map((r) => r.rating_liking)
     .filter((v) => v != null);
   return rated.length
@@ -24,14 +24,14 @@ const SORTS = {
     cmp: (a, b) => seminarRank(a) - seminarRank(b) || newest(a, b),
   },
   newest: { label: 'Newest', cmp: newest },
-  readers: {
-    label: 'Most readers',
+  users: {
+    label: 'Most users',
     cmp: (a, b) =>
-      (b.readers?.length || 0) - (a.readers?.length || 0) || newest(a, b),
+      (b.users?.length || 0) - (a.users?.length || 0) || newest(a, b),
   },
   merit: {
     label: 'Highest merit',
-    // Papers no reader has rated go last
+    // Papers no user has rated go last
     cmp: (a, b) =>
       (avgMerit(b) ?? -1) - (avgMerit(a) ?? -1) || newest(a, b),
   },
@@ -71,20 +71,20 @@ export default function PapersPage({
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
-    (selectedUser == null || (p.readers || []).some((r) => r.user.uuid === selectedUser)) &&
+    (selectedUser == null || (p.users || []).some((r) => r.user.uuid === selectedUser)) &&
     (p.title.toLowerCase().includes(searchLower) ||
       (p.authors && p.authors.toLowerCase().includes(searchLower)) ||
       (p.journal && p.journal.toLowerCase().includes(searchLower)) ||
-      (p.readers || []).some((r) =>
+      (p.users || []).some((r) =>
         r.user.display_name.toLowerCase().includes(searchLower)
       ));
 
-  const readers = Array.from(
+  const users = Array.from(
     new Map(
       [
-        ...papers.flatMap((paper) => paper.readers || []).map((entry) => entry.user),
+        ...papers.flatMap((paper) => paper.users || []).map((entry) => entry.user),
         ...boards.map((board) => board.owner).filter(Boolean),
-      ].map((reader) => [reader.uuid, reader])
+      ].map((user) => [user.uuid, user])
     ).values()
   ).sort((a, b) => a.display_name.localeCompare(b.display_name));
 
@@ -112,13 +112,13 @@ export default function PapersPage({
 
       <div className="panel paper-list">
         <div className="search-bar library-search-tools">
-          {readers.length > 0 && (
-            <div className="library-reader-filters" role="group" aria-label="Filter papers by reader">
-              <button className={selectedUser == null ? 'reader-filter selected' : 'reader-filter'} aria-pressed={selectedUser == null} onClick={() => setSelectedUser(null)}>All readers</button>
-              {readers.map((reader) => (
-                <button key={reader.uuid} className={selectedUser === reader.uuid ? 'reader-filter selected' : 'reader-filter'} aria-pressed={selectedUser === reader.uuid} onClick={() => setSelectedUser(reader.uuid)}>
-                  <Avatar user={reader} className="reader-filter-avatar" />
-                  <span>{reader.display_name}</span>
+          {users.length > 0 && (
+            <div className="library-user-filters" role="group" aria-label="Filter papers by user">
+              <button className={selectedUser == null ? 'user-filter selected' : 'user-filter'} aria-pressed={selectedUser == null} onClick={() => setSelectedUser(null)}>All users</button>
+              {users.map((user) => (
+                <button key={user.uuid} className={selectedUser === user.uuid ? 'user-filter selected' : 'user-filter'} aria-pressed={selectedUser === user.uuid} onClick={() => setSelectedUser(user.uuid)}>
+                  <Avatar user={user} className="user-filter-avatar" />
+                  <span>{user.display_name}</span>
                 </button>
               ))}
             </div>
@@ -187,7 +187,7 @@ export default function PapersPage({
                   </p>
                 </div>
                 <div className="entry-chips">
-                  {(paper.readers || []).map((entry) => (
+                  {(paper.users || []).map((entry) => (
                     <a
                       key={entry.user.uuid}
                       className={

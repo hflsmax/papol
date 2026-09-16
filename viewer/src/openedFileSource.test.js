@@ -114,7 +114,7 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   values.delete('papol.localAccountUuid');
   existingPaper = null;
   calls.length = 0;
-  annotations.set('legacy-mark', { uuid: 'legacy-mark', kind: 'note', sha256: HASH });
+  annotations.set('legacy-annotation', { uuid: 'legacy-annotation', kind: 'note', sha256: HASH });
   const source = resolveSource();
   assert.deepEqual(source.initialPaper, {
     title: 'Local paper', sha256: HASH, edition_sha256: HASH, opened_file: true,
@@ -125,8 +125,8 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.equal(source.requiresSignIn, false);
   // The pair a paper that is not yet yours carries, whether it arrived by
   // link or off the file system: nothing here is yours to change, and a
-  // mark you make needs a nook to go into. An opened file satisfies the
-  // first the easy way, by having no marks on it at all.
+  // annotation you make needs a nook to go into. An opened file satisfies the
+  // first the easy way, by having no annotations on it at all.
   assert.equal(source.readOnly, true);
   assert.equal(source.annotationsRequireNook, true);
   assert.equal(loaded.doc.title, 'Local paper');

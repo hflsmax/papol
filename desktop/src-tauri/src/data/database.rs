@@ -2751,7 +2751,7 @@ fn paper_view(
     object.insert("viewer_has_entry".into(), Value::Bool(true));
     let on_display = copy_is_public(connection, copy)?;
     object.insert("is_public".into(), Value::Bool(on_display));
-    object.insert("viewer_is_reader".into(), Value::Bool(on_display));
+    object.insert("viewer_has_copy".into(), Value::Bool(on_display));
     Ok(paper)
 }
 
@@ -2790,7 +2790,7 @@ fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, St
             let mut paper = paper_view(connection, account_uuid, &uuid)?;
             let object = paper.as_object_mut().ok_or("Invalid local paper")?;
             // Paper lists use the copy's creation time: that is when this
-            // reader added the paper to their nook. The canonical paper's
+            // user added the paper to their nook. The canonical paper's
             // creation time can be much older (or newer after a merge).
             object.insert("created_at".into(), json!(added_at));
             Ok(paper)
@@ -3655,7 +3655,7 @@ mod tests {
             .import_blob(b"unsynchronized file", Some("application/pdf".into()))
             .unwrap();
         store
-            .set_local_account("7", json!({"uuid": "7", "display_name": "Reader"}))
+            .set_local_account("7", json!({"uuid": "7", "display_name": "User"}))
             .unwrap();
         store
             .mutate("7", vec![board_change(&board_uuid, "Unsynced board")])
@@ -3677,7 +3677,7 @@ mod tests {
         assert!(!store.has_blob(&blob.sha256));
         assert_eq!(
             store.query("7", "account", json!({})).unwrap()["display_name"],
-            "Reader"
+            "User"
         );
     }
 
@@ -3932,12 +3932,12 @@ mod tests {
         store
             .set_local_account(
                 "7",
-                json!({"uuid": "7", "email": "reader@example.test", "display_name": "Reader"}),
+                json!({"uuid": "7", "email": "user@example.test", "display_name": "User"}),
             )
             .unwrap();
         assert_eq!(
             store.query("7", "account", json!({})).unwrap()["display_name"],
-            "Reader"
+            "User"
         );
         assert!(store.query("8", "account", json!({})).is_err());
         assert!(store

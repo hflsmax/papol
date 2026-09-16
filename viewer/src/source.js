@@ -15,7 +15,7 @@ import {
  * Where this document and its notes come from — decided once, from the URL,
  * so nothing below has to care which it is.
  *
- *   ?pdf=<sha256>          an exact PDF in the reader's nook: notes live in Papol
+ *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  *   ?share=<uuid>          someone's reading of a PDF, handed over by link
  * Demo PDFs use the same hash identity; only their storage is local.
@@ -23,7 +23,7 @@ import {
  * Nook and demo sources expose the same annotation interfaces. A file source
  * intentionally omits them; if its bytes already belong to a nook paper, the
  * viewer hands the window over to that canonical source. A shared source
- * declares itself read-only: its marks are someone else's.
+ * declares itself read-only: its annotations are someone else's.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
@@ -85,7 +85,7 @@ function apiSource(
       paperUuid = loaded.uuid;
       return notesIn(await loadPaperNotes(loaded));
     },
-    // One interface for every kind of mark. A caller says which kind it is
+    // One interface for every kind of annotation. A caller says which kind it is
     // making and what its geometry is; nothing else differs between them.
     annotations: {
       list: (editionUuid, kind) => listAnnotations(paperUuid, { editionUuid, kind }),
@@ -98,7 +98,7 @@ function apiSource(
 }
 
 // Someone else's reading, opened by link. Everything about it is settled by
-// one request: which PDF, whose marks, and what they say. The interfaces it
+// one request: which PDF, whose annotations, and what they say. The interfaces it
 // exposes are the reading half of the ones a nook source exposes — list, and
 // no more — so the parts of the viewer that write have nothing to call.
 // Someone with an account here, however they proved it: a session on the
@@ -119,10 +119,10 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // way out is Papol's front door.
     backHref: appPath('/'),
     requiresSignIn: false,
-    // Their marks are theirs: whatever is already on these pages was put
+    // Their annotations are theirs: whatever is already on these pages was put
     // there by the sharer and nothing in the viewer may change it.
     readOnly: true,
-    // A visitor's own marks are a different matter. The tools stay in the
+    // A visitor's own annotations are a different matter. The tools stay in the
     // bar, because a shared paper should read like any other PDF — and
     // reaching for one asks for the paper to be theirs first, which is the
     // honest price of writing on it.
@@ -160,7 +160,7 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
           ...shared.paper,
           // Whose reading this is, so the viewer can say so. It is the one
           // thing on the page that is about a person rather than a paper.
-          shared_by: shared.reader,
+          shared_by: shared.user,
           // A lean link shares the paper and nothing of theirs, so it is
           // not a reading and must not be named as one.
           shared_kind: shared.kind,
@@ -193,9 +193,9 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
 }
 
 // A file-system document is deliberately ephemeral. Opening a file never
-// reads or writes annotations by itself. An exact match in the reader's nook
+// reads or writes annotations by itself. An exact match in the user's nook
 // moves the window onto the ordinary nook URL, where its saved paper state is
-// loaded; a new file stays ephemeral until the reader adds it.
+// loaded; a new file stays ephemeral until the user adds it.
 function openedFileSource(pdfHash, name) {
   const title = name || 'Untitled PDF';
   const params = new URLSearchParams(window.location.search);
@@ -214,8 +214,8 @@ function openedFileSource(pdfHash, name) {
     requiresSignIn: false,
     openedFile: true,
     // The same pair a shared paper carries, and for the same reason. Nothing
-    // on these pages is this reader's to change — vacuously so, an opened
-    // file having no marks on it at all — and any mark they make needs a
+    // on these pages is this user's to change — vacuously so, an opened
+    // file having no annotations on it at all — and any annotation they make needs a
     // nook to go into. One reading of a PDF that is not yet yours, whether
     // it came from a link or from the file system.
     readOnly: true,
@@ -236,7 +236,7 @@ function openedFileSource(pdfHash, name) {
         : null;
     },
     // Public metadata lookup would send the hash to Papol. The membership
-    // check stays entirely inside the signed-in reader's local replica.
+    // check stays entirely inside the signed-in user's local replica.
     info: () => Promise.resolve({}),
     async addToNook() {
       return addOpenedFileToNook({
@@ -273,8 +273,8 @@ function seedFor(paperUuid) {
 function localSource(paperUuid) {
   const paper = DEMO_PAPERS[paperUuid];
   // The demo's papers live in memory and reset on reload (see demo.js);
-  // its marks do the same, so "nothing is saved" stays true.
-  let marks = seedFor(paperUuid);
+  // its annotations do the same, so "nothing is saved" stays true.
+  let annotations = seedFor(paperUuid);
 
   return {
     backHref: appPath(`/demo/paper/${paperUuid}`),
@@ -293,15 +293,15 @@ function localSource(paperUuid) {
           editions: [edition],
           latest_edition: edition,
         },
-        notes: notesIn(marks),
+        notes: notesIn(annotations),
       };
     },
-    // The demo keeps its marks the way it keeps everything else: in memory,
+    // The demo keeps its annotations the way it keeps everything else: in memory,
     // and gone on reload. They are worth meeting even where nothing is
     // saved — it is how a visitor finds out the features are there.
     annotations: {
       async list(_editionUuid, kind) {
-        return kind ? marks.filter((row) => row.kind === kind) : marks;
+        return kind ? annotations.filter((row) => row.kind === kind) : annotations;
       },
       async create(annotation) {
         const made = {
@@ -309,17 +309,17 @@ function localSource(paperUuid) {
           uuid: crypto.randomUUID(),
           created_at: new Date().toISOString(),
         };
-        marks = [...marks, made];
+        annotations = [...annotations, made];
         return made;
       },
       async update(uuid, changes) {
-        marks = marks.map((row) => (row.uuid === uuid
+        annotations = annotations.map((row) => (row.uuid === uuid
           ? { ...row, ...changes, body: { ...row.body, ...(changes.body || {}) } }
           : row));
-        return marks.find((row) => row.uuid === uuid);
+        return annotations.find((row) => row.uuid === uuid);
       },
       async remove(uuid) {
-        marks = marks.filter((row) => row.uuid !== uuid);
+        annotations = annotations.filter((row) => row.uuid !== uuid);
       },
     },
   };

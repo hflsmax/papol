@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ready</title>
+<!--
+  The browser half of a handoff, with the bar's policy replaced by a button
+  and its verdict replaced by a title (USER_STORIES.md §7d). It imports the
+  real shared/macHandoff.js, so what it reports is what a user's bar would
+  do, and it writes every answer into document.title because that is the one
+  thing readable from outside a browser without a driver.
+-->
+<body style="font:20px system-ui;padding:40px">
+  <button id="go" style="font:28px system-ui;padding:24px 48px">Open in Papol</button>
+  <button id="ctl" style="font:20px system-ui;padding:24px">Control</button>
+  <h1 id="out">ready</h1>
+<script type="module">
+import { attemptHandoff, handoffAddress } from './macHandoff.js';
+
+const params = new URLSearchParams(location.search);
+const scheme = params.get('scheme') || 'papol';
+// A scheme that is certainly registered, to tell "Papol did not open" apart
+// from "this browser will not open anything from here".
+const control = params.get('control') || 'vscode:';
+const viewer = 'https://mc-pony.com/papol/viewer/?pdf=handoff-harness&page=14';
+const address = handoffAddress(viewer).replace(/^papol:/, `${scheme}:`);
+const started = location.href;
+
+// What the page is told, in the order it is told it. The verdict is a
+// reading of this sequence, so the sequence is what a failure needs.
+let seen = [];
+addEventListener('blur', () => seen.push('blur'));
+addEventListener('focus', () => seen.push('focus'));
+addEventListener('pagehide', () => seen.push('pagehide'));
+document.addEventListener('visibilitychange', () => seen.push(`vis:${document.visibilityState}`));
+
+function say(line) {
+  document.title = line;
+  document.getElementById('out').textContent = line;
+}
+
+// A page on a space you are not looking at is `hidden`, and no browser will
+// open an application from a hidden page. That is the usual reason a run
+// says nothing happened, so it is reported before anything else.
+function conditions() {
+  return `vis=${document.visibilityState} act=${navigator.userActivation?.isActive}`;
+}
+
+document.getElementById('go').onclick = async () => {
+  const before = conditions();
+  seen = [];
+  say('trying');
+  const t0 = performance.now();
+  const verdict = await attemptHandoff(address);
+  say(`RESULT ${scheme} ${before} verdict=${verdict} `
+    + `ms=${Math.round(performance.now() - t0)} `
+    + `events=[${seen.join('|')}] sameTab=${location.href === started}`);
+};
+
+document.getElementById('ctl').onclick = () => {
+  const before = conditions();
+  seen = [];
+  location.href = control;
+  setTimeout(() => say(`CONTROL ${control} ${before} events=[${seen.join('|')}] `
+    + `now=${document.visibilityState}`), 2500);
+};
+</script>

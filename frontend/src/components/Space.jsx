@@ -99,7 +99,7 @@ export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBo
             {space.user.affiliation && (
               <p className="space-subtitle">{space.user.affiliation}</p>
             )}
-            {/* Only present when the reader chose to show it. */}
+            {/* Only present when the user chose to show it. */}
             {space.user.email && (
               <p className="space-email">
                 <a href={`mailto:${space.user.email}`}>{space.user.email}</a>

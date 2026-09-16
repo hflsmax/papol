@@ -29,17 +29,17 @@ class AdminMessageTests(unittest.TestCase):
                 password_hash="unused",
                 is_admin=True,
             )
-            cls.reader = User(
-                email="reader@example.com",
-                display_name="Reader",
+            cls.user = User(
+                email="user@example.com",
+                display_name="User",
                 password_hash="unused",
             )
-            db.add_all([cls.admin, cls.reader])
+            db.add_all([cls.admin, cls.user])
             db.commit()
             db.refresh(cls.admin)
-            db.refresh(cls.reader)
+            db.refresh(cls.user)
             cls.admin_uuid = cls.admin.uuid
-            cls.reader_uuid = cls.reader.uuid
+            cls.user_uuid = cls.user.uuid
 
         cls.current_user_uuid = cls.admin_uuid
 
@@ -62,7 +62,7 @@ class AdminMessageTests(unittest.TestCase):
         cls.engine.dispose()
 
     def test_admin_broadcast_is_delivered_once_to_current_users(self):
-        type(self).current_user_uuid = self.reader_uuid
+        type(self).current_user_uuid = self.user_uuid
         forbidden = self.client.post("/api/admin/messages", json={"content": "Nope"})
         self.assertEqual(forbidden.status_code, 403)
 
@@ -76,7 +76,7 @@ class AdminMessageTests(unittest.TestCase):
         self.assertEqual(sent.json()["recipient_count"], 2)
         message_uuid = sent.json()["uuid"]
 
-        type(self).current_user_uuid = self.reader_uuid
+        type(self).current_user_uuid = self.user_uuid
         pending = self.client.get("/api/admin-messages/pending")
         self.assertEqual([message["uuid"] for message in pending.json()], [message_uuid])
 
@@ -90,15 +90,15 @@ class AdminMessageTests(unittest.TestCase):
         )
 
         with self.Session() as db:
-            late_reader = User(
+            late_user = User(
                 email="late@example.com",
-                display_name="Late reader",
+                display_name="Late user",
                 password_hash="unused",
             )
-            db.add(late_reader)
+            db.add(late_user)
             db.commit()
-            db.refresh(late_reader)
-            type(self).current_user_uuid = late_reader.uuid
+            db.refresh(late_user)
+            type(self).current_user_uuid = late_user.uuid
 
         self.assertEqual(self.client.get("/api/admin-messages/pending").json(), [])
         self.assertEqual(
@@ -111,7 +111,7 @@ class AdminMessageTests(unittest.TestCase):
         self.assertEqual(recipients.status_code, 200)
         self.assertEqual(
             {user["email"] for user in recipients.json()},
-            {"admin@example.com", "reader@example.com", "late@example.com"},
+            {"admin@example.com", "user@example.com", "late@example.com"},
         )
         invalid = self.client.post(
             "/api/admin/messages",
@@ -121,17 +121,17 @@ class AdminMessageTests(unittest.TestCase):
 
         targeted = self.client.post(
             "/api/admin/messages",
-            json={"content": "For one reader", "user_uuids": [self.reader_uuid]},
+            json={"content": "For one user", "user_uuids": [self.user_uuid]},
         )
         self.assertEqual(targeted.status_code, 200)
         self.assertEqual(targeted.json()["recipient_count"], 1)
 
-        type(self).current_user_uuid = self.reader_uuid
+        type(self).current_user_uuid = self.user_uuid
         self.assertEqual(
             [message["content"] for message in self.client.get("/api/admin-messages/pending").json()],
-            ["For one reader"],
+            ["For one user"],
         )
-        type(self).current_user_uuid = late_reader.uuid
+        type(self).current_user_uuid = late_user.uuid
         self.assertEqual(self.client.get("/api/admin-messages/pending").json(), [])
 
 

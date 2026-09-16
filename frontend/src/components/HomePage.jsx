@@ -23,8 +23,8 @@ export default function HomePage({ currentUser, onDemo }) {
           Papol is in incubation. Once it gains traction, it will move to an
           independent domain with better support.
         </p>
-        {/* Papol is open source, and a reader who wants to know how their
-            notes are stored can go and read it. The mark alone: a line
+        {/* Papol is open source, and a user who wants to know how their
+            notes are stored can go and read it. The annotation alone: a line
             saying "GitHub" beside the GitHub logo says it twice. */}
         <a
           className="home-source"

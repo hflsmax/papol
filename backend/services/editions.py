@@ -1,6 +1,6 @@
-"""Which PDF of a paper a given reader is reading.
+"""Which PDF of a paper a given user is reading.
 
-A paper's editions are its files, oldest first, and a reader's copy names
+A paper's editions are its files, oldest first, and a user's copy names
 the one they chose. One rule answers "which file", and every surface that
 has to agree on it — the paper page, the viewer, a shared link — asks here.
 """

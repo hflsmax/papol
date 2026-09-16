@@ -14,7 +14,7 @@ const recordingPassword = 'tutorial-only-password';
 const registration = await fetch('http://127.0.0.1:8000/api/auth/register', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ email: recordingEmail, display_name: 'Tutorial Reader', password: recordingPassword }),
+  body: JSON.stringify({ email: recordingEmail, display_name: 'Tutorial User', password: recordingPassword }),
 });
 if (!registration.ok) throw new Error(`Could not create isolated recording account: ${registration.status}`);
 const auth = await registration.json();

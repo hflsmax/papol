@@ -14,7 +14,7 @@ export function indexTextItems(items) {
     text += item.str;
     ranges.push({ spanIndex, start, end: text.length });
     spanIndex += 1;
-    // A visual line ending is whitespace to a reader. Store it as a space so
+    // A visual line ending is whitespace to a user. Store it as a space so
     // a normal phrase still matches when the PDF split it across two lines.
     text += ' ';
   });

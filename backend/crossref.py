@@ -23,8 +23,8 @@ class Unavailable(Exception):
 # The matcher. Given a reference exactly as it is printed — authors,
 # title, venue, volume, pages, year, run together in whatever style the
 # author's bibliography used — CrossRef's `query.bibliographic` finds the
-# work it names. This is the same move Google's Scholar PDF Reader makes
-# when a reader clicks a citation: the printed string is the query, and
+# work it names. This is the same move Google's Scholar PDF User makes
+# when a user clicks a citation: the printed string is the query, and
 # the top hit is the answer.
 # Enough of the string to be identifying; beyond that, longer queries only
 # cost CrossRef time.

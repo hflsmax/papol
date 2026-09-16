@@ -3,7 +3,7 @@
 A floor rather than a switch: the server says which versions it can still
 speak to, and the client decides what to do about being below it. Saying it
 this way means a new release stops being blocked without anyone editing
-anything, and there is no single flag that turns every reader off.
+anything, and there is no single flag that turns every user off.
 
 Nothing here deletes or rebuilds anything. Being too old to sync is a
 different fact from being wrong about what you hold, and they are kept

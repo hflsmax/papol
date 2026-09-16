@@ -605,7 +605,7 @@ export const desktopStyles = `
 }
 
 /* A board remains a document window of its own. Beside the Boards list,
-   this pane helps the reader recognise it, deal with incoming material and
+   this pane helps the user recognise it, deal with incoming material and
    resume work without squeezing an editable canvas into the library. */
 .desktop-board-overview {
   max-width: 940px;
@@ -960,8 +960,8 @@ export const desktopStyles = `
 }
 
 /* Inbox reads as a mail list: an unread notification is marked by a dot
-   beside it, the way Mail marks one, rather than a tinted row and a badge.
-   The word "new" stays for screen readers. */
+   beside it, the way Mail annotations one, rather than a tinted row and a badge.
+   The word "new" stays for screen users. */
 [data-shell='desktop'] .notif-item,
 [data-shell='desktop'] .notif-item.unread {
   position: relative;

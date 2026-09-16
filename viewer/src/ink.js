@@ -3,7 +3,7 @@
 // A flat nib is three times as tall as it is wide, and that ratio is used
 // in three places — the nib the page draws under the pointer, the swept
 // outline a stroke leaves, and the sample in the brush's sheet. If they
-// disagreed the reader would be shown one shape and handed another.
+// disagreed the user would be shown one shape and handed another.
 //
 // This file once also worked out how many pixels a stroke came to, for a
 // cursor image that had to be sized in advance. The brush is drawn on the

@@ -37,7 +37,7 @@ export function libraryPath(path, focus = {}) {
 }
 
 // Where leaving a board lands: the nook that holds it, showing the board.
-// Which nook is the board's own business — a reader's own, or its owner's
+// Which nook is the board's own business — a user's own, or its owner's
 // when the board is someone else's, since that is the only list it appears
 // in. A board just deleted names nothing, and the library is simply itself.
 export function boardHomePath(board, { demo = false } = {}) {

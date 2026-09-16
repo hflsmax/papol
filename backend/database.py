@@ -80,7 +80,7 @@ _DROPPED_COLUMNS = [("copies", "marketed"), ("copies", "is_public")]
 
 # Notes, ink and clips became one table of annotations. The desktop replica
 # carries this same move; the server needs it too, or `create_all` makes an
-# empty `annotations` and every mark a reader has ever made is left behind in
+# empty `annotations` and every annotation a user has ever made is left behind in
 # tables nothing reads. Geometry that had its own columns moves into `body`,
 # and a note's anchor kind moves inside the anchor, where it belongs.
 #

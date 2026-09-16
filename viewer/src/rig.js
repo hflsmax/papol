@@ -210,11 +210,11 @@ export const rigid = (pts, bones, name) => {
 //
 // Easing a bone to where the activity says it should be — which is what
 // the old engine does, and what this did in its first pass — moves every
-// joint onto its mark on the same curve at the same moment. That is not a
+// joint onto its annotation on the same curve at the same moment. That is not a
 // neck coming down; it is a neck being *placed*, and no amount of outline
 // fixes it, because what is wrong is the timing rather than the drawing.
 //
-// So every bone in the spine and the tail chases its mark on a spring
+// So every bone in the spine and the tail chases its annotation on a spring
 // instead, and the springs get slacker the further they are from the
 // shoulder. The head therefore arrives after the neck, which arrives
 // after the withers, and each of them goes a little past and comes back.

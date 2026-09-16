@@ -126,7 +126,7 @@ export function setNativeAccount(user) {
   else localStorage.removeItem(ACCOUNT_KEY);
 }
 
-// The demo's reader lives in the page, never in the local replica.
+// The demo's user lives in the page, never in the local replica.
 export async function prepareNativeAccount(user) {
   if (!IS_DESKTOP || inDemo() || user?.uuid == null) return false;
   await invoke('local_account_set', { accountUuid: user.uuid, profile: user });
@@ -191,7 +191,7 @@ export const nativeRepository = Object.freeze({
   board: (uuid) => nativeQuery('board', { uuid }),
   boardGroup: (uuid) => nativeQuery('board_group', { uuid }),
   boards: () => nativeQuery('boards'),
-  // Every mark on a paper, narrowed to one of its PDFs or to one kind when
+  // Every annotation on a paper, narrowed to one of its PDFs or to one kind when
   // the caller wants less.
   annotations: (paperUuid, editionUuid = null, kind = null) => nativeQuery(
     'annotations', { paper_uuid: paperUuid, edition_uuid: editionUuid, kind },
@@ -276,7 +276,7 @@ export async function clearNativeData() {
 }
 
 // Everything queued, conflicted or not yet uploaded, written out as a zip.
-// Reachable from the compatibility bar, because a reader being asked to
+// Reachable from the compatibility bar, because a user being asked to
 // replace the application needs somewhere to put the work only this copy
 // holds before they do.
 export function exportNativeRecovery(accountUuid = nativeAccountUuid()) {
@@ -565,7 +565,7 @@ export function paperView(row) {
     is_public: bool(row.is_public),
     is_author: bool(row.is_author),
     viewer_has_entry: true,
-    viewer_is_reader: bool(row.is_public),
+    viewer_has_copy: bool(row.is_public),
   };
 }
 

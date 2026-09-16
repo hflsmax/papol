@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { listUsers } from '../../../shared/api/people.js';
 import Avatar from './Avatar';
 
-export default function UserDirectory({ currentUser, onVisit }) {
+export default function UserList({ currentUser, onVisit }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,7 +19,7 @@ export default function UserDirectory({ currentUser, onVisit }) {
   return (
     <div className="panel">
       <h2 className="panel-title">The Village</h2>
-      <p className="village-subtitle">Every reader keeps a nook — pay one a visit.</p>
+      <p className="village-subtitle">Every user keeps a nook — pay one a visit.</p>
       {error && <div className="error" role="alert">{error}</div>}
       <ul className="user-list">
         {users.map((user) => (

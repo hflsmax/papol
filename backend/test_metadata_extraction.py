@@ -307,7 +307,7 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metadata.year, 2016)
 
     async def test_an_unreachable_analyzer_still_yields_an_editable_form(self):
-        """A fallback that fails leaves the reader where they already were."""
+        """A fallback that fails leaves the user where they already were."""
         with TemporaryDirectory() as directory:
             path = _identifierless_pdf(directory, "Some-Paper-Name.pdf")
             with (

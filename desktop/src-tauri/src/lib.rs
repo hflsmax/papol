@@ -25,6 +25,10 @@ struct OpenedFiles {
     // Set once the app can build windows; files arriving earlier wait.
     origin: Mutex<Option<String>>,
     waiting: Mutex<Vec<PathBuf>>,
+    // A reading handed over from a browser waits the same way, and for the
+    // same reason: the very first handoff after installing is a cold launch,
+    // so the address always arrives before there is a window to show it in.
+    waiting_links: Mutex<Vec<tauri::Url>>,
 }
 
 /// The permanent library is built hidden so a file-association launch can
@@ -84,6 +88,42 @@ fn add_open_timings(url: &mut tauri::Url, opened_at_ms: u128, read_ms: f64, hash
         .append_pair("opened_at_ms", &opened_at_ms.to_string())
         .append_pair("native_read_ms", &format!("{read_ms:.1}"))
         .append_pair("native_hash_ms", &format!("{hash_ms:.1}"));
+}
+
+/// Readings handed over from a browser, opened the way an opened file is.
+///
+/// The queue is the whole point. `RunEvent::Opened` is how macOS delivers a
+/// launch *caused by* an address, so on the first handoff after installing
+/// this runs before `setup` has built anything to show it in — and an
+/// address dropped there is a user who clicked "Open in Papol", watched
+/// Papol start, and got the library instead of their paper.
+#[cfg(target_os = "macos")]
+fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
+    if links.is_empty() {
+        return;
+    }
+    let Some(state) = app.try_state::<OpenedFiles>() else {
+        return;
+    };
+    let origin = state.origin.lock().ok().and_then(|origin| origin.clone());
+    let Some(origin) = origin else {
+        if let Ok(mut waiting) = state.waiting_links.lock() {
+            waiting.extend(links);
+        }
+        return;
+    };
+    let scheme = handoff_scheme(&app.config().identifier);
+    for link in links {
+        let Some(target) = deep_link_url(&link, &origin, &scheme) else {
+            continue;
+        };
+        // The user asked for this document, not for the library, so a cold
+        // launch opens into it — but only once a window has actually been
+        // made for it, or the library would stay hidden behind nothing.
+        if show_document_window(app, &origin, target) {
+            app.state::<WindowLaunch>().note_standalone_viewer();
+        }
+    }
 }
 
 fn open_pdf_files(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
@@ -297,7 +337,7 @@ mod pdf_handler {
     }
 }
 
-/// Set when the reader answers the default-viewer prompt. Held in memory so
+/// Set when the user answers the default-viewer prompt. Held in memory so
 /// every window stops asking for the rest of this launch, and the next launch
 /// asks again.
 static PDF_VIEWER_PROMPT_DISMISSED: std::sync::atomic::AtomicBool =
@@ -808,6 +848,70 @@ fn url_origin(url: &tauri::Url) -> String {
     }
 }
 
+/// The scheme Papol answers to when a browser hands a reading over
+/// (USER_STORIES.md US-7.32). It mirrors the web address the user was
+/// already at: `papol://host/papol/viewer/?pdf=…`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const HANDOFF_SCHEME: &str = "papol";
+
+/// A scheme is claimed from the whole system, and LaunchServices gives it to
+/// one application, not to the one the user had in mind. Every other place
+/// a build could tread on the installed Papol is already kept apart by its
+/// identifier — its data store, its cookies — and this is the last one that
+/// was not: without it, a development build wins the scheme and swallows
+/// readings meant for the Papol in /Applications.
+///
+/// Kept in step with scripts/write-info-plist.mjs, which registers exactly
+/// the scheme this returns for the build being bundled.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn handoff_scheme(identifier: &str) -> String {
+    match identifier.strip_prefix("com.mc-pony.papol") {
+        Some("") | None => HANDOFF_SCHEME.to_string(),
+        Some(suffix) => format!("{HANDOFF_SCHEME}{}", suffix.replace('.', "-")),
+    }
+}
+
+/// Anyone can send one of these — a deep link is an address typed by whatever
+/// page cared to send it, not a message from Papol. Only the keys that name a
+/// document and a place inside it survive the crossing, so the worst a
+/// stranger's link can do is open a document this user already has.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const HANDOFF_QUERY_KEYS: [&str; 8] = ["pdf", "board", "share", "page", "note", "y", "mark", "box"];
+
+/// Rewrites a handed-over address onto the bundled origin that serves it.
+///
+/// The address names the document by the path the *browser* uses, prefix and
+/// all, which is exactly what `document_window` already reads. What it must
+/// not keep is the browser's origin: a window built on `https://mc-pony.com`
+/// would fetch the hosted site over the network, when the whole point of the
+/// application is that its pages are compiled in.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn deep_link_url(url: &tauri::Url, papol_origin: &str, scheme: &str) -> Option<tauri::Url> {
+    if url.scheme() != scheme {
+        return None;
+    }
+    let path = url.path();
+    if !path.starts_with('/') {
+        return None;
+    }
+    let mut target = format!("{papol_origin}{path}").parse::<tauri::Url>().ok()?;
+    let carried: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(key, _)| HANDOFF_QUERY_KEYS.contains(&key.as_ref()))
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect();
+    if carried.is_empty() {
+        target.set_query(None);
+    } else {
+        let mut pairs = target.query_pairs_mut();
+        pairs.clear();
+        for (key, value) in &carried {
+            pairs.append_pair(key, value);
+        }
+    }
+    Some(target)
+}
+
 fn document_window(url: &tauri::Url, papol_origin: &str) -> Option<DocumentWindow> {
     if url_origin(url) != papol_origin {
         return None;
@@ -873,14 +977,14 @@ fn should_navigate_existing_document(document: &DocumentWindow, url: &tauri::Url
     }
 
     // A plain Read request is only asking for the paper. Its window already
-    // has the reader's live position and UI state, so navigating it would
+    // has the user's live position and UI state, so navigating it would
     // needlessly reload the PDF. Deep links still need to move the existing
     // viewer to the note, page, excerpt, or clip they identify.
     url.query_pairs()
         .any(|(key, _)| matches!(key.as_ref(), "note" | "page" | "y" | "mark" | "box"))
 }
 
-/// The identifier of the application readers actually install.
+/// The identifier of the application users actually install.
 #[cfg(target_os = "macos")]
 const RELEASE_IDENTIFIER: &str = "com.mc-pony.papol";
 
@@ -893,9 +997,9 @@ const RELEASE_IDENTIFIER: &str = "com.mc-pony.papol";
 /// name — while its replica, named by the configured identifier, is its own.
 /// The two then disagree: a replica created this minute inherits the account
 /// a development session left behind days ago, and Papol opens by reporting
-/// an error about a reader it cannot find.
+/// an error about a user it cannot find.
 ///
-/// The installed application keeps the default store. Its readers are signed
+/// The installed application keeps the default store. Its users are signed
 /// in there, and moving it would sign every one of them out once to fix
 /// something none of them have.
 ///
@@ -976,7 +1080,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         })
         .on_download(|_webview, _event| true);
     // The same store as the library window: a document window reads the
-    // reader's credential from the storage the library wrote it to.
+    // user's credential from the storage the library wrote it to.
     #[cfg(target_os = "macos")]
     if let Some(store) = webview_data_store(&app.config().identifier) {
         builder = builder.data_store_identifier(store);
@@ -1013,6 +1117,19 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     #[cfg(target_os = "macos")]
     {
         if let tauri::RunEvent::Opened { urls } = &event {
+            // A reading handed over from a browser. The application is
+            // already the one place that knows how to show a document, so
+            // the address is turned into a bundled one and given to it.
+            let scheme = handoff_scheme(&app.config().identifier);
+            let handed: Vec<_> = urls
+                .iter()
+                .filter(|url| url.scheme() == scheme)
+                .cloned()
+                .collect();
+            if !handed.is_empty() {
+                open_handed_over_links(app, handed);
+                return;
+            }
             let paths = pdf_paths(
                 urls.iter()
                     .filter_map(|url| url.to_file_path().ok())
@@ -1206,12 +1323,19 @@ pub fn run() {
             // existed, or as arguments on platforms that open files that way.
             let opened = app.state::<OpenedFiles>();
             let mut files = std::mem::take(&mut *opened.waiting.lock().expect("opened files"));
+            let handed = std::mem::take(&mut *opened.waiting_links.lock().expect("opened files"));
             *opened.origin.lock().expect("opened files") = opened_origin;
             files.extend(pdf_paths(std::env::args().skip(1)));
             if !files.is_empty() {
                 app.state::<WindowLaunch>().note_standalone_viewer();
             }
             open_pdf_files(app.handle(), files);
+            // Addresses that arrived before there was a window to show them
+            // in — which is every handoff that started Papol.
+            #[cfg(target_os = "macos")]
+            open_handed_over_links(app.handle(), handed);
+            #[cfg(not(target_os = "macos"))]
+            let _ = handed;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -1410,7 +1534,7 @@ mod tests {
         let url = opened_file_url(
             "tauri://localhost",
             &sha256,
-            Path::new("/Users/reader/Downloads/Attention & more.pdf"),
+            Path::new("/Users/user/Downloads/Attention & more.pdf"),
         )
         .expect("opened file URL");
         let document =
@@ -1470,8 +1594,8 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn the_installed_application_keeps_the_store_its_readers_are_signed_in_to() {
-        // Moving it would sign every reader out once, to fix something none
+    fn the_installed_application_keeps_the_store_its_users_are_signed_in_to() {
+        // Moving it would sign every user out once, to fix something none
         // of them have.
         assert_eq!(webview_data_store(RELEASE_IDENTIFIER), None);
     }
@@ -1489,5 +1613,172 @@ mod tests {
             Some(development),
             webview_data_store("com.mc-pony.papol.dev"),
         );
+    }
+    #[test]
+    fn a_handed_over_address_becomes_the_bundled_page_that_serves_it() {
+        // The browser's origin must not survive: a window built on
+        // mc-pony.com would fetch the hosted site, when the application's
+        // pages are compiled in.
+        let handed = parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123&page=4");
+        let target =
+            deep_link_url(&handed, "tauri://localhost", "papol").expect("a bundled address");
+        assert_eq!(url_origin(&target), "tauri://localhost");
+
+        let document = document_window(&target, "tauri://localhost").expect("a viewer to open");
+        let bundled = bundled_document_url(target, &document);
+        assert_eq!(bundled.path(), "/viewer/index.html");
+        assert_eq!(bundled.query(), Some("pdf=paper-123&page=4"));
+        assert_eq!(document.label, "viewer-paper-123");
+    }
+
+    #[test]
+    fn a_handed_over_board_opens_the_board_it_names() {
+        let handed = parse("papol://mc-pony.com/papol/boards/board_123");
+        let target =
+            deep_link_url(&handed, "tauri://localhost", "papol").expect("a bundled address");
+        let document = document_window(&target, "tauri://localhost").expect("a board to open");
+        assert_eq!(document.label, "board-board_123");
+        assert_eq!(
+            bundled_document_url(target, &document).query(),
+            Some("board=board_123"),
+        );
+    }
+
+    #[test]
+    fn a_development_address_is_handed_over_the_same_way() {
+        let handed = parse("papol://127.0.0.1:5173/viewer/?pdf=paper-123");
+        let target =
+            deep_link_url(&handed, "tauri://localhost", "papol").expect("a bundled address");
+        assert_eq!(target.path(), "/viewer/");
+        assert_eq!(target.query(), Some("pdf=paper-123"));
+    }
+
+    #[test]
+    fn only_the_keys_that_name_a_document_and_a_place_cross_over() {
+        // Anyone at all can send one of these, so the address is not a
+        // message from Papol and is not treated as one.
+        let handed = parse(
+            "papol://mc-pony.com/papol/viewer/?pdf=paper-123&token=secret&next=/admin&page=2",
+        );
+        let target =
+            deep_link_url(&handed, "tauri://localhost", "papol").expect("a bundled address");
+        let query = target.query().unwrap_or_default();
+        assert!(query.contains("pdf=paper-123"));
+        assert!(query.contains("page=2"));
+        assert!(!query.contains("token"));
+        assert!(!query.contains("next"));
+    }
+
+    #[test]
+    fn a_handed_over_address_that_names_nothing_opens_nothing() {
+        let handed = parse("papol://mc-pony.com/papol/");
+        let target =
+            deep_link_url(&handed, "tauri://localhost", "papol").expect("a bundled address");
+        assert_eq!(target.query(), None);
+        assert!(document_window(&target, "tauri://localhost").is_none());
+
+        let bare = parse("papol://mc-pony.com/papol/viewer/");
+        let target = deep_link_url(&bare, "tauri://localhost", "papol").expect("a bundled address");
+        assert!(document_window(&target, "tauri://localhost").is_none());
+    }
+
+    #[test]
+    fn only_papols_own_scheme_is_answered() {
+        for address in [
+            "https://mc-pony.com/papol/viewer/?pdf=paper-123",
+            "file:///Users/someone/paper.pdf",
+            "papolx://mc-pony.com/papol/viewer/?pdf=paper-123",
+        ] {
+            assert!(
+                deep_link_url(&parse(address), "tauri://localhost", "papol").is_none(),
+                "{address} is not Papol's scheme",
+            );
+        }
+    }
+
+    #[test]
+    fn a_handed_over_reading_retargets_the_window_already_open() {
+        // The same rule a viewer opened any other way follows: a plain read
+        // brings the window forward, a named place moves it.
+        let plain = deep_link_url(
+            &parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123"),
+            "tauri://localhost",
+            "papol",
+        )
+        .expect("a bundled address");
+        let document = document_window(&plain, "tauri://localhost").expect("a viewer");
+        assert!(!should_navigate_existing_document(&document, &plain));
+
+        let placed = deep_link_url(
+            &parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123&note=n-7"),
+            "tauri://localhost",
+            "papol",
+        )
+        .expect("a bundled address");
+        assert!(should_navigate_existing_document(&document, &placed));
+    }
+
+    #[test]
+    fn a_development_build_does_not_answer_the_installed_papols_scheme() {
+        // LaunchServices hands a scheme to one application. If a development
+        // build claimed `papol`, it could be the one a user's browser
+        // reaches, and their paper would open in a build they forgot they
+        // had — or in nothing at all, if it is not running.
+        assert_eq!(handoff_scheme("com.mc-pony.papol"), "papol");
+        assert_eq!(handoff_scheme("com.mc-pony.papol.dev"), "papol-dev");
+        assert_ne!(
+            handoff_scheme("com.mc-pony.papol"),
+            handoff_scheme("com.mc-pony.papol.dev"),
+        );
+    }
+
+    #[test]
+    fn a_build_answers_only_the_scheme_that_is_its_own() {
+        let handed = parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123");
+        assert!(deep_link_url(&handed, "tauri://localhost", "papol").is_some());
+        assert!(deep_link_url(&handed, "tauri://localhost", "papol-dev").is_none());
+
+        let handed_dev = parse("papol-dev://mc-pony.com/papol/viewer/?pdf=paper-123");
+        assert!(deep_link_url(&handed_dev, "tauri://localhost", "papol-dev").is_some());
+        assert!(deep_link_url(&handed_dev, "tauri://localhost", "papol").is_none());
+    }
+
+    #[test]
+    fn a_reading_handed_over_before_there_is_a_window_waits_instead_of_vanishing() {
+        // The first handoff after installing is a cold launch: macOS delivers
+        // the address to start the application, so it arrives before `setup`
+        // has set an origin. Dropping it there is the user watching Papol
+        // open on the library instead of the paper they asked for.
+        let opened = OpenedFiles::default();
+        assert!(opened.origin.lock().expect("origin").is_none());
+
+        let handed = parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123&page=14");
+        opened
+            .waiting_links
+            .lock()
+            .expect("waiting links")
+            .push(handed);
+
+        // What `setup` then drains, once an origin exists.
+        let waiting = std::mem::take(&mut *opened.waiting_links.lock().expect("waiting links"));
+        assert_eq!(waiting.len(), 1, "the address was kept, not dropped");
+
+        let target =
+            deep_link_url(&waiting[0], "tauri://localhost", "papol").expect("a bundled address");
+        let document = document_window(&target, "tauri://localhost").expect("a viewer to open");
+        assert_eq!(
+            bundled_document_url(target, &document).query(),
+            Some("pdf=paper-123&page=14"),
+            "the place survives the wait, not just the document",
+        );
+    }
+
+    #[test]
+    fn the_keys_carried_across_are_the_ones_the_viewer_reads() {
+        // Kept in step with shared/macHandoff.js: a key the browser sends and
+        // the application drops is a handoff that silently loses the place.
+        for key in ["pdf", "board", "share", "page", "note", "y", "mark", "box"] {
+            assert!(HANDOFF_QUERY_KEYS.contains(&key), "{key} should cross over");
+        }
     }
 }

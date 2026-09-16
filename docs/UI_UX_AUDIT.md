@@ -4,7 +4,7 @@ Audited 15 September 2026 across the web library, authentication and public
 pages, paper detail and upload, seminar flow, desktop library shell, PDF
 viewer, and infinite board. The audit covers source-level visual consistency,
 interaction states, semantics, responsive rules, and the documented design
-system. It does not replace moderated usability testing with active readers.
+system. It does not replace moderated usability testing with active users.
 
 ## Executive assessment
 
@@ -93,7 +93,7 @@ This pass consolidates foundations without redesigning Papol's character.
 ### Navigation and information architecture
 
 The web navigation is compact and appropriate for a small product. The desktop
-sidebar is even stronger: it maps the reader's mental model (all papers,
+sidebar is even stronger: it maps the user's mental model (all papers,
 shelves, boards, tags, inbox, learning) directly to stable sources. The viewer
 and board correctly become focused document windows, with one route back to the
 library. Preserve this distinction; adding browser-like history or duplicating
@@ -106,11 +106,11 @@ row wraps into two lines.
 
 ### Library and nook
 
-Shelf color, public/private meaning, reader identity, and seminar state each
+Shelf color, public/private meaning, user identity, and seminar state each
 have separate visual encodings. This is a major strength. Cards and rows are
 compact enough for scanning, and serif paper titles preserve a reading-first
 feel. The most likely usability pressure is filter accumulation: shelf tabs,
-reader filters, tags, search, and sort can all coexist. Keep a single clear
+user filters, tags, search, and sort can all coexist. Keep a single clear
 result count and provide one “Clear filters” action whenever two or more filter
 families are active; do not add more persistent filter chrome.
 
@@ -123,7 +123,7 @@ offer to clear filters rather than resemble a genuinely empty collection.
 
 The detail page's strongest UX idea is visibility by container tint: public
 ratings/thoughts and private summary/notes are distinguishable before their
-badges are read. Metadata editing also warns that changes affect all readers.
+badges are read. Metadata editing also warns that changes affect all users.
 These patterns should remain canonical.
 
 Upload is information-dense but correctly staged as review rather than blind
@@ -138,7 +138,7 @@ because local import and public upload have different motivations.
 Semantic state colors and a single `StatePill` component make seminar status
 consistent. Host transfer and uncall actions are explicit. The announce form's
 style choices are now exposed as a named radio group. A future usability test
-should examine whether “planning”, “called”, and “scheduled” match readers'
+should examine whether “planning”, “called”, and “scheduled” match users'
 natural vocabulary; color consistency cannot compensate for an unfamiliar
 state model.
 
@@ -162,7 +162,7 @@ This is the right conceptual model. The initial hint (“drop or paste”) is
 useful, and mobile toolbar controls are expanded to 40px.
 
 The board has the highest learnability cost in Papol. Preserve the existing
-first-use hint, but measure whether readers discover double-click-to-create,
+first-use hint, but measure whether users discover double-click-to-create,
 grouping, and booklet reordering. If not, prefer a small contextual empty-canvas
 action or a replayable help entry over permanent toolbar labels.
 
@@ -176,7 +176,7 @@ action or a replayable help entry over permanent toolbar labels.
    order and focus restoration defects.
 2. Extend the shared modal contract to any new modal surface and add an
    integration test for nested confirmation sheets.
-3. Test the upload/review flow and the board's grouping model with readers. The
+3. Test the upload/review flow and the board's grouping model with users. The
    main open questions are conceptual, not cosmetic.
 
 ### P2 — component consolidation

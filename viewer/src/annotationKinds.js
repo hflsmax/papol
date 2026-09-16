@@ -8,7 +8,7 @@
  * apart, and this is where the one interface is presented as the three.
  *
  * Each kind's geometry lives in `body` on the wire. Rendering code reads it
- * flat — `stroke.points`, `clip.frame` — so a mark is spread on the way out
+ * flat — `stroke.points`, `clip.frame` — so an annotation is spread on the way out
  * and gathered on the way in.
  */
 

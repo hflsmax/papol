@@ -2,7 +2,7 @@
 
 Every other suite builds its schema with `create_all`, which produces today's
 shape from today's models. That answers "does the code work against the schema
-it expects" and never "does a reader's existing database survive the upgrade" —
+it expects" and never "does a user's existing database survive the upgrade" —
 so a migration that drops every annotation on the floor passes all of them.
 
 These tests start from the shape the last release actually wrote and run
@@ -85,7 +85,7 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.seed()
 
     def seed(self):
-        """One reader, a public shelf and a private one, and a mark of each kind."""
+        """One user, a public shelf and a private one, and an annotation of each kind."""
         db = sqlite3.connect(self.path)
         db.executescript(PREVIOUS_RELEASE)
         self.user = _uuid()
@@ -158,7 +158,7 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.assertEqual(
             carried,
             {self.note: "note", self.ink: "ink", self.clip: "clip"},
-            "a reader's notes, ink and clips must all arrive, under their own uuids",
+            "a user's notes, ink and clips must all arrive, under their own uuids",
         )
 
     def test_a_mark_keeps_what_makes_it_readable(self):

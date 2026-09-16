@@ -62,7 +62,7 @@ function seed() {
   }));
 
   let cid = 1;
-  // Seeds name a paper by its place in demoPapers, and a reader by ordinal.
+  // Seeds name a paper by its place in demoPapers, and a user by ordinal.
   const copy = (paper, user, extra = {}) => ({
     uuid: demoUuid('copy', cid++), paper_uuid: demoPaperUuid(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, onDisplay: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
@@ -70,7 +70,7 @@ function seed() {
   });
 
   // SpongeBob's private filing system. These never appear in another
-  // reader's nook or on their copy of the same paper.
+  // user's nook or on their copy of the same paper.
   const tags = [
     { uuid: demoUuid('tag', 1), name: 'foundations' },
     { uuid: demoUuid('tag', 2), name: 'transformers' },
@@ -170,7 +170,7 @@ function seed() {
   ];
 
   const notifications = [
-    { uuid: demoUuid('notification', 1), user_uuid: ME, room_uuid: demoUuid('room', 4), content: 'Sandy Cheeks called for a seminar on “Attention Is All You Need”. A reader of the paper can answer to host.', read: false, created_at: daysAgo(1) },
+    { uuid: demoUuid('notification', 1), user_uuid: ME, room_uuid: demoUuid('room', 4), content: 'Sandy Cheeks called for a seminar on “Attention Is All You Need”. A user of the paper can answer to host.', read: false, created_at: daysAgo(1) },
     { uuid: demoUuid('notification', 2), user_uuid: ME, room_uuid: demoUuid('room', 2), content: 'Sandy Cheeks will host the seminar on “The Byzantine Generals Problem”. Share your availability in the cohort.', read: true, created_at: daysAgo(2) },
   ];
 
@@ -214,14 +214,14 @@ const tagsOf = (copy) => myTags().filter((tag) => (copy?.tag_uuids || []).includ
 // ---------- Helpers mirroring the backend ----------
 
 // Mirrors the backend's UserPublic: the email rides along only when the
-// reader chose to show it.
+// user chose to show it.
 const publicUser = (u) => ({
   uuid: u.uuid, display_name: u.display_name,
   affiliation: u.affiliation || null, avatar_path: u.avatar_path || null,
   email: u.email_public === false ? null : u.email || null,
 });
 
-// Mirrors UserPrivate: the signed-in reader always sees their own email.
+// Mirrors UserPrivate: the signed-in user always sees their own email.
 const privateUser = (u) => ({
   ...publicUser(u),
   email: u.email,
@@ -239,7 +239,7 @@ const displayedCopies = (p) => paperCopies(p).filter(onDisplay);
 const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_uuid === uid) || null;
 const roomParts = (r) => ensure().participants.filter((x) => x.room_uuid === r.uuid);
 
-const readerEntry = (c) => ({
+const userEntry = (c) => ({
   paper_uuid: c.paper_uuid, user: publicUser(userByUuid(c.user_uuid)),
   is_author: !!c.is_author,
   thought: c.thought,
@@ -295,9 +295,9 @@ function paperDetail(p) {
       ? ensure().comments.filter((c) => c.paper_uuid === p.uuid && c.user_uuid === ME)
           .map((c) => ({ ...c, kind: 'note' }))
       : [],
-    also_read_by: displayedCopies(p).map(readerEntry),
+    also_read_by: displayedCopies(p).map(userEntry),
     rooms: paperRooms(p).map(roomSummary),
-    viewer_is_reader: onDisplay(mine),
+    viewer_has_copy: onDisplay(mine),
     viewer_has_entry: !!mine,
   };
 }
@@ -326,7 +326,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     shelf_uuid: c ? c.shelf_uuid : null,
     tags: hidePrivate ? [] : tagsOf(c),
     room_status: statusMap[paperKey(p)] || null,
-    readers: displayedCopies(p).map(readerEntry),
+    users: displayedCopies(p).map(userEntry),
   };
 }
 
@@ -334,7 +334,7 @@ function roomDetail(r) {
   const d = ensure();
   const paper = d.papers.find((p) => paperKey(p) === r.paper_key) || null;
   const mine = paper ? copyOf(paper, ME) : null;
-  const isReader = onDisplay(mine);
+  const hasCopy = onDisplay(mine);
   return {
     ...roomSummary(r),
     paper_title: r.paper_title,
@@ -344,10 +344,10 @@ function roomDetail(r) {
     availabilities: d.availabilities.filter((a) => a.room_uuid === r.uuid)
       .map((a) => ({ uuid: a.uuid, availability: a.availability, created_at: a.created_at, user: publicUser(userByUuid(a.user_uuid)) })),
     viewer_can_lead:
-      r.status === 'open' && isReader &&
+      r.status === 'open' && hasCopy &&
       roomParts(r).some((x) => x.user_uuid === ME),
     viewer_is_participant: roomParts(r).some((x) => x.user_uuid === ME),
-    viewer_is_reader: isReader,
+    viewer_has_copy: hasCopy,
     viewer_hidden_entry_uuid: mine && !onDisplay(mine) && paper ? paper.uuid : null,
   };
 }
@@ -361,7 +361,7 @@ function ensureParticipant(r) {
   }
 }
 
-function requireReaderOf(room) {
+function requireUserOf(room) {
   const d = ensure();
   const paper = d.papers.find((p) => paperKey(p) === room.paper_key);
   const mine = paper ? copyOf(paper, ME) : null;
@@ -405,7 +405,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/auth/avatar' || path === '/auth/password') {
     throw demoError('Not available in the demo — create a real account to set this up.');
   }
-  // Nothing in the demo is really this reader's, so there is nothing to
+  // Nothing in the demo is really this user's, so there is nothing to
   // take away and nobody to delete.
   if (path === '/auth/account') {
     throw demoError(
@@ -653,7 +653,7 @@ async function routeDemoRequest(path, options = {}) {
     if (!action && method === 'GET') return roomDetail(room);
     if (action === 'lead') {
       if (room.status !== 'open') throw demoError('This seminar already has a host');
-      requireReaderOf(room);
+      requireUserOf(room);
       if (!roomParts(room).some((x) => x.user_uuid === ME)) {
         throw demoError('Join the cohort before answering to host');
       }
@@ -685,7 +685,7 @@ async function routeDemoRequest(path, options = {}) {
       return { message: 'Seminar uncalled' };
     }
     if (action === 'join') {
-      requireReaderOf(room);
+      requireUserOf(room);
       ensureParticipant(room);
       return roomDetail(room);
     }
@@ -704,7 +704,7 @@ async function routeDemoRequest(path, options = {}) {
       return roomDetail(room);
     }
     if (action === 'messages') {
-      requireReaderOf(room);
+      requireUserOf(room);
       if (!roomParts(room).some((x) => x.user_uuid === ME)) {
         throw demoError('Join the cohort before posting a message');
       }
@@ -714,7 +714,7 @@ async function routeDemoRequest(path, options = {}) {
     }
     if (action === 'availability') {
       if (room.status === 'scheduled') throw demoError('This seminar has already been scheduled');
-      requireReaderOf(room);
+      requireUserOf(room);
       if (!roomParts(room).some((x) => x.user_uuid === ME)) {
         throw demoError('Join the cohort before sharing availability');
       }

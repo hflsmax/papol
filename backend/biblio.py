@@ -1,10 +1,10 @@
-"""Turning a printed reference into a paper a reader can act on.
+"""Turning a printed reference into a paper a user can act on.
 
 The analyzer gives Papol the string an author typed into their
 bibliography. This turns that string into a work: its title, who wrote it,
 where it appeared, what it is about, how often it has been cited, and
 where a copy can be read. Nothing here is Papol's own knowledge — it is
-CrossRef and OpenAlex — and both are asked only when a reader actually
+CrossRef and OpenAlex — and both are asked only when a user actually
 opens a reference.
 
 The judgment is in choosing between what they answer, because a
@@ -147,7 +147,7 @@ async def resolve(reference) -> tuple[str, Optional[dict]]:
     """Look up one reference. Returns (status, summary):
 
       ok    — a work was found, and `summary` describes it
-      miss  — nothing convincing was found; the reader gets the raw string
+      miss  — nothing convincing was found; the user gets the raw string
       error — nobody could be asked just now; worth trying again later, so
               the caller should not remember this as an answer
     """
@@ -305,7 +305,7 @@ def _merge(primary: dict, secondary: dict, printed_year: Optional[int]) -> dict:
     """Prefer the richer record, but never lose a field it happens to lack.
 
     Except the year: where the two disagree, the one that agrees with the
-    printed reference is the one the reader is looking at on the page."""
+    printed reference is the one the user is looking at on the page."""
     merged = {
         key: primary.get(key) if _present(primary.get(key)) else secondary.get(key)
         for key in {*primary, *secondary}

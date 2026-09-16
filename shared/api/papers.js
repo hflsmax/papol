@@ -144,7 +144,7 @@ export async function createPaper(paperData) {
   return jsonRequest('/papers', 'POST', paperData);
 }
 
-// Whether this reader has a link out on a paper read from the replica.
+// Whether this user has a link out on a paper read from the replica.
 // Unknown is reported as none: offline there is no link to be managed —
 // stopping one and making one both happen on the service — so not being able
 // to ask is no reason to fail to open the paper.

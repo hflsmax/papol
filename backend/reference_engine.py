@@ -139,7 +139,7 @@ class EphemeralReferenceEngine:
         self._previews: dict[str, ReferenceOut] = {}
 
     def begin(self, digest: str) -> bool:
-        """Mark an unseen PDF pending; true means the caller should run it."""
+        """Annotation an unseen PDF pending; true means the caller should run it."""
         if digest in self._analyses:
             return False
         self._analyses[digest] = {

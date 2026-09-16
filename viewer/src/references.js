@@ -48,7 +48,7 @@ const COLUMN_EDGE = 0.005;
 // Blank space this wide within one printed line is a gutter, not a word
 // space. It catches the column alongside even where that column numbers no
 // entry of its own — the tail of a long reference carried over, which the
-// entry marks cannot see.
+// entry annotations cannot see.
 const COLUMN_GUTTER = 0.02;
 // hyperref raises a destination slightly above the bibliography line so a
 // jump does not pin the text flush to the window edge. Matching the nearest
@@ -333,7 +333,7 @@ async function fromAnnotations(doc, pageNumber, references, analyzed = []) {
     // Papol's reference analysis has finished (and even when no analyzer is
     // configured). Do not let those temporarily behave like ordinary
     // cross-references: clicking a citation should always open the reference
-    // card, never whisk the reader to the bibliography. The card can replace
+    // card, never whisk the user to the bibliography. The card can replace
     // this placeholder with analyzed details as soon as they arrive.
     if (isNamedCitation(link.dest)) {
       citations.push(namedCitation(link.dest, box));
@@ -413,7 +413,7 @@ function namedCitation(dest, box) {
 /**
  * One page's text as printed lines, alongside every numbered entry it sets.
  *
- * The entry marks are collected here because they are the only thing on the
+ * The entry annotations are collected here because they are the only thing on the
  * page that says where its columns are: "[24]" at the head of an item, and
  * the x it was set at.
  */
@@ -471,7 +471,7 @@ export async function readNamedReference(doc, dest) {
   // A destination set right at a page break points at the seam: Elsevier's
   // "bib0016" lands at the foot of page 9, and entry [16] is the first thing
   // printed on page 10. The number says which entry is meant, so follow it
-  // over the fold rather than reading whatever the mark happened to land on.
+  // over the fold rather than reading whatever the annotation happened to land on.
   if (number != null && !named && pageIndex + 2 <= (doc.numPages || 0)) {
     const overleaf = await printedLines(await doc.getPage(pageIndex + 2));
     const found = overleaf.printed.find((entry) => entry.number === number);
@@ -615,7 +615,7 @@ export function columnsOnPage(references, page) {
 export function referenceAt(references, spot) {
   const near = references.filter((reference) => {
     if (reference.page !== spot.page) return false;
-    const drop = reference.y - spot.y; // positive: the entry is below the mark
+    const drop = reference.y - spot.y; // positive: the entry is below the annotation
     return drop >= -ABOVE && drop <= BELOW;
   });
 
@@ -623,7 +623,7 @@ export function referenceAt(references, spot) {
   // arrives without an x to say: Elsevier and REVTeX both write /XYZ with
   // left=0. So when entries from more than one column are in range, its y is
   // equally true of all of them and picking the closest is picking at random.
-  // A confidently wrong reference is worse than none, because the reader is
+  // A confidently wrong reference is worse than none, because the user is
   // never told it was a guess. Leave it unmatched: the caller still opens a
   // card, and reads the entry the destination actually lands on.
   const column = columnsOnPage(references, spot.page);

@@ -22,7 +22,7 @@ async def submit_feedback(
     db: Session = Depends(get_db),
 ):
     """Report a bug or request a feature. Open to visitors too, so that a
-    reader who cannot sign in can still say so. The report is stored and
+    user who cannot sign in can still say so. The report is stored and
     every admin gets it as an inbox message and an email."""
     fb = Feedback(
         user_uuid=current_user.uuid if current_user else None,

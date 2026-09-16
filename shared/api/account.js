@@ -110,7 +110,7 @@ export async function getMe() {
     user = await desktopAuthRequest((signal) => request('/auth/me', { signal }));
   } catch (error) {
     if (!nativeDataActive() || error?.status === 401 || error?.status === 403) throw error;
-    // Offline, SQLite holds the signed-in reader's identity.
+    // Offline, SQLite holds the signed-in user's identity.
     user = await nativeRepository.account();
   }
   if (!user) throw new Error('Account profile is unavailable');
@@ -144,7 +144,7 @@ export async function updateProfile(data) {
 }
 
 /**
- * Download everything Papol holds about the reader, as a zip.
+ * Download everything Papol holds about the user, as a zip.
  *
  * Fetched rather than linked: the export needs the bearer token, and a
  * plain <a href> cannot carry one. The blob is handed to the browser
