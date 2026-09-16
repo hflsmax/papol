@@ -604,6 +604,112 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual(result["rows"][0]["paper_uuid"], paper_uuid)
         self.assertEqual(result["rows"][0]["edition_uuid"], edition_uuid)
 
+    def test_opening_a_removed_paper_again_revives_the_readers_copy(self):
+        """A file removed from the nook and opened again returns to it.
+
+        The desktop mints a fresh copy UUID each time, which is aliased onto
+        the reader's tombstone; reviving it is the only way the addition can
+        take effect, and without it the paper leaves the library on the next
+        snapshot and the viewer asks to add it once more.
+        """
+        content = b"%PDF-1.4\nremoved and opened again\n%%EOF"
+        digest = hashlib.sha256(content).hexdigest()
+        upload = self.client.put(
+            f"/api/sync/blobs/{digest}", headers=self.headers, content=content,
+        )
+        self.assertEqual(upload.status_code, 204, upload.text)
+        client = str(uuid.uuid4())
+        paper_uuid, edition_uuid, copy_uuid = (str(uuid.uuid4()) for _ in range(3))
+        self.request("POST", "/api/sync/push", json={
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": 1,
+            "changes": [
+                {"table": "papers", "uuid": paper_uuid, "operation": "upsert",
+                 "values": {"title": "Removed and opened again", "doi": None}},
+                {"table": "paper_editions", "uuid": edition_uuid, "operation": "upsert",
+                 "values": {"paper_uuid": paper_uuid, "file_path": f"{digest}.pdf",
+                            "sha256": digest}},
+                {"table": "copies", "uuid": copy_uuid, "operation": "upsert",
+                 "values": {"paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
+                            "edition_sha256": digest}},
+            ],
+        })
+        self.request("POST", "/api/sync/push", json={
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": 2,
+            "changes": [{"table": "copies", "uuid": copy_uuid, "base_revision": 1,
+                         "operation": "delete", "values": {}}],
+        })
+
+        again_paper, again_edition, again_copy = (str(uuid.uuid4()) for _ in range(3))
+        revived = self.request("POST", "/api/sync/push", json={
+            "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": 3,
+            "changes": [
+                {"table": "papers", "uuid": again_paper, "operation": "upsert",
+                 "values": {"title": "Removed and opened again", "doi": None}},
+                {"table": "paper_editions", "uuid": again_edition, "operation": "upsert",
+                 "values": {"paper_uuid": again_paper, "file_path": f"{digest}.pdf",
+                            "sha256": digest}},
+                {"table": "copies", "uuid": again_copy, "base_revision": 0,
+                 "operation": "upsert",
+                 "values": {"paper_uuid": again_paper, "edition_uuid": again_edition,
+                            "edition_sha256": digest}},
+            ],
+        }).json()
+
+        self.assertEqual(revived["aliases"][again_copy], copy_uuid)
+        # The fresh addition wins the ordinary revision conflict; what must
+        # never happen again is the removal rejecting it outright.
+        resolutions = [conflict["resolution"] for conflict in revived["conflicts"]]
+        reasons = [conflict.get("reason") for conflict in revived["conflicts"]]
+        self.assertNotIn("server_won", resolutions)
+        self.assertNotIn("row_deleted", reasons)
+        copy_row = next(row for row in revived["rows"] if row["table"] == "copies")
+        self.assertIsNone(copy_row["deleted_at"])
+        self.assertEqual(copy_row["edition_sha256"], digest)
+        with self.sessions() as db:
+            copies = db.query(Copy).filter(Copy.user_uuid == self.user_uuid).all()
+            self.assertEqual(len(copies), 1)
+            self.assertIsNone(copies[0].deleted_at)
+
+    def test_online_add_to_nook_revives_a_removed_copy(self):
+        with self.sessions() as db:
+            other = User(
+                email="reviver@example.test", display_name="Other reader",
+                password_hash="unused",
+            )
+            paper = Paper(title="Removed on the web")
+            db.add_all([other, paper])
+            db.flush()
+            shelf = Shelf(
+                user_uuid=other.uuid, name="Public", color="#123456",
+                is_public=True, is_default=True,
+            )
+            edition = PaperEdition(
+                paper=paper, paper_uuid=paper.uuid, file_path="removed.pdf",
+                sha256="b" * 64, uploaded_by=other.uuid,
+            )
+            db.add_all([shelf, edition])
+            db.flush()
+            db.add(Copy(
+                paper=paper, user_uuid=other.uuid, shelf=shelf, marketed=True,
+                edition=edition, edition_sha256=edition.sha256,
+            ))
+            db.commit()
+            paper_uuid = paper.uuid
+
+        self.request("POST", f"/api/papers/{paper_uuid}/add-to-nook")
+        self.request("DELETE", f"/api/papers/{paper_uuid}")
+        self.request("POST", f"/api/papers/{paper_uuid}/add-to-nook")
+
+        with self.sessions() as db:
+            copies = db.query(Copy).filter(
+                Copy.user_uuid == self.user_uuid, Copy.paper_uuid == paper_uuid,
+            ).all()
+            self.assertEqual(len(copies), 1)
+            self.assertIsNone(copies[0].deleted_at)
+
     def test_sync_rejects_active_or_credentialed_board_links(self):
         board_uuid = str(uuid.uuid4())
         for source_url in ("javascript:alert(1)", "https://user:secret@example.test/page"):

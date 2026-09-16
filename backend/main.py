@@ -2448,14 +2448,24 @@ async def add_to_nook(
 
     latest = _latest_edition(paper)
     shelf = _default_shelf(current_user)
-    db.add(Copy(
-        paper=paper,
-        user_uuid=current_user.uuid,
-        marketed=bool(shelf.is_public),
-        shelf=shelf,
-        edition=latest,
-        edition_sha256=latest.sha256 if latest else None,
-    ))
+    # One copy per reader (uq_copy): a paper added back after being removed
+    # revives that copy, since a second one cannot be stored.
+    removed = next((r for r in paper.copies if r.user_uuid == current_user.uuid), None)
+    if removed is not None:
+        removed.deleted_at = None
+        removed.shelf = shelf
+        removed.marketed = bool(shelf.is_public)
+        removed.edition = latest
+        removed.edition_sha256 = latest.sha256 if latest else None
+    else:
+        db.add(Copy(
+            paper=paper,
+            user_uuid=current_user.uuid,
+            marketed=bool(shelf.is_public),
+            shelf=shelf,
+            edition=latest,
+            edition_sha256=latest.sha256 if latest else None,
+        ))
     commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
