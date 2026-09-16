@@ -515,6 +515,44 @@ class SharableTests(unittest.TestCase):
         )
         self.assertEqual(unshared.status_code, 401)
 
+    def test_a_reader_can_ask_for_their_own_link_without_the_paper(self):
+        """The desktop reads the paper from its replica, where no link can
+        live, so it asks for this beside it. The answer has to be the same
+        one the whole paper would have carried, or a shared paper there
+        would show as unshared and its link could not be stopped."""
+        self.assertIsNone(
+            self.client.get(f"/api/papers/{self.paper_uuid}/sharable").json(),
+        )
+
+        mine = self.share(include_marks=True)
+        asked = self.client.get(f"/api/papers/{self.paper_uuid}/sharable")
+        self.assertEqual(asked.status_code, 200, asked.text)
+        self.assertEqual(asked.json()["uuid"], mine["uuid"])
+
+        self.client.delete(f"/api/sharables/{mine['uuid']}")
+        self.assertIsNone(
+            self.client.get(f"/api/papers/{self.paper_uuid}/sharable").json(),
+        )
+
+    def test_the_paper_s_own_link_is_nobody_s_to_be_reported(self):
+        """A lean link belongs to no one, so asking what this reader has
+        out answers nothing — the same rule the paper itself follows."""
+        self.share(include_marks=False)
+        self.assertIsNone(
+            self.client.get(f"/api/papers/{self.paper_uuid}/sharable").json(),
+        )
+
+    def test_nobody_learns_of_a_link_from_someone_else_s_reading(self):
+        self.share(include_marks=True)
+        type(self).current_user_uuid = self.stranger_uuid
+        asked = self.client.get(f"/api/papers/{self.paper_uuid}/sharable")
+        self.assertEqual(asked.status_code, 200, asked.text)
+        self.assertIsNone(asked.json())
+
+    def test_a_paper_that_is_not_there_is_not_found(self):
+        missing = self.client.get("/api/papers/no-such-paper/sharable")
+        self.assertEqual(missing.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

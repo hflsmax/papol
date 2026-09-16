@@ -15,6 +15,16 @@ export function createSharable(paperUuid, { includeMarks = false } = {}) {
   ));
 }
 
+// The link this reader already has out on a paper, asked for on its own.
+// The paper carries it when the paper itself comes from the service; on the
+// desktop it is read from the replica, which has no sharables to answer
+// with, so this is how a shared paper there knows it is shared. A plain
+// read with nothing of the reader's pending on it, so unlike the operations
+// above there is no work to publish first.
+export function mySharable(paperUuid) {
+  return request(`/papers/${paperUuid}/sharable`);
+}
+
 // Downwards only: a link that has been lean is never enriched again,
 // because the people holding it were not promised the marks.
 export function leanSharable(sharableUuid) {

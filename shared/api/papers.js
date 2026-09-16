@@ -8,6 +8,7 @@ import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../
 import { withAbortTimeout } from '../requestTimeout.js';
 import { planOfflineNookAddition } from '../nookTransition.js';
 import { onServer } from './serverOperation.js';
+import { mySharable } from './sharables.js';
 import appLimits from '../appLimits.js';
 import {
   forgetPendingPaperBlob, hasPendingPaperBlob, paperCopyUuid, rememberPaperIdentity,
@@ -143,6 +144,19 @@ export async function createPaper(paperData) {
   return jsonRequest('/papers', 'POST', paperData);
 }
 
+// Whether this reader has a link out on a paper read from the replica.
+// Unknown is reported as none: offline there is no link to be managed —
+// stopping one and making one both happen on the service — so not being able
+// to ask is no reason to fail to open the paper.
+async function liveLinkOn(uuid) {
+  if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
+  try {
+    return (await mySharable(uuid))?.uuid ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getPaper(uuid) {
   let localComments = null;
   if (nativeDataActive()) {
@@ -150,11 +164,15 @@ export async function getPaper(uuid) {
     // or may be out of reach.
     try {
       localComments = nativeRepository.annotations(uuid, null, 'note');
-      const [row, comments] = await Promise.all([
-        nativeRepository.paper(uuid), localComments,
+      // A link out is a state of the paper, but the replica has no sharables
+      // to answer with, so it is asked for beside the paper rather than after
+      // it: one round trip alongside the local reads costs the page nothing.
+      const [row, comments, link] = await Promise.all([
+        nativeRepository.paper(uuid), localComments, liveLinkOn(uuid),
       ]);
       const paper = paperView(row);
       paper.notes = comments.map(annotationView);
+      paper.sharable_uuid = link;
       setPaperCopyUuid(uuid, paper.copy_uuid);
       return paper;
     } catch (error) {

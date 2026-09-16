@@ -5,8 +5,8 @@ from models import Paper, Sharable, User
 from schemas import SharableCreate, SharableOut, SharedInNook, SharedReading
 from services.editions import edition_for
 from services.sharables import (
-    LEAN, RICH, copy_in_nook, make_lean, open_sharable, revoke, share_reading,
-    shared_reading, take_into_nook,
+    LEAN, RICH, copy_in_nook, live_sharable_for, make_lean, open_sharable,
+    revoke, share_reading, shared_reading, take_into_nook,
 )
 from sqlalchemy.orm import Session
 
@@ -56,6 +56,46 @@ async def create_sharable(
     return SharableOut.model_validate(
         share_reading(db, current_user, copy, edition, kind),
     )
+
+
+@router.get("/api/papers/{paper_uuid}/sharable", response_model=SharableOut | None)
+async def my_sharable(
+    paper_uuid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The link this reader already has out on this paper, asked for alone.
+
+    The paper carries this with it when the whole paper comes from here. On
+    the desktop it does not: the paper is read from the local replica, and a
+    sharable has nowhere to live there — the link must open for someone who
+    is not this reader, on a machine that is not this one. Without asking
+    separately, every shared paper on the desktop would read as unshared: no
+    way to stop a link that is out, and an offer to move to a newer edition
+    that would leave that link serving the old one.
+
+    Only ever a link carrying their marks, as everywhere else: the paper's
+    own link is nobody's, so it is not theirs to be shown or held against
+    them. Nothing to report is an answer rather than a refusal — a paper
+    this reader does not keep, or one with no readable PDF, simply has no
+    link of theirs on it."""
+    paper = db.query(Paper).filter(
+        Paper.uuid == paper_uuid, Paper.deleted_at.is_(None),
+    ).first()
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    copy = next(
+        (row for row in paper.copies
+         if row.user_uuid == current_user.uuid and row.deleted_at is None),
+        None,
+    )
+    if copy is None:
+        return None
+    edition = edition_for(paper, copy)
+    if edition is None:
+        return None
+    sharable = live_sharable_for(db, current_user, edition.uuid)
+    return SharableOut.model_validate(sharable) if sharable else None
 
 
 @router.post("/api/sharables/{sharable_uuid}/lean", response_model=SharableOut)

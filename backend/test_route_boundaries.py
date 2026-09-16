@@ -15,6 +15,7 @@ EXPECTED_ROUTES = {
     ("POST", "/api/notifications/read"): "routes.notifications",
     ("POST", "/api/feedback"): "routes.feedback",
     ("POST", "/api/papers/{paper_uuid}/sharable"): "routes.sharables",
+    ("GET", "/api/papers/{paper_uuid}/sharable"): "routes.sharables",
     ("POST", "/api/sharables/{sharable_uuid}/lean"): "routes.sharables",
     ("DELETE", "/api/sharables/{sharable_uuid}"): "routes.sharables",
     ("GET", "/api/shared/{sharable_uuid}"): "routes.sharables",

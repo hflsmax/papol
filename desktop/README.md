@@ -177,6 +177,25 @@ that publishes nothing. And `screencapture -R` captures a rectangle of the
 screen rather than a window, so an occluded Papol yields a picture of whatever
 is in front of it; `shot` raises the window first.
 
+A name alone will not find an element, and neither will the role you expect.
+A button carrying `aria-haspopup="menu"` is published as `AXPopUpButton`, not
+`AXButton`, and a search for a word like "share" is swamped by every reader
+named Sharer on the page. Both failures read exactly like a control that never
+rendered. Ask a dump what roles it actually found before concluding anything is
+missing:
+
+```sh
+xcrun swift papol-ui.swift dump 1234 | awk -F: '{print $1}' | sort | uniq -c
+```
+
+When the question is what the page itself thinks — which props it rendered
+from, which branch it took — the development build serves its UI from Vite, so
+an edit to a component hot-reloads into the running application in seconds. A
+temporary line written to the application's own diagnostic log answers that in
+minutes, and more reliably than an inspector: Safari's Web Inspector has to be
+attached by hand, and calling `open_devtools()` from `setup` does not work
+(tauri#4170).
+
 Typing is the one thing this cannot do. Setting a field's value through the
 accessibility API reports success and leaves the field empty, because React
 never sees the change — a test that must type should send keystrokes, or drive
