@@ -27,7 +27,7 @@ acting on.
 | **Visitor** | A user who is not signed in. | Sees the demo, a sharable, and the sign-in pages — nothing else. |
 | **Nook** | One user's public reading corner: their copies, shelves, boards, tags. | Product word. The code calls the same payload a **Space** (`getUserSpace`, `Space.jsx`). See §12.1. |
 | **Shelf** | One of a user's five homes for papers, each **public** or **private**. | *Visibility lives here and nowhere else.* `Copy.is_public` asks the shelf each time rather than keeping a second copy of the fact. |
-| **Library** | **Every** paper there is, and every user who displays one. The place a paper is found rather than owned. | No display gates it: a paper nobody shows is still listed, still has a page, and can still be taken into a nook (§2b). What display governs is the row of users shown against a paper. There is no separate word for the list of users — papers and the people who read them are two views of one Library, not two places. |
+| **Library** | **Every** paper there is, and every user who displays one. The place a paper is found rather than owned. | No display gates it (§2b); what display governs is the row of users shown against a paper. There is no separate word for the list of users — papers and the people who read them are two views of one Library, not two places. |
 | **Demo** | A fictional Papol that lives entirely in the browser; the URL is the sole authority for whether it is on. | `shared/demo.js`, `shared/demoWorld.js`. No request reaches the backend in demo. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
@@ -35,7 +35,7 @@ acting on.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is, and there is no second kind of paper for one nobody displays — it is listed and opens like any other (`USER_STORIES.md` §2b). |
+| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is (`USER_STORIES.md` §2b). |
 | **Edition** | One PDF file of a paper. | A re-upload *adds* an edition; it never replaces the file someone is reading. A byte-identical upload reuses the existing edition (`sha256`). |
 | **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags, and the edition they read. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
 | **Adopt** | To move my copy to a newer edition. | Only the user's own click ever moves it, and Papol never realigns annotations afterwards. `ignored_edition_uuid` records the newest edition already waved away. |
@@ -214,10 +214,8 @@ product had already moved visibility onto the **shelf**.
 
 Settled twice over. Visibility belongs to the shelf, and the toggle in
 `NookManager.jsx` reads **Public / Private**; and display was narrowed to what
-it actually governs — *a copy*, never the paper (§2b, US-2.11). A paper is in
-the Library whoever displays it, so "displayed paper" is not a category any
-more. Say **a copy on a public shelf**, and for the paper say nothing: there
-is nothing to say.
+it actually governs — *a copy*, never the paper (§2b, US-2.11). Say **a copy
+on a public shelf**; of the paper there is nothing to say.
 
 ### 12.4 Ink / paint
 

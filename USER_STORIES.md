@@ -34,44 +34,31 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 
 - **US-2.1** As a user, I can upload a PDF into my own nook; metadata (DOI, title, authors, journal, year) is auto-extracted for me to review and edit.
 - **US-2.2** As a user, I can rate each paper 1–5 on three dimensions — **My expertise**, **Reading depth**, **Merit** — directly on the paper page, one click per change. Each dimension is optional: a set rating shows a small "clear" control; an unset one reads "unrated". Visitors see unrated dimensions as a quiet "unrated".
-- **US-2.3** As a user, only I can delete papers in my nook (via Edit Metadata → Delete paper) and edit my personal fields: summary, ratings, display.
+- **US-2.3** As a user, only I can delete papers in my nook (via Edit Metadata → Delete paper) and edit my personal fields: summary, ratings, display. Deleting takes my copy and my notes; my ink and clips stay where they are, for when I add the paper again.
 - **US-2.4** **Metadata is shared and keyed by DOI**: any user can Edit Metadata on any visible paper, and the change applies to every entry with that DOI. The edit form warns about this. "Edit Metadata" and "Edit Summary" are separate buttons — summary belongs to the copy, so only its own user may edit it.
-- **US-2.5** As a user, I choose whether my copy is **on display**, by the shelf I keep it on. A displayed copy shows me standing against the paper — to nook visitors, in the Library, and in "also read by". A copy not on display is mine alone: nobody is told I have it. What it never decides is whether the *paper* can be found, because the paper is not mine to hide (§2b). Summaries and private notes are mine either way.
+- **US-2.5** As a user, I choose whether my copy is **on display**, by the shelf I keep it on. A displayed copy shows me standing against the paper — to nook visitors, in the Library, and in "also read by". A copy not on display is mine alone: nobody is told I have it. Summaries and private notes are mine either way.
 - **US-2.6** As a user, I can keep private, timestamped notes on my own papers; no one else can read or write them.
 - **US-2.7** A paper's PDF is versioned into **editions**, and my copy is pinned to one of them. Uploading a PDF for a paper that already has one adds an edition — it never replaces the file anyone else is reading. An upload byte-identical to an existing edition reuses it instead of adding a duplicate.
 - **US-2.8** When a newer edition exists, my paper page shows an **info sign** naming who added it and when, and offers to move my copy. It warns that located notes were placed on my edition and may not line up on a different PDF. Nothing but my own click ever moves my copy, and Papol never realigns notes for me — adopting is my risk to take.
-- **US-2.9** Nothing shared is destroyed by one user: leaving a paper removes my copy and my notes only. The paper, its editions and their files stay — and so does its place in the Library, because a paper with no users is still a paper. No PDF is ever deleted automatically.
 
 ## 2b. A paper is not owned
 
-What a user owns is their **copy**. The paper is not theirs, and neither is
-the PDF under it.
-
 - **US-2.10** **A paper and its editions belong to nobody.** An edition is a
-  file that exists, keyed to a paper. No user can manipulate or remove one,
-  and leaving a paper never takes it away (US-2.9). What a user owns is their
-  copy: the shelf it sits on, their ratings, their summary, their annotations.
+  file that exists, keyed to a paper; no user can alter or remove one, and
+  leaving a paper never takes it away. What a user owns is their **copy**: the
+  shelf it sits on, their ratings, their summary, their annotations.
 - **US-2.11** **Display governs a copy, not a paper.** Putting a copy on
-  display (US-2.5) says whether *I* am shown standing against the paper. It
-  does not decide whether the paper can be found, because the paper is not
-  mine to hide.
-- **US-2.12** **Every paper is in the Library.** How many users display a
-  paper, or whether any do, changes nothing about it: it is findable, it has
-  its own page, and anyone signed in can take it into their nook. There is no
-  second kind of paper and no state to be in — nothing asks whose it is.
-- **US-2.13** **What stays private is what was always private.** My summary, my
-  notes, my ink and clips, and the fact that I keep this paper at all. A user
-  who does not display their copy is not named anywhere on the paper.
-- **US-2.14** **This is not an opening of Papol to the web.** The Library is
-  for users who have signed in (US-1.4); a visitor without an account still
-  reaches a paper only where someone displays it, which is the same door a
-  shared canonical URL has always opened. That boundary is about accounts,
-  not about who owns a paper.
-- **US-2.15** **What this settles.** Taking a shared paper into a nook used to
-  look as though it *made public* a paper nobody was displaying, since a
-  user's default shelf is usually a displayed one. The question dissolves: the
-  paper was in the Library all along, and what the user gains is a copy of
-  their own.
+  display (US-2.5) says whether *I* am shown standing against the paper. Every
+  paper is in the Library whoever displays it, and anyone signed in can open
+  one and take a copy of their own.
+- **US-2.12** **What a user keeps to themselves.** My summary, my notes, my ink
+  and clips — and that I keep this paper at all: a user who does not display
+  their copy is named nowhere on the paper.
+- **US-2.13** **A visitor still needs an account.** Signing in is what the
+  Library asks for (US-1.4). Without an account a paper opens only where
+  someone displays it, which is the door a shared canonical URL opens. That is
+  the account boundary, and it is the only thing display decides beyond the
+  copy it belongs to.
 
 ## 3. Browsing
 

@@ -188,10 +188,9 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
         ),
         paper=SharedPaper(
             # A link to the paper's own page, carried only when that page
-            # will open for whoever holds this one. Nobody owns the paper,
-            # so this asks nothing about whose it is — only whether the
-            # holder needs an account to get in, which this deliberately
-            # unauthenticated route cannot know. The answer given is the
+            # will open for whoever holds this one. The question is whether
+            # the holder needs an account to get in, which this deliberately
+            # unauthenticated route cannot know — so the answer given is the
             # one that holds for a visitor.
             uuid=paper.uuid if opens_without_account(paper) else None,
             doi=paper.doi,

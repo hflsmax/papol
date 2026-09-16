@@ -2,12 +2,12 @@
 
 What a user owns is their copy: the shelf it sits on, their ratings, their
 summary, their annotations. The paper itself, and the PDFs under it, are
-things that exist. So no user's shelf decides whether anyone else may find
-a paper or read it — a paper nobody displays is a paper like any other.
+things that exist, so no user's shelf decides whether anyone else may find a
+paper or read it.
 
-What display still governs is each user's own business: whether they are
-shown standing against the paper, and whether they may take part in its
-seminar. These tests hold that line from both sides.
+What display governs is each user's own business: whether they are shown
+standing against the paper, and whether they may take part in its seminar.
+These tests hold that line from both sides.
 """
 
 import unittest

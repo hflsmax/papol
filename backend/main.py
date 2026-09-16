@@ -1714,10 +1714,9 @@ async def list_all_papers(
     """Every paper, newest first. Signed-in users only, one row per
     canonical paper.
 
-    Nobody owns a paper, so nothing here asks whose it is, and nothing
-    is filtered out: a paper no user displays is listed like any other.
-    What display governs is the row of users shown against it, which is
-    each user's own business."""
+    Nothing is filtered out: no user's shelf decides what the Library
+    holds. What display governs is the row of users shown against a
+    paper, which is each user's own business."""
     papers = db.query(Paper).order_by(Paper.created_at.desc()).all()
     room_map = _room_status_map(db)
     return [
@@ -1950,14 +1949,12 @@ def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
 def _require_readable(paper: Paper, viewer: User | None):
     """Whether this paper opens for whoever is asking.
 
-    Nobody owns a paper, so no user's shelf decides who may read it. A
-    signed-in user may open any paper there is; the Library holds them all,
-    displayed or not.
+    No user's shelf decides who may read a paper: a signed-in user may
+    open any of them.
 
     A visitor with no account is outside the Library altogether (US-1.4)
-    and reaches a paper only where someone displays it — the same door a
-    shared canonical URL has always opened, left exactly as it was. That
-    is the account boundary, not a claim about whose the paper is.
+    and reaches a paper only where someone displays it, which is the door
+    a shared canonical URL opens.
     """
     if viewer is not None or displayed_copies(paper):
         return
