@@ -84,8 +84,14 @@ every decision it makes — whether to offer at all, what the address is, what
 the reader has already answered — is in `shared/macHandoff.js`, so the policy
 is testable without a browser (`frontend/src/macHandoff.test.js`).
 
-Papol registers the `papol` scheme through `src-tauri/Info.plist`, which
-tauri-bundler merges into the generated one. The address mirrors the web
+Papol registers its scheme through `src-tauri/Info.plist`, which tauri-bundler
+merges into the generated one. That file is written by
+`scripts/write-info-plist.mjs` before each build, because the scheme belongs
+to the build and not to the repository: Launch Services hands a scheme to one
+application system-wide, so a development build claiming `papol` would be the
+one a reader's browser reaches. The release answers `papol`, a development
+build answers `papol-dev`, and `handoff_scheme` in `lib.rs` derives the same
+name from the bundle identifier at runtime. The address mirrors the web
 address the reader was at, so `https://mc-pony.com/papol/viewer/?pdf=…`
 arrives as `papol://mc-pony.com/papol/viewer/?pdf=…`. `handle_run_event`
 answers it: `deep_link_url` moves the path onto the bundled origin — a window
@@ -101,9 +107,20 @@ first, then hand a reading over from a browser or with
 `open 'papol://mc-pony.com/papol/viewer/?pdf=<sha>'`.
 
 No browser will say whether an application is installed. The bar assigns the
-address to `location.href` and watches for this tab losing attention within
-`DETECTION_MS`; that is a guess, so silence is reported as "unknown" and shown
-as an offer to download, never as a verdict about the reader's computer.
+address to `location.href` and watches for this tab losing the reader within
+`DETECTION_MS`. The three signals are not equally good: going hidden or being
+unloaded means the page is in front of nobody, but losing focus does not —
+a browser that cannot open the address may say so in a panel attached to this
+window, which blurs the page while leaving it visible. So a blur only extends
+the wait to `BLUR_GRACE_MS`, and focus returning inside that settles the
+question the other way. All of it is still a guess, so silence is reported as
+"unknown" and shown as an offer to download, never as a verdict about the
+reader's computer.
+
+A handoff is usually a cold launch — the address is what starts Papol — so
+`RunEvent::Opened` arrives before `setup` has built anything to show it in.
+`open_handed_over_links` queues those addresses in `OpenedFiles::waiting_links`
+and `setup` drains them, exactly as it does for files opened at launch.
 
 Claiming Papol's own web addresses through universal links is not built. It
 needs an Apple-issued associated-domains entitlement and an
