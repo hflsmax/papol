@@ -1607,19 +1607,6 @@ select:disabled { cursor: default; opacity: .65; }
   min-width: 0;
 }
 
-/* Coming back from a board, the nook says which row you came from — a wash
-   of the accent that fades out on its own. It lasts long enough to find,
-   and never long enough to be a state the user has to dismiss. */
-.paper-list li.revealed {
-  animation: nook-reveal 2.6s ease-out;
-}
-
-@keyframes nook-reveal {
-  0%, 55% { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  100% { background: transparent; }
-}
-
-
 /* Whether a paper is on display, drawn as the row's own left edge.
    That edge already carried this: a hidden row went dashed there. Making
    it the control means one thing says the state and changes it, rather

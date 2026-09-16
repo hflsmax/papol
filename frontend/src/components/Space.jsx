@@ -7,7 +7,7 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
 
-export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, revealBoard = null, onRevealed }) {
+export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
   const [space, setSpace] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -155,8 +155,6 @@ export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBo
           onSelectPaper={onSelectPaper}
           onSelectBoard={onSelectBoard}
           onChanged={loadSpace}
-          revealBoard={revealBoard}
-          onRevealed={onRevealed}
         />
     </div>
   );
