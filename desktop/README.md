@@ -75,6 +75,42 @@ are not in the PDF and suggests an account to back them up), and
 account it first asks the library window to sign in. The library banner and
 Settings can make Papol the default PDF viewer (macOS only).
 
+## Opening a reading handed over from a browser
+
+A reader looking at a paper or a board in a browser on a Mac is offered the
+application for that document (USER_STORIES.md §7d). The bar is
+`shared/ui/MacHandoffBar.jsx`, mounted by the viewer and board applications;
+every decision it makes — whether to offer at all, what the address is, what
+the reader has already answered — is in `shared/macHandoff.js`, so the policy
+is testable without a browser (`frontend/src/macHandoff.test.js`).
+
+Papol registers the `papol` scheme through `src-tauri/Info.plist`, which
+tauri-bundler merges into the generated one. The address mirrors the web
+address the reader was at, so `https://mc-pony.com/papol/viewer/?pdf=…`
+arrives as `papol://mc-pony.com/papol/viewer/?pdf=…`. `handle_run_event`
+answers it: `deep_link_url` moves the path onto the bundled origin — a window
+built on the browser's origin would fetch the hosted site over the network —
+and `show_document_window` then opens or retargets the one window that
+document has. Only the query keys naming a document and a place in it cross
+over, because anyone at all can send the application one of these.
+
+Two things make this untestable in `tauri dev`. macOS resolves a scheme
+through Launch Services, which knows only about bundled applications in
+`/Applications`, and it cannot be registered at runtime. Build and install
+first, then hand a reading over from a browser or with
+`open 'papol://mc-pony.com/papol/viewer/?pdf=<sha>'`.
+
+No browser will say whether an application is installed. The bar assigns the
+address to `location.href` and watches for this tab losing attention within
+`DETECTION_MS`; that is a guess, so silence is reported as "unknown" and shown
+as an offer to download, never as a verdict about the reader's computer.
+
+Claiming Papol's own web addresses through universal links is not built. It
+needs an Apple-issued associated-domains entitlement and an
+`apple-app-site-association` file served from the domain, and it would not
+help here anyway: a reader already standing on an address cannot follow a link
+to where they already are.
+
 ## Development
 
 ### Run the native app on macOS

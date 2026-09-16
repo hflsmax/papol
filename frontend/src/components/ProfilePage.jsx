@@ -9,6 +9,7 @@ import {
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
+import MacHandoffSettings from './MacHandoffSettings.jsx';
 import {
   getLocalSyncPreference,
   setLocalSyncPreference,
@@ -573,6 +574,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
       </div>
 
       {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
+
+      <MacHandoffSettings />
 
       {/* Notes you cannot leave with are not really yours. */}
       <div className="panel">

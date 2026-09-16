@@ -531,6 +531,71 @@ input[type='checkbox'] {
   background: color-mix(in srgb, var(--ink-inverse) 18%, transparent);
 }
 
+.mac-handoff-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 16px;
+  background: var(--paper-sunken);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+
+.mac-handoff-bar a {
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
+/* Only this button hands the document over. The bar itself is not a click
+   target, because a bar-wide target that means "download" is the whole of
+   the deceptive pattern this one is avoiding (US-7.28). */
+.mac-handoff-open {
+  padding: 4px 14px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.mac-handoff-open:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.mac-handoff-always {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+/* Refusing has to be as easy as accepting: a real target, not a hairline
+   cross a reader has to aim at. */
+.mac-handoff-dismiss {
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  box-shadow: none;
+}
+
+.mac-handoff-dismiss:hover {
+  color: var(--ink);
+}
+
 .demo-banner-actions {
   display: inline-flex;
   align-items: center;

@@ -1,0 +1,311 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  ALWAYS_KEY, DETECTION_MS, RETIRED_KEY,
+  attemptHandoff, deferDocument, documentIsDeferred,
+  handoffAddress, handoffDocument, handoffIdentity, handoffOffer, writeFlag,
+} from '../../shared/macHandoff.js';
+
+const VIEWER = 'https://mc-pony.com/papol/viewer/?pdf=abc123';
+const BOARD = 'https://mc-pony.com/papol/boards/b-42';
+
+function store(initial = {}) {
+  const held = new Map(Object.entries(initial));
+  return {
+    getItem: (key) => (held.has(key) ? held.get(key) : null),
+    setItem: (key, value) => held.set(key, String(value)),
+    removeItem: (key) => held.delete(key),
+    held,
+  };
+}
+
+// A store that refuses everything, the way Safari does in a locked-down
+// private window.
+function sealedStore() {
+  return {
+    getItem() { throw new Error('denied'); },
+    setItem() { throw new Error('denied'); },
+    removeItem() { throw new Error('denied'); },
+  };
+}
+
+test('a viewer showing a PDF is a paper to hand over', () => {
+  assert.deepEqual(handoffDocument(VIEWER), { kind: 'paper', noun: 'this paper' });
+});
+
+test('a viewer showing a shared reading is a paper too', () => {
+  const shared = 'https://mc-pony.com/papol/viewer/?share=11111111-1111-4111-8111-111111111111';
+  assert.equal(handoffDocument(shared).kind, 'paper');
+});
+
+test('a viewer with no document names nothing', () => {
+  assert.equal(handoffDocument('https://mc-pony.com/papol/viewer/'), null);
+});
+
+test('a board is a board, by path or by name', () => {
+  assert.deepEqual(handoffDocument(BOARD), { kind: 'board', noun: 'this board' });
+  assert.equal(handoffDocument('https://mc-pony.com/papol/boards/?board=b-42').kind, 'board');
+});
+
+test('the board app with no board is not a document', () => {
+  assert.equal(handoffDocument('https://mc-pony.com/papol/boards/'), null);
+  assert.equal(handoffDocument('https://mc-pony.com/papol/boards/index.html'), null);
+});
+
+test('the demo offers nothing, viewer or board', () => {
+  assert.equal(handoffDocument('https://mc-pony.com/papol/demo/viewer/?pdf=abc'), null);
+  assert.equal(handoffDocument('https://mc-pony.com/papol/demo/boards/b-42'), null);
+});
+
+test('the library is not a document window', () => {
+  assert.equal(handoffDocument('https://mc-pony.com/papol/'), null);
+  assert.equal(handoffDocument('https://mc-pony.com/papol/u/someone'), null);
+});
+
+test('an address that is not a web address is refused', () => {
+  assert.equal(handoffDocument('papol://mc-pony.com/papol/viewer/?pdf=abc'), null);
+  assert.equal(handoffDocument('file:///Users/someone/paper.pdf'), null);
+  assert.equal(handoffDocument('not a url at all'), null);
+  assert.equal(handoffDocument(''), null);
+});
+
+test('a development address is still a document', () => {
+  assert.equal(handoffDocument('http://127.0.0.1:5173/viewer/?pdf=abc').kind, 'paper');
+});
+
+test('the handed-over address mirrors the one the reader is at', () => {
+  assert.equal(handoffAddress(VIEWER), 'papol://mc-pony.com/papol/viewer/?pdf=abc123');
+});
+
+test('a deployment prefix and a port are carried across whole', () => {
+  assert.equal(
+    handoffAddress('http://127.0.0.1:5173/viewer/?pdf=abc'),
+    'papol://127.0.0.1:5173/viewer/?pdf=abc',
+  );
+});
+
+test('the place in the document is carried, because arriving at page 1 is worse than not arriving', () => {
+  const deep = `${VIEWER}&page=14&note=n-7&y=0.5&mark=m1&box=b2`;
+  const address = handoffAddress(deep);
+  assert.match(address, /pdf=abc123/);
+  for (const part of ['page=14', 'note=n-7', 'y=0.5', 'mark=m1', 'box=b2']) {
+    assert.match(address, new RegExp(part.replace('.', '\\.')));
+  }
+});
+
+test('anything not naming the document or the place is dropped', () => {
+  const address = handoffAddress(`${VIEWER}&token=secret&next=%2Fadmin&redirect=evil`);
+  assert.equal(address, 'papol://mc-pony.com/papol/viewer/?pdf=abc123');
+});
+
+test('a document with no carried keys keeps no empty question mark', () => {
+  assert.equal(handoffAddress(BOARD), 'papol://mc-pony.com/papol/boards/b-42');
+});
+
+test('nothing to hand over means no address', () => {
+  assert.equal(handoffAddress('https://mc-pony.com/papol/'), null);
+});
+
+test('a document is identified so that Not now forgets one paper, not every paper', () => {
+  assert.equal(handoffIdentity(VIEWER), 'pdf:abc123');
+  assert.equal(handoffIdentity(BOARD), 'board:b-42');
+  assert.equal(handoffIdentity('https://mc-pony.com/papol/boards/?board=b-9'), 'board:b-9');
+  assert.equal(handoffIdentity('https://mc-pony.com/papol/viewer/?share=s-1'), 'pdf:s-1');
+});
+
+test('a Mac browser reading a paper is offered the app', () => {
+  const offer = handoffOffer({ href: VIEWER, mac: true, session: store(), local: store() });
+  assert.equal(offer.kind, 'paper');
+  assert.equal(offer.label, 'Open this paper in Papol');
+  assert.equal(offer.address, 'papol://mc-pony.com/papol/viewer/?pdf=abc123');
+  assert.equal(offer.identity, 'pdf:abc123');
+  assert.equal(offer.always, false);
+});
+
+test('a board is named as a board in the offer', () => {
+  const offer = handoffOffer({ href: BOARD, mac: true, session: store(), local: store() });
+  assert.equal(offer.label, 'Open this board in Papol');
+});
+
+// US-7.30: the offer is not something a reader has to earn by having used it
+// before. There is no "have they handed off previously" input at all.
+test('a browser that has never handed anything off is still offered', () => {
+  const empty = store();
+  const offer = handoffOffer({ href: VIEWER, mac: true, session: empty, local: empty });
+  assert.ok(offer);
+  assert.equal(empty.held.size, 0, 'deciding whether to offer writes nothing');
+});
+
+test('a shared reading from a stranger is offered like any other', () => {
+  const shared = 'https://mc-pony.com/papol/viewer/?share=s-1';
+  assert.ok(handoffOffer({ href: shared, mac: true, session: store(), local: store() }));
+});
+
+test('inside the Mac app there is nothing to hand over', () => {
+  assert.equal(
+    handoffOffer({ href: VIEWER, desktop: true, mac: true, session: store(), local: store() }),
+    null,
+  );
+});
+
+test('a browser that is not on a Mac is told nothing', () => {
+  assert.equal(handoffOffer({ href: VIEWER, mac: false, session: store(), local: store() }), null);
+});
+
+test('Don’t ask again retires the offer for this browser', () => {
+  const local = store({ [RETIRED_KEY]: '1' });
+  assert.equal(handoffOffer({ href: VIEWER, mac: true, session: store(), local }), null);
+});
+
+test('Not now forgets this document and only this document', () => {
+  const session = store();
+  deferDocument(session, handoffIdentity(VIEWER));
+  assert.equal(handoffOffer({ href: VIEWER, mac: true, session, local: store() }), null);
+  assert.ok(handoffOffer({ href: BOARD, mac: true, session, local: store() }));
+});
+
+test('Always open in Papol is reported back, never assumed', () => {
+  assert.equal(
+    handoffOffer({ href: VIEWER, mac: true, session: store(), local: store() }).always,
+    false,
+  );
+  assert.equal(
+    handoffOffer({
+      href: VIEWER, mac: true, session: store(), local: store({ [ALWAYS_KEY]: '1' }),
+    }).always,
+    true,
+  );
+});
+
+test('a flag round-trips and can be taken back', () => {
+  const local = store();
+  writeFlag(local, RETIRED_KEY, true);
+  assert.equal(local.getItem(RETIRED_KEY), '1');
+  writeFlag(local, RETIRED_KEY, false);
+  assert.equal(local.getItem(RETIRED_KEY), null);
+});
+
+test('a browser that refuses storage still gets an offer and still dismisses', () => {
+  const sealed = sealedStore();
+  assert.ok(handoffOffer({ href: VIEWER, mac: true, session: sealed, local: sealed }));
+  assert.doesNotThrow(() => writeFlag(sealed, RETIRED_KEY, true));
+  assert.doesNotThrow(() => deferDocument(sealed, 'pdf:abc123'));
+  assert.equal(documentIsDeferred(sealed, 'pdf:abc123'), false);
+});
+
+test('deferred documents do not grow without bound', () => {
+  const session = store();
+  for (let index = 0; index < 80; index += 1) deferDocument(session, `pdf:${index}`);
+  const held = JSON.parse(session.getItem('papol.handoff.deferred'));
+  assert.equal(held.length, 64);
+  assert.equal(held.at(-1), 'pdf:79');
+  assert.ok(documentIsDeferred(session, 'pdf:79'));
+  assert.equal(documentIsDeferred(session, 'pdf:0'), false);
+});
+
+test('deferring the same document twice does not record it twice', () => {
+  const session = store();
+  deferDocument(session, 'pdf:abc');
+  deferDocument(session, 'pdf:abc');
+  assert.deepEqual(JSON.parse(session.getItem('papol.handoff.deferred')), ['pdf:abc']);
+});
+
+test('nonsense in storage is not allowed to break the offer', () => {
+  const session = store({ 'papol.handoff.deferred': 'not json' });
+  assert.ok(handoffOffer({ href: VIEWER, mac: true, session, local: store() }));
+});
+
+function fakeWindow() {
+  const listeners = new Map();
+  const timers = new Map();
+  let next = 1;
+  const view = {
+    location: { href: VIEWER },
+    document: {
+      visibilityState: 'visible',
+      addEventListener: (name, fn) => listeners.set(`document:${name}`, fn),
+      removeEventListener: (name) => listeners.delete(`document:${name}`),
+    },
+    addEventListener: (name, fn) => listeners.set(name, fn),
+    removeEventListener: (name) => listeners.delete(name),
+    setTimeout: (fn, ms) => {
+      const id = next;
+      next += 1;
+      timers.set(id, { fn, ms });
+      return id;
+    },
+    clearTimeout: (id) => timers.delete(id),
+    listeners,
+    timers,
+    fire: (name, ...args) => listeners.get(name)?.(...args),
+    expire: () => [...timers.values()].forEach((timer) => timer.fn()),
+  };
+  return view;
+}
+
+test('asking the system to open the address does exactly that', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://mc-pony.com/papol/viewer/?pdf=abc', { win });
+  assert.equal(win.location.href, 'papol://mc-pony.com/papol/viewer/?pdf=abc');
+  win.fire('blur');
+  assert.equal(await settled, 'opened');
+});
+
+test('losing the page to the application counts as an answer', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.document.visibilityState = 'hidden';
+  win.fire('document:visibilitychange');
+  assert.equal(await settled, 'opened');
+});
+
+test('a visibility change that is not a departure is not an answer', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('document:visibilitychange');
+  assert.equal(win.timers.size, 1, 'still waiting');
+  win.expire();
+  assert.equal(await settled, 'unknown');
+});
+
+// US-7.34: silence is not a verdict about the reader's computer, it is only
+// the absence of evidence — which is why this resolves 'unknown', not 'no'.
+test('nothing happening within the window is reported as unknown, not as absence', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.expire();
+  assert.equal(await settled, 'unknown');
+});
+
+test('the wait has a bound', async () => {
+  const win = fakeWindow();
+  attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  assert.equal([...win.timers.values()][0].ms, DETECTION_MS);
+});
+
+test('every listener and timer is given back once the question is settled', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  assert.equal(win.listeners.size, 3);
+  win.fire('blur');
+  await settled;
+  assert.equal(win.listeners.size, 0);
+  assert.equal(win.timers.size, 0);
+});
+
+test('a second departure cannot settle the question twice', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur');
+  assert.equal(await settled, 'opened');
+  assert.doesNotThrow(() => win.fire('pagehide'));
+});
+
+test('a browser that refuses the address at all is an unknown, not a crash', async () => {
+  const win = fakeWindow();
+  Object.defineProperty(win.location, 'href', {
+    set() { throw new Error('refused'); },
+    get() { return VIEWER; },
+  });
+  assert.equal(await attemptHandoff('papol://x/viewer/?pdf=a', { win }), 'unknown');
+});

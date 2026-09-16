@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the bundle's generated Info.plist by tauri-bundler. Only keys
+  Tauri does not derive from tauri.conf.json belong here.
+
+  Registering the scheme is what lets a browser hand a reading over to the
+  application (USER_STORIES.md US-7.32). The application answers it in
+  handle_run_event, which turns the address back into the bundled page that
+  serves the document.
+
+  A scheme is claimed by whichever copy of an application the system decides
+  on, so `role` is Viewer rather than Editor: Papol shows the document the
+  address names and nothing about the address is a claim on the document.
+-->
+<plist version="1.0">
+  <dict>
+    <key>CFBundleURLTypes</key>
+    <array>
+      <dict>
+        <key>CFBundleURLName</key>
+        <string>com.mc-pony.papol.handoff</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>papol</string>
+        </array>
+      </dict>
+    </array>
+  </dict>
+</plist>

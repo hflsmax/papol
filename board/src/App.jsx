@@ -2,6 +2,7 @@ import React from 'react';
 import BoardPage from './BoardPage.jsx';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
+import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
 import { boardHomePath } from '../../shared/appUrls.js';
@@ -36,6 +37,7 @@ export default function App() {
   return <>
     <style>{applicationStyles}</style>
     <CompatibilityBar />
+    <MacHandoffBar />
     {boardUuid
       ? <BoardPage boardUuid={boardUuid} onBack={returnToPapol} backHref={boardReturnPath} />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
