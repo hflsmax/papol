@@ -35,7 +35,7 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
         )
         exact = {
             "title": "Geometry of Miura-folded metamaterials",
-            "authors": ["Mark Schenk", "Simon D. Guest"],
+            "authors": ["Annotation Schenk", "Simon D. Guest"],
             "year": 2013,
             "venue": "Proceedings of the National Academy of Sciences",
         }

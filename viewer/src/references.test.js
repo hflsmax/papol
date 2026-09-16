@@ -309,7 +309,7 @@ test('reads the entry a destination names, not the column it lands beside', asyn
 });
 
 test('follows a destination set at a page break to the entry overleaf', async () => {
-  // The first entry of a bibliography page has its mark set at the foot of
+  // The first entry of a bibliography page has its annotation set at the foot of
   // the page before, where nothing is numbered at all.
   const span = (text, x, y) => ({ str: text, transform: [1, 0, 0, 1, x, y] });
   const printed = {

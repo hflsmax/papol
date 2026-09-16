@@ -1,7 +1,7 @@
 import React from 'react';
 import { animalFor } from './animals';
 
-// Two marks, one meaning each: an anchor holds a place, a note says
+// Two annotations, one meaning each: an anchor holds a place, a note says
 // something about it. Both are filled shapes in currentColor, so the same
 // drawing serves as a pin on the page and as a bullet in the rail.
 
@@ -15,7 +15,7 @@ export const ANCHOR_D =
   'M10.9 8.1h2.2v2.4h3.5v2.1h-3.5v5.1c1.5-.5 2.6-1.7 3-3.2l2 .6c-.6 2.7-2.9 4.7-5.9 5.1l-.2.1-.2-.1' +
   'c-3-.4-5.3-2.4-5.9-5.1l2-.6c.4 1.5 1.5 2.7 3 3.2v-5.1H7.4v-2.1h3.5Z';
 
-// The point a pin marks, in the glyph's own units: its middle (see .pin).
+// The point a pin annotations, in the glyph's own units: its middle (see .pin).
 // The cursor puts its hotspot on the same spot, so the anchor in hand and
 // the anchor on the page agree about where they are.
 export const ANCHOR_HANG = { x: 12, y: 12 };
@@ -47,7 +47,7 @@ export function GlyphFor({ note }) {
   return note.content ? <NoteGlyph /> : <AnchorGlyph />;
 }
 
-// The four things a reader can be holding. Drawn to be told apart at the
+// The four things a user can be holding. Drawn to be told apart at the
 // size a toolbar button actually gives them, which is why each has one
 // silhouette and no interior detail: at 18px a brush is its bristles and
 // an eraser is its slant.
@@ -117,14 +117,14 @@ export function ToolGlyph({ id, animal }) {
   );
 }
 
-// The animal a reader can put on a page, in the groups each part turns in.
+// The animal a user can put on a page, in the groups each part turns in.
 // The shapes come from animals.js; what is here is the skeleton they hang
 // on, which is the same for every species.
 //
 // There is not one transform in this. Every one of them is written by
 // cow.js, frame by frame, straight onto these groups — which is only safe
 // so long as React is never rendering the same attribute, so it renders
-// none of them. The `data-cow` marks are how the frame loop finds them
+// none of them. The `data-cow` annotations are how the frame loop finds them
 // once, when the animal is first put on the page.
 // A rigged animal is not a pile of groups that turn — it is a fixed list
 // of paths whose `d` is rewritten every frame. Nothing here has a

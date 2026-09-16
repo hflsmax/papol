@@ -13,7 +13,7 @@ function flag(key) {
 }
 
 // Where a standing answer about the Mac app can be taken back (US-7.27).
-// Nothing is shown until there is something to undo: a reader who has never
+// Nothing is shown until there is something to undo: a user who has never
 // dismissed the offer has no setting here to be puzzled by.
 export default function MacHandoffSettings() {
   const [retired, setRetired] = useState(() => flag(RETIRED_KEY));

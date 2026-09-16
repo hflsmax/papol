@@ -354,7 +354,7 @@ INSERT INTO paper_clips VALUES
                 "the {kind} did not come across",
             );
         }
-        // The marks kept what made them marks rather than arriving empty.
+        // The annotations kept what made them annotations rather than arriving empty.
         assert_eq!(
             count(
                 &connection,

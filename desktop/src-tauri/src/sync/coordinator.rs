@@ -390,7 +390,7 @@ impl Coordinator {
                 Err(failure) => {
                     if failure.kind == FailureKind::Incompatible {
                         // The mutation is untouched: it is this program the
-                        // server refused, not the reader's work.
+                        // server refused, not the user's work.
                         let _ = store.set_local_setting(COMPATIBILITY_KEY, "incompatible");
                         return Err(failure.message);
                     }
@@ -521,7 +521,7 @@ impl Coordinator {
         }
         // The server dealt with this build, so whatever it may once have
         // refused it accepts now. Said plainly here rather than left to
-        // lapse, so a reader who has installed the version that works does
+        // lapse, so a user who has installed the version that works does
         // not meet yesterday's bar on every launch.
         let _ = store.set_local_setting(COMPATIBILITY_KEY, "supported");
         // A successful sync is a complete offline replica: hydrate every PDF
@@ -637,7 +637,7 @@ fn classify_status(status: u16) -> FailureKind {
         // Everything unrecognized is retried, so this has to be named
         // explicitly: left to the fallback, a build the server has stopped
         // speaking to would retry for as long as it was open, and its
-        // reader would never be told why nothing was arriving.
+        // user would never be told why nothing was arriving.
         426 => FailureKind::Incompatible,
         _ => FailureKind::Transient,
     }

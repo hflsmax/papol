@@ -1,7 +1,7 @@
 # Sharing, end to end
 
 The backend suite states what a link means; the viewer's own tests state what
-its source layer answers. Neither watches a reader follow one. This does: it
+its source layer answers. Neither watches a user follow one. This does: it
 drives Chrome through the real pages and asserts on what rendered.
 
 ```sh
@@ -17,12 +17,12 @@ runtime-generated lands in the repository.
 
 What it covers:
 
-- a **rich** link opens for a visitor with no account, names the reader whose
-  reading it is, carries their marks, keeps the whole tool bar, and offers the
+- a **rich** link opens for a visitor with no account, names the user whose
+  reading it is, carries their annotations, keeps the whole tool bar, and offers the
   paper;
 - a **lean** link opens the same way, names nobody, and carries none of the
   marks;
-- a signed-in reader presses **Add to nook**, the copy lands on the shared
+- a signed-in user presses **Add to nook**, the copy lands on the shared
   edition, it carries none of the sharer's marks, and the link stops offering
   what they now have;
 - the sharer's own **Share menu** opens and shows the live link with a way to

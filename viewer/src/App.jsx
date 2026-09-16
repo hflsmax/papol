@@ -41,7 +41,7 @@ import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
-import { joinTextPieces, markBounds, pageCharacters, textUnderMarks } from './paintText';
+import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
 import ReturnPill from './ReturnPill';
@@ -133,7 +133,7 @@ function usePageGroups(items, include = null) {
 }
 // How wide a page is allowed to open. Fitting the window is right up to a
 // point; past it a two-column paper on a large monitor is blown to a size
-// nobody reads at. The reader can still zoom past this — it only bounds
+// nobody reads at. The user can still zoom past this — it only bounds
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
 const FIT_MAX_WIDTH = appLimits.viewer.fit_width_max;
@@ -175,7 +175,7 @@ const INK_WIDTH = INK_WIDTHS[INK_WIDTHS.length - 1];
 const INK_OPACITY = INK_OPACITIES[INK_OPACITIES.length - 1].value;
 const INK_SHAPE = 'flat';
 
-// Bumped when those defaults change. A reader who has chosen for
+// Bumped when those defaults change. A user who has chosen for
 // themselves keeps their choice, but one who never did was carrying the old
 // defaults around in localStorage rather than no answer at all, and would
 // have gone on carrying them for ever.
@@ -198,7 +198,7 @@ const sampleSize = (width) => {
 };
 
 // The nib. Flat is a chisel held upright — broad across the page, thin
-// along it, so a mark says which way the hand went. Round is the same
+// along it, so an annotation says which way the hand went. Round is the same
 // weight in every direction, which is what a pen does.
 const INK_SHAPES = [
   { id: 'flat', name: 'Flat' },
@@ -212,7 +212,7 @@ const PAGE_PREVIEW_QUALITY = 0.72;
 // A file opened from Finder always begins at page one and carries no saved
 // reading position. Keep the rest of the document as cheap geometry until
 // page one is visible, then turn nearby shells into full PdfPages as the
-// reader approaches them. This avoids mounting every page's effects — and,
+// user approaches them. This avoids mounting every page's effects — and,
 // in particular, avoids calling pdf.js getPage() for the whole document —
 // on the opening frame.
 function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
@@ -237,7 +237,7 @@ function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
   );
 }
 
-// What the reader can be holding. The arrow is reading: text selects, and
+// What the user can be holding. The arrow is reading: text selects, and
 // what is already on the page can be picked up and moved. The rest put
 // something in their hand, and the page stops being selectable while they
 // hold it.
@@ -249,7 +249,7 @@ function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
 const TOOLS = [
   { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools' },
   { id: 'clipper', key: 'x', badge: 'X', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper', mnemonic: 'X crops' },
-  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'Vivid marks' },
+  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'Vivid annotations' },
   { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' , mnemonic: 'Clean' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
   { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' , mnemonic: 'Menagerie' },
@@ -424,29 +424,29 @@ export default function App() {
   const readOnly = Boolean(source?.readOnly);
   // Notes, ink and clips are one interface underneath and three things to
   // draw. This is where the one becomes the three.
-  const marks = useMemo(() => annotationKinds(source?.annotations), [source]);
-  // Whether a mark this reader makes would have somewhere to live. A
+  const annotations = useMemo(() => annotationKinds(source?.annotations), [source]);
+  // Whether an annotation this user makes would have somewhere to live. A
   // shared paper and a file opened from disk both read fully and hold
   // nothing yet, so the tools are offered and reaching for one asks for
   // the paper first.
-  const marksNeedANook = Boolean(source?.annotationsRequireNook);
-  // Read-only says the marks already on the page are not this reader's to
-  // change. It says nothing about marks they have not made yet — those are
+  const annotationsNeedANook = Boolean(source?.annotationsRequireNook);
+  // Read-only says the annotations already on the page are not this user's to
+  // change. It says nothing about annotations they have not made yet — those are
   // a question for the nook. Only where both are true is the paper one
   // nobody can ever write on, and only then is an affordance worth
   // withholding rather than offering and asking.
-  const neverMarkable = readOnly && !marksNeedANook;
+  const neverAnnotatable = readOnly && !annotationsNeedANook;
   // What the bar offers. A paper nobody can write on keeps the arrow,
   // which is reading — text selects, citations open — and the menagerie,
-  // whose animals are nobody's mark: they wander and are never kept. Where
-  // the marks could be made once the paper is theirs, the whole bar stays:
-  // a reader should meet the tools, not an absence they have no way to
+  // whose animals are nobody's annotation: they wander and are never kept. Where
+  // the annotations could be made once the paper is theirs, the whole bar stays:
+  // a user should meet the tools, not an absence they have no way to
   // read.
   const availableTools = useMemo(
-    () => (neverMarkable
+    () => (neverAnnotatable
       ? TOOLS.filter((t) => !ANNOTATION_TOOLS.has(t.id))
       : TOOLS),
-    [neverMarkable],
+    [neverAnnotatable],
   );
   const immediatePdfPaper = useMemo(() => {
     if (source?.openedFile) return source.initialPaper;
@@ -538,10 +538,10 @@ export default function App() {
   // Null until the page is measured: the document opens at the width of
   // the viewer, so nothing is drawn at a guessed scale first.
   const [scale, setScale] = useState(null);
-  // Stay fitted through actual window resizes until the reader picks a zoom.
+  // Stay fitted through actual window resizes until the user picks a zoom.
   const chosenZoom = useRef(false);
   // What the pages are actually drawn at. It follows `scale` once the
-  // reader stops zooming, so a pinch costs a transform rather than a
+  // user stops zooming, so a pinch costs a transform rather than a
   // re-render of every visible page.
   const [renderScale, setRenderScale] = useState(null);
   // Handed to the pages rather than the value itself, so that a new drawing
@@ -591,7 +591,7 @@ export default function App() {
   });
   // The paper's bibliography, and where it is cited in the PDF. Null until
   // it has been asked for; `status` says whether it is worth waiting on.
-  // What the reader is holding. Remembered, like the rail: someone marking
+  // What the user is holding. Remembered, like the rail: someone marking
   // up a paper puts the brush down between sittings, not between pages.
   const [tool, setTool] = useState(() => {
     if (source?.annotationsRequireNook || source?.readOnly) return 'arrow';
@@ -638,7 +638,7 @@ export default function App() {
   // Kept apart from the sign-in step so clicking away can hide the prompt
   // without cancelling a sign-in already under way in the library window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
-  // This reader's own copy of the paper in front of them, when they keep
+  // This user's own copy of the paper in front of them, when they keep
   // one. What turns "add to nook" into "show in nook": the offer should be
   // the one they can still act on.
   const [nookCopy, setNookCopy] = useState(null);
@@ -680,7 +680,7 @@ export default function App() {
   // say so: the pin and the row are the same anchor seen twice, and moving
   // one ought to be visible in the other.
   const [draggingNoteUuid, setDraggingNoteUuid] = useState(null);
-  // Cows. Nowhere near the server and gone on reload: they are not a mark
+  // Cows. Nowhere near the server and gone on reload: they are not an annotation
   // on the paper, they are company.
   const [placedAnimals, setPlacedAnimals] = useState([]);
   const notesRef = useRef(notes);
@@ -691,7 +691,7 @@ export default function App() {
   animalsRef.current = placedAnimals;
   const nextAnimalId = useRef(0);
   // What the brush is loaded with. Remembered like the tool itself: someone
-  // who marks a paper up in red goes on doing it in red.
+  // who annotations a paper up in red goes on doing it in red.
   // Once, before any of the four are read.
   useState(() => {
     if (localStorage.getItem('papol_viewer_ink_defaults') === INK_DEFAULTS_VERSION) return null;
@@ -767,17 +767,17 @@ export default function App() {
   };
   // Where the pointer last was over a page. A ref, not state: it changes
   // with every mouse move and nothing renders from it — it is read once,
-  // when a key asks for an anchor where the reader is looking.
+  // when a key asks for an anchor where the user is looking.
   const hoverRef = useRef(null);
   // The tool that was in hand when an anchor was dropped, to be given back
-  // when the reader is done with the card the anchor opened.
+  // when the user is done with the card the anchor opened.
   const toolBefore = useRef(null);
   const [analysis, setAnalysis] = useState(null);
   // The reference whose card is open, and the marker it was opened from —
   // the card is placed beside that box.
   const [openCite, setOpenCite] = useState(null);
   const [reference, setReference] = useState(null);
-  // Where the reader was before a link took them somewhere. Following a
+  // Where the user was before a link took them somewhere. Following a
   // cross-reference is only useful if coming back is exact. The scroll
   // offsets belong to the scale at which they were recorded, so keep that
   // scale with them and restore the offsets after React has laid it out.
@@ -859,7 +859,7 @@ export default function App() {
       const withdraw = pageRenderQueue().request({
         idle: true,
         // PDF.js preview rendering occupies the main thread in slices. If a
-        // reader scrolls and immediately pinches during initial warm-up, stop
+        // user scrolls and immediately pinches during initial warm-up, stop
         // that disposable work and retry it after the gesture is quiet.
         interrupt: PINCH_BENCHMARK === 'legacy' ? undefined : () => {
           if (!task) return false;
@@ -1104,13 +1104,13 @@ export default function App() {
 
   // Whose reading this is. The one thing on the page that is about a
   // person rather than a paper, and it is only ever set by a shared source.
-  const readerName = paper?.shared_by?.display_name || null;
+  const userName = paper?.shared_by?.display_name || null;
   // A lean link carries the paper alone. Someone handed it over, but there
   // is no reading here and nothing of theirs to attribute.
   const sharedReading = paper?.shared_kind === 'rich';
   // Whether this paper arrived by link at all, either kind. Distinct from
-  // read-only, which is about whose the marks are: a file opened from disk
-  // is read-only too — vacuously, having no marks on it — and nobody
+  // read-only, which is about whose the annotations are: a file opened from disk
+  // is read-only too — vacuously, having no annotations on it — and nobody
   // shared it with anyone.
   const fromALink = Boolean(paper?.shared_kind);
 
@@ -1220,7 +1220,7 @@ export default function App() {
 
   // The references, fetched once the paper is known and then waited on.
   // Reading a PDF's bibliography takes a pass over the whole document, so
-  // the first reader of an edition starts that pass and everyone after
+  // the first user of an edition starts that pass and everyone after
   // them gets the stored answer straight away.
   useEffect(() => {
     const editionUuid = paper?.edition_uuid;
@@ -1248,7 +1248,7 @@ export default function App() {
         })
         .catch(() => {
           // References are an extra. Failing to load them is not worth an
-          // error bar over the reader's paper.
+          // error bar over the user's paper.
           if (!cancelled) setAnalysis({ status: 'failed', references: [], citations: [] });
         });
     };
@@ -1315,7 +1315,7 @@ export default function App() {
   // since placing an anchor does not depend on either, and quietly did not.
   const onKeyRef = useRef(null);
 
-  // Not while the reader is writing a note: in a textarea, x is an x.
+  // Not while the user is writing a note: in a textarea, x is an x.
   onKeyRef.current = (e) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key?.toLowerCase() === 'f') {
         e.preventDefault();
@@ -1453,9 +1453,9 @@ export default function App() {
 
   useEffect(() => {
     // A file opened from disk has no edition until it joins a nook.
-    if ((!paper?.edition_uuid && !paper?.opened_file) || !marks?.clips) return undefined;
+    if ((!paper?.edition_uuid && !paper?.opened_file) || !annotations?.clips) return undefined;
     let cancelled = false;
-    marks.clips.list(paper.edition_uuid)
+    annotations.clips.list(paper.edition_uuid)
       .then((loaded) => { if (!cancelled) setClips(loaded); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
@@ -1465,16 +1465,16 @@ export default function App() {
   // the file rather than to the paper, so it is asked for once the paper
   // has said which edition is open.
   useEffect(() => {
-    if (!paper || !marks?.ink) return undefined;
+    if (!paper || !annotations?.ink) return undefined;
     let cancelled = false;
-    marks.ink
+    annotations.ink
       .list(paper.edition_uuid)
       .then((loaded) => {
         if (!cancelled) setInk(loaded);
       })
       .catch(() => {
         // Ink is an addition to a paper, not the paper. Failing to load it
-        // is not worth an error bar over what the reader came to read.
+        // is not worth an error bar over what the user came to read.
         if (!cancelled) setInk([]);
       });
     return () => {
@@ -1561,7 +1561,7 @@ export default function App() {
   const followLink = ({ page, y }) => {
     // A link can be activated while text remains selected in the PDF. Once
     // the document jumps, that old highlight no longer describes the place
-    // the reader is looking at and its paint action should not follow them.
+    // the user is looking at and its paint action should not follow them.
     window.getSelection()?.removeAllRanges();
     setSelectionPaint(null);
     const scroller = scrollerRef.current;
@@ -1638,7 +1638,7 @@ export default function App() {
     restoreView(destination);
   };
 
-  // Hiding the return pill is for good, in this browser: the reader has
+  // Hiding the return pill is for good, in this browser: the user has
   // said they do not want it, so later jumps do not bring it back. What
   // they lose is only the button — [ and ] still move through the jumps,
   // and the note that confirms the choice says so.
@@ -1673,7 +1673,7 @@ export default function App() {
   }, [openCite]);
 
   // Open at the width of the viewer, and stay fitted through actual window
-  // resizes until the reader picks a zoom. Opening the rail is not a window
+  // resizes until the user picks a zoom. Opening the rail is not a window
   // resize and must not silently change the document's zoom.
   useLayoutEffect(() => {
     const el = scrollerRef.current;
@@ -1751,13 +1751,13 @@ export default function App() {
   // A stroke appears the instant the pointer lifts and is saved behind it.
   // Waiting for the server first would make the brush feel like it was
   // dragging something heavy; if the save fails the stroke is taken back,
-  // which is the honest thing to do with a mark that was not kept.
+  // which is the honest thing to do with an annotation that was not kept.
   const drawStroke = async (stroke, record = true) => {
     if (await promptToAddForAnnotations()) return null;
-    if (!marks?.ink) return;
+    if (!annotations?.ink) return;
     const provisional = `wet-${++tempInkUuid.current}`;
     setInk((all) => [...all, { ...stroke, uuid: provisional }]);
-    const saving = marks.ink.create(paper?.edition_uuid, stroke);
+    const saving = annotations.ink.create(paper?.edition_uuid, stroke);
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
@@ -1787,8 +1787,8 @@ export default function App() {
   // A browser selection is a collection of visual line fragments, sometimes
   // spanning columns or pages. Preview its page-relative geometry during the
   // drag, then finalize it as soon as the drag finishes. Off-screen PDF text
-  // layers are rebuilt while the reader scrolls, which invalidates a native
-  // Range; Papol's snapshot remains selected until the reader starts another
+  // layers are rebuilt while the user scrolls, which invalidates a native
+  // Range; Papol's snapshot remains selected until the user starts another
   // selection or uses an action.
   useEffect(() => {
     let pointerSelecting = false;
@@ -1936,17 +1936,17 @@ export default function App() {
     };
   }, [doc, scale, paper?.edition_uuid, source]);
 
-  // Every stroke of the paint mark in hand.
+  // Every stroke of the ink stroke in hand.
   const selectedStrokes = useMemo(() => (selectedInk
     ? ink.filter((stroke) => (
       selectedInk.groupUuid ? stroke.group_uuid === selectedInk.groupUuid : stroke.uuid === selectedInk.uuid
     ))
     : []), [ink, selectedInk]);
 
-  // A selected paint mark offers to be removed, or to send the text under it
-  // to a board. The text is worked out from the mark's shape and the text
+  // A selected ink stroke offers to be removed, or to send the text under it
+  // to a board. The text is worked out from the annotation's shape and the text
   // layers of its pages (paintText.js); PdfPage builds those for a selected
-  // mark even where scrolling has kept them waiting, so this waits for them.
+  // annotation even where scrolling has kept them waiting, so this waits for them.
   const [inkActions, setInkActions] = useState(null);
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -1959,7 +1959,7 @@ export default function App() {
     const pageElement = (n) => scroller.querySelector(`.pdf-page[data-page="${n}"]`);
     const pageSize = (el) => ({ width: Number(el.dataset.pageWidth), height: Number(el.dataset.pageHeight) });
 
-    // Beside the end of the mark: above it where there is room, as a
+    // Beside the end of the annotation: above it where there is room, as a
     // selection's actions sit.
     const last = selectedStrokes[selectedStrokes.length - 1];
     const lastPage = pageElement(last.page);
@@ -1969,7 +1969,7 @@ export default function App() {
     }
     const size = pageSize(lastPage);
     const pageBox = lastPage.getBoundingClientRect();
-    const bounds = markBounds(last, size);
+    const bounds = strokeBounds(last, size);
     const right = pageBox.left + (bounds.right / size.width) * pageBox.width;
     const top = pageBox.top + (bounds.top / size.height) * pageBox.height;
     const bottom = pageBox.top + (bounds.bottom / size.height) * pageBox.height;
@@ -1999,7 +1999,7 @@ export default function App() {
         pages.set(n, pageUnits);
         const within = selectedStrokes
           .filter((stroke) => stroke.page === n)
-          .map((stroke) => markBounds(stroke, pageUnits))
+          .map((stroke) => strokeBounds(stroke, pageUnits))
           .reduce((a, b) => ({
             left: Math.min(a.left, b.left),
             right: Math.max(a.right, b.right),
@@ -2008,7 +2008,7 @@ export default function App() {
           }));
         characters.push(...pageCharacters(el, within));
       });
-      const { text, bands } = textUnderMarks(characters, selectedStrokes, pages);
+      const { text, bands } = textUnderStrokes(characters, selectedStrokes, pages);
       setInkActions((current) => current && { ...current, text: cleanExcerptText(text), bands });
     };
     readText();
@@ -2082,7 +2082,7 @@ export default function App() {
   };
 
   // The send sheet for text and the line bands it sits in: what a selection,
-  // or a paint mark, sends to a board. The bands become the backlink's
+  // or an ink stroke, sends to a board. The bands become the backlink's
   // highlight.
   const openSendText = async (text, strokes) => {
     const first = strokes[0];
@@ -2185,7 +2185,7 @@ export default function App() {
   // Carried on screen as it is dragged and written down when it is put
   // down, so the page keeps up with the hand and the server hears once.
   const moveStroke = async (uuid, points, record = true) => {
-    if (!marks?.ink?.move) return;
+    if (!annotations?.ink?.move) return;
     const was = inkRef.current.find((s) => s.uuid === uuid);
     if (!was) return;
     const members = was.group_uuid
@@ -2213,7 +2213,7 @@ export default function App() {
     try {
       const saved = await Promise.all(moves.map(async (move) => {
         const real = await settledInkUuid(move.uuid);
-        return real == null ? null : marks.ink.move(real, move.after);
+        return real == null ? null : annotations.ink.move(real, move.after);
       }));
       if (record && saved.some(Boolean)) {
         const first = moves[0];
@@ -2235,7 +2235,7 @@ export default function App() {
   };
 
   const eraseStroke = async (uuid, record = true) => {
-    if (!marks?.ink) return;
+    if (!annotations?.ink) return;
     // The eraser asks on every movement of the pointer, several times in a
     // frame, and `ink` is whatever it was when this render began — so the
     // same stroke was asked for twice, the first delete succeeded, the
@@ -2270,7 +2270,7 @@ export default function App() {
     setInk((all) => all.filter((s) => !goneUuids.has(s.uuid)));
     try {
       const realUuids = await Promise.all(gone.map((stroke) => settledInkUuid(stroke.uuid)));
-      await Promise.all(realUuids.filter((real) => real != null).map((real) => marks.ink.remove(real)));
+      await Promise.all(realUuids.filter((real) => real != null).map((real) => annotations.ink.remove(real)));
       if (record) {
         const entries = gone.map((stroke, index) => ({
           uuid: realUuids[index],
@@ -2334,7 +2334,7 @@ export default function App() {
     return placed;
   };
 
-  // Scatter a little menagerie through what the reader can see right now.
+  // Scatter a little menagerie through what the user can see right now.
   // Screen points are converted back into coordinates belonging to the
   // nearest sheet, so animals may also land naturally in a visible gutter.
   const waveAnimalWand = () => {
@@ -2682,7 +2682,7 @@ export default function App() {
 
   // Trackpad pinch. Chrome and Firefox deliver it as a wheel event with
   // ctrlKey set; Safari sends its own gesture events. Both are handled so
-  // the browser never zooms the whole page underneath the reader.
+  // the browser never zooms the whole page underneath the user.
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return undefined;
@@ -2748,7 +2748,7 @@ export default function App() {
   }, [doc]);
 
   // An anchor appears on screen at once and is saved in the background, so
-  // a slow server never makes the reader wait to see their own mark.
+  // a slow server never makes the user wait to see their own annotation.
   // Temporary ids are negative, so they can never collide with the
   // server's.
   const handlePlace = (spot) => {
@@ -2773,7 +2773,7 @@ export default function App() {
     setNotes((prev) => [...prev, optimistic]);
     setActiveNoteUuid(tempUuid);
 
-    const saving = marks.notes
+    const saving = annotations.notes
       .create({ ...spot, content: '' })
       .then((saved) => {
         setNotes((prev) => prev.map((n) => (
@@ -2791,7 +2791,7 @@ export default function App() {
         return saved;
       })
       .catch((e) => {
-        // Nothing was saved, so the mark should not linger.
+        // Nothing was saved, so the annotation should not linger.
         setNotes((prev) => prev.filter((n) => n.uuid !== tempUuid));
         pending.current.delete(tempUuid);
         setError(e.message);
@@ -2809,11 +2809,11 @@ export default function App() {
     // into. Only a reading that can never be written on ignores the reach
     // — its marking tools are not in the bar, so nothing should be
     // reaching for one, though a remembered shortcut still might.
-    if (ANNOTATION_TOOLS.has(picked) && marksNeedANook) {
+    if (ANNOTATION_TOOLS.has(picked) && annotationsNeedANook) {
       void promptToAddForAnnotations();
       return;
     }
-    if (ANNOTATION_TOOLS.has(picked) && neverMarkable) return;
+    if (ANNOTATION_TOOLS.has(picked) && neverAnnotatable) return;
     // Reaching for what is already in your hand opens what belongs to it,
     // whether you reached with the pointer or with the key.
     if (picked === tool && SHEETS.has(picked)) {
@@ -2842,7 +2842,7 @@ export default function App() {
     setTool('arrow');
     toolBefore.current = null;
     try {
-      const saving = marks.clips.create(paper.edition_uuid, clip);
+      const saving = annotations.clips.create(paper.edition_uuid, clip);
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
@@ -2885,7 +2885,7 @@ export default function App() {
       // it again with the persistence response needlessly repaints its clip
       // canvas (and can overwrite a newer gesture if saves resolve out of
       // order). A successful move has nothing else to reconcile.
-      await marks.clips.move(realUuid, frame, floating);
+      await annotations.clips.move(realUuid, frame, floating);
     } catch (e) {
       setError(e.message);
     }
@@ -2895,7 +2895,7 @@ export default function App() {
     setSelectedClipUuid((selected) => (selected === uuid ? null : selected));
     setClips((all) => all.filter((clip) => clip.uuid !== uuid));
     try {
-      await marks.clips.remove(await settledClipUuid(uuid));
+      await annotations.clips.remove(await settledClipUuid(uuid));
     } catch (e) {
       setError(e.message);
     }
@@ -2939,7 +2939,7 @@ export default function App() {
     try {
       const real = await settledUuid(uuid);
       if (real == null) return;
-      const saved = await marks.notes.move(real, spot);
+      const saved = await annotations.notes.move(real, spot);
       if (record && was && saved) {
         remember({
           undo: () => moveNote(saved.uuid, { page: was.page, anchor: was.anchor }, false),
@@ -2961,7 +2961,7 @@ export default function App() {
     try {
       const real = await settledUuid(note.uuid);
       if (real == null) return;
-      const saved = await marks.notes.rename(real, name);
+      const saved = await annotations.notes.rename(real, name);
       if (record && saved) {
         remember({
           undo: () => renameNote(saved.uuid, note.name || '', false),
@@ -3039,7 +3039,7 @@ export default function App() {
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const updated = await marks.notes.update(real, content);
+    const updated = await annotations.notes.update(real, content);
     setNotes((prev) => prev.map((note) => (note.uuid === real ? updated : note)));
     return updated;
   };
@@ -3048,7 +3048,7 @@ export default function App() {
     const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const saved = await marks.notes.rename(real, name);
+    const saved = await annotations.notes.rename(real, name);
     if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
     if (record && note && saved) {
       remember({
@@ -3078,12 +3078,12 @@ export default function App() {
   };
 
   const restoreNote = async (snapshot) => {
-    let restored = await marks.notes.create({
+    let restored = await annotations.notes.create({
       page: snapshot.page,
       anchor: snapshot.anchor,
       content: snapshot.content || '',
     });
-    if (snapshot.name) restored = await marks.notes.rename(restored.uuid, snapshot.name);
+    if (snapshot.name) restored = await annotations.notes.rename(restored.uuid, snapshot.name);
     setNotes((prev) => [...prev, restored]);
     return restored;
   };
@@ -3100,7 +3100,7 @@ export default function App() {
     setDraggingNoteUuid((carried) => (carried === uuid ? null : carried));
     try {
       const real = await settledUuid(uuid);
-      if (real != null) await marks.notes.remove(real);
+      if (real != null) await annotations.notes.remove(real);
       if (record && gone) {
         const entry = { uuid: real, snapshot: gone };
         remember({
@@ -3182,7 +3182,7 @@ export default function App() {
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
-  // Once for the document: a later zoom must not pull the reader back.
+  // Once for the document: a later zoom must not pull the user back.
   const revealedWantedPage = useRef(null);
   useEffect(() => {
     const pageNumber = Number(wantedPage);
@@ -3312,8 +3312,8 @@ export default function App() {
       const added = await source.addToNook();
       // Where the paper now is. A file opened from disk becomes the
       // ordinary nook URL it was always destined for; a shared paper
-      // becomes this reader's own copy of that PDF, which is the only
-      // place their marks can go.
+      // becomes this user's own copy of that PDF, which is the only
+      // place their annotations can go.
       window.location.assign(source.nookHref?.(added) || nookViewerHref());
     } catch (failure) {
       setNookStep('idle');
@@ -3486,11 +3486,11 @@ export default function App() {
   // The way out is a place, not a step backwards. Each source names where
   // its document lives in Papol — a nook paper's own page, the front door
   // for a paper that is only passing through — and going home goes there,
-  // whether the reader arrived from Papol, from a link in a mail, from a
+  // whether the user arrived from Papol, from a link in a mail, from a
   // new tab or from a reload. Reading history to guess a destination is
   // what made this ambiguous, and every way of arriving got it wrong in a
   // different way. The page stays in history, so the browser's own Back
-  // still returns to the paper the reader was just reading.
+  // still returns to the paper the user was just reading.
   const returnToPapol = () => {
     // Papol macOS opens papers as document windows. Closing that window
     // returns to the library that has remained mounted behind it.
@@ -3582,7 +3582,7 @@ export default function App() {
             library={{
               // The same errand the web glyph runs: the library, showing
               // this paper. A paper only passing through — shared, or
-              // opened from disk — has no page in this reader's Papol, so
+              // opened from disk — has no page in this user's Papol, so
               // the library is simply brought forward as it was.
               onClick: () => focusDesktopLibraryWindow(
                 readOnly ? undefined : paper?.uuid,
@@ -3689,7 +3689,7 @@ export default function App() {
 
                   Colour, then how much it hides, then the nib, then the
                   weight — and each row is drawn in everything chosen above
-                  it, so by the last row the sample is the mark itself: this
+                  it, so by the last row the sample is the annotation itself: this
                   colour, this strong, from this nib, at that size. */}
               {t.id === 'brush' && brushOpen && (
                 <div className="brush-pop" role="group" aria-label="The brush">
@@ -3774,7 +3774,7 @@ export default function App() {
                         title={i === 0 ? 'Finest ([ and ])' : `Width ${i + 1}`}
                         onClick={() => setInkWidth(w)}
                       >
-                        {/* The mark itself, at the size and the strength
+                        {/* The annotation itself, at the size and the strength
                             and the colour it will be made in — the same
                             strip the cursor shows, from the same
                             arithmetic. Nobody judges a stroke width from a
@@ -3783,7 +3783,7 @@ export default function App() {
                           className={`weight-strip${inkShape === 'round' ? ' round' : ''}`}
                           // Fixed, and in proportion. The zoom is not part
                           // of what is being chosen here, and a row of
-                          // controls that grew and shrank as the reader
+                          // controls that grew and shrank as the user
                           // zoomed the paper would be answering a question
                           // nobody asked. The brush on the page is what
                           // follows the zoom, because it is the only thing
@@ -3827,7 +3827,7 @@ export default function App() {
                       >
                         {/* The animal itself, not its glyph: the sheet has
                             room for the drawing, and the drawing is what
-                            the reader is choosing between. */}
+                            the user is choosing between. */}
                         <svg viewBox={`0 0 ${a.box.w} ${a.box.h}`} aria-hidden="true">
                           {/* Scaled to the size the family is drawn at, not
                               left at whatever fraction of its own box the
@@ -3939,7 +3939,7 @@ export default function App() {
                 is the paper, which the bar is already showing. */}
             {sharedReading && (
               <span className="shared-reading" title="A reading someone shared with you">
-                {readerName ? `${readerName}’s reading` : 'A shared reading'}
+                {userName ? `${userName}’s reading` : 'A shared reading'}
               </span>
             )}
             <button
@@ -3955,7 +3955,7 @@ export default function App() {
             >
               <span className="info-glyph" aria-hidden="true">i</span> Info
             </button>
-            {/* A paper that is not yet this reader's, and could be: a file
+            {/* A paper that is not yet this user's, and could be: a file
                 they opened, or one somebody shared with them. Either way
                 the offer is the same two-sided one — go to your copy, or
                 make one. A visitor with no account sees "Add to nook" too,
@@ -4288,7 +4288,7 @@ export default function App() {
               ) : null}
             />
           )}
-          {selectionPaint && !neverMarkable && (
+          {selectionPaint && !neverAnnotatable && (
             <span
               ref={selectionActionsRef}
               className="selection-actions"
@@ -4326,7 +4326,7 @@ export default function App() {
               />
             </span>
           )}
-          {inkActions && !neverMarkable && (
+          {inkActions && !neverAnnotatable && (
             <span
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
@@ -4398,18 +4398,18 @@ export default function App() {
                 ))}
               </dl>
               {/* Two separate facts, and each is said only when it is true.
-                  Whose the marks on the page are is worth saying only where
-                  they are somebody's — a reading that names its reader. Where
-                  a new mark would go is worth saying wherever it has nowhere
+                  Whose the annotations on the page are is worth saying only where
+                  they are somebody's — a reading that names its user. Where
+                  a new annotation would go is worth saying wherever it has nowhere
                   to go yet, which is a shared paper and a file opened from
                   disk alike. The bar has just offered six tools; the sheet
                   that explains them should not leave out the one condition
                   on using them. */}
               <p className="help-foot">
                 {sharedReading
-                  ? 'The paint and anchors on this paper belong to the reader who shared it.'
+                  ? 'The paint and anchors on this paper belong to the user who shared it.'
                   : 'Paint and anchors are stored with the paper.'}
-                {marksNeedANook && ' Add this paper to your nook to make marks of your own.'}
+                {annotationsNeedANook && ' Add this paper to your nook to make annotations of your own.'}
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done
@@ -4622,7 +4622,7 @@ export default function App() {
           <div className="rail-header">
             <div className="rail-heading">
               <span className="rail-kicker">
-                {readerName && sharedReading ? `${readerName}’s notes` : 'Paper notes'}
+                {userName && sharedReading ? `${userName}’s notes` : 'Paper notes'}
               </span>
               <div className="rail-title-row">
                 <h2>Anchors</h2>
@@ -4664,13 +4664,13 @@ export default function App() {
                   <p>
                     {!sharedReading
                       ? 'This link shares the paper only.'
-                      : readerName
-                        ? `${readerName} left no anchors on this paper.`
+                      : userName
+                        ? `${userName} left no anchors on this paper.`
                         : 'No anchors were left on this paper.'}
                   </p>
                   {/* Why the rail is empty is only half of it. The other
                       half is that it need not stay that way. */}
-                  {marksNeedANook && (
+                  {annotationsNeedANook && (
                     <p>Add this paper to your nook to write your own.</p>
                   )}
                 </>
@@ -4690,7 +4690,7 @@ export default function App() {
           <div className="rail-list">
 
           {numbered.map((note) =>
-            // An anchor with nothing written on it is a mark, not a note:
+            // An anchor with nothing written on it is an annotation, not a note:
             // one quiet line, until there are words to show.
             !note.content && editing !== note.uuid ? (
               <div

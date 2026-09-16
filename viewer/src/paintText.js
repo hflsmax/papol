@@ -2,17 +2,17 @@ import { STRIP_RATIO } from './ink.js';
 import { selectionStrokes } from './selectionInk.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
 
-// The text under a paint mark.
+// The text under an ink stroke.
 //
-// A mark stores only its geometry — points, width, nib — never the words it
+// An annotation stores only its geometry — points, width, nib — never the words it
 // was laid over, so the words are worked out when they are wanted: a
-// character is under the mark when the middle of its box lies inside the
-// shape the mark paints. The shape is the one PdfPage draws (a flat nib's
+// character is under the annotation when the middle of its box lies inside the
+// shape the annotation paints. The shape is the one PdfPage draws (a flat nib's
 // swept rectangle, a round nib's capsule), and the boxes come from the text
 // layer, which is where selection, search highlights and "Paint selected
 // text" all take their idea of where a character is. So painting a
 // selection and asking the paint for its text gives back that selection,
-// whether the mark was made from one or drawn by hand, and wherever it has
+// whether the annotation was made from one or drawn by hand, and wherever it has
 // since been moved.
 //
 // Everything here is in page units — PDF points from the page's top-left
@@ -57,7 +57,7 @@ function sweptRectangleContains(a, b, p, hw, hh) {
 }
 
 // Whether a point (page units) is inside the shape a stroke paints.
-export function markContains(stroke, point, page) {
+export function strokeContains(stroke, point, page) {
   const thick = stroke.width * page.width;
   const points = strokePoints(stroke, page);
   if (!points.length) return false;
@@ -80,7 +80,7 @@ export function markContains(stroke, point, page) {
 }
 
 // The box a stroke's paint can reach, in page units.
-export function markBounds(stroke, page) {
+export function strokeBounds(stroke, page) {
   const thick = stroke.width * page.width;
   const reach = stroke.shape === 'round' ? thick / 2 : Math.max(flatNib(thick).hw, flatNib(thick).hh);
   const points = strokePoints(stroke, page);
@@ -93,7 +93,7 @@ export function markBounds(stroke, page) {
 }
 
 // Pieces of text in reading order, each with the box it came from, joined as
-// a reader would copy them: a space between separate words on a line, a line
+// a user would copy them: a space between separate words on a line, a line
 // break where the next piece starts lower, a blank line at a paragraph gap
 // or the start of another page. Selected text is joined the same way.
 export function joinTextPieces(pieces) {
@@ -172,14 +172,14 @@ export function pageCharacters(pageEl, within) {
 // page number to its size in page units. Returns the text, joined as selected
 // text is, and one line band per covered stretch of text in the shape
 // "Paint selected text" makes — what an excerpt's backlink highlights.
-export function textUnderMarks(characters, strokes, pages) {
-  const underMark = new Set(characters.filter((character) => {
+export function textUnderStrokes(characters, strokes, pages) {
+  const underStroke = new Set(characters.filter((character) => {
     const page = pages.get(character.page);
     const middle = centre(character.box);
-    return page && strokes.some((stroke) => stroke.page === character.page && markContains(stroke, middle, page));
+    return page && strokes.some((stroke) => stroke.page === character.page && strokeContains(stroke, middle, page));
   }));
 
-  // Whole words, as a reader means them: a word is under the mark when more
+  // Whole words, as a user means them: a word is under the annotation when more
   // than half of its letters are. A hand drawing over "for the" clips a
   // letter of the words either side, and those letters are not what it was
   // marking; painting a selection of whole words gives exactly those words.
@@ -187,7 +187,7 @@ export function textUnderMarks(characters, strokes, pages) {
   const kept = new Set();
   let word = [];
   const closeWord = () => {
-    if (word.filter((character) => underMark.has(character)).length * 2 > word.length) {
+    if (word.filter((character) => underStroke.has(character)).length * 2 > word.length) {
       word.forEach((character) => kept.add(character));
     }
     word = [];
@@ -239,7 +239,7 @@ export function textUnderMarks(characters, strokes, pages) {
     bands.push(...selectionStrokes(rects, [{ page: pageNumber, box }]));
   }
 
-  // A loosely drawn mark takes in the spaces either side of its words; those
+  // A loosely drawn annotation takes in the spaces either side of its words; those
   // are not text anyone means to keep.
   return { text: joinTextPieces(pieces).trim(), bands };
 }

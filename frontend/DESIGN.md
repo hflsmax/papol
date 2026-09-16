@@ -53,7 +53,7 @@ finished = grey — all rendered by the single `StatePill` component, never
 restyled per page.
 
 **Identity colors** are a separate axis from the semantic ones: six
-`--identity-*` tokens, chosen per reader by id, back the initial shown when
+`--identity-*` tokens, chosen per user by id, back the initial shown when
 someone has no profile picture (applied via `.avatar-initial.avatar-tint-N`,
 two classes so role colors like the leader's gold still win). They say
 "which person", never "what state".
@@ -77,7 +77,7 @@ family rather than setting one, so a field is serif inside a panel, mono
 inside an admin data table, and UI sans inside the announce form. Never
 leave a control unstyled: a bare `<textarea>` falls back to the browser's
 monospace default, which is how the seminar message box drifted out of the
-system. Prose the reader writes (notes, summaries, messages) is serif;
+system. Prose the user writes (notes, summaries, messages) is serif;
 structured configuration (the announce form) is UI sans.
 
 Scale (use the nearest step, never a bespoke rem value):
@@ -166,7 +166,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:
   `--green-soft` for public fields (ratings, thought) and `--accent-soft`
   for private ones (summary, notes). The tint matches the field's
-  visibility badge, so a reader can tell at a glance who sees what
+  visibility badge, so a user can tell at a glance who sees what
   without reading the badges.
 - **Visibility fields in forms** — tint the container, never the text box:
   `--green-soft` surrounds public fields and `--accent-soft` surrounds
@@ -181,8 +181,8 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   chip beside a *heading* ("My ratings", "Summary"). A control that states
   its own meaning in a full sentence takes the tint alone — appending a
   badge to a sentence reads as if the word belongs to it.
-- **Reader chip** — a circular avatar in a ring, used wherever readers are
-  listed. A reader who authored the paper gets `.author`: squared off and
+- **User chip** — a circular avatar in a ring, used wherever users are
+  listed. A user who authored the paper gets `.author`: squared off and
   gold, so the role reads by shape as well as colour and never depends on
   colour alone.
 - **Icon button** — `.icon-btn`: chrome-free (no border, fill or shadow),
@@ -203,7 +203,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   and `right-start` on spacious canvases. Show it only for a single selected
   object; do not recreate contextual actions with ad-hoc positioned buttons.
 - **Danger button** — `button.danger`: a modifier on the base button, for
-  an action that changes what a reader's own work depends on (Replace PDF).
+  an action that changes what a user's own work depends on (Replace PDF).
   It takes the red family in its tint/line/ink roles — `--red-soft` fill,
   `--red-line` border, `--red` text — not the saturated fill a `.primary`
   uses, so it warns without competing for the one prominent action. This is
@@ -220,17 +220,17 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `.inline-edit-actions` (primary Save/Add, plain Cancel, Esc cancels).
   Use it for every in-place composer so boxes are the same size. The box
   is `components/AutoTextarea.jsx`, which grows with the text and caps at
-  a screenful: `rows` sets the height it opens at, not a window the reader
+  a screenful: `rows` sets the height it opens at, not a window the user
   writes through. Its leading is tighter than body prose (1.4), because in
-  a composer the line breaks are the reader's own structure.
-- **Markdown prose** — the reader's own long-form writing (summary, notes)
+  a composer the line breaks are the user's own structure.
+- **Markdown prose** — the user's own long-form writing (summary, notes)
   is Markdown: written in an `.inline-edit` box under a `.md-hint` line
   naming the syntax, and displayed through `components/Markdown.jsx`, which
-  renders a small subset to React elements — never to HTML, so a reader's
+  renders a small subset to React elements — never to HTML, so a user's
   text can never become markup. Its blocks style off `.md` and keep the
   card's own tint; only code takes a surface of its own (`--card`, so it
   reads as inset on the tint). Headings inside a note start at `--fs-lg`,
-  a step under the section heading above the card: prose a reader wrote is
+  a step under the section heading above the card: prose a user wrote is
   never louder than the app's own structure.
 - **Checkbox** — always `.checkbox-row`: a 15px box in `--accent`, label in
   the UI font. Add `.inline` when the option trails the line it qualifies
@@ -261,7 +261,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `shared/desktopShell.js` stamps `data-shell="desktop"` on `<html>`, and
   `?shell=desktop` previews it in a browser tab) the website masthead gives
   way to a native reference-manager layout. A 220px `--chrome` source-list
-  sidebar (`components/DesktopChrome.jsx`) lists the reader's sources — All
+  sidebar (`components/DesktopChrome.jsx`) lists the user's sources — All
   papers, each shelf (by its swatch, once there are two), Boards, their tags —
   then Library, Inbox, Learn, with Manage nook as the icon beside "My nook".
   Reading is three panes (`components/DesktopLibrary.jsx`): the sidebar picks
@@ -273,7 +273,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   the overview's Open Board button opens its document window. The library is
   for recognising and resuming a board, never for editing its canvas. A newly
   created board becomes the selected board in the Library and shows this
-  overview; creation never opens the document window on the reader's behalf.
+  overview; creation never opens the document window on the user's behalf.
   Adding a paper or a board also happens in the detail pane. Every
   other page (Inbox, Profile, Learn, a seminar, someone else's nook) fills the
   space beside the sidebar under a toolbar holding just its title.
@@ -300,7 +300,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `--chrome-selected`, with `--accent` line glyphs. Paper titles in the list
   stay serif. A selected row is `--chrome-selected` grey, and `--accent` with
   inverse text while the list has focus, as native lists do. Arrow keys move
-  the selection without adding history. A row from the reader's own nook can
+  the selection without adding history. A row from the user's own nook can
   be dragged onto a shelf in the sidebar to move the paper there; the shelf
   under the pointer lights in `--accent` with inverse text, like a native
   drop target. Anything the chrome already offers
@@ -324,16 +324,16 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 
 ## Voice
 
-Labels that *name* the reader's own content say **my**: "My nook",
+Labels that *name* the user's own content say **my**: "My nook",
 "My ratings", "My thought", "My expertise", "Add to my nook".
 
-Prose that *speaks to* the reader says **you/your**: placeholders ("Your
+Prose that *speaks to* the user says **you/your**: placeholders ("Your
 one-line take on this paper"), warnings ("your changes apply to this paper
-for every reader"), confirmations ("Your ratings and notes will be
+for every user"), confirmations ("Your ratings and notes will be
 deleted"), empty states, and notices.
 
 The test: if it is a heading or a button naming a thing that belongs to the
-reader, it is "my"; if the app is talking, it is "your".
+user, it is "my"; if the app is talking, it is "your".
 
 ## Extending the system
 

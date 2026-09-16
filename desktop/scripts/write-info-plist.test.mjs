@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { handoffScheme, identifierFor, infoPlist } from './write-info-plist.mjs';
 
-// The scheme is the one thing a build cannot share with the Papol a reader
+// The scheme is the one thing a build cannot share with the Papol a user
 // already has installed, because LaunchServices gives it to one application.
 test('each build answers a scheme of its own', () => {
   assert.equal(handoffScheme('com.mc-pony.papol'), 'papol');

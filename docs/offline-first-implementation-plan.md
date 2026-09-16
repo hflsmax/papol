@@ -175,7 +175,7 @@ The local database is introduced only with the final UUID shape. It never persis
 ### Migration groups
 
 1. Boards: `boards`, `board_items`, `board_groups`.
-2. Reader annotations: `comments`, `ink_strokes`, `paper_clips`.
+2. User annotations: `comments`, `ink_strokes`, `paper_clips`.
 3. Nook organization: `copies`, `shelves`, `tags`, `copy_tags`.
 4. Paper dependencies: `papers`, `paper_editions`, reference rows.
 

@@ -9,7 +9,7 @@ export const PAPER_DRAG_TYPE = 'application/x-papol-paper';
 
 const SOURCE_KEY = 'papol.desktopSource';
 
-// Sources: 'all', 'shelf:<uuid>', 'tag:<uuid>', 'boards' (the reader's nook) and
+// Sources: 'all', 'shelf:<uuid>', 'tag:<uuid>', 'boards' (the user's nook) and
 // 'library' (every public paper).
 export function sourcePath(source) {
   if (source === 'library') return '/library';
@@ -17,7 +17,7 @@ export function sourcePath(source) {
   return `/?source=${source}`;
 }
 
-// An import reviewed from the public library belongs to the reader's nook once
+// An import reviewed from the public library belongs to the user's nook once
 // it is created. Select that nook source while opening the new paper itself.
 export function paperCreatedNavigation(source, paperUuid) {
   return {
@@ -46,7 +46,7 @@ export function lastShownSource() {
   catch { return null; }
 }
 
-// The pages the browser stands in for. A signed-out reader has no nook and
+// The pages the browser stands in for. A signed-out user has no nook and
 // cannot list the library, so a paper sent to them opens as a plain page.
 export function isBrowsing(route, user) {
   if (!user) return false;

@@ -40,7 +40,7 @@ body {
 }
 
 /* One dependable keyboard treatment for ordinary controls. More specific
-   component rules may adapt the shape (for example, marks placed on a PDF),
+   component rules may adapt the shape (for example, annotations placed on a PDF),
    but focus must never rely on hover styling alone. */
 :where(a[href], button, input, textarea, select, summary, [role='button'], [tabindex]):focus-visible {
   outline: 2px solid var(--focus);
@@ -365,7 +365,7 @@ input[type='checkbox'] {
 }
 
 /* The offer of a newer PDF: informational, never alarming, and never
-   acted on without the reader. */
+   acted on without the user. */
 .edition-notice {
   display: flex;
   gap: 12px;
@@ -492,7 +492,7 @@ input[type='checkbox'] {
 
 /* Shown in every window when this build is behind what the server accepts.
    The stopped state is not dismissable: synchronization has halted, and a
-   bar the reader can wave away would let that go unnoticed. */
+   bar the user can wave away would let that go unnoticed. */
 .compatibility-bar {
   display: flex;
   align-items: center;
@@ -579,7 +579,7 @@ input[type='checkbox'] {
 }
 
 /* Refusing has to be as easy as accepting: a real target, not a hairline
-   cross a reader has to aim at. */
+   cross a user has to aim at. */
 .mac-handoff-dismiss {
   min-height: 28px;
   padding: 4px 12px;
@@ -689,9 +689,9 @@ input[type='checkbox'] {
   border-top: 1px solid var(--line);
 }
 
-/* The one panel a reader can do something irreversible in. It is marked
+/* The one panel a user can do something irreversible in. It is marked
    by its edge rather than a wash of colour: the page is otherwise white
-   panels, and a red one would read as an error the reader must fix. */
+   panels, and a red one would read as an error the user must fix. */
 .panel-danger {
   border-color: var(--red-line);
 }
@@ -751,7 +751,7 @@ button.primary:hover:not(:disabled) {
 }
 
 /* Danger action: red is the danger family, and this is a control the
-   reader operates, so it takes the tint/line/ink roles rather than the
+   user operates, so it takes the tint/line/ink roles rather than the
    saturated fill a primary button uses. */
 button.danger {
   background: var(--red-soft);
@@ -1129,7 +1129,7 @@ select:disabled { cursor: default; opacity: .65; }
   text-align: center;
 }
 
-/* ---------- Directory ---------- */
+/* ---------- Library: users ---------- */
 
 .user-list {
   list-style: none;
@@ -1445,15 +1445,15 @@ select:disabled { cursor: default; opacity: .65; }
 .search-tag-filters { display: flex; justify-content: flex-start; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
 .search-tag-filters .tag-chip { padding: 3px 9px; font-size: var(--fs-xs); }
 .library-search-tools { align-items: stretch; flex-direction: column; gap: 8px; }
-.library-reader-filters { display: flex; justify-content: flex-start; align-self: flex-start; width: 100%; gap: 6px; overflow-x: auto; padding-bottom: 10px; text-align: left; }
-.library-reader-filters { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--line-strong) 45%, transparent) transparent; }
-.library-reader-filters::-webkit-scrollbar { height: 1px; }
-.library-reader-filters::-webkit-scrollbar-track { background: transparent; }
-.library-reader-filters::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--line-strong) 45%, transparent); border-radius: var(--radius-pill); }
-.reader-filter { display: inline-flex; align-items: center; justify-content: flex-start; flex: none; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); text-align: left; white-space: nowrap; }
-.reader-filter.selected { background: var(--accent); border-color: var(--accent); color: var(--ink-inverse); }
-.reader-filter-avatar { width: 20px; height: 20px; border-radius: 50%; }
-.avatar-initial.reader-filter-avatar { display: inline-flex; align-items: center; justify-content: center; color: var(--ink-inverse); font-size: var(--fs-2xs); line-height: 1; text-align: center; }
+.library-user-filters { display: flex; justify-content: flex-start; align-self: flex-start; width: 100%; gap: 6px; overflow-x: auto; padding-bottom: 10px; text-align: left; }
+.library-user-filters { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--line-strong) 45%, transparent) transparent; }
+.library-user-filters::-webkit-scrollbar { height: 1px; }
+.library-user-filters::-webkit-scrollbar-track { background: transparent; }
+.library-user-filters::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--line-strong) 45%, transparent); border-radius: var(--radius-pill); }
+.user-filter { display: inline-flex; align-items: center; justify-content: flex-start; flex: none; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); text-align: left; white-space: nowrap; }
+.user-filter.selected { background: var(--accent); border-color: var(--accent); color: var(--ink-inverse); }
+.user-filter-avatar { width: 20px; height: 20px; border-radius: 50%; }
+.avatar-initial.user-filter-avatar { display: inline-flex; align-items: center; justify-content: center; color: var(--ink-inverse); font-size: var(--fs-2xs); line-height: 1; text-align: center; }
 .library-search-line { display: flex; align-items: center; gap: 12px; width: 100%; }
 .library-search-line > input { flex: 1 1 auto; min-width: 0; }
 .library-search-line .sort-control { flex: none; }
@@ -1609,7 +1609,7 @@ select:disabled { cursor: default; opacity: .65; }
 
 /* Coming back from a board, the nook says which row you came from — a wash
    of the accent that fades out on its own. It lasts long enough to find,
-   and never long enough to be a state the reader has to dismiss. */
+   and never long enough to be a state the user has to dismiss. */
 .paper-list li.revealed {
   animation: nook-reveal 2.6s ease-out;
 }
@@ -1626,7 +1626,7 @@ select:disabled { cursor: default; opacity: .65; }
    than a badge in one corner repeating a border in the other.
 
    Solid --green is Papol's "public"; dashed --line-strong is a paper
-   withheld. Both are the tokens' own values — the bar is a saturated mark
+   withheld. Both are the tokens' own values — the bar is a saturated annotation
    on the page, which is exactly the role the base of a family plays.
    4px of paint in a 14px target that runs the row's full height: thin to
    look at, but tall and against the edge, which is the easiest kind of
@@ -1848,12 +1848,12 @@ select:disabled { cursor: default; opacity: .65; }
   margin-top: 2px;
 }
 
-.reader-entries {
+.user-entries {
   list-style: none;
   margin-top: 8px;
 }
 
-.reader-entry {
+.user-entry {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1864,11 +1864,11 @@ select:disabled { cursor: default; opacity: .65; }
   transition: background 0.15s;
 }
 
-.reader-entry:hover {
+.user-entry:hover {
   background: var(--accent-soft);
 }
 
-.reader-entry:hover .entry-name {
+.user-entry:hover .entry-name {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -1968,7 +1968,7 @@ select:disabled { cursor: default; opacity: .65; }
   margin-top: 4px;
 }
 
-.reader-entry .rating-summary.compact {
+.user-entry .rating-summary.compact {
   margin: 0;
 }
 
@@ -2169,8 +2169,8 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* Neither public nor private: handed to particular people, by a link the
-   reader can take back. Gold, which is the colour Papol already uses for
-   a reader's own marks. */
+   user can take back. Gold, which is the colour Papol already uses for
+   a user's own annotations. */
 .visibility-badge.shared {
   color: var(--gold-ink);
   border-color: var(--gold-line);
@@ -2219,7 +2219,7 @@ select:disabled { cursor: default; opacity: .65; }
   color: var(--red);
 }
 
-/* The question a link carrying marks asks before it is closed. Inside the
+/* The question a link carrying annotations asks before it is closed. Inside the
    bar rather than over the page: it is a choice between two ordinary
    actions, not a warning about a dangerous one. */
 .shared-reading-ask {
@@ -2254,7 +2254,7 @@ select:disabled { cursor: default; opacity: .65; }
 
 /* The one thing to decide when making a link, so it sits between the
    description and the button rather than beside them. */
-.share-marks-choice {
+.share-annotations-choice {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2265,7 +2265,7 @@ select:disabled { cursor: default; opacity: .65; }
   cursor: pointer;
 }
 
-.share-marks-choice input {
+.share-annotations-choice input {
   flex: none;
   margin: 0;
 }
@@ -2284,7 +2284,7 @@ select:disabled { cursor: default; opacity: .65; }
 
 /* On the paper page the three rating controls sit side by side on one
    row to keep the first panel short. Each cell stacks its label over
-   the buttons so nothing wraps mid-row. The green tint marks the
+   the buttons so nothing wraps mid-row. The green tint annotations the
    ratings as public — see .summary-text / .comment for the private
    blue counterpart. */
 .inline-ratings .rating-inputs {
@@ -2541,7 +2541,7 @@ select:disabled { cursor: default; opacity: .65; }
   right: 0;
 }
 
-/* Title, state pill and reader chips read as one line about one paper.
+/* Title, state pill and user chips read as one line about one paper.
    The row used to wrap, and because a flex line is broken on an item's
    *unwrapped* width, a title long enough to wrap sent the chips to a line
    of their own — the narrow-screen arrangement, arriving on a wide screen
@@ -2571,7 +2571,7 @@ select:disabled { cursor: default; opacity: .65; }
   line-height: 1.3;
 }
 
-/* The state pill and the reader chips are the same kind of thing here:
+/* The state pill and the user chips are the same kind of thing here:
    something sitting beside the title, on the title's first line. Giving
    them the same box is what makes them agree with each other and with the
    line — the pill used to be inside the heading, riding the text baseline,
@@ -2597,12 +2597,12 @@ select:disabled { cursor: default; opacity: .65; }
   margin-left: 0;
 }
 
-/* A nook row's readers. They answer to the whole row rather than to the
+/* A nook row's users. They answer to the whole row rather than to the
    title, so they sit at the row's right edge and centre against all of it,
    and they are drawn large: who else has this paper is the reason to look
    down someone's nook, and it should be legible at a glance rather than
    read one 22px circle at a time. */
-.row-readers {
+.row-users {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2612,13 +2612,13 @@ select:disabled { cursor: default; opacity: .65; }
   padding-top: 10px;
 }
 
-.row-readers .mini-avatar {
+.row-users .mini-avatar {
   width: 34px;
   height: 34px;
   font-size: var(--fs-sm);
 }
 
-.row-readers .avatar-chip.mini {
+.row-users .avatar-chip.mini {
   padding: 2px;
 }
 
@@ -2651,8 +2651,8 @@ select:disabled { cursor: default; opacity: .65; }
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
-/* A reader who wrote the paper. Authors are squared off while every
-   other reader stays round, so the distinction survives without colour;
+/* A user who wrote the paper. Authors are squared off while every
+   other user stays round, so the distinction survives without colour;
    gold is the app's "this person holds a role here" hue, as on the
    seminar leader's chip. */
 .avatar-chip.author {
@@ -2828,7 +2828,7 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* Small buttons: these open the paper, they do not compete with the
-   reader's own work below them. */
+   user's own work below them. */
 .paper-actions button {
   padding: 6px 12px;
   font-size: var(--fs-xs);
@@ -2873,7 +2873,7 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* The menu that hands over a link is wider than the menu of actions: it
-   holds a URL, and a URL the reader cannot read is a URL they cannot check
+   holds a URL, and a URL the user cannot read is a URL they cannot check
    before handing it over. */
 .share-links-menu {
   width: 310px;
@@ -3297,7 +3297,7 @@ h4 .state-pill {
   font: inherit;
   font-size: var(--fs-base);
   /* Tighter than the 1.65 body prose it inherits: in a composer the line
-     breaks are the reader's own structure — Markdown lists, headings — and
+     breaks are the user's own structure — Markdown lists, headings — and
      reading-width leading spreads a short note over half the panel. */
   line-height: 1.4;
   background: var(--card);
@@ -3305,7 +3305,7 @@ h4 .state-pill {
   resize: vertical;
 }
 
-/* Sized by components/AutoTextarea.jsx as the reader types. Past a
+/* Sized by components/AutoTextarea.jsx as the user types. Past a
    screenful it stops growing and scrolls, so Save never leaves the view;
    the corner handle goes, since the box already sizes itself. */
 .inline-edit-box.auto-grow {
@@ -3353,7 +3353,7 @@ h4 .state-pill {
   font-style: italic;
 }
 
-/* The source link on the About page. A quiet mark, not a call to action:
+/* The source link on the About page. A quiet annotation, not a call to action:
    it sits below the note about incubation and is meant to be found by
    someone looking for it, not to compete with the demo button. */
 .home-source {
@@ -3503,7 +3503,7 @@ h4 .state-pill {
 }
 
 /* The profile page is settings from top to bottom: nothing on it is prose
-   the reader wrote, it is all structured configuration, which the type
+   the user wrote, it is all structured configuration, which the type
    roles put in the interface font. Same reasoning as .announce-card above,
    over a whole page rather than one card — and the reason the page read as
    a jumble was that its chrome was borrowing the prose face and then
@@ -3528,7 +3528,7 @@ h4 .state-pill {
   font-family: var(--font-serif);
 }
 
-/* An address the reader has to copy out exactly is an identifier, which
+/* An address the user has to copy out exactly is an identifier, which
    the type roles give to the data face. It used to sit inside the field's
    label, where it needed a normal variant and a letter-spacing reset just
    to escape the small-caps kicker around it — four treatments in five
@@ -3979,7 +3979,7 @@ a.btn:hover {
   display: flex;
   flex-wrap: wrap;
   /* Centred, not stretched. The chips and the Join button are not the same
-     height — a reader chip carries an avatar and the button does not — and
+     height — a user chip carries an avatar and the button does not — and
      stretching lines up their tops, which is the one thing about them that
      should not have to agree. Worse, the button sits inside .hint-anchor,
      so stretching the anchor left the button itself at the anchor's top
@@ -4018,7 +4018,7 @@ a.btn:hover {
   color: var(--ink);
 }
 
-/* A reader without a picture shows their initial on a colour of their
+/* A user without a picture shows their initial on a colour of their
    own, so two initials are told apart at a glance. Two classes, so these
    beat the plain size classes but still yield to role colouring such as
    the leader's gold below. */
@@ -4625,7 +4625,7 @@ a.btn:hover {
 
 /* ---------- Markdown prose (summaries and notes) ---------- */
 
-/* The reader's own prose, rendered by components/Markdown.jsx. It carries
+/* The user's own prose, rendered by components/Markdown.jsx. It carries
    its own line breaks, so it drops the pre-wrap the plain-text form leant
    on, and its first and last blocks sit flush inside the tinted card. */
 .md {
@@ -5211,8 +5211,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .space .paper-list li { gap: 8px; padding: 12px 8px 12px 24px; }
   .space .paper-item h4 { font-size: var(--fs-md); line-height: 1.28; }
   .space .paper-meta { margin-top: 3px; font-size: var(--fs-xs); line-height: 1.45; }
-  .space .row-readers { max-width: 74px; gap: 4px; padding-top: 0; flex-wrap: wrap; justify-content: flex-end; }
-  .space .row-readers .mini-avatar { width: 32px; height: 32px; }
+  .space .row-users { max-width: 74px; gap: 4px; padding-top: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .space .row-users .mini-avatar { width: 32px; height: 32px; }
   .space .rating-summary.compact { flex-wrap: nowrap; gap: 10px; margin-top: 8px; white-space: nowrap; }
   .space .rating-summary.compact .rating-item { gap: 4px; }
   .space .rating-summary.compact .rating-dots { display: none; }
@@ -5234,9 +5234,9 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   }
 
   .library-page .panel.paper-list { padding: 12px 10px 8px; }
-  .library-reader-filters { margin-inline: -2px; padding-inline: 2px; padding-bottom: 7px; }
-  .reader-filter { min-height: 38px; padding: 5px 10px; }
-  .reader-filter-avatar { width: 24px; height: 24px; }
+  .library-user-filters { margin-inline: -2px; padding-inline: 2px; padding-bottom: 7px; }
+  .user-filter { min-height: 38px; padding: 5px 10px; }
+  .user-filter-avatar { width: 24px; height: 24px; }
   .library-search-line { flex-direction: row; align-items: center; gap: 8px; }
   .library-search-line > input { flex: 1 1 0; width: 0; min-height: 42px; }
   .library-search-line .sort-control { flex: none; width: auto; gap: 4px; font-size: var(--fs-xs); }
@@ -5254,7 +5254,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     flex-wrap: wrap;
   }
 
-  /* Rows wrap uniformly: the trailing element (paper status pill, reader
+  /* Rows wrap uniformly: the trailing element (paper status pill, user
      affiliation) always sits on its own line instead of wrapping only
      when the title or name happens to be long */
   h4 .state-pill {
@@ -5278,7 +5278,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   }
 
   .paper-title-row .title-chips {
-    flex-basis: 100%; /* reader chips get their own line in every row too */
+    flex-basis: 100%; /* user chips get their own line in every row too */
   }
 
   .form-row {
@@ -5304,7 +5304,7 @@ ${desktopStyles}
 
 /* Product-wide motion preference. Component media rules can remove layout
    transitions more selectively, while this guarantees that no newly added
-   animation escapes the reader's operating-system preference. */
+   animation escapes the user's operating-system preference. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

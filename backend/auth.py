@@ -12,7 +12,7 @@ from models import AuthToken, User
 _PBKDF2_ITERATIONS = 200_000
 
 # How stale last_used_at may get before a request rewrites it. Coarse on
-# purpose: a reader clicking through the app costs one UPDATE a minute
+# purpose: a user clicking through the app costs one UPDATE a minute
 # rather than one per request.
 _LAST_USED_RESOLUTION = timedelta(minutes=1)
 
@@ -65,7 +65,7 @@ def _live_session(db: Session, credentials) -> AuthToken | None:
         try:
             db.commit()
         except Exception:
-            # Losing a last-seen stamp must never cost the reader the request.
+            # Losing a last-seen stamp must never cost the user the request.
             db.rollback()
     return auth
 
@@ -91,7 +91,7 @@ def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """The signed-in reader, or None — for endpoints open to visitors."""
+    """The signed-in user, or None — for endpoints open to visitors."""
     auth = _live_session(db, credentials)
     if not auth or auth.user is None or auth.user.is_deleted:
         return None

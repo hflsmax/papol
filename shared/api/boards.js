@@ -5,7 +5,7 @@ import {
 import { runtimeFetch } from '../connectivity.js';
 import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
 
-// ---------- Boards (private spaces inside the reader's nook) ----------
+// ---------- Boards (private spaces inside the user's nook) ----------
 
 export function listBoards() {
   if (nativeDataActive()) return nativeRepository.boards().then((rows) => rows.map((row) => boardView(row)));

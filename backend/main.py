@@ -50,9 +50,9 @@ from models import (
 )
 import account
 from schemas import (
-    UserRegister, UserLogin, UserPublic, UserPrivate, UserDirectoryEntry,
+    UserRegister, UserLogin, UserPublic, UserPrivate, UserListEntry,
     AuthResponse,
-    ProfileUpdate, PasswordChange, AccountDeletion, ReaderEntry,
+    ProfileUpdate, PasswordChange, AccountDeletion, UserEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
@@ -376,7 +376,7 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
 # The PDF viewer is its own app with its own build; Papol serves it at
-# /viewer so it shares this origin — and therefore the reader's session —
+# /viewer so it shares this origin — and therefore the user's session —
 # without a second sign-in.
 VIEWER_DIR = Path(__file__).parent.parent / "viewer" / "dist"
 if VIEWER_DIR.exists():
@@ -402,17 +402,17 @@ if BOARD_DIR.exists():
         return FileResponse(BOARD_DIR / "index.html", headers={"Cache-Control": "public, max-age=0, must-revalidate"})
 
 
-# The {name} placeholder is filled with the new reader's display name.
+# The {name} placeholder is filled with the new user's display name.
 # Override via the settings table key "welcome_message".
 DEFAULT_WELCOME = (
     "Welcome to Papol, {name}—your paper reading companion. Your nook is where you "
     "document your reading: upload the papers you read, rate them, "
     "keep private notes and a summary, and share a public "
     "one-sentence thought. Use the Library to find papers and see "
-    "what other readers keep in their nooks, then add papers to "
+    "what other users keep in their nooks, then add papers to "
     "your own. When a paper deserves a conversation, call a "
-    "spontaneous seminar, and every reader of it will be invited. "
-    "Each seminar is run by a host: a reader who volunteers to plan "
+    "spontaneous seminar, and every user of it will be invited. "
+    "Each seminar is run by a host: a user who volunteers to plan "
     "it and lead the discussion. Answer a call to host one yourself!"
 )
 
@@ -442,7 +442,7 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    # Greet every new reader with a first inbox message
+    # Greet every new user with a first inbox message
     template = setting_value(db, "welcome_message") or DEFAULT_WELCOME
     db.add(Notification(
         user_uuid=user.uuid,
@@ -496,7 +496,7 @@ async def update_profile(
     db: Session = Depends(get_db),
 ):
     """Update display name, affiliation, and whether the email shows on the
-    reader's nook. The email address itself is the login identifier and is fixed."""
+    user's nook. The email address itself is the login identifier and is fixed."""
     update = data.model_dump(exclude_unset=True)
     if "display_name" in update:
         name = (update["display_name"] or "").strip()
@@ -579,9 +579,9 @@ async def export_my_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Everything Papol holds about this reader, in one zip.
+    """Everything Papol holds about this user, in one zip.
 
-    A reader who cannot leave with their notes does not really own them.
+    A user who cannot leave with their notes does not really own them.
     The file is built on disk and streamed: a large nook is a lot of PDF,
     and none of it needs to sit in memory to be handed over.
     """
@@ -599,7 +599,7 @@ async def export_my_data(
         path,
         media_type="application/zip",
         filename=f"papol-export-{stamp}.zip",
-        # The reader's copy is theirs; the server's is scratch. Deleted once
+        # The user's copy is theirs; the server's is scratch. Deleted once
         # the response has gone out, whether or not it got there.
         background=BackgroundTask(lambda: path.unlink(missing_ok=True)),
     )
@@ -611,10 +611,10 @@ async def delete_my_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Close the account and scrub the reader out of it.
+    """Close the account and scrub the user out of it.
 
     The row stays as a tombstone, because a seminar they started and the
-    messages they left in it point at it, and those belong to the readers
+    messages they left in it point at it, and those belong to the users
     who were there too. Their notes, their nook and their notifications —
     private, and theirs alone — are deleted; see account.py.
     """
@@ -650,7 +650,7 @@ async def delete_my_account(
         # Who may take over a seminar, and how the cohort hears about it,
         # are this module's rules — the same ones leave_room applies when a
         # host hands over on their way out.
-        eligible_hosts=lambda room: _reader_uuids(db, room.paper_key, public_only=True),
+        eligible_hosts=lambda room: _paper_user_uuids(db, room.paper_key, public_only=True),
         notify=lambda room, user_uuids, content: _notify(db, user_uuids, room, content),
     )
     for board_uuid in board_uuids:
@@ -671,7 +671,7 @@ def _owned_board(board_uuid: str, user: User, db: Session) -> Board:
         Board.deleted_at.is_(None),
     ).first()
     if not board:
-        # Do not reveal whether another reader's private board exists.
+        # Do not reveal whether another user's private board exists.
         raise HTTPException(status_code=404, detail="Board not found")
     return board
 
@@ -1484,7 +1484,7 @@ async def get_board_item_file(
         media_type=item.mime_type or "application/octet-stream",
         filename=item.original_filename,
         # Board files are write-once: edits change card metadata, never the
-        # bytes at this URL. Keep private files in the reader's own cache and
+        # bytes at this URL. Keep private files in the user's own cache and
         # avoid revalidating immutable previews on every board visit.
         headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
@@ -1493,12 +1493,12 @@ async def get_board_item_file(
 # ---------------- Users / spaces ----------------
 
 
-@app.get("/api/users", response_model=list[UserDirectoryEntry])
+@app.get("/api/users", response_model=list[UserListEntry])
 async def list_users(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Readers directory. Signed-in readers only."""
+    """Every user in the Library. Signed-in users only."""
     users = (
         db.query(User)
         .filter(User.deleted_at.is_(None))
@@ -1506,7 +1506,7 @@ async def list_users(
         .all()
     )
     return [
-        UserDirectoryEntry(
+        UserListEntry(
             uuid=u.uuid,
             display_name=u.display_name,
             affiliation=u.affiliation,
@@ -1539,8 +1539,8 @@ def _default_shelf(user: User) -> Shelf:
     return shelf or shelves[0]
 
 
-def _reader_entry(user_copy: Copy) -> ReaderEntry:
-    return ReaderEntry(
+def _user_entry(user_copy: Copy) -> UserEntry:
+    return UserEntry(
         paper_uuid=user_copy.paper.uuid,
         user=UserPublic.model_validate(user_copy.user),
         is_author=bool(user_copy.is_author),
@@ -1637,7 +1637,7 @@ def _paper_list_entry(
         if not hide_private:
             entry.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
     entry.room_status = room_map.get(_paper_key_for(paper))
-    entry.readers = [_reader_entry(r) for r in displayed_copies(paper)]
+    entry.users = [_user_entry(r) for r in displayed_copies(paper)]
     return entry
 
 
@@ -1647,14 +1647,14 @@ async def get_user_space(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """A reader's nook. Signed-in readers only; summaries stay host-only."""
+    """A user's nook. Signed-in users only; summaries stay host-only."""
     user = db.query(User).filter(User.uuid == user_uuid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     # A tombstone has no nook — the copies went with the account. Saying so
-    # is better than showing an empty shelf under "A former reader".
+    # is better than showing an empty shelf under "A former user".
     if user.is_deleted:
-        raise HTTPException(status_code=404, detail="This reader has left Papol")
+        raise HTTPException(status_code=404, detail="This user has left Papol")
     hide_private = current_user is None or current_user.uuid != user.uuid
     query = db.query(Copy).filter(Copy.user_uuid == user.uuid, Copy.deleted_at.is_(None))
     if hide_private:
@@ -1712,7 +1712,7 @@ async def list_all_papers(
     db: Session = Depends(get_db),
 ):
     """Every paper displayed in at least one nook, newest first.
-    Signed-in readers only. One row per canonical paper."""
+    Signed-in users only. One row per canonical paper."""
     papers = db.query(Paper).order_by(Paper.created_at.desc()).all()
     room_map = _room_status_map(db)
     return [
@@ -1732,12 +1732,12 @@ async def _printed_header(path: str) -> grobid.HeaderMetadata | None:
     It is strictly a last resort. Measured against CrossRef over the library,
     GROBID never names the venue, misses most years, and mistakes an
     affiliation for an author often enough that its answers are a starting
-    point for the reader to correct, not a result. It is therefore asked only
+    point for the user to correct, not a result. It is therefore asked only
     about fields no API supplied, and never about the DOI: it finds no
     identifier the printed-text scan misses, and mangles those it does report
     into a PNAS supplement or an unparsed arXiv id.
 
-    A fallback that fails leaves the reader where they already were, with a
+    A fallback that fails leaves the user where they already were, with a
     filename for a title and every field open for typing, so an unreachable
     or unhappy analyzer is logged rather than raised.
     """
@@ -1822,7 +1822,7 @@ def _papers_for_key(db: Session, key: str) -> list[Paper]:
     return [p for p in db.query(Paper).all() if _paper_key_for(p) == key]
 
 
-def _reader_uuids(db: Session, key: str, public_only: bool = True) -> set[str]:
+def _paper_user_uuids(db: Session, key: str, public_only: bool = True) -> set[str]:
     return {
         r.user_uuid
         for p in _papers_for_key(db, key)
@@ -1904,9 +1904,9 @@ def _paper_detail(
             if row.user_uuid == viewer.uuid and row.kind == NOTE
             and row.deleted_at is None
         ]
-        # The link this reader already has out on the edition they read, so
+        # The link this user already has out on the edition they read, so
         # their share menu opens showing it rather than offering to make a
-        # second one. Only ever a link carrying their marks: the paper's own
+        # second one. Only ever a link carrying their annotations: the paper's own
         # link is nobody's, and telling them one exists would make it sound
         # like something of theirs is out.
         shared = (
@@ -1914,7 +1914,7 @@ def _paper_detail(
             if selected_edition else None
         )
         detail.sharable_uuid = shared.uuid if shared else None
-    detail.also_read_by = [_reader_entry(r) for r in displayed_copies(paper)]
+    detail.also_read_by = [_user_entry(r) for r in displayed_copies(paper)]
 
     detail.rooms = [
         _room_summary(r)
@@ -1923,7 +1923,7 @@ def _paper_detail(
         .order_by(Room.created_at.desc(), Room.uuid.desc())
         .all()
     ]
-    detail.viewer_is_reader = user_copy is not None and user_copy.is_public
+    detail.viewer_has_copy = user_copy is not None and user_copy.is_public
     detail.viewer_has_entry = user_copy is not None
     return detail
 
@@ -2084,7 +2084,7 @@ async def get_paper(
 ):
     """Get a paper by UUID, merged with the viewer's own copy and notes.
     Publicly displayed papers may be opened from a shared canonical URL;
-    signed-in readers additionally receive their own nook fields and notes."""
+    signed-in users additionally receive their own nook fields and notes."""
     paper = _get_paper_or_404(paper_uuid, db)
     _require_visible(paper, current_user)
     return _paper_detail(db, paper, current_user)
@@ -2133,7 +2133,7 @@ async def reextract_paper_metadata(
             journal=api_metadata.get("venue"),
             year=api_metadata.get("year"),
         )
-    # A paper with no identifier used to end here, which left the reader
+    # A paper with no identifier used to end here, which left the user
     # holding a filename with no way to ask again. The page itself still
     # carries a title and an author list.
     header = await _printed_header(str(path))
@@ -2206,9 +2206,9 @@ def _viewer_edition_or_404(
 ) -> PaperEdition:
     """The edition a viewer URL names, if whoever asked may read it.
 
-    Two ways to be allowed: the reader has the paper in their nook, or they
+    Two ways to be allowed: the user has the paper in their nook, or they
     hold a link someone shared. A shared link names its own edition, so it
-    is the file that has to match the URL rather than the reader."""
+    is the file that has to match the URL rather than the user."""
     digest = pdf_sha256.strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -2250,7 +2250,7 @@ async def update_paper(
 
     Personal fields (summary, ratings, display) apply to the viewer's own
     user_copy. Metadata (title/authors/journal/year/DOI) lives on the one
-    canonical paper: any signed-in reader may edit it, for everyone.
+    canonical paper: any signed-in user may edit it, for everyone.
     """
     paper = _get_paper_or_404(paper_uuid, db)
     _require_visible(paper, current_user)
@@ -2467,8 +2467,8 @@ async def delete_paper(
     db: Session = Depends(get_db),
 ):
     """Remove the paper from the viewer's nook: their copy and notes.
-    The paper, its editions and their files stay — one reader leaving
-    destroys nothing shared, and a paper with no readers is simply absent
+    The paper, its editions and their files stay — one user leaving
+    destroys nothing shared, and a paper with no users is simply absent
     from the Library until someone adds it again."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
@@ -2476,7 +2476,7 @@ async def delete_paper(
     user_copy.deleted_at = datetime.utcnow()
     # Only the notes, as the confirmation promises. Ink and clips are left
     # where they are: leaving a nook is not meant to be a deletion, and a
-    # reader who adds the paper again finds their paint still on the page.
+    # user who adds the paper again finds their paint still on the page.
     for row in paper.annotations:
         if (row.user_uuid == current_user.uuid and row.kind == NOTE
                 and row.deleted_at is None):
@@ -2501,7 +2501,7 @@ async def add_to_nook(
 
     latest = latest_edition(paper)
     shelf = _default_shelf(current_user)
-    # One copy per reader (uq_copy): a paper added back after being removed
+    # One copy per user (uq_copy): a paper added back after being removed
     # revives that copy, since a second one cannot be stored. The shelf is the
     # only place its visibility lives, so reviving sets no flag of its own.
     removed = next((r for r in paper.copies if r.user_uuid == current_user.uuid), None)
@@ -2530,9 +2530,9 @@ async def add_paper_edition(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Add a PDF as a new edition of the paper (any reader with it in
+    """Add a PDF as a new edition of the paper (any user with it in
     their nook). Nobody else's copy moves: the uploader's own copy reads
-    the new edition, and every other reader is offered it on the paper
+    the new edition, and every other user is offered it on the paper
     page, to adopt when they choose."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
@@ -2551,7 +2551,7 @@ async def add_paper_edition(
     user_copy.edition_uuid = edition.uuid
     user_copy.edition_sha256 = edition.sha256
     # Choosing a PDF means having seen the ones that exist: an upload that
-    # dedupes onto an older edition must not leave the reader being offered
+    # dedupes onto an older edition must not leave the user being offered
     # a newer one they made themselves and moved off.
     user_copy.ignored_edition_uuid = latest_edition(paper).uuid
     commit_sync(db)
@@ -2577,7 +2577,7 @@ async def ignore_paper_edition(
     db: Session = Depends(get_db),
 ):
     """Wave away the offer of a newer edition — the latest unless one is
-    named. The reader keeps the PDF they have and stops being asked about
+    named. The user keeps the PDF they have and stops being asked about
     this one; a later edition asks again."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
@@ -2595,10 +2595,10 @@ async def adopt_paper_edition(
     db: Session = Depends(get_db),
 ):
     """Move the viewer's own copy to another edition — the latest unless
-    one is named. Only the reader may do this: located notes were placed
+    one is named. Only the user may do this: located notes were placed
     on the file they had, and on a different PDF they may not line up.
 
-    A link carrying this reader's marks stops the move and says so: it names
+    A link carrying this user's annotations stops the move and says so: it names
     that reading and would go on opening it, out of sight of a paper page
     that now shows a different edition. A link carrying the paper alone is
     not theirs to be stopped by — it says "here is this PDF", which stays
@@ -2614,7 +2614,7 @@ async def adopt_paper_edition(
             status_code=409,
             detail=(
                 "Stop sharing your reading of this paper first. The link you "
-                "handed out opens the PDF you are reading now, with your marks "
+                "handed out opens the PDF you are reading now, with your annotations "
                 "on it."
             ),
         )
@@ -2756,7 +2756,7 @@ async def _analyze_edition(edition_uuid: str):
         )
     except Exception as e:
         # Whatever went wrong, the edition must not be left saying
-        # "pending" forever: a reader would poll a job that is not running.
+        # "pending" forever: a user would poll a job that is not running.
         logger.error(f"Reference analysis of edition {edition_uuid} failed: {e}")
         db.rollback()
         try:
@@ -2780,7 +2780,7 @@ def _finish_analysis(db: Session, edition: PaperEdition, status: str, detail: st
 def _may_start_analysis(edition: PaperEdition) -> bool:
     """Whether this edition wants a pass now. Never for a failure — a PDF
     GROBID could not read will not read differently on the next open, and
-    a reader refreshing should not queue a job each time."""
+    a user refreshing should not queue a job each time."""
     if edition.uuid in _analyzing:
         return False
     if edition.references_status is None:
@@ -2841,7 +2841,7 @@ async def _edition_references(
     """The bibliography of one edition, once someone is allowed to read it.
 
     Kept apart from the endpoint because there is more than one way to be
-    allowed — a reader with the paper in their nook, or a visitor holding a
+    allowed — a user with the paper in their nook, or a visitor holding a
     link to someone's reading of it — and only one way to answer."""
     # A reading already done is served whatever the analyzer is doing now.
     # References belong to the edition, not to the service that read them,
@@ -2910,7 +2910,7 @@ async def open_reference(
 ):
     """One reference, looked up if it has not been looked up before.
 
-    Lazy on purpose: a paper cites forty works and a reader opens three of
+    Lazy on purpose: a paper cites forty works and a user opens three of
     them, so forty lookups would be thirty-seven asked of CrossRef and
     OpenAlex for nobody's benefit."""
     reference = db.query(EditionReference).filter(
@@ -2994,7 +2994,7 @@ async def preview_pdf_reference(
 
 
 # The viewer speaks one reference protocol. Whether a hash belongs to a
-# bundled demo PDF or a reader's stored edition is an authorization/storage
+# bundled demo PDF or a user's stored edition is an authorization/storage
 # decision made here, not a mode branch leaked into the UI.
 @app.get("/api/viewer-references/{pdf_sha256}", response_model=EditionReferences)
 async def viewer_references(
@@ -3010,7 +3010,7 @@ async def viewer_references(
         return await _bundled_edition_references(edition_uuid, digest, background)
     edition = _viewer_edition_or_404(digest, current_user, db, share)
     if share:
-        # What a paper cites is a property of the file, not of the reader
+        # What a paper cites is a property of the file, not of the user
         # who shared it, so a shared reading carries its bibliography.
         return await _edition_references(edition, background, db)
     return await edition_references(
@@ -3066,7 +3066,7 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
     """Which of these references name a paper Papol already holds.
 
     A reference is worth more when the paper it names is one someone here
-    has read: the reader can open it rather than leave. Matched on the same
+    has read: the user can open it rather than leave. Matched on the same
     key papers are deduplicated by, so this agrees with Papol's own idea of
     when two papers are the same paper."""
     by_key = {}
@@ -3100,17 +3100,17 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
 
 # ---- Ink -------------------------------------------------------------
 #
-# Marks a reader made on the page with the brush: private to them, kept
+# Annotations a user made on the page with the brush: private to them, kept
 # against the edition they were drawn on. The laser pointer leaves nothing
 # here on purpose — it is a way of pointing while you talk, and a gesture
 # that outlived the sentence would be litter.
 
 
 def _readable_edition(edition_uuid: str, user: User, db: Session) -> PaperEdition:
-    """The edition, if this reader is someone who may be reading it.
+    """The edition, if this user is someone who may be reading it.
 
     An annotation is private, so letting one be stored against any edition
-    would leak nothing — but a reader who has not taken the paper has no page
+    would leak nothing — but a user who has not taken the paper has no page
     to mark, so it is the copy that is asked for."""
     edition = db.query(PaperEdition).filter(PaperEdition.uuid == edition_uuid).first()
     if not edition or edition.paper is None:
@@ -3166,7 +3166,7 @@ async def create_annotation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Leave a mark on a paper: a note, a stroke of ink, or a clipped view."""
+    """Leave an annotation on a paper: a note, a stroke of ink, or a clipped view."""
     paper = _get_paper_or_404(paper_uuid, db)
     _require_copy(paper, current_user)
     edition = None
@@ -3262,8 +3262,8 @@ def _ensure_participant(db: Session, room: Room, user: User):
         db.add(RoomParticipant(room_uuid=room.uuid, user_uuid=user.uuid))
 
 
-def _require_reader(db: Session, room: Room, user: User):
-    if user.uuid not in _reader_uuids(db, room.paper_key, public_only=True):
+def _require_user(db: Session, room: Room, user: User):
+    if user.uuid not in _paper_user_uuids(db, room.paper_key, public_only=True):
         raise HTTPException(
             status_code=403,
             detail="Display this paper to join the cohort",
@@ -3271,7 +3271,7 @@ def _require_reader(db: Session, room: Room, user: User):
 
 
 def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
-    public_readers = _reader_uuids(db, room.paper_key, public_only=True)
+    users_displaying = _paper_user_uuids(db, room.paper_key, public_only=True)
 
     # The canonical paper this room is about, and the viewer's copy of it
     paper = next(iter(_papers_for_key(db, room.paper_key)), None)
@@ -3292,10 +3292,10 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
         ],
         availabilities=[RoomAvailabilityOut.model_validate(a) for a in room.availabilities],
         viewer_can_lead=room.status == "open"
-        and viewer.uuid in public_readers
+        and viewer.uuid in users_displaying
         and any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_is_participant=any(p.user_uuid == viewer.uuid for p in room.participants),
-        viewer_is_reader=viewer.uuid in public_readers,
+        viewer_has_copy=viewer.uuid in users_displaying,
         viewer_hidden_entry_uuid=hidden_entry.uuid if hidden_entry else None,
     )
 
@@ -3306,13 +3306,13 @@ async def call_seminar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Call for a seminar on this paper. Only readers of it may call.
-    Notifies every reader — including those who keep their copy hidden."""
+    """Call for a seminar on this paper. Only users of it may call.
+    Notifies every user — including those who keep their copy hidden."""
     paper = _get_paper_or_404(paper_uuid, db)
     _require_visible(paper, current_user)
 
     key = _paper_key_for(paper)
-    if current_user.uuid not in _reader_uuids(db, key, public_only=True):
+    if current_user.uuid not in _paper_user_uuids(db, key, public_only=True):
         raise HTTPException(
             status_code=403,
             detail="Display this paper to call a seminar",
@@ -3331,11 +3331,11 @@ async def call_seminar(
     db.add(room)
     db.flush()
     _ensure_participant(db, room, current_user)
-    all_readers = _reader_uuids(db, key, public_only=False) - {current_user.uuid}
+    users_of_paper = _paper_user_uuids(db, key, public_only=False) - {current_user.uuid}
     _notify(
-        db, all_readers, room,
+        db, users_of_paper, room,
         f"{current_user.display_name} called for a seminar on “{paper.title}”. "
-        "A reader of the paper can answer to host.",
+        "A user of the paper can answer to host.",
     )
     db.commit()
     db.refresh(room)
@@ -3362,7 +3362,7 @@ async def lead_room(
     room = _get_room_or_404(room_uuid, db)
     if room.status != "open":
         raise HTTPException(status_code=400, detail="This seminar already has a host")
-    if current_user.uuid not in _reader_uuids(db, room.paper_key, public_only=True):
+    if current_user.uuid not in _paper_user_uuids(db, room.paper_key, public_only=True):
         raise HTTPException(
             status_code=403,
             detail="Display this paper to host",
@@ -3375,7 +3375,7 @@ async def lead_room(
     room.status = "planning"
     _ensure_participant(db, room, current_user)
     others = (
-        _reader_uuids(db, room.paper_key, public_only=False)
+        _paper_user_uuids(db, room.paper_key, public_only=False)
         | {p.user_uuid for p in room.participants}
     ) - {current_user.uuid}
     _notify(
@@ -3395,7 +3395,7 @@ async def unhost_room(
     db: Session = Depends(get_db),
 ):
     """Step back from hosting a seminar still in planning. The room reopens
-    and waits for another reader to answer."""
+    and waits for another user to answer."""
     room = _get_room_or_404(room_uuid, db)
     if room.leader_uuid != current_user.uuid:
         raise HTTPException(status_code=403, detail="Only the host can step back")
@@ -3409,7 +3409,7 @@ async def unhost_room(
     _notify(
         db, others, room,
         f"{current_user.display_name} stepped back from hosting the seminar on "
-        f"“{room.paper_title}”. A reader of the paper can answer to host.",
+        f"“{room.paper_title}”. A user of the paper can answer to host.",
     )
     db.commit()
     db.refresh(room)
@@ -3425,7 +3425,7 @@ async def uncall_seminar(
     """Withdraw a call that never formed a cohort.
 
     Only its caller may withdraw it, and only while it is active and has no
-    participant other than them. Once another reader has joined, the seminar
+    participant other than them. Once another user has joined, the seminar
     is shared state and must remain available to its cohort.
     """
     room = _get_room_or_404(room_uuid, db)
@@ -3454,7 +3454,7 @@ async def join_room(
     db: Session = Depends(get_db),
 ):
     room = _get_room_or_404(room_uuid, db)
-    _require_reader(db, room, current_user)
+    _require_user(db, room, current_user)
     _ensure_participant(db, room, current_user)
     db.commit()
     db.refresh(room)
@@ -3489,7 +3489,7 @@ async def leave_room(
             raise HTTPException(
                 status_code=400, detail="Choose another cohort member"
             )
-        if successor_uuid not in _reader_uuids(db, room.paper_key, public_only=True):
+        if successor_uuid not in _paper_user_uuids(db, room.paper_key, public_only=True):
             raise HTTPException(
                 status_code=400,
                 detail="Display this paper to host",
@@ -3524,7 +3524,7 @@ async def post_room_message(
     db: Session = Depends(get_db),
 ):
     room = _get_room_or_404(room_uuid, db)
-    _require_reader(db, room, current_user)
+    _require_user(db, room, current_user)
     if not any(p.user_uuid == current_user.uuid for p in room.participants):
         raise HTTPException(
             status_code=400, detail="Join the cohort before posting a message"
@@ -3545,7 +3545,7 @@ async def set_room_availability(
     room = _get_room_or_404(room_uuid, db)
     if room.status == "scheduled":
         raise HTTPException(status_code=400, detail="This seminar has already been scheduled")
-    _require_reader(db, room, current_user)
+    _require_user(db, room, current_user)
     if not any(p.user_uuid == current_user.uuid for p in room.participants):
         raise HTTPException(
             status_code=400, detail="Join the cohort before sharing availability"
@@ -3587,7 +3587,7 @@ async def announce_room(
     room.style_desc = (data.style_desc or "").strip() or None
     room.status = "scheduled"
     others = (
-        _reader_uuids(db, room.paper_key, public_only=False)
+        _paper_user_uuids(db, room.paper_key, public_only=False)
         | {p.user_uuid for p in room.participants}
     ) - {current_user.uuid}
     _notify(

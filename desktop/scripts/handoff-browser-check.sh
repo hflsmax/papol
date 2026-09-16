@@ -58,7 +58,7 @@ done
 [ -n "$browser" ] || { echo "the sandboxed Chrome did not start"; exit 1; }
 
 # papol-ui refuses to press anything that is not the development build, so
-# that it can never be pointed at a reader's own Papol. This is a browser.
+# that it can never be pointed at a user's own Papol. This is a browser.
 ui() { PAPOL_UI_ALLOW_INSTALLED=1 xcrun swift "$here/papol-ui.swift" "$@"; }
 
 ui press "$browser" "Open in Papol"

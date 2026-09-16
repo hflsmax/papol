@@ -5,12 +5,12 @@ const STATES = [
   {
     status: 'open',
     cls: 'live',
-    desc: 'Any reader calls for a spontaneous seminar on a paper. Every reader of it is notified, and a cohort forms, waiting for a host.',
+    desc: 'Any user calls for a spontaneous seminar on a paper. Every user of it is notified, and a cohort forms, waiting for a host.',
   },
   {
     status: 'planning',
     cls: 'gold',
-    desc: 'A reader answers the call and hosts the seminar. Participants share availability and discuss what they want from the seminar.',
+    desc: 'A user answers the call and hosts the seminar. Participants share availability and discuss what they want from the seminar.',
   },
   {
     status: 'scheduled',

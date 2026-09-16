@@ -38,15 +38,15 @@ class User(Base):
     display_name = Column(String, nullable=False)
     affiliation = Column(String, nullable=True)
     avatar_path = Column(String, nullable=True)
-    # Readers may show their email on their nook; on by default.
+    # Users may show their email on their nook; on by default.
     email_public = Column(Boolean, nullable=False, default=True, server_default="1")
     is_admin = Column(Boolean, nullable=False, default=False, server_default="0")
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     # A closed account. The row stays as a tombstone: a seminar someone
     # started and the messages they left in it point at this row, and those
-    # belong to the readers who were there as much as to the one who left.
-    # Everything that identified the reader is scrubbed when it is set —
+    # belong to the users who were there as much as to the one who left.
+    # Everything that identified the user is scrubbed when it is set —
     # see account.tombstone() — so what remains is a shape, not a person.
     deleted_at = Column(DateTime, nullable=True)
 
@@ -138,13 +138,13 @@ class SyncClient(Base):
     # What this installation last announced itself as. Null for a client
     # that synchronized before Papol asked. Kept so a minimum version can be
     # raised against a known fleet rather than a guess: nobody should cut
-    # off a build without first seeing how many readers are still on it.
+    # off a build without first seeing how many users are still on it.
     app_version = Column(String(32), nullable=True)
 
 
 class Paper(Base):
     """The canonical paper, keyed by DOI (or title when no DOI). One row
-    per paper; its PDFs are its editions, and per-reader state lives in
+    per paper; its PDFs are its editions, and per-user state lives in
     Copy."""
     __tablename__ = "papers"
 
@@ -172,8 +172,8 @@ class Paper(Base):
 
 class PaperEdition(Base):
     """One PDF file of a paper. A re-upload adds an edition instead of
-    replacing the file, so no reader's copy changes under them; each
-    reader's copy names the edition they read (Copy.edition_uuid).
+    replacing the file, so no user's copy changes under them; each
+    user's copy names the edition they read (Copy.edition_uuid).
     Editions and their files are never deleted automatically."""
     __tablename__ = "paper_editions"
 
@@ -216,7 +216,7 @@ class EditionReference(Base):
     """One work cited by an edition, as the analyzer read it off the page.
 
     `raw` is the reference exactly as printed — the string a bibliographic
-    search matches against, and the thing to show a reader when no match is
+    search matches against, and the thing to show a user when no match is
     found. Everything under `resolved_*` is what the lookup added, filled
     in the first time someone opens this reference and kept thereafter."""
     __tablename__ = "edition_references"
@@ -249,7 +249,7 @@ class EditionReference(Base):
 
 
 class EditionCitation(Base):
-    """One in-text marker — the "[12]" a reader clicks — and its box.
+    """One in-text marker — the "[12]" a user clicks — and its box.
 
     The box is fractions of the page from its top-left corner, so it lands
     in the same place at any zoom and on any screen. A marker that names
@@ -294,7 +294,7 @@ class EditionLink(Base):
 
 
 class Copy(Base):
-    """A reader's copy of a paper in their nook: ratings, summary, display."""
+    """A user's copy of a paper in their nook: ratings, summary, display."""
     __tablename__ = "copies"
     __table_args__ = (UniqueConstraint("paper_uuid", "user_uuid", name="uq_copy"),)
 
@@ -302,19 +302,19 @@ class Copy(Base):
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
     shelf_uuid = Column(String(36), ForeignKey("shelves.uuid"), nullable=True, index=True)
-    # The edition this reader reads. Only the reader moves it, by adopting
+    # The edition this user reads. Only the user moves it, by adopting
     # a newer one; nothing else may change the file under their notes.
     edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
-    # Identity of those exact PDF bytes: a reader's choice is the content
+    # Identity of those exact PDF bytes: a user's choice is the content
     # hash, which also names the viewer URL.
     edition_sha256 = Column(String, nullable=True, index=True)
-    # The newest edition this reader has already seen — waved away, or
+    # The newest edition this user has already seen — waved away, or
     # simply present when they last chose a PDF. The offer of a newer PDF
     # stays hidden until one newer still arrives.
     ignored_edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
-    # The reader is an author of this paper ("this is my paper").
+    # The user is an author of this paper ("this is my paper").
     is_author = Column(Boolean, nullable=False, default=False, server_default="0")
     rating_expertise = Column(Integer, nullable=True)
     rating_reading = Column(Integer, nullable=True)
@@ -348,7 +348,7 @@ class Copy(Base):
 
 
 class Shelf(Base):
-    """One of a reader's five homes for papers. Visibility belongs to the
+    """One of a user's five homes for papers. Visibility belongs to the
     shelf, and to nothing else: a copy is public exactly while the shelf it
     sits on is."""
     __tablename__ = "shelves"
@@ -372,7 +372,7 @@ class Shelf(Base):
 
 
 class Tag(Base):
-    """A private label in one reader's nook."""
+    """A private label in one user's nook."""
     __tablename__ = "tags"
     __table_args__ = (UniqueConstraint("user_uuid", "name", name="uq_tag_user_name"),)
 
@@ -402,18 +402,18 @@ class CopyTagLink(Base):
 
 
 class Annotation(Base):
-    """Everything a reader leaves on a paper.
+    """Everything a user leaves on a paper.
 
     A note is words, optionally pinned to a place. Ink is a stroke drawn over
     the page. A clip is a movable view of one rectangle of it. They differ in
-    what they draw, not in what they are: each belongs to one reader, sits on
+    what they draw, not in what they are: each belongs to one user, sits on
     one PDF of one paper, and is private to them unless they share a reading.
 
     `kind` says which — note | ink | clip — and `body` carries the geometry
     that only that kind has. Geometry was always JSON text here; a polyline
     and an anchor were never columns SQLite could do anything with. The
     columns that remain are the ones every kind answers, and the ones a
-    person can read: the words, and what the reader calls them.
+    person can read: the words, and what the user calls them.
 
     Coordinates in `body` are fractions of the page in PDF user space, so
     zoom, DPI and screen size never enter them; ink and clip geometry measure
@@ -428,12 +428,12 @@ class Annotation(Base):
     # Null only for a note about the paper that was never put on a page.
     edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True, index=True)
     page = Column(Integer, nullable=True, index=True)
-    # Several stored paths can be one logical mark: text painted across lines
+    # Several stored paths can be one logical annotation: text painted across lines
     # is drawn as separate strokes but picked up and erased as one.
     group_uuid = Column(String(36), nullable=True)
-    # Empty while an anchor is only a mark, before anything is written.
+    # Empty while an anchor is only an annotation, before anything is written.
     content = Column(Text, nullable=False, default="")
-    # What the reader calls this annotation; the page number stands in when
+    # What the user calls this annotation; the page number stands in when
     # they have not named it.
     name = Column(String, nullable=True)
     body = Column(Text, nullable=False, default="{}", server_default="{}")
@@ -448,7 +448,7 @@ class Annotation(Base):
 
 
 class Board(Base):
-    """A private ideation space inside one reader's nook."""
+    """A private ideation space inside one user's nook."""
     __tablename__ = "boards"
 
     uuid = uuid_key()
@@ -524,18 +524,18 @@ class BoardItem(Base):
 
 
 class Sharable(Base):
-    """One reader's reading of one edition, handed to anyone with the link.
+    """One user's reading of one edition, handed to anyone with the link.
 
     The link carries this row's UUID and nothing else, so the UUID is the
     whole of the permission: distinct from the paper's and the edition's,
     because what it opens is neither of those. A *rich* link opens a reading
-    — the PDF this reader chose, the notes they wrote on it, the ink they
+    — the PDF this user chose, the notes they wrote on it, the ink they
     drew and the clips they cut — and belongs to them. A *lean* link opens
     the PDF alone and belongs to nobody: one per edition, handed to whoever
-    asks for it, with no reader named on it and none implied.
+    asks for it, with no user named on it and none implied.
 
     The reading is named, not copied. A note reworded after the link was
-    given out is reworded for everyone holding it, which is what a reader
+    given out is reworded for everyone holding it, which is what a user
     means by sharing what they are reading rather than a snapshot of it.
     Revoking stamps `revoked_at`: the row stays, so a link handed out is
     answered with "no longer shared" instead of a 404 that reads as a typo.
@@ -543,25 +543,25 @@ class Sharable(Base):
     __tablename__ = "sharables"
 
     uuid = uuid_key()
-    # What the link carries. "rich" is the reading — this reader's notes,
+    # What the link carries. "rich" is the reading — this user's notes,
     # ink and clips on the PDF. "lean" is the PDF alone, which is a
     # different and smaller thing to hand someone: here is the paper.
     #
-    # A rich link depends on a copy in the reader's nook. Take the paper out
+    # A rich link depends on a copy in the user's nook. Take the paper out
     # and the reading it named is gone, so the link becomes lean rather than
     # dying: what is left of it is still the paper. The demotion is
-    # permanent — putting the paper back must not silently re-expose marks
+    # permanent — putting the paper back must not silently re-expose annotations
     # to everyone still holding the link.
     kind = Column(String(8), nullable=False, default="lean", server_default="lean")
     # Whose reading this is — and nobody's, when the link carries the paper
-    # alone. A lean link makes no claim about a reader: it says "here is this
+    # alone. A lean link makes no claim about a user: it says "here is this
     # PDF", which is true of the paper and not of anyone's nook. Leaving it
     # null is what keeps it out of its maker's hands: not on their paper
-    # page, not theirs to close, and not a thing they are told exists.
+    # page, not theirs to revoke, and not a thing they are told exists.
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True, index=True)
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
-    # The exact PDF that was shared. A reader who later adopts a newer
-    # edition has shared this one, and their marks on it are still here.
+    # The exact PDF that was shared. A user who later adopts a newer
+    # edition has shared this one, and their annotations on it are still here.
     edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
@@ -680,7 +680,7 @@ class Notification(Base):
 
 
 class AdminMessage(Base):
-    """A message an administrator broadcasts to the current readership."""
+    """A message an administrator broadcasts to every user."""
     __tablename__ = "admin_messages"
 
     uuid = uuid_key()
@@ -697,7 +697,7 @@ class AdminMessage(Base):
 
 
 class AdminMessageDelivery(Base):
-    """One reader's durable receipt and dismissal of an admin message."""
+    """One user's durable receipt and dismissal of an admin message."""
     __tablename__ = "admin_message_deliveries"
     __table_args__ = (
         UniqueConstraint("message_uuid", "user_uuid", name="uq_admin_message_delivery"),

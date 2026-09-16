@@ -1,8 +1,8 @@
 import React from 'react';
 import { appPath, backendPath } from '../base';
 
-// Pastel grounds for the transparent demo portraits, picked per reader so
-// each character keeps their own. The matching colours for readers with no
+// Pastel grounds for the transparent demo portraits, picked per user so
+// each character keeps their own. The matching colours for users with no
 // picture at all are the --identity-* tokens, applied through the
 // avatar-tint-N classes below.
 const DEMO_BG = [
@@ -16,7 +16,7 @@ const DEMO_BG = [
 
 const INITIAL_TINTS = 6;
 
-// A reader keeps one colour: their UUID, folded to a small number.
+// A user keeps one colour: their UUID, folded to a small number.
 const shadeOf = (user, count) => [...String(user?.uuid || '')]
   .reduce((sum, character) => (sum * 31 + character.charCodeAt(0)) % 65521, 0) % count;
 const tintOf = (user) => shadeOf(user, INITIAL_TINTS);

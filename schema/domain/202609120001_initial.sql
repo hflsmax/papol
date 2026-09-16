@@ -142,12 +142,12 @@ CREATE TABLE IF NOT EXISTS copy_tags (
 CREATE INDEX IF NOT EXISTS ix_copy_tags_copy_uuid ON copy_tags(copy_uuid);
 CREATE INDEX IF NOT EXISTS ix_copy_tags_tag_uuid ON copy_tags(tag_uuid);
 
--- Everything a reader leaves on a paper: a note, a stroke of ink, a clipped
+-- Everything a user leaves on a paper: a note, a stroke of ink, a clipped
 -- view. They differ in what they draw, not in what they are, so they share a
 -- table and say which they are in `kind`.
 --
 -- The columns here are the ones every kind answers: whose it is, which paper
--- and which PDF of it, which page, and the words a reader can read back. What
+-- and which PDF of it, which page, and the words a user can read back. What
 -- is particular to one kind — an anchor, a polyline and its nib, a source
 -- rectangle and where it sits — is geometry, and geometry was already stored
 -- as JSON text before this table existed. It lives in `body`.

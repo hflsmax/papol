@@ -5,7 +5,7 @@ export const styles = `
 :root {
   ${designTokens}
 
-  /* Viewer-only annotation colors. These identify tools and marks rather
+  /* Viewer-only annotation colors. These identify tools and annotations rather
      than product state, so they intentionally stay outside the core set. */
   --orange: #d2691e;
   --orange-soft: #fbeee2;
@@ -395,7 +395,7 @@ button.link.danger { color: var(--red); }
   -webkit-user-select: text;
   user-select: text;
 }
-/* What the reader is holding. Icon buttons rather than a menu: the choice
+/* What the user is holding. Icon buttons rather than a menu: the choice
    changes often enough while marking a paper up that it should cost one
    click and no reading. */
 .tools { flex: none; display: flex; align-items: center; gap: 2px; }
@@ -444,8 +444,8 @@ button.link.danger { color: var(--red); }
 
 /* Chosen, said with a soft ground rather than a hard edge. A black rule
    drawn round a sample competes with the sample — and in a sheet whose
-   whole job is to show what the mark will look like, nothing should be
-   drawn on top of the mark. */
+   whole job is to show what the annotation will look like, nothing should be
+   drawn on top of the annotation. */
 .brush-pop .swatch.on,
 .brush-pop .shade.on,
 .brush-pop .shape.on,
@@ -665,7 +665,7 @@ button.link.danger { color: var(--red); }
 
 /* ---------- Return pill ---------- */
 
-/* Where a followed link ("see Section 3") left the reader: a pill over the
+/* Where a followed link ("see Section 3") left the user: a pill over the
    pages naming the page to go back to, the document's own history. It is
    kept apart from the bar, whose navigation only leaves for Papol, and it
    exists only while there is somewhere to return to. Centred over the pages,
@@ -1197,7 +1197,7 @@ button.link.danger { color: var(--red); }
 }
 
 /* A citation marker in the text. Nothing is drawn over the page until the
-   reader is near it: the PDF already shows "[12]", and a box around every
+   user is near it: the PDF already shows "[12]", and a box around every
    one of them would be a rash across the paper. */
 .cite-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 
@@ -1217,7 +1217,7 @@ button.link.danger { color: var(--red); }
 
 /* The highlight has to be translucent, not merely pale: this layer is
    drawn over the page, so an opaque wash — however light — would hide the
-   very "[12]" the reader is pointing at. */
+   very "[12]" the user is pointing at. */
 .cite.hovered,
 .cite:focus-visible {
   background: rgba(43, 74, 111, 0.14);
@@ -1627,7 +1627,7 @@ button.link.danger { color: var(--red); }
 
 /* ---------- Ink ---------- */
 
-/* Over the page and under the pins: a mark belongs to the paper, a pin is
+/* Over the page and under the pins: an annotation belongs to the paper, a pin is
    a control sitting on top of it. Never in the way of a pointer — the
    surface below is what listens. */
 .ink-layer {
@@ -1660,7 +1660,7 @@ button.link.danger { color: var(--red); }
 
 /* With a tool in hand, this covers the page above the text layer, so a
    drag lays ink instead of selecting words. It does not exist while the
-   reader is holding the arrow, and reading is then exactly as it was. */
+   user is holding the arrow, and reading is then exactly as it was. */
 .ink-surface {
   position: absolute;
   inset: 0;
@@ -1670,7 +1670,7 @@ button.link.danger { color: var(--red); }
   user-select: none;
 }
 
-/* The brush has no cursor image: its mark is drawn on the page itself, at
+/* The brush has no cursor image: its annotation is drawn on the page itself, at
    the ink's own size, which a cursor cannot be past about 128px. */
 .ink-surface.tool-brush { cursor: none; }
 .ink-surface.tool-clipper { cursor: crosshair; }
@@ -1762,7 +1762,7 @@ button.link.danger { color: var(--red); }
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='4' y='11' width='15' height='9' rx='2' transform='rotate(-40 4 11)' fill='%23f5f6f8' stroke='%232b4a6f' stroke-width='1.6'/%3E%3C/svg%3E") 5 19, cell;
 }
 
-/* Holding an anchor: the pointer is the mark it will leave, with its point
+/* Holding an anchor: the pointer is the annotation it will leave, with its point
    at the hotspot so it lands where it looks like it will. */
 .ink-surface.tool-anchor,
 .ink-surface.tool-here {
@@ -1771,7 +1771,7 @@ button.link.danger { color: var(--red); }
 
 .pin {
   position: absolute;
-  /* Centred on the spot it marks. It used to hang from its ring, which put
+  /* Centred on the spot it annotations. It used to hang from its ring, which put
      the drawing below the point and the point above the drawing — fine
      while a pin was only ever read, and wrong the moment one is aimed,
      dragged and rubbed out. */
@@ -1792,16 +1792,16 @@ button.link.danger { color: var(--red); }
 
 /* No lift on hover. The anchor in your hand is drawn at the size the pin
    will be, and the pin lands under the pointer — so growing it by a tenth
-   the moment it arrived made the mark disagree with the cursor that had
+   the moment it arrived made the annotation disagree with the cursor that had
    just promised it. The pointer already turns to a grab over a pin, which
-   says the same thing without resizing the mark. */
+   says the same thing without resizing the annotation. */
 .pin:hover:not(:disabled) {
   border: none;
   background: none;
 }
 
-/* Never a box. An anchor is a mark on a page, not a control on a form, and
-   a focus ring drawn around one reads as a selection the reader did not
+/* Never a box. An anchor is an annotation on a page, not a control on a form, and
+   a focus ring drawn around one reads as a selection the user did not
    make — which is exactly what it looked like after clicking one and then
    picking up another tool. Keyboard focus still shows, as the same lift a
    pointer gives it, so it is findable without being boxed. */
@@ -1815,7 +1815,7 @@ button.link.danger { color: var(--red); }
 .pin.active { opacity: 1; }
 .pin:not(.active) { opacity: 0.9; }
 
-/* An anchor with nothing written on it yet: a mark, not a note. */
+/* An anchor with nothing written on it yet: an annotation, not a note. */
 .pin.bare { color: var(--accent); }
 
 /* A note placed on another edition of this paper: shown where it was put,
@@ -2050,7 +2050,7 @@ button.link.danger { color: var(--red); }
   overflow-wrap: anywhere;
 }
 
-/* A bare anchor: a mark in a list of notes, deliberately not a card. */
+/* A bare anchor: an annotation in a list of notes, deliberately not a card. */
 .anchor-row {
   display: flex;
   align-items: center;
@@ -2107,7 +2107,7 @@ button.link.danger { color: var(--red); }
   color: var(--ink);
 }
 
-/* The rail's bullet is the same mark the page carries. */
+/* The rail's bullet is the same annotation the page carries. */
 .row-glyph {
   flex: none;
   display: inline-block;
@@ -2213,7 +2213,7 @@ button.link.danger { color: var(--red); }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one
-   is simply there, and the small marks are given a finger's worth of
+   is simply there, and the small annotations are given a finger's worth of
    room. */
 @media (hover: none) {
   .anchor-row .anchor-write { opacity: 1; }

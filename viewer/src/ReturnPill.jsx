@@ -3,10 +3,10 @@ import React, { useEffect, useRef } from 'react';
 const pageName = (view) => (view.page ? `Page ${view.page}` : 'Previous place');
 
 /**
- * Where a followed link ("see Section 3") left the reader: a pill over the
- * pages naming the page to go back to, like a reader app's "Back to page 4".
+ * Where a followed link ("see Section 3") left the user: a pill over the
+ * pages naming the page to go back to, like a user app's "Back to page 4".
  * It is the document's own history, kept apart from the bar's navigation,
- * and exists only while there is somewhere to return to. The reader can hide
+ * and exists only while there is somewhere to return to. The user can hide
  * it for good; a Learn Papol card then says [ and ] still do its job.
  *
  * returnView / onwardView: the views Back and Forward lead to, or null.
@@ -77,7 +77,7 @@ export default function ReturnPill({
         </div>
       )}
       {/* Hiding is explained the way the pill was introduced: a Learn Papol
-          card where the pill stood, kept until the reader has read it. */}
+          card where the pill stood, kept until the user has read it. */}
       {notice && (
         <div className="link-return-notice">
           <span ref={noticeRef} className="learn-papol" role="dialog" aria-labelledby="return-pill-hidden-title">

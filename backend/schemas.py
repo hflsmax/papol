@@ -32,7 +32,7 @@ class UserBase(BaseModel):
 
 
 class UserPublic(UserBase):
-    """What other readers see. The email is carried only when the reader
+    """What other users see. The email is carried only when the user
     chose to show it — the validator drops it otherwise, so an endpoint
     cannot leak an address by forgetting to check the flag."""
     email: Optional[str] = None
@@ -47,7 +47,7 @@ class UserPublic(UserBase):
 
 
 class UserPrivate(UserBase):
-    """The signed-in reader's own record — always carries their email."""
+    """The signed-in user's own record — always carries their email."""
     email: str
     email_public: bool = True
     is_admin: bool = False
@@ -69,13 +69,13 @@ class PasswordChange(BaseModel):
 
 
 class AccountDeletion(BaseModel):
-    """Closing an account is irreversible, so it asks the reader to type
+    """Closing an account is irreversible, so it asks the user to type
     their own address out. Being signed in is what proves who they are;
     this is what proves they meant it."""
     confirm_email: str
 
 
-class UserDirectoryEntry(UserPublic):
+class UserListEntry(UserPublic):
     paper_count: int = 0
 
 
@@ -84,7 +84,7 @@ class AuthResponse(BaseModel):
     user: UserPrivate
 
 
-# ---------- Annotations (a reader's marks on a paper) ----------
+# ---------- Annotations (a user's annotations on a paper) ----------
 
 class PointAnchor(BaseModel):
     """A place on a page, as fractions of its width and height in PDF user
@@ -139,7 +139,7 @@ class NoteBody(BaseModel):
 
 
 class InkBody(BaseModel):
-    # Two points is a dash and one is a dot; both are marks a reader meant
+    # Two points is a dash and one is a dot; both are annotations a user meant
     # to make. The ceiling is what stops a stray gesture, or a script, from
     # posting a megabyte of coordinates: a stroke drawn across a page at
     # pointer resolution is a few hundred points.
@@ -147,7 +147,7 @@ class InkBody(BaseModel):
     color: str = Field(default="#b3923d", pattern=r"^#[0-9a-fA-F]{6}$")
     width: float = Field(default=0.004, gt=0, le=limit("annotations", "ink_width_max"))
     # 1 is solid ink; less lets the words underneath show through, which is
-    # what a reader wants when marking a line rather than crossing it out.
+    # what a user wants when marking a line rather than crossing it out.
     opacity: float = Field(default=1.0, gt=0, le=1)
     # The nib: "flat" is a chisel held upright, wide across the page and thin
     # along it; "round" is the same weight whichever way it is drawn.
@@ -181,7 +181,7 @@ class AnnotationCreate(BaseModel):
         if not isinstance(self.body, wanted):
             raise ValueError(f"a {self.kind} needs a {self.kind} body")
         if self.kind == "note":
-            # A bare anchor is allowed: the reader marks a place first and
+            # A bare anchor is allowed: the user annotations a place first and
             # writes about it later. A note with no place must say something.
             if (self.page is None) != (self.body.anchor is None):
                 raise ValueError("a located note needs both a page and an anchor")
@@ -407,7 +407,7 @@ class RoomDetail(RoomSummary):
     availabilities: List[RoomAvailabilityOut] = []
     viewer_can_lead: bool = False
     viewer_is_participant: bool = False
-    viewer_is_reader: bool = False
+    viewer_has_copy: bool = False
     viewer_hidden_entry_uuid: Optional[str] = None  # paper UUID, if viewer's copy is hidden
 
 
@@ -531,7 +531,7 @@ class EditionAdopt(BaseModel):
 
 
 class PaperUpdate(BaseModel):
-    # Shared metadata (any reader; applies to the one canonical paper)
+    # Shared metadata (any user; applies to the one canonical paper)
     doi: Optional[str] = None
     title: Optional[str] = None
     authors: Optional[str] = None
@@ -585,12 +585,12 @@ class ShelfUpdate(BaseModel):
     is_default: Optional[bool] = None
 
 
-class ReaderEntry(BaseModel):
-    """A reader's displayed copy of a paper."""
+class UserEntry(BaseModel):
+    """A user's displayed copy of a paper."""
     paper_uuid: str
     user: UserPublic
-    is_author: bool = False  # this reader wrote the paper
-    thought: Optional[str] = None  # the reader's public one-sentence take
+    is_author: bool = False  # this user wrote the paper
+    thought: Optional[str] = None  # the user's public one-sentence take
     rating_expertise: Optional[int] = None
     rating_reading: Optional[int] = None
     rating_liking: Optional[int] = None
@@ -618,7 +618,7 @@ class ReferenceOut(BaseModel):
     uuid: str
     key: str
     index: int
-    # As printed. Always shown when the lookup found nothing, so a reader
+    # As printed. Always shown when the lookup found nothing, so a user
     # is never left with an empty card.
     raw: Optional[str] = None
     title: Optional[str] = None
@@ -632,7 +632,7 @@ class ReferenceOut(BaseModel):
     resolved_status: Optional[str] = None
     resolution: Optional[ResolvedWork] = None
     # A paper already in Papol that this reference names, when there is
-    # one: the reader can go straight to it instead of out to a publisher.
+    # one: the user can go straight to it instead of out to a publisher.
     papol_paper_uuid: Optional[str] = None
 
 
@@ -708,7 +708,7 @@ class PaperList(PaperBase):
     rating_reading: Optional[int] = None
     rating_liking: Optional[int] = None
     room_status: Optional[str] = None
-    readers: List[ReaderEntry] = []
+    users: List[UserEntry] = []
     edition_uuid: Optional[str] = None
     edition_sha256: Optional[str] = None
     tags: List[TagOut] = []
@@ -732,9 +732,9 @@ class Paper(PaperBase):
     rating_reading: Optional[int] = None
     rating_liking: Optional[int] = None
     notes: List[AnnotationOut] = []  # the viewer's own notes on this paper
-    also_read_by: List[ReaderEntry] = []  # every displayed copy
+    also_read_by: List[UserEntry] = []  # every displayed copy
     rooms: List[RoomSummary] = []  # this paper's seminar rooms, newest first
-    viewer_is_reader: bool = False  # viewer has a displayed copy
+    viewer_has_copy: bool = False  # viewer has a displayed copy
     viewer_has_entry: bool = False  # viewer has any copy
     # Editions: which one the viewer reads, and whether a newer one waits.
     edition_uuid: Optional[str] = None
@@ -745,8 +745,8 @@ class Paper(PaperBase):
     tags: List[TagOut] = []
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
-    # The reader's own live link to this paper, when they have handed one
-    # out: always one carrying their marks, since a link to the paper alone
+    # The user's own live link to this paper, when they have handed one
+    # out: always one carrying their annotations, since a link to the paper alone
     # belongs to nobody and is never reported to anyone. Not populated for
     # anybody else's copy.
     sharable_uuid: Optional[str] = None
@@ -758,11 +758,11 @@ class Paper(PaperBase):
 # ---------- Sharables ----------
 
 class SharableCreate(BaseModel):
-    """Whether the reader's marks travel with the link they are making.
+    """Whether the user's annotations travel with the link they are making.
 
     The default is the quieter link. Handing someone your private notes is
     a thing to choose, not a thing to discover you have done."""
-    include_marks: bool = False
+    include_annotations: bool = False
 
 
 class SharableOut(BaseModel):
@@ -793,15 +793,15 @@ class SharedPaper(PaperBase):
 
 
 class SharedReading(BaseModel):
-    """What a link opens: a reader's reading of one edition, or — when the
+    """What a link opens: a user's reading of one edition, or — when the
     link is lean, or the reading has left their nook — the paper alone.
 
-    `reader` comes with a reading and only with one. The paper alone is
+    `user` comes with a reading and only with one. The paper alone is
     nobody's to be credited with, and naming whoever asked for the link
     would tell its holder something the link does not mean."""
     uuid: str
     kind: Literal["rich", "lean"]
-    reader: Optional[UserPublic] = None
+    user: Optional[UserPublic] = None
     paper: SharedPaper
     # One list, in the order they were made, because that is the order ink
     # has to be painted in. Each says its own kind.

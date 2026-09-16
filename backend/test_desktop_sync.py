@@ -560,7 +560,7 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_offline_add_to_nook_reuses_a_visible_paper_and_edition(self):
         with self.sessions() as db:
             other = User(
-                email="other@example.test", display_name="Other reader",
+                email="other@example.test", display_name="Other user",
                 password_hash="unused",
             )
             paper = Paper(title="Visible before adding")
@@ -604,11 +604,11 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual(result["rows"][0]["paper_uuid"], paper_uuid)
         self.assertEqual(result["rows"][0]["edition_uuid"], edition_uuid)
 
-    def test_opening_a_removed_paper_again_revives_the_readers_copy(self):
+    def test_opening_a_removed_paper_again_revives_the_users_copy(self):
         """A file removed from the nook and opened again returns to it.
 
         The desktop mints a fresh copy UUID each time, which is aliased onto
-        the reader's tombstone; reviving it is the only way the addition can
+        the user's tombstone; reviving it is the only way the addition can
         take effect, and without it the paper leaves the library on the next
         snapshot and the viewer asks to add it once more.
         """
@@ -676,7 +676,7 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_online_add_to_nook_revives_a_removed_copy(self):
         with self.sessions() as db:
             other = User(
-                email="reviver@example.test", display_name="Other reader",
+                email="reviver@example.test", display_name="Other user",
                 password_hash="unused",
             )
             paper = Paper(title="Removed on the web")

@@ -4,7 +4,7 @@
 // Only one key needs generating, and it is the one key that cannot be shared:
 // the URL scheme a browser hands a reading over by (USER_STORIES.md US-7.32).
 // LaunchServices gives a scheme to one application system-wide, so if every
-// build claimed `papol`, a development build could be the one a reader's
+// build claimed `papol`, a development build could be the one a user's
 // browser reaches. Every other place a build could tread on the installed
 // Papol is already kept apart by its identifier; this keeps the last one.
 //

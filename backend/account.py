@@ -1,6 +1,6 @@
 """Taking your things with you, and leaving.
 
-Two halves of the same promise: a reader can walk out of Papol with
+Two halves of the same promise: a user can walk out of Papol with
 everything they put into it, and can then ask Papol to forget them.
 
 The export is deliberately readable. A zip of JSON is a technicality
@@ -8,12 +8,12 @@ dressed as a favour, so the notes are also written out as Markdown, and
 the PDFs come with the names of the papers rather than the names of the
 uploads.
 
-Deleting is the harder half, because a reader's things are tangled with
-other readers': a seminar they started that others joined, a PDF they
+Deleting is the harder half, because a user's things are tangled with
+other users': a seminar they started that others joined, a PDF they
 uploaded that others now read. So the row survives as a tombstone with
 the person scrubbed out of it, and the rows that point at it go on
 working. What was private goes; what was said to others stays, under
-"A former reader".
+"A former user".
 """
 
 import json
@@ -56,7 +56,7 @@ from models import (
 
 def _authors(paper: Paper) -> list:
     """Paper.authors is a JSON array kept as text, and has been written by
-    several versions of the app. A bad value must not cost the reader
+    several versions of the app. A bad value must not cost the user
     their export."""
     if not paper.authors:
         return []
@@ -95,7 +95,7 @@ def _paper_ref(paper: Paper) -> dict:
 
 
 def gather(db: Session, user: User) -> dict:
-    """Everything Papol holds about this reader, as plain data."""
+    """Everything Papol holds about this user, as plain data."""
     copies = (
         db.query(Copy).filter(Copy.user_uuid == user.uuid).order_by(Copy.created_at).all()
     )
@@ -292,9 +292,9 @@ def _notes_markdown(data: dict) -> str:
             if note["name"] and note["page"]:
                 head += f" — page {note['page']}"
             lines += [head, ""]
-            # An anchor with nothing written on it is a mark, not a note —
+            # An anchor with nothing written on it is an annotation, not a note —
             # say so rather than leaving a blank.
-            lines += [note["content"] or "*(a mark, with nothing written on it)*", ""]
+            lines += [note["content"] or "*(an annotation, with nothing written on it)*", ""]
     return "\n".join(lines)
 
 
@@ -336,7 +336,7 @@ def write_zip(
     boards_dir: Path,
     out_path: Path,
 ) -> Path:
-    """Write the reader's whole export to `out_path`.
+    """Write the user's whole export to `out_path`.
 
     Written to a file rather than built in memory: a nook of a hundred
     papers is a few hundred megabytes of PDF, and the server should not
@@ -377,7 +377,7 @@ def write_zip(
             )
         zf.writestr(f"{root}/notes.md", _notes_markdown(data))
 
-        # One PDF per paper in the nook: the edition this reader actually
+        # One PDF per paper in the nook: the edition this user actually
         # reads, which is not always the newest one.
         seen: set = set()
         for copy in copies:
@@ -415,7 +415,7 @@ def write_zip(
 
 # What a closed account is called wherever it still shows: on a seminar
 # someone else is still in, beside a message they left there.
-FORMER_READER = "A former reader"
+FORMER_USER = "A former user"
 
 # No password can produce this, because verify_password wants a "salt$digest"
 # and this has no "$". A tombstone cannot be signed into, ever.
@@ -423,7 +423,7 @@ UNUSABLE_PASSWORD = "closed-account-no-password"
 
 
 def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
-    """Give away the seminars this reader was hosting.
+    """Give away the seminars this user was hosting.
 
     A seminar without a host is not merely untidy, it is stuck: hosting can
     only be claimed while a seminar is still `open`, so a planning or
@@ -433,7 +433,7 @@ def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
     The successor is chosen the way leave_room makes a departing host choose
     one — a cohort member who displays this paper in their nook — and,
     among those, whoever joined earliest. If nobody in the cohort can host,
-    the seminar goes back to `open` so that any reader of the paper may
+    the seminar goes back to `open` so that any user of the paper may
     answer it, which is the state it was in before anyone led it.
 
     A finished seminar is left alone. It has already happened, and who ran
@@ -494,10 +494,10 @@ def tombstone(
     eligible_hosts=None,
     notify=None,
 ) -> dict:
-    """Close the account, keeping the row and scrubbing the reader out of it.
+    """Close the account, keeping the row and scrubbing the user out of it.
 
     Deleting the row outright is the tidier-looking option and the wrong
-    one. A seminar this reader started may have a cohort still in it, and
+    one. A seminar this user started may have a cohort still in it, and
     the messages in it belong to everyone who was there. Those rows point
     here, so this row has to go on existing.
 
@@ -509,7 +509,7 @@ def tombstone(
 
     `eligible_hosts(room) -> set[str]` and `notify(room, user_uuids, message)`
     come from main.py, which is where the rules about who may host and how
-    a reader is told live. Both are optional so that this module can be
+    a user is told live. Both are optional so that this module can be
     exercised without dragging the whole app in behind it.
     """
     removed = {}
@@ -585,14 +585,14 @@ def tombstone(
         .filter(RoomParticipant.user_uuid == user_uuid)
         .delete(synchronize_session=False)
     )
-    db.flush()  # so the cohorts below no longer contain this reader
+    db.flush()  # so the cohorts below no longer contain this user
 
     handed, reopened = _hand_on_seminars(db, user_uuid, eligible_hosts, notify)
     removed["seminars_handed_on"] = handed
     removed["seminars_reopened"] = reopened
 
-    # What they said to other readers stays where they said it, under
-    # "A former reader". Rooms they started stay too, and keep working,
+    # What they said to other users stays where they said it, under
+    # "A former user". Rooms they started stay too, and keep working,
     # because created_by still resolves.
     removed["messages_kept"] = (
         db.query(RoomMessage).filter(RoomMessage.user_uuid == user_uuid).count()
@@ -603,11 +603,11 @@ def tombstone(
 
     avatar = user.avatar_path
 
-    # Now scrub the reader out of the row. The email has to stay unique and
+    # Now scrub the user out of the row. The email has to stay unique and
     # must not be a real address anyone could reach or re-register into;
     # .invalid is reserved by RFC 2606 for exactly this.
     user.email = f"deleted-{user_uuid}@papol.invalid"
-    user.display_name = FORMER_READER
+    user.display_name = FORMER_USER
     user.affiliation = None
     user.avatar_path = None
     user.email_public = False

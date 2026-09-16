@@ -54,12 +54,12 @@ class ReferencePreviewTests(unittest.TestCase):
         Base.metadata.drop_all(self.engine)
         Base.metadata.create_all(self.engine)
         with self.Session() as db:
-            reader = User(
-                email="reader@example.com", display_name="Ada", password_hash="unused",
+            user = User(
+                email="user@example.com", display_name="Ada", password_hash="unused",
             )
-            db.add(reader)
+            db.add(user)
             db.commit()
-            type(self).current_user_uuid = reader.uuid
+            type(self).current_user_uuid = user.uuid
 
             paper = Paper(title="KinetiX", doi="10.1234/kinetix")
             db.add(paper)
@@ -68,11 +68,11 @@ class ReferencePreviewTests(unittest.TestCase):
                 paper_uuid=paper.uuid, file_path=f"{HASH}.pdf", sha256=HASH,
                 references_status="ready",
             )
-            shelf = Shelf(user_uuid=reader.uuid, name="Reading", color="#b3923d")
+            shelf = Shelf(user_uuid=user.uuid, name="Reading", color="#b3923d")
             db.add_all([edition, shelf])
             db.commit()
             db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=reader.uuid, shelf_uuid=shelf.uuid,
+                paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
                 edition_uuid=edition.uuid, edition_sha256=HASH,
             ))
             # GROBID's own reading: entry 27 is printed as "[27]" and named

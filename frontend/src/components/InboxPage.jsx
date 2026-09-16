@@ -56,7 +56,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
         <h2 className="panel-title">Inbox</h2>
         {data.unread_count > 0 && (
           <button className="link-btn" onClick={handleMarkAll}>
-            Mark all as read
+            Annotation all as read
           </button>
         )}
       </div>

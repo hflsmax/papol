@@ -23,7 +23,7 @@ async def pending_admin_messages(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Messages broadcast to this reader that they have not dismissed."""
+    """Messages broadcast to this user that they have not dismissed."""
     rows = (
         db.query(AdminMessage)
         .join(AdminMessageDelivery)
@@ -101,7 +101,7 @@ async def mark_notification_read(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Mark a single notification read — reading happens by clicking."""
+    """Annotation a single notification read — reading happens by clicking."""
     n = (
         db.query(Notification)
         .filter(Notification.uuid == notif_uuid, Notification.user_uuid == current_user.uuid)

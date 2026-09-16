@@ -79,7 +79,7 @@ class Citation:
     inferred: bool = False
     page: int = 0  # 1-based
     # Fractions of the page, from its top-left corner. Stored this way
-    # because the viewer draws at whatever zoom the reader chose, and a
+    # because the viewer draws at whatever zoom the user chose, and a
     # fraction is the one form that survives that.
     x: float = 0.0
     y: float = 0.0

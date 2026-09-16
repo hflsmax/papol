@@ -1046,7 +1046,7 @@ run_dev() {
 
   # .env carries development's mail sink, and nothing here guarantees direnv
   # loaded it. Papol reads the environment before the settings table, so a
-  # shell without this file mails real readers through the credentials in a
+  # shell without this file mails real users through the credentials in a
   # database copied from production. Read it directly rather than hope.
   if [ -e "$DEV_DIR/.env" ]; then
     set -a; . "$DEV_DIR/.env"; set +a
@@ -1146,7 +1146,7 @@ init_prod() {
     start independently from development. Two things to do to development's
     configuration, once:
 
-      - point SMTP at a sink in .env, so development cannot mail readers
+      - point SMTP at a sink in .env, so development cannot mail users
         (SMTP_HOST=localhost, SMTP_PORT=1025, SMTP_STARTTLS=0)
       - PAPOL_URL, if you want development's links to say so
 MSG

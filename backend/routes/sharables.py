@@ -21,15 +21,15 @@ async def create_sharable(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Hand out this paper, with or without this reader's marks on it.
+    """Hand out this paper, with or without this user's annotations on it.
 
     What is shared is the edition they are reading now, so the link opens
     the file their notes and ink are actually on. Adopting a newer edition
     later does not move the link: it was this reading that was given away.
 
-    With the marks, the answer is their own link, made once and found again
+    With the annotations, the answer is their own link, made once and found again
     on every later ask. Without them, it is the edition's link — the same
-    URL whoever asks — and asking for it is how a reader gets hold of it to
+    URL whoever asks — and asking for it is how a user gets hold of it to
     pass on, not a thing that happens to the paper. Either ask may be made
     while the other link is out: they are different links to different
     things, and neither is in the other's way."""
@@ -52,7 +52,7 @@ async def create_sharable(
         raise HTTPException(
             status_code=409, detail="This paper has no readable PDF to share",
         )
-    kind = RICH if (data and data.include_marks) else LEAN
+    kind = RICH if (data and data.include_annotations) else LEAN
     return SharableOut.model_validate(
         share_reading(db, current_user, copy, edition, kind),
     )
@@ -64,20 +64,20 @@ async def my_sharable(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """The link this reader already has out on this paper, asked for alone.
+    """The link this user already has out on this paper, asked for alone.
 
     The paper carries this with it when the whole paper comes from here. On
     the desktop it does not: the paper is read from the local replica, and a
     sharable has nowhere to live there — the link must open for someone who
-    is not this reader, on a machine that is not this one. Without asking
+    is not this user, on a machine that is not this one. Without asking
     separately, every shared paper on the desktop would read as unshared: no
     way to stop a link that is out, and an offer to move to a newer edition
     that would leave that link serving the old one.
 
-    Only ever a link carrying their marks, as everywhere else: the paper's
+    Only ever a link carrying their annotations, as everywhere else: the paper's
     own link is nobody's, so it is not theirs to be shown or held against
     them. Nothing to report is an answer rather than a refusal — a paper
-    this reader does not keep, or one with no readable PDF, simply has no
+    this user does not keep, or one with no readable PDF, simply has no
     link of theirs on it."""
     paper = db.query(Paper).filter(
         Paper.uuid == paper_uuid, Paper.deleted_at.is_(None),
@@ -104,7 +104,7 @@ async def lean_sharable(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Drop this reader's marks from a link they have already handed out.
+    """Drop this user's annotations from a link they have already handed out.
 
     The link keeps working, so nobody is left holding a dead URL; what it
     opens is the paper alone from now on."""
@@ -136,7 +136,7 @@ async def revoke_sharable(
 @router.get("/api/shared/{sharable_uuid}", response_model=SharedReading)
 async def read_sharable(sharable_uuid: str, db: Session = Depends(get_db)):
     """The reading a link opens. Deliberately unauthenticated: the whole
-    point of the link is that it works for someone who is not a reader
+    point of the link is that it works for someone who is not a user
     here, and the UUID is what stands in for a permission."""
     sharable = open_sharable(db, sharable_uuid)
     if sharable is None:
@@ -177,7 +177,7 @@ async def add_shared_to_nook(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Take the shared paper into the reader's own nook, clean.
+    """Take the shared paper into the user's own nook, clean.
 
     Its own route rather than the ordinary add, because the ordinary one
     asks whether the paper is visible — and a paper nobody displays is
@@ -185,7 +185,7 @@ async def add_shared_to_nook(
     as it is for reading: holding it is what entitles you to the paper, so
     holding it is what entitles you to keep the paper.
 
-    What lands carries none of the sharer's marks, and sits on the PDF the
+    What lands carries none of the sharer's annotations, and sits on the PDF the
     link opened rather than the paper's newest."""
     sharable = open_sharable(db, sharable_uuid)
     if sharable is None:

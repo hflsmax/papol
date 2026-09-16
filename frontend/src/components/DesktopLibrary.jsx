@@ -364,7 +364,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
 // paper opens beside the list instead of replacing it. What a source means
 // and lists is decided in desktopSources.js.
 
-// The reader's nook, kept loaded for the sidebar and the list. Reloaded on
+// The user's nook, kept loaded for the sidebar and the list. Reloaded on
 // every navigation and whenever the window comes back to the front, since
 // the paper pane edits it underneath.
 export function useNookSpace(userUuid, refreshKey) {
@@ -445,7 +445,7 @@ export function DesktopBrowser({
     if (incomingPaperFile) setComposer('paper');
   }, [incomingPaperFile]);
 
-  const openReader = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
+  const openUser = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
 
   useEffect(() => {
     if (source !== 'library') return undefined;
@@ -457,7 +457,7 @@ export function DesktopBrowser({
   }, [source, route, onSyncRefresh]);
 
   // Keep the selection in view, and keep keyboard focus on it while the
-  // reader is moving through the list with the arrow keys.
+  // user is moving through the list with the arrow keys.
   useEffect(() => {
     const row = listRef.current?.querySelector('.desktop-row.selected');
     if (!row) return;
@@ -624,7 +624,7 @@ export function DesktopBrowser({
             onCreated={(board) => {
               // Creation belongs to the Library workflow: put the new board
               // into the list immediately and focus its overview. Opening the
-              // separate canvas is the reader's next, explicit action.
+              // separate canvas is the user's next, explicit action.
               setComposer(null);
               setSearch('');
               setBoardDetail(board);
@@ -655,7 +655,7 @@ export function DesktopBrowser({
             hideBack
             onBack={sourceHome}
             onChanged={reload}
-            onRead={openReader}
+            onRead={openUser}
             onSelectPaper={(uuid) => onNavigate(`/paper/${uuid}`)}
             onReportableError={onReportableError}
           />
@@ -794,14 +794,14 @@ export function DesktopBrowser({
             shownPapers.map((paper) => {
               const selected = isSelected(paper);
               const shelfColor = libraryView ? null : shelves.find((item) => item.uuid === paper.shelf_uuid)?.color;
-              const readers = paper.readers?.length || 0;
+              const users = paper.users?.length || 0;
               return (
                 <a
                   key={paper.uuid}
                   className={`desktop-row${selected ? ' selected' : ''}${draggingUuid === paper.uuid ? ' dragging' : ''}`}
                   href={paperHref(paper)}
                   aria-current={selected ? 'true' : undefined}
-                  // A paper in the reader's own nook can be dropped on one of
+                  // A paper in the user's own nook can be dropped on one of
                   // the sidebar's shelves to move it there.
                   draggable={libraryView ? 'false' : 'true'}
                   onDragStart={libraryView ? undefined : (event) => {
@@ -837,9 +837,9 @@ export function DesktopBrowser({
                     {paper.journal && (
                       <span className="desktop-row-sub">{paper.journal}</span>
                     )}
-                    {libraryView && readers > 0 && (
+                    {libraryView && users > 0 && (
                       <span className="desktop-row-sub">
-                        {readers} {readers === 1 ? 'reader' : 'readers'}
+                        {users} {users === 1 ? 'user' : 'users'}
                       </span>
                     )}
                   </span>

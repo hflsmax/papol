@@ -2,7 +2,7 @@
 // it until the page is done. Pages that all ask at once — a fling past ten of
 // them, or every page on screen after a zoom — would share each frame between
 // them and all arrive late, so they wait here instead: one drawing at a time,
-// the page nearest the reader first, and a page that has scrolled away by its
+// the page nearest the user first, and a page that has scrolled away by its
 // turn is dropped without being drawn.
 //
 // An `idle` job — a text layer, which is needed to select words but not to see
@@ -114,7 +114,7 @@ export function createRenderQueue({
       }
     },
     // Resolves in a later task, once scrolling has paused: for work split
-    // into pieces that should step aside while the reader moves the page.
+    // into pieces that should step aside while the user moves the page.
     quiet() {
       return new Promise((resolve) => {
         const check = () => {

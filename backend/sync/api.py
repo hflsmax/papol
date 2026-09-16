@@ -50,9 +50,9 @@ def _require_supported_client(request: Request, db: Session) -> None:
     426 rather than one more 400: the request was well formed and the
     credential was good, and what is wrong is the program that sent it. The
     client recognizes this status specifically — it stops synchronizing and
-    tells its reader — so it must never be folded in with ordinary refusals.
+    tells its user — so it must never be folded in with ordinary refusals.
 
-    Synchronization is the only thing refused. Everything the reader already
+    Synchronization is the only thing refused. Everything the user already
     holds on their computer stays theirs to read and mark up.
     """
     if verdict(db, request.headers.get("user-agent")) != INCOMPATIBLE:
@@ -356,7 +356,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
         for key, value in values.items():
             if key not in {"paper_uuid", "edition_uuid", "deleted_at"}:
                 setattr(record, key, value)
-        # The client decides which kind of mark it made; every kind is then
+        # The client decides which kind of annotation it made; every kind is then
         # held to its own shape, so a replica cannot write a stroke with no
         # points or an anchor off the page.
         if record.kind not in KINDS:
@@ -674,7 +674,7 @@ def push(
                 if canonical is not None and canonical.uuid != requested_uuid:
                     aliases[requested_uuid] = canonical.uuid
                     change.uuid = UUID(canonical.uuid)
-                # A reader has one copy per paper (uq_copy), so adding back a
+                # A user has one copy per paper (uq_copy), so adding back a
                 # paper they once removed has to revive that tombstone rather
                 # than insert a second row. Only a fresh addition may do this:
                 # a stale edit still loses to the delete.

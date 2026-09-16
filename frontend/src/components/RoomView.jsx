@@ -121,7 +121,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             The host is the seminar's benevolent dictator: they volunteer to
             plan its time, place, and style, and to lead the discussion.
           </p>
-          {room.viewer_is_reader ? (
+          {room.viewer_has_copy ? (
             <span className="hint-anchor">
               <button
                 className="primary stage-action"
@@ -150,7 +150,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             </span>
           ) : (
             <p className="stage-hint">
-              Only readers with a displayed entry can host.
+              Only users with a displayed entry can host.
             </p>
           )}
         </div>
@@ -259,7 +259,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               if (
                 editingAnnounce &&
                 !(await confirmAction(
-                  'Are you sure you want to save? Everyone in the cohort and every reader of this paper will be notified of the change.',
+                  'Are you sure you want to save? Everyone in the cohort and every user of this paper will be notified of the change.',
                   { confirmLabel: 'Save and notify' },
                 ))
               ) {
@@ -317,7 +317,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                 disabled={isBusy}
                 onClick={run(() => finishRoom(room.uuid))}
               >
-                Mark as finished
+                Annotation as finished
               </button>
             </p>
           )}
@@ -619,7 +619,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               {msgHint && (
                 <HintPop
                   text={
-                    room.viewer_is_reader
+                    room.viewer_has_copy
                       ? 'Join the cohort to post a message.'
                       : 'Add this paper to your nook (on display) to take part.'
                   }

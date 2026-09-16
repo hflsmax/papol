@@ -1,7 +1,7 @@
 # Client compatibility gate
 
 How the server tells an installed copy of Papol macOS that it is too old to
-talk to, and how that copy tells its reader — without losing their work.
+talk to, and how that copy tells its user — without losing their work.
 
 ## What it is
 
@@ -36,7 +36,7 @@ cannot be raised safely without knowing who is below it.**
 ## Transport
 
 - **`GET /api/client-requirements`** — unauthenticated, checked at startup.
-  Unauthenticated because a reader who is signed out, or whose token was
+  Unauthenticated because a user who is signed out, or whose token was
   rejected, still needs to be told.
 - **`426 Upgrade Required`** from `/api/sync/push` and `/api/sync/pull` —
   the authoritative answer, returned where the contract actually lives.
@@ -54,7 +54,7 @@ Otherwise the gate does nothing but retry forever.
 | incompatible | **stopped** | **yes** | persistent bar |
 
 **Incompatible never means "will not start."** A rejected credential already
-removes network access without removing the reader's identity or their local
+removes network access without removing the user's identity or their local
 work; a version floor has no business being harsher. Unsynchronized work
 lives only in `_local_outbox`, `_local_annotations` and `unsynced` blobs, so
 an app that refuses to open strands all three.

@@ -278,7 +278,7 @@ function LocalDeviceSettings({ onSynced }) {
 
 export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   // Account settings in this component are global: their handlers call the
-  // backend and the resulting values follow the reader to every device.
+  // backend and the resulting values follow the user to every device.
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
   const [emailPublic, setEmailPublic] = useState(user.email_public !== false);
@@ -333,7 +333,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
     }
     const confirmed = await confirmAction(
       'This deletes your account, your notes and your nook, and cannot ' +
-        'be undone. Papers you uploaded stay for the readers who have ' +
+        'be undone. Papers you uploaded stay for the users who have ' +
         'them. Continue?',
       { confirmLabel: 'Delete account', destructive: true },
     );

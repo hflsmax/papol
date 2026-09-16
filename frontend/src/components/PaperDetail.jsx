@@ -39,7 +39,7 @@ export default function PaperDetail({
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [pendingPdf, setPendingPdf] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
-  // Set when Read is pressed on a paper the reader has not taken yet. Up
+  // Set when Read is pressed on a paper the user has not taken yet. Up
   // here with the rest: there are early returns below, and a hook after
   // one of those is a hook that sometimes does not run.
   const [readHint, setReadHint] = useState(false);
@@ -53,15 +53,15 @@ export default function PaperDetail({
   const [shareCopied, setShareCopied] = useState({ target: null, status: 'idle' });
   const [shareOpen, setShareOpen] = useState(false);
   const [isSharingReading, setIsSharingReading] = useState(false);
-  // The link to the PDF alone, once this reader has asked for it. Held only
+  // The link to the PDF alone, once this user has asked for it. Held only
   // while the menu is open, and never loaded on arrival: it is nobody's, and
   // showing it on the page would say something of theirs was out.
   const [paperLink, setPaperLink] = useState(null);
   // Off to begin with. Handing someone your private notes is a thing to
   // choose, not a thing to find out you have done.
-  const [shareIncludesMarks, setShareIncludesMarks] = useState(false);
-  // Set while the reader is being asked what "stop sharing" should mean for
-  // a link that carries their marks.
+  const [shareIncludesAnnotations, setShareIncludesAnnotations] = useState(false);
+  // Set while the user is being asked what "stop sharing" should mean for
+  // a link that carries their annotations.
   const [stoppingShare, setStoppingShare] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
   const pdfInputRef = useRef(null);
@@ -125,7 +125,7 @@ export default function PaperDetail({
     ignored_edition_uuid: saved.ignored_edition_uuid,
   } : null);
 
-  // Adopting is the reader's own call: their located notes were placed on
+  // Adopting is the user's own call: their located notes were placed on
   // the PDF they have, and on a different file they may not line up.
   const handleAdoptEdition = async () => {
     setError(null);
@@ -137,7 +137,7 @@ export default function PaperDetail({
     }
   };
 
-  // Waving the offer away is not a decision about the PDF: the reader keeps
+  // Waving the offer away is not a decision about the PDF: the user keeps
   // what they have, and a later edition asks again.
   const handleIgnoreEdition = async () => {
     setError(null);
@@ -154,7 +154,7 @@ export default function PaperDetail({
   }, [paperUuid]);
 
   // Coming back from the viewer is a history step, so the browser restores
-  // this page from its cache with whatever notes it had when the reader
+  // this page from its cache with whatever notes it had when the user
   // left. Refetch when the page is shown again, unless a form is open and
   // would lose what is in it.
   useEffect(() => {
@@ -183,7 +183,7 @@ export default function PaperDetail({
   // A field this device may not write reaches the service and only comes back
   // on the next pull, which the save does not wait for. Such a save passes
   // what the service returned as an overlay, so the reload does not redraw
-  // the value the reader just replaced.
+  // the value the user just replaced.
   const loadedOnce = useRef(false);
   const loadPaper = async (overlay = null) => {
     setError(null);
@@ -218,8 +218,8 @@ export default function PaperDetail({
     return hash ? appPath(`/viewer/?pdf=${hash}&note=${comment.uuid}`) : null;
   };
 
-  // A newer edition exists and this reader's copy is not on it. Only ever
-  // an offer: nothing moves a reader's copy but the reader.
+  // A newer edition exists and this user's copy is not on it. Only ever
+  // an offer: nothing moves a user's copy but the user.
   const newEdition =
     paper &&
     paper.viewer_has_entry &&
@@ -257,7 +257,7 @@ export default function PaperDetail({
 
   // The ratings are patched into the replica and read back from it. is_author
   // is not a field this device may write, so its saved value returns only from
-  // the service, and the reload would redraw the box the reader just ticked.
+  // the service, and the reload would redraw the box the user just ticked.
   const handleInlineRating = async (key, value) => {
     setError(null);
     try {
@@ -294,7 +294,7 @@ export default function PaperDetail({
         appPath(`${modePrefix}/paper/${added.uuid}`),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
-      // the nook needs the reader's shelves for its shelf menu.
+      // the nook needs the user's shelves for its shelf menu.
       loadPaper();
     } catch (err) {
       setError(err?.message || String(err));
@@ -342,21 +342,21 @@ export default function PaperDetail({
     return shareCopied.status === 'copied' ? 'Copied!' : 'Copy failed';
   };
 
-  // A sharable hands this reading — this PDF, with this reader's notes, ink
+  // A sharable hands this reading — this PDF, with this user's notes, ink
   // and clips on it — to anyone holding the link. Nothing is copied: what a
-  // visitor sees is what the reader has now, until the link is taken back.
+  // visitor sees is what the user has now, until the link is taken back.
   const handleShareReading = async () => {
     setError(null);
     setIsSharingReading(true);
     try {
       const sharable = await createSharable(paper.uuid, {
-        includeMarks: shareIncludesMarks,
+        includeAnnotations: shareIncludesAnnotations,
       });
       const href = sharableHref(sharable.uuid);
-      // A reading is this reader's and stays on their page. The paper's
+      // A reading is this user's and stays on their page. The paper's
       // link is nobody's: it is copied and passed on, and the page says
       // nothing about it afterwards — there is nothing of theirs to say.
-      if (shareIncludesMarks) {
+      if (shareIncludesAnnotations) {
         setPaper((current) => ({ ...current, sharable_uuid: sharable.uuid }));
       } else {
         setPaperLink(href);
@@ -372,8 +372,8 @@ export default function PaperDetail({
     }
   };
 
-  // Taking a link back and taking your marks out of it are different
-  // things, and a link that carries marks can do either. Asking is what
+  // Taking a link back and taking your annotations out of it are different
+  // things, and a link that carries annotations can do either. Asking is what
   // stops someone breaking a colleague's link when all they wanted was
   // their notes back.
   const handleStopSharing = () => setStoppingShare(true);
@@ -384,7 +384,7 @@ export default function PaperDetail({
     try {
       await revokeSharable(paper.sharable_uuid);
       setPaper((current) => ({ ...current, sharable_uuid: null }));
-      setShareIncludesMarks(false);
+      setShareIncludesAnnotations(false);
     } catch (err) {
       setError(err?.message || String(err));
       if (err?.reportable !== false) {
@@ -393,19 +393,19 @@ export default function PaperDetail({
     }
   };
 
-  const dropSharedMarks = async () => {
+  const dropSharedAnnotations = async () => {
     setError(null);
     try {
       await leanSharable(paper.sharable_uuid);
       // The link lives on for whoever holds it, carrying the paper alone —
-      // and stops being this reader's, so it leaves their page with their
-      // marks.
+      // and stops being this user's, so it leaves their page with their
+      // annotations.
       setPaper((current) => ({ ...current, sharable_uuid: null }));
       setStoppingShare(false);
     } catch (err) {
       setError(err?.message || String(err));
       if (err?.reportable !== false) {
-        onReportableError?.(err, 'dropping marks from a shared link');
+        onReportableError?.(err, 'dropping annotations from a shared link');
       }
     }
   };
@@ -437,7 +437,7 @@ export default function PaperDetail({
       });
 
       // The picked PDF rides along with the save, so nothing about the
-      // paper changes until the reader commits the form.
+      // paper changes until the user commits the form.
       if (pendingPdf) {
         setIsAddingEdition(true);
         await addPaperEdition(paper.uuid, pendingPdf);
@@ -540,7 +540,7 @@ export default function PaperDetail({
     if (onRead) onRead(href);
     else window.location.assign(href);
   };
-  // Papol macOS keeps the reader's PDF in its local store. Save that copy,
+  // Papol macOS keeps the user's PDF in its local store. Save that copy,
   // which needs no network and exists before the paper syncs, and read it
   // only when asked, since a PDF can be large.
   const localPdf = nativeDataActive() && hasEntry && Boolean(paper.edition_sha256);
@@ -594,7 +594,7 @@ export default function PaperDetail({
         <div className="paper-form">
           <div className="warning">
             These paper details are shared. Changes you make here update them
-            for every reader.
+            for every user.
           </div>
 
           <div className="form-actions metadata-extract-action">
@@ -688,7 +688,7 @@ export default function PaperDetail({
                   className="danger"
                   onClick={() => pdfInputRef.current?.click()}
                   disabled={isAddingEdition}
-                  title="Picks the PDF your copy will read, applied when you save. Other readers keep theirs until they choose to update."
+                  title="Picks the PDF your copy will read, applied when you save. Other users keep theirs until they choose to update."
                 >
                   {isAddingEdition ? 'Uploading…' : 'Replace PDF'}
                 </button>
@@ -732,7 +732,7 @@ export default function PaperDetail({
                 <p className="edition-notice-warn">
                   Your notes sit on your current PDF and may not line up on the new one.
                 </p>
-                {/* A link carrying this reader's marks is a reason they
+                {/* A link carrying this user's annotations is a reason they
                     have to settle first, so the offer is withdrawn and named
                     rather than left to fail when clicked. A link carrying the
                     paper alone is not theirs to settle. */}
@@ -808,7 +808,7 @@ export default function PaperDetail({
               {hasEntry && (
                 <label
                   className="checkbox-row inline"
-                  title="Marks your chip on this paper as an author"
+                  title="Annotations your chip on this paper as an author"
                 >
                   <input
                     type="checkbox"
@@ -888,7 +888,7 @@ export default function PaperDetail({
               </div>
             )}
             {/* Reading is offered before the paper is taken, because it is
-                what a reader came here to do. Pressing it says what has to
+                what a user came here to do. Pressing it says what has to
                 happen first — and only that. The reason a paper is read
                 from your own copy is not what someone wants at the moment
                 they are told they cannot read it yet. */}
@@ -906,7 +906,7 @@ export default function PaperDetail({
             {/* Leaves with a copy of the PDF, saved under the paper's title
                 (Papol macOS puts it in Downloads). A copy hosted elsewhere
                 cannot be named from here, so it opens in a new tab instead
-                of taking the reader away from Papol. */}
+                of taking the user away from Papol. */}
             {paper.file_path && (
               <a
                 className="btn"
@@ -950,7 +950,7 @@ export default function PaperDetail({
                   <div className="share-menu share-links-menu" role="menu">
                     {/* What sharing a paper means here: the PDF itself,
                         opened in Papol's viewer by whoever is given the
-                        link. One link, whether or not the reader's marks
+                        link. One link, whether or not the user's annotations
                         travel on it. */}
                     <div className="share-menu-section">
                       <span className="share-menu-heading">This PDF</span>
@@ -988,20 +988,20 @@ export default function PaperDetail({
                           </p>
                           {/* The one decision worth making here, named by what
                               it gives away rather than by what we call it. */}
-                          <label className="share-marks-choice">
+                          <label className="share-annotations-choice">
                             <input
                               type="checkbox"
-                              checked={shareIncludesMarks}
+                              checked={shareIncludesAnnotations}
                               onChange={(event) => {
                                 setPaperLink(null);
-                                setShareIncludesMarks(event.target.checked);
+                                setShareIncludesAnnotations(event.target.checked);
                               }}
                             />
                             Include my notes, paint and clips
                           </label>
-                          {/* Without the marks there is nothing of theirs to
+                          {/* Without the annotations there is nothing of theirs to
                               create: the PDF has a link, and this is the
-                              reader taking hold of it to pass on. With them,
+                              user taking hold of it to pass on. With them,
                               a reading of their own is made. */}
                           <button
                             type="button"
@@ -1009,8 +1009,8 @@ export default function PaperDetail({
                             disabled={isSharingReading}
                           >
                             {isSharingReading
-                              ? (shareIncludesMarks ? 'Making a link…' : 'Copying…')
-                              : (shareIncludesMarks ? 'Create a link' : paperLinkLabel())}
+                              ? (shareIncludesAnnotations ? 'Making a link…' : 'Copying…')
+                              : (shareIncludesAnnotations ? 'Create a link' : paperLinkLabel())}
                           </button>
                           {paperLink && (
                             <div className="share-link-row">
@@ -1034,7 +1034,7 @@ export default function PaperDetail({
           </div>
 
           {/* A link out is a state of this paper, not an item in a menu.
-              It stays on the page so that nothing the reader does to the
+              It stays on the page so that nothing the user does to the
               paper — moving it to a private shelf, above all — can quietly
               leave a link serving that they have forgotten about. */}
           {hasEntry && paper.sharable_uuid && (
@@ -1072,21 +1072,21 @@ export default function PaperDetail({
                   Stop sharing
                 </button>
               </div>
-              {/* Asked rather than assumed: dropping the marks keeps the
-                  link alive for whoever was given it, and closing the link
-                  does not. Only a link carrying marks has both to offer. */}
+              {/* Asked rather than assumed: dropping the annotations keeps the
+                  link alive for whoever was given it, and revoking the link
+                  does not. Only a link carrying annotations has both to offer. */}
               {stoppingShare && (
                 <div className="shared-reading-ask" role="group" aria-label="Stop sharing">
                   <p>
                     Keep the link and take your notes, paint and clips out of it,
-                    or close the link altogether?
+                    or revoke the link altogether?
                   </p>
                   <div className="shared-reading-ask-actions">
-                    <button type="button" className="primary" onClick={dropSharedMarks}>
+                    <button type="button" className="primary" onClick={dropSharedAnnotations}>
                       Share the paper only
                     </button>
                     <button type="button" onClick={revokeShare}>
-                      Close the link
+                      Revoke the link
                     </button>
                     <button
                       type="button"
@@ -1221,7 +1221,7 @@ export default function PaperDetail({
         </div>
       )}
 
-      {/* Everything below the separator is private to the reader:
+      {/* Everything below the separator is private to the user:
           summary and notes. Above it, everything is public. */}
       {hasEntry && editMode !== 'metadata' && (
         <div className="paper-notes">

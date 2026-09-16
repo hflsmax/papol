@@ -122,7 +122,7 @@ export default function PaperUpload({
             year: remote.year || initialForm.year,
             doi: remote.doi || initialForm.doi,
           };
-          // Do not replace a field the reader has already changed while the
+          // Do not replace a field the user has already changed while the
           // backend was parsing the PDF.
           setFormData((current) => Object.fromEntries(Object.entries(current).map(([key, value]) => [
             key,
@@ -272,7 +272,7 @@ export default function PaperUpload({
               <label htmlFor="upload-paper-authors">Authors (comma-separated)</label>
               {!localImport && <label
                 className="checkbox-row inline"
-                title="Marks your chip on this paper as an author"
+                title="Annotations your chip on this paper as an author"
               >
                 <input
                   type="checkbox"

@@ -3,12 +3,12 @@
 // Three answers, and only the last one stops anything: `supported`,
 // `deprecated` (a new version exists and is worth having), and
 // `incompatible` (the server will no longer accept this one). Being
-// incompatible stops synchronization and nothing else — the reader keeps
-// their papers, their marks, and everything already on this computer.
+// incompatible stops synchronization and nothing else — the user keeps
+// their papers, their annotations, and everything already on this computer.
 //
 // Only a real answer from the server moves this. A refused connection, a
 // timeout, or offline mode leaves the last known verdict exactly where it
-// was: being unreachable is not the same as being obsolete, and a reader on
+// was: being unreachable is not the same as being obsolete, and a user on
 // a train must not be told to go and reinstall.
 
 import { getClientRequirements } from './api/clientRequirements.js';

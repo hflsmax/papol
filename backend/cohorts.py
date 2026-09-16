@@ -1,5 +1,5 @@
 """Seminar cohort membership, shared by the API and desktop sync, which both
-refuse to hide a paper its reader is still discussing."""
+refuse to hide a paper its user is still discussing."""
 
 from sqlalchemy.orm import Session
 

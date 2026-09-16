@@ -134,29 +134,29 @@ class SeminarTransitionTests(unittest.TestCase):
     def test_caller_cannot_uncall_after_someone_else_joins(self):
         called = self.request("POST", f"/api/papers/{self.paper_uuid}/room")
         response = self.client.post("/api/auth/register", json={
-            "email": "reader@example.test",
-            "display_name": "Another Reader",
+            "email": "user@example.test",
+            "display_name": "Another User",
             "affiliation": None,
             "password": "testing-password",
         })
         self.assertEqual(response.status_code, 200, response.text)
-        reader_uuid = response.json()["user"]["uuid"]
-        reader_headers = {"Authorization": f"Bearer {response.json()['token']}"}
+        user_uuid = response.json()["user"]["uuid"]
+        user_headers = {"Authorization": f"Bearer {response.json()['token']}"}
         with self.sessions() as db:
             paper = db.query(Paper).filter(Paper.uuid == self.paper_uuid).one()
             shelf = Shelf(
-                user_uuid=reader_uuid,
+                user_uuid=user_uuid,
                 name="Displayed",
                 color="#654321",
                 is_public=True,
             )
             db.add(shelf)
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_uuid=reader_uuid))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=user_uuid))
             db.commit()
 
         joined = self.client.post(
-            f"/api/rooms/{called['uuid']}/join", headers=reader_headers
+            f"/api/rooms/{called['uuid']}/join", headers=user_headers
         )
         self.assertEqual(joined.status_code, 200, joined.text)
         refused = self.client.post(

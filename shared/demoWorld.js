@@ -131,7 +131,7 @@ export const demoPapers = [
     sha256: '73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a',
     daysAgo: 3,
   },
-  // Wholly fictional, and written by two of the demo readers — this is
+  // Wholly fictional, and written by two of the demo users — this is
   // where the "this is my paper" tick box shows itself.
   {
     uuid: demoPaperUuids[9],
@@ -148,11 +148,11 @@ export const demoPapers = [
 ];
 
 /**
- * SpongeBob's notes — a reader's real marginalia: what delighted him and
+ * SpongeBob's notes — a user's real marginalia: what delighted him and
  * what he could not follow, rather than a summary of the paper. Every one
  * is located: a page and a point on it, as
  * fractions of the page in PDF user space. A note with no `content` is a
- * bare anchor — a mark he has not written on yet.
+ * bare anchor — an annotation he has not written on yet.
  *
  * Only papers he keeps appear here: a visitor can open no others.
  */

@@ -95,7 +95,7 @@ fn add_open_timings(url: &mut tauri::Url, opened_at_ms: u128, read_ms: f64, hash
 /// The queue is the whole point. `RunEvent::Opened` is how macOS delivers a
 /// launch *caused by* an address, so on the first handoff after installing
 /// this runs before `setup` has built anything to show it in — and an
-/// address dropped there is a reader who clicked "Open in Papol", watched
+/// address dropped there is a user who clicked "Open in Papol", watched
 /// Papol start, and got the library instead of their paper.
 #[cfg(target_os = "macos")]
 fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
@@ -117,7 +117,7 @@ fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
         let Some(target) = deep_link_url(&link, &origin, &scheme) else {
             continue;
         };
-        // The reader asked for this document, not for the library, so a cold
+        // The user asked for this document, not for the library, so a cold
         // launch opens into it — but only once a window has actually been
         // made for it, or the library would stay hidden behind nothing.
         if show_document_window(app, &origin, target) {
@@ -337,7 +337,7 @@ mod pdf_handler {
     }
 }
 
-/// Set when the reader answers the default-viewer prompt. Held in memory so
+/// Set when the user answers the default-viewer prompt. Held in memory so
 /// every window stops asking for the rest of this launch, and the next launch
 /// asks again.
 static PDF_VIEWER_PROMPT_DISMISSED: std::sync::atomic::AtomicBool =
@@ -849,13 +849,13 @@ fn url_origin(url: &tauri::Url) -> String {
 }
 
 /// The scheme Papol answers to when a browser hands a reading over
-/// (USER_STORIES.md US-7.32). It mirrors the web address the reader was
+/// (USER_STORIES.md US-7.32). It mirrors the web address the user was
 /// already at: `papol://host/papol/viewer/?pdf=…`.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const HANDOFF_SCHEME: &str = "papol";
 
 /// A scheme is claimed from the whole system, and LaunchServices gives it to
-/// one application, not to the one the reader had in mind. Every other place
+/// one application, not to the one the user had in mind. Every other place
 /// a build could tread on the installed Papol is already kept apart by its
 /// identifier — its data store, its cookies — and this is the last one that
 /// was not: without it, a development build wins the scheme and swallows
@@ -874,7 +874,7 @@ fn handoff_scheme(identifier: &str) -> String {
 /// Anyone can send one of these — a deep link is an address typed by whatever
 /// page cared to send it, not a message from Papol. Only the keys that name a
 /// document and a place inside it survive the crossing, so the worst a
-/// stranger's link can do is open a document this reader already has.
+/// stranger's link can do is open a document this user already has.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const HANDOFF_QUERY_KEYS: [&str; 8] = ["pdf", "board", "share", "page", "note", "y", "mark", "box"];
 
@@ -977,14 +977,14 @@ fn should_navigate_existing_document(document: &DocumentWindow, url: &tauri::Url
     }
 
     // A plain Read request is only asking for the paper. Its window already
-    // has the reader's live position and UI state, so navigating it would
+    // has the user's live position and UI state, so navigating it would
     // needlessly reload the PDF. Deep links still need to move the existing
     // viewer to the note, page, excerpt, or clip they identify.
     url.query_pairs()
         .any(|(key, _)| matches!(key.as_ref(), "note" | "page" | "y" | "mark" | "box"))
 }
 
-/// The identifier of the application readers actually install.
+/// The identifier of the application users actually install.
 #[cfg(target_os = "macos")]
 const RELEASE_IDENTIFIER: &str = "com.mc-pony.papol";
 
@@ -997,9 +997,9 @@ const RELEASE_IDENTIFIER: &str = "com.mc-pony.papol";
 /// name — while its replica, named by the configured identifier, is its own.
 /// The two then disagree: a replica created this minute inherits the account
 /// a development session left behind days ago, and Papol opens by reporting
-/// an error about a reader it cannot find.
+/// an error about a user it cannot find.
 ///
-/// The installed application keeps the default store. Its readers are signed
+/// The installed application keeps the default store. Its users are signed
 /// in there, and moving it would sign every one of them out once to fix
 /// something none of them have.
 ///
@@ -1080,7 +1080,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         })
         .on_download(|_webview, _event| true);
     // The same store as the library window: a document window reads the
-    // reader's credential from the storage the library wrote it to.
+    // user's credential from the storage the library wrote it to.
     #[cfg(target_os = "macos")]
     if let Some(store) = webview_data_store(&app.config().identifier) {
         builder = builder.data_store_identifier(store);
@@ -1534,7 +1534,7 @@ mod tests {
         let url = opened_file_url(
             "tauri://localhost",
             &sha256,
-            Path::new("/Users/reader/Downloads/Attention & more.pdf"),
+            Path::new("/Users/user/Downloads/Attention & more.pdf"),
         )
         .expect("opened file URL");
         let document =
@@ -1594,8 +1594,8 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn the_installed_application_keeps_the_store_its_readers_are_signed_in_to() {
-        // Moving it would sign every reader out once, to fix something none
+    fn the_installed_application_keeps_the_store_its_users_are_signed_in_to() {
+        // Moving it would sign every user out once, to fix something none
         // of them have.
         assert_eq!(webview_data_store(RELEASE_IDENTIFIER), None);
     }
@@ -1721,7 +1721,7 @@ mod tests {
     #[test]
     fn a_development_build_does_not_answer_the_installed_papols_scheme() {
         // LaunchServices hands a scheme to one application. If a development
-        // build claimed `papol`, it could be the one a reader's browser
+        // build claimed `papol`, it could be the one a user's browser
         // reaches, and their paper would open in a build they forgot they
         // had — or in nothing at all, if it is not running.
         assert_eq!(handoff_scheme("com.mc-pony.papol"), "papol");
@@ -1747,7 +1747,7 @@ mod tests {
     fn a_reading_handed_over_before_there_is_a_window_waits_instead_of_vanishing() {
         // The first handoff after installing is a cold launch: macOS delivers
         // the address to start the application, so it arrives before `setup`
-        // has set an origin. Dropping it there is the reader watching Papol
+        // has set an origin. Dropping it there is the user watching Papol
         // open on the library instead of the paper they asked for.
         let opened = OpenedFiles::default();
         assert!(opened.origin.lock().expect("origin").is_none());

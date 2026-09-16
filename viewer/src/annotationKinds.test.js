@@ -52,7 +52,7 @@ test('geometry is spread flat for the code that draws it', () => {
   assert.deepEqual(notesIn(rows)[0].anchor, { type: 'point', x: 0.3, y: 0.4 });
 });
 
-test('making a mark names its kind and gathers its geometry', async () => {
+test('making an annotation names its kind and gathers its geometry', async () => {
   const source = recorder();
   const kinds = annotationKinds(source.annotations);
 

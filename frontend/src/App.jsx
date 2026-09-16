@@ -49,7 +49,7 @@ function parseRoute() {
   const path = demo
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
     : rawPath;
-  // Readers, papers and seminars are addressed by their UUID, and only by it.
+  // Users, papers and seminars are addressed by their UUID, and only by it.
   const UUID_PATTERN = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
   // A board has no page of its own — it is a row in a nook — so leaving one
   // asks the nook to reveal it. Only a nook can honour that, and the rest of
@@ -75,7 +75,7 @@ function parseRoute() {
   if (path === '/learn') return routed({ page: 'learn' });
   if (path === '/signin') return routed({ page: 'signin' });
   if (path === '/library' || path === '/papers') return routed({ page: 'papers' });
-  if (path === '/village' || path === '/readers') return routed({ page: 'papers' });
+  if (path === '/village' || path === '/users') return routed({ page: 'papers' });
   if (path === '/inbox') return routed({ page: 'inbox' });
   if (path === '/admin') return routed({ page: 'admin' });
   return routed({ page: 'home' });
@@ -140,7 +140,7 @@ function openBoard(uuid) {
 
 // Once the nook has revealed the board it was asked for, the asking is
 // spent: it leaves the address, so a reload or a shared URL shows the nook
-// as it is rather than flashing a row at a reader who never asked.
+// as it is rather than flashing a row at a user who never asked.
 function forgetRevealRequest() {
   const url = new URL(window.location.href);
   if (!url.searchParams.has('board')) return;
@@ -190,7 +190,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const offeredErrorReports = useRef(new Set());
   // The welcome modal greets every fresh demo visit. Returning from its
   // viewer is still the same visit, so consume the viewer's one-shot marker
-  // rather than greeting the reader again after the full-page transition.
+  // rather than greeting the user again after the full-page transition.
   const [demoIntroSeen, setDemoIntroSeen] = useState(() => {
     const returnedFromViewer = window.sessionStorage.getItem('papol.viewerReturn') === '1';
     window.sessionStorage.removeItem('papol.viewerReturn');
@@ -201,7 +201,7 @@ export default function App({ startupUser = null, startupError = null }) {
   );
 
   // State-machine precedence is deliberate: an explicit demo URL wins;
-  // otherwise a real authenticated reader wins; guest is only the public
+  // otherwise a real authenticated user wins; guest is only the public
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
 
@@ -233,7 +233,7 @@ export default function App({ startupUser = null, startupError = null }) {
     });
     // What the synchronizer already learned comes first, so a window opened
     // without a network still carries yesterday's answer; then ask, because
-    // the reader may have just installed the version that fixes it.
+    // the user may have just installed the version that fixes it.
     void (async () => {
       const remembered = await nativeCompatibilityVerdict();
       if (remembered) setClientCompatibility({ verdict: remembered });
@@ -443,7 +443,7 @@ export default function App({ startupUser = null, startupError = null }) {
     if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
   }), []);
 
-  // A document reader can reveal its paper in the permanent library window.
+  // A document user can reveal its paper in the permanent library window.
   // Use the complete nook rather than whichever shelf or tag happened to be
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperUuid) => {
@@ -460,7 +460,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const [managingNook, setManagingNook] = useState(false);
   const [desktopNotice, setDesktopNotice] = useState(null);
   const [syncRefresh, setSyncRefresh] = useState(0);
-  // The desktop sidebar lists the reader's shelves and tags, so the desktop
+  // The desktop sidebar lists the user's shelves and tags, so the desktop
   // app keeps their nook loaded beside whatever is open.
   const nook = useNookSpace(DESKTOP && user ? user.uuid : null, route);
   const desktopSource = resolveSource(route, user, {
@@ -572,7 +572,7 @@ export default function App({ startupUser = null, startupError = null }) {
     const anchor = event.target.closest?.('a[href^="/"]');
     const href = anchor?.getAttribute('href');
     // A control inside a link (the × that leaves a seminar cohort sits on the
-    // reader's chip) is its own action. This runs on the way down, before
+    // user's chip) is its own action. This runs on the way down, before
     // that control's handler could stop the click, so it has to step aside.
     const control = event.target.closest?.('button, input, select, textarea');
     if (control && anchor?.contains(control)) return;
@@ -600,7 +600,7 @@ export default function App({ startupUser = null, startupError = null }) {
           </p>
           <p>
             You are looking at the demo: you play as SpongeBob among
-            fictional readers. Everything happens in your browser and
+            fictional users. Everything happens in your browser and
             nothing is saved.
           </p>
           <p>

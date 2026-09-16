@@ -1,6 +1,6 @@
 // The viewer is its own app but not its own world: it runs on Papol's
 // origin and carries the same session token, so there is no second sign-in
-// and no second idea of who a reader is.
+// and no second idea of who a user is.
 // Both /viewer and /demo/viewer run this build. Step back once from the
 // former and twice from the latter to reach Papol's root API and assets.
 import { appPath, backendPath, inDemo } from './base.js';
@@ -58,7 +58,7 @@ export function pdfHref(paper) {
   return backendPath(`/uploads/${paper.file_path}`);
 }
 
-// The reader's nook paper for these exact bytes, or null. Only the local
+// The user's nook paper for these exact bytes, or null. Only the local
 // replica is asked: a file opened from disk is not announced to Papol.
 export async function getNookPaperByPdf(hash) {
   if (!nativeDataActive()) return null;
@@ -91,7 +91,7 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
     const blob = await openedFileBlob(sha256);
     const stored = await nativeBlobImport(blob);
     if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
-    // Opening a file remains private. Once the reader explicitly adds it,
+    // Opening a file remains private. Once the user explicitly adds it,
     // use the same authenticated parser as the upload form so the replica
     // starts with bibliographic metadata instead of a filename-only stub.
     const metadata = await lookupPaperMetadata(blob, name);
@@ -141,13 +141,13 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
       body: JSON.stringify(body),
     },
   });
-  const marks = [
+  const annotations = [
     ...notes.map(({ anchor, ...note }) => stored('note', { ...note, anchor: anchor ?? null })),
     ...ink.map(({ created_at: _drawn, ...stroke }) => stored('ink', stroke)),
     ...clips.map(({ created_at: _cut, ...clip }) => stored('clip', clip)),
   ];
-  for (let start = 0; start < marks.length; start += 200) {
-    await nativeRepository.transact(marks.slice(start, start + 200));
+  for (let start = 0; start < annotations.length; start += 200) {
+    await nativeRepository.transact(annotations.slice(start, start + 200));
   }
   return paperUuid;
 }

@@ -1,10 +1,10 @@
-// Sharing, driven through the interface a reader actually uses.
+// Sharing, driven through the interface a user actually uses.
 //
 //     python3 scripts/share-e2e/seed.py && node scripts/share-e2e/run.mjs
 //
 // The backend suite already states what a link means. This says that a
-// visitor holding one sees it: the attribution, the marks, the offer of the
-// paper — and, for a lean link, none of the marks. That half had no coverage
+// visitor holding one sees it: the attribution, the annotations, the offer of the
+// paper — and, for a lean link, none of the annotations. That half had no coverage
 // at all, in either surface.
 
 import { readFileSync } from 'node:fs';
@@ -50,7 +50,7 @@ const snapshot = () => browser.evaluate(`
   return {
     title: document.title,
     attribution: document.querySelector('.shared-reading')?.textContent?.trim() ?? null,
-    marksInDom: document.documentElement.innerHTML.includes(note),
+    annotationsInDom: document.documentElement.innerHTML.includes(note),
     bar: !!document.querySelector('.viewer-bar'),
     buttons: [...document.querySelectorAll('button')].map(b => b.textContent.trim()).filter(Boolean),
     signInWall: /sign in to papol|please sign in/i.test(document.body.innerText),
@@ -73,7 +73,7 @@ try {
   check('the paper is named', s.title.includes(fx.title.slice(0, 20)), s.title);
   check('it says whose reading this is', (s.attribution || '').includes(fx.sharer.name),
     String(s.attribution));
-  check("the sharer's marks came across", s.marksInDom);
+  check("the sharer's annotations came across", s.annotationsInDom);
   check('the whole tool bar is there', s.bar && s.buttons.some((b) => b.includes('Search')));
   check('the paper is offered', s.buttons.includes('Add to nook'),
     JSON.stringify(s.buttons.slice(0, 12)));
@@ -84,27 +84,27 @@ try {
   s = await snapshot();
   check('it opens just the same', s.bar);
   check('it names nobody', s.attribution === null, String(s.attribution));
-  check('and carries none of the marks', !s.marksInDom, 'a lean link leaked the note');
+  check('and carries none of the annotations', !s.annotationsInDom, 'a lean link leaked the note');
   check('the paper is still offered', s.buttons.includes('Add to nook'));
 
-  console.log('\n== A signed-in reader takes the shared paper ==');
-  const before = await (await api(`/shared/${fx.rich}/nook`, fx.reader.token)).json();
-  check('the reader has not got it yet', before === null, JSON.stringify(before));
-  await browser.signIn({ token: fx.reader.token, accountUuid: fx.reader.uuid, origin: fx.base });
+  console.log('\n== A signed-in user takes the shared paper ==');
+  const before = await (await api(`/shared/${fx.rich}/nook`, fx.user.token)).json();
+  check('the user has not got it yet', before === null, JSON.stringify(before));
+  await browser.signIn({ token: fx.user.token, accountUuid: fx.user.uuid, origin: fx.base });
   await browser.navigate(fx.rich_url);
   await viewerReady();
   check('"Add to nook" is pressed', await clickText('Add to nook'));
   let added = null;
   for (let i = 0; i < 40 && !added; i += 1) {
-    added = await (await api(`/shared/${fx.rich}/nook`, fx.reader.token)).json();
+    added = await (await api(`/shared/${fx.rich}/nook`, fx.user.token)).json();
     if (!added) await new Promise((r) => setTimeout(r, 500));
   }
   check('the paper lands in their nook', !!added, 'no copy within 20s');
   if (added) {
     check('it is the same paper', added.paper_uuid === fx.paper_uuid);
-    const marks = await (await api(`/papers/${added.paper_uuid}/annotations`, fx.reader.token)).json();
-    check("their copy carries none of the sharer's marks",
-      Array.isArray(marks) && marks.length === 0, `${marks?.length} came across`);
+    const annotations = await (await api(`/papers/${added.paper_uuid}/annotations`, fx.user.token)).json();
+    check("their copy carries none of the sharer's annotations",
+      Array.isArray(annotations) && annotations.length === 0, `${annotations?.length} came across`);
     await browser.navigate(fx.rich_url);
     await viewerReady();
     s = await snapshot();

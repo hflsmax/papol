@@ -20,7 +20,7 @@ export default function BoardCreateForm({ shelves, className, onCreated, onCance
       const board = await createBoard({ name: boardName.trim(), shelf_uuid: selectedShelf?.uuid ?? null });
       onCreated(board);
     } catch (err) {
-      // Said where the reader pressed Create, not left as a button that
+      // Said where the user pressed Create, not left as a button that
       // silently did nothing (the demo has no boards, for one).
       setError(err.message);
     }

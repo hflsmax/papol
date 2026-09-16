@@ -8,7 +8,7 @@ import ExperimentalBadge from './ExperimentalBadge';
  *
  * The card is deliberately willing to be thin. A reference that could not
  * be matched still shows the line exactly as the author printed it, with a
- * way to go and search for it — which is more than the reader had before
+ * way to go and search for it — which is more than the user had before
  * clicking, and honest about what is known.
  */
 
@@ -204,7 +204,7 @@ export default function ReferenceCard({
 
           <div className="ref-links">
             {reference.papol_paper_uuid && (
-              // Papol already holds this paper: the reader can go to it
+              // Papol already holds this paper: the user can go to it
               // rather than out to a publisher.
               <a className="ref-link here" href={appPath(`/paper/${reference.papol_paper_uuid}`)}>
                 In Papol

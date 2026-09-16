@@ -313,7 +313,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                 {/* Beside the title rather than inside it: inside, the pill
                     rides the text baseline and sits low against a serif
                     line. Out here it takes the same first-line box as the
-                    reader chips, and the two agree. */}
+                    user chips, and the two agree. */}
                 {paper.room_status && (
                   <span className="title-state">
                     <StatePill status={paper.room_status} />
@@ -327,13 +327,13 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                 </p>
                 <RatingSummary paper={paper} compact />
               </div>
-              {/* The readers are the row's right-hand feature: who else
+              {/* The users are the row's right-hand feature: who else
                   has this paper is the reason to look at a nook. Out of
                   the title row so they answer to the whole row rather
                   than to the title. */}
-                {paper.readers && paper.readers.length > 0 && (
-                  <div className="row-readers">
-                    {paper.readers.map((entry) => (
+                {paper.users && paper.users.length > 0 && (
+                  <div className="row-users">
+                    {paper.users.map((entry) => (
                       <a
                         key={entry.user.uuid}
                         className={

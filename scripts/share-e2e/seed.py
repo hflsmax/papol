@@ -1,4 +1,4 @@
-"""Seed a fresh sharing fixture: two readers, a marked-up paper, both links.
+"""Seed a fresh sharing fixture: two users, a marked-up paper, both links.
 
 Run before `run.mjs`. Every run makes a new paper and a new recipient, so the
 suite can assert that the recipient has not got the paper yet — which it could
@@ -60,7 +60,7 @@ def account(email, name):
 
 suffix = os.urandom(3).hex()
 sharer_token, sharer_uuid, sharer_name = account("sharer@papol.test", "Alice Sharer")
-reader_token, reader_uuid, reader_name = account(f"reader-{suffix}@papol.test", "Bob Reader")
+user_token, user_uuid, user_name = account(f"user-{suffix}@papol.test", "Bob User")
 
 title = f"A Reading Worth Handing Over {suffix}"
 status, paper = call("POST", "/api/papers", token=sharer_token, body={
@@ -91,7 +91,7 @@ with open(FIXTURE, "w") as written:
     json.dump({
         "base": BASE, "title": title, "note": note,
         "sharer": {"token": sharer_token, "uuid": sharer_uuid, "name": sharer_name},
-        "reader": {"token": reader_token, "uuid": reader_uuid, "name": reader_name},
+        "user": {"token": user_token, "uuid": user_uuid, "name": user_name},
         "paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
         "rich": rich["uuid"], "lean": lean["uuid"],
         "rich_url": f"{BASE}/viewer/?share={rich['uuid']}",
@@ -99,5 +99,5 @@ with open(FIXTURE, "w") as written:
     }, written, indent=1)
 
 print(f"seeded {title}")
-print(f"  rich {rich['uuid'][:8]}  lean {lean['uuid'][:8]}  recipient {reader_name}")
+print(f"  rich {rich['uuid'][:8]}  lean {lean['uuid'][:8]}  recipient {user_name}")
 print(f"  fixture at {FIXTURE}")

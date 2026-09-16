@@ -182,7 +182,7 @@ async def admin_update_feedback(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Mark a report done, or reopen it."""
+    """Annotation a report done, or reopen it."""
     fb = db.query(Feedback).filter(Feedback.uuid == feedback_uuid).first()
     if not fb:
         raise HTTPException(status_code=404, detail="Report not found")

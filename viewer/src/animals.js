@@ -1,6 +1,6 @@
 import { RIGS } from './beasts';
 
-// The animals a reader can put on a page.
+// The animals a user can put on a page.
 //
 // All three are the same beast underneath: a barrel, a neck, a head, four
 // legs and a tail, each in the group it turns in. What differs between a
@@ -196,7 +196,7 @@ const neck = (from, [px, py], h) =>
 // The pen.
 //
 // One line width, and "the same width" means the same number of pixels
-// where the reader is looking. That sounds like one number and is not,
+// where the user is looking. That sounds like one number and is not,
 // because an animal is drawn in three places at three different scales:
 // on the page at its own size, in the hand as a cursor at that same size,
 // and in the menu where they all share one cell. A single stroke written

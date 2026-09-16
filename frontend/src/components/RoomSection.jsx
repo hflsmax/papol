@@ -79,7 +79,7 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
       {room.status === 'open' && (
         <PersonLine user={room.creator}>
           {' '}
-          called this seminar — waiting for a reader to step up and host
+          called this seminar — waiting for a user to step up and host
         </PersonLine>
       )}
       {room.status === 'planning' && (
@@ -158,7 +158,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
   const [callHint, setCallHint] = useState(false);
 
   // The desktop paper view comes from SQLite, which intentionally contains
-  // the reader's offline data but not shared seminar cohorts. Enrich just this
+  // the user's offline data but not shared seminar cohorts. Enrich just this
   // online-only section without holding up the rest of the paper page.
   useEffect(() => {
     roomsRevision.current += 1;
@@ -252,7 +252,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
 
       {callWarning && activeCall && <div className="error" role="alert">{callWarning}</div>}
 
-      {currentUser && !activeCall && paper.viewer_is_reader && (
+      {currentUser && !activeCall && paper.viewer_has_copy && (
         <div className="call-block">
           <span className="hint-anchor">
             <button className="primary" disabled={isBusy} onClick={call}>
@@ -267,7 +267,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
           </span>
         </div>
       )}
-      {currentUser && !activeCall && !paper.viewer_is_reader && (
+      {currentUser && !activeCall && !paper.viewer_has_copy && (
         <div className="call-block">
           <span className="hint-anchor">
             <button

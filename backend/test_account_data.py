@@ -1,8 +1,8 @@
 """Leaving with your annotations, and leaving them behind.
 
-Both paths walk every annotation a reader has, and both were rewritten when
+Both paths walk every annotation a user has, and both were rewritten when
 notes, ink and clips became one table. Neither had a test, which is the worst
-combination for the two operations a reader cannot retry: an export that
+combination for the two operations a user cannot retry: an export that
 raises hands back nothing, and a deletion that misses rows leaves them.
 """
 
@@ -33,13 +33,13 @@ class AccountDataTests(unittest.TestCase):
         self.Session = sessionmaker(bind=self.engine)
         Base.metadata.create_all(self.engine)
         with self.Session() as db:
-            reader = User(
+            user = User(
                 email="leaver@example.com", display_name="Ada", password_hash="unused",
             )
             other = User(
                 email="stays@example.com", display_name="Grace", password_hash="unused",
             )
-            db.add_all([reader, other])
+            db.add_all([user, other])
             db.commit()
             paper = Paper(title="On leaving", doi="10.1234/leave")
             db.add(paper)
@@ -47,26 +47,26 @@ class AccountDataTests(unittest.TestCase):
             edition = PaperEdition(
                 paper_uuid=paper.uuid, file_path=f"{PDF_HASH}.pdf", sha256=PDF_HASH,
             )
-            shelf = Shelf(user_uuid=reader.uuid, name="Reading", color="#b3923d")
+            shelf = Shelf(user_uuid=user.uuid, name="Reading", color="#b3923d")
             db.add_all([edition, shelf])
             db.commit()
             db.add_all([
                 Copy(
-                    paper_uuid=paper.uuid, user_uuid=reader.uuid, shelf_uuid=shelf.uuid,
+                    paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
                     edition_uuid=edition.uuid, edition_sha256=PDF_HASH,
                 ),
                 Annotation(
-                    kind="note", paper_uuid=paper.uuid, user_uuid=reader.uuid,
+                    kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
                     edition_uuid=edition.uuid, page=4, content="Placed here",
                     name="Lemma 2",
                     body=json.dumps({"anchor": {"type": "point", "x": 0.2, "y": 0.8}}),
                 ),
                 Annotation(
-                    kind="note", paper_uuid=paper.uuid, user_uuid=reader.uuid,
+                    kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
                     content="About the paper", body="{}",
                 ),
                 Annotation(
-                    kind="ink", paper_uuid=paper.uuid, user_uuid=reader.uuid,
+                    kind="ink", paper_uuid=paper.uuid, user_uuid=user.uuid,
                     edition_uuid=edition.uuid, page=4,
                     body=json.dumps({
                         "points": [{"x": 0.1, "y": 0.2}, {"x": 0.4, "y": 0.2}],
@@ -75,7 +75,7 @@ class AccountDataTests(unittest.TestCase):
                     }),
                 ),
                 Annotation(
-                    kind="clip", paper_uuid=paper.uuid, user_uuid=reader.uuid,
+                    kind="clip", paper_uuid=paper.uuid, user_uuid=user.uuid,
                     edition_uuid=edition.uuid, page=5,
                     body=json.dumps({
                         "source": {"x": 0.1, "y": 0.1, "w": 0.3, "h": 0.2},
@@ -83,7 +83,7 @@ class AccountDataTests(unittest.TestCase):
                         "floating": True,
                     }),
                 ),
-                # Another reader's mark on the same PDF, which must survive.
+                # Another user's annotation on the same PDF, which must survive.
                 Annotation(
                     kind="ink", paper_uuid=paper.uuid, user_uuid=other.uuid,
                     edition_uuid=edition.uuid, page=4,
@@ -94,18 +94,18 @@ class AccountDataTests(unittest.TestCase):
                 ),
             ])
             db.commit()
-            self.reader_uuid = reader.uuid
+            self.user_uuid = user.uuid
             self.other_uuid = other.uuid
 
     def tearDown(self):
         self.engine.dispose()
 
-    def reader(self, db):
-        return db.query(User).filter(User.uuid == self.reader_uuid).one()
+    def user(self, db):
+        return db.query(User).filter(User.uuid == self.user_uuid).one()
 
     def test_the_export_carries_every_kind_with_its_geometry(self):
         with self.Session() as db:
-            data = account.gather(db, self.reader(db))
+            data = account.gather(db, self.user(db))
 
         self.assertEqual(
             sorted(note["content"] for note in data["notes"]),
@@ -135,7 +135,7 @@ class AccountDataTests(unittest.TestCase):
             boards.mkdir()
             out = root / "export.zip"
             with self.Session() as db:
-                account.write_zip(db, self.reader(db), uploads, boards, out)
+                account.write_zip(db, self.user(db), uploads, boards, out)
 
             with zipfile.ZipFile(out) as archive:
                 names = {Path(name).name for name in archive.namelist()}
@@ -151,7 +151,7 @@ class AccountDataTests(unittest.TestCase):
     def test_closing_an_account_takes_every_annotation_and_no_one_elses(self):
         with TemporaryDirectory() as workspace, self.Session() as db:
             removed = account.tombstone(
-                db, self.reader(db), Path(workspace),
+                db, self.user(db), Path(workspace),
                 eligible_hosts=lambda *_: [], notify=lambda *_: None,
             )
             db.commit()
@@ -187,7 +187,7 @@ class AnnotationChangeTests(unittest.TestCase):
             user = User(email="a@b.c", display_name="Ada", password_hash="unused")
             db.add(user)
             db.commit()
-            paper = Paper(title="On changing a mark")
+            paper = Paper(title="On changing an annotation")
             db.add(paper)
             db.commit()
             edition = PaperEdition(

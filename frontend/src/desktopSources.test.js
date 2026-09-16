@@ -5,7 +5,7 @@ import {
   resolveSource, sourcePath,
 } from './desktopSources.js';
 
-const reader = { uuid: 1 };
+const user = { uuid: 1 };
 
 test('writes each source as the address the sidebar links to', () => {
   assert.equal(sourcePath('all'), '/');
@@ -26,24 +26,24 @@ test('a paper imported from the library opens in the all-papers nook', () => {
 });
 
 test('reads the source back from the address', () => {
-  assert.equal(resolveSource({ page: 'home' }, reader, { search: '?source=tag:7' }), 'tag:7');
-  assert.equal(resolveSource({ page: 'home' }, reader), 'all');
-  assert.equal(resolveSource({ page: 'papers' }, reader), 'library');
-  assert.equal(resolveSource({ page: 'space', uuid: 1, section: 'boards' }, reader), 'boards');
+  assert.equal(resolveSource({ page: 'home' }, user, { search: '?source=tag:7' }), 'tag:7');
+  assert.equal(resolveSource({ page: 'home' }, user), 'all');
+  assert.equal(resolveSource({ page: 'papers' }, user), 'library');
+  assert.equal(resolveSource({ page: 'space', uuid: 1, section: 'boards' }, user), 'boards');
 });
 
 test('a paper keeps the list it was picked from', () => {
-  assert.equal(resolveSource({ page: 'paper', uuid: '10.1/x' }, reader, { lastShown: 'shelf:2' }), 'shelf:2');
-  assert.equal(resolveSource({ page: 'paper', uuid: '10.1/x' }, reader), 'all');
+  assert.equal(resolveSource({ page: 'paper', uuid: '10.1/x' }, user, { lastShown: 'shelf:2' }), 'shelf:2');
+  assert.equal(resolveSource({ page: 'paper', uuid: '10.1/x' }, user), 'all');
 });
 
-test('the browser stands in for the nook, the library and papers, for signed-in readers only', () => {
-  assert.equal(isBrowsing({ page: 'home' }, reader), true);
-  assert.equal(isBrowsing({ page: 'paper' }, reader), true);
-  assert.equal(isBrowsing({ page: 'papers' }, reader), true);
-  assert.equal(isBrowsing({ page: 'space', uuid: 1 }, reader), true);
-  assert.equal(isBrowsing({ page: 'space', uuid: 2 }, reader), false);
-  assert.equal(isBrowsing({ page: 'inbox' }, reader), false);
+test('the browser stands in for the nook, the library and papers, for signed-in users only', () => {
+  assert.equal(isBrowsing({ page: 'home' }, user), true);
+  assert.equal(isBrowsing({ page: 'paper' }, user), true);
+  assert.equal(isBrowsing({ page: 'papers' }, user), true);
+  assert.equal(isBrowsing({ page: 'space', uuid: 1 }, user), true);
+  assert.equal(isBrowsing({ page: 'space', uuid: 2 }, user), false);
+  assert.equal(isBrowsing({ page: 'inbox' }, user), false);
   assert.equal(isBrowsing({ page: 'paper' }, null), false);
 });
 

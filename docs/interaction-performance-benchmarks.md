@@ -2,7 +2,7 @@
 
 Performance work on an interaction needs two kinds of evidence: a small,
 deterministic benchmark for the operation being changed and a browser benchmark
-for what the reader actually sees. A faster helper does not by itself prove a
+for what the user actually sees. A faster helper does not by itself prove a
 smoother frame sequence.
 
 ## PDF pinch zoom

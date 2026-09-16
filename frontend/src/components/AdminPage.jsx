@@ -56,7 +56,7 @@ function AdminMessagePanel() {
     const userUuids = audience === 'all' ? null : [...selected];
     const audienceDescription = audience === 'all'
       ? 'every current Papol user'
-      : `${selected.size} selected ${selected.size === 1 ? 'reader' : 'readers'}`;
+      : `${selected.size} selected ${selected.size === 1 ? 'user' : 'users'}`;
     if (!(await confirmAction(
       `Send this message to ${audienceDescription}?`,
       { confirmLabel: audience === 'all' ? 'Send to everyone' : 'Send to selected users' },
@@ -70,7 +70,7 @@ function AdminMessagePanel() {
       setContent('');
       if (audience === 'selected') setSelected(new Set());
       setNotice(
-        `Message sent to ${result.recipient_count} ${result.recipient_count === 1 ? 'reader' : 'readers'}.`,
+        `Message sent to ${result.recipient_count} ${result.recipient_count === 1 ? 'user' : 'users'}.`,
       );
     } catch (failure) {
       setError(failure.message);
@@ -83,7 +83,7 @@ function AdminMessagePanel() {
     <form className="admin-message-compose" onSubmit={send}>
       <p className="panel-note">
         This appears when each recipient next opens Papol. Once dismissed, it
-        will not appear to that reader again.
+        will not appear to that user again.
       </p>
       <fieldset className="admin-message-audience">
         <legend className="form-label">Recipients</legend>
@@ -103,7 +103,7 @@ function AdminMessagePanel() {
             checked={audience === 'selected'}
             onChange={() => setAudience('selected')}
           />
-          <span>Selected users <small>Choose one or more readers</small></span>
+          <span>Selected users <small>Choose one or more users</small></span>
         </label>
       </fieldset>
       {audience === 'selected' && (
@@ -120,7 +120,7 @@ function AdminMessagePanel() {
             {selected.size} selected
           </p>
           {loadingRecipients ? (
-            <p className="panel-note" role="status">Loading readers…</p>
+            <p className="panel-note" role="status">Loading users…</p>
           ) : (
             <ul className="admin-recipient-list">
               {shownRecipients.map((recipient) => (
@@ -153,7 +153,7 @@ function AdminMessagePanel() {
           maxLength={appLimits.text.admin_message}
           value={content}
           onChange={(event) => setContent(event.target.value)}
-          placeholder="Write a message to Papol readers…"
+          placeholder="Write a message to Papol users…"
         />
       </div>
       {error && <div className="error" role="alert">{error}</div>}
@@ -318,7 +318,7 @@ function FeedbackPanel() {
               </p>
               <p className="feedback-content">{fb.content}</p>
               <button className="link-btn" onClick={() => toggle(fb)}>
-                {fb.resolved ? 'Reopen' : 'Mark done'}
+                {fb.resolved ? 'Reopen' : 'Annotation done'}
               </button>
             </li>
           ))}
@@ -332,7 +332,7 @@ const readFeatureStates = () => Object.fromEntries(
   FEATURE_STATES.map((state) => [state.key, isFeatureStateSet(state)])
 );
 
-// Lessons Papol has shown and choices the reader made, as this browser
+// Lessons Papol has shown and choices the user made, as this browser
 // remembers them (shared/featureStates.js), each on a switch.
 function FeatureStatesPanel() {
   const [states, setStates] = useState(readFeatureStates);
@@ -492,7 +492,7 @@ export default function AdminPage() {
   return (
     <div className="admin-page">
       <div className="panel">
-        <h2 className="panel-title">Message readers</h2>
+        <h2 className="panel-title">Message users</h2>
         <AdminMessagePanel />
       </div>
 

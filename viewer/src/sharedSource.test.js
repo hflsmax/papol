@@ -10,7 +10,7 @@ const reading = {
   uuid: SHARE,
   kind: 'rich',
   created_at: '2026-09-01T10:00:00',
-  reader: { uuid: '33333333-3333-4333-8333-333333333333', display_name: 'Ada Lovelace' },
+  user: { uuid: '33333333-3333-4333-8333-333333333333', display_name: 'Ada Lovelace' },
   paper: {
     uuid: PAPER,
     doi: '10.1234/shared',
@@ -34,7 +34,7 @@ const reading = {
 
 const values = new Map();
 const asked = [];
-// What the service says about this reader's own nook. `null` is "you have
+// What the service says about this user's own nook. `null` is "you have
 // not got it"; 'explode' stands in for the lookup failing outright.
 let inNook = { paper_uuid: PAPER, edition_sha256: HASH };
 
@@ -98,14 +98,14 @@ test('a share link opens without a hash in the URL, and without a sign-in', () =
   const source = resolveSource();
 
   assert.equal(source.requiresSignIn, false);
-  // Their marks are theirs. The writing half of the annotation interface is
+  // Their annotations are theirs. The writing half of the annotation interface is
   // simply absent, so there is nothing for the viewer to call even by
   // mistake.
   assert.equal(source.readOnly, true);
   assert.equal(source.annotations.create, undefined);
   assert.equal(source.annotations.update, undefined);
   assert.equal(source.annotations.remove, undefined);
-  // A visitor's own marks are a different matter: the tools are offered,
+  // A visitor's own annotations are a different matter: the tools are offered,
   // and reaching for one asks for the paper to be theirs first.
   assert.equal(source.annotationsRequireNook, true);
 });
@@ -128,7 +128,7 @@ test('a visitor with no account is never asked about a nook they have not', asyn
   assert.deepEqual(asked, []);
 });
 
-test('a signed-in reader is told where their own copy is', async () => {
+test('a signed-in user is told where their own copy is', async () => {
   await signedInAs('a-session-token');
   try {
     const source = resolveSource();
@@ -143,7 +143,7 @@ test('a signed-in reader is told where their own copy is', async () => {
   }
 });
 
-test('a signed-in reader who has not got the paper is offered it', async () => {
+test('a signed-in user who has not got the paper is offered it', async () => {
   await signedInAs('a-session-token');
   inNook = null;
   try {
@@ -180,7 +180,7 @@ test('a nook lookup that fails leaves the paper on offer', async () => {
   const previous = inNook;
   inNook = 'explode';
   try {
-    // Not knowing is the same as not having it. The reader is offered the
+    // Not knowing is the same as not having it. The user is offered the
     // paper, and adding says so plainly if it turns out to be there already.
     assert.equal(await resolveSource().loadNookPaper(), null);
   } finally {
@@ -189,7 +189,7 @@ test('a nook lookup that fails leaves the paper on offer', async () => {
   }
 });
 
-test('a shared reading carries the paper, the reader, and their marks', async () => {
+test('a shared reading carries the paper, the user, and their annotations', async () => {
   const source = resolveSource();
   const { doc, notes } = await source.load();
 
@@ -236,14 +236,14 @@ test('a shared reading reads its bibliography on the authority of the link', asy
   assert.equal(url.searchParams.get('edition_uuid'), EDITION);
 });
 
-test('a lean link carries the paper and none of the reader\u2019s marks', async () => {
+test('a lean link carries the paper and none of the user\u2019s annotations', async () => {
   const rich = { ...reading };
-  Object.assign(reading, { kind: 'lean', reader: null, annotations: [] });
+  Object.assign(reading, { kind: 'lean', user: null, annotations: [] });
   try {
     const source = resolveSource();
     const { doc, notes } = await source.load();
 
-    // A lean link is nobody's: it names no reader, so the viewer has none
+    // A lean link is nobody's: it names no user, so the viewer has none
     // to show and says the paper was shared rather than whose reading it is.
     assert.equal(doc.shared_kind, 'lean');
     assert.equal(doc.shared_by, null);

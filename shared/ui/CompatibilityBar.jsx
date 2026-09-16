@@ -9,7 +9,7 @@ import { exportNativeRecovery } from '../nativeData.js';
 const DEFAULT_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 
 // Shown in every window, because synchronization is process-wide and a
-// reader who is told this in the library must not find the viewer carrying
+// user who is told this in the library must not find the viewer carrying
 // on as though nothing had happened.
 //
 // An incompatible build keeps working on everything already on this

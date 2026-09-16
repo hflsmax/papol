@@ -1,5 +1,5 @@
 // How the host intends to run the seminar. Keys mirror the backend's
-// SEMINAR_STYLES; labels and descriptions are what readers see.
+// SEMINAR_STYLES; labels and descriptions are what users see.
 export const SEMINAR_STYLES = [
   {
     key: 'walkthrough',

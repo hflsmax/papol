@@ -73,7 +73,7 @@ test('a development address is still a document', () => {
   assert.equal(handoffDocument('http://127.0.0.1:5173/viewer/?pdf=abc').kind, 'paper');
 });
 
-test('the handed-over address mirrors the one the reader is at', () => {
+test('the handed-over address mirrors the one the user is at', () => {
   assert.equal(handoffAddress(VIEWER), 'papol://mc-pony.com/papol/viewer/?pdf=abc123');
 });
 
@@ -127,7 +127,7 @@ test('a board is named as a board in the offer', () => {
   assert.equal(offer.label, 'Open this board in Papol');
 });
 
-// US-7.30: the offer is not something a reader has to earn by having used it
+// US-7.30: the offer is not something a user has to earn by having used it
 // before. There is no "have they handed off previously" input at all.
 test('a browser that has never handed anything off is still offered', () => {
   const empty = store();
@@ -270,7 +270,7 @@ test('a visibility change that is not a departure is not an answer', async () =>
   assert.equal(await settled, 'unknown');
 });
 
-// US-7.34: silence is not a verdict about the reader's computer, it is only
+// US-7.34: silence is not a verdict about the user's computer, it is only
 // the absence of evidence — which is why this resolves 'unknown', not 'no'.
 test('nothing happening within the window is reported as unknown, not as absence', async () => {
   const win = fakeWindow();
@@ -315,7 +315,7 @@ test('a browser that refuses the address at all is an unknown, not a crash', asy
 // US-7.34. A browser asked for a scheme it does not know may answer with a
 // panel attached to this window: the page keeps its pixels and loses its
 // focus, which is exactly what an application arriving looks like. Reading
-// that as success is a reader with no Papol getting an error they did not
+// that as success is a user with no Papol getting an error they did not
 // ask for and losing the download offer that was the point of asking.
 test('focus taken by something dismissable, and given back, is not a handoff', async () => {
   const win = fakeWindow();
