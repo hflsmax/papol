@@ -101,6 +101,35 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.20** **A link of mine is a state of the paper, shown on its page**, so nothing I do can leave one serving that I have forgotten about. The PDF's own link is never shown there and never counted against me: I am not told whether one exists, because nothing of mine is in it.
 - **US-7.21** While a link **of mine** is out, Papol will not move my copy to another edition: it opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. The PDF's own link is no obstacle — it says "here is this PDF", which stays true wherever I move.
 
+## Future direction: a paper is not owned
+
+Not built. Recorded here because sharing is what raised it, and the answer
+reaches further than sharing does.
+
+- **A PDF and its editions are global assets.** Nobody owns them and no reader
+  can manipulate them. An edition is a file that exists, keyed to a paper, and
+  leaving a paper never takes it away (US-2.9). What a reader owns is their
+  **copy**: the shelf it sits on, their ratings, their summary, their marks.
+- **Display therefore governs an entry, not a paper.** "On display" (US-2.5)
+  says whether *my* entry is shown to other readers. It should not decide
+  whether the paper itself can be found, because the paper is not mine to
+  hide.
+- **Every paper should appear in the Library.** Today a paper is reachable
+  only while some reader displays a copy of it: `page_is_public` asks whether
+  any copy is on display, and that answer gates the paper's own page, the
+  Papers tab, and whether a shared link carries a way back to the paper page.
+  A paper nobody displays is not private — it is unattended, and it should
+  still be findable.
+- **What this settles.** Taking a shared paper into a nook can look today as
+  though it *makes public* a paper nobody was displaying, since the reader's
+  default shelf is usually a displayed one. Under this direction the question
+  dissolves: the paper was in the Library all along, and what the reader gains
+  is a copy of their own. What stays private is what was always private — each
+  reader's summary, notes, paint and clips, displayed or not.
+- **What it revises.** The second half of US-2.9 — "a paper with no readers is
+  simply absent from the Library until someone adds it again" — and the
+  display-gating of browsing in §3.
+
 ## Non-functional
 
 - **US-8.1** Minimalist, academic visual style: serif typography, restrained palette, generous whitespace, no decorative chrome.
