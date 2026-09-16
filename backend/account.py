@@ -34,7 +34,6 @@ from models import (
     Copy,
     Notification,
     Paper,
-    PaperEdition,
     Room,
     RoomAvailability,
     RoomMessage,
@@ -125,9 +124,9 @@ def gather(db: Session, user: User) -> dict:
         .all()
     )
     uploads = (
-        db.query(PaperEdition)
-        .filter(PaperEdition.uploaded_by == user.uuid)
-        .order_by(PaperEdition.created_at)
+        db.query(Paper)
+        .filter(Paper.uploaded_by == user.uuid)
+        .order_by(Paper.created_at)
         .all()
     )
     ink = (
@@ -187,8 +186,7 @@ def gather(db: Session, user: User) -> dict:
         "ink": [
             {
                 "uuid": i.uuid,
-                "paper": _paper_ref(i.edition.paper) if i.edition and i.edition.paper else None,
-                "edition_uuid": i.edition.uuid if i.edition else None,
+                "paper": _paper_ref(i.paper) if i.paper else None,
                 "page": i.page,
                 # Fractions of the page, y from the bottom — the same
                 # coordinates a note's anchor uses.
@@ -220,11 +218,11 @@ def gather(db: Session, user: User) -> dict:
         ],
         "pdfs_i_uploaded": [
             {
-                "paper": _paper_ref(e.paper) if e.paper else None,
-                "file": e.file_path,
-                "uploaded": _when(e.created_at),
+                "paper": _paper_ref(paper),
+                "file": paper.file_path,
+                "uploaded": _when(paper.created_at),
             }
-            for e in uploads
+            for paper in uploads
         ],
         "boards": [
             {
@@ -377,16 +375,12 @@ def write_zip(
             )
         zf.writestr(f"{root}/notes.md", _notes_markdown(data))
 
-        # One PDF per paper in the nook: the edition this user actually
-        # reads, which is not always the newest one.
+        # One PDF per paper in the nook.
         seen: set = set()
         for copy in copies:
-            edition = copy.edition
-            if edition is None and copy.paper is not None and copy.paper.editions:
-                edition = copy.paper.editions[-1]
-            if edition is None or copy.paper is None:
+            if copy.paper is None or not copy.paper.file_path:
                 continue
-            source = uploads_dir / edition.file_path
+            source = uploads_dir / copy.paper.file_path
             if not source.exists():
                 continue
             name = _slug(copy.paper.title)
@@ -598,7 +592,7 @@ def tombstone(
         db.query(RoomMessage).filter(RoomMessage.user_uuid == user_uuid).count()
     )
     removed["pdfs_kept"] = (
-        db.query(PaperEdition).filter(PaperEdition.uploaded_by == user_uuid).count()
+        db.query(Paper).filter(Paper.uploaded_by == user_uuid).count()
     )
 
     avatar = user.avatar_path

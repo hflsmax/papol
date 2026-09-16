@@ -7,10 +7,8 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() {
     let arguments: Vec<String> = std::env::args().collect();
-    if arguments.len() != 7 {
-        eprintln!(
-            "usage: native_sync_harness DATABASE BACKEND TOKEN ACCOUNT_ID PAPER_ID EDITION_ID"
-        );
+    if arguments.len() != 6 {
+        eprintln!("usage: native_sync_harness DATABASE BACKEND TOKEN ACCOUNT_ID PAPER_ID");
         std::process::exit(2);
     }
     let database = &arguments[1];
@@ -18,7 +16,6 @@ async fn main() {
     let token = &arguments[3];
     let account_uuid = arguments[4].as_str();
     let paper_uuid = &arguments[5];
-    let edition_uuid = &arguments[6];
     let board_uuid = Uuid::new_v4().to_string();
     let item_uuid = Uuid::new_v4().to_string();
     let clip_uuid = Uuid::new_v4().to_string();
@@ -93,7 +90,6 @@ async fn main() {
     let ink_uuid = Uuid::new_v4().to_string();
     let paper_clip_uuid = Uuid::new_v4().to_string();
     let imported_paper_uuid = Uuid::new_v4().to_string();
-    let imported_edition_uuid = Uuid::new_v4().to_string();
     let imported_copy_uuid = Uuid::new_v4().to_string();
     seeded
         .mutate(
@@ -105,7 +101,6 @@ async fn main() {
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("paper_uuid".into(), json!(paper_uuid)),
-                        ("edition_uuid".into(), json!(edition_uuid)),
                         ("content".into(), json!("Native offline note")),
                         ("page".into(), json!(1)),
                         ("anchor_type".into(), json!("point")),
@@ -117,7 +112,7 @@ async fn main() {
                     uuid: ink_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("edition_uuid".into(), json!(edition_uuid)),
+                        ("paper_uuid".into(), json!(paper_uuid)),
                         ("page".into(), json!(1)),
                         (
                             "points".into(),
@@ -134,7 +129,7 @@ async fn main() {
                     uuid: paper_clip_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("edition_uuid".into(), json!(edition_uuid)),
+                        ("paper_uuid".into(), json!(paper_uuid)),
                         ("page".into(), json!(1)),
                         (
                             "source".into(),
@@ -167,14 +162,6 @@ async fn main() {
                     values: Map::from_iter([
                         ("title".into(), json!("Native imported PDF")),
                         ("doi".into(), Value::Null),
-                    ]),
-                },
-                DataChange {
-                    table: "paper_editions".into(),
-                    uuid: imported_edition_uuid.clone(),
-                    operation: "upsert".into(),
-                    values: Map::from_iter([
-                        ("paper_uuid".into(), json!(imported_paper_uuid)),
                         ("file_path".into(), json!(format!("{}.pdf", pdf.sha256))),
                         ("sha256".into(), json!(pdf.sha256)),
                     ]),
@@ -185,8 +172,6 @@ async fn main() {
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("paper_uuid".into(), json!(imported_paper_uuid)),
-                        ("edition_uuid".into(), json!(imported_edition_uuid)),
-                        ("edition_sha256".into(), json!(pdf.sha256)),
                         ("summary".into(), json!("Imported entirely offline")),
                     ]),
                 },
@@ -222,7 +207,6 @@ async fn main() {
             "ink_uuid": ink_uuid,
             "paper_clip_uuid": paper_clip_uuid,
             "imported_paper_uuid": imported_paper_uuid,
-            "imported_edition_uuid": imported_edition_uuid,
             "imported_pdf_sha256": pdf.sha256,
             "offline_import": offline_import,
             "before": before,

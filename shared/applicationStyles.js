@@ -364,52 +364,6 @@ input[type='checkbox'] {
   .learn-player { border: 0; border-radius: 0; }
 }
 
-/* The offer of a newer PDF: informational, never alarming, and never
-   acted on without the user. */
-.edition-notice {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  margin: 0 0 18px;
-  padding: 12px 14px;
-  border: 1px solid var(--accent-line);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-lg);
-  background: var(--accent-soft);
-}
-
-.edition-notice-icon {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--ink-inverse);
-  font-size: var(--fs-sm);
-  font-style: italic;
-  font-weight: 600;
-  line-height: 20px;
-  text-align: center;
-}
-
-.edition-notice-head {
-  margin: 0;
-  color: var(--ink);
-}
-
-.edition-notice-actions {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.edition-notice-warn {
-  margin: 4px 0 6px;
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-}
-
 .feedback-list {
   list-style: none;
   padding: 0;

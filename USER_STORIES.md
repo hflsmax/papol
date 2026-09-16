@@ -10,8 +10,8 @@ currently doing one job.
 - **Users** — the members of Papol; the Library lists every user alongside the papers they show.
 - **On display** — whether my copy of a paper, and my name with it, is shown to other users. It is the shelf that says so, and it says nothing about the paper: every paper is in the Library whoever displays it. A copy not on display is mine alone.
 - **Located note** — a private note with a place in the PDF attached. Not a separate kind of thing: the same note, pinned.
-- **Edition** — one PDF file of a paper. A paper may have several; each user's copy is pinned to the one they read, and only they can move it.
-- **Sharable** — a link that opens a PDF in the viewer for whoever holds it, signed in or not: the UUID in the link is the whole of the permission. A **rich** link carries one user's reading — their annotations on that edition — and is theirs. A **lean** link carries the PDF alone, is one per edition, and is nobody's.
+- **Paper** — one PDF and what is known about it. The PDF's content hash is the paper's identity: two files of the same work are two papers, even when they print the same DOI.
+- **Sharable** — a link that opens a PDF in the viewer for whoever holds it, signed in or not: the UUID in the link is the whole of the permission. A **rich** link carries one user's reading — their annotations on that paper — and is theirs. A **lean** link carries the PDF alone, is one per paper, and is nobody's.
 - **Papol for Mac** — the native macOS application. It carries the same three surfaces (library, viewer, boards) and reads the same account, so a paper open in a browser and the same paper open in the app are one paper, not a copy.
 - **Handoff** — moving what I am reading right now from the browser into Papol for Mac: the same document, at the same place, in the app instead of the tab.
 - **Call** — requesting a spontaneous seminar on a paper; it notifies every user of that paper.
@@ -35,18 +35,17 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-2.1** As a user, I can upload a PDF into my own nook; metadata (DOI, title, authors, journal, year) is auto-extracted for me to review and edit.
 - **US-2.2** As a user, I can rate each paper 1–5 on three dimensions — **My expertise**, **Reading depth**, **Merit** — directly on the paper page, one click per change. Each dimension is optional: a set rating shows a small "clear" control; an unset one reads "unrated". Visitors see unrated dimensions as a quiet "unrated".
 - **US-2.3** As a user, only I can delete papers in my nook (via Edit Metadata → Delete paper) and edit my personal fields: summary, ratings, display. Deleting takes my copy and my notes; my ink and clips stay where they are, for when I add the paper again.
-- **US-2.4** **Metadata is shared and keyed by DOI**: any user can Edit Metadata on any visible paper, and the change applies to every entry with that DOI. The edit form warns about this. "Edit Metadata" and "Edit Summary" are separate buttons — summary belongs to the copy, so only its own user may edit it.
+- **US-2.4** **Metadata is shared**: any user can Edit Metadata on any visible paper, and the change applies to every copy of it. The edit form warns about this. "Edit Metadata" and "Edit Summary" are separate buttons — summary belongs to the copy, so only its own user may edit it.
 - **US-2.5** As a user, I choose whether my copy is **on display**, by the shelf I keep it on. A displayed copy shows me standing against the paper — to nook visitors, in the Library, and in "also read by". A copy not on display is mine alone: nobody is told I have it. Summaries and private notes are mine either way.
 - **US-2.6** As a user, I can keep private, timestamped notes on my own papers; no one else can read or write them.
-- **US-2.7** A paper's PDF is versioned into **editions**, and my copy is pinned to one of them. Uploading a PDF for a paper that already has one adds an edition — it never replaces the file anyone else is reading. An upload byte-identical to an existing edition reuses it instead of adding a duplicate.
-- **US-2.8** When a newer edition exists, my paper page shows an **info sign** naming who added it and when, and offers to move my copy. It warns that located notes were placed on my edition and may not line up on a different PDF. Nothing but my own click ever moves my copy, and Papol never realigns notes for me — adopting is my risk to take.
+- **US-2.7** **A paper is its PDF.** The file's content hash is the paper's identity, so uploading a PDF Papol already holds adds me to that paper rather than making a second one, and uploading a different PDF makes a paper of its own — even when it prints a DOI Papol has already seen. Nothing ever replaces the file under anyone's notes, because nothing can: a different file is a different paper.
 
 ## 2b. A paper is not owned
 
-- **US-2.10** **A paper and its editions belong to nobody.** An edition is a
-  file that exists, keyed to a paper; no user can alter or remove one, and
-  leaving a paper never takes it away. What a user owns is their **copy**: the
-  shelf it sits on, their ratings, their summary, their annotations.
+- **US-2.10** **A paper belongs to nobody.** A paper is a file that exists; no
+  user can alter or remove one, and leaving a paper never takes it away. What a
+  user owns is their **copy**: the shelf it sits on, their ratings, their
+  summary, their annotations.
 - **US-2.11** **Display governs a copy, not a paper.** Putting a copy on
   display (US-2.5) says whether *I* am shown standing against the paper. Every
   paper is in the Library whoever displays it, and anyone signed in can open
@@ -96,7 +95,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.1** As a user, I can open any paper in my nook in Papol's **PDF viewer** — a separate app served at `/viewer`, on the same origin, so my session carries over with no second sign-in.
 - **US-7.2** As a user, I can take a **located note**: choose *Add a note*, click the spot on the page it belongs to, and write it. A located note **is** one of my notes — the same private notes that live on the paper page, with a place in the PDF attached. There is one list, not two.
 - **US-7.3** A note's location is **typed**. Today the type is `point`, stored as fractions of the page in PDF user space, so a note lands in the same place at any zoom, on any screen. `rect`, `polygon` and `quote` join later without a migration and without disturbing existing notes.
-- **US-7.4** My notes are listed in a rail beside the page — all of them, whether or not they have a place; the ones that do show their page, carry a pin, and scroll there when clicked. A note taken on a different edition is marked as such, and never moved for me.
+- **US-7.4** My notes are listed in a rail beside the page — all of them, whether or not they have a place; the ones that do show their page, carry a pin, and scroll there when clicked.
 - **US-7.5** On the paper page, a note that has a place shows a **page** chip that opens the viewer at that note. A note taken there and a note typed on the paper page are the same kind of thing, in the same list.
 
 ## 7b. Following a citation
@@ -105,7 +104,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.7** The card offers what can be done with the work: a free PDF where one exists, the publisher's page, and a Scholar search. When the cited paper is **already in Papol**, that link comes first — a citation is how a user finds the next paper in their nook, and the next seminar.
 - **US-7.8** A reference Papol cannot match is not hidden: the card shows the line exactly as the author printed it, with a way to go and search for it. A thin answer beats a blank one.
 - **US-7.9** Clickable citations come from the PDF where the PDF has them — papers built with LaTeX carry a link on every marker, and the author's own link is better than any analysis. Where they are absent, the analyzer's reading of the page is used, and a marker matched only by counting its number is marked as the guess it is.
-- **US-7.10** Reading a paper's bibliography happens once per **edition** and is kept, so only the first user of a PDF waits. Looking up a particular reference happens the first time someone opens it, and is kept too.
+- **US-7.10** Reading a paper's bibliography happens once per **paper** and is kept, so only the first user of a PDF waits. Looking up a particular reference happens the first time someone opens it, and is kept too.
 - **US-7.11** As a user, the paper's **other links work too**: "see Section 3.2" and "Figure 4" scroll me there, and a URL opens in a new tab. Following a cross-reference offers **← Back to where you were**, because a jump that loses my place is worse than no link at all.
 - **US-7.12** The analyzer is optional. Where it is not running, everything else in Papol works exactly as before and citations are simply not clickable.
 
@@ -113,13 +112,12 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 
 - **US-7.13** As a user, I can hand someone a **link to the PDF I am reading**, from the Share menu on the paper page. It opens the PDF in Papol's viewer, read-only, for anyone holding it — no account, no sign-in.
 - **US-7.14** One tick box decides **what the link carries, and therefore whose it is**. Left alone, I get the PDF's own link: the same link for everyone, carrying the paper and naming nobody — I copy it and pass it on, and that is the end of my part in it. Ticked, Papol makes **my** link, carrying my notes, paint and clips.
-- **US-7.15** A link is one or the other for its whole life. I have **one link of my own per edition I read** — asking again gives it back rather than making a second — and the PDF's own link is beside it, not instead of it: having handed over one is never a reason to be refused the other.
+- **US-7.15** A link is one or the other for its whole life. I have **one link of my own per paper I read** — asking again gives it back rather than making a second — and the PDF's own link is beside it, not instead of it: having handed over one is never a reason to be refused the other.
 - **US-7.16** What a visitor sees through my link is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding it. They see the PDF, my name, my annotations, and the paper's bibliography — and nothing else in my nook. The way out is the **home button**, which leads to Papol itself and names no paper: a link hands over a reading, not a place in the Library. Through the PDF's own link they see the paper and no user at all.
 - **US-7.17** **Sharing is not displaying.** A shelf says who can find the paper in the Library; a link says who may read this PDF. I can share a paper nobody else can find, and moving it between a public and a private shelf never changes a link I have already handed out.
 - **US-7.18** If I **take the paper out of my nook**, my link keeps opening the PDF but stops carrying the reading — permanently, so putting the paper back does not quietly re-expose my annotations — and stops being mine along with them.
 - **US-7.19** **Stopping** asks what I mean: *drop my annotations*, which leaves the link working for whoever has it and hands it out of my keeping for good, or *revoke the link*, which stops it opening. Revoking is final — sharing again mints a new link, and the old one stays dead. Whoever follows a revoked link is told it is no longer shared, not that it never existed.
 - **US-7.20** **A link of mine is a state of the paper, shown on its page**, so nothing I do can leave one serving that I have forgotten about. The PDF's own link is never shown there and never counted against me: I am not told whether one exists, because nothing of mine is in it.
-- **US-7.21** While a link **of mine** is out, Papol will not move my copy to another edition: it opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. The PDF's own link is no obstacle — it says "here is this PDF", which stays true wherever I move.
 
 ## 7d. Handing a reading to Papol for Mac
 

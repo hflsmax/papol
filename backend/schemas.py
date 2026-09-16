@@ -168,7 +168,6 @@ class AnnotationCreate(BaseModel):
     the shared fields mean anything: ink and clips are always on a page of a
     PDF, while a note may be about the paper and placed nowhere."""
     kind: Literal["note", "ink", "clip"]
-    edition_uuid: Optional[str] = Field(default=None, max_length=36)
     page: Optional[int] = Field(default=None, ge=1)
     group_uuid: Optional[str] = Field(default=None, max_length=36)
     content: str = Field(default="", max_length=limit("text", "comment"))
@@ -209,7 +208,6 @@ class AnnotationUpdate(BaseModel):
 class AnnotationOut(BaseModel):
     uuid: str
     kind: Literal["note", "ink", "clip"]
-    edition_uuid: Optional[str] = None
     page: Optional[int] = None
     group_uuid: Optional[str] = None
     content: str = ""
@@ -525,11 +523,6 @@ class PaperCreate(PaperBase):
     shelf_uuid: Optional[str] = None
 
 
-class EditionAdopt(BaseModel):
-    # Which edition to move the viewer's copy to; the latest by default.
-    edition_uuid: Optional[str] = None
-
-
 class PaperUpdate(BaseModel):
     # Shared metadata (any user; applies to the one canonical paper)
     doi: Optional[str] = None
@@ -668,13 +661,13 @@ class DocumentLinkOut(BaseModel):
     target_y: float
 
 
-class EditionReferences(BaseModel):
-    """The state of one edition's reference analysis.
+class PaperReferences(BaseModel):
+    """The state of one paper's reference analysis.
 
     `status` is what the viewer acts on: `pending` means come back shortly,
     `unavailable` means this Papol has no analyzer and the feature is
     simply off."""
-    edition_uuid: str
+    paper_uuid: str
     status: str  # pending | ready | failed | unavailable
     detail: Optional[str] = None
     references: List[ReferenceOut] = []
@@ -682,22 +675,11 @@ class EditionReferences(BaseModel):
     links: List[DocumentLinkOut] = []
 
 
-class PaperEditionOut(BaseModel):
-    uuid: str
-    file_path: str
-    sha256: Optional[str] = None
-    created_at: datetime
-    uploader: Optional[UserBase] = None
-
-    class Config:
-        from_attributes = True
-
-
 class PaperList(PaperBase):
     uuid: str
-    # The file the viewer's own copy reads, falling back to the latest
-    # edition for a paper they do not have.
     file_path: str
+    # The content hash of that file, which is what names it in a viewer URL.
+    sha256: Optional[str] = None
     created_at: datetime
     # Personal fields of the nook being viewed (None in the global list)
     summary: Optional[str] = None
@@ -709,8 +691,6 @@ class PaperList(PaperBase):
     rating_liking: Optional[int] = None
     room_status: Optional[str] = None
     users: List[UserEntry] = []
-    edition_uuid: Optional[str] = None
-    edition_sha256: Optional[str] = None
     tags: List[TagOut] = []
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
@@ -723,6 +703,9 @@ class Paper(PaperBase):
     """Paper detail, merged with the viewer's own copy when they have one."""
     uuid: str
     file_path: str
+    # The content hash of that file, which is what names it in a viewer URL.
+    sha256: Optional[str] = None
+    uploader: Optional[UserBase] = None
     created_at: datetime
     summary: Optional[str] = None
     thought: Optional[str] = None
@@ -736,12 +719,6 @@ class Paper(PaperBase):
     rooms: List[RoomSummary] = []  # this paper's seminar rooms, newest first
     viewer_has_copy: bool = False  # viewer has a displayed copy
     viewer_has_entry: bool = False  # viewer has any copy
-    # Editions: which one the viewer reads, and whether a newer one waits.
-    edition_uuid: Optional[str] = None
-    edition_sha256: Optional[str] = None
-    ignored_edition_uuid: Optional[str] = None
-    editions: List[PaperEditionOut] = []
-    latest_edition: Optional[PaperEditionOut] = None
     tags: List[TagOut] = []
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
@@ -773,7 +750,6 @@ class SharableOut(BaseModel):
     uuid: str
     kind: Literal["rich", "lean"]
     paper_uuid: str
-    edition_uuid: str
     created_at: datetime
 
     class Config:
@@ -789,12 +765,11 @@ class SharedPaper(PaperBase):
     of a shared reading is the home button, which goes to Papol itself and
     names no paper."""
     file_path: str
-    edition_uuid: str
-    edition_sha256: Optional[str] = None
+    sha256: Optional[str] = None
 
 
 class SharedReading(BaseModel):
-    """What a link opens: a user's reading of one edition, or — when the
+    """What a link opens: a user's reading of one paper, or — when the
     link is lean, or the reading has left their nook — the paper alone.
 
     `user` comes with a reading and only with one. The paper alone is
@@ -816,7 +791,7 @@ class SharedInNook(BaseModel):
     Enough to walk them over to their own copy and no more: the link opened
     a PDF, and what they want next is that PDF as theirs."""
     paper_uuid: str
-    edition_sha256: Optional[str] = None
+    sha256: Optional[str] = None
 
 
 class NookStats(BaseModel):

@@ -14,11 +14,13 @@ import tempfile
 import unittest
 import uuid
 
-# The schema as it stood before notes, ink and clips were unified and before
-# visibility moved onto the shelf. Trimmed to the tables these tests touch.
+# The schema as it stood before notes, ink and clips were unified, before
+# visibility moved onto the shelf, and while a paper could have several
+# editions. Trimmed to the tables these tests touch.
 PREVIOUS_RELEASE = """
 CREATE TABLE papers (
-  uuid TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL,
+  uuid TEXT PRIMARY KEY NOT NULL, doi TEXT, title TEXT NOT NULL,
+  authors TEXT, journal TEXT, year INTEGER,
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
 );
@@ -66,6 +68,29 @@ CREATE TABLE paper_clips (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 0, deleted_at TEXT
 );
+CREATE TABLE sharables (
+  uuid TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL DEFAULT 'lean',
+  user_uuid TEXT, paper_uuid TEXT NOT NULL, edition_uuid TEXT NOT NULL,
+  created_at TEXT NOT NULL, revoked_at TEXT
+);
+CREATE TABLE edition_references (
+  uuid TEXT PRIMARY KEY NOT NULL, edition_uuid TEXT NOT NULL,
+  key TEXT NOT NULL, "index" INTEGER NOT NULL, raw TEXT, title TEXT,
+  authors TEXT, year INTEGER, journal TEXT, doi TEXT, arxiv_id TEXT,
+  page INTEGER, y REAL, resolved_status TEXT, resolved_at TEXT, resolution TEXT
+);
+CREATE TABLE edition_citations (
+  uuid TEXT PRIMARY KEY NOT NULL, edition_uuid TEXT NOT NULL,
+  reference_uuid TEXT, label TEXT, page INTEGER NOT NULL,
+  x REAL NOT NULL, y REAL NOT NULL, w REAL NOT NULL, h REAL NOT NULL,
+  inferred INTEGER DEFAULT 0
+);
+CREATE TABLE edition_links (
+  uuid TEXT PRIMARY KEY NOT NULL, edition_uuid TEXT NOT NULL, kind TEXT NOT NULL,
+  label TEXT, page INTEGER NOT NULL, x REAL NOT NULL, y REAL NOT NULL,
+  w REAL NOT NULL, h REAL NOT NULL,
+  target_page INTEGER NOT NULL, target_y REAL NOT NULL
+);
 """
 
 NOW = "2026-09-15T12:00:00"
@@ -85,23 +110,50 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.seed()
 
     def seed(self):
-        """One user, a public shelf and a private one, and an annotation of each kind."""
+        """One user, a public shelf and a private one, and an annotation of each kind.
+
+        The shown paper has two editions: the one the user reads, and a newer
+        one nobody took. Folding editions away has to make two papers of them
+        and leave the copy on the file it was reading.
+        """
         db = sqlite3.connect(self.path)
         db.executescript(PREVIOUS_RELEASE)
         self.user = _uuid()
         self.paper = _uuid()
         self.edition = _uuid()
+        self.newer_edition = _uuid()
         self.public_shelf, self.private_shelf = _uuid(), _uuid()
         self.note, self.ink, self.clip = _uuid(), _uuid(), _uuid()
         self.shown_copy, self.hidden_copy = _uuid(), _uuid()
+        self.sharable, self.reference, self.citation, self.link = (
+            _uuid(), _uuid(), _uuid(), _uuid(),
+        )
         other_paper = _uuid()
 
-        db.execute("INSERT INTO papers VALUES (?,?,?,?,1,NULL)",
-                   (self.paper, "Shown", NOW, NOW))
-        db.execute("INSERT INTO papers VALUES (?,?,?,?,1,NULL)",
+        db.execute("INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,1,NULL)",
+                   (self.paper, "10.1/shown", "Shown", '["Ada"]', "A journal",
+                    2026, NOW, NOW))
+        db.execute("INSERT INTO papers VALUES (?,NULL,?,NULL,NULL,NULL,?,?,1,NULL)",
                    (other_paper, "Hidden", NOW, NOW))
         db.execute("INSERT INTO paper_editions VALUES (?,?,?,?,?,?,1,NULL)",
                    (self.edition, self.paper, "a.pdf", "a" * 64, NOW, NOW))
+        db.execute("INSERT INTO paper_editions VALUES (?,?,?,?,?,?,1,NULL)",
+                   (self.newer_edition, self.paper, "b.pdf", "b" * 64,
+                    "2026-09-16T12:00:00", "2026-09-16T12:00:00"))
+        db.execute("INSERT INTO sharables VALUES (?,'rich',?,?,?,?,NULL)",
+                   (self.sharable, self.user, self.paper, self.edition, NOW))
+        db.execute(
+            "INSERT INTO edition_references VALUES "
+            "(?,?,'b0',0,'Printed line',NULL,NULL,NULL,NULL,NULL,NULL,"
+            "NULL,NULL,NULL,NULL,NULL)",
+            (self.reference, self.edition))
+        db.execute(
+            "INSERT INTO edition_citations VALUES (?,?,?,'[1]',2,0.1,0.2,0.05,0.02,0)",
+            (self.citation, self.edition, self.reference))
+        db.execute(
+            "INSERT INTO edition_links VALUES (?,?,'figure','Fig 1',2,0.1,0.2,"
+            "0.05,0.02,7,0.4)",
+            (self.link, self.edition))
         db.execute("INSERT INTO shelves VALUES (?,?,?,?,1,1,0,?,?,0,NULL)",
                    (self.public_shelf, self.user, "Display", "#7ba26c", NOW, NOW))
         db.execute("INSERT INTO shelves VALUES (?,?,?,?,0,0,1,?,?,0,NULL)",
@@ -186,8 +238,104 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
     def test_upgrading_twice_changes_nothing(self):
         self.upgrade()
         once = self.rows("SELECT uuid, kind, body FROM annotations ORDER BY uuid")
+        papers = self.rows("SELECT uuid, sha256 FROM papers ORDER BY uuid")
         self.upgrade()
         self.assertEqual(self.rows("SELECT uuid, kind, body FROM annotations ORDER BY uuid"), once)
+        self.assertEqual(self.rows("SELECT uuid, sha256 FROM papers ORDER BY uuid"), papers)
+
+    # --- editions ----------------------------------------------------------
+
+    def test_the_editions_table_is_gone(self):
+        self.upgrade()
+        self.assertEqual(
+            self.rows(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='paper_editions'"
+            ),
+            [],
+        )
+
+    def test_a_paper_carries_its_own_file(self):
+        self.upgrade()
+        columns = {row[1] for row in self.rows("PRAGMA table_info(papers)")}
+        self.assertIn("file_path", columns)
+        self.assertIn("sha256", columns)
+        self.assertEqual(
+            self.rows("SELECT file_path, sha256 FROM papers WHERE uuid=?", self.paper),
+            [("a.pdf", "a" * 64)],
+            "the paper keeps its uuid and takes on its first file",
+        )
+
+    def test_each_edition_becomes_a_paper_of_its_own(self):
+        self.upgrade()
+        made = self.rows(
+            "SELECT uuid, title, doi, authors, journal, year FROM papers "
+            "WHERE sha256=?", "b" * 64,
+        )
+        self.assertEqual(len(made), 1, "the newer PDF must become a paper")
+        self.assertNotEqual(made[0][0], self.paper, "and a different one")
+        self.assertEqual(
+            made[0][1:],
+            ("Shown", "10.1/shown", '["Ada"]', "A journal", 2026),
+            "cloning the metadata it shared",
+        )
+
+    def test_a_copy_stays_on_the_file_it_was_reading(self):
+        self.upgrade()
+        self.assertEqual(
+            self.rows("SELECT paper_uuid FROM copies WHERE uuid=?", self.shown_copy),
+            [(self.paper,)],
+        )
+        columns = {row[1] for row in self.rows("PRAGMA table_info(copies)")}
+        for gone in ("edition_uuid", "edition_sha256", "ignored_edition_uuid"):
+            self.assertNotIn(gone, columns)
+
+    def test_every_mark_stays_on_the_file_it_was_made_on(self):
+        self.upgrade()
+        self.assertEqual(
+            sorted(row[0] for row in self.rows(
+                "SELECT uuid FROM annotations WHERE paper_uuid=?", self.paper,
+            )),
+            sorted([self.note, self.ink, self.clip]),
+        )
+        columns = {row[1] for row in self.rows("PRAGMA table_info(annotations)")}
+        self.assertNotIn("edition_uuid", columns)
+
+    def test_a_link_opens_the_paper_the_file_became(self):
+        self.upgrade()
+        self.assertEqual(
+            self.rows("SELECT paper_uuid FROM sharables WHERE uuid=?", self.sharable),
+            [(self.paper,)],
+        )
+        columns = {row[1] for row in self.rows("PRAGMA table_info(sharables)")}
+        self.assertNotIn("edition_uuid", columns)
+
+    def test_the_bibliography_follows_its_file(self):
+        self.upgrade()
+        for table, row_uuid in (
+            ("paper_references", self.reference),
+            ("paper_citations", self.citation),
+            ("paper_links", self.link),
+        ):
+            self.assertEqual(
+                self.rows(f"SELECT paper_uuid FROM {table} WHERE uuid=?", row_uuid),
+                [(self.paper,)],
+                f"{table} did not come across",
+            )
+        self.assertEqual(
+            self.rows(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name IN "
+                "('edition_references','edition_citations','edition_links')"
+            ),
+            [],
+        )
+        # A citation still leads to the entry it points at.
+        self.assertEqual(
+            self.rows(
+                "SELECT reference_uuid FROM paper_citations WHERE uuid=?", self.citation,
+            ),
+            [(self.reference,)],
+        )
 
     # --- visibility --------------------------------------------------------
 

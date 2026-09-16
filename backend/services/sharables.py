@@ -1,4 +1,4 @@
-"""Sharables: one user's reading of one edition, given away by link.
+"""Sharables: one user's reading of one paper, given away by link.
 
 A user's annotations are private. A sharable is the single, deliberate exception:
 it names a reading — this user, this PDF — and whoever holds the link may
@@ -11,7 +11,7 @@ A link carries one of two things, and whose it is follows from which. A
 *rich* link carries the reading: the PDF with this user's annotations on
 it. It is theirs — it sits on their paper page, and only they can take their
 annotations out of it or close it. A *lean* link carries the PDF alone, and is
-nobody's: one per edition, handed to whoever asks, naming no user and
+nobody's: one per paper, handed to whoever asks, naming no user and
 implying none. Nothing about it is reported back to the user who first
 asked for it, because there is nothing of theirs in it to report. Which one a
 link is gets decided when it is made, and never rises afterwards.
@@ -24,7 +24,7 @@ is what remains of it. Revoking is what closes a link altogether.
 
 from datetime import datetime
 
-from models import Annotation, Copy, PaperEdition, Shelf, Sharable, User
+from models import Annotation, Copy, Paper, Shelf, Sharable, User
 from schemas import SharedPaper, SharedReading, UserPublic
 from services.annotations import annotation_out, annotations_of
 from sqlalchemy.orm import Session
@@ -69,8 +69,8 @@ def open_sharable(db: Session, sharable_uuid: str) -> Sharable | None:
     return sharable
 
 
-def live_sharable_for(db: Session, user: User, edition_uuid: str) -> Sharable | None:
-    """The link this user has out for this edition, if any.
+def live_sharable_for(db: Session, user: User, paper_uuid: str) -> Sharable | None:
+    """The link this user has out for this paper, if any.
 
     Always one carrying their annotations: a link to the paper alone is nobody's,
     so it is not theirs to be shown, stopped, or held against them."""
@@ -79,7 +79,7 @@ def live_sharable_for(db: Session, user: User, edition_uuid: str) -> Sharable | 
         .filter(
             Sharable.user_uuid == user.uuid,
             Sharable.kind == RICH,
-            Sharable.edition_uuid == edition_uuid,
+            Sharable.paper_uuid == paper_uuid,
             Sharable.revoked_at.is_(None),
         )
         .order_by(Sharable.created_at.desc())
@@ -87,8 +87,8 @@ def live_sharable_for(db: Session, user: User, edition_uuid: str) -> Sharable | 
     )
 
 
-def live_paper_link_for(db: Session, edition_uuid: str) -> Sharable | None:
-    """The link this edition already has out to the PDF alone, if any.
+def live_paper_link_for(db: Session, paper_uuid: str) -> Sharable | None:
+    """The link this paper already has out to the PDF alone, if any.
 
     Not keyed to whoever asks: the PDF has one address, and two users
     handing the same paper on hand on the same link."""
@@ -97,7 +97,7 @@ def live_paper_link_for(db: Session, edition_uuid: str) -> Sharable | None:
         .filter(
             Sharable.kind == LEAN,
             Sharable.user_uuid.is_(None),
-            Sharable.edition_uuid == edition_uuid,
+            Sharable.paper_uuid == paper_uuid,
             Sharable.revoked_at.is_(None),
         )
         .order_by(Sharable.created_at)
@@ -106,7 +106,7 @@ def live_paper_link_for(db: Session, edition_uuid: str) -> Sharable | None:
 
 
 def share_reading(
-    db: Session, user: User, copy: Copy, edition: PaperEdition, kind: str = LEAN,
+    db: Session, user: User, paper: Paper, kind: str = LEAN,
 ) -> Sharable:
     """The link this ask calls for, made if there is not one already.
 
@@ -114,13 +114,13 @@ def share_reading(
     user asking again means "where is the link", not "give me another" —
     but what "already" means differs with the kind. A reading is theirs, so
     it is theirs that is found again. The paper's link is nobody's, so any
-    live one for this edition is the answer, whoever first asked for it and
+    live one for this paper is the answer, whoever first asked for it and
     whoever is asking now. A revoked link is not resurrected: taking one
     back is meant to be final, so the next ask mints a new UUID and the old
     link stays dead."""
     existing = (
-        live_sharable_for(db, user, edition.uuid) if kind == RICH
-        else live_paper_link_for(db, edition.uuid)
+        live_sharable_for(db, user, paper.uuid) if kind == RICH
+        else live_paper_link_for(db, paper.uuid)
     )
     if existing is not None:
         return existing
@@ -128,8 +128,7 @@ def share_reading(
         kind=kind,
         # Nobody's, when what is handed over is the paper alone.
         user_uuid=user.uuid if kind == RICH else None,
-        paper_uuid=copy.paper_uuid,
-        edition_uuid=edition.uuid,
+        paper_uuid=paper.uuid,
     )
     db.add(sharable)
     db.commit()
@@ -169,7 +168,6 @@ def revoke(db: Session, sharable: Sharable) -> None:
 
 def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
     """Everything the link opens, and nothing else."""
-    edition = sharable.edition
     paper = sharable.paper
     # A lean link was never carrying annotations, and a rich one that lost
     # its copy has already been demoted by open_sharable. Either way the
@@ -191,9 +189,8 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
             authors=paper.authors,
             journal=paper.journal,
             year=paper.year,
-            file_path=edition.file_path,
-            edition_uuid=edition.uuid,
-            edition_sha256=edition.sha256,
+            file_path=paper.file_path or "",
+            sha256=paper.sha256,
         ),
         annotations=[
             annotation_out(row) for row in _shared_annotations(db, sharable)
@@ -202,18 +199,11 @@ def shared_reading(db: Session, sharable: Sharable) -> SharedReading:
 
 
 def _shared_annotations(db: Session, sharable: Sharable) -> list[Annotation]:
-    """The user's annotations on this reading: the ones made on this PDF,
-    and the notes they wrote about the paper without placing anywhere. Annotations
-    made on a different edition are annotations on a different file and stay where
-    they were made."""
+    """The user's annotations on this reading: everything they have marked on
+    this paper, placed on a page or not."""
     if sharable.kind != RICH:
         return []
-    return [
-        row for row in annotations_of(
-            db, sharable.user_uuid, paper_uuid=sharable.paper_uuid,
-        )
-        if row.edition_uuid in (sharable.edition_uuid, None)
-    ]
+    return annotations_of(db, sharable.user_uuid, paper_uuid=sharable.paper_uuid)
 
 
 def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
@@ -226,12 +216,7 @@ def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
 
 
 def copy_in_nook(db: Session, user: User, sharable: Sharable) -> Copy | None:
-    """This visitor's own copy of the shared paper, if they keep one.
-
-    Asked of the paper rather than the edition: a user who adopted a
-    different PDF of the same paper still has it, and pointing them at what
-    they already keep is the honest answer to "is this mine yet".
-    """
+    """This visitor's own copy of the shared paper, if they keep one."""
     return db.query(Copy).filter(
         Copy.user_uuid == user.uuid,
         Copy.paper_uuid == sharable.paper_uuid,
@@ -246,14 +231,7 @@ def take_into_nook(db: Session, user: User, sharable: Sharable) -> Copy:
     would be indistinguishable from one of this user's own forever — no
     annotation records where it came from — and resharing would send the sharer's
     words out under a name that is not theirs. So what lands is a clean
-    copy: the paper, on the exact PDF the link opened, with nothing written
-    on it.
-
-    The edition is the shared one, not the paper's newest. The link handed
-    over a particular file, and the annotations its holder just read were on that
-    file; landing them on a different PDF would be answering a question
-    they did not ask. A newer edition is offered on the paper page
-    afterwards, the same as for anyone else.
+    copy: the paper the link opened, with nothing written on it.
     """
     # Their default shelf, the same one the ordinary add uses: a paper that
     # arrives is a paper that arrives, and where it lands should not depend
@@ -273,8 +251,6 @@ def take_into_nook(db: Session, user: User, sharable: Sharable) -> Copy:
         paper_uuid=sharable.paper_uuid,
         user_uuid=user.uuid,
         shelf=shelf,
-        edition_uuid=sharable.edition_uuid,
-        edition_sha256=sharable.edition.sha256,
     )
     db.add(copy)
     # Through the change log, like every other copy: a user who adds a

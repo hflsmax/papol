@@ -23,7 +23,7 @@ What it covers:
 - a **lean** link opens the same way, names nobody, and carries none of the
   marks;
 - a signed-in user presses **Add to nook**, the copy lands on the shared
-  edition, it carries none of the sharer's marks, and the link stops offering
+  paper, it carries none of the sharer's marks, and the link stops offering
   what they now have;
 - the sharer's own **Share menu** opens and shows the live link with a way to
   copy it.

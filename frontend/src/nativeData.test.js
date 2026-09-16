@@ -100,7 +100,7 @@ const {
   postRoomMessage, setRoomAvailability, uncallSeminar, unhostRoom,
 } = await import('../../shared/api/rooms.js');
 const {
-  addPaperEdition, addToNook, adoptEdition, deletePaper, getPaper, ignoreEdition, updatePaper,
+  addToNook, deletePaper, getPaper, updatePaper,
 } = await import('../../shared/api/papers.js');
 
 test('paper and comment reads start together', async () => {
@@ -280,7 +280,7 @@ test('paper edits resolve their local copy without automatically uploading it', 
   calls.length = 0;
   const paperUuid = '12121212-1212-4212-8212-121212121212';
   const copyUuid = '34343434-3434-4434-8434-343434343434';
-  queryPaper = { uuid: paperUuid, copy_uuid: copyUuid, editions: [] };
+  queryPaper = { uuid: paperUuid, copy_uuid: copyUuid };
   await updatePaper(paperUuid, { shelf_uuid: null });
   await deletePaper(paperUuid);
   const mutations = calls.filter(([command]) => command === 'data_mutate');
@@ -291,34 +291,11 @@ test('paper edits resolve their local copy without automatically uploading it', 
   queryPaper = null;
 });
 
-test('edition changes commit locally while background reconciliation remains pull-only', async () => {
-  calls.length = 0;
-  const paperUuid = '56565656-5656-4656-8656-565656565656';
-  const copyUuid = '78787878-7878-4878-8878-787878787878';
-  const editionUuid = '90909090-9090-4090-8090-909090909090';
-  queryPaper = {
-    uuid: paperUuid,
-    copy_uuid: copyUuid,
-    edition_uuid: editionUuid,
-    latest_edition: { uuid: editionUuid, sha256: 'b'.repeat(64) },
-    editions: [{ uuid: editionUuid, sha256: 'b'.repeat(64) }],
-  };
-  await adoptEdition(paperUuid, editionUuid);
-  await ignoreEdition(paperUuid, editionUuid);
-  await addPaperEdition(paperUuid, new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
-  const batches = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
-  assert.deepEqual(batches.slice(0, 2).map((changes) => changes[0].table), ['copies', 'copies']);
-  assert.deepEqual(batches[2].map((change) => change.table), ['paper_editions', 'copies']);
-  const syncs = calls.filter(([command]) => command === 'sync_now');
-  assert.ok(syncs.every(([, args]) => args.request.pullOnly === true));
-  queryPaper = null;
-});
-
 test('the native repository owns query names and parameter shapes', async () => {
   calls.length = 0;
   const uuid = 'f5e4f3f9-a614-40a0-95d0-bad753642e2a';
   await nativeRepository.board(uuid);
-  await nativeRepository.annotations(uuid, null, 'note');
+  await nativeRepository.annotations(uuid, 'note');
 
   const queries = calls.filter(([command]) => command === 'data_query');
   assert.deepEqual(queries.map(([, arguments_]) => ({
@@ -330,34 +307,24 @@ test('the native repository owns query names and parameter shapes', async () => 
     {
       accountUuid: ACCOUNT,
       queryName: 'annotations',
-      parameters: { paper_uuid: uuid, edition_uuid: null, kind: 'note' },
+      parameters: { paper_uuid: uuid, kind: 'note' },
     },
   ]);
 });
 
-test('a shared paper and all of its editions can seed an offline nook copy', async () => {
+test('a shared paper and its file can seed an offline nook copy', async () => {
   calls.length = 0;
   await importNativeSharedPaper({
     uuid: '11111111-1111-4111-8111-111111111111', title: 'Shared paper',
     created_at: '2026-09-14T00:00:00Z',
-    editions: [
-      {
-        uuid: '22222222-2222-4222-8222-222222222222', file_path: 'first.pdf',
-        sha256: 'a'.repeat(64), created_at: '2026-09-13T00:00:00Z',
-      },
-      {
-        uuid: '33333333-3333-4333-8333-333333333333', file_path: 'second.pdf',
-        sha256: 'b'.repeat(64), created_at: '2026-09-14T00:00:00Z',
-      },
-    ],
+    file_path: 'shared.pdf', sha256: 'b'.repeat(64),
   });
   const call = calls.find(([command]) => command === 'import_shared_paper');
   assert.equal(call[1].accountUuid, ACCOUNT);
-  assert.deepEqual(call[1].rows.map((row) => row.table), [
-    'papers', 'paper_editions', 'paper_editions',
-  ]);
-  assert.equal(call[1].rows[2].paper_uuid, '11111111-1111-4111-8111-111111111111');
-  assert.equal(call[1].rows[2].sha256, 'b'.repeat(64));
+  assert.deepEqual(call[1].rows.map((row) => row.table), ['papers']);
+  assert.equal(call[1].rows[0].uuid, '11111111-1111-4111-8111-111111111111');
+  assert.equal(call[1].rows[0].sha256, 'b'.repeat(64));
+  assert.equal(call[1].rows[0].file_path, 'shared.pdf');
 });
 
 test('native blob import transfers exact bytes and metadata', async () => {
@@ -372,20 +339,14 @@ test('adding a Library paper directly downloads it without running manual sync',
   calls.length = 0;
   remoteBlobReady = false;
   const paperUuid = '11111111-1111-4111-8111-111111111111';
-  const editionUuid = '22222222-2222-4222-8222-222222222222';
   const digest = 'a'.repeat(64);
   queryPaper = {
-    uuid: paperUuid, title: 'Ready to read', file_path: 'ready.pdf', edition_uuid: editionUuid,
-    edition_sha256: digest, editions: [{ uuid: editionUuid, sha256: digest }],
+    uuid: paperUuid, title: 'Ready to read', file_path: 'ready.pdf', sha256: digest,
   };
 
   const added = await addToNook({
     ...queryPaper,
     created_at: '2026-09-14T00:00:00Z',
-    editions: [{
-      uuid: editionUuid, sha256: digest, file_path: 'ready.pdf',
-      created_at: '2026-09-14T00:00:00Z',
-    }],
   });
 
   const commands = calls.map(([command]) => command);

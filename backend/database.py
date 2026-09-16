@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
-from sqlalchemy.schema import CreateColumn
+from sqlalchemy.schema import CreateColumn, CreateIndex, CreateTable
 from contextvars import ContextVar
 import os
+import uuid
 from pathlib import Path
 
 # Use absolute path for database in backend directory
@@ -89,9 +90,9 @@ _DROPPED_COLUMNS = [("copies", "marketed"), ("copies", "is_public")]
 _UNIFY_ANNOTATIONS = {
     "comments": """
 INSERT INTO annotations
-  (uuid, kind, user_uuid, paper_uuid, edition_uuid, page, group_uuid,
+  (uuid, kind, user_uuid, paper_uuid, page, group_uuid,
    content, name, body, created_at, updated_at, revision, deleted_at)
-SELECT uuid, 'note', user_uuid, paper_uuid, edition_uuid, page, NULL,
+SELECT uuid, 'note', user_uuid, paper_uuid, page, NULL,
        content, name,
        CASE WHEN anchor IS NULL OR anchor_type IS NULL THEN '{}'
             ELSE json_object('anchor', json_insert(anchor, '$.type', anchor_type)) END,
@@ -101,26 +102,26 @@ DROP TABLE comments;
 """,
     "ink_strokes": """
 INSERT INTO annotations
-  (uuid, kind, user_uuid, paper_uuid, edition_uuid, page, group_uuid,
+  (uuid, kind, user_uuid, paper_uuid, page, group_uuid,
    content, name, body, created_at, updated_at, revision, deleted_at)
-SELECT s.uuid, 'ink', s.user_uuid, e.paper_uuid, s.edition_uuid, s.page,
+SELECT s.uuid, 'ink', s.user_uuid, s.paper_uuid, s.page,
        s.group_uuid, '', NULL,
        json_object('points', json(s.points), 'color', s.color, 'width', s.width,
                    'opacity', s.opacity, 'shape', s.shape),
        s.created_at, s.updated_at, s.revision, s.deleted_at
-  FROM ink_strokes s JOIN paper_editions e ON e.uuid = s.edition_uuid;
+  FROM ink_strokes s;
 DROP TABLE ink_strokes;
 """,
     "paper_clips": """
 INSERT INTO annotations
-  (uuid, kind, user_uuid, paper_uuid, edition_uuid, page, group_uuid,
+  (uuid, kind, user_uuid, paper_uuid, page, group_uuid,
    content, name, body, created_at, updated_at, revision, deleted_at)
-SELECT c.uuid, 'clip', c.user_uuid, e.paper_uuid, c.edition_uuid, c.page, NULL,
+SELECT c.uuid, 'clip', c.user_uuid, c.paper_uuid, c.page, NULL,
        '', NULL,
        json_object('source', json(c.source), 'frame', json(c.frame),
                    'floating', json(CASE WHEN c.floating THEN 'true' ELSE 'false' END)),
        c.created_at, c.updated_at, c.revision, c.deleted_at
-  FROM paper_clips c JOIN paper_editions e ON e.uuid = c.edition_uuid;
+  FROM paper_clips c;
 DROP TABLE paper_clips;
 """,
 }
@@ -148,6 +149,244 @@ def _unify_annotations(conn):
                 conn.execute(text(statement))
 
 
+# Editions are gone: a paper is one PDF, named by its content hash. A
+# database written when a paper could have several has to be taken apart
+# along that line, and this is where it happens.
+#
+# Each edition becomes a paper. The oldest keeps the paper's own UUID, so
+# everything already pointing at it — copies, notes, seminar rooms, the
+# desktop replica's idea of what it holds — goes on pointing at the same
+# row. Every later edition becomes a paper of its own, cloning the shared
+# metadata, and whatever named that edition is carried over to it.
+#
+# Nothing is thrown away. An edition nobody was reading becomes a paper
+# nobody holds, which is simply absent from the Library until someone adds
+# it, and its file stays where it is.
+#
+# Idempotent by construction: `paper_editions` is dropped at the end, and
+# its absence is what says the work is done.
+def _table_columns(conn, name: str) -> list:
+    """The table's columns in declaration order, or [] if it does not exist."""
+    return [row[1] for row in conn.execute(text(f"PRAGMA table_info({name})"))]
+
+
+def _rebuild_table(conn, target: str, source: str, alias: str,
+                   join: str = "", sources: dict | None = None):
+    """Make `target` as the models now define it and carry `source` into it.
+
+    SQLite will not drop a column named in a foreign key, and every column
+    retiring here is one. So the table is rebuilt rather than altered: the
+    model's own definition is created under a staging name, the old rows are
+    selected into it, and the staging table takes the old one's place.
+
+    A target column is filled from `sources` when named there, from the
+    identically named source column when there is one, and left at its
+    default otherwise."""
+    sources = sources or {}
+    table = Base.metadata.tables[target]
+    available = set(_table_columns(conn, source))
+    staging = f"_new_{target}"
+
+    columns, expressions = [], []
+    for column in table.columns:
+        if column.name in sources:
+            expression = sources[column.name]
+        elif column.name in available:
+            # Quoted: a column may be spelled with a SQLite keyword, and
+            # `index` is.
+            expression = f'{alias}."{column.name}"'
+        else:
+            continue
+        columns.append(f'"{column.name}"')
+        expressions.append(expression)
+
+    # The staging table is a renamed copy of the model's own definition. Its
+    # foreign keys name other tables, so those have to be copied alongside it
+    # or there is nothing for the names to resolve against.
+    staging_metadata = MetaData()
+    for other in Base.metadata.tables.values():
+        if other.name != target:
+            other.to_metadata(staging_metadata)
+
+    conn.execute(text(f"DROP TABLE IF EXISTS {staging}"))
+    conn.execute(CreateTable(table.to_metadata(staging_metadata, name=staging)))
+    conn.execute(text(
+        f"INSERT INTO {staging} ({', '.join(columns)}) "
+        f"SELECT {', '.join(expressions)} FROM {source} {alias} {join}"
+    ))
+    conn.execute(text(f"DROP TABLE {source}"))
+    conn.execute(text(f"ALTER TABLE {staging} RENAME TO {target}"))
+    for index in table.indexes:
+        conn.execute(CreateIndex(index, if_not_exists=True))
+
+
+# Editions are gone: a paper is one PDF, named by its content hash. A
+# database written when a paper could have several has to be taken apart
+# along that line, and this is where it happens.
+#
+# Each edition becomes a paper. The oldest keeps the paper's own UUID, so
+# everything already pointing at it — copies, notes, seminar rooms, the
+# desktop replica's idea of what it holds — goes on pointing at the same
+# row. Every later edition becomes a paper of its own, cloning the shared
+# metadata, and whatever named that edition is carried over to it.
+#
+# Nothing is thrown away. An edition nobody was reading becomes a paper
+# nobody holds, which is simply absent from the Library until someone adds
+# it, and its file stays where it is.
+#
+# Idempotent by construction: `paper_editions` is dropped at the end, and
+# its absence is what says the work is done.
+def _fold_editions(conn):
+    tables = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "paper_editions" not in tables:
+        return
+
+    # Which paper each edition becomes. One paper per distinct file: two
+    # editions of a paper holding the same bytes were always the same PDF
+    # — the upload path said so and reused one — so they fold together
+    # rather than becoming two papers nothing can tell apart. An edition
+    # with no digest recorded is nobody's twin, and stands alone.
+    #
+    # The first file of a paper keeps that paper's UUID, so everything
+    # already pointing at it goes on pointing at the same row.
+    rows = list(conn.execute(text(
+        "SELECT uuid, paper_uuid, sha256 FROM paper_editions "
+        "ORDER BY paper_uuid, created_at, uuid"
+    )))
+    becomes: dict[str, str] = {}
+    by_file: dict[tuple, str] = {}
+    kept: set = set()
+    for edition_uuid, paper_uuid, sha256 in rows:
+        key = (paper_uuid, sha256 or f"edition:{edition_uuid}")
+        if key in by_file:
+            becomes[edition_uuid] = by_file[key]
+            continue
+        if paper_uuid in kept:
+            target = str(uuid.uuid4())
+        else:
+            kept.add(paper_uuid)
+            target = paper_uuid
+        by_file[key] = target
+        becomes[edition_uuid] = target
+
+    # A table everything else can be joined against, rather than a statement
+    # per edition. Dropped before this function returns.
+    conn.execute(text("DROP TABLE IF EXISTS _edition_paper"))
+    conn.execute(text(
+        "CREATE TABLE _edition_paper "
+        "(edition_uuid TEXT PRIMARY KEY NOT NULL, paper_uuid TEXT NOT NULL)"
+    ))
+    for edition_uuid, paper_uuid in becomes.items():
+        conn.execute(
+            text("INSERT INTO _edition_paper VALUES (:edition, :paper)"),
+            {"edition": edition_uuid, "paper": paper_uuid},
+        )
+
+    # The papers the later files become, cloning the shared metadata. One
+    # row per new paper, however many editions folded onto it.
+    conn.execute(text(
+        "INSERT INTO papers "
+        "  (uuid, doi, title, authors, journal, year, created_at,"
+        "   updated_at, revision, deleted_at) "
+        "SELECT m.paper_uuid, p.doi, p.title, p.authors, p.journal, p.year,"
+        "       p.created_at, p.updated_at, p.revision, p.deleted_at "
+        "  FROM _edition_paper m "
+        "  JOIN paper_editions e ON e.uuid = m.edition_uuid "
+        "  JOIN papers p ON p.uuid = e.paper_uuid "
+        " WHERE m.paper_uuid <> e.paper_uuid "
+        " GROUP BY m.paper_uuid"
+    ))
+
+    # Each paper takes on the file of the edition it came from. The columns
+    # have to be made here: the metadata pass that would otherwise add them
+    # runs after this, and by then there would be nothing left to fill them
+    # from.
+    carried = [column for column in
+               ("file_path", "sha256", "uploaded_by", "references_status",
+                "references_error", "references_at")
+               if column in _table_columns(conn, "paper_editions")]
+    present = set(_table_columns(conn, "papers"))
+    for column in carried:
+        if column not in present:
+            conn.execute(text(f"ALTER TABLE papers ADD COLUMN {column} TEXT"))
+    conn.execute(text(
+        f"UPDATE papers SET ({', '.join(carried)}) = ("
+        f"  SELECT {', '.join('e.' + c for c in carried)}"
+        "     FROM _edition_paper m JOIN paper_editions e ON e.uuid = m.edition_uuid"
+        "    WHERE m.paper_uuid = papers.uuid"
+        # Editions that folded together hold the same bytes, so the file is
+        # the same whichever is read; the earliest is named so that the rest
+        # — the analysis state, which can differ — is settled rather than
+        # left to whatever the query happens to reach first.
+        "    ORDER BY e.created_at, e.uuid LIMIT 1) "
+        "WHERE uuid IN (SELECT paper_uuid FROM _edition_paper)"
+    ))
+
+    # Everything that named an edition now names the paper it became, and
+    # loses the columns that named it.
+    on = "LEFT JOIN _edition_paper m ON m.edition_uuid = {alias}.edition_uuid"
+    if "copies" in tables:
+        _rebuild_table(
+            conn, "copies", "copies", "c", on.format(alias="c"),
+            {"paper_uuid": "COALESCE(m.paper_uuid, c.paper_uuid)"},
+        )
+    if "annotations" in tables:
+        # A note about the paper was never on a page, so it has no edition
+        # to follow and stays where it is.
+        _rebuild_table(
+            conn, "annotations", "annotations", "a", on.format(alias="a"),
+            {"paper_uuid": "COALESCE(m.paper_uuid, a.paper_uuid)"},
+        )
+    if "sharables" in tables:
+        _rebuild_table(
+            conn, "sharables", "sharables", "s", on.format(alias="s"),
+            {"paper_uuid": "COALESCE(m.paper_uuid, s.paper_uuid)"},
+        )
+
+    # The bibliography read off a PDF belongs to the paper that PDF became.
+    for source, target in (
+        ("edition_references", "paper_references"),
+        ("edition_citations", "paper_citations"),
+        ("edition_links", "paper_links"),
+    ):
+        if source not in tables:
+            continue
+        _rebuild_table(
+            conn, target, source, "r",
+            "JOIN _edition_paper m ON m.edition_uuid = r.edition_uuid",
+            {"paper_uuid": "m.paper_uuid"},
+        )
+
+    # Notes, ink and clips are carried into `annotations` after this, and two
+    # of those tables only ever found their paper through the edition. Hand
+    # them the paper directly, while there is still something to ask.
+    for table in ("ink_strokes", "paper_clips"):
+        if table not in tables:
+            continue
+        if "paper_uuid" not in _table_columns(conn, table):
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN paper_uuid TEXT"))
+        conn.execute(text(
+            f"UPDATE {table} SET paper_uuid = ("
+            "  SELECT paper_uuid FROM _edition_paper"
+            f"   WHERE edition_uuid = {table}.edition_uuid)"
+        ))
+    if "comments" in tables:
+        conn.execute(text(
+            "UPDATE comments SET paper_uuid = COALESCE(("
+            "  SELECT paper_uuid FROM _edition_paper"
+            "   WHERE edition_uuid = comments.edition_uuid), paper_uuid)"
+        ))
+
+    conn.execute(text("DROP INDEX IF EXISTS ix_annotations_edition"))
+    conn.execute(text("DROP TABLE paper_editions"))
+    conn.execute(text("DROP TABLE _edition_paper"))
+
+
+
 def migrate():
     """Retire obsolete tables and columns, and add columns an existing table
     lacks.
@@ -160,6 +399,10 @@ def migrate():
         # Remove tables belonging to retired features before reconciling the
         # live model metadata. DROP IF EXISTS keeps fresh installs unchanged.
         conn.execute(text("DROP TABLE IF EXISTS presence_pings"))
+        # Before the annotation unification, which reads columns this leaves
+        # behind, and before the metadata pass, which would otherwise add
+        # `papers.sha256` as an empty column the fold then has to fill.
+        _fold_editions(conn)
         _unify_annotations(conn)
         for table_name, column_name in _DROPPED_COLUMNS:
             columns = {

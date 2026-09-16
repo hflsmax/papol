@@ -2,7 +2,7 @@ import { appPath } from '../appUrls.js';
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
 
-// ---------- Sharables (a user's reading of one edition, given by link) ----------
+// ---------- Sharables (a user's reading of one paper, given by link) ----------
 
 // A sharable lives only on the service: the link has to open for someone
 // who is not this user, on a machine that is not this one, so there is

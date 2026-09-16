@@ -110,7 +110,7 @@ def main():
                     "--example", "native_sync_harness", "--",
                     str(temporary / "local.sqlite3"), backend,
                     auth["token"], auth["user"]["uuid"],
-                    paper["uuid"], paper["edition_uuid"],
+                    paper["uuid"],
                 ],
                 cwd=ROOT,
                 capture_output=True,
@@ -145,7 +145,7 @@ def main():
             assert rows[("ink_strokes", result["ink_uuid"])]["page"] == 1
             assert rows[("paper_clips", result["paper_clip_uuid"])]["floating"] is False
             assert rows[("papers", result["imported_paper_uuid"])]["title"] == "Native imported PDF"
-            assert rows[("paper_editions", result["imported_edition_uuid"])]["sha256"] == result["imported_pdf_sha256"]
+            assert rows[("papers", result["imported_paper_uuid"])]["sha256"] == result["imported_pdf_sha256"]
             imported_pdf = urllib.request.Request(
                 f"{backend}/api/sync/blobs/{result['imported_pdf_sha256']}",
                 headers={"Authorization": f"Bearer {auth['token']}"},

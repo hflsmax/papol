@@ -2,15 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { annotationKinds, inkIn, notesIn } from './annotationKinds.js';
 
-const EDITION = '22222222-2222-4222-8222-222222222222';
-
 function recorder(rows = []) {
   const calls = [];
   return {
     calls,
     annotations: {
-      list: async (editionUuid, kind) => {
-        calls.push(['list', editionUuid, kind]);
+      list: async (kind) => {
+        calls.push(['list', kind]);
         return rows;
       },
       create: async (annotation) => {
@@ -30,14 +28,14 @@ test('each kind is asked for by name', async () => {
   const source = recorder();
   const kinds = annotationKinds(source.annotations);
 
-  await kinds.notes.list(EDITION);
-  await kinds.ink.list(EDITION);
-  await kinds.clips.list(EDITION);
+  await kinds.notes.list();
+  await kinds.ink.list();
+  await kinds.clips.list();
 
   assert.deepEqual(source.calls, [
-    ['list', EDITION, 'note'],
-    ['list', EDITION, 'ink'],
-    ['list', EDITION, 'clip'],
+    ['list', 'note'],
+    ['list', 'ink'],
+    ['list', 'clip'],
   ]);
 });
 
@@ -57,10 +55,10 @@ test('making an annotation names its kind and gathers its geometry', async () =>
   const kinds = annotationKinds(source.annotations);
 
   await kinds.notes.create({ page: 3, anchor: { type: 'point', x: 0.5, y: 0.5 }, content: 'Here' });
-  await kinds.ink.create(EDITION, {
+  await kinds.ink.create({
     page: 2, points: [{ x: 0, y: 0 }], color: '#b3923d', width: 0.004, opacity: 1, shape: 'flat',
   });
-  await kinds.clips.create(EDITION, {
+  await kinds.clips.create({
     page: 4, source: { x: 0, y: 0, w: 0.2, h: 0.2 }, frame: { x: 0, y: 0, w: 0.2, h: 0.2 },
     floating: false,
   });
@@ -69,7 +67,7 @@ test('making an annotation names its kind and gathers its geometry', async () =>
   assert.equal(note.kind, 'note');
   assert.deepEqual(note.body, { anchor: { type: 'point', x: 0.5, y: 0.5 } });
   assert.equal(ink.kind, 'ink');
-  assert.equal(ink.edition_uuid, EDITION);
+  assert.equal(ink.page, 2);
   assert.deepEqual(ink.body.points, [{ x: 0, y: 0 }]);
   assert.equal(clip.kind, 'clip');
   assert.equal(clip.body.floating, false);

@@ -1,4 +1,4 @@
-import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
+import { demoPapers, demoNotes } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
@@ -88,7 +88,7 @@ function apiSource(
     // One interface for every kind of annotation. A caller says which kind it is
     // making and what its geometry is; nothing else differs between them.
     annotations: {
-      list: (editionUuid, kind) => listAnnotations(paperUuid, { editionUuid, kind }),
+      list: (kind) => listAnnotations(paperUuid, { kind }),
       create: (annotation) => createAnnotation(paperUuid, annotation),
       update: (uuid, changes) => updateAnnotation(uuid, changes),
       remove: (uuid) => deleteAnnotation(uuid),
@@ -145,16 +145,11 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // Their own copy of this PDF, once they have one. The link's own URL
     // would keep showing them the sharer's reading; what they asked for
     // was the paper as theirs, which is the ordinary nook viewer.
-    nookHref: (nook) => (nook?.edition_sha256
-      ? appPath(`/viewer/?pdf=${nook.edition_sha256}`)
+    nookHref: (nook) => (nook?.sha256
+      ? appPath(`/viewer/?pdf=${nook.sha256}`)
       : null),
     async load() {
       const shared = await reading();
-      const edition = {
-        uuid: shared.paper.edition_uuid,
-        file_path: shared.paper.file_path,
-        sha256: shared.paper.edition_sha256,
-      };
       return {
         doc: {
           ...shared.paper,
@@ -164,14 +159,12 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
           // A lean link shares the paper and nothing of theirs, so it is
           // not a reading and must not be named as one.
           shared_kind: shared.kind,
-          editions: [edition],
-          latest_edition: edition,
         },
         notes: notesIn(shared.annotations),
       };
     },
     annotations: {
-      list: async (_editionUuid, kind) => {
+      list: async (kind) => {
         const shared = await reading();
         return kind
           ? shared.annotations.filter((row) => row.kind === kind)
@@ -182,12 +175,12 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // its bibliography — read through the link, which is the only
     // permission whoever is holding it has.
     references: {
-      list: (pdfHash, editionUuid) => getSharedReferences(shareUuid, pdfHash, editionUuid),
+      list: (pdfHash, paperUuid) => getSharedReferences(shareUuid, pdfHash, paperUuid),
       open: (referenceUuid) => getSharedReference(shareUuid, referenceUuid),
     },
     async info() {
       const shared = await reading();
-      return getViewerPaperInfo(shared.paper.edition_sha256, shareUuid);
+      return getViewerPaperInfo(shared.paper.sha256, shareUuid);
     },
   };
 }
@@ -206,7 +199,7 @@ function openedFileSource(pdfHash, name) {
   // Enough identity to begin reading the bytes immediately. No paper state
   // needs to be consulted before showing page one.
   const initialPaper = {
-    title, sha256: pdfHash, edition_sha256: pdfHash, opened_file: true,
+    title, sha256: pdfHash, opened_file: true,
   };
 
   const source = {
@@ -232,7 +225,7 @@ function openedFileSource(pdfHash, name) {
     async loadNookPaper() {
       const nookPaper = await getNookPaperByPdf(pdfHash);
       return nookPaper
-        ? { ...nookPaper, edition_sha256: pdfHash, opened_file: true }
+        ? { ...nookPaper, sha256: pdfHash, opened_file: true }
         : null;
     },
     // Public metadata lookup would send the hash to Papol. The membership
@@ -284,23 +277,13 @@ function localSource(paperUuid) {
       return {};
     },
     async load() {
-      const edition = demoEditionFor(paper);
-      return {
-        doc: {
-          ...paper,
-          edition_uuid: edition.uuid,
-          edition_sha256: edition.sha256,
-          editions: [edition],
-          latest_edition: edition,
-        },
-        notes: notesIn(annotations),
-      };
+      return { doc: { ...paper }, notes: notesIn(annotations) };
     },
     // The demo keeps its annotations the way it keeps everything else: in memory,
     // and gone on reload. They are worth meeting even where nothing is
     // saved — it is how a visitor finds out the features are there.
     annotations: {
-      async list(_editionUuid, kind) {
+      async list(kind) {
         return kind ? annotations.filter((row) => row.kind === kind) : annotations;
       },
       async create(annotation) {

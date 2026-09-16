@@ -156,17 +156,6 @@ export const demoPapers = [
  *
  * Only papers he keeps appear here: a visitor can open no others.
  */
-// Demo papers have the same edition shape as real papers. Keep this in the
-// shared world so the paper page and the viewer cannot invent different
-// identities for the same bundled PDF.
-export const demoEditionFor = (paper) => ({
-  uuid: paper.uuid.replace(/1(\d{3})$/, '2$1'),
-  file_path: paper.file_path,
-  sha256: paper.sha256,
-  created_at: paper.created_at,
-  uploader: null,
-});
-
 export const demoNotes = [
   {
     uuid: demoNoteUuid(1),

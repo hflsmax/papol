@@ -35,10 +35,8 @@ acting on.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is (`USER_STORIES.md` §2b). |
-| **Edition** | One PDF file of a paper. | A re-upload *adds* an edition; it never replaces the file someone is reading. A byte-identical upload reuses the existing edition (`sha256`). |
-| **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags, and the edition they read. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
-| **Adopt** | To move my copy to a newer edition. | Only the user's own click ever moves it, and Papol never realigns annotations afterwards. `ignored_edition_uuid` records the newest edition already waved away. |
+| **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is (`USER_STORIES.md` §2b). Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
+| **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
 | **Summary** | My private prose about a paper. Mine alone, whatever the shelf says. | Belongs to the copy, so only its own user reads or writes it. |
 | **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | Labelled "My thought". Distinct from Summary in both length and audience — the labels are the only thing keeping the pair apart. |
 | **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored as `rating_expertise`, `rating_reading`, `rating_liking`. The third column's name predates its label. See §12.6. |
@@ -47,7 +45,7 @@ acting on.
 ## 3. Annotations — what a user leaves on a PDF
 
 One table, `annotations`, three kinds. They differ in geometry, not in nature:
-each belongs to one user, sits on one edition of one paper, and is private
+each belongs to one user, sits on one paper, and is private
 until that user shares a reading.
 
 | Term | Meaning | Notes |
@@ -58,7 +56,7 @@ until that user shares a reading.
 | **Ink** | A stroke drawn over the page, in one of five colours and four widths. | The kind is `'ink'`; the UI verb is **paint**. See §12.4 — the project's sharpest collision. |
 | **Clip** | A movable view of one rectangle of the page. | Its rectangle is its **frame**. |
 | **Stroke group** | Several stored strokes that are one logical annotation — text painted across lines is drawn as separate paths, picked up and erased as one. | `group_uuid`. Unrelated to a board group (§5). |
-| **Reading** | One user's annotations on one edition, taken together. | The thing a rich sharable carries. Named, not copied: reword a note and everyone holding the link sees the rewording. Worth promoting from a phrase to a term — sharing is unexplainable without it. |
+| **Reading** | One user's annotations on one paper, taken together. | The thing a rich sharable carries. Named, not copied: reword a note and everyone holding the link sees the rewording. Worth promoting from a phrase to a term — sharing is unexplainable without it. |
 
 **Coordinates.** All annotation geometry is fractions of the page, so zoom, DPI and
 screen size never enter it. But there are *two* fraction conventions in Papol
@@ -77,12 +75,12 @@ the viewer's text-layer geometry. See §12.7.
 | Term | Meaning | Notes |
 | --- | --- | --- |
 | **Analyzer** | The optional service that reads a PDF's bibliography and links. | Optional by design: where it is not running, everything else works and citations are simply not clickable. |
-| **Reference** | One work cited by an edition, as printed. | `raw` is the line exactly as the author printed it — what a search matches, and what to show when nothing matches. |
+| **Reference** | One work cited by a paper, as printed. | `raw` is the line exactly as the author printed it — what a search matches, and what to show when nothing matches. |
 | **Citation** | One in-text marker — the "[12]" a user clicks — and its box. | "[3, 5]" is two citations, because each leads somewhere different. `inferred` marks one matched only by reading its number: a guess, shown as one. |
 | **Link** | An analyzed cross-reference to another position in the same PDF — "see Section 3.2", "Figure 4". | Following one offers **← Back to where you were** (the *return pill*). |
 | **Resolution** | What the bibliographic lookup added to a reference: `none`, `ok`, `miss`, `error`. | Filled the first time someone opens that reference, and kept. |
 
-Reading a bibliography happens once per **edition** and is kept, so only the
+Reading a bibliography happens once per **paper** and is kept, so only the
 first user of a PDF waits.
 
 ## 5. Boards
@@ -102,8 +100,8 @@ first user of a PDF waits.
 | --- | --- | --- |
 | **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The UUID in the link is the whole of the permission. | |
 | **Home button** | The house worn by the viewer, the board and the desktop toolbar alike: out of this document and into Papol itself. | `homePath()`, `source.homeHref`. It names nothing it leaves behind — no paper, no board, no nook — because a home button pointing back at what you just closed is a back button wearing a house. That is what lets a shared reading use it: a link hands over one reading of one PDF, not a place in the Library. Not a **backlink** (§5), which is a board card's link to where its excerpt came from; and not the library app's **Back**, which is ordinary page history. |
-| **Rich** | A sharable carrying one user's **reading** — their annotations on that edition. Belongs to them; shown on their paper page; theirs to revoke. | |
-| **Lean** | A sharable carrying the PDF alone. One per edition, belongs to nobody, names no user. | Never shown on a paper page and never counted against its maker: nothing of theirs is in it. |
+| **Rich** | A sharable carrying one user's **reading** — their annotations on that paper. Belongs to them; shown on their paper page; theirs to revoke. | |
+| **Lean** | A sharable carrying the PDF alone. One per paper, belongs to nobody, names no user. | Never shown on a paper page and never counted against its maker: nothing of theirs is in it. |
 | **Demote** | To turn a rich link lean, permanently, when the user takes the paper out of their nook or drops their annotations. | Permanent by design — putting the paper back must not quietly re-expose annotations to everyone still holding the link. |
 | **Revoke** | To stop a link opening at all. Final; sharing again mints a new one. | One word, matching `revokeSharable()` and `revoked_at`. Do **not** say "close": it borrows a window's word for something with no reopening. The row survives revocation, so a revoked link is answered with "no longer shared" rather than a 404 that reads as a typo. |
 
@@ -173,7 +171,6 @@ For new prose and new identifiers.
 | paint *(verb)* | paint *(noun)* | The noun is **ink**. |
 | leader | host | "Host" means three things; see §12.9. |
 | cohort | room | Room is the table name only. |
-| adopt an edition | update, upgrade | Nothing is replaced; the user moves. |
 | reading | "my notes and annotations" | The reading is the unit a rich link carries. |
 | revoke | close | A revoked link does not reopen. |
 | library | directory | Papers and the people who read them are two views of one library. |
@@ -264,7 +261,7 @@ paper, liking is a fact about the user.
 ### 12.7 Two kinds of "fractions of the page"
 
 `Annotation` says coordinates are "fractions of the page in PDF user space …
-y from the bottom". `EditionCitation` says the box is "fractions of the page
+y from the bottom". `PaperCitation` says the box is "fractions of the page
 from its top-left corner". Both are true; both are called the same thing; and a
 value of one kind passed where the other is expected is wrong by exactly the
 page height, which looks plausible near the middle of a page.
@@ -324,11 +321,10 @@ confusing in any sentence that mentions boards and annotations together.
 New words this document introduces, all of them naming something the product
 already does but had no noun for:
 
-- **Reading** (§3) — one user's annotations on one edition, as a unit. What a rich
+- **Reading** (§3) — one user's annotations on one paper, as a unit. What a rich
   sharable carries and a lean one does not.
 - **PDF-space fraction** / **screen-space fraction** (§3) — the two coordinate
   conventions, told apart.
-- **Adopt** (§2) — the user's own move to a newer edition.
 - **Demote** (§6) — a rich link becoming lean, permanently.
 - **Surface** (§9) — one of the three browser applications.
 - **Handoff address** (§8) — the web address re-addressed to the app.

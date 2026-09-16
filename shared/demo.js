@@ -5,7 +5,7 @@
 // remains the sole authority for whether demo mode is active.
 
 import {
-  demoPapers, demoNotes, demoEditionFor, demoPaperUuid, noteAsComment,
+  demoPapers, demoNotes, demoPaperUuid, noteAsComment,
 } from './demoWorld.js';
 import { inDemo } from './appUrls.js';
 import appLimits from './appLimits.js';
@@ -261,27 +261,13 @@ const paperRooms = (p) =>
   ensure().rooms.filter((r) => r.paper_key === paperKey(p))
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
-// The demo's papers each have exactly one edition, synthesized from the
-// file they carry: enough for the viewer's edition fields to be real,
-// while the demo can never gain a second one (uploads are disabled).
-const editionsOf = (p) => [
-  demoEditionFor(p),
-];
-
 function paperDetail(p) {
   const mine = copyOf(p, ME);
-  const editions = editionsOf(p);
-  const latest = editions[editions.length - 1];
-  const myEdition =
-    editions.find((e) => mine && e.uuid === mine.edition_uuid) || latest;
   return {
     uuid: p.uuid, doi: p.doi, title: p.title, authors: p.authors,
-    journal: p.journal, year: p.year, file_path: myEdition.file_path,
+    journal: p.journal, year: p.year, file_path: p.file_path,
+    sha256: p.sha256,
     created_at: p.created_at,
-    editions,
-    latest_edition: latest,
-    edition_uuid: myEdition.uuid,
-    ignored_edition_uuid: mine ? mine.ignored_edition_uuid ?? null : null,
     summary: mine ? mine.summary : null,
     thought: mine ? mine.thought : null,
     is_public: mine ? onDisplay(mine) : null,
@@ -315,7 +301,7 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     uuid: p.uuid, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: c ? c.created_at : p.created_at,
-    edition_uuid: c ? c.edition_uuid ?? editionsOf(p)[0].uuid : null,
+    sha256: p.sha256,
     summary: c && !hidePrivate ? c.summary : null,
     thought: c ? c.thought : null,
     is_public: c ? onDisplay(c) : null,
@@ -528,25 +514,6 @@ async function routeDemoRequest(path, options = {}) {
       rating_reading: null, rating_liking: null,
       shelf_uuid: defaultShelf.uuid,
       created_at: now() });
-    return paperDetail(paper);
-  }
-  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/editions$/))) {
-    throw demoError('Not available in the demo — create a real account to upload PDFs.');
-  }
-  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/ignore-edition$/))) {
-    const paper = findPaper(m[1]);
-    const mine = copyOf(paper, ME);
-    if (!mine) throw demoError('Add this paper to your nook first', 403);
-    const editions = editionsOf(paper);
-    mine.ignored_edition_uuid = body.edition_uuid || editions[editions.length - 1].uuid;
-    return paperDetail(paper);
-  }
-  if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/adopt-edition$/))) {
-    const paper = findPaper(m[1]);
-    const mine = copyOf(paper, ME);
-    if (!mine) throw demoError('Add this paper to your nook first', 403);
-    const editions = editionsOf(paper);
-    mine.edition_uuid = body.edition_uuid || editions[editions.length - 1].uuid;
     return paperDetail(paper);
   }
   if ((m = path.match(/^\/papers\/([0-9a-f-]{36})\/annotations$/)) && method === 'POST') {

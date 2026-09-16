@@ -143,9 +143,13 @@ class SyncClient(Base):
 
 
 class Paper(Base):
-    """The canonical paper, keyed by DOI (or title when no DOI). One row
-    per paper; its PDFs are its editions, and per-user state lives in
-    Copy."""
+    """One PDF, and the metadata read off it.
+
+    A paper *is* its file: the content hash is its identity. Two PDFs of
+    the same work — a preprint and the published version, or the same
+    article scanned twice — are two papers, even when they print the same
+    DOI. Each has its own copies, annotations and bibliography, and
+    nothing here belongs to anyone; per-user state lives in Copy."""
     __tablename__ = "papers"
 
     uuid = uuid_key()
@@ -154,34 +158,10 @@ class Paper(Base):
     authors = Column(Text, nullable=True)  # JSON array stored as text
     journal = Column(Text, nullable=True)
     year = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    revision = Column(Integer, nullable=False, default=1, server_default="1")
-    deleted_at = Column(DateTime, nullable=True)
-
-    copies = relationship("Copy", back_populates="paper", cascade="all, delete-orphan")
-    annotations = relationship(
-        "Annotation", back_populates="paper", cascade="all, delete-orphan",
-    )
-    # Oldest first, so the last edition is the latest one.
-    editions = relationship(
-        "PaperEdition", back_populates="paper",
-        order_by="(PaperEdition.created_at, PaperEdition.uuid)",
-    )
-
-
-class PaperEdition(Base):
-    """One PDF file of a paper. A re-upload adds an edition instead of
-    replacing the file, so no user's copy changes under them; each
-    user's copy names the edition they read (Copy.edition_uuid).
-    Editions and their files are never deleted automatically."""
-    __tablename__ = "paper_editions"
-
-    uuid = uuid_key()
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
-    file_path = Column(Text, nullable=False)
-    # Content hash: an upload identical to an existing edition reuses it
-    # rather than adding a duplicate.
+    file_path = Column(Text, nullable=True)
+    # Content hash of those exact PDF bytes: the paper's identity, and what
+    # names it in a viewer URL. An upload of bytes Papol already holds lands
+    # on the paper holding them rather than making a second.
     sha256 = Column(String, nullable=True, index=True)
     uploaded_by = Column(String(36), ForeignKey("users.uuid"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -190,39 +170,42 @@ class PaperEdition(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     # How far the reference analysis of this PDF has got. References are
-    # a property of the file, not of the paper, so they are read once per
-    # edition and kept: pending | ready | failed | unavailable.
+    # a property of the file, so they are read once and kept:
+    # pending | ready | failed | unavailable.
     references_status = Column(String, nullable=True)
     references_error = Column(Text, nullable=True)
     references_at = Column(DateTime, nullable=True)
 
-    paper = relationship("Paper", back_populates="editions")
+    copies = relationship("Copy", back_populates="paper", cascade="all, delete-orphan")
+    annotations = relationship(
+        "Annotation", back_populates="paper", cascade="all, delete-orphan",
+    )
     uploader = relationship("User")
     references = relationship(
-        "EditionReference",
-        back_populates="edition",
+        "PaperReference",
+        back_populates="paper",
         cascade="all, delete-orphan",
-        order_by="EditionReference.index",
+        order_by="PaperReference.index",
     )
     citations = relationship(
-        "EditionCitation", back_populates="edition", cascade="all, delete-orphan"
+        "PaperCitation", back_populates="paper", cascade="all, delete-orphan"
     )
     links = relationship(
-        "EditionLink", back_populates="edition", cascade="all, delete-orphan"
+        "PaperLink", back_populates="paper", cascade="all, delete-orphan"
     )
 
 
-class EditionReference(Base):
-    """One work cited by an edition, as the analyzer read it off the page.
+class PaperReference(Base):
+    """One work cited by a paper, as the analyzer read it off the page.
 
     `raw` is the reference exactly as printed — the string a bibliographic
     search matches against, and the thing to show a user when no match is
     found. Everything under `resolved_*` is what the lookup added, filled
     in the first time someone opens this reference and kept thereafter."""
-    __tablename__ = "edition_references"
+    __tablename__ = "paper_references"
 
     uuid = uuid_key()
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
+    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     # The analyzer's own key for the entry (its xml:id), which is what the
     # in-text markers point at.
     key = Column(String, nullable=False)
@@ -245,21 +228,21 @@ class EditionReference(Base):
     resolved_at = Column(DateTime, nullable=True)
     resolution = Column(Text, nullable=True)  # JSON blob, see biblio.resolve
 
-    edition = relationship("PaperEdition", back_populates="references")
+    paper = relationship("Paper", back_populates="references")
 
 
-class EditionCitation(Base):
+class PaperCitation(Base):
     """One in-text marker — the "[12]" a user clicks — and its box.
 
     The box is fractions of the page from its top-left corner, so it lands
     in the same place at any zoom and on any screen. A marker that names
     several works, "[3, 5]", is several rows: each is separately clickable
     because each leads somewhere different."""
-    __tablename__ = "edition_citations"
+    __tablename__ = "paper_citations"
 
     uuid = uuid_key()
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
-    reference_uuid = Column(String(36), ForeignKey("edition_references.uuid"), nullable=True)
+    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    reference_uuid = Column(String(36), ForeignKey("paper_references.uuid"), nullable=True)
     label = Column(Text, nullable=True)
     page = Column(Integer, nullable=False, index=True)
     x = Column(Float, nullable=False)
@@ -270,16 +253,16 @@ class EditionCitation(Base):
     # number printed in it was read instead. A guess, and marked as one.
     inferred = Column(Boolean, default=False)
 
-    edition = relationship("PaperEdition", back_populates="citations")
-    reference = relationship("EditionReference")
+    paper = relationship("Paper", back_populates="citations")
+    reference = relationship("PaperReference")
 
 
-class EditionLink(Base):
+class PaperLink(Base):
     """One analyzed cross-reference to another position in the PDF."""
-    __tablename__ = "edition_links"
+    __tablename__ = "paper_links"
 
     uuid = uuid_key()
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
+    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     kind = Column(String, nullable=False)
     label = Column(Text, nullable=True)
     page = Column(Integer, nullable=False, index=True)
@@ -290,7 +273,7 @@ class EditionLink(Base):
     target_page = Column(Integer, nullable=False)
     target_y = Column(Float, nullable=False)
 
-    edition = relationship("PaperEdition", back_populates="links")
+    paper = relationship("Paper", back_populates="links")
 
 
 class Copy(Base):
@@ -302,16 +285,6 @@ class Copy(Base):
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
     shelf_uuid = Column(String(36), ForeignKey("shelves.uuid"), nullable=True, index=True)
-    # The edition this user reads. Only the user moves it, by adopting
-    # a newer one; nothing else may change the file under their notes.
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
-    # Identity of those exact PDF bytes: a user's choice is the content
-    # hash, which also names the viewer URL.
-    edition_sha256 = Column(String, nullable=True, index=True)
-    # The newest edition this user has already seen — waved away, or
-    # simply present when they last chose a PDF. The offer of a newer PDF
-    # stays hidden until one newer still arrives.
-    ignored_edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
     # The user is an author of this paper ("this is my paper").
@@ -326,8 +299,6 @@ class Copy(Base):
 
     paper = relationship("Paper", back_populates="copies")
     user = relationship("User", back_populates="copies")
-    edition = relationship("PaperEdition", foreign_keys=[edition_uuid])
-    ignored_edition = relationship("PaperEdition", foreign_keys=[ignored_edition_uuid])
     tags = relationship(
         "Tag", secondary=copy_tags, viewonly=True,
         primaryjoin=lambda: and_(
@@ -407,7 +378,7 @@ class Annotation(Base):
     A note is words, optionally pinned to a place. Ink is a stroke drawn over
     the page. A clip is a movable view of one rectangle of it. They differ in
     what they draw, not in what they are: each belongs to one user, sits on
-    one PDF of one paper, and is private to them unless they share a reading.
+    one paper, and is private to them unless they share a reading.
 
     `kind` says which — note | ink | clip — and `body` carries the geometry
     that only that kind has. Geometry was always JSON text here; a polyline
@@ -426,7 +397,6 @@ class Annotation(Base):
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
     # Null only for a note about the paper that was never put on a page.
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True, index=True)
     page = Column(Integer, nullable=True, index=True)
     # Several stored paths can be one logical annotation: text painted across lines
     # is drawn as separate strokes but picked up and erased as one.
@@ -444,7 +414,6 @@ class Annotation(Base):
 
     paper = relationship("Paper", back_populates="annotations")
     user = relationship("User")
-    edition = relationship("PaperEdition")
 
 
 class Board(Base):
@@ -524,15 +493,15 @@ class BoardItem(Base):
 
 
 class Sharable(Base):
-    """One user's reading of one edition, handed to anyone with the link.
+    """One user's reading of one paper, handed to anyone with the link.
 
     The link carries this row's UUID and nothing else, so the UUID is the
-    whole of the permission: distinct from the paper's and the edition's,
-    because what it opens is neither of those. A *rich* link opens a reading
-    — the PDF this user chose, the notes they wrote on it, the ink they
-    drew and the clips they cut — and belongs to them. A *lean* link opens
-    the PDF alone and belongs to nobody: one per edition, handed to whoever
-    asks for it, with no user named on it and none implied.
+    whole of the permission: distinct from the paper's, because what it
+    opens is not the paper. A *rich* link opens a reading — the PDF, the
+    notes this user wrote on it, the ink they drew and the clips they cut
+    — and belongs to them. A *lean* link opens the PDF alone and belongs
+    to nobody: one per paper, handed to whoever asks for it, with no user
+    named on it and none implied.
 
     The reading is named, not copied. A note reworded after the link was
     given out is reworded for everyone holding it, which is what a user
@@ -560,15 +529,11 @@ class Sharable(Base):
     # page, not theirs to revoke, and not a thing they are told exists.
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True, index=True)
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
-    # The exact PDF that was shared. A user who later adopts a newer
-    # edition has shared this one, and their annotations on it are still here.
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
 
     user = relationship("User")
     paper = relationship("Paper")
-    edition = relationship("PaperEdition")
 
     @property
     def is_revoked(self) -> bool:

@@ -130,12 +130,11 @@ These are private and user-owned:
 The desktop needs these as dependencies of the user's records:
 
 - `papers`
-- `paper_editions`
-- the bounded reference-analysis rows needed for downloaded editions
+- the bounded reference-analysis rows needed for downloaded papers
 
-Adding a PDF is an exceptional workflow because the server currently canonicalizes papers across users. The local app can create the edition by content hash and a local paper UUID, but the server may discover an existing canonical work. Handle this through one explicit `paper.import` mutation and a generic `_server_id_aliases` result, rather than recursively rewriting arbitrary JSON fields.
+Adding a PDF is an exceptional workflow because the server canonicalizes papers across users. The local app creates the paper by content hash under a local UUID, but the server may already hold that file. Handle this through one explicit `paper.import` mutation and a generic `_server_id_aliases` result, rather than recursively rewriting arbitrary JSON fields.
 
-The longer-term simplification is to use content hash as edition identity and UUIDs as paper identity, with server deduplication represented as an explicit alias/merge event.
+A paper is now identified by the content hash of its PDF, and server deduplication is represented as an explicit alias event.
 
 ### Server-only tables
 
@@ -177,7 +176,7 @@ The local database is introduced only with the final UUID shape. It never persis
 1. Boards: `boards`, `board_items`, `board_groups`.
 2. User annotations: `comments`, `ink_strokes`, `paper_clips`.
 3. Nook organization: `copies`, `shelves`, `tags`, `copy_tags`.
-4. Paper dependencies: `papers`, `paper_editions`, reference rows.
+4. Paper dependencies: `papers` and their reference rows.
 
 Each group is independently deployable and keeps compatibility routes until its clients have migrated.
 
@@ -392,14 +391,14 @@ Exit criterion: create and fully edit a board offline, quit the app, reopen it o
 ### Stage D — annotations and nook
 
 Implementation status (2026-09-12): complete for approved private desktop
-operations. Notes, ink, clips, copies, tags, shelves, paper/edition dependencies,
+operations. Notes, ink, clips, copies, tags, shelves, paper dependencies,
 content-hash PDF import and canonical identity aliases use the native replica.
 The bearer credential is loaded into JavaScript memory and persists in the
 webview's local storage. Visibility changes, account/security, seminars, and social actions
 remain deliberately online-only.
 
 - migrate notes, ink, clips, copies, shelves, tags, and associations;
-- add paper/edition read dependencies;
+- add paper read dependencies;
 - implement the explicit PDF import/canonicalization workflow;
 - add local search where needed;
 - standardize credential persistence in webview local storage.

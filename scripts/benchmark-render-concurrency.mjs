@@ -26,8 +26,7 @@ globalThis.window = {
         return {
           uuid: ACCOUNT,
           title: 'Benchmark paper',
-          edition_uuid: ACCOUNT,
-          edition_sha256: HASH,
+          sha256: HASH,
         };
       }
       if (args.queryName === 'comments') {

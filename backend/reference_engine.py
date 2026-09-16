@@ -1,7 +1,7 @@
 """Reference analysis and resolution that does not belong to a database row.
 
-Production editions persist this state through SQLAlchemy in ``main.py``.
-Demo editions deliberately disappear on restart, but should otherwise use
+Stored papers persist this state through SQLAlchemy in ``main.py``.
+Demo papers deliberately disappear on restart, but should otherwise use
 the same GROBID and bibliographic resolver. This module owns that ephemeral
 state so the HTTP routes do not become a second reference engine.
 """
@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import biblio
 import grobid
 from pdf_parser import extract_arxiv_id
-from schemas import CitationOut, DocumentLinkOut, EditionReferences, ReferenceOut, ResolvedWork
+from schemas import CitationOut, DocumentLinkOut, PaperReferences, ReferenceOut, ResolvedWork
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ def _url_title(url: str | None) -> str | None:
 
 
 class EphemeralReferenceEngine:
-    """Process-local counterpart of a persisted edition reference store."""
+    """Process-local counterpart of a persisted paper reference store."""
 
     def __init__(self):
         self._analyses: dict[str, dict] = {}
@@ -147,10 +147,10 @@ class EphemeralReferenceEngine:
         }
         return True
 
-    def response(self, digest: str, edition_uuid: str) -> EditionReferences:
+    def response(self, digest: str, paper_uuid: str) -> PaperReferences:
         state = self._analyses[digest]
-        return EditionReferences(
-            edition_uuid=edition_uuid,
+        return PaperReferences(
+            paper_uuid=paper_uuid,
             status=state["status"],
             detail=state.get("detail"),
             references=state.get("references", []),

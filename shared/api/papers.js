@@ -105,7 +105,6 @@ export async function createPaper(paperData) {
         ?? shelfUuid;
     }
     const paperUuid = newUuid();
-    const editionUuid = newUuid();
     const copyUuid = newUuid();
     const changes = [
       {
@@ -113,17 +112,13 @@ export async function createPaper(paperData) {
         values: {
           doi: paperData.doi, title: paperData.title, authors: paperData.authors,
           journal: paperData.journal, year: paperData.year,
+          file_path: `${sha256}.pdf`, sha256,
         },
-      },
-      {
-        table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
-        values: { paper_uuid: paperUuid, file_path: `${sha256}.pdf`, sha256 },
       },
       {
         table: 'copies', uuid: copyUuid, operation: 'upsert',
         values: {
           paper_uuid: paperUuid, shelf_uuid: shelfUuid,
-          edition_uuid: editionUuid, edition_sha256: sha256,
           summary: paperData.summary,
         },
       },
@@ -134,7 +129,7 @@ export async function createPaper(paperData) {
     });
     if (paperData.initial_comment?.trim()) changes.push({
       table: 'comments', uuid: newUuid(), operation: 'upsert',
-      values: { paper_uuid: paperUuid, edition_uuid: editionUuid, content: paperData.initial_comment.trim() },
+      values: { paper_uuid: paperUuid, content: paperData.initial_comment.trim() },
     });
     await nativeRepository.transact(changes);
     forgetPendingPaperBlob(sha256);
@@ -217,8 +212,7 @@ export async function getPaper(uuid) {
 }
 
 async function downloadNativePaperPdf(paper, expectedSha256) {
-  const filePath = paper.file_path
-    || paper.editions?.find((edition) => edition.sha256 === expectedSha256)?.file_path;
+  const filePath = paper.file_path;
   if (!filePath) {
     const failure = new Error('This Library paper does not have a downloadable PDF.');
     failure.reportable = false;
@@ -226,8 +220,8 @@ async function downloadNativePaperPdf(paper, expectedSha256) {
   }
   let response;
   try {
-    // Library PDFs are public. Do not attach the Papol bearer token: an
-    // edition may point at an external open-access URL.
+    // Library PDFs are public. Do not attach the Papol bearer token: a
+    // paper may point at an external open-access URL.
     response = await runtimeFetch(pdfHref({ ...paper, file_path: filePath }));
   } catch (cause) {
     const failure = new Error(
@@ -247,7 +241,7 @@ async function downloadNativePaperPdf(paper, expectedSha256) {
   const stored = await nativeBlobImport(await response.blob());
   if (stored.sha256 !== expectedSha256) {
     await discardNativeBlob(stored.sha256).catch(() => {});
-    throw new Error('The downloaded PDF did not match the Library edition.');
+    throw new Error('The downloaded PDF did not match the Library paper.');
   }
 }
 
@@ -260,78 +254,13 @@ export async function addToNook(paper) {
 
   const shelves = await nativeRepository.shelves();
   const { copyUuid, change } = planOfflineNookAddition(paper, shelves, newUuid);
-  if (change.values.edition_sha256) {
-    await downloadNativePaperPdf(paper, change.values.edition_sha256);
+  if (paper.sha256) {
+    await downloadNativePaperPdf(paper, paper.sha256);
   }
   await importNativeSharedPaper(paper);
   await nativeRepository.transact([change]);
   setPaperCopyUuid(paperUuid, copyUuid);
   return paperView(await nativeRepository.paper(paperUuid));
-}
-
-export async function addPaperEdition(uuid, file) {
-  if (nativeDataActive()) {
-    const stored = await nativeBlobImport(file);
-    try {
-      const paper = paperView(await nativeRepository.paper(uuid));
-      const editionUuid = newUuid();
-      await nativeRepository.transact([
-        {
-          table: 'paper_editions', uuid: editionUuid, operation: 'upsert',
-          values: { paper_uuid: uuid, file_path: `${stored.sha256}.pdf`, sha256: stored.sha256 },
-        },
-        {
-          table: 'copies', uuid: paper.copy_uuid, operation: 'patch',
-          values: {
-            edition_uuid: editionUuid,
-            edition_sha256: stored.sha256,
-            ignored_edition_uuid: editionUuid,
-          },
-        },
-      ]);
-      return rememberPaperIdentity(paperView(await nativeRepository.paper(uuid)));
-    } catch (error) {
-      await discardNativeBlob(stored.sha256).catch(() => {});
-      throw error;
-    }
-  }
-  const formData = new FormData();
-  formData.append('file', file);
-  return onServer(() => request(`/papers/${uuid}/editions`, { method: 'POST', body: formData }));
-}
-
-export async function adoptEdition(uuid, editionUuid) {
-  if (nativeDataActive()) {
-    const paper = paperView(await nativeRepository.paper(uuid));
-    const edition = (paper.editions || []).find((candidate) => candidate.uuid === editionUuid);
-    if (!edition?.sha256) throw new Error('Edition is not available in the local replica');
-    await nativeRepository.transact([{
-      table: 'copies', uuid: paper.copy_uuid, operation: 'patch',
-      values: {
-        edition_uuid: edition.uuid,
-        edition_sha256: edition.sha256,
-        ignored_edition_uuid: paper.latest_edition?.uuid || edition.uuid,
-      },
-    }]);
-    return rememberPaperIdentity(paperView(await nativeRepository.paper(uuid)));
-  }
-  return onServer(() => jsonRequest(`/papers/${uuid}/adopt-edition`, 'POST', {
-    edition_uuid: editionUuid ?? null,
-  }));
-}
-
-export async function ignoreEdition(uuid, editionUuid) {
-  if (nativeDataActive()) {
-    const paper = paperView(await nativeRepository.paper(uuid));
-    await nativeRepository.transact([{
-      table: 'copies', uuid: paper.copy_uuid, operation: 'patch',
-      values: { ignored_edition_uuid: editionUuid ?? paper.latest_edition?.uuid ?? null },
-    }]);
-    return rememberPaperIdentity(paperView(await nativeRepository.paper(uuid)));
-  }
-  return onServer(() => jsonRequest(`/papers/${uuid}/ignore-edition`, 'POST', {
-    edition_uuid: editionUuid ?? null,
-  }));
 }
 
 async function localCopyUuid(uuid) {
@@ -451,7 +380,7 @@ export function deleteShelf(uuid) {
 // ---------- Notes ----------
 //
 // A note written on the paper page is an annotation with no place on a page:
-// the same row a located note uses, without an edition or a page.
+// the same row a located note uses, without a page.
 
 export function addComment(paperUuid, content) {
   if (nativeDataActive()) {

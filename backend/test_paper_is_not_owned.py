@@ -21,7 +21,7 @@ from sqlalchemy.pool import StaticPool
 import main
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
-from models import Copy, Paper, PaperEdition, Shelf, User
+from models import Copy, Paper, Shelf, User
 
 HIDDEN_HASH = "c" * 64
 
@@ -80,15 +80,11 @@ class PaperIsNotOwned(unittest.TestCase):
             db.add_all([keeper, other])
             db.commit()
 
-            paper = Paper(title="On a paper nobody owns", doi="10.1234/unowned")
-            db.add(paper)
-            db.commit()
-            edition = PaperEdition(
-                paper_uuid=paper.uuid,
-                file_path=f"{HIDDEN_HASH}.pdf",
-                sha256=HIDDEN_HASH,
+            paper = Paper(
+                title="On a paper nobody owns", doi="10.1234/unowned",
+                file_path=f"{HIDDEN_HASH}.pdf", sha256=HIDDEN_HASH,
             )
-            db.add(edition)
+            db.add(paper)
             db.commit()
 
             # A private shelf: this copy is shown to nobody.
@@ -104,7 +100,6 @@ class PaperIsNotOwned(unittest.TestCase):
             db.commit()
             db.add(Copy(
                 paper_uuid=paper.uuid, user_uuid=keeper.uuid, shelf_uuid=shelf.uuid,
-                edition_uuid=edition.uuid, edition_sha256=HIDDEN_HASH,
                 summary="Mine alone",
             ))
             db.commit()
