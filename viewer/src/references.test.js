@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  citationNumbers, consolidateCitations, destinationY, pageOverlays, referenceAt,
+  citationNumbers, columnsOnPage, consolidateCitations, destinationNumber, destinationY,
+  pageOverlays, readNamedReference, referenceAt,
 } from './references.js';
 
 test('expands every reference in numeric citation ranges', () => {
@@ -142,4 +143,134 @@ test('recognizes Springer Nature superscript reference destinations without anal
   assert.equal(overlays.citations.length, 1);
   assert.equal(overlays.citations[0].reference.key, '12');
   assert.equal(overlays.citations[0].reference.dest, dest);
+});
+
+
+// A two-column bibliography, as Elsevier and ACM set them. Entries run down
+// the left column and then down the right, so y climbs and then falls back to
+// the top of the page at r25 — which is the only sign, from where entries
+// sit, that r25 and r26 are printed beside r18 and r19 rather than below.
+function columnedBibliography() {
+  return [
+    // left column
+    { uuid: 'r18', index: 18, page: 10, y: 0.16483 },
+    { uuid: 'r19', index: 19, page: 10, y: 0.19493 },
+    { uuid: 'r20', index: 20, page: 10, y: 0.20498 },
+    // right column, back at the top of the page
+    { uuid: 'r25', index: 25, page: 10, y: 0.15434 },
+    { uuid: 'r26', index: 26, page: 10, y: 0.17442 },
+  ];
+}
+
+test('refuses a cross-column guess rather than naming the wrong entry', () => {
+  // KinetiX's "[20]" destination lands here. The right column's [27] is
+  // nearer this height than the left column's [20] is, and a destination
+  // carries no x to tell them apart.
+  const picked = referenceAt(columnedBibliography(), { page: 10, y: 0.17624 });
+  assert.equal(picked, null);
+});
+
+test('still matches by height when the bibliography is one column', () => {
+  // The same entries with no column break: y only ever climbs.
+  const singleColumn = columnedBibliography().filter((r) => r.index <= 20);
+  const picked = referenceAt(singleColumn, { page: 10, y: 0.18800 });
+  assert.equal(picked.uuid, 'r19');
+});
+
+test('reads the column break out of where the entries sit', () => {
+  const column = columnsOnPage(columnedBibliography(), 10);
+  const of = (uuid) => [...column].find(([r]) => r.uuid === uuid)[1];
+  assert.equal(of('r18'), 0);
+  assert.equal(of('r20'), 0);
+  assert.equal(of('r25'), 1, 'y falls back to the top: a new column');
+  assert.equal(of('r26'), 1);
+});
+
+test('reads the entry number out of a publisher destination name', () => {
+  assert.equal(destinationNumber('bib0020'), 20);
+  assert.equal(destinationNumber('c20'), 20);
+  assert.equal(destinationNumber('cite.20'), 20);
+  assert.equal(destinationNumber('cite.Parreaux2022'), null);
+  assert.equal(destinationNumber('fig0003'), null);
+});
+
+test('a numbered destination names its entry despite a columned bibliography', async () => {
+  const references = columnedBibliography();
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: 'bib0020', rect: [30, 44, 34, 46] },
+    ],
+  };
+  const doc = {
+    getPage: async () => page,
+    // Where the geometric match would have landed on the right column.
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 82.376],
+    getPageIndex: async () => 9,
+  };
+
+  const overlays = await pageOverlays(doc, 1, { references, citations: [], links: [] });
+
+  assert.equal(overlays.citations.length, 1);
+  assert.equal(overlays.citations[0].referenceUuid, 'r19');
+});
+
+test("prefers the analyzer's labelled marker over where a link points", async () => {
+  const references = columnedBibliography();
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: 'cite.opaque', rect: [30, 44, 34, 46] },
+    ],
+  };
+  const doc = {
+    getPage: async () => page,
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 82.376],
+    getPageIndex: async () => 9,
+  };
+  // GROBID read this very marker and knows it says "[20]".
+  const citations = [
+    { reference_uuid: 'r19', label: '[20]', page: 1, x: 0.30, y: 0.54, w: 0.04, h: 0.02, inferred: false },
+  ];
+
+  const overlays = await pageOverlays(doc, 1, { references, citations, links: [] });
+
+  const cite = overlays.citations.find((c) => c.referenceUuid === 'r19');
+  assert.ok(cite, 'the analyzer\'s reading should win');
+  assert.equal(cite.label, '[20]');
+});
+
+test('reads a bibliography entry without splicing in the next column', async () => {
+  // Two columns, each with entries at the same heights, as Elsevier sets them.
+  const span = (text, x, y) => ({ str: text, transform: [1, 0, 0, 1, x, y] });
+  const page = {
+    getViewport: () => ({ width: 600, height: 800, scale: 1 }),
+    getTextContent: async () => ({
+      items: [
+        span('[20] Hoberman C. Hoberman sphere. 1990.', 58, 654),
+        span('ISBN 978-1-4503-3634-5. Proc. UIST.', 327, 654),
+        span('http://www.hoberman.com/ .', 58, 644),
+        span('http://doi.acm.org/10.1145/2776880 .', 327, 644),
+        span('[21] Fischer U. Tabula Rasa table. 1987.', 58, 634),
+      ],
+    }),
+  };
+  const doc = {
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 654],
+    getPageIndex: async () => 9,
+    getPage: async () => page,
+  };
+
+  const raw = await readNamedReference(doc, 'bib0020');
+
+  assert.match(raw, /Hoberman sphere/);
+  assert.match(raw, /hoberman\.com/);
+  assert.doesNotMatch(raw, /doi\.acm\.org/, 'the next column must not bleed in');
+  assert.doesNotMatch(raw, /Tabula Rasa/, 'the next entry must not bleed in');
 });
