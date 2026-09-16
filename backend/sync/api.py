@@ -19,15 +19,16 @@ from auth import get_current_user
 from cohorts import in_active_cohort, paper_key_for
 from database import get_db
 from models import (
-    AppliedMutation, Board, BoardGroup, BoardItem, Comment, Copy, CopyTagLink, InkStroke,
-    Paper, PaperClip, PaperEdition, ServerChange, Shelf, SyncClient, Tag, User,
+    Annotation, AppliedMutation, Board, BoardGroup, BoardItem, Copy, CopyTagLink,
+    Paper, PaperEdition, ServerChange, Shelf, SyncClient, Tag, User,
 )
 from services.client_requirements import (
     INCOMPATIBLE, client_version, requirements, verdict,
 )
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.registry import MODELS, registry
-from schemas import CommentCreate, InkStrokeCreate, PaperClipCreate
+from schemas import AnnotationCreate
+from services.annotations import KINDS, NOTE
 from app_limits import limit, mebibytes
 
 
@@ -70,10 +71,7 @@ def _require_supported_client(request: Request, db: Session) -> None:
 class RowChange(BaseModel):
     table: Literal[
         "boards", "board_groups", "board_items", "papers", "paper_editions",
-        "comments", "ink_strokes",
-        "paper_clips",
-        "shelves", "tags", "copies",
-        "copy_tags",
+        "annotations", "shelves", "tags", "copies", "copy_tags",
     ]
     uuid: UUID
     base_revision: int | None = Field(default=None, ge=0)
@@ -100,13 +98,13 @@ def _find_owned(db: Session, model, row_uuid: str, user_uuid: str):
         if isinstance(pending, model) and pending.uuid == row_uuid:
             if isinstance(pending, (Paper, PaperEdition)):
                 return pending
-            if isinstance(pending, (Board, Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag)):
+            if isinstance(pending, (Annotation, Board, Copy, CopyTagLink, Shelf, Tag)):
                 return pending if pending.user_uuid == user_uuid else None
             return pending if pending.board.user_uuid == user_uuid else None
     query = db.query(model).filter(model.uuid == row_uuid)
     if model in {Paper, PaperEdition}:
         return query.first()
-    if model in {Board, Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag}:
+    if model in {Annotation, Board, Copy, CopyTagLink, Shelf, Tag}:
         return query.filter(model.user_uuid == user_uuid).first()
     return query.join(Board).filter(Board.user_uuid == user_uuid).first()
 
@@ -135,7 +133,7 @@ def _visible_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
     if paper in db.new or getattr(paper, "_sync_import_user", None) == user_uuid:
         return paper
     visible = any(
-        copy.deleted_at is None and (copy.user_uuid == user_uuid or copy.marketed)
+        copy.deleted_at is None and (copy.user_uuid == user_uuid or copy.is_public)
         for copy in paper.copies
     )
     if not visible:
@@ -255,31 +253,31 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         return Board(
             uuid=row_uuid, user_uuid=user.uuid, shelf=shelf, name="", description=None,
         )
-    if change.table == "comments":
+    if change.table == "annotations":
         paper_uuid = values.get("paper_uuid")
         if not isinstance(paper_uuid, str):
-            raise HTTPException(status_code=422, detail="comments.paper_uuid is required")
+            raise HTTPException(
+                status_code=422, detail="annotations.paper_uuid is required",
+            )
         paper = _owned_paper(db, paper_uuid, user.uuid)
         edition = None
         if values.get("edition_uuid") is not None:
             edition = _owned_edition(db, values["edition_uuid"], user.uuid)
             if edition.paper is not paper:
-                raise HTTPException(status_code=409, detail="Note edition belongs to another paper")
-        return Comment(
-            uuid=row_uuid, paper=paper, edition=edition, user_uuid=user.uuid, content="",
-        )
-    if change.table in {"ink_strokes", "paper_clips"}:
-        edition_uuid = values.get("edition_uuid")
-        if not isinstance(edition_uuid, str):
-            raise HTTPException(status_code=422, detail=f"{change.table}.edition_uuid is required")
-        edition = _owned_edition(db, edition_uuid, user.uuid)
-        common = {"uuid": row_uuid, "edition": edition, "user_uuid": user.uuid}
-        if change.table == "ink_strokes":
-            return InkStroke(
-                **common, page=1, points="[]", color="#b3923d", width=0.004,
-                opacity=1.0, shape="flat",
+                raise HTTPException(
+                    status_code=409, detail="That PDF belongs to another paper",
+                )
+        kind = values.get("kind")
+        if kind not in KINDS:
+            raise HTTPException(status_code=422, detail="Unknown annotation kind")
+        if kind != NOTE and edition is None:
+            raise HTTPException(
+                status_code=422, detail=f"A {kind} belongs on a PDF",
             )
-        return PaperClip(**common, page=1, source="{}", frame="{}", floating=False)
+        return Annotation(
+            uuid=row_uuid, kind=kind, paper=paper, edition=edition,
+            user_uuid=user.uuid, content="", body="{}",
+        )
     if change.table == "shelves":
         return Shelf(
             uuid=row_uuid, user_uuid=user.uuid, name="", color="#7f8c8d",
@@ -296,7 +294,7 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
         shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Copy(
             uuid=row_uuid, paper=paper, edition=edition, shelf=shelf,
-            user_uuid=user.uuid, marketed=False, is_author=False,
+            user_uuid=user.uuid, is_author=False,
         )
     if change.table == "copy_tags":
         copy_uuid, tag_uuid = values.get("copy_uuid"), values.get("tag_uuid")
@@ -345,50 +343,39 @@ def _assign_values(db: Session, record, values: dict, user: User):
         record.name = record.name.strip()
         return
 
-    if isinstance(record, Comment):
+    if isinstance(record, Annotation):
         if "paper_uuid" in values:
             record.paper = _owned_paper(db, values["paper_uuid"], user.uuid)
         if "edition_uuid" in values:
             edition_uuid = values["edition_uuid"]
             record.edition = _owned_edition(db, edition_uuid, user.uuid) if edition_uuid else None
         if record.edition is not None and record.edition.paper is not record.paper:
-            raise HTTPException(status_code=409, detail="Note edition belongs to another paper")
+            raise HTTPException(
+                status_code=409, detail="That PDF belongs to another paper",
+            )
         for key, value in values.items():
             if key not in {"paper_uuid", "edition_uuid", "deleted_at"}:
                 setattr(record, key, value)
-        anchor = None
-        if record.anchor is not None:
-            try:
-                anchor = {"type": record.anchor_type, **json.loads(record.anchor)}
-            except (TypeError, ValueError):
-                raise HTTPException(status_code=422, detail="Invalid note anchor")
+        # The client decides which kind of mark it made; every kind is then
+        # held to its own shape, so a replica cannot write a stroke with no
+        # points or an anchor off the page.
+        if record.kind not in KINDS:
+            raise HTTPException(status_code=422, detail="Unknown annotation kind")
         try:
-            CommentCreate(
-                content=record.content, page=record.page, anchor=anchor, name=record.name,
+            AnnotationCreate(
+                kind=record.kind,
+                edition_uuid=record.edition_uuid,
+                page=record.page,
+                group_uuid=record.group_uuid,
+                content=record.content or "",
+                name=record.name,
+                body=json.loads(record.body or "{}"),
             )
-        except ValidationError as error:
-            raise HTTPException(status_code=422, detail=error.errors())
-        return
-    if isinstance(record, (InkStroke, PaperClip)):
-        if "edition_uuid" in values:
-            record.edition = _owned_edition(db, values["edition_uuid"], user.uuid)
-        for key, value in values.items():
-            if key not in {"edition_uuid", "deleted_at"}:
-                setattr(record, key, value)
-        try:
-            if isinstance(record, InkStroke):
-                InkStrokeCreate(
-                    group_uuid=record.group_uuid, page=record.page,
-                    points=json.loads(record.points), color=record.color,
-                    width=record.width, opacity=record.opacity, shape=record.shape,
-                )
-            else:
-                PaperClipCreate(
-                    page=record.page, source=json.loads(record.source),
-                    frame=json.loads(record.frame), floating=record.floating,
-                )
         except (TypeError, ValueError, ValidationError) as error:
-            detail = error.errors() if isinstance(error, ValidationError) else str(error)
+            detail = (
+                error.errors(include_context=False, include_url=False)
+                if isinstance(error, ValidationError) else str(error)
+            )
             raise HTTPException(status_code=422, detail=detail)
         return
     if isinstance(record, Shelf):
@@ -415,16 +402,15 @@ def _assign_values(db: Session, record, values: dict, user: User):
             record.paper = _visible_paper(db, values["paper_uuid"], user.uuid)
         if "shelf_uuid" in values:
             shelf = _owned_shelf(db, values["shelf_uuid"], user.uuid)
-            # Visibility belongs to the shelf: moving a copy publishes or
-            # hides it exactly as the online move in update_paper does.
+            # Visibility belongs to the shelf, so the move is the whole of
+            # it: there is nothing on the copy left to bring into line.
             if shelf is not None:
-                if (record.marketed and not shelf.is_public and record.paper is not None
+                if (record.is_public and not shelf.is_public and record.paper is not None
                         and in_active_cohort(db, user, paper_key_for(record.paper))):
                     raise HTTPException(
                         status_code=422,
                         detail="Leave the seminar before moving this paper to a private shelf",
                     )
-                record.marketed = bool(shelf.is_public)
             record.shelf = shelf
         if "edition_uuid" in values:
             edition_uuid = values["edition_uuid"]
@@ -533,7 +519,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         return record, {
             "table": change.table,
             "uuid": row_uuid,
-            "strategy": rule.get("conflict", "whole_row"),
             "resolution": "server_won",
             "reason": "row_deleted",
             "server_revision": record.revision,
@@ -545,7 +530,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         conflict = {
             "table": change.table,
             "uuid": row_uuid,
-            "strategy": rule.get("conflict", "whole_row"),
             "resolution": "client_won",
             "server_revision": record.revision,
             "previous": {
@@ -787,9 +771,7 @@ def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_d
         *boards,
         *board_groups,
         *board_items,
-        *db.query(Comment).filter(Comment.user_uuid == user.uuid).all(),
-        *db.query(InkStroke).filter(InkStroke.user_uuid == user.uuid).all(),
-        *db.query(PaperClip).filter(PaperClip.user_uuid == user.uuid).all(),
+        *db.query(Annotation).filter(Annotation.user_uuid == user.uuid).all(),
         *copies,
         *db.query(CopyTagLink).filter(CopyTagLink.user_uuid == user.uuid).all(),
     ]

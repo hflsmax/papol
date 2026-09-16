@@ -325,6 +325,15 @@ button.link.danger { color: var(--red); }
 .viewer-bar button.bar-link { cursor: pointer; background: var(--card); }
 .viewer-bar button.bar-link:disabled { cursor: default; opacity: 0.6; }
 .viewer-bar .nook-add-button { border-color: var(--accent); color: var(--accent); }
+
+/* Whose reading this is. Not a control: it does not sit in a box or take a
+   hover, because there is nothing to press. */
+.viewer-bar .shared-reading {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
 .nook-ask { display: flex; flex-direction: column; gap: 8px; width: min(300px, calc(100vw - 24px)); }
 .nook-ask strong { font-size: var(--fs-md); }
 .nook-ask p { color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.45; }

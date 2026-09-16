@@ -191,11 +191,13 @@ export const nativeRepository = Object.freeze({
   board: (uuid) => nativeQuery('board', { uuid }),
   boardGroup: (uuid) => nativeQuery('board_group', { uuid }),
   boards: () => nativeQuery('boards'),
-  clips: (editionUuid) => nativeQuery('clips', { parent_uuid: editionUuid }),
-  comments: (paperUuid) => nativeQuery('comments', { parent_uuid: paperUuid }),
+  // Every mark on a paper, narrowed to one of its PDFs or to one kind when
+  // the caller wants less.
+  annotations: (paperUuid, editionUuid = null, kind = null) => nativeQuery(
+    'annotations', { paper_uuid: paperUuid, edition_uuid: editionUuid, kind },
+  ),
   copies: () => nativeQuery('copies'),
   copyTags: () => nativeQuery('copy_tags'),
-  ink: (editionUuid) => nativeQuery('ink', { parent_uuid: editionUuid }),
   nook: () => nativeQuery('nook'),
   paper: (uuid) => nativeQuery('paper', { uuid }),
   paperByPdf: (sha256) => nativeQuery('paper_by_pdf', { sha256 }),
@@ -538,25 +540,11 @@ function parsedJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
-export function noteView(row) {
-  const anchor = parsedJson(row.anchor, null);
-  return {
-    ...row,
-    anchor: anchor && row.anchor_type ? { type: row.anchor_type, ...anchor } : null,
-  };
-}
-
-export function inkView(row) {
-  return { ...row, points: parsedJson(row.points, []) };
-}
-
-export function clipView(row) {
-  return {
-    ...row,
-    source: parsedJson(row.source, {}),
-    frame: parsedJson(row.frame, {}),
-    floating: row.floating === true || row.floating === 1,
-  };
+// One shape for every kind of annotation: the geometry that differs between
+// them travels as JSON in `body`, so reading a row back is the same work
+// whether it is a note, a stroke or a clip.
+export function annotationView(row) {
+  return { ...row, body: parsedJson(row.body, {}) };
 }
 
 export function shelfView(row) {
@@ -574,10 +562,10 @@ export function paperView(row) {
   const bool = (value) => value === true || value === 1;
   return {
     ...row,
-    marketed: bool(row.marketed),
+    is_public: bool(row.is_public),
     is_author: bool(row.is_author),
     viewer_has_entry: true,
-    viewer_is_reader: bool(row.marketed),
+    viewer_is_reader: bool(row.is_public),
   };
 }
 

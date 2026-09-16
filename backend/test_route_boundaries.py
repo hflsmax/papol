@@ -5,6 +5,7 @@ from main import app
 from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
+from routes.sharables import router as sharables_router
 
 EXPECTED_ROUTES = {
     ("GET", "/api/admin-messages/pending"): "routes.notifications",
@@ -13,6 +14,12 @@ EXPECTED_ROUTES = {
     ("POST", "/api/notifications/{notif_uuid}/read"): "routes.notifications",
     ("POST", "/api/notifications/read"): "routes.notifications",
     ("POST", "/api/feedback"): "routes.feedback",
+    ("POST", "/api/papers/{paper_uuid}/sharable"): "routes.sharables",
+    ("POST", "/api/sharables/{sharable_uuid}/lean"): "routes.sharables",
+    ("DELETE", "/api/sharables/{sharable_uuid}"): "routes.sharables",
+    ("GET", "/api/shared/{sharable_uuid}"): "routes.sharables",
+    ("GET", "/api/shared/{sharable_uuid}/nook"): "routes.sharables",
+    ("POST", "/api/shared/{sharable_uuid}/add-to-nook"): "routes.sharables",
     ("POST", "/api/admin/send-digest"): "routes.admin",
     ("POST", "/api/admin/messages"): "routes.admin",
     ("GET", "/api/admin/message-recipients"): "routes.admin",
@@ -30,7 +37,7 @@ EXPECTED_ROUTES = {
 
 def test_extracted_routes_keep_their_contract_and_domain_owner():
     actual = {}
-    for router in (notifications_router, feedback_router, admin_router):
+    for router in (notifications_router, feedback_router, admin_router, sharables_router):
         for route in router.routes:
             path = route.path
             for method in route.methods - {"HEAD", "OPTIONS"}:
@@ -45,7 +52,7 @@ def test_domain_routers_are_registered_once():
         for route in app.routes
         if hasattr(route, "original_router")
     ]
-    for router in (notifications_router, feedback_router, admin_router):
+    for router in (notifications_router, feedback_router, admin_router, sharables_router):
         assert included.count(router) == 1
 
 

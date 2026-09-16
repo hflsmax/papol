@@ -1,1 +1,1 @@
-export { APP_BASE, appPath, backendPath, inDemo } from '../../shared/appUrls.js';
+export { APP_BASE, appPath, backendPath, inDemo, stripAppBase } from '../../shared/appUrls.js';

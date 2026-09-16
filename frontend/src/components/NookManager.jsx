@@ -59,7 +59,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                 <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
               </div>
               <button
-                className={`market-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
+                className={`switch-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
                 role="switch"
                 aria-checked={shelf.is_public}
                 aria-label={`${shelf.name} is ${shelf.is_public ? 'public' : 'private'}`}

@@ -455,13 +455,21 @@ export default function App({ startupUser = null, startupError = null }) {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
     const currentPath = stripAppBase(window.location.pathname || '/');
     const candidate = requestedPage || currentPath;
-    const returnTo = candidate.startsWith('/paper/') || candidate.startsWith('/boards/')
+    // Only our own pages, and only ones worth being returned to. A
+    // visitor who signed in to keep a paper somebody shared with them is
+    // brought back to the link they were reading, where the paper is
+    // still theirs to add.
+    const returnTo = candidate.startsWith('/paper/')
+      || candidate.startsWith('/boards/')
+      || candidate.startsWith('/viewer/')
       ? candidate
       : '/';
     exitDemo();
     // login/register already persisted the credential for this account.
     setUser(user);
-    if (returnTo.startsWith('/boards/')) {
+    // Surfaces of their own, built and served separately from this one:
+    // reaching them is a navigation, not a route change.
+    if (returnTo.startsWith('/boards/') || returnTo.startsWith('/viewer/')) {
       window.location.replace(appPath(returnTo));
       return;
     }

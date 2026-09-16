@@ -215,7 +215,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             const paper = entry.value;
             return <React.Fragment key={`paper-${paper.uuid}`}>
             <li
-              className={isOwn && paper.marketed === false ? 'unmarketed' : ''}
+              className={isOwn && paper.is_public === false ? 'paper-private' : ''}
               onContextMenu={contextMenuHandler(() => [
                 { label: 'Open Paper', onSelect: () => onSelectPaper(paper.uuid) },
                 isOwn && shelves.length > 0 && { separator: true },

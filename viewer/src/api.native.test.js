@@ -43,67 +43,77 @@ global.window = {
 global.Event = class Event { constructor(type) { this.type = type; } };
 
 const {
-  addClip, addInk, createNote, eraseInk, getClips, getInk, getPaperByPdf, getPaperNotes,
+  createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes,
   pdfLoadInput, rememberPaperIdentity,
 } = await import('./api.js');
+const PAPER = '11111111-1111-4111-8111-111111111111';
+const EDITION = '22222222-2222-4222-8222-222222222222';
 
 rememberPaperIdentity({
   uuid: '11111111-1111-4111-8111-111111111111',
   edition_uuid: '22222222-2222-4222-8222-222222222222',
 });
 
-test('viewer notes use native UUID relationships and serialized anchors', async () => {
-  const note = await createNote('11111111-1111-4111-8111-111111111111', {
-    page: 3, anchor: { type: 'point', x: 0.25, y: 0.5 }, content: 'Offline',
+test('every kind of annotation reaches the one native table', async () => {
+  const note = await createAnnotation(PAPER, {
+    kind: 'note', page: 3, content: 'Offline',
+    body: { anchor: { type: 'point', x: 0.25, y: 0.5 } },
   });
   const call = calls.find(([command, args]) => command === 'data_mutate'
-    && args.changes[0].table === 'comments');
-  assert.equal(call[1].changes[0].values.paper_uuid, '11111111-1111-4111-8111-111111111111');
-  assert.equal(call[1].changes[0].values.edition_uuid, '22222222-2222-4222-8222-222222222222');
-  assert.deepEqual(note.anchor, { type: 'point', x: 0.25, y: 0.5 });
-});
+    && args.changes[0].table === 'annotations');
+  assert.equal(call[1].changes[0].values.kind, 'note');
+  assert.equal(call[1].changes[0].values.paper_uuid, PAPER);
+  assert.equal(call[1].changes[0].values.edition_uuid, EDITION);
+  // Geometry travels as text and comes back parsed.
+  assert.equal(typeof call[1].changes[0].values.body, 'string');
+  assert.deepEqual(note.body.anchor, { type: 'point', x: 0.25, y: 0.5 });
 
-test('ink and clips enter the native transactional outbox', async () => {
-  const stroke = await addInk('22222222-2222-4222-8222-222222222222', {
-    page: 1, points: [{ x: 0.1, y: 0.2 }], color: '#b3923d',
-    width: 0.004, opacity: 1, shape: 'flat',
+  const stroke = await createAnnotation(PAPER, {
+    kind: 'ink', edition_uuid: EDITION, page: 1,
+    body: {
+      points: [{ x: 0.1, y: 0.2 }], color: '#b3923d',
+      width: 0.004, opacity: 1, shape: 'flat',
+    },
   });
-  assert.deepEqual(stroke.points, [{ x: 0.1, y: 0.2 }]);
-  const clip = await addClip('22222222-2222-4222-8222-222222222222', {
-    page: 1,
-    source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
-    frame: { x: 0.2, y: 0.2, w: 0.3, h: 0.3 },
-    floating: false,
+  assert.deepEqual(stroke.body.points, [{ x: 0.1, y: 0.2 }]);
+
+  const clip = await createAnnotation(PAPER, {
+    kind: 'clip', edition_uuid: EDITION, page: 1,
+    body: {
+      source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+      frame: { x: 0.2, y: 0.2, w: 0.3, h: 0.3 },
+      floating: false,
+    },
   });
-  assert.equal(clip.frame.w, 0.3);
-  const inkCall = calls.find(([command, args]) => command === 'data_mutate'
-    && args.changes[0].table === 'ink_strokes');
-  assert.equal(typeof inkCall[1].changes[0].values.points, 'string');
-  await eraseInk(stroke.uuid);
+  assert.equal(clip.body.frame.w, 0.3);
+
+  await deleteAnnotation(stroke.uuid);
   const deleteCall = calls.find(([, args]) => args?.changes?.[0]?.operation === 'delete');
-  assert.equal(deleteCall[1].changes[0].table, 'ink_strokes');
+  assert.equal(deleteCall[1].changes[0].table, 'annotations');
 });
 
 test('a local edition UUID reads annotations without falling through to integer REST routes', async () => {
+  calls.length = 0;
   const localEditionUuid = '6e13e900-fece-4d91-8eaa-f8e0c48a75cc';
-  await getInk(localEditionUuid);
-  await getClips(localEditionUuid);
+  await listAnnotations(PAPER, { editionUuid: localEditionUuid, kind: 'ink' });
+  await listAnnotations(PAPER, { editionUuid: localEditionUuid, kind: 'clip' });
   const reads = calls.filter(([command, args]) => command === 'data_query'
-    && ['ink', 'clips'].includes(args.queryName));
-  assert.deepEqual(reads.map(([, args]) => args.parameters.parent_uuid), [
+    && args.queryName === 'annotations');
+  assert.deepEqual(reads.map(([, args]) => args.parameters.edition_uuid), [
     localEditionUuid, localEditionUuid,
   ]);
+  assert.deepEqual(reads.map(([, args]) => args.parameters.kind), ['ink', 'clip']);
 });
 
 test('paper identity is available before its notes are queried', async () => {
   calls.length = 0;
   const paper = await getPaperByPdf('a'.repeat(64));
 
-  assert.equal(paper.uuid, '11111111-1111-4111-8111-111111111111');
-  assert.equal(calls.some(([, args]) => args?.queryName === 'comments'), false);
+  assert.equal(paper.uuid, PAPER);
+  assert.equal(calls.some(([, args]) => args?.queryName === 'annotations'), false);
 
   await getPaperNotes(paper);
-  assert.equal(calls.filter(([, args]) => args?.queryName === 'comments').length, 1);
+  assert.equal(calls.filter(([, args]) => args?.queryName === 'annotations').length, 1);
 });
 
 test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', async () => {

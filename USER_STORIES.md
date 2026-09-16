@@ -9,6 +9,7 @@ Vocabulary ("The Nook" theme):
 - **On display** — an entry the host shows to other readers; hidden entries are visible only to their host.
 - **Located note** — a private note with a place in the PDF attached. Not a separate kind of thing: the same note, pinned.
 - **Edition** — one PDF file of a paper. A paper may have several; each reader's copy is pinned to the one they read, and only they can move it.
+- **Sharable** — a link that opens a PDF in the viewer for whoever holds it, signed in or not: the UUID in the link is the whole of the permission. A **rich** link carries one reader's reading — their marks on that edition — and is theirs. A **lean** link carries the PDF alone, is one per edition, and is nobody's.
 - **Call** — requesting a spontaneous seminar on a paper; it notifies every reader of that paper.
 - **Cohort** — the group where a called seminar is planned: leader, availability, platform, discussion. A seminar moves through three named states, used consistently across the app: **called** (waiting for a leader) → **planning** (leader took charge) → **scheduled** (time and platform announced).
 - **Leader** — the reader who answers a call and takes charge of the seminar.
@@ -87,6 +88,47 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-7.10** Reading a paper's bibliography happens once per **edition** and is kept, so only the first reader of a PDF waits. Looking up a particular reference happens the first time someone opens it, and is kept too.
 - **US-7.11** As a reader, the paper's **other links work too**: "see Section 3.2" and "Figure 4" scroll me there, and a URL opens in a new tab. Following a cross-reference offers **← Back to where you were**, because a jump that loses my place is worse than no link at all.
 - **US-7.12** The analyzer is optional. Where it is not running, everything else in Papol works exactly as before and citations are simply not clickable.
+
+## 7c. Sharing a reading
+
+- **US-7.13** As a reader, I can hand someone a **link to the PDF I am reading**, from the Share menu on the paper page. It opens the PDF in Papol's viewer, read-only, for anyone holding it — no account, no sign-in.
+- **US-7.14** One tick box decides **what the link carries, and therefore whose it is**. Left alone, I get the PDF's own link: the same link for everyone, carrying the paper and naming nobody — I copy it and pass it on, and that is the end of my part in it. Ticked, Papol makes **my** link, carrying my notes, paint and clips.
+- **US-7.15** A link is one or the other for its whole life. I have **one link of my own per edition I read** — asking again gives it back rather than making a second — and the PDF's own link is beside it, not instead of it: having handed over one is never a reason to be refused the other.
+- **US-7.16** What a visitor sees through my link is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding it. They see the PDF, my name, my marks, and the paper's bibliography — and nothing else in my nook. Through the PDF's own link they see the paper and no reader at all.
+- **US-7.17** **Sharing is not displaying.** A shelf says who can find the paper in the Library; a link says who may read this PDF. I can share a paper nobody else can find, and moving it between a public and a private shelf never changes a link I have already handed out.
+- **US-7.18** If I **take the paper out of my nook**, my link keeps opening the PDF but stops carrying the reading — permanently, so putting the paper back does not quietly re-expose my marks — and stops being mine along with them.
+- **US-7.19** **Stopping** asks what I mean: *drop my marks*, which leaves the link working for whoever has it and hands it out of my keeping for good, or *close the link*, which stops it opening. Closing is final — sharing again mints a new link, and the old one stays dead. Whoever follows a closed link is told it is no longer shared, not that it never existed.
+- **US-7.20** **A link of mine is a state of the paper, shown on its page**, so nothing I do can leave one serving that I have forgotten about. The PDF's own link is never shown there and never counted against me: I am not told whether one exists, because nothing of mine is in it.
+- **US-7.21** While a link **of mine** is out, Papol will not move my copy to another edition: it opens the PDF I am reading, so I am asked to stop sharing first rather than leave a link serving a file my paper page no longer shows. The PDF's own link is no obstacle — it says "here is this PDF", which stays true wherever I move.
+
+## Future direction: a paper is not owned
+
+Not built. Recorded here because sharing is what raised it, and the answer
+reaches further than sharing does.
+
+- **A PDF and its editions are global assets.** Nobody owns them and no reader
+  can manipulate them. An edition is a file that exists, keyed to a paper, and
+  leaving a paper never takes it away (US-2.9). What a reader owns is their
+  **copy**: the shelf it sits on, their ratings, their summary, their marks.
+- **Display therefore governs an entry, not a paper.** "On display" (US-2.5)
+  says whether *my* entry is shown to other readers. It should not decide
+  whether the paper itself can be found, because the paper is not mine to
+  hide.
+- **Every paper should appear in the Library.** Today a paper is reachable
+  only while some reader displays a copy of it: `page_is_public` asks whether
+  any copy is on display, and that answer gates the paper's own page, the
+  Papers tab, and whether a shared link carries a way back to the paper page.
+  A paper nobody displays is not private — it is unattended, and it should
+  still be findable.
+- **What this settles.** Taking a shared paper into a nook can look today as
+  though it *makes public* a paper nobody was displaying, since the reader's
+  default shelf is usually a displayed one. Under this direction the question
+  dissolves: the paper was in the Library all along, and what the reader gains
+  is a copy of their own. What stays private is what was always private — each
+  reader's summary, notes, paint and clips, displayed or not.
+- **What it revises.** The second half of US-2.9 — "a paper with no readers is
+  simply absent from the Library until someone adds it again" — and the
+  display-gating of browsing in §3.
 
 ## Non-functional
 

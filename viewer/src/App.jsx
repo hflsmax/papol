@@ -12,10 +12,13 @@ import {
   pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
 } from './api';
+import { annotationKinds } from './annotationKinds.js';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
+  signedIn as signedInHere,
 } from './source';
-import { appPath, backendPath } from './base';
+import { appPath, backendPath, stripAppBase } from './base';
+import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
   recordDiagnosticEvent, requestSignIn,
@@ -414,6 +417,36 @@ function savedReadingView() {
 
 export default function App() {
   const source = useMemo(resolveSource, []);
+  // Someone else's reading, opened by link. Everything on these pages was
+  // put there by them: it can be read, followed and searched, and nothing
+  // in the viewer may change it.
+  const readOnly = Boolean(source?.readOnly);
+  // Notes, ink and clips are one interface underneath and three things to
+  // draw. This is where the one becomes the three.
+  const marks = useMemo(() => annotationKinds(source?.annotations), [source]);
+  // Whether a mark this reader makes would have somewhere to live. A
+  // shared paper and a file opened from disk both read fully and hold
+  // nothing yet, so the tools are offered and reaching for one asks for
+  // the paper first.
+  const marksNeedANook = Boolean(source?.annotationsRequireNook);
+  // Read-only says the marks already on the page are not this reader's to
+  // change. It says nothing about marks they have not made yet — those are
+  // a question for the nook. Only where both are true is the paper one
+  // nobody can ever write on, and only then is an affordance worth
+  // withholding rather than offering and asking.
+  const neverMarkable = readOnly && !marksNeedANook;
+  // What the bar offers. A paper nobody can write on keeps the arrow,
+  // which is reading — text selects, citations open — and the menagerie,
+  // whose animals are nobody's mark: they wander and are never kept. Where
+  // the marks could be made once the paper is theirs, the whole bar stays:
+  // a reader should meet the tools, not an absence they have no way to
+  // read.
+  const availableTools = useMemo(
+    () => (neverMarkable
+      ? TOOLS.filter((t) => !ANNOTATION_TOOLS.has(t.id))
+      : TOOLS),
+    [neverMarkable],
+  );
   const immediatePdfPaper = useMemo(() => {
     if (source?.openedFile) return source.initialPaper;
     if (nativeDataActive() && source?.pdfHash) {
@@ -560,7 +593,7 @@ export default function App() {
   // What the reader is holding. Remembered, like the rail: someone marking
   // up a paper puts the brush down between sittings, not between pages.
   const [tool, setTool] = useState(() => {
-    if (source?.annotationsRequireNook) return 'arrow';
+    if (source?.annotationsRequireNook || source?.readOnly) return 'arrow';
     const kept = localStorage.getItem('papol_viewer_tool');
     return TOOLS.some((candidate) => candidate.id === kept) ? kept : 'arrow';
   });
@@ -604,6 +637,10 @@ export default function App() {
   // Kept apart from the sign-in step so clicking away can hide the prompt
   // without cancelling a sign-in already under way in the library window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
+  // This reader's own copy of the paper in front of them, when they keep
+  // one. What turns "add to nook" into "show in nook": the offer should be
+  // the one they can still act on.
+  const [nookCopy, setNookCopy] = useState(null);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Asked over a file opened from disk while another app is the system's PDF
   // viewer, until answered here or in the library window this launch.
@@ -690,7 +727,7 @@ export default function App() {
     setTool('arrow');
     setSheet(null);
     await hydrateCredential();
-    setNookStep(nativeDataActive() ? 'confirm' : 'ask');
+    setNookStep(signedInHere() ? 'confirm' : 'ask');
     setNookPromptOpen(true);
     return true;
   };
@@ -927,7 +964,13 @@ export default function App() {
       Promise.all([loaded, nookPaper])
         .then(([, found]) => {
           if (cancelled || !found) return;
-          handoffOpenedFileToNookViewer(found);
+          setNookCopy(found);
+          // The same bytes opened from disk go straight to their canonical
+          // nook URL. A shared reading does not: the visitor came to read
+          // what someone else marked up, and moving them to their own
+          // blank copy would take that away without being asked. The bar
+          // offers it instead.
+          if (source.openedFile) handoffOpenedFileToNookViewer(found);
         })
         .catch(() => {});
     }
@@ -1058,6 +1101,18 @@ export default function App() {
     };
   }, [paper, paperInfo, paperInfoOpen, source]);
 
+  // Whose reading this is. The one thing on the page that is about a
+  // person rather than a paper, and it is only ever set by a shared source.
+  const readerName = paper?.shared_by?.display_name || null;
+  // A lean link carries the paper alone. Someone handed it over, but there
+  // is no reading here and nothing of theirs to attribute.
+  const sharedReading = paper?.shared_kind === 'rich';
+  // Whether this paper arrived by link at all, either kind. Distinct from
+  // read-only, which is about whose the marks are: a file opened from disk
+  // is read-only too — vacuously, having no marks on it — and nobody
+  // shared it with anyone.
+  const fromALink = Boolean(paper?.shared_kind);
+
   const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip;
 
   // Everything hung from the paper menu is the same kind of transient
@@ -1179,7 +1234,9 @@ export default function App() {
     let wait = 1500;
 
     const ask = () => {
-      getViewerReferences(pdfHash, editionUuid)
+      // A shared reading reads the same bibliography on the authority of
+      // its link, so the source answers when it has its own way in.
+      (source?.references?.list || getViewerReferences)(pdfHash, editionUuid)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -1200,7 +1257,7 @@ export default function App() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [firstPageReady, paper]);
+  }, [firstPageReady, paper, source]);
 
   useEffect(() => {
     localStorage.setItem('papol_viewer_rail_width', String(railWidth));
@@ -1395,9 +1452,9 @@ export default function App() {
 
   useEffect(() => {
     // A file opened from disk has no edition until it joins a nook.
-    if ((!paper?.edition_uuid && !paper?.opened_file) || !source?.clips) return undefined;
+    if ((!paper?.edition_uuid && !paper?.opened_file) || !marks?.clips) return undefined;
     let cancelled = false;
-    source.clips.list(paper.edition_uuid)
+    marks.clips.list(paper.edition_uuid)
       .then((loaded) => { if (!cancelled) setClips(loaded); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
@@ -1407,9 +1464,9 @@ export default function App() {
   // the file rather than to the paper, so it is asked for once the paper
   // has said which edition is open.
   useEffect(() => {
-    if (!paper || !source?.ink) return undefined;
+    if (!paper || !marks?.ink) return undefined;
     let cancelled = false;
-    source.ink
+    marks.ink
       .list(paper.edition_uuid)
       .then((loaded) => {
         if (!cancelled) setInk(loaded);
@@ -1457,6 +1514,10 @@ export default function App() {
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);
             if (!paper?.edition_uuid) return;
+            // Registering a citation read off the page writes to the
+            // edition. The card already shows what is printed there, which
+            // is what a shared reading can offer.
+            if (readOnly) return;
             const pdfHash = paper.edition_sha256 || paper.sha256;
             const full = await resolveViewerReference(pdfHash, {
               key: inlineReference.key,
@@ -1476,7 +1537,7 @@ export default function App() {
     }
     // Show a cached answer immediately, and ask the item endpoint, which
     // looks the reference up the first time anyone opens it.
-    getViewerReference(referenceUuid)
+    (source?.references?.open || getViewerReference)(referenceUuid)
       .then((full) => {
         setReference((current) =>
           current && current.uuid !== referenceUuid ? current : full
@@ -1692,10 +1753,10 @@ export default function App() {
   // which is the honest thing to do with a mark that was not kept.
   const drawStroke = async (stroke, record = true) => {
     if (await promptToAddForAnnotations()) return null;
-    if (!source?.ink) return;
+    if (!marks?.ink) return;
     const provisional = `wet-${++tempInkUuid.current}`;
     setInk((all) => [...all, { ...stroke, uuid: provisional }]);
-    const saving = source.ink.create(paper?.edition_uuid, stroke);
+    const saving = marks.ink.create(paper?.edition_uuid, stroke);
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
@@ -2123,7 +2184,7 @@ export default function App() {
   // Carried on screen as it is dragged and written down when it is put
   // down, so the page keeps up with the hand and the server hears once.
   const moveStroke = async (uuid, points, record = true) => {
-    if (!source?.ink?.move) return;
+    if (!marks?.ink?.move) return;
     const was = inkRef.current.find((s) => s.uuid === uuid);
     if (!was) return;
     const members = was.group_uuid
@@ -2151,7 +2212,7 @@ export default function App() {
     try {
       const saved = await Promise.all(moves.map(async (move) => {
         const real = await settledInkUuid(move.uuid);
-        return real == null ? null : source.ink.move(real, move.after);
+        return real == null ? null : marks.ink.move(real, move.after);
       }));
       if (record && saved.some(Boolean)) {
         const first = moves[0];
@@ -2173,7 +2234,7 @@ export default function App() {
   };
 
   const eraseStroke = async (uuid, record = true) => {
-    if (!source?.ink) return;
+    if (!marks?.ink) return;
     // The eraser asks on every movement of the pointer, several times in a
     // frame, and `ink` is whatever it was when this render began — so the
     // same stroke was asked for twice, the first delete succeeded, the
@@ -2208,7 +2269,7 @@ export default function App() {
     setInk((all) => all.filter((s) => !goneUuids.has(s.uuid)));
     try {
       const realUuids = await Promise.all(gone.map((stroke) => settledInkUuid(stroke.uuid)));
-      await Promise.all(realUuids.filter((real) => real != null).map((real) => source.ink.remove(real)));
+      await Promise.all(realUuids.filter((real) => real != null).map((real) => marks.ink.remove(real)));
       if (record) {
         const entries = gone.map((stroke, index) => ({
           uuid: realUuids[index],
@@ -2711,7 +2772,7 @@ export default function App() {
     setNotes((prev) => [...prev, optimistic]);
     setActiveNoteUuid(tempUuid);
 
-    const saving = source.notes
+    const saving = marks.notes
       .create({ ...spot, content: '' })
       .then((saved) => {
         setNotes((prev) => prev.map((n) => (
@@ -2743,10 +2804,15 @@ export default function App() {
   // dropping one in the middle of marking a paper up does not cost the
   // brush that was in hand.
   const takeTool = (picked) => {
-    if (ANNOTATION_TOOLS.has(picked) && source?.annotationsRequireNook) {
+    // Asking for the paper comes first, when there is a nook for it to go
+    // into. Only a reading that can never be written on ignores the reach
+    // — its marking tools are not in the bar, so nothing should be
+    // reaching for one, though a remembered shortcut still might.
+    if (ANNOTATION_TOOLS.has(picked) && marksNeedANook) {
       void promptToAddForAnnotations();
       return;
     }
+    if (ANNOTATION_TOOLS.has(picked) && neverMarkable) return;
     // Reaching for what is already in your hand opens what belongs to it,
     // whether you reached with the pointer or with the key.
     if (picked === tool && SHEETS.has(picked)) {
@@ -2775,7 +2841,7 @@ export default function App() {
     setTool('arrow');
     toolBefore.current = null;
     try {
-      const saving = source.clips.create(paper.edition_uuid, clip);
+      const saving = marks.clips.create(paper.edition_uuid, clip);
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
@@ -2818,7 +2884,7 @@ export default function App() {
       // it again with the persistence response needlessly repaints its clip
       // canvas (and can overwrite a newer gesture if saves resolve out of
       // order). A successful move has nothing else to reconcile.
-      await source.clips.move(realUuid, frame, floating);
+      await marks.clips.move(realUuid, frame, floating);
     } catch (e) {
       setError(e.message);
     }
@@ -2828,7 +2894,7 @@ export default function App() {
     setSelectedClipUuid((selected) => (selected === uuid ? null : selected));
     setClips((all) => all.filter((clip) => clip.uuid !== uuid));
     try {
-      await source.clips.remove(await settledClipUuid(uuid));
+      await marks.clips.remove(await settledClipUuid(uuid));
     } catch (e) {
       setError(e.message);
     }
@@ -2872,7 +2938,7 @@ export default function App() {
     try {
       const real = await settledUuid(uuid);
       if (real == null) return;
-      const saved = await source.notes.move(real, spot);
+      const saved = await marks.notes.move(real, spot);
       if (record && was && saved) {
         remember({
           undo: () => moveNote(saved.uuid, { page: was.page, anchor: was.anchor }, false),
@@ -2894,7 +2960,7 @@ export default function App() {
     try {
       const real = await settledUuid(note.uuid);
       if (real == null) return;
-      const saved = await source.notes.rename(real, name);
+      const saved = await marks.notes.rename(real, name);
       if (record && saved) {
         remember({
           undo: () => renameNote(saved.uuid, note.name || '', false),
@@ -2972,7 +3038,7 @@ export default function App() {
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const updated = await source.notes.update(real, content);
+    const updated = await marks.notes.update(real, content);
     setNotes((prev) => prev.map((note) => (note.uuid === real ? updated : note)));
     return updated;
   };
@@ -2981,7 +3047,7 @@ export default function App() {
     const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const saved = await source.notes.rename(real, name);
+    const saved = await marks.notes.rename(real, name);
     if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
     if (record && note && saved) {
       remember({
@@ -3011,12 +3077,12 @@ export default function App() {
   };
 
   const restoreNote = async (snapshot) => {
-    let restored = await source.notes.create({
+    let restored = await marks.notes.create({
       page: snapshot.page,
       anchor: snapshot.anchor,
       content: snapshot.content || '',
     });
-    if (snapshot.name) restored = await source.notes.rename(restored.uuid, snapshot.name);
+    if (snapshot.name) restored = await marks.notes.rename(restored.uuid, snapshot.name);
     setNotes((prev) => [...prev, restored]);
     return restored;
   };
@@ -3033,7 +3099,7 @@ export default function App() {
     setDraggingNoteUuid((carried) => (carried === uuid ? null : carried));
     try {
       const real = await settledUuid(uuid);
-      if (real != null) await source.notes.remove(real);
+      if (real != null) await marks.notes.remove(real);
       if (record && gone) {
         const entry = { uuid: real, snapshot: gone };
         remember({
@@ -3049,7 +3115,10 @@ export default function App() {
     }
   };
 
-  const noteContextMenu = (event, note) => openContextMenu(event, [
+  // An anchor in a shared reading is somewhere to go, and nothing else.
+  const noteContextMenu = (event, note) => openContextMenu(event, readOnly ? [
+    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
+  ] : [
     { label: 'Go to Anchor', onSelect: () => goToNote(note) },
     { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => startWriting(note) },
     { label: 'Rename Anchor…', onSelect: () => startNaming(note) },
@@ -3060,7 +3129,9 @@ export default function App() {
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
   ]);
 
-  const pageContextMenu = contextMenuHandler((event) => event.target.closest?.('.pdf-page') ? [
+  const pageContextMenu = contextMenuHandler((event) => (
+    !readOnly && event.target.closest?.('.pdf-page')
+  ) ? [
     { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
   ] : []);
@@ -3229,7 +3300,7 @@ export default function App() {
   // is the only surface allowed to load or persist paper state.
   const addToNook = async () => {
     await hydrateCredential();
-    if (!nativeDataActive()) {
+    if (!signedInHere()) {
       setNookStep('ask');
       setNookPromptOpen(true);
       return;
@@ -3237,15 +3308,43 @@ export default function App() {
     setNookStep('adding');
     setNookPromptOpen(false);
     try {
-      await source.addToNook();
-      window.location.assign(nookViewerHref());
+      const added = await source.addToNook();
+      // Where the paper now is. A file opened from disk becomes the
+      // ordinary nook URL it was always destined for; a shared paper
+      // becomes this reader's own copy of that PDF, which is the only
+      // place their marks can go.
+      window.location.assign(source.nookHref?.(added) || nookViewerHref());
     } catch (failure) {
       setNookStep('idle');
       setError(`Could not add this paper: ${messageOf(failure)}`);
     }
   };
   const addToNookOnceSignedIn = useEvent(addToNook);
+  // Whether there is a copy of this paper to be shown at all. An opened
+  // file that matched a nook paper says so on the paper itself; a shared
+  // paper says so through the nook lookup its source made.
+  const showInNookHref = source?.openedFile
+    ? (paper?.uuid || null)
+    : (nookCopy && source?.nookHref?.(nookCopy)) || null;
+  const showInNook = () => {
+    // The desktop keeps the library in its own window, so showing a paper
+    // means raising that window rather than leaving this one.
+    if (source?.openedFile) {
+      focusDesktopLibraryWindow(paper.uuid);
+      return;
+    }
+    window.location.assign(showInNookHref);
+  };
   const askToSignIn = () => {
+    // On the desktop the library window does the signing in and this one
+    // waits for it. On the web there is no other window: the visitor goes
+    // to the sign-in page and is brought back to the link they were
+    // reading, where the paper is still theirs to add.
+    if (!IS_DESKTOP) {
+      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+      window.location.assign(appPath(`/signin?next=${encodeURIComponent(back)}`));
+      return;
+    }
     setNookStep('waiting');
     setNookPromptOpen(true);
     requestSignIn().catch(() => setNookStep('ask'));
@@ -3533,7 +3632,7 @@ export default function App() {
           )}
         </div>
         <span className="tools" role="group" aria-label="Tool">
-          {TOOLS.map((t) => (
+          {availableTools.map((t) => (
             <span className="tool-slot" key={t.id}>
               <button
                 type="button"
@@ -3813,6 +3912,18 @@ export default function App() {
             of you and this one leaves with a copy of it. */}
         {paper && (
           <span className="paper-menu" ref={paperMenuRef}>
+            {/* Said where the bar says what this document is, because whose
+                reading it is is part of what it is — and only then. A link
+                carrying the paper alone is nobody's and names nobody, so
+                there is nothing here to say about it: announcing "a shared
+                paper" would report the link rather than the paper, which is
+                the one thing a lean link is meant not to do. What is left
+                is the paper, which the bar is already showing. */}
+            {sharedReading && (
+              <span className="shared-reading" title="A reading someone shared with you">
+                {readerName ? `${readerName}’s reading` : 'A shared reading'}
+              </span>
+            )}
             <button
               type="button"
               className="bar-link paper-info-button"
@@ -3826,12 +3937,17 @@ export default function App() {
             >
               <span className="info-glyph" aria-hidden="true">i</span> Info
             </button>
-            {source?.openedFile && (
-              paper.uuid ? (
+            {/* A paper that is not yet this reader's, and could be: a file
+                they opened, or one somebody shared with them. Either way
+                the offer is the same two-sided one — go to your copy, or
+                make one. A visitor with no account sees "Add to nook" too,
+                and pressing it is where they are asked to sign in. */}
+            {source?.addToNook && (
+              showInNookHref ? (
                 <button
                   type="button"
                   className="bar-link nook-add-button"
-                  onClick={() => focusDesktopLibraryWindow(paper.uuid)}
+                  onClick={showInNook}
                 >
                   Show in nook
                 </button>
@@ -4085,6 +4201,7 @@ export default function App() {
               onFollowLink={pageFollowLink}
               onSelectNote={pageSelectNote}
               onMoveNote={pageMoveNote}
+              readOnly={readOnly}
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
               provenanceHighlights={wantedSelectionByPage.get(n) || EMPTY_INK}
@@ -4153,7 +4270,7 @@ export default function App() {
               ) : null}
             />
           )}
-          {selectionPaint && (
+          {selectionPaint && !neverMarkable && (
             <span
               ref={selectionActionsRef}
               className="selection-actions"
@@ -4191,7 +4308,7 @@ export default function App() {
               />
             </span>
           )}
-          {inkActions && (
+          {inkActions && !neverMarkable && (
             <span
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
@@ -4237,7 +4354,7 @@ export default function App() {
             <div className="help-sheet" onClick={(e) => e.stopPropagation()}>
               <h3>What the tools do</h3>
               <dl>
-                {TOOLS.map((t) => (
+                {availableTools.map((t) => (
                   <React.Fragment key={t.id}>
                     {/* Four columns — key, glyph, name, mnemonic — so a
                         wide badge like the shifted one cannot shunt its row
@@ -4262,8 +4379,19 @@ export default function App() {
                   </React.Fragment>
                 ))}
               </dl>
+              {/* Two separate facts, and each is said only when it is true.
+                  Whose the marks on the page are is worth saying only where
+                  they are somebody's — a reading that names its reader. Where
+                  a new mark would go is worth saying wherever it has nowhere
+                  to go yet, which is a shared paper and a file opened from
+                  disk alike. The bar has just offered six tools; the sheet
+                  that explains them should not leave out the one condition
+                  on using them. */}
               <p className="help-foot">
-                Paint and anchors are stored with the paper.
+                {sharedReading
+                  ? 'The paint and anchors on this paper belong to the reader who shared it.'
+                  : 'Paint and anchors are stored with the paper.'}
+                {marksNeedANook && ' Add this paper to your nook to make marks of your own.'}
               </p>
               <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
                 Done
@@ -4475,7 +4603,9 @@ export default function App() {
         <aside className="rail" aria-label="Paper anchors">
           <div className="rail-header">
             <div className="rail-heading">
-              <span className="rail-kicker">Paper notes</span>
+              <span className="rail-kicker">
+                {readerName && sharedReading ? `${readerName}’s notes` : 'Paper notes'}
+              </span>
               <div className="rail-title-row">
                 <h2>Anchors</h2>
                 <span className="rail-count" aria-label={`${numbered.length} ${numbered.length === 1 ? 'anchor' : 'anchors'}`}>
@@ -4510,9 +4640,28 @@ export default function App() {
               <span className="rail-empty-glyph" aria-hidden="true">
                 <ToolGlyph id="anchor" />
               </span>
-              <h3>No anchors yet</h3>
-              <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>
-              <button type="button" className="link" onClick={() => setHelpOpen(true)}>See all annotation tools</button>
+              <h3>{fromALink ? 'No anchors here' : 'No anchors yet'}</h3>
+              {fromALink ? (
+                <>
+                  <p>
+                    {!sharedReading
+                      ? 'This link shares the paper only.'
+                      : readerName
+                        ? `${readerName} left no anchors on this paper.`
+                        : 'No anchors were left on this paper.'}
+                  </p>
+                  {/* Why the rail is empty is only half of it. The other
+                      half is that it need not stay that way. */}
+                  {marksNeedANook && (
+                    <p>Add this paper to your nook to write your own.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>
+                  <button type="button" className="link" onClick={() => setHelpOpen(true)}>See all annotation tools</button>
+                </>
+              )}
             </div>
           )}
 
@@ -4551,26 +4700,30 @@ export default function App() {
                 >
                   <span aria-hidden="true">→</span>
                 </button>
-                <button
-                  className="link anchor-write"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startWriting(note);
-                  }}
-                >
-                  add a note
-                </button>
-                <button
-                  className="card-x"
-                  title="Delete this anchor"
-                  aria-label="Delete this anchor"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeNote(note.uuid);
-                  }}
-                >
-                  ×
-                </button>
+                {!readOnly && (
+                  <button
+                    className="link anchor-write"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startWriting(note);
+                    }}
+                  >
+                    add a note
+                  </button>
+                )}
+                {!readOnly && (
+                  <button
+                    className="card-x"
+                    title="Delete this anchor"
+                    aria-label="Delete this anchor"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeNote(note.uuid);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             ) : (
               <div
@@ -4582,17 +4735,19 @@ export default function App() {
                 onClick={() => goToNote(note)}
                 onContextMenu={(event) => noteContextMenu(event, note)}
               >
-                <button
-                  className="card-x"
-                  title="Delete this anchor"
-                  aria-label="Delete this anchor"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeNote(note.uuid);
-                  }}
-                >
-                  ×
-                </button>
+                {!readOnly && (
+                  <button
+                    className="card-x"
+                    title="Delete this anchor"
+                    aria-label="Delete this anchor"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeNote(note.uuid);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
                 <p className="note-where">
                   <span className="row-glyph">
                     <GlyphFor note={note} />
@@ -4650,15 +4805,17 @@ export default function App() {
                       >
                         go to anchor
                       </button>
-                      <button
-                        className="link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startWriting(note);
-                        }}
-                      >
-                        edit
-                      </button>
+                      {!readOnly && (
+                        <button
+                          className="link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startWriting(note);
+                          }}
+                        >
+                          edit
+                        </button>
+                      )}
                     </div>
                   </>
                 )}

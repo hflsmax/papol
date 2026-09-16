@@ -58,6 +58,10 @@ impl DiagnosticLog {
         }
     }
 
+    // Revealing the log directory is what the macOS "Show in Finder" menu
+    // item needs, and nothing else asks. Gated with its one caller so that
+    // a Linux clippy run does not report it as dead.
+    #[cfg(target_os = "macos")]
     pub fn directory(&self) -> &Path {
         &self.directory
     }

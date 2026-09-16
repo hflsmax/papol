@@ -38,7 +38,7 @@ global.window = {
         if (queryPaperGate) await queryPaperGate.promise;
         return queryPaper;
       }
-      if (command === 'data_query' && arguments_.queryName === 'comments') return [];
+      if (command === 'data_query' && arguments_.queryName === 'annotations') return [];
       if (command === 'data_query' && arguments_.queryName === 'shelves') {
         return [{ uuid: '88888888-8888-4888-8888-888888888888', is_default: 1 }];
       }
@@ -116,7 +116,7 @@ test('paper and comment reads start together', async () => {
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.ok(calls.some(([, args]) => args?.queryName === 'paper'));
-  assert.ok(calls.some(([, args]) => args?.queryName === 'comments'));
+  assert.ok(calls.some(([, args]) => args?.queryName === 'annotations'));
   releasePaper();
   await loading;
   queryPaperGate = null;
@@ -318,7 +318,7 @@ test('the native repository owns query names and parameter shapes', async () => 
   calls.length = 0;
   const uuid = 'f5e4f3f9-a614-40a0-95d0-bad753642e2a';
   await nativeRepository.board(uuid);
-  await nativeRepository.comments(uuid);
+  await nativeRepository.annotations(uuid, null, 'note');
 
   const queries = calls.filter(([command]) => command === 'data_query');
   assert.deepEqual(queries.map(([, arguments_]) => ({
@@ -327,7 +327,11 @@ test('the native repository owns query names and parameter shapes', async () => 
     parameters: arguments_.parameters,
   })), [
     { accountUuid: ACCOUNT, queryName: 'board', parameters: { uuid } },
-    { accountUuid: ACCOUNT, queryName: 'comments', parameters: { parent_uuid: uuid } },
+    {
+      accountUuid: ACCOUNT,
+      queryName: 'annotations',
+      parameters: { paper_uuid: uuid, edition_uuid: null, kind: 'note' },
+    },
   ]);
 });
 

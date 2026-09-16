@@ -26,8 +26,8 @@ import sync.api as sync_api
 from sync.changes import commit_sync
 from database import Base, PapolSession, current_request_session, get_db
 from models import (
-    AppliedMutation, Board, BoardItem, Comment, Copy, CopyTagLink, InkStroke, Paper,
-    PaperClip, PaperEdition, Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
+    Annotation, AppliedMutation, Board, BoardItem, Copy, CopyTagLink, Paper,
+    PaperEdition, Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
     User,
 )
 
@@ -577,7 +577,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add_all([shelf, edition])
             db.flush()
             db.add(Copy(
-                paper=paper, user_uuid=other.uuid, shelf=shelf, marketed=True,
+                paper=paper, user_uuid=other.uuid, shelf=shelf,
                 edition=edition, edition_sha256=edition.sha256,
             ))
             db.commit()
@@ -693,7 +693,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add_all([shelf, edition])
             db.flush()
             db.add(Copy(
-                paper=paper, user_uuid=other.uuid, shelf=shelf, marketed=True,
+                paper=paper, user_uuid=other.uuid, shelf=shelf,
                 edition=edition, edition_sha256=edition.sha256,
             ))
             db.commit()
@@ -735,7 +735,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             response = self.client.post("/api/sync/push", headers=self.headers, json=payload)
             self.assertEqual(response.status_code, 422, response.text)
 
-    def test_stale_field_patch_reports_a_recoverable_conflict(self):
+    def test_a_stale_board_edit_wins_and_reports_a_recoverable_conflict(self):
         board_uuid = str(uuid.uuid4())
         first_client = str(uuid.uuid4())
         create = {
@@ -771,7 +771,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual(result["rows"][0]["revision"], 3)
         self.assertEqual(result["rows"][0]["name"], "Later edit")
         self.assertEqual(result["conflicts"][0]["previous"]["name"], "First edit")
-        self.assertEqual(result["conflicts"][0]["strategy"], "field_patch")
         self.assertEqual(result["conflicts"][0]["resolution"], "client_won")
 
     def test_delete_wins_over_a_stale_update_and_preserves_recovery_values(self):
@@ -806,7 +805,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             stale["conflicts"][0]["rejected_values"], {"name": "Unsynced edit"}
         )
 
-    def test_stale_compound_membership_uses_the_declared_client_wins_policy(self):
+    def test_a_stale_board_group_edit_wins_and_reports_a_recoverable_conflict(self):
         board_uuid, group_uuid = str(uuid.uuid4()), str(uuid.uuid4())
         client = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
@@ -835,10 +834,9 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         }).json()
         self.assertEqual(stale["rows"][0]["title"], "Device two")
-        self.assertEqual(stale["conflicts"][0]["strategy"], "compound_membership")
         self.assertEqual(stale["conflicts"][0]["resolution"], "client_won")
 
-    def test_stale_whole_row_ink_uses_the_declared_client_wins_policy(self):
+    def test_a_stale_ink_edit_wins_and_reports_a_recoverable_conflict(self):
         with self.sessions() as db:
             paper = Paper(title="Conflict paper")
             db.add(paper)
@@ -855,36 +853,46 @@ class DesktopSyncContractTests(unittest.TestCase):
                 edition_sha256=edition.sha256,
             ))
             db.commit()
-            edition_uuid = edition.uuid
+            edition_uuid, paper_uuid = edition.uuid, paper.uuid
         ink_uuid, client = str(uuid.uuid4()), str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 1,
             "changes": [{
-                "table": "ink_strokes", "uuid": ink_uuid, "base_revision": 0,
+                "table": "annotations", "uuid": ink_uuid, "base_revision": 0,
                 "operation": "upsert", "values": {
+                    "kind": "ink", "paper_uuid": paper_uuid,
                     "edition_uuid": edition_uuid, "page": 1,
-                    "points": '[{"x":0.1,"y":0.2}]', "color": "#111111",
-                    "width": 0.004, "opacity": 1, "shape": "flat",
+                    "body": json.dumps({
+                        "points": [{"x": 0.1, "y": 0.2}], "color": "#111111",
+                        "width": 0.004, "opacity": 1, "shape": "flat",
+                    }),
                 },
             }],
         })
         self.request("POST", "/api/sync/push", json={
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
-                "table": "ink_strokes", "uuid": ink_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"color": "#222222"},
+                "table": "annotations", "uuid": ink_uuid, "base_revision": 1,
+                "operation": "patch", "values": {"body": json.dumps({
+                    "points": [{"x": 0.1, "y": 0.2}], "color": "#222222",
+                    "width": 0.004, "opacity": 1, "shape": "flat",
+                })},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
-                "table": "ink_strokes", "uuid": ink_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"color": "#333333"},
+                "table": "annotations", "uuid": ink_uuid, "base_revision": 1,
+                "operation": "patch", "values": {"body": json.dumps({
+                    "points": [{"x": 0.1, "y": 0.2}], "color": "#333333",
+                    "width": 0.004, "opacity": 1, "shape": "flat",
+                })},
             }],
         }).json()
-        self.assertEqual(stale["rows"][0]["color"], "#333333")
-        self.assertEqual(stale["conflicts"][0]["previous"]["color"], "#222222")
-        self.assertEqual(stale["conflicts"][0]["strategy"], "whole_row")
+        self.assertEqual(json.loads(stale["rows"][0]["body"])["color"], "#333333")
+        self.assertEqual(
+            json.loads(stale["conflicts"][0]["previous"]["body"])["color"], "#222222",
+        )
         self.assertEqual(stale["conflicts"][0]["resolution"], "client_won")
 
     def test_annotation_snapshot_and_offline_mutations_use_uuid_relationships(self):
@@ -918,28 +926,37 @@ class DesktopSyncContractTests(unittest.TestCase):
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "comments", "uuid": ids[0], "operation": "upsert",
+                    "table": "annotations", "uuid": ids[0], "operation": "upsert",
                     "values": {
-                        "paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
+                        "kind": "note", "paper_uuid": paper_uuid,
+                        "edition_uuid": edition_uuid,
                         "content": "offline note", "page": 1,
-                        "anchor_type": "point", "anchor": '{"x":0.2,"y":0.3}',
+                        "body": json.dumps({
+                            "anchor": {"type": "point", "x": 0.2, "y": 0.3},
+                        }),
                     },
                 },
                 {
-                    "table": "ink_strokes", "uuid": ids[1], "operation": "upsert",
+                    "table": "annotations", "uuid": ids[1], "operation": "upsert",
                     "values": {
+                        "kind": "ink", "paper_uuid": paper_uuid,
                         "edition_uuid": edition_uuid, "page": 1,
-                        "points": '[{"x":0.1,"y":0.2}]', "color": "#b3923d",
-                        "width": 0.004, "opacity": 1, "shape": "flat",
+                        "body": json.dumps({
+                            "points": [{"x": 0.1, "y": 0.2}], "color": "#b3923d",
+                            "width": 0.004, "opacity": 1, "shape": "flat",
+                        }),
                     },
                 },
                 {
-                    "table": "paper_clips", "uuid": ids[2], "operation": "upsert",
+                    "table": "annotations", "uuid": ids[2], "operation": "upsert",
                     "values": {
+                        "kind": "clip", "paper_uuid": paper_uuid,
                         "edition_uuid": edition_uuid, "page": 1,
-                        "source": '{"x":0.1,"y":0.1,"w":0.2,"h":0.2}',
-                        "frame": '{"x":0.1,"y":0.1,"w":0.2,"h":0.2}',
-                        "floating": False,
+                        "body": json.dumps({
+                            "source": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
+                            "frame": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
+                            "floating": False,
+                        }),
                     },
                 },
             ],
@@ -948,12 +965,13 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual({row["uuid"] for row in pushed["rows"]}, set(ids))
         refreshed = self.request("GET", "/api/sync/snapshot").json()
         self.assertTrue({
-            "papers", "paper_editions", "comments", "ink_strokes", "paper_clips",
+            "papers", "paper_editions", "annotations",
         }.issubset({row["table"] for row in refreshed["rows"]}))
         with self.sessions() as db:
-            self.assertEqual(db.query(Comment).count(), 1)
-            self.assertEqual(db.query(InkStroke).count(), 1)
-            self.assertEqual(db.query(PaperClip).count(), 1)
+            self.assertEqual(
+                sorted(row.kind for row in db.query(Annotation).all()),
+                ["clip", "ink", "note"],
+            )
 
     def test_snapshot_contains_the_complete_board_hierarchy(self):
         board = self.request("POST", "/api/boards", json={"name": "Snapshot board"}).json()
@@ -1094,7 +1112,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.flush()
             copy = Copy(
                 paper=paper, user_uuid=self.user_uuid, edition=first,
-                edition_sha256=first.sha256, marketed=False,
+                edition_sha256=first.sha256,
             )
             db.add(copy)
             db.commit()
@@ -1128,7 +1146,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Offline nook")
             db.add(paper)
             db.flush()
-            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid, marketed=False)
+            copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid)
             db.add(copy)
             commit_sync(db)
             paper_uuid, copy_uuid = paper.uuid, copy.uuid
@@ -1218,7 +1236,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Shelved offline")
             db.add_all([public, private, paper])
             db.flush()
-            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid, marketed=True)
+            copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid)
             db.add(copy)
             commit_sync(db)
             public_uuid, private_uuid, copy_uuid = public.uuid, private.uuid, copy.uuid
@@ -1237,14 +1255,14 @@ class DesktopSyncContractTests(unittest.TestCase):
                 }],
             })
 
-        def marketed():
+        def is_public():
             with self.sessions() as db:
-                return db.query(Copy).filter(Copy.uuid == copy_uuid).one().marketed
+                return db.query(Copy).filter(Copy.uuid == copy_uuid).one().is_public
 
         self.assertLess(move(private_uuid, 1).status_code, 400)
-        self.assertFalse(marketed())
+        self.assertFalse(is_public())
         self.assertLess(move(public_uuid, 2).status_code, 400)
-        self.assertTrue(marketed())
+        self.assertTrue(is_public())
 
         with self.sessions() as db:
             room = Room(paper_key="title:shelved offline", paper_title="Shelved offline", created_by=self.user_uuid)
@@ -1254,7 +1272,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.commit()
         refused = move(private_uuid, 3)
         self.assertEqual(refused.status_code, 422, refused.text)
-        self.assertTrue(marketed())
+        self.assertTrue(is_public())
 
     def assert_no_id_fields(self, value):
         """Rows are named by `uuid` and refer to each other by `<name>_uuid`."""
@@ -1291,7 +1309,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(title="Desktop paper")
             db.add_all([shelf, paper])
             db.flush()
-            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid, marketed=False))
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))
             commit_sync(db)
             shelf_uuid, paper_uuid = shelf.uuid, paper.uuid
 
@@ -1300,7 +1318,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         with self.sessions() as db:
             copy = db.query(Copy).join(Paper).filter(Paper.uuid == paper_uuid).one()
             self.assertEqual(copy.thought, "Read on the train")
-            self.assertTrue(copy.marketed)
+            self.assertTrue(copy.is_public)
         self.request("DELETE", f"/api/shelves/{shelf_uuid}")
         with self.sessions() as db:
             self.assertIsNotNone(db.query(Shelf).filter(Shelf.uuid == shelf_uuid).one().deleted_at)

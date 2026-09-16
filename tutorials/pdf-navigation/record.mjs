@@ -21,8 +21,8 @@ const auth = await registration.json();
 const token = auth.token;
 const recordingUserId = auth.user.id;
 execFileSync('sqlite3', ['backend/papol.db', `
-  INSERT INTO copies (paper_id,user_id,marketed,created_at,is_author,edition_id,edition_sha256,shelf_id)
-  SELECT pe.paper_id,${recordingUserId},1,CURRENT_TIMESTAMP,0,pe.id,pe.sha256,
+  INSERT INTO copies (paper_id,user_id,created_at,is_author,edition_id,edition_sha256,shelf_id)
+  SELECT pe.paper_id,${recordingUserId},CURRENT_TIMESTAMP,0,pe.id,pe.sha256,
     (SELECT id FROM shelves WHERE user_id=${recordingUserId} AND is_default=1 LIMIT 1)
   FROM paper_editions pe
   WHERE pe.sha256='ff6ec39de71629797b95f40f8420fe80927c526c440332ed673b9ef8166ec922';

@@ -1,11 +1,13 @@
 import { demoPapers, demoNotes, demoEditionFor } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
+import { nativeDataActive } from '../../shared/nativeData.js';
+import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
+import { notesIn } from './annotationKinds.js';
 import { appPath } from './base.js';
 import {
   getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
-  createNote, updateNote, moveNote, renameNote, deleteNote,
-  getInk, addInk, moveInk, eraseInk,
-  getClips, addClip, moveClip, eraseClip,
+  getSharedReferences, getSharedReference, getViewerPaperInfo,
+  listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   getToken,
 } from './api.js';
 
@@ -15,15 +17,21 @@ import {
  *
  *   ?pdf=<sha256>          an exact PDF in the reader's nook: notes live in Papol
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
+ *   ?share=<uuid>          someone's reading of a PDF, handed over by link
  * Demo PDFs use the same hash identity; only their storage is local.
  *
  * Nook and demo sources expose the same annotation interfaces. A file source
  * intentionally omits them; if its bytes already belong to a nook paper, the
- * viewer hands the window over to that canonical source.
+ * viewer hands the window over to that canonical source. A shared source
+ * declares itself read-only: its marks are someone else's.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
   const inDemo = window.location.pathname.includes('/demo/viewer');
+  const share = (params.get('share') || '').toLowerCase();
+  // A link is the whole permission, so it is answered before anything else
+  // and without a hash: the sharable says which PDF it opens.
+  if (!inDemo && /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
   if (inDemo) return DEMO_PDFS[pdf] ? localSource(DEMO_PDFS[pdf]) : null;
@@ -75,29 +83,113 @@ function apiSource(
     async loadNotes() {
       const loaded = await paper();
       paperUuid = loaded.uuid;
-      return loadPaperNotes(loaded);
+      return notesIn(await loadPaperNotes(loaded));
     },
-    notes: {
-      create: (note) => createNote(paperUuid, note),
-      update: (uuid, content) => updateNote(uuid, content),
-      move: (uuid, spot) => moveNote(uuid, spot),
-      rename: (uuid, name) => renameNote(uuid, name),
-      remove: (uuid) => deleteNote(uuid),
-    },
-    ink: {
-      list: (editionUuid) => getInk(editionUuid),
-      create: (editionUuid, stroke) => addInk(editionUuid, stroke),
-      move: (uuid, points) => moveInk(uuid, points),
-      remove: (uuid) => eraseInk(uuid),
-    },
-    clips: {
-      list: (editionUuid) => getClips(editionUuid),
-      create: (editionUuid, clip) => addClip(editionUuid, clip),
-      move: (uuid, frame, floating) => moveClip(uuid, frame, floating),
-      remove: (uuid) => eraseClip(uuid),
+    // One interface for every kind of mark. A caller says which kind it is
+    // making and what its geometry is; nothing else differs between them.
+    annotations: {
+      list: (editionUuid, kind) => listAnnotations(paperUuid, { editionUuid, kind }),
+      create: (annotation) => createAnnotation(paperUuid, annotation),
+      update: (uuid, changes) => updateAnnotation(uuid, changes),
+      remove: (uuid) => deleteAnnotation(uuid),
     },
   };
   return source;
+}
+
+// Someone else's reading, opened by link. Everything about it is settled by
+// one request: which PDF, whose marks, and what they say. The interfaces it
+// exposes are the reading half of the ones a nook source exposes — list, and
+// no more — so the parts of the viewer that write have nothing to call.
+// Someone with an account here, however they proved it: a session on the
+// web, a signed-in account on the desktop. A link reads without either.
+export function signedIn() {
+  return nativeDataActive() || Boolean(getToken());
+}
+
+function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
+  let readingReady = null;
+  const reading = () => {
+    if (!readingReady) readingReady = load();
+    return readingReady;
+  };
+  return {
+    // A visitor following a link has no nook to go back to, and no paper
+    // page they could open either: the sharer's is not theirs to see. The
+    // way out is Papol's front door.
+    backHref: appPath('/'),
+    requiresSignIn: false,
+    // Their marks are theirs: whatever is already on these pages was put
+    // there by the sharer and nothing in the viewer may change it.
+    readOnly: true,
+    // A visitor's own marks are a different matter. The tools stay in the
+    // bar, because a shared paper should read like any other PDF — and
+    // reaching for one asks for the paper to be theirs first, which is the
+    // honest price of writing on it.
+    annotationsRequireNook: true,
+    // Whether this visitor already keeps the paper, so the bar can offer
+    // their own copy instead of a second one. Never asked of someone with
+    // no account: there is no nook to ask about, and the link reads either
+    // way.
+    async loadNookPaper() {
+      if (!signedIn()) return null;
+      try {
+        return await sharedInNook(shareUuid);
+      } catch {
+        // Not knowing is the same as not having it: the offer becomes "add",
+        // and adding says so plainly if the paper is already there.
+        return null;
+      }
+    },
+    addToNook: () => addSharedToNook(shareUuid),
+    // Their own copy of this PDF, once they have one. The link's own URL
+    // would keep showing them the sharer's reading; what they asked for
+    // was the paper as theirs, which is the ordinary nook viewer.
+    nookHref: (nook) => (nook?.edition_sha256
+      ? appPath(`/viewer/?pdf=${nook.edition_sha256}`)
+      : null),
+    async load() {
+      const shared = await reading();
+      const edition = {
+        uuid: shared.paper.edition_uuid,
+        file_path: shared.paper.file_path,
+        sha256: shared.paper.edition_sha256,
+      };
+      return {
+        doc: {
+          ...shared.paper,
+          // Whose reading this is, so the viewer can say so. It is the one
+          // thing on the page that is about a person rather than a paper.
+          shared_by: shared.reader,
+          // A lean link shares the paper and nothing of theirs, so it is
+          // not a reading and must not be named as one.
+          shared_kind: shared.kind,
+          editions: [edition],
+          latest_edition: edition,
+        },
+        notes: notesIn(shared.annotations),
+      };
+    },
+    annotations: {
+      list: async (_editionUuid, kind) => {
+        const shared = await reading();
+        return kind
+          ? shared.annotations.filter((row) => row.kind === kind)
+          : shared.annotations;
+      },
+    },
+    // What the PDF cites belongs to the file, so a shared reading carries
+    // its bibliography — read through the link, which is the only
+    // permission whoever is holding it has.
+    references: {
+      list: (pdfHash, editionUuid) => getSharedReferences(shareUuid, pdfHash, editionUuid),
+      open: (referenceUuid) => getSharedReference(shareUuid, referenceUuid),
+    },
+    async info() {
+      const shared = await reading();
+      return getViewerPaperInfo(shared.paper.edition_sha256, shareUuid);
+    },
+  };
 }
 
 // A file-system document is deliberately ephemeral. Opening a file never
@@ -121,6 +213,12 @@ function openedFileSource(pdfHash, name) {
     backHref: appPath('/'),
     requiresSignIn: false,
     openedFile: true,
+    // The same pair a shared paper carries, and for the same reason. Nothing
+    // on these pages is this reader's to change — vacuously so, an opened
+    // file having no marks on it at all — and any mark they make needs a
+    // nook to go into. One reading of a PDF that is not yet yours, whether
+    // it came from a link or from the file system.
+    readOnly: true,
     annotationsRequireNook: true,
     initialPaper,
     openingTimings: {
@@ -140,7 +238,6 @@ function openedFileSource(pdfHash, name) {
     // Public metadata lookup would send the hash to Papol. The membership
     // check stays entirely inside the signed-in reader's local replica.
     info: () => Promise.resolve({}),
-    marks: () => ({ notes: [], ink: [] }),
     async addToNook() {
       return addOpenedFileToNook({
         sha256: pdfHash, name: title, notes: [], ink: [], clips: [],
@@ -165,9 +262,9 @@ function seedFor(paperUuid) {
     .filter((n) => n.paperUuid === paperUuid)
     .map((n) => ({
       uuid: n.uuid,
+      kind: 'note',
       page: n.page,
-      anchor: { type: 'point', x: n.x, y: n.y },
-      anchor_type: 'point',
+      body: { anchor: { type: 'point', x: n.x, y: n.y } },
       content: n.content,
       created_at: daysAgo(n.daysAgo),
     }));
@@ -176,10 +273,8 @@ function seedFor(paperUuid) {
 function localSource(paperUuid) {
   const paper = DEMO_PAPERS[paperUuid];
   // The demo's papers live in memory and reset on reload (see demo.js);
-  // its notes do the same, so "nothing is saved" stays true.
-  let notes = seedFor(paperUuid);
-  let strokes = [];
-  let clips = [];
+  // its marks do the same, so "nothing is saved" stays true.
+  let marks = seedFor(paperUuid);
 
   return {
     backHref: appPath(`/demo/paper/${paperUuid}`),
@@ -198,70 +293,34 @@ function localSource(paperUuid) {
           editions: [edition],
           latest_edition: edition,
         },
-        notes,
+        notes: notesIn(marks),
       };
     },
-    notes: {
-      async create({ page, anchor, content }) {
-        const note = {
+    // The demo keeps its marks the way it keeps everything else: in memory,
+    // and gone on reload. They are worth meeting even where nothing is
+    // saved — it is how a visitor finds out the features are there.
+    annotations: {
+      async list(_editionUuid, kind) {
+        return kind ? marks.filter((row) => row.kind === kind) : marks;
+      },
+      async create(annotation) {
+        const made = {
+          ...annotation,
           uuid: crypto.randomUUID(),
-          page,
-          anchor,
-          anchor_type: anchor.type,
-          content,
           created_at: new Date().toISOString(),
         };
-        notes = [...notes, note];
-        return note;
-      },
-      async update(uuid, content) {
-        notes = notes.map((n) => (n.uuid === uuid ? { ...n, content } : n));
-        return notes.find((n) => n.uuid === uuid);
-      },
-      async move(uuid, spot) {
-        notes = notes.map((n) => (n.uuid === uuid ? { ...n, ...spot } : n));
-        return notes.find((n) => n.uuid === uuid);
-      },
-      async rename(uuid, name) {
-        notes = notes.map((n) => (n.uuid === uuid ? { ...n, name } : n));
-        return notes.find((n) => n.uuid === uuid);
-      },
-      async remove(uuid) {
-        notes = notes.filter((n) => n.uuid !== uuid);
-      },
-    },
-    // The demo keeps ink the way it keeps everything else: in memory, and
-    // gone on reload. The brush is worth meeting even where nothing is
-    // saved — it is how a visitor finds out the feature is there.
-    ink: {
-      async list() {
-        return strokes;
-      },
-      async create(_editionId, stroke) {
-        const drawn = { ...stroke, uuid: crypto.randomUUID() };
-        strokes = [...strokes, drawn];
-        return drawn;
-      },
-      async move(uuid, points) {
-        strokes = strokes.map((s) => (s.uuid === uuid ? { ...s, points } : s));
-        return strokes.find((s) => s.uuid === uuid);
-      },
-      async remove(uuid) {
-        strokes = strokes.filter((s) => s.uuid !== uuid);
-      },
-    },
-    clips: {
-      async list() { return clips; },
-      async create(_editionId, clip) {
-        const made = { ...clip, uuid: crypto.randomUUID() };
-        clips = [...clips, made];
+        marks = [...marks, made];
         return made;
       },
-      async move(uuid, frame, floating) {
-        clips = clips.map((clip) => (clip.uuid === uuid ? { ...clip, frame, floating } : clip));
-        return clips.find((clip) => clip.uuid === uuid);
+      async update(uuid, changes) {
+        marks = marks.map((row) => (row.uuid === uuid
+          ? { ...row, ...changes, body: { ...row.body, ...(changes.body || {}) } }
+          : row));
+        return marks.find((row) => row.uuid === uuid);
       },
-      async remove(uuid) { clips = clips.filter((clip) => clip.uuid !== uuid); },
+      async remove(uuid) {
+        marks = marks.filter((row) => row.uuid !== uuid);
+      },
     },
   };
 }

@@ -122,14 +122,16 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   const loaded = await source.load();
 
   assert.equal(source.openedFile, true);
-  assert.equal(source.annotationsRequireNook, true);
   assert.equal(source.requiresSignIn, false);
+  // The pair a paper that is not yet yours carries, whether it arrived by
+  // link or off the file system: nothing here is yours to change, and a
+  // mark you make needs a nook to go into. An opened file satisfies the
+  // first the easy way, by having no marks on it at all.
+  assert.equal(source.readOnly, true);
+  assert.equal(source.annotationsRequireNook, true);
   assert.equal(loaded.doc.title, 'Local paper');
   assert.deepEqual(loaded.notes, []);
-  assert.equal(source.notes, undefined);
-  assert.equal(source.ink, undefined);
-  assert.equal(source.clips, undefined);
-  assert.deepEqual(source.marks(), { notes: [], ink: [] });
+  assert.equal(source.annotations, undefined);
   assert.equal(calls.some(([command]) => command === 'data_query'), false);
   assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
   await assert.rejects(source.addToNook(), /Sign in to add this paper/);

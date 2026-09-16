@@ -14,6 +14,7 @@ import tempfile
 from functools import lru_cache
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
+from pydantic import ValidationError
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -42,10 +43,10 @@ from database import (
     SessionLocal, set_request_session, reset_request_session,
 )
 from models import (
-    User, AuthToken, AppliedMutation, Paper, Copy, CopyTagLink, Comment,
+    User, AuthToken, AppliedMutation, Paper, Copy, CopyTagLink,
     Room, RoomParticipant, RoomMessage, RoomAvailability, Notification, ErrorLog,
     PaperEdition, EditionReference, EditionCitation, EditionLink,
-    InkStroke, PaperClip, Tag, Shelf, Board, BoardGroup, BoardItem,
+    Annotation, Tag, Shelf, Board, BoardGroup, BoardItem,
 )
 import account
 from schemas import (
@@ -55,15 +56,13 @@ from schemas import (
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
     PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
-    CommentCreate, Comment as CommentSchema, ExtractedMetadata,
-    ReextractedMetadata, NookStats,
+    ExtractedMetadata, ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     PaperEditionOut, EditionAdopt,
-    CommentUpdate, PointAnchor,
+    AnnotationCreate, AnnotationUpdate, AnnotationOut,
     EditionReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
     ResolvedWork,
-    InkStrokeCreate, InkStrokeUpdate, InkStrokeOut,
-    PaperClipCreate, PaperClipUpdate, PaperClipOut, TagOut, TagCreate,
+    TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardStagingCreate, BoardStagingPlace,
     BoardYouTubeCreate, BoardWebpageCreate,
@@ -91,7 +90,14 @@ from routes.admin import router as admin_router
 from routes.client_requirements import router as client_requirements_router
 from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
+from routes.sharables import router as sharables_router
+from services.annotations import (
+    KINDS, NOTE, annotation_out, annotations_of, body_text,
+)
+from services.editions import edition_for, latest_edition
 from services.notifications import setting_value
+from services.papers import displayed_copies
+from services.sharables import live_sharable_for, open_sharable
 
 # Uploads directory
 UPLOADS_DIR = Path(os.environ.get(
@@ -141,6 +147,7 @@ app.include_router(sync_router)
 app.include_router(notifications_router)
 app.include_router(feedback_router)
 app.include_router(admin_router)
+app.include_router(sharables_router)
 app.include_router(client_requirements_router)
 
 _IDEMPOTENCY_CLIENT_HEADER = "x-papol-client-uuid"
@@ -1504,7 +1511,7 @@ async def list_users(
             display_name=u.display_name,
             affiliation=u.affiliation,
             avatar_path=u.avatar_path,
-            paper_count=sum(1 for r in u.copies if r.marketed),
+            paper_count=sum(1 for r in u.copies if r.is_public),
         )
         for u in users
     ]
@@ -1544,28 +1551,8 @@ def _reader_entry(user_copy: Copy) -> ReaderEntry:
     )
 
 
-def _latest_edition(paper: Paper) -> PaperEdition | None:
-    return paper.editions[-1] if paper.editions else None
-
-
-def _edition_for(paper: Paper, user_copy: Copy | None) -> PaperEdition | None:
-    """The edition a viewer opens: the one their copy is pinned to, or the
-    latest when they have no copy or their copy names none."""
-    if user_copy is not None:
-        if user_copy.edition_sha256:
-            selected = next(
-                (edition for edition in paper.editions if edition.sha256 == user_copy.edition_sha256),
-                None,
-            )
-            if selected is not None:
-                return selected
-        if user_copy.edition is not None:
-            return user_copy.edition
-    return _latest_edition(paper)
-
-
 def _edition_file(paper: Paper, user_copy: Copy | None) -> str:
-    edition = _edition_for(paper, user_copy)
+    edition = edition_for(paper, user_copy)
     return edition.file_path if edition else ""
 
 
@@ -1619,10 +1606,6 @@ def _add_edition(db: Session, paper: Paper, filename: str, user: User) -> PaperE
     )
 
 
-def _displayed_copies(paper: Paper) -> list[Copy]:
-    return [r for r in paper.copies if r.marketed and r.deleted_at is None]
-
-
 def _paper_list_entry(
     paper: Paper, user_copy: Copy | None, hide_private: bool, room_map: dict
 ) -> PaperList:
@@ -1638,7 +1621,7 @@ def _paper_list_entry(
         file_path=_edition_file(paper, user_copy),
         created_at=user_copy.created_at if user_copy else paper.created_at,
     )
-    selected_edition = _edition_for(paper, user_copy)
+    selected_edition = edition_for(paper, user_copy)
     entry.edition_uuid = selected_edition.uuid if selected_edition else None
     entry.edition_sha256 = selected_edition.sha256 if selected_edition else None
     if user_copy:
@@ -1646,7 +1629,7 @@ def _paper_list_entry(
         entry.copy_uuid = user_copy.uuid
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
-        entry.marketed = user_copy.marketed
+        entry.is_public = user_copy.is_public
         entry.is_author = bool(user_copy.is_author)
         entry.rating_expertise = user_copy.rating_expertise
         entry.rating_reading = user_copy.rating_reading
@@ -1654,7 +1637,7 @@ def _paper_list_entry(
         if not hide_private:
             entry.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
     entry.room_status = room_map.get(_paper_key_for(paper))
-    entry.readers = [_reader_entry(r) for r in _displayed_copies(paper)]
+    entry.readers = [_reader_entry(r) for r in displayed_copies(paper)]
     return entry
 
 
@@ -1675,7 +1658,12 @@ async def get_user_space(
     hide_private = current_user is None or current_user.uuid != user.uuid
     query = db.query(Copy).filter(Copy.user_uuid == user.uuid, Copy.deleted_at.is_(None))
     if hide_private:
-        query = query.filter(Copy.marketed.is_(True))
+        # On display means sitting on a public shelf, so the shelf is what
+        # the question is put to. An inner join also drops the shelfless,
+        # which is right: nothing stands behind them.
+        query = query.join(Shelf, Copy.shelf_uuid == Shelf.uuid).filter(
+            Shelf.is_public.is_(True),
+        )
     copies = query.order_by(Copy.created_at.desc()).all()
     board_query = db.query(Board).filter(
         Board.user_uuid == user.uuid, Board.deleted_at.is_(None),
@@ -1688,8 +1676,12 @@ async def get_user_space(
     if not hide_private:
         stats = NookStats(
             papers=len(copies),
-            displayed=sum(1 for c in copies if c.marketed),
-            notes=db.query(Comment).filter(Comment.user_uuid == user.uuid).count(),
+            displayed=sum(1 for c in copies if c.is_public),
+            notes=db.query(Annotation).filter(
+                Annotation.user_uuid == user.uuid,
+                Annotation.kind == NOTE,
+                Annotation.deleted_at.is_(None),
+            ).count(),
             seminars=db.query(RoomParticipant)
             .filter(RoomParticipant.user_uuid == user.uuid)
             .count(),
@@ -1726,7 +1718,7 @@ async def list_all_papers(
     return [
         _paper_list_entry(p, user_copy=None, hide_private=True, room_map=room_map)
         for p in papers
-        if _displayed_copies(p)
+        if displayed_copies(p)
     ]
 
 
@@ -1835,7 +1827,7 @@ def _reader_uuids(db: Session, key: str, public_only: bool = True) -> set[str]:
         r.user_uuid
         for p in _papers_for_key(db, key)
         for r in p.copies
-        if r.marketed or not public_only
+        if r.is_public or not public_only
     }
 
 
@@ -1857,29 +1849,6 @@ def _room_summary(room: Room) -> RoomSummary:
         leader=UserPublic.model_validate(room.leader) if room.leader else None,
         participant_count=len(room.participants),
         participants=[UserPublic.model_validate(p.user) for p in room.participants],
-    )
-
-
-def _comment_out(c: Comment) -> CommentSchema:
-    """A note on the wire. The anchor is stored as JSON text and its kind in
-    its own column; together they become the typed anchor the reader's apps
-    understand."""
-    anchor = None
-    if c.anchor and c.anchor_type:
-        payload = json.loads(c.anchor)
-        payload["type"] = c.anchor_type
-        anchor = PointAnchor(**payload)
-    return CommentSchema(
-        uuid=c.uuid,
-        paper_uuid=c.paper.uuid,
-        content=c.content,
-        created_at=c.created_at,
-        user=UserPublic.model_validate(c.user) if c.user else None,
-        page=c.page,
-        anchor_type=c.anchor_type,
-        anchor=anchor,
-        edition_uuid=c.edition.uuid if c.edition else None,
-        name=c.name,
     )
 
 
@@ -1910,11 +1879,11 @@ def _paper_detail(
         created_at=paper.created_at,
     )
     detail.editions = [PaperEditionOut.model_validate(e) for e in paper.editions]
-    latest = _latest_edition(paper)
+    latest = latest_edition(paper)
     detail.latest_edition = (
         PaperEditionOut.model_validate(latest) if latest else None
     )
-    selected_edition = edition_override or _edition_for(paper, user_copy)
+    selected_edition = edition_override or edition_for(paper, user_copy)
     detail.edition_uuid = selected_edition.uuid if selected_edition else None
     detail.edition_sha256 = selected_edition.sha256 if selected_edition else None
     detail.ignored_edition_uuid = user_copy.ignored_edition_uuid if user_copy else None
@@ -1923,18 +1892,29 @@ def _paper_detail(
         detail.copy_uuid = user_copy.uuid
         detail.summary = user_copy.summary
         detail.thought = user_copy.thought
-        detail.marketed = user_copy.marketed
+        detail.is_public = user_copy.is_public
         detail.is_author = bool(user_copy.is_author)
         detail.rating_expertise = user_copy.rating_expertise
         detail.rating_reading = user_copy.rating_reading
         detail.rating_liking = user_copy.rating_liking
         detail.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
-        detail.comments = [
-            _comment_out(c)
-            for c in sorted(paper.comments, key=lambda c: (c.created_at, c.uuid))
-            if c.user_uuid == viewer.uuid and c.deleted_at is None
+        detail.notes = [
+            annotation_out(row)
+            for row in sorted(paper.annotations, key=lambda a: (a.created_at, a.uuid))
+            if row.user_uuid == viewer.uuid and row.kind == NOTE
+            and row.deleted_at is None
         ]
-    detail.also_read_by = [_reader_entry(r) for r in _displayed_copies(paper)]
+        # The link this reader already has out on the edition they read, so
+        # their share menu opens showing it rather than offering to make a
+        # second one. Only ever a link carrying their marks: the paper's own
+        # link is nobody's, and telling them one exists would make it sound
+        # like something of theirs is out.
+        shared = (
+            live_sharable_for(db, viewer, selected_edition.uuid)
+            if selected_edition else None
+        )
+        detail.sharable_uuid = shared.uuid if shared else None
+    detail.also_read_by = [_reader_entry(r) for r in displayed_copies(paper)]
 
     detail.rooms = [
         _room_summary(r)
@@ -1943,7 +1923,7 @@ def _paper_detail(
         .order_by(Room.created_at.desc(), Room.uuid.desc())
         .all()
     ]
-    detail.viewer_is_reader = user_copy is not None and user_copy.marketed
+    detail.viewer_is_reader = user_copy is not None and user_copy.is_public
     detail.viewer_has_entry = user_copy is not None
     return detail
 
@@ -1965,7 +1945,7 @@ def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
 
 def _require_visible(paper: Paper, viewer: User | None):
     """A paper is visible if anyone displays it, or the viewer has an entry."""
-    if _displayed_copies(paper) or _copy_of(paper, viewer) is not None:
+    if displayed_copies(paper) or _copy_of(paper, viewer) is not None:
         return
     raise HTTPException(status_code=404, detail="Paper not found")
 
@@ -2063,7 +2043,6 @@ async def create_paper(
         edition_sha256=edition.sha256,
         summary=paper.summary,
         thought=paper.thought,
-        marketed=bool(shelf.is_public),
         shelf=shelf,
         is_author=paper.is_author,
         rating_expertise=paper.rating_expertise,
@@ -2074,7 +2053,8 @@ async def create_paper(
     _set_copy_tags(db, user_copy, tags)
 
     if paper.initial_comment and paper.initial_comment.strip():
-        db.add(Comment(
+        db.add(Annotation(
+            kind=NOTE,
             paper=db_paper,
             user_uuid=current_user.uuid,
             content=paper.initial_comment.strip(),
@@ -2122,7 +2102,7 @@ async def reextract_paper_metadata(
     """Re-read a paper's selected PDF metadata for the edit form."""
     paper = _get_paper_or_404(paper_uuid, db)
     _require_visible(paper, current_user)
-    edition = _edition_for(paper, _copy_of(paper, current_user)) or _latest_edition(paper)
+    edition = edition_for(paper, _copy_of(paper, current_user)) or latest_edition(paper)
     path = _edition_pdf_path(edition) if edition else None
     if path is None:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
@@ -2182,11 +2162,15 @@ async def get_viewer_paper(
 @app.get("/api/viewer/{pdf_sha256}/info", response_model=ResolvedWork)
 async def get_viewer_paper_info(
     pdf_sha256: str,
-    current_user: User = Depends(get_current_user),
+    share: str | None = None,
+    current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    """Enriched bibliographic information for the paper being viewed."""
-    edition = _viewer_edition_or_404(pdf_sha256, current_user, db)
+    """Enriched bibliographic information for the paper being viewed.
+
+    A shared reading is read by people who have no account here, and what a
+    paper is remains public either way."""
+    edition = _viewer_edition_or_404(pdf_sha256, current_user, db, share)
     paper = edition.paper
     reference = SimpleNamespace(
         doi=paper.doi,
@@ -2218,10 +2202,25 @@ def _viewer_edition_or_404(
     pdf_sha256: str,
     current_user: User | None,
     db: Session,
+    share: str | None = None,
 ) -> PaperEdition:
+    """The edition a viewer URL names, if whoever asked may read it.
+
+    Two ways to be allowed: the reader has the paper in their nook, or they
+    hold a link someone shared. A shared link names its own edition, so it
+    is the file that has to match the URL rather than the reader."""
     digest = pdf_sha256.strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise HTTPException(status_code=404, detail="PDF not found")
+    if share:
+        sharable = open_sharable(db, share)
+        if sharable is None:
+            raise HTTPException(
+                status_code=404, detail="This reading is no longer shared",
+            )
+        if sharable.edition.sha256 != digest:
+            raise HTTPException(status_code=404, detail="PDF not found")
+        return sharable.edition
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     editions = db.query(PaperEdition).filter(PaperEdition.sha256 == digest).all()
@@ -2237,7 +2236,7 @@ def _viewer_edition_or_404(
 
 
 _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
-_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "marketed", "is_author"}
+_PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"}
 
 
 @app.put("/api/papers/{paper_uuid}", response_model=PaperSchema)
@@ -2264,7 +2263,7 @@ async def update_paper(
 
     if personal:
         user_copy = _require_copy(paper, current_user)
-        requested_visibility = personal.pop("marketed", None)
+        requested_visibility = personal.pop("is_public", None)
         if requested_visibility is False and _in_active_cohort(
             db, current_user, _paper_key_for(paper)
         ):
@@ -2281,7 +2280,6 @@ async def update_paper(
                 visibility = "public" if requested_visibility else "private"
                 raise HTTPException(status_code=400, detail=f"Create a {visibility} shelf first")
             user_copy.shelf = target_shelf
-            user_copy.marketed = bool(target_shelf.is_public)
         for key, value in personal.items():
             setattr(user_copy, key, value)
 
@@ -2298,12 +2296,11 @@ async def update_paper(
         shelf = db.query(Shelf).filter(Shelf.uuid == shelf_uuid, Shelf.user_uuid == current_user.uuid).first()
         if not shelf:
             raise HTTPException(status_code=400, detail="Shelf does not belong to you")
-        if not shelf.is_public and user_copy.marketed and _in_active_cohort(
+        if not shelf.is_public and user_copy.is_public and _in_active_cohort(
             db, current_user, _paper_key_for(paper)
         ):
             raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
-        user_copy.marketed = bool(shelf.is_public)
 
     for key, value in metadata.items():
         setattr(paper, key, value)
@@ -2418,9 +2415,9 @@ async def update_shelf(
             blocked = [c for c in shelf.copies if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
             if blocked:
                 raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
+        # Every copy on the shelf moves with it, because none of them was
+        # holding a visibility of its own to update.
         shelf.is_public = becoming_public
-        for copy in shelf.copies:
-            copy.marketed = becoming_public
     if changes.get("is_default"):
         for other in current_user.shelves:
             if other.deleted_at is not None:
@@ -2446,7 +2443,7 @@ async def delete_shelf(
     if not destination.is_public:
         blocked = [
             copy for copy in shelf.copies
-            if copy.marketed and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
+            if copy.is_public and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
         ]
         if blocked:
             raise HTTPException(
@@ -2455,7 +2452,6 @@ async def delete_shelf(
             )
     for copy in list(shelf.copies):
         copy.shelf = destination
-        copy.marketed = bool(destination.is_public)
     for board in list(shelf.boards):
         board.shelf = destination
     if shelf.is_default:
@@ -2478,9 +2474,13 @@ async def delete_paper(
     user_copy = _require_copy(paper, current_user)
 
     user_copy.deleted_at = datetime.utcnow()
-    for c in paper.comments:
-        if c.user_uuid == current_user.uuid and c.deleted_at is None:
-            c.deleted_at = datetime.utcnow()
+    # Only the notes, as the confirmation promises. Ink and clips are left
+    # where they are: leaving a nook is not meant to be a deletion, and a
+    # reader who adds the paper again finds their paint still on the page.
+    for row in paper.annotations:
+        if (row.user_uuid == current_user.uuid and row.kind == NOTE
+                and row.deleted_at is None):
+            row.deleted_at = datetime.utcnow()
 
     commit_sync(db)
     return {"message": "Paper removed from your nook"}
@@ -2499,22 +2499,21 @@ async def add_to_nook(
     if _copy_of(paper, current_user) is not None:
         raise HTTPException(status_code=400, detail="This paper is already in your nook")
 
-    latest = _latest_edition(paper)
+    latest = latest_edition(paper)
     shelf = _default_shelf(current_user)
     # One copy per reader (uq_copy): a paper added back after being removed
-    # revives that copy, since a second one cannot be stored.
+    # revives that copy, since a second one cannot be stored. The shelf is the
+    # only place its visibility lives, so reviving sets no flag of its own.
     removed = next((r for r in paper.copies if r.user_uuid == current_user.uuid), None)
     if removed is not None:
         removed.deleted_at = None
         removed.shelf = shelf
-        removed.marketed = bool(shelf.is_public)
         removed.edition = latest
         removed.edition_sha256 = latest.sha256 if latest else None
     else:
         db.add(Copy(
             paper=paper,
             user_uuid=current_user.uuid,
-            marketed=bool(shelf.is_public),
             shelf=shelf,
             edition=latest,
             edition_sha256=latest.sha256 if latest else None,
@@ -2554,7 +2553,7 @@ async def add_paper_edition(
     # Choosing a PDF means having seen the ones that exist: an upload that
     # dedupes onto an older edition must not leave the reader being offered
     # a newer one they made themselves and moved off.
-    user_copy.ignored_edition_uuid = _latest_edition(paper).uuid
+    user_copy.ignored_edition_uuid = latest_edition(paper).uuid
     commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
@@ -2562,7 +2561,7 @@ async def add_paper_edition(
 
 def _named_edition_or_404(paper: Paper, edition_uuid: str | None) -> PaperEdition:
     if edition_uuid is None:
-        edition = _latest_edition(paper)
+        edition = latest_edition(paper)
     else:
         edition = next((e for e in paper.editions if e.uuid == edition_uuid), None)
     if edition is None:
@@ -2597,16 +2596,33 @@ async def adopt_paper_edition(
 ):
     """Move the viewer's own copy to another edition — the latest unless
     one is named. Only the reader may do this: located notes were placed
-    on the file they had, and on a different PDF they may not line up."""
+    on the file they had, and on a different PDF they may not line up.
+
+    A link carrying this reader's marks stops the move and says so: it names
+    that reading and would go on opening it, out of sight of a paper page
+    that now shows a different edition. A link carrying the paper alone is
+    not theirs to be stopped by — it says "here is this PDF", which stays
+    true however they move — so it does not stand in the way."""
     paper = _get_paper_or_404(paper_uuid, db)
     user_copy = _require_copy(paper, current_user)
 
     edition = _named_edition_or_404(paper, data.edition_uuid)
+    if edition.uuid != user_copy.edition_uuid and user_copy.edition_uuid and (
+        live_sharable_for(db, current_user, user_copy.edition_uuid)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Stop sharing your reading of this paper first. The link you "
+                "handed out opens the PDF you are reading now, with your marks "
+                "on it."
+            ),
+        )
     user_copy.edition_uuid = edition.uuid
     user_copy.edition_sha256 = edition.sha256
     # Adopting settles every edition that exists now, including ones older
     # than the latest if that is what they picked.
-    user_copy.ignored_edition_uuid = _latest_edition(paper).uuid
+    user_copy.ignored_edition_uuid = latest_edition(paper).uuid
     commit_sync(db)
     db.refresh(paper)
     return _paper_detail(db, paper, current_user)
@@ -2813,7 +2829,20 @@ async def edition_references(
     if edition is None:
         raise HTTPException(status_code=404, detail="Edition not found")
     _require_visible(edition.paper, current_user)
+    return await _edition_references(edition, background, db, refresh)
 
+
+async def _edition_references(
+    edition: PaperEdition,
+    background: BackgroundTasks,
+    db: Session,
+    refresh: bool = False,
+) -> EditionReferences:
+    """The bibliography of one edition, once someone is allowed to read it.
+
+    Kept apart from the endpoint because there is more than one way to be
+    allowed — a reader with the paper in their nook, or a visitor holding a
+    link to someone's reading of it — and only one way to answer."""
     # A reading already done is served whatever the analyzer is doing now.
     # References belong to the edition, not to the service that read them,
     # so an analyzer that is stopped — or one taken away again — must not
@@ -2890,7 +2919,10 @@ async def open_reference(
     if reference is None:
         raise HTTPException(status_code=404, detail="Reference not found")
     _require_visible(reference.edition.paper, current_user)
+    return await _open_reference(reference, db)
 
+
+async def _open_reference(reference: EditionReference, db: Session) -> ReferenceOut:
     answer = await resolve_reference(reference)
     if answer.resolved_status == "error":
         return answer
@@ -2958,13 +2990,18 @@ async def viewer_references(
     pdf_sha256: str,
     edition_uuid: str,
     background: BackgroundTasks,
+    share: str | None = None,
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     digest = pdf_sha256.strip().lower()
     if _public_pdf_path(digest) is not None:
         return await _bundled_edition_references(edition_uuid, digest, background)
-    edition = _viewer_edition_or_404(digest, current_user, db)
+    edition = _viewer_edition_or_404(digest, current_user, db, share)
+    if share:
+        # What a paper cites is a property of the file, not of the reader
+        # who shared it, so a shared reading carries its bibliography.
+        return await _edition_references(edition, background, db)
     return await edition_references(
         edition.uuid, background, current_user=current_user, db=db,
     )
@@ -2973,12 +3010,22 @@ async def viewer_references(
 @app.get("/api/viewer-references/item/{reference_uuid}", response_model=ReferenceOut)
 async def viewer_reference(
     reference_uuid: str,
+    share: str | None = None,
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     bundled = await _bundled_references.open(reference_uuid)
     if bundled is not None:
         return bundled
+    if share:
+        sharable = open_sharable(db, share)
+        reference = db.query(EditionReference).filter(
+            EditionReference.uuid == reference_uuid,
+        ).first()
+        if (sharable is None or reference is None
+                or reference.edition_uuid != sharable.edition_uuid):
+            raise HTTPException(status_code=404, detail="Reference not found")
+        return await _open_reference(reference, db)
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return await open_reference(reference_uuid, current_user, db)
@@ -3048,26 +3095,12 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
 # that outlived the sentence would be litter.
 
 
-def _stroke_out(stroke: InkStroke) -> InkStrokeOut:
-    return InkStrokeOut(
-        uuid=stroke.uuid,
-        group_uuid=stroke.group_uuid,
-        page=stroke.page,
-        points=json.loads(stroke.points),
-        color=stroke.color,
-        width=stroke.width,
-        opacity=stroke.opacity,
-        shape=stroke.shape,
-    )
-
-
 def _readable_edition(edition_uuid: str, user: User, db: Session) -> PaperEdition:
     """The edition, if this reader is someone who may be reading it.
 
-    Ink is private, so letting it be stored against any edition would leak
-    nothing — but a reader who has not taken the paper has no page to draw
-    on, and notes already ask for the paper to be in the nook first. Ink is
-    the same kind of mark and answers the same way."""
+    An annotation is private, so letting one be stored against any edition
+    would leak nothing — but a reader who has not taken the paper has no page
+    to mark, so it is the copy that is asked for."""
     edition = db.query(PaperEdition).filter(PaperEdition.uuid == edition_uuid).first()
     if not edition or edition.paper is None:
         raise HTTPException(status_code=404, detail="Edition not found")
@@ -3075,264 +3108,128 @@ def _readable_edition(edition_uuid: str, user: User, db: Session) -> PaperEditio
     return edition
 
 
-@app.get("/api/editions/{edition_uuid}/ink", response_model=list[InkStrokeOut])
-async def list_ink(
-    edition_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Your marks on this edition, oldest first — which is the order they
-    have to be drawn in for later ink to sit over earlier ink."""
-    edition = _readable_edition(edition_uuid, current_user, db)
-    rows = (
-        db.query(InkStroke)
-        .filter(
-            InkStroke.edition_uuid == edition.uuid,
-            InkStroke.user_uuid == current_user.uuid,
-            InkStroke.deleted_at.is_(None),
-        )
-        .order_by(InkStroke.created_at)
-        .all()
-    )
-    return [_stroke_out(r) for r in rows]
+def _own_annotation_or_404(uuid: str, user: User, db: Session) -> Annotation:
+    annotation = db.query(Annotation).filter(
+        Annotation.uuid == uuid,
+        Annotation.user_uuid == user.uuid,
+        Annotation.deleted_at.is_(None),
+    ).first()
+    if annotation is None:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    return annotation
 
 
-@app.post("/api/editions/{edition_uuid}/ink", response_model=InkStrokeOut)
-async def add_ink(
-    edition_uuid: str,
-    stroke: InkStrokeCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Keep one stroke. Posted when the pointer lifts, not as it moves: a
-    stroke is one mark, and half of one is not worth storing."""
-    edition = _readable_edition(edition_uuid, current_user, db)
-    row = InkStroke(
-        group_uuid=stroke.group_uuid,
-        edition=edition,
-        user_uuid=current_user.uuid,
-        page=stroke.page,
-        points=json.dumps([p.model_dump() for p in stroke.points]),
-        color=stroke.color,
-        width=stroke.width,
-        opacity=stroke.opacity,
-        shape=stroke.shape,
-    )
-    db.add(row)
-    commit_sync(db)
-    db.refresh(row)
-    return _stroke_out(row)
-
-
-@app.put("/api/ink/{stroke_uuid}", response_model=InkStrokeOut)
-async def move_ink(
-    stroke_uuid: str,
-    move: InkStrokeUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Put a stroke down somewhere else. Sent when the drag ends rather
-    than as it moves, for the same reason a stroke is sent when the pointer
-    lifts: where it was passing through is not where it went."""
-    row = db.query(InkStroke).filter(InkStroke.uuid == stroke_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such stroke")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only move your own ink")
-    row.points = json.dumps([p.model_dump() for p in move.points])
-    commit_sync(db)
-    db.refresh(row)
-    return _stroke_out(row)
-
-
-@app.delete("/api/ink/{stroke_uuid}")
-async def delete_ink(
-    stroke_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Rub out one stroke. The eraser works by the stroke rather than by
-    the pixel: it is what the reader drew, so it is what they undraw."""
-    row = db.query(InkStroke).filter(InkStroke.uuid == stroke_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such stroke")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only erase your own ink")
-    row.deleted_at = datetime.utcnow()
-    commit_sync(db)
-    return {"message": "Stroke erased"}
-
-
-def _clip_out(clip: PaperClip) -> PaperClipOut:
-    return PaperClipOut(
-        uuid=clip.uuid,
-        page=clip.page,
-        source=json.loads(clip.source),
-        frame=json.loads(clip.frame),
-        floating=clip.floating,
-    )
-
-
-@app.get("/api/editions/{edition_uuid}/clips", response_model=list[PaperClipOut])
-async def list_clips(
-    edition_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    edition = _readable_edition(edition_uuid, current_user, db)
-    rows = (
-        db.query(PaperClip)
-        .filter(
-            PaperClip.edition_uuid == edition.uuid,
-            PaperClip.user_uuid == current_user.uuid,
-            PaperClip.deleted_at.is_(None),
-        )
-        .order_by(PaperClip.created_at)
-        .all()
-    )
-    return [_clip_out(row) for row in rows]
-
-
-@app.post("/api/editions/{edition_uuid}/clips", response_model=PaperClipOut)
-async def add_clip(
-    edition_uuid: str,
-    clip: PaperClipCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    edition = _readable_edition(edition_uuid, current_user, db)
-    row = PaperClip(
-        edition=edition,
-        user_uuid=current_user.uuid,
-        page=clip.page,
-        source=json.dumps(clip.source.model_dump()),
-        frame=json.dumps(clip.frame.model_dump()),
-        floating=clip.floating,
-    )
-    db.add(row)
-    commit_sync(db)
-    db.refresh(row)
-    return _clip_out(row)
-
-
-@app.put("/api/clips/{clip_uuid}", response_model=PaperClipOut)
-async def move_clip(
-    clip_uuid: str,
-    change: PaperClipUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    row = db.query(PaperClip).filter(PaperClip.uuid == clip_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such clip")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only move your own clips")
-    row.frame = json.dumps(change.frame.model_dump())
-    row.floating = change.floating
-    commit_sync(db)
-    db.refresh(row)
-    return _clip_out(row)
-
-
-@app.delete("/api/clips/{clip_uuid}")
-async def delete_clip(
-    clip_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    row = db.query(PaperClip).filter(PaperClip.uuid == clip_uuid).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="No such clip")
-    if row.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only remove your own clips")
-    row.deleted_at = datetime.utcnow()
-    commit_sync(db)
-    return {"message": "Clip removed"}
-
-
-@app.post("/api/papers/{paper_uuid}/comments", response_model=CommentSchema)
-async def add_comment(
+@app.get("/api/papers/{paper_uuid}/annotations", response_model=list[AnnotationOut])
+async def list_annotations(
     paper_uuid: str,
-    comment: CommentCreate,
+    edition_uuid: str | None = None,
+    kind: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Add a private note to a paper in your nook. Notes are visible only to
-    you. A note may be *located* — given a page and an anchor, as the PDF
-    viewer does — in which case it also records the edition it was placed
-    on, so a note taken on a different PDF can be told apart."""
+    """Your annotations on this paper, oldest first — which is the order they
+    have to be drawn in for later ink to sit over earlier ink.
+
+    Narrow to one PDF with `edition_uuid`, or to one kind with `kind`. A note
+    written about the paper and never placed on a page belongs to the paper
+    rather than to any of its PDFs, so it is returned whenever the whole
+    paper is asked for."""
     paper = _get_paper_or_404(paper_uuid, db)
-    user_copy = _require_copy(paper, current_user)
-    anchor_type = anchor_json = edition = None
-    if comment.anchor is not None:
-        payload = comment.anchor.model_dump()
-        anchor_type = payload.pop("type")
-        anchor_json = json.dumps(payload)
-        edition = _edition_for(paper, user_copy)
-    db_comment = Comment(
-        paper=paper,
+    _require_copy(paper, current_user)
+    if kind is not None and kind not in KINDS:
+        raise HTTPException(status_code=422, detail="Unknown annotation kind")
+    return [
+        annotation_out(row) for row in annotations_of(
+            db, current_user.uuid,
+            paper_uuid=paper.uuid,
+            edition_uuid=edition_uuid,
+            kinds=(kind,) if kind else None,
+        )
+    ]
+
+
+@app.post("/api/papers/{paper_uuid}/annotations", response_model=AnnotationOut)
+async def create_annotation(
+    paper_uuid: str,
+    data: AnnotationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Leave a mark on a paper: a note, a stroke of ink, or a clipped view."""
+    paper = _get_paper_or_404(paper_uuid, db)
+    _require_copy(paper, current_user)
+    edition = None
+    if data.edition_uuid:
+        edition = _readable_edition(data.edition_uuid, current_user, db)
+        if edition.paper is not paper:
+            raise HTTPException(
+                status_code=409, detail="That PDF belongs to another paper",
+            )
+    elif data.kind != NOTE:
+        raise HTTPException(
+            status_code=422, detail=f"A {data.kind} belongs on a PDF",
+        )
+    annotation = Annotation(
+        kind=data.kind,
         user_uuid=current_user.uuid,
-        content=comment.content.strip(),
-        page=comment.page,
-        anchor_type=anchor_type,
-        anchor=anchor_json,
-        edition=edition,
-        name=(comment.name or "").strip() or None,
+        paper_uuid=paper.uuid,
+        edition_uuid=edition.uuid if edition else None,
+        page=data.page,
+        group_uuid=data.group_uuid,
+        content=data.content,
+        name=data.name,
+        body=body_text(data.kind, data.body),
     )
-    db.add(db_comment)
+    db.add(annotation)
     commit_sync(db)
-    db.refresh(db_comment)
-    return _comment_out(db_comment)
+    db.refresh(annotation)
+    return annotation_out(annotation)
 
 
-@app.put("/api/comments/{comment_uuid}", response_model=CommentSchema)
-async def edit_comment(
-    comment_uuid: str,
-    comment: CommentUpdate,
+@app.put("/api/annotations/{annotation_uuid}", response_model=AnnotationOut)
+async def update_annotation(
+    annotation_uuid: str,
+    data: AnnotationUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Edit a note (author only): reword it, move its anchor, or both.
-    Moving re-places it on the edition the reader is looking at, since that
-    is the page they moved it across."""
-    db_comment = db.query(Comment).filter(Comment.uuid == comment_uuid).first()
-    if not db_comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
-    if db_comment.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only edit your own notes")
-    if comment.content is not None:
-        db_comment.content = comment.content.strip()
-    if comment.anchor is not None:
-        payload = comment.anchor.model_dump()
-        db_comment.anchor_type = payload.pop("type")
-        db_comment.anchor = json.dumps(payload)
-        db_comment.page = comment.page
-        paper = db.get(Paper, db_comment.paper_uuid)
-        edition = _edition_for(paper, _copy_of(paper, current_user))
-        db_comment.edition = edition
-    if comment.name is not None:
-        db_comment.name = comment.name.strip() or None
+    """Change an annotation (its author only). Only what is sent changes, so
+    rewording a note never disturbs where it sits, and moving it never
+    disturbs the words."""
+    annotation = _own_annotation_or_404(annotation_uuid, current_user, db)
+    if data.content is not None:
+        annotation.content = data.content
+    if data.name is not None:
+        annotation.name = data.name
+    if data.page is not None:
+        annotation.page = data.page
+    if data.body is not None:
+        merged = {**json.loads(annotation.body or "{}"), **data.body}
+        try:
+            # Creating validates while the request is still being parsed; a
+            # change is only a few fields, so its shape is not known to be
+            # good until it has been merged with what is already stored.
+            annotation.body = body_text(annotation.kind, merged)
+        except ValidationError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=error.errors(include_context=False, include_url=False),
+            ) from error
     commit_sync(db)
-    db.refresh(db_comment)
-    return _comment_out(db_comment)
+    db.refresh(annotation)
+    return annotation_out(annotation)
 
 
-@app.delete("/api/comments/{comment_uuid}")
-async def delete_comment(
-    comment_uuid: str,
+@app.delete("/api/annotations/{annotation_uuid}")
+async def delete_annotation(
+    annotation_uuid: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a comment (author only)."""
-    comment = db.query(Comment).filter(Comment.uuid == comment_uuid).first()
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
-    if comment.user_uuid != current_user.uuid:
-        raise HTTPException(status_code=403, detail="You can only delete your own comments")
-
-    comment.deleted_at = datetime.utcnow()
+    annotation = _own_annotation_or_404(annotation_uuid, current_user, db)
+    annotation.deleted_at = datetime.utcnow()
     commit_sync(db)
-    return {"message": "Comment deleted"}
+    return {"message": "Annotation deleted"}
 
 
 # ---------------- Seminar rooms ----------------
@@ -3369,9 +3266,9 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     paper = next(iter(_papers_for_key(db, room.paper_key)), None)
     own = _copy_of(paper, viewer) if paper else None
     link_paper = (
-        paper if paper and (own is not None or _displayed_copies(paper)) else None
+        paper if paper and (own is not None or displayed_copies(paper)) else None
     )
-    hidden_entry = paper if own is not None and not own.marketed else None
+    hidden_entry = paper if own is not None and not own.is_public else None
 
     summary = _room_summary(room)
     return RoomDetail(

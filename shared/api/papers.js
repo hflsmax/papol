@@ -1,7 +1,7 @@
 import { appPath, backendPath } from '../appUrls.js';
 import {
   discardNativeBlob, importNativeSharedPaper, nativeBlobImport, nativeDataActive,
-  nativeRepository, noteView, paperView, shelfView, newUuid,
+  annotationView, nativeRepository, paperView, shelfView, newUuid,
 } from '../nativeData.js';
 import { inOfflineMode, runtimeFetch } from '../connectivity.js';
 import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
@@ -149,12 +149,12 @@ export async function getPaper(uuid) {
     // A nook paper is read from the replica: the server may not have it yet,
     // or may be out of reach.
     try {
-      localComments = nativeRepository.comments(uuid);
+      localComments = nativeRepository.annotations(uuid, null, 'note');
       const [row, comments] = await Promise.all([
         nativeRepository.paper(uuid), localComments,
       ]);
       const paper = paperView(row);
-      paper.comments = comments.map(noteView);
+      paper.notes = comments.map(annotationView);
       setPaperCopyUuid(uuid, paper.copy_uuid);
       return paper;
     } catch (error) {
@@ -163,14 +163,17 @@ export async function getPaper(uuid) {
     }
   }
   const localState = nativeDataActive()
-    ? Promise.all([localComments || nativeRepository.comments(uuid), nativeRepository.nook()])
+    ? Promise.all([
+      localComments || nativeRepository.annotations(uuid, null, 'note'),
+      nativeRepository.nook(),
+    ])
     : null;
   const remotePaper = request(`/papers/${uuid}`);
   const [paperResult, state] = await Promise.all([remotePaper, localState]);
   const paper = rememberPaperIdentity(paperResult);
   if (state) {
     const [comments, nook] = state;
-    paper.comments = comments.map(noteView);
+    paper.notes = comments.map(annotationView);
     const copy = nook.copies.find((candidate) => candidate.paper_uuid === paper.uuid);
     if (copy) {
       Object.assign(paper, {
@@ -178,7 +181,10 @@ export async function getPaper(uuid) {
         shelf_uuid: copy.shelf_uuid,
         summary: copy.summary,
         thought: copy.thought,
-        marketed: copy.marketed === true || copy.marketed === 1,
+        // On display is the shelf's answer, so the shelf is where it is
+        // read from; a copy on no shelf has nothing standing behind it.
+        is_public: (nook.shelves || []).some((shelf) => shelf.uuid === copy.shelf_uuid
+          && (shelf.is_public === true || shelf.is_public === 1)),
         is_author: copy.is_author === true || copy.is_author === 1,
         rating_expertise: copy.rating_expertise,
         rating_reading: copy.rating_reading,
@@ -424,30 +430,35 @@ export function deleteShelf(uuid) {
   return onServer(() => request(`/shelves/${uuid}`, { method: 'DELETE' }));
 }
 
-// ---------- Comments ----------
+// ---------- Notes ----------
+//
+// A note written on the paper page is an annotation with no place on a page:
+// the same row a located note uses, without an edition or a page.
 
 export function addComment(paperUuid, content) {
   if (nativeDataActive()) {
     return nativeRepository.transact([{
-      table: 'comments', uuid: newUuid(), operation: 'upsert',
-      values: { paper_uuid: paperUuid, content },
-    }]).then((receipt) => noteView(receipt.rows[0]));
+      table: 'annotations', uuid: newUuid(), operation: 'upsert',
+      values: { kind: 'note', paper_uuid: paperUuid, content, body: '{}' },
+    }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperUuid}/comments`, 'POST', { content });
+  return jsonRequest(`/papers/${paperUuid}/annotations`, 'POST', {
+    kind: 'note', content,
+  });
 }
 
 export function updateComment(commentUuid, content) {
   if (nativeDataActive() && typeof commentUuid === 'string') {
     return nativeRepository.transact([{
-      table: 'comments', uuid: commentUuid, operation: 'patch', values: { content },
-    }]).then((receipt) => noteView(receipt.rows[0]));
+      table: 'annotations', uuid: commentUuid, operation: 'patch', values: { content },
+    }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/comments/${commentUuid}`, 'PUT', { content });
+  return jsonRequest(`/annotations/${commentUuid}`, 'PUT', { content });
 }
 
 export function deleteComment(commentUuid) {
   if (nativeDataActive() && typeof commentUuid === 'string') {
-    return nativeRepository.transact([{ table: 'comments', uuid: commentUuid, operation: 'delete', values: {} }])
+    return nativeRepository.transact([{ table: 'annotations', uuid: commentUuid, operation: 'delete', values: {} }])
       .then(() => null);
   }
   return request(`/comments/${commentUuid}`, { method: 'DELETE' });

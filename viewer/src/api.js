@@ -8,8 +8,8 @@ import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { demoPaperMedia, hydrateDesktopMedia } from '../../shared/desktopMedia.js';
 import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
-  boardView, clipView, inkView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl, nativeDataActive,
-  nativeRepository, noteView, openedFileBlob, openedFileBytes,
+  annotationView, boardView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl,
+  nativeDataActive, nativeRepository, openedFileBlob, openedFileBytes,
   openedFileUrl, paperView, newUuid,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
@@ -41,13 +41,15 @@ export async function getPaperByPdf(hash) {
 
 export async function getPaperNotes(paper) {
   if (nativeDataActive()) {
-    return (await nativeRepository.comments(paper.uuid)).map(noteView);
+    return listAnnotations(paper.uuid, { kind: 'note' });
   }
-  return paper.comments || [];
+  return paper.notes || [];
 }
 
-export function getViewerPaperInfo(hash) {
-  return request(`/viewer/${hash}/info`);
+// A share uuid stands in for a session: the same public metadata, asked for
+// by someone who is holding a link rather than signed in.
+export function getViewerPaperInfo(hash, share) {
+  return request(`/viewer/${hash}/info${share ? `?share=${share}` : ''}`);
 }
 
 export function pdfHref(paper) {
@@ -65,12 +67,6 @@ export async function getNookPaperByPdf(hash) {
   } catch {
     return null;
   }
-}
-
-function storedAnchor(anchor) {
-  if (!anchor) return { anchor_type: null, anchor: null };
-  const { type, ...rest } = anchor;
-  return { anchor_type: type || null, anchor: JSON.stringify(rest) };
 }
 
 // A file opened from disk becomes a nook paper, and the notes, ink and clips
@@ -134,25 +130,21 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
   const editionUuid = paper.edition_uuid;
   if (!editionUuid) throw new Error('This paper has no readable PDF edition.');
 
+  // One table now, so the three kinds are the same mapping with a different
+  // kind and a different body.
+  const stored = (kind, { uuid, page, content, name, group_uuid: groupUuid, ...body }) => ({
+    table: 'annotations', uuid, operation: 'upsert',
+    values: {
+      kind, paper_uuid: paperUuid, edition_uuid: editionUuid,
+      page: page ?? null, group_uuid: groupUuid ?? null,
+      content: content || '', name: name || null,
+      body: JSON.stringify(body),
+    },
+  });
   const marks = [
-    ...notes.map((note) => ({
-      table: 'comments', uuid: note.uuid, operation: 'upsert',
-      values: {
-        paper_uuid: paperUuid, edition_uuid: editionUuid, page: note.page ?? null,
-        ...storedAnchor(note.anchor), content: note.content || '', name: note.name || null,
-      },
-    })),
-    ...ink.map(({ uuid, kind: _kind, created_at: _createdAt, ...stroke }) => ({
-      table: 'ink_strokes', uuid, operation: 'upsert',
-      values: { ...stroke, edition_uuid: editionUuid, points: JSON.stringify(stroke.points) },
-    })),
-    ...clips.map(({ uuid, kind: _kind, created_at: _createdAt, ...clip }) => ({
-      table: 'paper_clips', uuid, operation: 'upsert',
-      values: {
-        ...clip, edition_uuid: editionUuid,
-        source: JSON.stringify(clip.source), frame: JSON.stringify(clip.frame),
-      },
-    })),
+    ...notes.map(({ anchor, ...note }) => stored('note', { ...note, anchor: anchor ?? null })),
+    ...ink.map(({ created_at: _drawn, ...stroke }) => stored('ink', stroke)),
+    ...clips.map(({ created_at: _cut, ...clip }) => stored('clip', clip)),
   ];
   for (let start = 0; start < marks.length; start += 200) {
     await nativeRepository.transact(marks.slice(start, start + 200));
@@ -160,8 +152,13 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
   return paperUuid;
 }
 
+// A PDF someone shared is theirs, not this machine's: its bytes come from
+// the service even when a local replica is open in the same app.
+const sharedReading = (paper) => Boolean(paper?.shared_by);
+
 export async function downloadablePdfHref(paper) {
   if (paper?.opened_file && !paper.uuid) return openedFileUrl(paper.edition_sha256);
+  if (sharedReading(paper)) return pdfHref(paper);
   if (nativeDataActive()) {
     if (!paper?.edition_sha256) throw new Error('PDF is not available in the local replica');
     return nativeBlobUrl(paper.edition_sha256, 'application/pdf');
@@ -176,6 +173,7 @@ export async function pdfLoadInput(paper) {
   if (paper?.opened_file && !paper.uuid) {
     return { data: await openedFileBytes(paper.edition_sha256) };
   }
+  if (sharedReading(paper)) return { url: pdfHref(paper) };
   if (IS_DESKTOP && inDemo()) {
     const asset = demoPaperMedia(paper?.edition_sha256);
     if (!asset) throw new Error('This paper requires a network connection.');
@@ -229,58 +227,70 @@ export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sour
   return request(`/boards/${boardUuid}/staging/clip`, { method: 'POST', body });
 }
 
-// A located note is a note: the same endpoints Papol's own notes use, with
-// a page and an anchor attached.
-export function createNote(paperUuid, { page, anchor, content }) {
+// ---- Annotations ----
+//
+// Notes, ink and clips are one kind of thing with three shapes, so they are
+// made, changed and erased through one pair of calls. `kind` says which, and
+// `body` carries the geometry only that kind has.
+
+export function listAnnotations(paperUuid, { editionUuid, kind } = {}) {
   if (nativeDataActive()) {
-    const payload = anchor ? { ...anchor } : null;
-    const anchorType = payload?.type || null;
-    if (payload) delete payload.type;
+    return nativeRepository
+      .annotations(paperUuid, editionUuid ?? null, kind ?? null)
+      .then((rows) => rows.map(annotationView));
+  }
+  const query = new URLSearchParams();
+  if (editionUuid) query.set('edition_uuid', editionUuid);
+  if (kind) query.set('kind', kind);
+  const suffix = query.size ? `?${query}` : '';
+  return request(`/papers/${paperUuid}/annotations${suffix}`);
+}
+
+export function createAnnotation(paperUuid, annotation) {
+  const editionUuid = annotation.edition_uuid
+    ?? activeEditionByPaper.get(paperUuid)
+    ?? null;
+  if (nativeDataActive()) {
     return nativeRepository.transact([{
-      table: 'comments', uuid: newUuid(), operation: 'upsert',
+      table: 'annotations', uuid: newUuid(), operation: 'upsert',
       values: {
+        kind: annotation.kind,
         paper_uuid: paperUuid,
-        edition_uuid: activeEditionByPaper.get(paperUuid) || null,
-        page: page ?? null, anchor_type: anchorType,
-        anchor: payload ? JSON.stringify(payload) : null, content,
+        edition_uuid: annotation.kind === 'note' ? editionUuid : editionUuid,
+        page: annotation.page ?? null,
+        group_uuid: annotation.group_uuid ?? null,
+        content: annotation.content ?? '',
+        name: annotation.name ?? null,
+        body: JSON.stringify(annotation.body ?? {}),
       },
-    }]).then((receipt) => noteView(receipt.rows[0]));
+    }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperUuid}/comments`, 'POST', { page, anchor, content });
+  return jsonRequest(`/papers/${paperUuid}/annotations`, 'POST', {
+    ...annotation, edition_uuid: editionUuid,
+  });
 }
 
-export function updateNote(uuid, content) {
+export function updateAnnotation(uuid, changes) {
   if (nativeDataActive() && typeof uuid === 'string') {
-    return nativeRepository.transact([{ table: 'comments', uuid, operation: 'patch', values: { content } }])
-      .then((receipt) => noteView(receipt.rows[0]));
+    const values = {};
+    for (const field of ['page', 'content', 'name']) {
+      if (changes[field] !== undefined) values[field] = changes[field];
+    }
+    if (changes.body !== undefined) values.body = JSON.stringify(changes.body);
+    return nativeRepository
+      .transact([{ table: 'annotations', uuid, operation: 'patch', values }])
+      .then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/comments/${uuid}`, 'PUT', { content });
+  return jsonRequest(`/annotations/${uuid}`, 'PUT', changes);
 }
 
-export function moveNote(uuid, { page, anchor }) {
+export function deleteAnnotation(uuid) {
   if (nativeDataActive() && typeof uuid === 'string') {
-    const payload = { ...anchor }; const anchorType = payload.type; delete payload.type;
-    return nativeRepository.transact([{
-      table: 'comments', uuid, operation: 'patch',
-      values: { page, anchor_type: anchorType, anchor: JSON.stringify(payload) },
-    }]).then((receipt) => noteView(receipt.rows[0]));
+    return nativeRepository
+      .transact([{ table: 'annotations', uuid, operation: 'delete', values: {} }])
+      .then(() => null);
   }
-  return jsonRequest(`/comments/${uuid}`, 'PUT', { page, anchor });
-}
-
-export function renameNote(uuid, name) {
-  if (nativeDataActive() && typeof uuid === 'string') {
-    return nativeRepository.transact([{ table: 'comments', uuid, operation: 'patch', values: { name } }])
-      .then((receipt) => noteView(receipt.rows[0]));
-  }
-  return jsonRequest(`/comments/${uuid}`, 'PUT', { name });
-}
-
-export function deleteNote(uuid) {
-  if (nativeDataActive() && typeof uuid === 'string') {
-    return nativeRepository.transact([{ table: 'comments', uuid, operation: 'delete', values: {} }]).then(() => null);
-  }
-  return request(`/comments/${uuid}`, { method: 'DELETE' });
+  return request(`/annotations/${uuid}`, { method: 'DELETE' });
 }
 
 // ---- References ----
@@ -297,86 +307,19 @@ export function getViewerReference(uuid) {
   return request(`/viewer-references/item/${uuid}`);
 }
 
+// The same two questions, asked on the authority of a shared link. The
+// bibliography belongs to the PDF, so the answers are the same ones; only
+// what allows the asking differs.
+export function getSharedReferences(share, pdfHash, editionUuid) {
+  return request(`/viewer-references/${pdfHash}?edition_uuid=${editionUuid}&share=${share}`);
+}
+
+export function getSharedReference(share, referenceUuid) {
+  return request(`/viewer-references/item/${referenceUuid}?share=${share}`);
+}
+
 export function resolveViewerReference(pdfHash, { key, raw }) {
   return jsonRequest(`/viewer-references/${pdfHash}/preview`, 'POST', { key, raw });
-}
-
-// ---- Ink ----
-
-// What the reader has drawn on this edition. Kept per edition, like the
-// references: the marks were made over a particular PDF.
-export function getInk(editionUuid) {
-  if (nativeDataActive()) {
-    return nativeRepository.ink(editionUuid)
-      .then((rows) => rows.map(inkView));
-  }
-  return request(`/editions/${editionUuid}/ink`);
-}
-
-export function addInk(editionUuid, stroke) {
-  if (nativeDataActive()) {
-    return nativeRepository.transact([{
-      table: 'ink_strokes', uuid: newUuid(), operation: 'upsert',
-      values: { ...stroke, edition_uuid: editionUuid, points: JSON.stringify(stroke.points) },
-    }]).then((receipt) => inkView(receipt.rows[0]));
-  }
-  return jsonRequest(`/editions/${editionUuid}/ink`, 'POST', stroke);
-}
-
-export function moveInk(strokeUuid, points) {
-  if (nativeDataActive() && typeof strokeUuid === 'string') {
-    return nativeRepository.transact([{
-      table: 'ink_strokes', uuid: strokeUuid, operation: 'patch', values: { points: JSON.stringify(points) },
-    }]).then((receipt) => inkView(receipt.rows[0]));
-  }
-  return jsonRequest(`/ink/${strokeUuid}`, 'PUT', { points });
-}
-
-export function eraseInk(strokeUuid) {
-  if (nativeDataActive() && typeof strokeUuid === 'string') {
-    return nativeRepository.transact([{ table: 'ink_strokes', uuid: strokeUuid, operation: 'delete', values: {} }]).then(() => null);
-  }
-  return request(`/ink/${strokeUuid}`, { method: 'DELETE' });
-}
-
-// ---- Clips ----
-
-export function getClips(editionUuid) {
-  if (nativeDataActive()) {
-    return nativeRepository.clips(editionUuid)
-      .then((rows) => rows.map(clipView));
-  }
-  return request(`/editions/${editionUuid}/clips`);
-}
-
-export function addClip(editionUuid, clip) {
-  if (nativeDataActive()) {
-    return nativeRepository.transact([{
-      table: 'paper_clips', uuid: newUuid(), operation: 'upsert',
-      values: {
-        ...clip, edition_uuid: editionUuid,
-        source: JSON.stringify(clip.source), frame: JSON.stringify(clip.frame),
-      },
-    }]).then((receipt) => clipView(receipt.rows[0]));
-  }
-  return jsonRequest(`/editions/${editionUuid}/clips`, 'POST', clip);
-}
-
-export function moveClip(clipUuid, frame, floating) {
-  if (nativeDataActive() && typeof clipUuid === 'string') {
-    return nativeRepository.transact([{
-      table: 'paper_clips', uuid: clipUuid, operation: 'patch',
-      values: { frame: JSON.stringify(frame), floating },
-    }]).then((receipt) => clipView(receipt.rows[0]));
-  }
-  return jsonRequest(`/clips/${clipUuid}`, 'PUT', { frame, floating });
-}
-
-export function eraseClip(clipUuid) {
-  if (nativeDataActive() && typeof clipUuid === 'string') {
-    return nativeRepository.transact([{ table: 'paper_clips', uuid: clipUuid, operation: 'delete', values: {} }]).then(() => null);
-  }
-  return request(`/clips/${clipUuid}`, { method: 'DELETE' });
 }
 
 // ---- Feedback ----

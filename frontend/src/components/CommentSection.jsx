@@ -5,7 +5,8 @@ import AutoTextarea from './AutoTextarea';
 import { confirmAction } from '../../../shared/confirmAction';
 
 export default function CommentSection({
-  noteHref, onOpenNote, paperUuid, comments, currentUser, onCommentChange }) {
+  noteHref, onOpenNote, paperUuid, comments, currentUser, onCommentChange,
+  shared = false }) {
   const [newComment, setNewComment] = useState('');
   const [composing, setComposing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,7 +70,11 @@ export default function CommentSection({
     <div className="comment-section">
       <h4>
         Notes ({comments.length})
-        <span className="visibility-badge private">private</span>
+        {/* Once a reading is shared these notes travel with it, so the
+            badge that would say "private" has to say what is true. */}
+        {shared
+          ? <span className="visibility-badge shared">shared by link</span>
+          : <span className="visibility-badge private">private</span>}
         {!composing && (
           <button
             className="link-btn summary-edit"

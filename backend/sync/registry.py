@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from models import (
-    Board, BoardGroup, BoardItem, Comment, Copy, CopyTagLink, InkStroke, Paper, PaperClip,
+    Annotation, Board, BoardGroup, BoardItem, Copy, CopyTagLink, Paper,
     PaperEdition, Shelf, Tag,
 )
 
@@ -12,9 +12,7 @@ WRITABLE_MODELS = {
     "boards": Board,
     "board_groups": BoardGroup,
     "board_items": BoardItem,
-    "comments": Comment,
-    "ink_strokes": InkStroke,
-    "paper_clips": PaperClip,
+    "annotations": Annotation,
     "shelves": Shelf,
     "tags": Tag,
     "copies": Copy,
@@ -41,6 +39,14 @@ def validate_registry():
         model = MODELS.get(table_name)
         if model is None:
             raise RuntimeError(f"Sync registry has no model for {table_name}")
+        # Every table merges the same way — the writer restates the whole row
+        # and the last write wins — so naming a strategy would be a setting
+        # that silently does nothing.
+        if "conflict" in rule:
+            raise RuntimeError(
+                f"Sync registry declares a conflict strategy for {table_name}; "
+                "every table now restates its whole row"
+            )
         columns = set(model.__table__.columns.keys())
         exposed = columns - set(rule.get("server_columns", []))
         missing = set(rule.get("client_writable", [])) - exposed

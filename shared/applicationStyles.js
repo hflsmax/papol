@@ -936,18 +936,7 @@ select:disabled { cursor: default; opacity: .65; }
   margin-left: 0;
 }
 
-.market-status {
-  font-size: var(--fs-md);
-  color: var(--ink-soft);
-  margin: 8px 0;
-}
-
-.market-status .visibility-badge {
-  margin-left: 0;
-  margin-right: 4px;
-}
-
-.market-toggle {
+.switch-toggle {
   padding: 2px;
   border: none;
   background: none;
@@ -965,15 +954,15 @@ select:disabled { cursor: default; opacity: .65; }
   white-space: nowrap;
 }
 
-.market-toggle.on .switch-text {
+.switch-toggle.on .switch-text {
   color: var(--ink-inverse);
 }
 
-.market-toggle.off .switch-text {
+.switch-toggle.off .switch-text {
   color: var(--ink-soft);
 }
 
-.market-toggle:hover:not(:disabled) {
+.switch-toggle:hover:not(:disabled) {
   border: none;
   background: none;
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -990,23 +979,23 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* Knob left + label right when hidden; label left + knob right when shown */
-.market-toggle.on .switch {
+.switch-toggle.on .switch {
   padding: 0 4px 0 8px;
 }
 
-.market-toggle.on .switch-knob {
+.switch-toggle.on .switch-knob {
   order: 2;
 }
 
-.market-toggle.on .switch {
+.switch-toggle.on .switch {
   background: var(--accent);
 }
 
-.market-toggle.off .switch {
+.switch-toggle.off .switch {
   background: var(--fill);
 }
 
-.market-toggle.off:hover .switch {
+.switch-toggle.off:hover .switch {
   background: var(--fill-strong);
 }
 
@@ -1020,23 +1009,23 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 /* Text-less variant: fixed track, knob slides between the ends */
-.market-toggle .switch.bare {
+.switch-toggle .switch.bare {
   width: 40px;
   padding: 0;
   position: relative;
 }
 
-.market-toggle .switch.bare .switch-knob {
+.switch-toggle .switch.bare .switch-knob {
   position: absolute;
   top: 3px;
   transition: left 0.15s;
 }
 
-.market-toggle.on .switch.bare .switch-knob {
+.switch-toggle.on .switch.bare .switch-knob {
   left: 21px;
 }
 
-.market-toggle.off .switch.bare .switch-knob {
+.switch-toggle.off .switch.bare .switch-knob {
   left: 3px;
 }
 
@@ -2102,6 +2091,116 @@ select:disabled { cursor: default; opacity: .65; }
   background: var(--accent-soft);
 }
 
+/* Neither public nor private: handed to particular people, by a link the
+   reader can take back. Gold, which is the colour Papol already uses for
+   a reader's own marks. */
+.visibility-badge.shared {
+  color: var(--gold-ink);
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+}
+
+/* A live link is a state of the paper, so it sits on the page rather than
+   inside the share menu, and stays visible for as long as it is true. */
+.shared-reading-bar {
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  background: var(--gold-soft);
+}
+
+.shared-reading-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.shared-reading-head .visibility-badge {
+  margin-left: 0;
+}
+
+.shared-reading-head p {
+  flex: 1 1 260px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.shared-reading-bar .share-link-row {
+  margin-top: 10px;
+}
+
+.shared-reading-bar .share-link-row input {
+  background: var(--card);
+}
+
+.shared-reading-bar .share-revoke {
+  flex: none;
+  color: var(--red);
+}
+
+/* The question a link carrying marks asks before it is closed. Inside the
+   bar rather than over the page: it is a choice between two ordinary
+   actions, not a warning about a dangerous one. */
+.shared-reading-ask {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gold-line);
+}
+
+.shared-reading-ask p {
+  margin: 0 0 9px;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.shared-reading-ask-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.shared-reading-ask-actions button {
+  flex: none;
+  padding: 5px 11px;
+}
+
+.shared-reading-ask-actions button.link {
+  padding: 0;
+  color: var(--ink-soft);
+}
+
+/* The one thing to decide when making a link, so it sits between the
+   description and the button rather than beside them. */
+.share-marks-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 3px 9px;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.share-marks-choice input {
+  flex: none;
+  margin: 0;
+}
+
+.share-menu-heading {
+  display: block;
+  margin: 2px 3px 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
 .inline-ratings {
   margin: 10px 0;
 }
@@ -2696,6 +2795,13 @@ select:disabled { cursor: default; opacity: .65; }
   box-shadow: 0 12px 32px rgba(29, 33, 41, 0.18);
 }
 
+/* The menu that hands over a link is wider than the menu of actions: it
+   holds a URL, and a URL the reader cannot read is a URL they cannot check
+   before handing it over. */
+.share-links-menu {
+  width: 310px;
+}
+
 .paper-actions .share-menu > button,
 .paper-actions .share-menu > a {
   display: block;
@@ -2728,14 +2834,6 @@ select:disabled { cursor: default; opacity: .65; }
   font-size: var(--fs-xs);
 }
 
-.canonical-share-menu label {
-  display: block;
-  margin: 2px 3px 6px;
-  color: var(--ink-soft);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-}
-
 .share-link-row {
   display: flex;
   align-items: center;
@@ -2752,6 +2850,19 @@ select:disabled { cursor: default; opacity: .65; }
 .paper-actions .share-link-row button {
   width: auto;
   flex: none;
+}
+
+.share-note {
+  margin: 6px 3px 8px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.paper-actions .share-menu-section > button {
+  width: auto;
+  padding: 5px 9px;
+  margin-left: 3px;
 }
 
 .signed-out-reviews {

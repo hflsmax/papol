@@ -160,7 +160,9 @@ class Paper(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     copies = relationship("Copy", back_populates="paper", cascade="all, delete-orphan")
-    comments = relationship("Comment", back_populates="paper", cascade="all, delete-orphan")
+    annotations = relationship(
+        "Annotation", back_populates="paper", cascade="all, delete-orphan",
+    )
     # Oldest first, so the last edition is the latest one.
     editions = relationship(
         "PaperEdition", back_populates="paper",
@@ -312,7 +314,6 @@ class Copy(Base):
     ignored_edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True)
     summary = Column(Text, nullable=True)  # private
     thought = Column(Text, nullable=True)  # public one-sentence take
-    marketed = Column(Boolean, nullable=False, default=True, server_default="1")
     # The reader is an author of this paper ("this is my paper").
     is_author = Column(Boolean, nullable=False, default=False, server_default="0")
     rating_expertise = Column(Integer, nullable=True)
@@ -336,10 +337,20 @@ class Copy(Base):
     )
     shelf = relationship("Shelf", back_populates="copies")
 
+    @property
+    def is_public(self) -> bool:
+        """Whether this copy is on display, which is the shelf's answer and
+        only ever the shelf's. Asked each time rather than kept alongside:
+        a second copy of one fact is a second thing to keep true, and the
+        two drift the moment any path forgets. A copy on no shelf is on no
+        display — there is nothing standing behind it."""
+        return self.shelf is not None and bool(self.shelf.is_public)
+
 
 class Shelf(Base):
     """One of a reader's five homes for papers. Visibility belongs to the
-    shelf; Copy.marketed is kept in sync for compatibility with seminar rules."""
+    shelf, and to nothing else: a copy is public exactly while the shelf it
+    sits on is."""
     __tablename__ = "shelves"
     __table_args__ = (UniqueConstraint("user_uuid", "name", name="uq_shelf_user_name"),)
 
@@ -390,35 +401,48 @@ class CopyTagLink(Base):
     tag = relationship("Tag", foreign_keys=[copy_tags.c.tag_uuid])
 
 
-class Comment(Base):
-    """A reader's private note on a paper. A note may be *located*: fixed to
-    a place in the PDF, in which case it carries a page, a typed anchor and
-    the edition it was placed on. A note without those is the same kind of
-    thing, just not pinned anywhere."""
-    __tablename__ = "comments"
+class Annotation(Base):
+    """Everything a reader leaves on a paper.
+
+    A note is words, optionally pinned to a place. Ink is a stroke drawn over
+    the page. A clip is a movable view of one rectangle of it. They differ in
+    what they draw, not in what they are: each belongs to one reader, sits on
+    one PDF of one paper, and is private to them unless they share a reading.
+
+    `kind` says which — note | ink | clip — and `body` carries the geometry
+    that only that kind has. Geometry was always JSON text here; a polyline
+    and an anchor were never columns SQLite could do anything with. The
+    columns that remain are the ones every kind answers, and the ones a
+    person can read: the words, and what the reader calls them.
+
+    Coordinates in `body` are fractions of the page in PDF user space, so
+    zoom, DPI and screen size never enter them; ink and clip geometry measure
+    y from the bottom, as PDF does.
+    """
+    __tablename__ = "annotations"
 
     uuid = uuid_key()
+    kind = Column(String(8), nullable=False, index=True)
+    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
     paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
-    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True)
+    # Null only for a note about the paper that was never put on a page.
+    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True, index=True)
+    page = Column(Integer, nullable=True, index=True)
+    # Several stored paths can be one logical mark: text painted across lines
+    # is drawn as separate strokes but picked up and erased as one.
+    group_uuid = Column(String(36), nullable=True)
     # Empty while an anchor is only a mark, before anything is written.
     content = Column(Text, nullable=False, default="")
-    # Location, all null for a note that is not pinned to the page.
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=True, index=True)
-    page = Column(Integer, nullable=True)
-    # `point` today; `rect`, `polygon` and `quote` later, each with its own
-    # shape in `anchor` (JSON). A point is {"x": 0.42, "y": 0.71}: fractions
-    # of the page in PDF user space, so zoom and DPI never enter it.
-    anchor_type = Column(String, nullable=True)
-    anchor = Column(Text, nullable=True)
-    # What the reader calls this anchor; the page number stands in when
+    # What the reader calls this annotation; the page number stands in when
     # they have not named it.
     name = Column(String, nullable=True)
+    body = Column(Text, nullable=False, default="{}", server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     revision = Column(Integer, nullable=False, default=0, server_default="0")
     deleted_at = Column(DateTime, nullable=True)
 
-    paper = relationship("Paper", back_populates="comments")
+    paper = relationship("Paper", back_populates="annotations")
     user = relationship("User")
     edition = relationship("PaperEdition")
 
@@ -499,71 +523,56 @@ class BoardItem(Base):
     group = relationship("BoardGroup", back_populates="items")
 
 
-class InkStroke(Base):
-    """One freehand mark a reader drew on a page.
+class Sharable(Base):
+    """One reader's reading of one edition, handed to anyone with the link.
 
-    Ink belongs to an edition rather than to a paper, for the same reason a
-    located note does: it was drawn over a particular PDF, and a different
-    file has different pages. It is private to the reader who drew it, as
-    notes are.
+    The link carries this row's UUID and nothing else, so the UUID is the
+    whole of the permission: distinct from the paper's and the edition's,
+    because what it opens is neither of those. A *rich* link opens a reading
+    — the PDF this reader chose, the notes they wrote on it, the ink they
+    drew and the clips they cut — and belongs to them. A *lean* link opens
+    the PDF alone and belongs to nobody: one per edition, handed to whoever
+    asks for it, with no reader named on it and none implied.
 
-    `points` is a JSON array of {"x": …, "y": …}, each a fraction of the
-    page in PDF user space with y measured from the bottom — the same
-    coordinates a note's anchor uses, so zoom, DPI and screen size never
-    enter it. `width` is a fraction of the page width for the same reason:
-    a stroke drawn at 100% is the same weight when read at 250%.
+    The reading is named, not copied. A note reworded after the link was
+    given out is reworded for everyone holding it, which is what a reader
+    means by sharing what they are reading rather than a snapshot of it.
+    Revoking stamps `revoked_at`: the row stays, so a link handed out is
+    answered with "no longer shared" instead of a 404 that reads as a typo.
     """
-    __tablename__ = "ink_strokes"
+    __tablename__ = "sharables"
 
     uuid = uuid_key()
-    # Several stored paths can be one logical mark. Text selected across
-    # lines must be rendered as separate paths, but it is still one brush
-    # action when the reader moves or erases it.
-    group_uuid = Column(String(36), nullable=True)
+    # What the link carries. "rich" is the reading — this reader's notes,
+    # ink and clips on the PDF. "lean" is the PDF alone, which is a
+    # different and smaller thing to hand someone: here is the paper.
+    #
+    # A rich link depends on a copy in the reader's nook. Take the paper out
+    # and the reading it named is gone, so the link becomes lean rather than
+    # dying: what is left of it is still the paper. The demotion is
+    # permanent — putting the paper back must not silently re-expose marks
+    # to everyone still holding the link.
+    kind = Column(String(8), nullable=False, default="lean", server_default="lean")
+    # Whose reading this is — and nobody's, when the link carries the paper
+    # alone. A lean link makes no claim about a reader: it says "here is this
+    # PDF", which is true of the paper and not of anyone's nook. Leaving it
+    # null is what keeps it out of its maker's hands: not on their paper
+    # page, not theirs to close, and not a thing they are told exists.
+    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True, index=True)
+    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    # The exact PDF that was shared. A reader who later adopts a newer
+    # edition has shared this one, and their marks on it are still here.
     edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
-    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
-    page = Column(Integer, nullable=False, index=True)
-    points = Column(Text, nullable=False)
-    color = Column(String, nullable=False, default="#b3923d")
-    width = Column(Float, nullable=False, default=0.004)
-    # 1 is solid ink; less lets the words underneath show through, which is
-    # what a reader wants when marking a line rather than crossing it out.
-    # A server_default so that migrate() can add it to an existing table:
-    # SQLite will not add a NOT NULL column without one.
-    opacity = Column(Float, nullable=False, default=1.0, server_default="1.0")
-    # The nib: "flat" is a chisel held upright, wide across the page and
-    # thin along it, so the mark records the direction the hand went;
-    # "round" is the same weight whichever way it is drawn.
-    shape = Column(String, nullable=False, default="flat", server_default="flat")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    revision = Column(Integer, nullable=False, default=0, server_default="0")
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
 
-    edition = relationship("PaperEdition")
     user = relationship("User")
-
-
-class PaperClip(Base):
-    """A reader's movable view of one rectangular part of an edition."""
-    __tablename__ = "paper_clips"
-
-    uuid = uuid_key()
-    edition_uuid = Column(String(36), ForeignKey("paper_editions.uuid"), nullable=False, index=True)
-    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
-    page = Column(Integer, nullable=False, index=True)
-    source = Column(Text, nullable=False)
-    frame = Column(Text, nullable=False)
-    # Locked clips use page-relative frame coordinates. Floating clips use
-    # the viewer viewport, so scrolling the paper leaves them in place.
-    floating = Column(Boolean, nullable=False, default=False, server_default="0")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    revision = Column(Integer, nullable=False, default=0, server_default="0")
-    deleted_at = Column(DateTime, nullable=True)
-
+    paper = relationship("Paper")
     edition = relationship("PaperEdition")
-    user = relationship("User")
+
+    @property
+    def is_revoked(self) -> bool:
+        return self.revoked_at is not None
 
 
 class Room(Base):

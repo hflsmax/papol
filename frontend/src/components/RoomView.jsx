@@ -345,7 +345,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               setActionError(null);
               setIsBusy(true);
               try {
-                await updatePaper(room.viewer_hidden_entry_uuid, { marketed: true });
+                await updatePaper(room.viewer_hidden_entry_uuid, { is_public: true });
                 onReload();
               } catch (e) {
                 setActionError(e.message);

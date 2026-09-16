@@ -2,7 +2,7 @@ import json
 from datetime import date, datetime
 
 from models import (
-    Board, Comment, Copy, CopyTagLink, InkStroke, PaperClip,
+    Annotation, Board, Copy, CopyTagLink,
     ServerChange, Shelf, Tag, new_uuid,
 )
 from sync.registry import WRITABLE_MODELS, registry, validate_registry
@@ -35,7 +35,7 @@ def _board_for(db, record):
 
 
 def _owner_uuid(db, record):
-    if isinstance(record, (Board, Comment, InkStroke, PaperClip, Copy, CopyTagLink, Shelf, Tag)):
+    if isinstance(record, (Annotation, Board, Copy, CopyTagLink, Shelf, Tag)):
         return record.user_uuid
     return _board_for(db, record).user_uuid
 
