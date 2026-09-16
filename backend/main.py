@@ -2957,6 +2957,17 @@ async def preview_pdf_reference(
         EditionReference.edition_uuid == edition.uuid,
         EditionReference.key == key,
     ).first()
+    if reference is None and key.isdigit():
+        # The viewer names a PDF-native citation by the number printed on the
+        # page: "bib0027" is entry 27. The analyzer names its own rows after
+        # GROBID's ids, counting from zero, so the same entry is "b26".
+        # Matching on the spelling alone appends a second row for a reference
+        # this edition already holds — and one read off the page at that,
+        # which is the poorer of the two readings.
+        reference = db.query(EditionReference).filter(
+            EditionReference.edition_uuid == edition.uuid,
+            EditionReference.index == int(key) - 1,
+        ).first()
     if reference is None:
         last_index = db.query(func.max(EditionReference.index)).filter(
             EditionReference.edition_uuid == edition.uuid,
