@@ -11,7 +11,9 @@ model that does exactly that job, and it hands back both halves:
     marker clickable.
 
 It runs as its own service — a JVM, so a container beside Papol rather
-than an import. Papol requires it both for upload metadata and references.
+than an import. References require it. Upload metadata prefers CrossRef
+and OpenAlex, and falls back to GROBID's reading of the title block only
+for a paper that prints no identifier for them to answer.
 """
 
 import os

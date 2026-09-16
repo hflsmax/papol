@@ -1730,6 +1730,34 @@ async def list_all_papers(
     ]
 
 
+async def _printed_header(path: str) -> grobid.HeaderMetadata | None:
+    """What the PDF says about itself, for fields nothing else could supply.
+
+    An author's copy, a preprint, or a tech report often prints no DOI at
+    all, and without an identifier the bibliographic APIs have nothing to
+    answer. GROBID reads the title block off page one instead.
+
+    It is strictly a last resort. Measured against CrossRef over the library,
+    GROBID never names the venue, misses most years, and mistakes an
+    affiliation for an author often enough that its answers are a starting
+    point for the reader to correct, not a result. It is therefore asked only
+    about fields no API supplied, and never about the DOI: it finds no
+    identifier the printed-text scan misses, and mangles those it does report
+    into a PNAS supplement or an unparsed arXiv id.
+
+    A fallback that fails leaves the reader where they already were, with a
+    filename for a title and every field open for typing, so an unreachable
+    or unhappy analyzer is logged rather than raised.
+    """
+    if not grobid.configured():
+        return None
+    try:
+        return await grobid.extract_header(path)
+    except Exception:
+        logger.exception("GROBID header extraction failed")
+        return None
+
+
 @app.post("/api/papers/extract", response_model=ExtractedMetadata)
 async def extract_paper_metadata(
     file: UploadFile = File(...), current_user: User = Depends(get_current_user)
@@ -1781,7 +1809,18 @@ async def extract_paper_metadata(
             "year": api_metadata.get("year"),
         })
     else:
+        # Nothing resolved this paper: it prints no identifier, or no API
+        # knows the one it prints. Rather than hand back a filename, ask the
+        # PDF what it calls itself.
         metadata["doi"] = lookup_doi
+        header = await _printed_header(str(file_path))
+        if header:
+            metadata.update({
+                "title": header.title or metadata["title"],
+                "authors": json.dumps(header.authors) if header.authors else None,
+                "journal": header.journal,
+                "year": header.year,
+            })
     return ExtractedMetadata(**metadata)
 
 
@@ -2093,28 +2132,40 @@ async def reextract_paper_metadata(
     # This action promises to re-read the PDF. Prefer the identifier printed
     # in that edition over possibly stale or incorrectly entered paper data.
     lookup_doi = (arxiv_doi(arxiv_id) if arxiv_id else doi) or paper.doi
-    if not lookup_doi:
-        raise HTTPException(status_code=422, detail="No DOI or arXiv identifier found")
-    try:
-        api_metadata = await metadata_lookup.by_doi(lookup_doi)
-    except metadata_lookup.Unavailable as exc:
-        logger.exception("Bibliographic metadata APIs are unavailable")
-        raise HTTPException(
-            status_code=503,
-            detail="Metadata lookup failed",
-        ) from exc
-    if not api_metadata:
-        raise HTTPException(status_code=404, detail="Metadata was not found")
-    return ReextractedMetadata(
-        doi=api_metadata.get("doi") or lookup_doi,
-        title=api_metadata.get("title"),
-        authors=(
-            json.dumps(api_metadata["authors"])
-            if api_metadata.get("authors") else None
-        ),
-        journal=api_metadata.get("venue"),
-        year=api_metadata.get("year"),
-    )
+    api_metadata = None
+    if lookup_doi:
+        try:
+            api_metadata = await metadata_lookup.by_doi(lookup_doi)
+        except metadata_lookup.Unavailable as exc:
+            logger.exception("Bibliographic metadata APIs are unavailable")
+            raise HTTPException(
+                status_code=503,
+                detail="Metadata lookup failed",
+            ) from exc
+    if api_metadata:
+        return ReextractedMetadata(
+            doi=api_metadata.get("doi") or lookup_doi,
+            title=api_metadata.get("title"),
+            authors=(
+                json.dumps(api_metadata["authors"])
+                if api_metadata.get("authors") else None
+            ),
+            journal=api_metadata.get("venue"),
+            year=api_metadata.get("year"),
+        )
+    # A paper with no identifier used to end here, which left the reader
+    # holding a filename with no way to ask again. The page itself still
+    # carries a title and an author list.
+    header = await _printed_header(str(path))
+    if header and (header.title or header.authors):
+        return ReextractedMetadata(
+            doi=lookup_doi,
+            title=header.title,
+            authors=json.dumps(header.authors) if header.authors else None,
+            journal=header.journal,
+            year=header.year,
+        )
+    raise HTTPException(status_code=404, detail="Metadata was not found")
 
 
 @app.get("/api/viewer/{pdf_sha256}", response_model=PaperSchema)
