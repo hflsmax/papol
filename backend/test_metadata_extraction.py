@@ -1,10 +1,13 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, patch
 
 import crossref
 import fitz
 import grobid
+import main
+import metadata_lookup
 from pdf_parser import arxiv_doi, extract_arxiv_id, extract_doi, extract_doi_from_pdf
 
 GROBID_HEADER = """<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
@@ -176,6 +179,143 @@ class MetadataExtractionTests(unittest.TestCase):
             grobid.normalize_title("AN API FOR SQL"),
             "An API for SQL",
         )
+
+
+class _Upload:
+    """The parts of an UploadFile that the extract endpoint touches."""
+
+    def __init__(self, path: Path):
+        self.filename = path.name
+        self._data = path.read_bytes()
+
+    async def read(self) -> bytes:
+        return self._data
+
+
+def _identifierless_pdf(directory: str, name: str) -> Path:
+    """A PDF printing a title and authors but no DOI, as an author's
+    camera-ready copy does."""
+    path = Path(directory) / name
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Metamaterial Mechanisms")
+    page.insert_text((72, 96), "Alexandra Ion, Patrick Baudisch")
+    page.insert_text((72, 120), "Hasso Plattner Institute, Potsdam, Germany")
+    document.save(path)
+    document.close()
+    return path
+
+
+PRINTED_HEADER = grobid.HeaderMetadata(
+    title="Metamaterial Mechanisms",
+    authors=["Alexandra Ion", "Patrick Baudisch"],
+)
+
+
+class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
+    """What Papol makes of a paper that prints no identifier at all.
+
+    Without a DOI or an arXiv id there is nothing for CrossRef or OpenAlex to
+    answer, and a filename is not a title."""
+
+    async def test_reads_the_page_when_no_identifier_resolves_the_paper(self):
+        with TemporaryDirectory() as directory:
+            path = _identifierless_pdf(directory, "2016UIST-Metamaterial-AuthorsCopy.pdf")
+            with (
+                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(metadata_lookup, "by_doi", AsyncMock()) as lookup,
+                patch.object(grobid, "configured", return_value=True),
+                patch.object(
+                    grobid, "extract_header", AsyncMock(return_value=PRINTED_HEADER)
+                ),
+            ):
+                metadata = await main.extract_paper_metadata(
+                    file=_Upload(path), current_user=None
+                )
+
+        # Nothing was printed to look up, so no API was asked.
+        lookup.assert_not_awaited()
+        self.assertEqual(metadata.title, "Metamaterial Mechanisms")
+        self.assertEqual(metadata.authors, '["Alexandra Ion", "Patrick Baudisch"]')
+
+    async def test_an_api_answer_is_never_overwritten_by_the_page(self):
+        with TemporaryDirectory() as directory:
+            path = _identifierless_pdf(directory, "resolved.pdf")
+            resolved = {
+                "doi": "10.1145/2984511.2984540",
+                "title": "Metamaterial Mechanisms",
+                "authors": ["Alexandra Ion", "Patrick Baudisch"],
+                "venue": "Proceedings of UIST '16",
+                "year": 2016,
+            }
+            with (
+                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(main, "_printed_header", AsyncMock()) as header,
+                patch.object(
+                    metadata_lookup, "by_doi", AsyncMock(return_value=resolved)
+                ),
+                patch.object(
+                    main,
+                    "extract_doi_from_pdf",
+                    return_value=("10.1145/2984511.2984540", ""),
+                ),
+                patch.object(main, "extract_arxiv_id", return_value=None),
+            ):
+                metadata = await main.extract_paper_metadata(
+                    file=_Upload(path), current_user=None
+                )
+
+        # GROBID never names a venue and rarely a year; asking it here could
+        # only lose what CrossRef already knew.
+        header.assert_not_awaited()
+        self.assertEqual(metadata.journal, "Proceedings of UIST '16")
+        self.assertEqual(metadata.year, 2016)
+
+    async def test_an_unreachable_analyzer_still_yields_an_editable_form(self):
+        """A fallback that fails leaves the reader where they already were."""
+        with TemporaryDirectory() as directory:
+            path = _identifierless_pdf(directory, "Some-Paper-Name.pdf")
+            with (
+                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(metadata_lookup, "by_doi", AsyncMock()),
+                patch.object(grobid, "configured", return_value=True),
+                patch.object(
+                    grobid,
+                    "extract_header",
+                    AsyncMock(side_effect=RuntimeError("GROBID returned 503")),
+                ),
+            ):
+                metadata = await main.extract_paper_metadata(
+                    file=_Upload(path), current_user=None
+                )
+
+        self.assertEqual(metadata.title, "Some Paper Name")
+        self.assertIsNone(metadata.authors)
+
+    async def test_the_doi_is_never_taken_from_the_page(self):
+        """GROBID reports a PNAS supplement or an unparsed arXiv id as the
+        paper's own DOI, and finds none the printed-text scan misses."""
+        misread = grobid.HeaderMetadata(
+            title="Exotic mechanical properties",
+            authors=["Paul Ducarme"],
+            doi="10.1073/pnas.2423301122/-/DCSupplemental",
+        )
+        with TemporaryDirectory() as directory:
+            path = _identifierless_pdf(directory, "ducarme-et-al-2025.pdf")
+            with (
+                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(metadata_lookup, "by_doi", AsyncMock()),
+                patch.object(grobid, "configured", return_value=True),
+                patch.object(
+                    grobid, "extract_header", AsyncMock(return_value=misread)
+                ),
+            ):
+                metadata = await main.extract_paper_metadata(
+                    file=_Upload(path), current_user=None
+                )
+
+        self.assertIsNone(metadata.doi)
+        self.assertEqual(metadata.title, "Exotic mechanical properties")
 
 
 if __name__ == "__main__":

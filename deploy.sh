@@ -278,10 +278,17 @@ macos_release() {
   local desktop_package="$DEV_DIR/desktop/package.json"
   local desktop_lock="$DEV_DIR/desktop/package-lock.json"
   local tauri_config="$DEV_DIR/desktop/src-tauri/tauri.conf.json"
+  # The crate carries the version the running application reports about
+  # itself, so it moves with the rest. Its lock file holds the same number
+  # and must move too, or every --locked build stops.
+  local cargo_manifest="$DEV_DIR/desktop/src-tauri/Cargo.toml"
+  local cargo_lock="$DEV_DIR/desktop/src-tauri/Cargo.lock"
   local -a version_files=(
     "desktop/package.json"
     "desktop/package-lock.json"
     "desktop/src-tauri/tauri.conf.json"
+    "desktop/src-tauri/Cargo.toml"
+    "desktop/src-tauri/Cargo.lock"
   )
 
   [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, or X.Y.Z"
@@ -316,8 +323,10 @@ macos_release() {
     die "tag $tag already exists on origin"
   fi
 
-  node - "$version" "$desktop_package" "$desktop_lock" "$tauri_config" <<'NODE'
-const [version, packageFile, lockFile, tauriFile] = process.argv.slice(2);
+  node - "$version" "$desktop_package" "$desktop_lock" "$tauri_config" \
+    "$cargo_manifest" "$cargo_lock" <<'NODE'
+const [version, packageFile, lockFile, tauriFile, cargoFile, cargoLockFile] =
+  process.argv.slice(2);
 const replace = (file, pattern) => {
   const source = require('node:fs').readFileSync(file, 'utf8');
   let count = 0;
@@ -332,6 +341,10 @@ replace(packageFile, /^(  "version": ")[^"]+(",)$/m);
 replace(lockFile, /^(  "version": ")[^"]+(",)$/m);
 replace(lockFile, /^(      "version": ")[^"]+(",)$/m);
 replace(tauriFile, /^(  "version": ")[^"]+(",)$/m);
+// Only the crate's own [package] version sits at the start of a line; every
+// dependency states its version indented or inline.
+replace(cargoFile, /^(version = ")[^"]+(")$/m);
+replace(cargoLockFile, /^(name = "papol-desktop"\nversion = ")[^"]+(")$/m);
 NODE
 
   # A terminal makes diff open the pager even when it has nothing to say.

@@ -27,6 +27,15 @@
 // downward and tight upward.
 const ABOVE = 0.012;
 const BELOW = 0.06;
+// Two bibliography entries set side by side in different columns sit at the
+// same height, so a destination's y cannot tell them apart. Entries this far
+// apart across the page are in different columns.
+const COLUMN_GAP = 0.15;
+// A bibliography is set in reading order: down one column, then down the
+// next. Walking a page's entries in printed order, y climbs steadily and then
+// drops back towards the top where a column breaks. That fall is how the
+// layout gives itself away without anyone measuring across the page.
+const COLUMN_RESET = 0.02;
 // hyperref raises a destination slightly above the bibliography line so a
 // jump does not pin the text flush to the window edge. Matching the nearest
 // line mistakes a tightly spaced next entry for the preceding one. This is
@@ -46,15 +55,9 @@ export async function pageOverlays(doc, pageNumber, analysis) {
     (r) => r.page != null && r.y != null
   );
 
-  let annotated = { citations: [], links: [] };
-  try {
-    annotated = await fromAnnotations(doc, pageNumber, references);
-  } catch {
-    // A PDF with unreadable annotations still has the analyzer's boxes.
-    annotated = { citations: [], links: [] };
-  }
-
-  const fromAnalyzer = consolidateCitations((analysis?.citations || [])
+  // Read before the annotations, which are matched against these: an
+  // analyzed citation names the entry its marker means.
+  const analyzed = (analysis?.citations || [])
     .filter((c) => c.page === pageNumber)
     .map((c) => ({
       referenceUuid: c.reference_uuid,
@@ -64,7 +67,17 @@ export async function pageOverlays(doc, pageNumber, analysis) {
       w: c.w,
       h: c.h,
       exact: !c.inferred,
-    })));
+    }));
+
+  let annotated = { citations: [], links: [] };
+  try {
+    annotated = await fromAnnotations(doc, pageNumber, references, analyzed);
+  } catch {
+    // A PDF with unreadable annotations still has the analyzer's boxes.
+    annotated = { citations: [], links: [] };
+  }
+
+  const fromAnalyzer = consolidateCitations(analyzed);
 
   const analyzedLinks = (analysis?.links || [])
     .filter((link) => link.page === pageNumber)
@@ -243,7 +256,7 @@ function overlaps(a, b) {
  * a citation of a reference, a place in the document, or somewhere on the
  * web.
  */
-async function fromAnnotations(doc, pageNumber, references) {
+async function fromAnnotations(doc, pageNumber, references, analyzed = []) {
   const page = await doc.getPage(pageNumber);
   const annotations = await page.getAnnotations({ intent: 'display' });
   const links = annotations.filter(
@@ -268,7 +281,35 @@ async function fromAnnotations(doc, pageNumber, references) {
       continue;
     }
 
+    // The analyzer read both the marker and the bibliography, so where it
+    // has already labelled this very spot it knows which entry "[20]" means.
+    // That is a reading of the document; a link destination is only a place
+    // on a page, and a columned bibliography puts several entries at the
+    // same height. Prefer the reading, and keep the PDF's own box, which is
+    // the part these annotations are reliably good at.
+    const labelled = analyzed.find(
+      (candidate) => candidate.referenceUuid && overlaps(candidate, box)
+    );
+    if (labelled) {
+      citations.push({
+        referenceUuid: labelled.referenceUuid,
+        label: labelled.label,
+        ...box,
+        exact: true,
+      });
+      continue;
+    }
+
     const spot = link.dest ? await destinationSpot(doc, link.dest) : null;
+    // A destination named after the entry's printed number says which entry
+    // it is outright. Trust it only when it lands on the page that entry is
+    // printed on, so a document whose "c12" means something else entirely
+    // cannot quietly claim a reference.
+    const numbered = numberedReference(references, link.dest, spot);
+    if (numbered) {
+      citations.push({ referenceUuid: numbered.uuid, label: null, ...box, exact: true });
+      continue;
+    }
     const reference = spot && references.length ? referenceAt(references, spot) : null;
     if (reference) {
       citations.push({ referenceUuid: reference.uuid, label: null, ...box, exact: true });
@@ -295,9 +336,33 @@ async function fromAnnotations(doc, pageNumber, references) {
   return { citations, links: elsewhere };
 }
 
+// Publishers name a bibliography destination after the entry's printed
+// number: Elsevier writes "bib0020", REVTeX "c20", hyperref "cite.20". That
+// number is the document's own answer about which entry is meant, and unlike
+// a landing position it cannot be confused by a columned bibliography.
+const NUMBERED_DEST = /^(?:bib|c|cite\.)0*(\d{1,3})$/i;
+
+/** The printed entry number a destination names, when it names one. */
+export function destinationNumber(dest) {
+  const match = typeof dest === 'string' ? dest.match(NUMBERED_DEST) : null;
+  return match ? Number(match[1]) : null;
+}
+
+/** The reference a numbered destination names, when it lands where it should. */
+function numberedReference(references, dest, spot) {
+  const number = destinationNumber(dest);
+  if (!number) return null;
+  const reference = references.find((candidate) => candidate.index === number - 1);
+  if (!reference || !spot) return null;
+  return reference.page === spot.page ? reference : null;
+}
+
 function citationDestinationKey(dest) {
   if (typeof dest !== 'string') return null;
   if (/^cite\./i.test(dest)) return dest.replace(/^cite\./i, '');
+  // Elsevier's "bib0020" is a citation destination as much as "cite.20" is;
+  // without this it would read as an ordinary jump to the bibliography.
+  if (/^bib\d+$/i.test(dest)) return String(destinationNumber(dest));
 
   // Springer Nature PDFs exported from InDesign use the bibliography entry
   // itself as the destination name. Their in-text markers are bare
@@ -349,6 +414,7 @@ export async function readNamedReference(doc, dest) {
   if (targetY == null) return null;
 
   const content = await page.getTextContent();
+  const width = page.getViewport({ scale: 1 })?.width || 0;
   const lines = [];
   for (const item of content.items || []) {
     const y = item?.transform?.[5];
@@ -362,10 +428,26 @@ export async function readNamedReference(doc, dest) {
     line.items.push({ x, text: item.str });
   }
   lines.sort((a, b) => b.y - a.y);
-  const textOf = (line) => line.items.sort((a, b) => a.x - b.x)
+
+  // A bibliography is usually set in columns, and two entries side by side
+  // share every y a line of either one has. Grouping by height alone splices
+  // the neighbouring column's words into the entry being read. Keep only the
+  // column the entry starts in; on a single-column page every line starts in
+  // the same one and nothing is dropped.
+  const gutter = width * COLUMN_GAP;
+  const columnOf = (line) => Math.min(...line.items.map((item) => item.x));
+  const inColumn = (line, column) => (
+    column == null ? line.items : line.items.filter(
+      (item) => item.x >= column - gutter && item.x < column + gutter * 2
+    )
+  );
+  const textOf = (line, column) => inColumn(line, column)
+    .sort((a, b) => a.x - b.x)
     .map((item) => item.text).join(' ').replace(/\s+/g, ' ').trim();
   const marker = /^\s*(?:\[\d+\]|\d+\.)/;
-  let start = lines.findIndex((line) => line.y <= targetY + 2 && marker.test(textOf(line)));
+  let start = lines.findIndex(
+    (line) => line.y <= targetY + 2 && marker.test(textOf(line, columnOf(line)))
+  );
   const numbered = start >= 0;
   // Author-year bibliographies have no [n] boundary. Their named hyperref
   // destination still sits immediately above the first line, so begin at
@@ -375,9 +457,10 @@ export async function readNamedReference(doc, dest) {
   if (!numbered) start = lines.findIndex((line) => line.y <= targetY + 2);
   if (start < 0) return null;
 
+  const column = columnOf(lines[start]);
   const gathered = [];
   for (let i = start; i < lines.length && gathered.length < 8; i += 1) {
-    const text = textOf(lines[i]);
+    const text = textOf(lines[i], column);
     if (i > start && (
       (numbered && marker.test(text)) ||
       (!numbered && /^[A-ZÀ-ÖØ-Þ][\p{L}'’.-]+,\s+(?:[A-Z]\.|[A-Z][\p{L}'’.-]+)/u.test(text))
@@ -431,12 +514,42 @@ async function destinationSpot(doc, dest) {
   return { page: index + 1, y: (viewport.height - y) / viewport.height };
 }
 
+/** Which column each entry printed on this page sits in. */
+export function columnsOnPage(references, page) {
+  const printed = references
+    .filter((reference) => reference.page === page && reference.y != null)
+    .sort((a, b) => a.index - b.index);
+  const column = new Map();
+  let current = 0;
+  let previous = null;
+  for (const reference of printed) {
+    if (previous != null && reference.y < previous - COLUMN_RESET) current += 1;
+    column.set(reference, current);
+    previous = reference.y;
+  }
+  return column;
+}
+
 export function referenceAt(references, spot) {
-  let best = null;
-  for (const reference of references) {
-    if (reference.page !== spot.page) continue;
+  const near = references.filter((reference) => {
+    if (reference.page !== spot.page) return false;
     const drop = reference.y - spot.y; // positive: the entry is below the mark
-    if (drop < -ABOVE || drop > BELOW) continue;
+    return drop >= -ABOVE && drop <= BELOW;
+  });
+
+  // A destination says where to scroll to, not which column to read, and it
+  // arrives without an x to say: Elsevier and REVTeX both write /XYZ with
+  // left=0. So when entries from more than one column are in range, its y is
+  // equally true of all of them and picking the closest is picking at random.
+  // A confidently wrong reference is worse than none, because the reader is
+  // never told it was a guess. Leave it unmatched: the caller still opens a
+  // card, and reads the entry the destination actually lands on.
+  const column = columnsOnPage(references, spot.page);
+  if (new Set(near.map((reference) => column.get(reference))).size > 1) return null;
+
+  let best = null;
+  for (const reference of near) {
+    const drop = reference.y - spot.y;
     if (
       !best ||
       Math.abs(drop - EXPECTED_DROP) <
