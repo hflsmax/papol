@@ -77,6 +77,7 @@
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       sqlite               # papol.db is read and edited by hand often enough
       ripgrep              # fast repository-wide source search
+      gh                   # GitHub CLI, for pull requests and releases
       ruff
       ffmpeg
       # Native libraries used by the optional Kokoro tutorial voice generator.
@@ -108,11 +109,12 @@
     ];
 
     # `deploy.sh macos` builds and tests the native app with the local Rust
-    # and Xcode toolchains. It needs Node for the three web workspaces, but
-    # not the backend, tutorial recording stack, or Linux-only Playwright
-    # browser bundle above. Backend contract and native-sync checks remain
-    # available as their explicitly named commands outside this default shell.
-    macosDevPackages = pkgs: [ pkgs.nodejs_22 ];
+    # and Xcode toolchains. It needs Node for the three web workspaces and
+    # gh to cut the release, but not the backend, tutorial recording stack,
+    # or the Linux-only Playwright browser bundle above. Backend contract
+    # and native-sync checks remain available as their explicitly named
+    # commands outside this default shell.
+    macosDevPackages = pkgs: [ pkgs.nodejs_22 pkgs.gh ];
 
     # Tutorial recorders share one pinned browser driver. Build its npm closure
     # once through Nix and expose it to every recorder through NODE_PATH; the
