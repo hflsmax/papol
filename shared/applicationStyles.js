@@ -895,17 +895,6 @@ select:disabled { cursor: default; opacity: .65; }
   margin-left: 0;
 }
 
-.visibility-status {
-  font-size: var(--fs-md);
-  color: var(--ink-soft);
-  margin: 8px 0;
-}
-
-.visibility-status .visibility-badge {
-  margin-left: 0;
-  margin-right: 4px;
-}
-
 .switch-toggle {
   padding: 2px;
   border: none;
