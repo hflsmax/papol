@@ -880,6 +880,38 @@ fn should_navigate_existing_document(document: &DocumentWindow, url: &tauri::Url
         .any(|(key, _)| matches!(key.as_ref(), "note" | "page" | "y" | "mark" | "box"))
 }
 
+/// The identifier of the application readers actually install.
+#[cfg(target_os = "macos")]
+const RELEASE_IDENTIFIER: &str = "com.mc-pony.papol";
+
+/// Which WebView store this build keeps its cookies and local storage in.
+///
+/// WKWebView cannot be given a data directory, only a sixteen-byte store
+/// identifier, and with no identifier it files everything under the name of
+/// the running executable. `tauri dev` runs `papol-desktop` unbundled, so a
+/// development run shares one store with every other unbundled build of that
+/// name — while its replica, named by the configured identifier, is its own.
+/// The two then disagree: a replica created this minute inherits the account
+/// a development session left behind days ago, and Papol opens by reporting
+/// an error about a reader it cannot find.
+///
+/// The installed application keeps the default store. Its readers are signed
+/// in there, and moving it would sign every one of them out once to fix
+/// something none of them have.
+///
+/// Available on macOS 14 and later. An older system ignores it and keeps the
+/// behaviour it has today.
+#[cfg(target_os = "macos")]
+fn webview_data_store(identifier: &str) -> Option<[u8; 16]> {
+    if identifier == RELEASE_IDENTIFIER {
+        return None;
+    }
+    let digest = Sha256::digest(identifier.as_bytes());
+    let mut store = [0_u8; 16];
+    store.copy_from_slice(&digest[..16]);
+    Some(store)
+}
+
 fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::Url) -> bool {
     let Some(document) = document_window(&url, papol_origin) else {
         return false;
@@ -930,7 +962,8 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
     let Ok(builder) = WebviewWindowBuilder::from_config(app, &config) else {
         return false;
     };
-    builder
+    #[allow(unused_mut)]
+    let mut builder = builder
         .initialization_script(environment)
         .on_document_title_changed(|window, title| {
             let _ = window.set_title(&title);
@@ -941,9 +974,14 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
             }
             NewWindowResponse::Deny
         })
-        .on_download(|_webview, _event| true)
-        .build()
-        .is_ok()
+        .on_download(|_webview, _event| true);
+    // The same store as the library window: a document window reads the
+    // reader's credential from the storage the library wrote it to.
+    #[cfg(target_os = "macos")]
+    if let Some(store) = webview_data_store(&app.config().identifier) {
+        builder = builder.data_store_identifier(store);
+    }
+    builder.build().is_ok()
 }
 
 #[tauri::command]
@@ -1135,7 +1173,8 @@ pub fn run() {
             };
             let app_handle = app.handle().clone();
             let opened_origin = papol_origin.clone();
-            WebviewWindowBuilder::from_config(app.handle(), &config)?
+            #[allow(unused_mut)]
+            let mut builder = WebviewWindowBuilder::from_config(app.handle(), &config)?
                 // Publish Papol's runtime contract before application modules
                 // execute, without exposing Tauri's entire global API.
                 .initialization_script(DESKTOP_ENVIRONMENT)
@@ -1154,8 +1193,15 @@ pub fn run() {
                 // Downloads (a paper's PDF, an account export) are let through.
                 // Without a handler the webview refuses them; with one it saves
                 // them to Downloads, numbering rather than overwriting.
-                .on_download(|_webview, _event| true)
-                .build()?;
+                .on_download(|_webview, _event| true);
+            // A development build keeps its cookies and local storage to
+            // itself instead of sharing the executable's default store with
+            // every other unbundled build that happens to share its name.
+            #[cfg(target_os = "macos")]
+            if let Some(store) = webview_data_store(&app.config().identifier) {
+                builder = builder.data_store_identifier(store);
+            }
+            builder.build()?;
             // Files handed over at launch: by the system before the window
             // existed, or as arguments on platforms that open files that way.
             let opened = app.state::<OpenedFiles>();
@@ -1372,5 +1418,28 @@ mod tests {
         let label = label_part("paper / ? # é :_valid-123");
         assert_eq!(label, "paper_valid-123");
         assert!(label_part(&"a".repeat(120)).len() <= 96);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_installed_application_keeps_the_store_its_readers_are_signed_in_to() {
+        // Moving it would sign every reader out once, to fix something none
+        // of them have.
+        assert_eq!(webview_data_store(RELEASE_IDENTIFIER), None);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn every_other_build_keeps_its_cookies_and_storage_to_itself() {
+        let development = webview_data_store("com.mc-pony.papol.dev").expect("a store of its own");
+        let elsewhere =
+            webview_data_store("com.mc-pony.papol.staging").expect("a store of its own");
+        assert_ne!(development, elsewhere);
+        // Stable between runs, or a development build would meet an empty
+        // nook every time it started.
+        assert_eq!(
+            Some(development),
+            webview_data_store("com.mc-pony.papol.dev"),
+        );
     }
 }
