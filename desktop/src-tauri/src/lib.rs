@@ -344,14 +344,16 @@ fn pdf_viewer_make_default(app: tauri::AppHandle) -> Result<serde_json::Value, S
 #[serde(rename_all = "snake_case")]
 enum LocalDataQuery {
     Account,
+    /// Notes, ink and clips are one table and one query. The three names this
+    /// replaced were still listed here after the store had stopped answering
+    /// them, so the frontend's `annotations` was refused at this boundary and
+    /// the store's own arm for it could never be reached.
+    Annotations,
     Board,
     BoardGroup,
     Boards,
-    Clips,
-    Comments,
     Copies,
     CopyTags,
-    Ink,
     Nook,
     Paper,
     PaperByPdf,
@@ -366,14 +368,12 @@ impl LocalDataQuery {
     fn as_str(self) -> &'static str {
         match self {
             Self::Account => "account",
+            Self::Annotations => "annotations",
             Self::Board => "board",
             Self::BoardGroup => "board_group",
             Self::Boards => "boards",
-            Self::Clips => "clips",
-            Self::Comments => "comments",
             Self::Copies => "copies",
             Self::CopyTags => "copy_tags",
-            Self::Ink => "ink",
             Self::Nook => "nook",
             Self::Paper => "paper",
             Self::PaperByPdf => "paper_by_pdf",
@@ -1241,6 +1241,54 @@ fn open_in_browser(url: &tauri::Url) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every query the IPC offers. A variant left out of this list is one
+    /// these tests cannot vouch for, so add to it when you add one.
+    const EVERY_QUERY: &[LocalDataQuery] = &[
+        LocalDataQuery::Account,
+        LocalDataQuery::Annotations,
+        LocalDataQuery::Board,
+        LocalDataQuery::BoardGroup,
+        LocalDataQuery::Boards,
+        LocalDataQuery::Copies,
+        LocalDataQuery::CopyTags,
+        LocalDataQuery::Nook,
+        LocalDataQuery::Paper,
+        LocalDataQuery::PaperByPdf,
+        LocalDataQuery::Papers,
+        LocalDataQuery::Shelves,
+        LocalDataQuery::StorageStatus,
+        LocalDataQuery::SyncStatus,
+        LocalDataQuery::Tags,
+    ];
+
+    #[test]
+    fn every_query_the_ipc_offers_is_one_the_store_answers() {
+        // The two lists drifted apart once already, in the quietest way
+        // available: the command boundary refused a name the store was
+        // waiting to answer, and nothing failed to compile.
+        let directory = tempfile::tempdir().unwrap();
+        let store = data::LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        for query in EVERY_QUERY {
+            if let Err(message) = store.query("nobody", query.as_str(), serde_json::json!({})) {
+                assert!(
+                    !message.starts_with("Unknown local query"),
+                    "the IPC offers `{}` and the store does not answer it",
+                    query.as_str(),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_unified_annotations_query_is_accepted_by_name() {
+        // What the frontend actually sends. It was refused here while notes,
+        // ink and clips still had three names of their own, which took every
+        // mark on the desktop with it.
+        let asked: LocalDataQuery = serde_json::from_str("\"annotations\"")
+            .expect("the IPC must accept the name the frontend asks by");
+        assert_eq!(asked.as_str(), "annotations");
+    }
 
     #[test]
     fn local_data_queries_are_a_closed_ipc_contract() {
