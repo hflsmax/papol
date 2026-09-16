@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 const publicApi = await import('../../shared/api.js');
 const domains = await Promise.all([
   'account', 'people', 'boards', 'papers', 'rooms', 'notifications', 'feedback', 'admin',
+  'clientRequirements',
 ].map((domain) => import(`../../shared/api/${domain}.js`)));
 
 test('the compatibility API barrel contains exactly the domain client exports', () => {

@@ -22,6 +22,9 @@ from models import (
     AppliedMutation, Board, BoardGroup, BoardItem, Comment, Copy, CopyTagLink, InkStroke,
     Paper, PaperClip, PaperEdition, ServerChange, Shelf, SyncClient, Tag, User,
 )
+from services.client_requirements import (
+    INCOMPATIBLE, client_version, requirements, verdict,
+)
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.registry import MODELS, registry
 from schemas import CommentCreate, InkStrokeCreate, PaperClipCreate
@@ -38,6 +41,30 @@ PDF_FILES_DIR = Path(os.environ.get(
 ))
 BLOB_LIMIT = mebibytes("files", "offline_blob_mb")
 PROTOCOL_VERSION = 1
+
+
+def _require_supported_client(request: Request, db: Session) -> None:
+    """Refuse a build this server can no longer speak to.
+
+    426 rather than one more 400: the request was well formed and the
+    credential was good, and what is wrong is the program that sent it. The
+    client recognizes this status specifically — it stops synchronizing and
+    tells its reader — so it must never be folded in with ordinary refusals.
+
+    Synchronization is the only thing refused. Everything the reader already
+    holds on their computer stays theirs to read and mark up.
+    """
+    if verdict(db, request.headers.get("user-agent")) != INCOMPATIBLE:
+        return
+    asked = requirements(db)
+    raise HTTPException(
+        status_code=426,
+        detail={
+            "error": "client_incompatible",
+            "minimum_version": asked["minimum_version"],
+            "download_url": asked["download_url"],
+        },
+    )
 
 
 class RowChange(BaseModel):
@@ -593,7 +620,13 @@ def _canonical_import_paper(
 
 
 @router.post("/push")
-def push(payload: PushRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def push(
+    payload: PushRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_supported_client(request, db)
     client_uuid = str(payload.client_uuid)
     mutation_uuid = str(payload.mutation_uuid)
     fingerprint = hashlib.sha256(_canonical_payload(payload)).hexdigest()
@@ -819,6 +852,7 @@ def get_blob(
 
 @router.get("/pull")
 def pull(
+    request: Request,
     cursor: int = Query(default=0, ge=0),
     limit: int = Query(
         default=limit("counts", "sync_pull_default"),
@@ -829,6 +863,7 @@ def pull(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _require_supported_client(request, db)
     if client_uuid is not None:
         client = db.query(SyncClient).filter(
             SyncClient.user_uuid == user.uuid,
@@ -839,6 +874,12 @@ def pull(
             db.add(client)
         client.acknowledged_cursor = max(client.acknowledged_cursor or 0, cursor)
         client.last_seen_at = datetime.utcnow()
+        # Remembered on every pull, which is the one call every sync makes.
+        # A version that cannot be read leaves the last good one in place
+        # rather than erasing what we knew about this installation.
+        client.app_version = (
+            client_version(request.headers.get("user-agent")) or client.app_version
+        )
         db.commit()
     records = db.query(ServerChange).filter(
         ServerChange.user_uuid == user.uuid,

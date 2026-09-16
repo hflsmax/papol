@@ -7,11 +7,20 @@ use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
+/// Where the verdict is kept between launches, so a window opened offline
+/// still says what the server last said rather than starting hopeful.
+pub(crate) const COMPATIBILITY_KEY: &str = "client_compatibility";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FailureKind {
     Transient,
     Authentication,
     Permanent,
+    /// This build is older than the server will speak to. Not transient —
+    /// retrying cannot help — and not permanent in the per-mutation sense
+    /// either: nothing is wrong with the work, so it stays in the outbox
+    /// for a version that can send it.
+    Incompatible,
 }
 
 #[derive(Debug)]
@@ -228,7 +237,9 @@ struct SnapshotResponse {
 impl Coordinator {
     pub fn new() -> Result<Self, String> {
         let client = Client::builder()
-            .user_agent("Papol macOS/0.1")
+            // The real version, because the server decides what it can
+            // still speak to by reading it.
+            .user_agent(concat!("Papol macOS/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_millis(app_limit(
                 "timeouts_ms",
                 "sync_connect",
@@ -377,6 +388,12 @@ impl Coordinator {
             let result = match attempted {
                 Ok(result) => result,
                 Err(failure) => {
+                    if failure.kind == FailureKind::Incompatible {
+                        // The mutation is untouched: it is this program the
+                        // server refused, not the reader's work.
+                        let _ = store.set_local_setting(COMPATIBILITY_KEY, "incompatible");
+                        return Err(failure.message);
+                    }
                     let blocked = failure.kind == FailureKind::Permanent;
                     store.record_outbox_error(
                         account_uuid,
@@ -481,7 +498,11 @@ impl Coordinator {
                 .await
                 .map_err(|error| error.to_string())?;
             if !response.status().is_success() {
-                return Err(http_error(response).await.message);
+                let failure = http_error(response).await;
+                if failure.kind == FailureKind::Incompatible {
+                    let _ = store.set_local_setting(COMPATIBILITY_KEY, "incompatible");
+                }
+                return Err(failure.message);
             }
             let page = read_body(response, &mut meter)
                 .await
@@ -498,6 +519,11 @@ impl Coordinator {
                 break;
             }
         }
+        // The server dealt with this build, so whatever it may once have
+        // refused it accepts now. Said plainly here rather than left to
+        // lapse, so a reader who has installed the version that works does
+        // not meet yesterday's bar on every launch.
+        let _ = store.set_local_setting(COMPATIBILITY_KEY, "supported");
         // A successful sync is a complete offline replica: hydrate every PDF
         // and board file referenced by the account before reporting success.
         let missing = store.missing_blob_digests(account_uuid)?;
@@ -608,6 +634,11 @@ fn classify_status(status: u16) -> FailureKind {
         // A payload rejected for size will not become valid by retrying it.
         // Block that one mutation so unrelated work can continue syncing.
         400 | 403 | 404 | 409 | 413 | 422 => FailureKind::Permanent,
+        // Everything unrecognized is retried, so this has to be named
+        // explicitly: left to the fallback, a build the server has stopped
+        // speaking to would retry for as long as it was open, and its
+        // reader would never be told why nothing was arriving.
+        426 => FailureKind::Incompatible,
         _ => FailureKind::Transient,
     }
 }
@@ -621,6 +652,17 @@ mod tests {
     use std::net::{TcpListener, TcpStream};
     use std::thread;
     use uuid::Uuid;
+
+    #[test]
+    fn a_build_the_server_refuses_is_not_retried_forever() {
+        // The fallback arm retries, so an unnamed 426 would spin silently
+        // for as long as the app stayed open.
+        assert_eq!(FailureKind::Incompatible, classify_status(426));
+        assert_eq!(FailureKind::Transient, classify_status(425));
+        assert_eq!(FailureKind::Transient, classify_status(500));
+        // And it is not one more rejected payload: the work is fine.
+        assert_ne!(FailureKind::Permanent, classify_status(426));
+    }
 
     #[test]
     fn backend_url_is_constrained_to_http_origins() {

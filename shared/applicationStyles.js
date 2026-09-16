@@ -490,6 +490,47 @@ input[type='checkbox'] {
   background: color-mix(in srgb, var(--ink-inverse) 18%, transparent);
 }
 
+/* Shown in every window when this build is behind what the server accepts.
+   The stopped state is not dismissable: synchronization has halted, and a
+   bar the reader can wave away would let that go unnoticed. */
+.compatibility-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 42px;
+  padding: 7px 16px;
+  background: var(--accent);
+  color: var(--ink-inverse);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+
+.compatibility-bar.stopped {
+  background: var(--red);
+}
+
+.compatibility-bar a,
+.compatibility-bar button {
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
+.compatibility-bar button {
+  padding: 3px 12px;
+  border: 1px solid color-mix(in srgb, var(--ink-inverse) 55%, transparent);
+  border-radius: var(--chrome-radius, 6px);
+  background: transparent;
+  box-shadow: none;
+}
+
+.compatibility-bar button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink-inverse) 18%, transparent);
+}
+
 .demo-banner-actions {
   display: inline-flex;
   align-items: center;
