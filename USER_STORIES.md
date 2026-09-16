@@ -2,7 +2,10 @@
 
 Papol exists to make **spontaneous seminars** happen: a seminar is never scheduled top-down, it springs up whenever a reader calls one on a paper and others answer.
 
-Vocabulary ("The Nook" theme):
+Vocabulary ("The Nook" theme). The short list below is the reader-facing
+core; `docs/VOCABULARY.md` is the full lexicon — every term across product,
+code and schema, the words to prefer, and the places where two words are
+currently doing one job.
 - **Nook** — a reader's public reading corner: the papers they uploaded, with their ratings.
 - **Readers** — the members of Papol; the directory lists every reader.
 - **Host** — the owner of a paper entry (the reader in whose nook the entry lives).
