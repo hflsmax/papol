@@ -122,6 +122,25 @@ A handoff is usually a cold launch — the address is what starts Papol — so
 `open_handed_over_links` queues those addresses in `OpenedFiles::waiting_links`
 and `setup` drains them, exactly as it does for files opened at launch.
 
+Checking it on a Mac takes a build, because Launch Services knows only about
+bundled applications and cannot be told about a scheme at runtime:
+
+    npm run build:dev                     # a bundle that answers papol-dev://
+    cp -R src-tauri/target/release/bundle/macos/"Papol Dev.app" /Applications/
+    open 'papol-dev://mc-pony.com/papol/viewer/?pdf=<sha>&page=14'
+
+A cold launch should open the reading rather than the library, a second
+address for the same document should move that window rather than add one,
+and `papol://` should still belong to the installed release. The browser half
+needs a real browser and is not scriptable from a shell, so it has its own
+instrument:
+
+    desktop/scripts/handoff-browser-check.sh papol-dev
+
+It drives a Chrome of its own and reports what the page saw. The page must be
+on the space you are looking at: a window elsewhere is `hidden`, and no
+browser opens an application from a hidden page.
+
 Claiming Papol's own web addresses through universal links is not built. It
 needs an Apple-issued associated-domains entitlement and an
 `apple-app-site-association` file served from the domain, and it would not
