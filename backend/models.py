@@ -135,6 +135,11 @@ class SyncClient(Base):
     client_uuid = Column(String(36), nullable=False)
     acknowledged_cursor = Column(Integer, nullable=False, default=0, server_default="0")
     last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # What this installation last announced itself as. Null for a client
+    # that synchronized before Papol asked. Kept so a minimum version can be
+    # raised against a known fleet rather than a guess: nobody should cut
+    # off a build without first seeing how many readers are still on it.
+    app_version = Column(String(32), nullable=True)
 
 
 class Paper(Base):

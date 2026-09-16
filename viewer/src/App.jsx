@@ -55,6 +55,7 @@ import {
 } from '../../shared/featureStates';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
+import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
@@ -3456,6 +3457,7 @@ export default function App() {
 
   return (
     <>
+      <CompatibilityBar />
       <header
         className="viewer-bar"
         // Empty stretches of the bar move the window in Papol macOS;
