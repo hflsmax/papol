@@ -40,7 +40,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-2.6** As a user, I can keep private, timestamped notes on my own papers; no one else can read or write them.
 - **US-2.7** A paper's PDF is versioned into **editions**, and my copy is pinned to one of them. Uploading a PDF for a paper that already has one adds an edition — it never replaces the file anyone else is reading. An upload byte-identical to an existing edition reuses it instead of adding a duplicate.
 - **US-2.8** When a newer edition exists, my paper page shows an **info sign** naming who added it and when, and offers to move my copy. It warns that located notes were placed on my edition and may not line up on a different PDF. Nothing but my own click ever moves my copy, and Papol never realigns notes for me — adopting is my risk to take.
-- **US-2.9** Nothing shared is destroyed by one user: leaving a paper removes my copy and my notes only. The paper, its editions and their files stay — and so does its place in the Library, because a paper with no users is unattended rather than gone. No PDF is ever deleted automatically.
+- **US-2.9** Nothing shared is destroyed by one user: leaving a paper removes my copy and my notes only. The paper, its editions and their files stay — and so does its place in the Library, because a paper with no users is still a paper. No PDF is ever deleted automatically.
 
 ## 2b. A paper is not owned
 
@@ -55,10 +55,10 @@ the PDF under it.
   display (US-2.5) says whether *I* am shown standing against the paper. It
   does not decide whether the paper can be found, because the paper is not
   mine to hide.
-- **US-2.12** **Every paper is in the Library.** A paper no user displays is
-  not private — it is **unattended**, and it is still findable, still has its
-  own page, and can still be taken into a nook by anyone signed in. Nothing
-  asks whose it is.
+- **US-2.12** **Every paper is in the Library.** How many users display a
+  paper, or whether any do, changes nothing about it: it is findable, it has
+  its own page, and anyone signed in can take it into their nook. There is no
+  second kind of paper and no state to be in — nothing asks whose it is.
 - **US-2.13** **What stays private is what was always private.** My summary, my
   notes, my ink and clips, and the fact that I keep this paper at all. A user
   who does not display their copy is not named anywhere on the paper.

@@ -3,7 +3,7 @@
 What a user owns is their copy: the shelf it sits on, their ratings, their
 summary, their annotations. The paper itself, and the PDFs under it, are
 things that exist. So no user's shelf decides whether anyone else may find
-a paper or read it — a paper nobody displays is unattended, not private.
+a paper or read it — a paper nobody displays is a paper like any other.
 
 What display still governs is each user's own business: whether they are
 shown standing against the paper, and whether they may take part in its
@@ -120,7 +120,7 @@ class PaperIsNotOwned(unittest.TestCase):
     # --- What being unowned means -------------------------------------
 
     def test_the_library_lists_a_paper_nobody_displays(self):
-        """It is unattended, not private, so it is still findable."""
+        """Displaying a copy is not what puts a paper in the Library."""
         listing = self.client.get("/api/papers")
         self.assertEqual(listing.status_code, 200, listing.text)
         self.assertIn(self.paper_uuid, [p["uuid"] for p in listing.json()])

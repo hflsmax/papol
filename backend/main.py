@@ -1714,10 +1714,10 @@ async def list_all_papers(
     """Every paper, newest first. Signed-in users only, one row per
     canonical paper.
 
-    Nobody owns a paper, so nothing here asks whose it is. A paper no
-    user displays is not private, only unattended, and it stays in the
-    Library either way. What display governs is the row of users shown
-    against it, which is each user's own business."""
+    Nobody owns a paper, so nothing here asks whose it is, and nothing
+    is filtered out: a paper no user displays is listed like any other.
+    What display governs is the row of users shown against it, which is
+    each user's own business."""
     papers = db.query(Paper).order_by(Paper.created_at.desc()).all()
     room_map = _room_status_map(db)
     return [
@@ -1951,8 +1951,8 @@ def _require_readable(paper: Paper, viewer: User | None):
     """Whether this paper opens for whoever is asking.
 
     Nobody owns a paper, so no user's shelf decides who may read it. A
-    signed-in user may open any paper there is: the Library holds them
-    all, and one that nobody displays is unattended rather than private.
+    signed-in user may open any paper there is; the Library holds them all,
+    displayed or not.
 
     A visitor with no account is outside the Library altogether (US-1.4)
     and reaches a paper only where someone displays it — the same door a

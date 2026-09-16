@@ -35,7 +35,7 @@ acting on.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is; `USER_STORIES.md` §2b is the rule. |
+| **Paper** | The canonical work, **keyed by DOI** (title when there is no DOI). One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is, and there is no second kind of paper for one nobody displays — it is listed and opens like any other (`USER_STORIES.md` §2b). |
 | **Edition** | One PDF file of a paper. | A re-upload *adds* an edition; it never replaces the file someone is reading. A byte-identical upload reuses the existing edition (`sha256`). |
 | **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags, and the edition they read. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
 | **Adopt** | To move my copy to a newer edition. | Only the user's own click ever moves it, and Papol never realigns annotations afterwards. `ignored_edition_uuid` records the newest edition already waved away. |
@@ -43,7 +43,6 @@ acting on.
 | **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | Labelled "My thought". Distinct from Summary in both length and audience — the labels are the only thing keeping the pair apart. |
 | **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored as `rating_expertise`, `rating_reading`, `rating_liking`. The third column's name predates its label. See §12.6. |
 | **Tag** | A user's own label, applied to their copies. | Private to the user; `copy_tags` joins them. |
-| **Unattended paper** | A paper no user currently displays. | Not private — merely unattended. It is in the Library like any other and opens for any signed-in user (US-2.12). The old `page_is_public` gate, which hid it, is gone. |
 
 ## 3. Annotations — what a user leaves on a PDF
 
@@ -332,9 +331,6 @@ already does but had no noun for:
   conventions, told apart.
 - **Adopt** (§2) — the user's own move to a newer edition.
 - **Demote** (§6) — a rich link becoming lean, permanently.
-- **Unattended paper** (§2) — a paper no user displays, which is not the same
-  as a private one. Now a real state rather than a coinage: such a paper is in
-  the Library like any other (US-2.12).
 - **Surface** (§9) — one of the three browser applications.
 - **Handoff address** (§8) — the web address re-addressed to the app.
 - **Stroke group** / **board group** (§§3, 5) — the two groups, told apart.

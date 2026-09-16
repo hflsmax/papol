@@ -2,8 +2,8 @@
 
 A paper is one thing; what each user keeps of it is a copy. Nobody owns the
 paper, so nothing here asks whose it is or whether anyone has consented to
-its being seen: every paper is in the Library, and a paper no user displays
-is unattended rather than private.
+its being seen: every paper is in the Library, whether or not anyone displays
+a copy of it.
 
 What display still answers is narrower and belongs to the copy, not the
 paper: which users are shown standing against it.
