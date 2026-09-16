@@ -4,6 +4,7 @@ import { applicationStyles } from '../../shared/applicationStyles.js';
 import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
+import { boardHomePath } from '../../shared/appUrls.js';
 
 function route() {
   const match = window.location.pathname.match(/\/(?:demo\/)?boards\/([^/]+)\/?$/);
@@ -12,22 +13,13 @@ function route() {
     : new URLSearchParams(window.location.search).get('board');
 }
 
-function boardReturnPath() {
-  const pathname = window.location.pathname;
-  const marker = pathname.includes('/demo/boards/') ? '/demo/boards/' : '/boards/';
-  const base = pathname.slice(0, pathname.indexOf(marker));
-  const home = pathname.includes('/demo/boards/') ? `${base}/demo` : `${base}/`;
-  const saved = window.sessionStorage.getItem('papol.boardReturn');
-  return saved?.startsWith(`${base}/`) && !saved.includes('/boards/')
-    ? saved
-    : home;
-}
+const boardReturnPath = (board) => boardHomePath(board, {
+  demo: window.location.pathname.includes('/demo/boards/'),
+});
 
-function returnToPapol() {
+function returnToPapol(board) {
   if (closeDesktopDocumentWindow()) return;
-  const returnPath = boardReturnPath();
-  window.sessionStorage.removeItem('papol.boardReturn');
-  window.location.assign(returnPath);
+  window.location.assign(boardReturnPath(board));
 }
 
 export default function App() {
@@ -45,7 +37,7 @@ export default function App() {
     <style>{applicationStyles}</style>
     <CompatibilityBar />
     {boardUuid
-      ? <BoardPage boardUuid={boardUuid} onBack={returnToPapol} backHref={boardReturnPath()} />
+      ? <BoardPage boardUuid={boardUuid} onBack={returnToPapol} backHref={boardReturnPath} />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;
 }

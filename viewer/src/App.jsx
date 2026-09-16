@@ -3482,20 +3482,20 @@ export default function App() {
       : null;
   const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page) || null;
 
-  // Arriving from Papol, going back is a step back in history, not a new
-  // entry — otherwise Papol's own Back walks the reader straight into the
-  // viewer again. A direct visit has no Papol behind it, so it goes to the
-  // paper's page instead.
+  // The way out is a place, not a step backwards. Each source names where
+  // its document lives in Papol — a nook paper's own page, the front door
+  // for a paper that is only passing through — and going home goes there,
+  // whether the reader arrived from Papol, from a link in a mail, from a
+  // new tab or from a reload. Reading history to guess a destination is
+  // what made this ambiguous, and every way of arriving got it wrong in a
+  // different way. The page stays in history, so the browser's own Back
+  // still returns to the paper the reader was just reading.
   const returnToPapol = () => {
     // Papol macOS opens papers as document windows. Closing that window
     // returns to the library that has remained mounted behind it.
     if (closeDesktopDocumentWindow()) return;
     markReturnToPapol();
-    if (document.referrer.startsWith(window.location.origin) && window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.assign(source?.backHref || appPath('/'));
-    }
+    window.location.assign(source?.backHref || appPath('/'));
   };
   // The document's own history, kept apart from the window's Back: the return
   // pill over the pages names the page each way leads to.
@@ -3577,13 +3577,26 @@ export default function App() {
             to bring the library back to the front. */}
         {DESKTOP ? (
           <DesktopNav
-            library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }}
+            library={{
+              // The same errand the web glyph runs: the library, showing
+              // this paper. A paper only passing through — shared, or
+              // opened from disk — has no page in this reader's Papol, so
+              // the library is simply brought forward as it was.
+              onClick: () => focusDesktopLibraryWindow(
+                readOnly ? undefined : paper?.uuid,
+              ),
+              label: 'Open Library',
+            }}
           />
         ) : !DESKTOP ? (
-          // The href stays for a direct visit, and for opening in a new tab.
+          // The same house the desktop toolbar wears, for the same errand:
+          // out of this paper and back to Papol. The href stays for a direct
+          // visit, and for opening in a new tab.
           <a
             className="back"
             href={source?.backHref || appPath('/')}
+            aria-label="Back to Papol"
+            title="Back to Papol"
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
                 markReturnToPapol();
@@ -3593,7 +3606,10 @@ export default function App() {
               returnToPapol();
             }}
           >
-            ← <span className="back-word">Back to </span>Papol
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m2.25 7.25 5.75-4.5 5.75 4.5" />
+              <path d="M3.75 6.5v6.75h8.5V6.5M6.5 13.25V9h3v4.25" />
+            </svg>
           </a>
         ) : null}
         <span className="spacer" />

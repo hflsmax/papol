@@ -49,9 +49,20 @@ function parseRoute() {
   const path = demo
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
     : rawPath;
-  const routed = (route) => (demo ? { ...route, demo: true } : route);
   // Readers, papers and seminars are addressed by their UUID, and only by it.
   const UUID_PATTERN = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
+  // A board has no page of its own — it is a row in a nook — so leaving one
+  // asks the nook to reveal it. Only a nook can honour that, and the rest of
+  // Papol simply carries it unread.
+  const asked = new URLSearchParams(window.location.search).get('board') || '';
+  const revealBoard = new RegExp(`^${UUID_PATTERN}$`, 'i').test(asked)
+    ? asked.toLowerCase()
+    : null;
+  const routed = (route) => ({
+    ...route,
+    ...(demo ? { demo: true } : {}),
+    ...(revealBoard ? { revealBoard } : {}),
+  });
   const at = (pattern) => path.match(new RegExp(`^${pattern}/?$`, 'i'))?.[1].toLowerCase();
   let uuid;
   if ((uuid = at(`/u/${UUID_PATTERN}/boards`))) return routed({ page: 'space', uuid, section: 'boards' });
@@ -124,11 +135,21 @@ function openBoard(uuid) {
     openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
     return;
   }
-  window.sessionStorage.setItem(
-    'papol.boardReturn',
-    `${window.location.pathname}${window.location.search}`,
-  );
   window.location.assign(appPath(path));
+}
+
+// Once the nook has revealed the board it was asked for, the asking is
+// spent: it leaves the address, so a reload or a shared URL shows the nook
+// as it is rather than flashing a row at a reader who never asked.
+function forgetRevealRequest() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('board')) return;
+  url.searchParams.delete('board');
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${url.pathname}${url.search}${url.hash}`,
+  );
 }
 
 function LibraryFileDropFeedback({ state, message, opensViewer = false }) {
@@ -706,6 +727,8 @@ export default function App({ startupUser = null, startupError = null }) {
             currentUser={user}
             onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
             onSelectBoard={openBoard}
+            revealBoard={route.revealBoard}
+            onRevealed={forgetRevealRequest}
           />
         ) : DESKTOP ? (
           // The desktop app opens on signing in, not on a pitch for Papol.
@@ -723,6 +746,8 @@ export default function App({ startupUser = null, startupError = null }) {
           onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
           onSelectBoard={openBoard}
           initialSection={route.section}
+          revealBoard={route.revealBoard}
+          onRevealed={forgetRevealRequest}
           onBack={goBack}
           backHref={backHref}
         />

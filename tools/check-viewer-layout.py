@@ -41,8 +41,8 @@ SIZES = [
     (1024, 768), (1280, 800), (1440, 900), (1920, 1080),
 ]
 
-NARROW = 860   # below this the rail stops having a column of its own
-COMPACT = 560  # below this the bar sheds words
+NARROW = 860  # below this the rail stops having a column of its own
+BACK_SIZE = 32  # the way back is a glyph of a fixed size, at every width
 
 
 def stylesheet() -> str:
@@ -61,7 +61,9 @@ def page_html(css: str) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>{css}</style></head><body><div id="root">
 <header class="viewer-bar">
-  <a class="back" href="#">&larr; <span class="back-word">Back to </span>Papol</a>
+  <a class="back" href="#" aria-label="Back to Papol"><svg viewBox="0 0 16 16">
+    <path d="m2.25 7.25 5.75-4.5 5.75 4.5"></path>
+    <path d="M3.75 6.5v6.75h8.5V6.5M6.5 13.25V9h3v4.25"></path></svg></a>
   <span class="link-navigation"><button class="history-arrow">&larr;</button><button class="history-arrow">&rarr;</button></span>
   <span class="spacer"></span>
   <a class="bar-link" href="#">Download</a>
@@ -97,7 +99,7 @@ MEASURE = """() => {
     pagesFillsWidth: Math.round(pages.getBoundingClientRect().width),
     railPosition: getComputedStyle(rail).position,
     railWidth: Math.round(rail.getBoundingClientRect().width),
-    backWordShown: q('.back-word').offsetWidth > 0,
+    backWidth: Math.round(q('.back').getBoundingClientRect().width),
     // The handle has to sit against the rail's leading edge, not float.
     handleMeetsRail: Math.abs(
       q('.rail-handle').getBoundingClientRect().right
@@ -122,9 +124,9 @@ def failures(width: int, m: dict) -> list:
     if m["railPosition"] != want:
         out.append(
             f"the rail is {m['railPosition']}, expected {want} at {width}px")
-    if m["backWordShown"] != (width > COMPACT):
+    if m["backWidth"] != BACK_SIZE:
         out.append(
-            f"the back link is {'long' if m['backWordShown'] else 'short'}"
+            f"the way back is {m['backWidth']}px wide, expected {BACK_SIZE}px"
             f" at {width}px")
     return out
 

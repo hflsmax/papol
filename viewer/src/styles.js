@@ -175,14 +175,36 @@ button.link.danger { color: var(--red); }
   display: none;
 }
 
+/* The way out of a paper, drawn as the house the desktop toolbar uses so
+   the two shells read the same. It is an anchor, not a button, so a middle
+   click or Command-click still opens Papol in a new tab. */
 .viewer-bar .back {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 28px;
+  border-radius: 6px;
   color: var(--accent);
   text-decoration: none;
-  font-size: var(--fs-base);
-  white-space: nowrap;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.viewer-bar .back:hover {
+  background: rgba(29, 33, 41, 0.07);
+}
+
+.viewer-bar .back:active {
+  background: rgba(29, 33, 41, 0.13);
+}
+
+.viewer-bar .back svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .learn-papol {
@@ -2182,10 +2204,10 @@ button.link.danger { color: var(--red); }
 }
 
 /* A phone. The bar has to hold a way back, the file and the zoom in about
-   320 points, so the words give way and the paddings tighten. */
+   320 points, so the paddings tighten. The way back is already a glyph and
+   costs the same at every width. */
 @media (max-width: 560px) {
   .viewer-bar { gap: 8px; padding: 8px 12px; }
-  .viewer-bar .back-word { display: none; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
 }
