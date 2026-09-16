@@ -92,13 +92,22 @@ export default function PaperDetail({
     setPendingPdf(file);
   };
 
+  // Both edition choices are made on the service, so the copy they change
+  // comes back down only on the next pull. Carry the edition the service
+  // settled on into the reload, or the offer redraws itself as if unanswered.
+  const editionOverlay = (saved) => (saved ? {
+    edition_uuid: saved.edition_uuid,
+    edition_sha256: saved.edition_sha256,
+    ignored_edition_uuid: saved.ignored_edition_uuid,
+  } : null);
+
   // Adopting is the reader's own call: their located notes were placed on
   // the PDF they have, and on a different file they may not line up.
   const handleAdoptEdition = async () => {
     setError(null);
     try {
-      await adoptEdition(paper.uuid, paper.latest_edition.uuid);
-      loadPaper();
+      const saved = await adoptEdition(paper.uuid, paper.latest_edition.uuid);
+      loadPaper(editionOverlay(saved));
     } catch (err) {
       setError(err.message);
     }
@@ -109,8 +118,8 @@ export default function PaperDetail({
   const handleIgnoreEdition = async () => {
     setError(null);
     try {
-      await ignoreEdition(paper.uuid, paper.latest_edition.uuid);
-      loadPaper();
+      const saved = await ignoreEdition(paper.uuid, paper.latest_edition.uuid);
+      loadPaper(editionOverlay(saved));
     } catch (err) {
       setError(err.message);
     }
@@ -147,12 +156,16 @@ export default function PaperDetail({
 
   // Every load after the first follows a change made here, so whatever lists
   // this paper beside the page (Papol macOS's nook) is told to catch up.
+  // A field this device may not write reaches the service and only comes back
+  // on the next pull, which the save does not wait for. Such a save passes
+  // what the service returned as an overlay, so the reload does not redraw
+  // the value the reader just replaced.
   const loadedOnce = useRef(false);
-  const loadPaper = async () => {
+  const loadPaper = async (overlay = null) => {
     setError(null);
     try {
       const data = await getPaper(paperUuid);
-      setPaper(data);
+      setPaper(overlay ? { ...data, ...overlay } : data);
       setIsLoading(false);
       if (currentUser && data.viewer_has_entry) {
         listShelves().then(setShelves).catch((err) => setError(err.message));
@@ -218,11 +231,14 @@ export default function PaperDetail({
     setEditData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // The ratings are patched into the replica and read back from it. is_author
+  // is not a field this device may write, so its saved value returns only from
+  // the service, and the reload would redraw the box the reader just ticked.
   const handleInlineRating = async (key, value) => {
     setError(null);
     try {
-      await updatePaper(paper.uuid, { [key]: value });
-      loadPaper();
+      const saved = await updatePaper(paper.uuid, { [key]: value });
+      loadPaper(key === 'is_author' ? { is_author: saved?.is_author ?? value } : null);
     } catch (err) {
       setError(err.message);
     }
@@ -371,9 +387,9 @@ export default function PaperDetail({
   const saveThought = async () => {
     setError(null);
     try {
-      await updatePaper(paper.uuid, { thought: thoughtDraft.trim() || null });
+      const saved = await updatePaper(paper.uuid, { thought: thoughtDraft.trim() || null });
       setEditingThought(false);
-      loadPaper();
+      loadPaper({ thought: saved?.thought ?? null });
     } catch (err) {
       setError(err.message);
     }
