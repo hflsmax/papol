@@ -60,7 +60,10 @@ class SeminarTransitionTests(unittest.TestCase):
                 color="#123456",
                 is_public=True,
             )
-            paper = Paper(title="State Machines for Seminars")
+            paper = Paper(
+                title="State Machines for Seminars",
+                file_path="seminar.pdf", sha256="5" * 64,
+            )
             db.add_all([shelf, paper])
             db.flush()
             db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))

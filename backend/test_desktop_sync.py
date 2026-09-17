@@ -1029,7 +1029,9 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_nook_rows_sync_together_with_uuid_relationships(self):
         with self.sessions() as db:
             default_shelf = db.query(Shelf).filter(Shelf.user_uuid == self.user_uuid).first()
-            paper = Paper(title="Offline nook")
+            paper = Paper(
+                title="Offline nook", file_path="nook.pdf", sha256="6" * 64,
+            )
             db.add(paper)
             db.flush()
             copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid)
@@ -1119,7 +1121,9 @@ class DesktopSyncContractTests(unittest.TestCase):
         with self.sessions() as db:
             public = Shelf(user_uuid=self.user_uuid, name="Offline public", color="#123456", is_public=True)
             private = Shelf(user_uuid=self.user_uuid, name="Offline private", color="#654321", is_public=False)
-            paper = Paper(title="Shelved offline")
+            paper = Paper(
+                title="Shelved offline", file_path="shelved.pdf", sha256="7" * 64,
+            )
             db.add_all([public, private, paper])
             db.flush()
             copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid)
@@ -1192,7 +1196,9 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_server_only_actions_accept_desktop_sync_uuids(self):
         with self.sessions() as db:
             shelf = Shelf(user_uuid=self.user_uuid, name="Desktop shelf", color="#123456", is_public=False)
-            paper = Paper(title="Desktop paper")
+            paper = Paper(
+                title="Desktop paper", file_path="desktop.pdf", sha256="8" * 64,
+            )
             db.add_all([shelf, paper])
             db.flush()
             db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))

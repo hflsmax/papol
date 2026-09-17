@@ -2931,14 +2931,16 @@ mod tests {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical old',?2,?2)",
-                    params![older_paper_uuid, "2025-01-01T00:00:00Z"],
+                    "INSERT INTO papers(uuid,title,file_path,sha256,created_at,updated_at) \
+                     VALUES (?1,'Canonical old','old.pdf',?2,?3,?3)",
+                    params![older_paper_uuid, "a".repeat(64), "2025-01-01T00:00:00Z"],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical new',?2,?2)",
-                    params![newer_paper_uuid, "2026-08-01T00:00:00Z"],
+                    "INSERT INTO papers(uuid,title,file_path,sha256,created_at,updated_at) \
+                     VALUES (?1,'Canonical new','new.pdf',?2,?3,?3)",
+                    params![newer_paper_uuid, "b".repeat(64), "2026-08-01T00:00:00Z"],
                 )
                 .unwrap();
             connection
@@ -2973,8 +2975,9 @@ mod tests {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,file_path,created_at,updated_at,revision) VALUES (?1,'Paper','paper.pdf',?2,?2,1)",
-                    params![paper_uuid, now],
+                    "INSERT INTO papers(uuid,title,file_path,sha256,created_at,updated_at,revision) \
+                     VALUES (?1,'Paper','paper.pdf',?2,?3,?3,1)",
+                    params![paper_uuid, "c".repeat(64), now],
                 )
                 .unwrap();
             connection
@@ -4279,6 +4282,8 @@ mod tests {
                             ("authors".into(), Value::Null),
                             ("journal".into(), Value::Null),
                             ("year".into(), Value::Null),
+                            ("file_path".into(), json!("offline-systems.pdf")),
+                            ("sha256".into(), json!("d".repeat(64))),
                             ("created_at".into(), json!(timestamp)),
                             ("updated_at".into(), json!(timestamp)),
                             ("revision".into(), json!(1)),

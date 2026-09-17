@@ -2,6 +2,7 @@ from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 from sqlalchemy.schema import CreateColumn, CreateIndex, CreateTable
 from contextvars import ContextVar
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -11,6 +12,8 @@ DB_PATH = Path(__file__).parent / "papol.db"
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+logger = logging.getLogger(__name__)
 
 
 class PapolSession(Session):
@@ -527,6 +530,37 @@ def _forget_change_log(conn, tables: set, table_name: str, row_uuids: list):
         )
 
 
+# A paper is its PDF, so the file and its digest are not optional. Older
+# rows could be stored without them, and SQLite cannot tighten a column in
+# place, so the table is rebuilt to the shape the models now declare.
+#
+# Only when there is nothing in the way. A row with no digest cannot be
+# given one here — the bytes are what would say, and they may be long gone —
+# so it is left alone and reported, and the service starts rather than
+# refusing to. The column stays as it was until someone settles the row.
+def _require_a_file(conn):
+    columns = {
+        row[1]: row[3] for row in conn.execute(text("PRAGMA table_info(papers)"))
+    }
+    if not columns:
+        return
+    if all(columns.get(name) for name in ("file_path", "sha256")):
+        return  # already NOT NULL
+    unsettled = next(conn.execute(text(
+        "SELECT COUNT(*) FROM papers "
+        " WHERE sha256 IS NULL OR file_path IS NULL OR file_path = ''"
+    )))[0]
+    if unsettled:
+        logger.warning(
+            "%s paper(s) have no file recorded, so papers.file_path and "
+            "papers.sha256 stay optional. A paper is its PDF: settle or "
+            "remove those rows and the columns tighten on the next start.",
+            unsettled,
+        )
+        return
+    _rebuild_table(conn, "papers", "papers", "paper")
+
+
 def migrate():
     """Retire obsolete tables and columns, and add columns an existing table
     lacks.
@@ -567,3 +601,6 @@ def migrate():
                     conn.execute(text(
                         f"ALTER TABLE {table.name} ADD COLUMN {_add_column_ddl(column)}"
                     ))
+        # Last: the rebuild copies whatever the model declares, so every
+        # column it declares has to be there to copy.
+        _require_a_file(conn)

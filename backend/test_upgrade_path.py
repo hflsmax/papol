@@ -154,6 +154,9 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
                    (other_paper, "Hidden", NOW, NOW))
         db.execute("INSERT INTO paper_editions VALUES (?,?,?,?,?,?,1,NULL)",
                    (self.edition, self.paper, "a.pdf", "a" * 64, NOW, NOW))
+        # Every paper had a PDF under it; the hidden one is no exception.
+        db.execute("INSERT INTO paper_editions VALUES (?,?,?,?,?,?,1,NULL)",
+                   (_uuid(), other_paper, "c.pdf", "c" * 64, NOW, NOW))
         db.execute("INSERT INTO paper_editions VALUES (?,?,?,?,?,?,1,NULL)",
                    (self.newer_edition, self.paper, "b.pdf", "b" * 64,
                     "2026-09-16T12:00:00", "2026-09-16T12:00:00"))
@@ -399,20 +402,47 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_papers_with_no_file_are_not_one_anothers_duplicates(self):
-        """NULL is not a digest, so two of them do not collide."""
+    def test_a_paper_must_have_a_file(self):
+        """A paper is its PDF, so the columns that say which stop being
+        optional once every row has answered."""
         self.upgrade()
+        required = {
+            row[1]: row[3] for row in self.rows("PRAGMA table_info(papers)")
+        }
+        self.assertEqual(required["file_path"], 1)
+        self.assertEqual(required["sha256"], 1)
+
         db = sqlite3.connect(self.path)
         try:
-            for title in ("No file here", "Nor here"):
+            with self.assertRaises(sqlite3.IntegrityError):
                 db.execute(
-                    "INSERT INTO papers (uuid, title, sha256, created_at, updated_at,"
-                    " revision) VALUES (?,?,NULL,?,?,1)",
-                    (_uuid(), title, NOW, NOW),
+                    "INSERT INTO papers (uuid, title, created_at, updated_at,"
+                    " revision) VALUES (?,?,?,?,1)",
+                    (_uuid(), "No file at all", NOW, NOW),
                 )
-            db.commit()
         finally:
             db.close()
+
+    def test_a_paper_with_no_file_leaves_the_columns_alone(self):
+        """The bytes are what would say what the digest is, and they may be
+        long gone. Such a row is reported rather than guessed at, and the
+        service starts rather than refusing to."""
+        with sqlite3.connect(self.path) as db:
+            for title in ("Stored before a file was required", "So was this one"):
+                db.execute(
+                    "INSERT INTO papers VALUES (?,NULL,?,NULL,NULL,NULL,?,?,1,NULL)",
+                    (_uuid(), title, NOW, NOW),
+                )
+        self.upgrade()
+        optional = {
+            row[1]: row[3] for row in self.rows("PRAGMA table_info(papers)")
+        }
+        self.assertEqual(optional["sha256"], 0, "the column has to wait")
+        # Nothing was dropped to make the constraint fit, and the two of them
+        # sit together: NULL is not a digest, so they are not duplicates.
+        self.assertEqual(
+            self.rows("SELECT COUNT(*) FROM papers WHERE sha256 IS NULL")[0][0], 2,
+        )
 
     def test_a_tag_follows_the_copy_it_was_on(self):
         self.upgrade()
