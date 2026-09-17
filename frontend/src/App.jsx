@@ -500,15 +500,20 @@ export default function App({ startupUser = null, startupError = null }) {
       navigate('/signin');
       return;
     }
-    let pending = null;
-    try { pending = await pendingLocalChanges(); } catch { /* still allow sign-out */ }
-    const warning = pending > 0
-      ? `Signing out deletes this account's downloaded data and local changes from this Mac. ` +
-        `${pending} unsynced ${pending === 1 ? 'change will' : 'changes will'} be permanently lost. Sign out?`
-      : `Signing out deletes this account's downloaded data and local changes from this Mac. ` +
-        'Any unsynced changes will be permanently lost. Sign out?';
-    const leave = await confirmAction(warning, { confirmLabel: 'Sign out' });
-    if (!leave) return;
+    // In the browser there is nothing local to lose: no downloaded papers, no
+    // offline changes. Only the desktop app, which keeps both on the machine,
+    // has to ask before throwing them away.
+    if (DESKTOP) {
+      let pending = null;
+      try { pending = await pendingLocalChanges(); } catch { /* still allow sign-out */ }
+      const warning = pending > 0
+        ? `Signing out deletes this account's downloaded data and local changes from this Mac. ` +
+          `${pending} unsynced ${pending === 1 ? 'change will' : 'changes will'} be permanently lost. Sign out?`
+        : `Signing out deletes this account's downloaded data and local changes from this Mac. ` +
+          'Any unsynced changes will be permanently lost. Sign out?';
+      const leave = await confirmAction(warning, { confirmLabel: 'Sign out' });
+      if (!leave) return;
+    }
     try {
       await logout(user?.uuid);
     } catch (error) {
