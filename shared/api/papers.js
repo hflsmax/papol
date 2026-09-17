@@ -104,7 +104,10 @@ export async function createPaper(paperData) {
       shelfUuid = localShelves.find((shelf) => !(shelf.is_public === true || shelf.is_public === 1))?.uuid
         ?? shelfUuid;
     }
-    const paperSha256 = newUuid();
+    // The paper is the file: its name is read off the bytes, not invented.
+    // Minting one here is what the service would have had to undo, and it
+    // would refuse a paper named any other way.
+    const paperSha256 = sha256;
     const copyUuid = newUuid();
     const changes = [
       {
@@ -128,8 +131,13 @@ export async function createPaper(paperData) {
       values: { copy_uuid: copyUuid, tag_uuid: tagUuid },
     });
     if (paperData.initial_comment?.trim()) changes.push({
-      table: 'comments', uuid: newUuid(), operation: 'upsert',
-      values: { paper_sha256: paperSha256, content: paperData.initial_comment.trim() },
+      // Notes, ink and clips share one table; a first thought is a note
+      // about the paper, placed on no page.
+      table: 'annotations', uuid: newUuid(), operation: 'upsert',
+      values: {
+        kind: 'note', paper_sha256: paperSha256, page: null, group_uuid: null,
+        content: paperData.initial_comment.trim(), name: null, body: '{}',
+      },
     });
     await nativeRepository.transact(changes);
     forgetPendingPaperBlob(sha256);

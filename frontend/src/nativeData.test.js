@@ -100,7 +100,7 @@ const {
   postRoomMessage, setRoomAvailability, uncallSeminar, unhostRoom,
 } = await import('../../shared/api/rooms.js');
 const {
-  addToNook, deletePaper, getPaper, updatePaper,
+  addToNook, createPaper, deletePaper, extractPaperMetadata, getPaper, updatePaper,
 } = await import('../../shared/api/papers.js');
 
 test('paper and comment reads start together', async () => {
@@ -121,6 +121,38 @@ test('paper and comment reads start together', async () => {
   await loading;
   queryPaperGate = null;
   queryPaper = null;
+});
+
+test('a PDF added offline is named by its file, and its first thought is a note', async () => {
+  // A paper is its PDF on this side of the wire too. Naming the row anything
+  // else is refused by the replica before it is refused by the service, so
+  // the import simply never lands.
+  const digest = 'a'.repeat(64);
+  const extracted = await extractPaperMetadata(
+    new File(['%PDF-1.4\noffline\n%%EOF'], 'offline.pdf', { type: 'application/pdf' }),
+  );
+  assert.equal(extracted.sha256, digest);
+
+  queryPaper = { uuid: digest, sha256: digest };
+  calls.length = 0;
+  await createPaper({
+    ...extracted, title: 'Added while offline',
+    shelf_uuid: '88888888-8888-4888-8888-888888888888',
+    initial_comment: 'Worth a second read',
+  });
+  queryPaper = null;
+
+  const [, mutation] = calls.find(([command]) => command === 'data_mutate');
+  const byTable = Object.fromEntries(
+    mutation.changes.map((change) => [change.table, change]),
+  );
+  assert.equal(byTable.papers.uuid, digest, 'the paper is named by its file');
+  assert.equal(byTable.copies.values.paper_sha256, digest);
+  // Notes, ink and clips are one table; `comments` is not synchronized at all.
+  assert.equal(byTable.comments, undefined);
+  assert.equal(byTable.annotations.values.kind, 'note');
+  assert.equal(byTable.annotations.values.paper_sha256, digest);
+  assert.equal(byTable.annotations.values.content, 'Worth a second read');
 });
 
 test('native SQLite is authoritative for the local sync preference', async () => {
