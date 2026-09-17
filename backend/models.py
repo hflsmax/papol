@@ -152,19 +152,17 @@ class Paper(Base):
     nothing here belongs to anyone; per-user state lives in Copy."""
     __tablename__ = "papers"
 
-    uuid = uuid_key()
+    # The paper's identity, and the only one it has. A UUID here would be a
+    # second name for a thing that already has one: the bytes say which
+    # paper this is, and everyone who holds the file arrives at the same
+    # answer without asking.
+    sha256 = Column(String(64), primary_key=True)
     doi = Column(Text, nullable=True)
     title = Column(Text, nullable=False)
     authors = Column(Text, nullable=True)  # JSON array stored as text
     journal = Column(Text, nullable=True)
     year = Column(Integer, nullable=True)
     file_path = Column(Text, nullable=False)
-    # Content hash of those exact PDF bytes: the paper's identity, and what
-    # names it in a viewer URL. An upload of bytes Papol already holds lands
-    # on the paper holding them rather than making a second, and the index is
-    # unique so that this is the database's rule and not only the writer's.
-    # Required, because a paper with no file is not a paper.
-    sha256 = Column(String, nullable=False, index=True, unique=True)
     uploaded_by = Column(String(36), ForeignKey("users.uuid"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -207,7 +205,7 @@ class PaperReference(Base):
     __tablename__ = "paper_references"
 
     uuid = uuid_key()
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    paper_sha256 = Column(String(64), ForeignKey("papers.sha256"), nullable=False, index=True)
     # The analyzer's own key for the entry (its xml:id), which is what the
     # in-text markers point at.
     key = Column(String, nullable=False)
@@ -243,7 +241,7 @@ class PaperCitation(Base):
     __tablename__ = "paper_citations"
 
     uuid = uuid_key()
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    paper_sha256 = Column(String(64), ForeignKey("papers.sha256"), nullable=False, index=True)
     reference_uuid = Column(String(36), ForeignKey("paper_references.uuid"), nullable=True)
     label = Column(Text, nullable=True)
     page = Column(Integer, nullable=False, index=True)
@@ -264,7 +262,7 @@ class PaperLink(Base):
     __tablename__ = "paper_links"
 
     uuid = uuid_key()
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    paper_sha256 = Column(String(64), ForeignKey("papers.sha256"), nullable=False, index=True)
     kind = Column(String, nullable=False)
     label = Column(Text, nullable=True)
     page = Column(Integer, nullable=False, index=True)
@@ -281,10 +279,10 @@ class PaperLink(Base):
 class Copy(Base):
     """A user's copy of a paper in their nook: ratings, summary, display."""
     __tablename__ = "copies"
-    __table_args__ = (UniqueConstraint("paper_uuid", "user_uuid", name="uq_copy"),)
+    __table_args__ = (UniqueConstraint("paper_sha256", "user_uuid", name="uq_copy"),)
 
     uuid = uuid_key()
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    paper_sha256 = Column(String(64), ForeignKey("papers.sha256"), nullable=False, index=True)
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
     shelf_uuid = Column(String(36), ForeignKey("shelves.uuid"), nullable=True, index=True)
     summary = Column(Text, nullable=True)  # private
@@ -397,7 +395,7 @@ class Annotation(Base):
     uuid = uuid_key()
     kind = Column(String(8), nullable=False, index=True)
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    paper_sha256 = Column(String(64), ForeignKey("papers.sha256"), nullable=False, index=True)
     # Null only for a note about the paper that was never put on a page.
     page = Column(Integer, nullable=True, index=True)
     # Several stored paths can be one logical annotation: text painted across lines
@@ -530,7 +528,7 @@ class Sharable(Base):
     # null is what keeps it out of its maker's hands: not on their paper
     # page, not theirs to revoke, and not a thing they are told exists.
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True, index=True)
-    paper_uuid = Column(String(36), ForeignKey("papers.uuid"), nullable=False, index=True)
+    paper_sha256 = Column(String(64), ForeignKey("papers.sha256"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
 

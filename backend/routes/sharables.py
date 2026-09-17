@@ -13,9 +13,9 @@ router = APIRouter()
 
 # ---------------- Sharables ----------------
 
-@router.post("/api/papers/{paper_uuid}/sharable", response_model=SharableOut)
+@router.post("/api/papers/{paper_sha256}/sharable", response_model=SharableOut)
 async def create_sharable(
-    paper_uuid: str,
+    paper_sha256: str,
     data: SharableCreate | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -29,7 +29,7 @@ async def create_sharable(
     while the other link is out: they are different links to different
     things, and neither is in the other's way."""
     paper = db.query(Paper).filter(
-        Paper.uuid == paper_uuid, Paper.deleted_at.is_(None),
+        Paper.sha256 == paper_sha256, Paper.deleted_at.is_(None),
     ).first()
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found")
@@ -52,9 +52,9 @@ async def create_sharable(
     )
 
 
-@router.get("/api/papers/{paper_uuid}/sharable", response_model=SharableOut | None)
+@router.get("/api/papers/{paper_sha256}/sharable", response_model=SharableOut | None)
 async def my_sharable(
-    paper_uuid: str,
+    paper_sha256: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -73,7 +73,7 @@ async def my_sharable(
     this user does not keep, or one with no readable PDF, simply has no
     link of theirs on it."""
     paper = db.query(Paper).filter(
-        Paper.uuid == paper_uuid, Paper.deleted_at.is_(None),
+        Paper.sha256 == paper_sha256, Paper.deleted_at.is_(None),
     ).first()
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found")
@@ -84,7 +84,7 @@ async def my_sharable(
     )
     if copy is None:
         return None
-    sharable = live_sharable_for(db, current_user, paper.uuid)
+    sharable = live_sharable_for(db, current_user, paper.sha256)
     return SharableOut.model_validate(sharable) if sharable else None
 
 
@@ -157,7 +157,7 @@ async def shared_in_nook(
     if copy is None:
         return None
     return SharedInNook(
-        paper_uuid=copy.paper_uuid, sha256=copy.paper.sha256,
+        paper_sha256=copy.paper_sha256, sha256=copy.paper.sha256,
     )
 
 
@@ -189,5 +189,5 @@ async def add_shared_to_nook(
         )
     copy = take_into_nook(db, current_user, sharable)
     return SharedInNook(
-        paper_uuid=copy.paper_uuid, sha256=copy.paper.sha256,
+        paper_sha256=copy.paper_sha256, sha256=copy.paper.sha256,
     )

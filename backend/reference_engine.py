@@ -147,10 +147,10 @@ class EphemeralReferenceEngine:
         }
         return True
 
-    def response(self, digest: str, paper_uuid: str) -> PaperReferences:
+    def response(self, digest: str, paper_sha256: str) -> PaperReferences:
         state = self._analyses[digest]
         return PaperReferences(
-            paper_uuid=paper_uuid,
+            paper_sha256=paper_sha256,
             status=state["status"],
             detail=state.get("detail"),
             references=state.get("references", []),

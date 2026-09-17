@@ -71,7 +71,7 @@
       "owner": "user_uuid",
       "client_writable": [
         "kind",
-        "paper_uuid",
+        "paper_sha256",
         "page",
         "group_uuid",
         "content",
@@ -99,7 +99,7 @@
     "copies": {
       "owner": "user_uuid",
       "client_writable": [
-        "paper_uuid",
+        "paper_sha256",
         "shelf_uuid",
         "summary",
         "rating_expertise",

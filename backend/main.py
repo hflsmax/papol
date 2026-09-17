@@ -1539,7 +1539,7 @@ def _default_shelf(user: User) -> Shelf:
 
 def _user_entry(user_copy: Copy) -> UserEntry:
     return UserEntry(
-        paper_uuid=user_copy.paper.uuid,
+        paper_sha256=user_copy.paper.sha256,
         user=UserPublic.model_validate(user_copy.user),
         is_author=bool(user_copy.is_author),
         thought=user_copy.thought,
@@ -1624,7 +1624,7 @@ def _paper_list_entry(
     """One list row: the canonical paper, plus the personal fields of the
     given user_copy (a nook's own entry), plus every displayed copy."""
     entry = PaperList(
-        uuid=paper.uuid,
+        uuid=paper.sha256,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
@@ -1885,7 +1885,7 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
     assert viewer is not None, "a paper page is only ever built for a signed-in user"
     user_copy = _copy_of(paper, viewer)
     detail = PaperSchema(
-        uuid=paper.uuid,
+        uuid=paper.sha256,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
@@ -1921,7 +1921,7 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
         # Only ever a link carrying their annotations: the paper's own link
         # is nobody's, and telling them one exists would make it sound like
         # something of theirs is out.
-        shared = live_sharable_for(db, viewer, paper.uuid)
+        shared = live_sharable_for(db, viewer, paper.sha256)
         detail.sharable_uuid = shared.uuid if shared else None
     detail.also_read_by = [_user_entry(r) for r in displayed_copies(paper)]
 
@@ -1938,8 +1938,8 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
 
 
 # Every row is named, in the database and on the wire, by its UUID.
-def _get_paper_or_404(paper_uuid: str, db: Session) -> Paper:
-    paper = db.query(Paper).filter(Paper.uuid == paper_uuid).first()
+def _get_paper_or_404(paper_sha256: str, db: Session) -> Paper:
+    paper = db.query(Paper).filter(Paper.sha256 == paper_sha256).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     return paper
@@ -2054,14 +2054,14 @@ async def create_paper(
     commit_sync(db)
     db.refresh(db_paper)
     if queue_analysis:
-        _analyzing.add(db_paper.uuid)
-        background.add_task(_analyze_paper, db_paper.uuid)
+        _analyzing.add(db_paper.sha256)
+        background.add_task(_analyze_paper, db_paper.sha256)
     return _paper_detail(db, db_paper, current_user)
 
 
-@app.get("/api/papers/{paper_uuid}", response_model=PaperSchema)
+@app.get("/api/papers/{paper_sha256}", response_model=PaperSchema)
 async def get_paper(
-    paper_uuid: str,
+    paper_sha256: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2071,21 +2071,21 @@ async def get_paper(
     and whose nook it sits in is nobody's business but theirs. The
     Library is for people with accounts (US-1.4), so there is no visitor
     case here — a paper page is not a thing Papol shows to nobody."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
     return _paper_detail(db, paper, current_user)
 
 
 @app.post(
-    "/api/papers/{paper_uuid}/extract-metadata",
+    "/api/papers/{paper_sha256}/extract-metadata",
     response_model=ReextractedMetadata,
 )
 async def reextract_paper_metadata(
-    paper_uuid: str,
+    paper_sha256: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Re-read a paper's PDF metadata for the edit form."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
     path = _paper_pdf_path(paper)
     if path is None:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
@@ -2221,9 +2221,9 @@ _METADATA_FIELDS = {"title", "authors", "journal", "year", "doi"}
 _PERSONAL_FIELDS = {"summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"}
 
 
-@app.put("/api/papers/{paper_uuid}", response_model=PaperSchema)
+@app.put("/api/papers/{paper_sha256}", response_model=PaperSchema)
 async def update_paper(
-    paper_uuid: str,
+    paper_sha256: str,
     paper_update: PaperUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2234,7 +2234,7 @@ async def update_paper(
     user_copy. Metadata (title/authors/journal/year/DOI) lives on the one
     canonical paper: any signed-in user may edit it, for everyone.
     """
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
 
     update_data = paper_update.model_dump(exclude_unset=True)
     tag_uuids = update_data.pop("tag_uuids", None)
@@ -2441,9 +2441,9 @@ async def delete_shelf(
     commit_sync(db)
 
 
-@app.delete("/api/papers/{paper_uuid}")
+@app.delete("/api/papers/{paper_sha256}")
 async def delete_paper(
-    paper_uuid: str,
+    paper_sha256: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2453,7 +2453,7 @@ async def delete_paper(
     user leaving destroys nothing shared, and the Library holds every paper
     whoever happens to keep one. What leaving takes away is this user's
     name from the row of readers shown against it."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
     user_copy = _require_copy(paper, current_user)
 
     user_copy.deleted_at = datetime.utcnow()
@@ -2469,15 +2469,15 @@ async def delete_paper(
     return {"message": "Paper removed from your nook"}
 
 
-@app.post("/api/papers/{paper_uuid}/add-to-nook", response_model=PaperSchema)
+@app.post("/api/papers/{paper_sha256}/add-to-nook", response_model=PaperSchema)
 async def add_to_nook(
-    paper_uuid: str,
+    paper_sha256: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Add the paper to the viewer's nook: a new copy of the one
     canonical paper. The PDF and metadata are shared."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
     if _copy_of(paper, current_user) is not None:
         raise HTTPException(status_code=400, detail="This paper is already in your nook")
 
@@ -2540,7 +2540,7 @@ def _paper_pdf_path(paper: Paper) -> Path | None:
     return candidate if candidate.exists() else None
 
 
-async def _analyze_paper(paper_uuid: str):
+async def _analyze_paper(paper_sha256: str):
     """Read one paper's references through GROBID and store them.
 
     Runs after the paper-save response, on its own session. The viewer can
@@ -2549,7 +2549,7 @@ async def _analyze_paper(paper_uuid: str):
     analyzed says so instead of being retried forever."""
     db = SessionLocal()
     try:
-        paper = db.get(Paper, paper_uuid)
+        paper = db.get(Paper, paper_sha256)
         if paper is None:
             return
         path = _paper_pdf_path(paper)
@@ -2559,7 +2559,7 @@ async def _analyze_paper(paper_uuid: str):
         try:
             analysis = await grobid.analyze(str(path))
         except Exception as e:
-            logger.warning(f"GROBID failed on paper {paper_uuid}: {e}")
+            logger.warning(f"GROBID failed on paper {paper_sha256}: {e}")
             _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
             return
 
@@ -2567,19 +2567,19 @@ async def _analyze_paper(paper_uuid: str):
         # it, which is the honest thing: they were attached to references
         # read out of the PDF a different way.
         db.query(PaperCitation).filter(
-            PaperCitation.paper_uuid == paper_uuid
+            PaperCitation.paper_sha256 == paper_sha256
         ).delete()
         db.query(PaperLink).filter(
-            PaperLink.paper_uuid == paper_uuid
+            PaperLink.paper_sha256 == paper_sha256
         ).delete()
         db.query(PaperReference).filter(
-            PaperReference.paper_uuid == paper_uuid
+            PaperReference.paper_sha256 == paper_sha256
         ).delete()
 
         rows: dict[str, PaperReference] = {}
         for ref in analysis.references:
             row = PaperReference(
-                paper_uuid=paper_uuid,
+                paper_sha256=paper_sha256,
                 key=ref.key,
                 index=ref.index,
                 raw=ref.raw,
@@ -2601,7 +2601,7 @@ async def _analyze_paper(paper_uuid: str):
             if row is None:
                 continue
             db.add(PaperCitation(
-                paper_uuid=paper_uuid,
+                paper_sha256=paper_sha256,
                 reference_uuid=row.uuid,
                 label=cite.label,
                 page=cite.page,
@@ -2611,7 +2611,7 @@ async def _analyze_paper(paper_uuid: str):
 
         for link in analysis.links:
             db.add(PaperLink(
-                paper_uuid=paper_uuid,
+                paper_sha256=paper_sha256,
                 kind=link.kind,
                 label=link.label,
                 page=link.page,
@@ -2622,24 +2622,24 @@ async def _analyze_paper(paper_uuid: str):
 
         _finish_analysis(db, paper, "ready", None)
         logger.info(
-            f"Paper {paper_uuid}: {len(analysis.references)} references, "
+            f"Paper {paper_sha256}: {len(analysis.references)} references, "
             f"{len(analysis.citations)} citation markers, "
             f"{len(analysis.links)} document links"
         )
     except Exception as e:
         # Whatever went wrong, the paper must not be left saying
         # "pending" forever: a user would poll a job that is not running.
-        logger.error(f"Reference analysis of paper {paper_uuid} failed: {e}")
+        logger.error(f"Reference analysis of paper {paper_sha256} failed: {e}")
         db.rollback()
         try:
-            paper = db.get(Paper, paper_uuid)
+            paper = db.get(Paper, paper_sha256)
             if paper is not None:
                 _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
         except Exception:
             db.rollback()
     finally:
         db.close()
-        _analyzing.discard(paper_uuid)
+        _analyzing.discard(paper_sha256)
 
 
 def _finish_analysis(db: Session, paper: Paper, status: str, detail: str | None):
@@ -2653,7 +2653,7 @@ def _may_start_analysis(paper: Paper) -> bool:
     """Whether this paper wants a pass now. Never for a failure — a PDF
     GROBID could not read will not read differently on the next open, and
     a user refreshing should not queue a job each time."""
-    if paper.uuid in _analyzing:
+    if paper.sha256 in _analyzing:
         return False
     if paper.references_status is None:
         return True
@@ -2664,7 +2664,7 @@ def _may_start_analysis(paper: Paper) -> bool:
 
 
 async def _bundled_paper_references(
-    paper_uuid: str,
+    paper_sha256: str,
     pdf_sha256: str,
     background: BackgroundTasks,
 ):
@@ -2675,17 +2675,17 @@ async def _bundled_paper_references(
         raise HTTPException(status_code=404, detail="Demo PDF not found")
     if not grobid.configured():
         return PaperReferences(
-            paper_uuid=paper_uuid, status="unavailable",
+            paper_sha256=paper_sha256, status="unavailable",
             detail="Reference analysis unavailable",
         )
     if _bundled_references.begin(digest):
         background.add_task(_bundled_references.analyze, digest, path)
-    return _bundled_references.response(digest, paper_uuid)
+    return _bundled_references.response(digest, paper_sha256)
 
 
-@app.get("/api/papers/{paper_uuid}/references", response_model=PaperReferences)
+@app.get("/api/papers/{paper_sha256}/references", response_model=PaperReferences)
 async def paper_references(
-    paper_uuid: str,
+    paper_sha256: str,
     background: BackgroundTasks,
     refresh: bool = False,
     current_user: User = Depends(get_current_user),
@@ -2697,7 +2697,7 @@ async def paper_references(
     `ready`. Older unanalyzed papers are started on first access. Pass
     `refresh=true` to read a PDF again — the way to retry one GROBID could
     not handle."""
-    paper = db.query(Paper).filter(Paper.uuid == paper_uuid).first()
+    paper = db.query(Paper).filter(Paper.sha256 == paper_sha256).first()
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found")
     return await _paper_references(paper, background, db, refresh)
@@ -2722,22 +2722,22 @@ async def _paper_references(
 
     if not grobid.configured() and not stored:
         return PaperReferences(
-            paper_uuid=paper.uuid,
+            paper_sha256=paper.sha256,
             status="unavailable",
             detail="Reference analysis unavailable",
         )
 
     if grobid.configured():
-        if refresh and paper.uuid not in _analyzing:
+        if refresh and paper.sha256 not in _analyzing:
             paper.references_status = None
         if _may_start_analysis(paper):
-            _analyzing.add(paper.uuid)
+            _analyzing.add(paper.sha256)
             _finish_analysis(db, paper, "pending", None)
-            background.add_task(_analyze_paper, paper.uuid)
+            background.add_task(_analyze_paper, paper.sha256)
 
     if paper.references_status != "ready":
         return PaperReferences(
-            paper_uuid=paper.uuid,
+            paper_sha256=paper.sha256,
             status=paper.references_status or "pending",
             detail=paper.references_error,
         )
@@ -2745,7 +2745,7 @@ async def _paper_references(
     references = paper.references
     known = _papol_papers_for(db, references)
     return PaperReferences(
-        paper_uuid=paper.uuid,
+        paper_sha256=paper.sha256,
         status="ready",
         references=[_reference_out(r, known.get(r.uuid)) for r in references],
         citations=[
@@ -2802,9 +2802,9 @@ async def _open_reference(reference: PaperReference, db: Session) -> ReferenceOu
     return _reference_out(reference, known.get(reference.uuid))
 
 
-@app.post("/api/papers/{paper_uuid}/references/preview", response_model=ReferenceOut)
+@app.post("/api/papers/{paper_sha256}/references/preview", response_model=ReferenceOut)
 async def preview_pdf_reference(
-    paper_uuid: str,
+    paper_sha256: str,
     data: ReferencePreviewIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2816,14 +2816,14 @@ async def preview_pdf_reference(
     printed bibliography entry itself; registering it here gives that entry
     the same cached Crossref/OpenAlex enrichment as analyzed references.
     """
-    paper = db.query(Paper).filter(Paper.uuid == paper_uuid).first()
+    paper = db.query(Paper).filter(Paper.sha256 == paper_sha256).first()
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found")
 
     key = data.key.strip()
     raw = " ".join(data.raw.split())
     reference = db.query(PaperReference).filter(
-        PaperReference.paper_uuid == paper.uuid,
+        PaperReference.paper_sha256 == paper.sha256,
         PaperReference.key == key,
     ).first()
     if reference is None and key.isdigit():
@@ -2834,15 +2834,15 @@ async def preview_pdf_reference(
         # this paper already holds — and one read off the page at that,
         # which is the poorer of the two readings.
         reference = db.query(PaperReference).filter(
-            PaperReference.paper_uuid == paper.uuid,
+            PaperReference.paper_sha256 == paper.sha256,
             PaperReference.index == int(key) - 1,
         ).first()
     if reference is None:
         last_index = db.query(func.max(PaperReference.index)).filter(
-            PaperReference.paper_uuid == paper.uuid,
+            PaperReference.paper_sha256 == paper.sha256,
         ).scalar()
         reference = PaperReference(
-            paper_uuid=paper.uuid,
+            paper_sha256=paper.sha256,
             key=key,
             index=(last_index if last_index is not None else -1) + 1,
             raw=raw,
@@ -2868,7 +2868,7 @@ async def preview_pdf_reference(
 @app.get("/api/viewer-references/{pdf_sha256}", response_model=PaperReferences)
 async def viewer_references(
     pdf_sha256: str,
-    paper_uuid: str,
+    paper_sha256: str,
     background: BackgroundTasks,
     share: str | None = None,
     current_user: User | None = Depends(get_optional_user),
@@ -2876,14 +2876,14 @@ async def viewer_references(
 ):
     digest = pdf_sha256.strip().lower()
     if _public_pdf_path(digest) is not None:
-        return await _bundled_paper_references(paper_uuid, digest, background)
+        return await _bundled_paper_references(paper_sha256, digest, background)
     paper = _viewer_paper_or_404(digest, current_user, db, share)
     if share:
         # What a paper cites is a property of the file, not of the user
         # who shared it, so a shared reading carries its bibliography.
         return await _paper_references(paper, background, db)
     return await paper_references(
-        paper.uuid, background, current_user=current_user, db=db,
+        paper.sha256, background, current_user=current_user, db=db,
     )
 
 
@@ -2903,7 +2903,7 @@ async def viewer_reference(
             PaperReference.uuid == reference_uuid,
         ).first()
         if (sharable is None or reference is None
-                or reference.paper_uuid != sharable.paper_uuid):
+                or reference.paper_sha256 != sharable.paper_sha256):
             raise HTTPException(status_code=404, detail="Reference not found")
         return await _open_reference(reference, db)
     if current_user is None:
@@ -2922,12 +2922,12 @@ async def preview_viewer_reference(
     if _public_pdf_path(digest) is not None:
         return await _bundled_references.preview(data.key.strip(), data.raw)
     paper = _viewer_paper_or_404(digest, current_user, db)
-    return await preview_pdf_reference(paper.uuid, data, current_user, db)
+    return await preview_pdf_reference(paper.sha256, data, current_user, db)
 
 
-def _reference_out(reference: PaperReference, papol_paper_uuid: str | None) -> ReferenceOut:
+def _reference_out(reference: PaperReference, papol_paper_sha256: str | None) -> ReferenceOut:
     answer = reference_out(reference)
-    answer.papol_paper_uuid = papol_paper_uuid
+    answer.papol_paper_sha256 = papol_paper_sha256
     return answer
 
 
@@ -2940,7 +2940,7 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
     when two papers are the same paper."""
     by_key = {}
     for paper in db.query(Paper).all():
-        by_key.setdefault(_paper_key_for(paper), paper.uuid)
+        by_key.setdefault(_paper_key_for(paper), paper.sha256)
 
     found = {}
     for reference in references:
@@ -2986,9 +2986,9 @@ def _own_annotation_or_404(uuid: str, user: User, db: Session) -> Annotation:
     return annotation
 
 
-@app.get("/api/papers/{paper_uuid}/annotations", response_model=list[AnnotationOut])
+@app.get("/api/papers/{paper_sha256}/annotations", response_model=list[AnnotationOut])
 async def list_annotations(
-    paper_uuid: str,
+    paper_sha256: str,
     kind: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -2999,33 +2999,33 @@ async def list_annotations(
     Narrow to one kind with `kind`. A note written about the paper and never
     placed on a page comes back with the rest: it is still a mark on this
     paper, just not on a page of it."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
     _require_copy(paper, current_user)
     if kind is not None and kind not in KINDS:
         raise HTTPException(status_code=422, detail="Unknown annotation kind")
     return [
         annotation_out(row) for row in annotations_of(
             db, current_user.uuid,
-            paper_uuid=paper.uuid,
+            paper_sha256=paper.sha256,
             kinds=(kind,) if kind else None,
         )
     ]
 
 
-@app.post("/api/papers/{paper_uuid}/annotations", response_model=AnnotationOut)
+@app.post("/api/papers/{paper_sha256}/annotations", response_model=AnnotationOut)
 async def create_annotation(
-    paper_uuid: str,
+    paper_sha256: str,
     data: AnnotationCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Leave an annotation on a paper: a note, a stroke of ink, or a clipped view."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
     _require_copy(paper, current_user)
     annotation = Annotation(
         kind=data.kind,
         user_uuid=current_user.uuid,
-        paper_uuid=paper.uuid,
+        paper_sha256=paper.sha256,
         page=data.page,
         group_uuid=data.group_uuid,
         content=data.content,
@@ -3128,7 +3128,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     return RoomDetail(
         **summary.model_dump(),
         paper_title=room.paper_title,
-        paper_uuid=link_paper.uuid if link_paper else None,
+        paper_sha256=link_paper.sha256 if link_paper else None,
         messages=[
             RoomMessageOut.model_validate(m)
             for m in sorted(room.messages, key=lambda m: (m.created_at, m.uuid))
@@ -3139,19 +3139,19 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
         and any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_is_participant=any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_has_copy=viewer.uuid in users_displaying,
-        viewer_hidden_entry_uuid=hidden_entry.uuid if hidden_entry else None,
+        viewer_hidden_entry_sha256=hidden_entry.uuid if hidden_entry else None,
     )
 
 
-@app.post("/api/papers/{paper_uuid}/room", response_model=RoomSummary)
+@app.post("/api/papers/{paper_sha256}/room", response_model=RoomSummary)
 async def call_seminar(
-    paper_uuid: str,
+    paper_sha256: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Call for a seminar on this paper. Only users of it may call.
     Notifies every user — including those who keep their copy hidden."""
-    paper = _get_paper_or_404(paper_uuid, db)
+    paper = _get_paper_or_404(paper_sha256, db)
 
     key = _paper_key_for(paper)
     if current_user.uuid not in _paper_user_uuids(db, key, public_only=True):

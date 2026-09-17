@@ -71,26 +71,26 @@ class ReferencePreviewTests(unittest.TestCase):
             db.add(shelf)
             db.commit()
             db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
+                paper_sha256=paper.sha256, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
             ))
             # GROBID's own reading: entry 27 is printed as "[27]" and named
             # "b26", because its rows count from zero.
             db.add_all([
                 PaperReference(
-                    paper_uuid=paper.uuid, key=f"b{index}", index=index,
+                    paper_sha256=paper.sha256, key=f"b{index}", index=index,
                     raw=f"Entry {index + 1} as the analyzer read it.",
                 )
                 for index in range(27)
             ])
             db.commit()
-            type(self).paper_uuid = paper.uuid
+            type(self).paper_sha256 = paper.sha256
 
     def preview(self, key, raw):
         with patch.object(
             main, "resolve_reference", AsyncMock(side_effect=lambda ref: main.reference_out(ref)),
         ):
             return self.client.post(
-                f"/api/papers/{self.paper_uuid}/references/preview",
+                f"/api/papers/{self.paper_sha256}/references/preview",
                 json={"key": key, "raw": raw},
             )
 
@@ -101,7 +101,7 @@ class ReferencePreviewTests(unittest.TestCase):
         self.assertEqual(response.json()["key"], "b26")
         with self.Session() as db:
             rows = db.query(PaperReference).filter(
-                PaperReference.paper_uuid == self.paper_uuid,
+                PaperReference.paper_sha256 == self.paper_sha256,
             ).count()
         self.assertEqual(rows, 27, "no second row for an entry already held")
         self.assertEqual(
@@ -116,7 +116,7 @@ class ReferencePreviewTests(unittest.TestCase):
         self.assertEqual(response.json()["key"], "knuth74")
         with self.Session() as db:
             rows = db.query(PaperReference).filter(
-                PaperReference.paper_uuid == self.paper_uuid,
+                PaperReference.paper_sha256 == self.paper_sha256,
             ).count()
         self.assertEqual(rows, 28)
 

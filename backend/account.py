@@ -81,7 +81,7 @@ def _when(value) -> str | None:
 
 def _paper_ref(paper: Paper) -> dict:
     return {
-        "uuid": paper.uuid,
+        "uuid": paper.sha256,
         "title": paper.title,
         "authors": _authors(paper),
         "journal": paper.journal,
@@ -101,7 +101,7 @@ def gather(db: Session, user: User) -> dict:
     notes = (
         db.query(Annotation)
         .filter(Annotation.user_uuid == user.uuid, Annotation.kind == NOTE)
-        .order_by(Annotation.paper_uuid, Annotation.page, Annotation.created_at)
+        .order_by(Annotation.paper_sha256, Annotation.page, Annotation.created_at)
         .all()
     )
     rooms = (

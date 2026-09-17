@@ -69,7 +69,7 @@ def open_sharable(db: Session, sharable_uuid: str) -> Sharable | None:
     return sharable
 
 
-def live_sharable_for(db: Session, user: User, paper_uuid: str) -> Sharable | None:
+def live_sharable_for(db: Session, user: User, paper_sha256: str) -> Sharable | None:
     """The link this user has out for this paper, if any.
 
     Always one carrying their annotations: a link to the paper alone is nobody's,
@@ -79,7 +79,7 @@ def live_sharable_for(db: Session, user: User, paper_uuid: str) -> Sharable | No
         .filter(
             Sharable.user_uuid == user.uuid,
             Sharable.kind == RICH,
-            Sharable.paper_uuid == paper_uuid,
+            Sharable.paper_sha256 == paper_sha256,
             Sharable.revoked_at.is_(None),
         )
         .order_by(Sharable.created_at.desc())
@@ -87,7 +87,7 @@ def live_sharable_for(db: Session, user: User, paper_uuid: str) -> Sharable | No
     )
 
 
-def live_paper_link_for(db: Session, paper_uuid: str) -> Sharable | None:
+def live_paper_link_for(db: Session, paper_sha256: str) -> Sharable | None:
     """The link this paper already has out to the PDF alone, if any.
 
     Not keyed to whoever asks: the PDF has one address, and two users
@@ -97,7 +97,7 @@ def live_paper_link_for(db: Session, paper_uuid: str) -> Sharable | None:
         .filter(
             Sharable.kind == LEAN,
             Sharable.user_uuid.is_(None),
-            Sharable.paper_uuid == paper_uuid,
+            Sharable.paper_sha256 == paper_sha256,
             Sharable.revoked_at.is_(None),
         )
         .order_by(Sharable.created_at)
@@ -119,8 +119,8 @@ def share_reading(
     back is meant to be final, so the next ask mints a new UUID and the old
     link stays dead."""
     existing = (
-        live_sharable_for(db, user, paper.uuid) if kind == RICH
-        else live_paper_link_for(db, paper.uuid)
+        live_sharable_for(db, user, paper.sha256) if kind == RICH
+        else live_paper_link_for(db, paper.sha256)
     )
     if existing is not None:
         return existing
@@ -128,7 +128,7 @@ def share_reading(
         kind=kind,
         # Nobody's, when what is handed over is the paper alone.
         user_uuid=user.uuid if kind == RICH else None,
-        paper_uuid=paper.uuid,
+        paper_sha256=paper.sha256,
     )
     db.add(sharable)
     db.commit()
@@ -203,14 +203,14 @@ def _shared_annotations(db: Session, sharable: Sharable) -> list[Annotation]:
     this paper, placed on a page or not."""
     if sharable.kind != RICH:
         return []
-    return annotations_of(db, sharable.user_uuid, paper_uuid=sharable.paper_uuid)
+    return annotations_of(db, sharable.user_uuid, paper_sha256=sharable.paper_sha256)
 
 
 def _still_in_their_nook(db: Session, sharable: Sharable) -> bool:
     """Whether the user still keeps the paper they shared a reading of."""
     return db.query(Copy).filter(
         Copy.user_uuid == sharable.user_uuid,
-        Copy.paper_uuid == sharable.paper_uuid,
+        Copy.paper_sha256 == sharable.paper_sha256,
         Copy.deleted_at.is_(None),
     ).first() is not None
 
@@ -219,7 +219,7 @@ def copy_in_nook(db: Session, user: User, sharable: Sharable) -> Copy | None:
     """This visitor's own copy of the shared paper, if they keep one."""
     return db.query(Copy).filter(
         Copy.user_uuid == user.uuid,
-        Copy.paper_uuid == sharable.paper_uuid,
+        Copy.paper_sha256 == sharable.paper_sha256,
         Copy.deleted_at.is_(None),
     ).first()
 
@@ -248,7 +248,7 @@ def take_into_nook(db: Session, user: User, sharable: Sharable) -> Copy:
     ).order_by(Shelf.created_at).all()
     shelf = next((s for s in shelves if s.is_default), None) or shelves[0]
     copy = Copy(
-        paper_uuid=sharable.paper_uuid,
+        paper_sha256=sharable.paper_sha256,
         user_uuid=user.uuid,
         shelf=shelf,
     )

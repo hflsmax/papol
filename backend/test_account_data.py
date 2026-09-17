@@ -52,20 +52,20 @@ class AccountDataTests(unittest.TestCase):
             db.commit()
             db.add_all([
                 Copy(
-                    paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
+                    paper_sha256=paper.sha256, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
                 ),
                 Annotation(
-                    kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
+                    kind="note", paper_sha256=paper.sha256, user_uuid=user.uuid,
                     page=4, content="Placed here",
                     name="Lemma 2",
                     body=json.dumps({"anchor": {"type": "point", "x": 0.2, "y": 0.8}}),
                 ),
                 Annotation(
-                    kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
+                    kind="note", paper_sha256=paper.sha256, user_uuid=user.uuid,
                     content="About the paper", body="{}",
                 ),
                 Annotation(
-                    kind="ink", paper_uuid=paper.uuid, user_uuid=user.uuid,
+                    kind="ink", paper_sha256=paper.sha256, user_uuid=user.uuid,
                     page=4,
                     body=json.dumps({
                         "points": [{"x": 0.1, "y": 0.2}, {"x": 0.4, "y": 0.2}],
@@ -74,7 +74,7 @@ class AccountDataTests(unittest.TestCase):
                     }),
                 ),
                 Annotation(
-                    kind="clip", paper_uuid=paper.uuid, user_uuid=user.uuid,
+                    kind="clip", paper_sha256=paper.sha256, user_uuid=user.uuid,
                     page=5,
                     body=json.dumps({
                         "source": {"x": 0.1, "y": 0.1, "w": 0.3, "h": 0.2},
@@ -84,7 +84,7 @@ class AccountDataTests(unittest.TestCase):
                 ),
                 # Another user's annotation on the same PDF, which must survive.
                 Annotation(
-                    kind="ink", paper_uuid=paper.uuid, user_uuid=other.uuid,
+                    kind="ink", paper_sha256=paper.sha256, user_uuid=other.uuid,
                     page=4,
                     body=json.dumps({
                         "points": [{"x": 0.9, "y": 0.9}], "color": "#b3923d",
@@ -196,10 +196,10 @@ class AnnotationChangeTests(unittest.TestCase):
             db.add(shelf)
             db.commit()
             db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
+                paper_sha256=paper.sha256, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
             ))
             db.commit()
-            self.user_uuid, self.paper_uuid = user.uuid, paper.uuid
+            self.user_uuid, self.paper_sha256 = user.uuid, paper.sha256
 
         def test_db():
             with self.Session() as db:
@@ -221,7 +221,7 @@ class AnnotationChangeTests(unittest.TestCase):
         self.engine.dispose()
 
     def stroke(self):
-        made = self.client.post(f"/api/papers/{self.paper_uuid}/annotations", json={
+        made = self.client.post(f"/api/papers/{self.paper_sha256}/annotations", json={
             "kind": "ink", "page": 1,
             "body": {
                 "points": [{"x": 0.1, "y": 0.2}], "color": "#112233",
@@ -254,7 +254,7 @@ class AnnotationChangeTests(unittest.TestCase):
         # Pydantic puts the raised exception itself in a validation error's
         # context. Handing that to a JSON response turns a 422 into a 500
         # while it is being written out, so the context is left behind.
-        refused = self.client.post(f"/api/papers/{self.paper_uuid}/annotations", json={
+        refused = self.client.post(f"/api/papers/{self.paper_sha256}/annotations", json={
             "kind": "ink", "page": 1,
             "body": {"anchor": {"type": "point", "x": 0.1, "y": 0.1}},
         })

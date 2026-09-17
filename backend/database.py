@@ -145,7 +145,14 @@ def _unify_annotations(conn):
     sources = [name for name in _UNIFY_ANNOTATIONS if name in present]
     if not sources:
         return
-    Base.metadata.tables["annotations"].create(conn, checkfirst=True)
+    # The shape of this migration's own moment, not the models' — the fold
+    # and the re-key below carry it forward from here, and they can only do
+    # that if what they find is what this wrote.
+    if "annotations" not in present:
+        body, _columns, indexes = _FOLD_SHAPES["annotations"]
+        conn.execute(text(f"CREATE TABLE annotations ({body})"))
+        for index in indexes:
+            conn.execute(text(index))
     for name in sources:
         for statement in _UNIFY_ANNOTATIONS[name].strip().split(";"):
             if statement.strip():
@@ -322,19 +329,19 @@ def _fold_editions(conn):
     on = "LEFT JOIN _edition_paper m ON m.edition_uuid = {alias}.edition_uuid"
     if "copies" in tables:
         _rebuild_frozen(
-            conn, "copies", "copies", "c", on.format(alias="c"),
+            conn, _FOLD_SHAPES, "copies", "copies", "c", on.format(alias="c"),
             {"paper_uuid": "COALESCE(m.paper_uuid, c.paper_uuid)"},
         )
     if "annotations" in tables:
         # A note about the paper was never on a page, so it has no edition
         # to follow and stays where it is.
         _rebuild_frozen(
-            conn, "annotations", "annotations", "a", on.format(alias="a"),
+            conn, _FOLD_SHAPES, "annotations", "annotations", "a", on.format(alias="a"),
             {"paper_uuid": "COALESCE(m.paper_uuid, a.paper_uuid)"},
         )
     if "sharables" in tables:
         _rebuild_frozen(
-            conn, "sharables", "sharables", "s", on.format(alias="s"),
+            conn, _FOLD_SHAPES, "sharables", "sharables", "s", on.format(alias="s"),
             {"paper_uuid": "COALESCE(m.paper_uuid, s.paper_uuid)"},
         )
 
@@ -347,7 +354,7 @@ def _fold_editions(conn):
         if source not in tables:
             continue
         _rebuild_frozen(
-            conn, target, source, "r",
+            conn, _FOLD_SHAPES, target, source, "r",
             "JOIN _edition_paper m ON m.edition_uuid = r.edition_uuid",
             {"paper_uuid": "m.paper_uuid"},
         )
@@ -512,14 +519,14 @@ _FOLD_SHAPES = {
 }
 
 
-def _rebuild_frozen(conn, target: str, source: str, alias: str,
+def _rebuild_frozen(conn, shapes: dict, target: str, source: str, alias: str,
                     join: str = "", sources: dict | None = None):
-    """Rebuild `source` into `target` at the shape `_FOLD_SHAPES` records.
+    """Rebuild `source` into `target` at the shape `shapes` records.
 
-    The same move as `_rebuild_to_models`, against a schema written down
-    here instead of read from the models, so that what this migration
-    produces cannot drift with them."""
-    body, columns, indexes = _FOLD_SHAPES[target]
+    The same move as `_rebuild_to_models`, against a schema written down by
+    the migration that needs it instead of read from the models, so that
+    what a migration produces cannot drift with them."""
+    body, columns, indexes = shapes[target]
     sources = sources or {}
     available = set(_table_columns(conn, source))
     staging = f"_new_{target}"
@@ -583,6 +590,8 @@ def _one_paper_per_file(conn):
     }
     if "papers" not in tables:
         return
+    if "uuid" not in _table_columns(conn, "papers"):
+        return  # the digest is the key; being unique is not something to add
     # (seq, name, unique, origin, partial)
     indexes = {
         row[1]: row[2] for row in conn.execute(text("PRAGMA index_list(papers)"))
@@ -705,6 +714,242 @@ def _forget_change_log(conn, tables: set, table_name: str, row_uuids: list):
 # given one here — the bytes are what would say, and they may be long gone —
 # so it is left alone and reported, and the service starts rather than
 # refusing to. The column stays as it was until someone settles the row.
+# A paper is named by its file, and by nothing else.
+#
+# It used to carry a UUID as well — a second name for a thing that already
+# had one. The digest is what every holder of the bytes arrives at without
+# asking, so it becomes the key, and the tables that pointed at a paper name
+# it the same way.
+#
+# Frozen, like the fold above, at the shape of its own moment.
+_REKEY_SHAPES = {
+    "papers": (
+        """sha256 VARCHAR(64) NOT NULL,
+           doi TEXT,
+           title TEXT NOT NULL,
+           authors TEXT,
+           journal TEXT,
+           year INTEGER,
+           file_path TEXT NOT NULL,
+           uploaded_by VARCHAR(36),
+           created_at DATETIME,
+           updated_at DATETIME,
+           revision INTEGER DEFAULT '1' NOT NULL,
+           deleted_at DATETIME,
+           references_status VARCHAR,
+           references_error TEXT,
+           references_at DATETIME,
+           PRIMARY KEY (sha256),
+           FOREIGN KEY(uploaded_by) REFERENCES users (uuid)""",
+        ("sha256", "doi", "title", "authors", "journal", "year", "file_path",
+         "uploaded_by", "created_at", "updated_at", "revision", "deleted_at",
+         "references_status", "references_error", "references_at"),
+        (),
+    ),
+    "copies": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_sha256 VARCHAR(64) NOT NULL,
+           user_uuid VARCHAR(36) NOT NULL,
+           shelf_uuid VARCHAR(36),
+           summary TEXT,
+           thought TEXT,
+           is_author BOOLEAN DEFAULT '0' NOT NULL,
+           rating_expertise INTEGER,
+           rating_reading INTEGER,
+           rating_liking INTEGER,
+           created_at DATETIME,
+           updated_at DATETIME,
+           revision INTEGER DEFAULT '0' NOT NULL,
+           deleted_at DATETIME,
+           PRIMARY KEY (uuid),
+           CONSTRAINT uq_copy UNIQUE (paper_sha256, user_uuid),
+           FOREIGN KEY(paper_sha256) REFERENCES papers (sha256),
+           FOREIGN KEY(user_uuid) REFERENCES users (uuid),
+           FOREIGN KEY(shelf_uuid) REFERENCES shelves (uuid)""",
+        ("uuid", "paper_sha256", "user_uuid", "shelf_uuid", "summary", "thought",
+         "is_author", "rating_expertise", "rating_reading", "rating_liking",
+         "created_at", "updated_at", "revision", "deleted_at"),
+        ("CREATE INDEX IF NOT EXISTS ix_copies_paper_sha256 ON copies (paper_sha256)",
+         "CREATE INDEX IF NOT EXISTS ix_copies_shelf_uuid ON copies (shelf_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_copies_user_uuid ON copies (user_uuid)"),
+    ),
+    "annotations": (
+        """uuid VARCHAR(36) NOT NULL,
+           kind VARCHAR(8) NOT NULL,
+           user_uuid VARCHAR(36) NOT NULL,
+           paper_sha256 VARCHAR(64) NOT NULL,
+           page INTEGER,
+           group_uuid VARCHAR(36),
+           content TEXT NOT NULL,
+           name VARCHAR,
+           body TEXT DEFAULT '{}' NOT NULL,
+           created_at DATETIME,
+           updated_at DATETIME,
+           revision INTEGER DEFAULT '0' NOT NULL,
+           deleted_at DATETIME,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(user_uuid) REFERENCES users (uuid),
+           FOREIGN KEY(paper_sha256) REFERENCES papers (sha256)""",
+        ("uuid", "kind", "user_uuid", "paper_sha256", "page", "group_uuid",
+         "content", "name", "body", "created_at", "updated_at", "revision",
+         "deleted_at"),
+        ("CREATE INDEX IF NOT EXISTS ix_annotations_kind ON annotations (kind)",
+         "CREATE INDEX IF NOT EXISTS ix_annotations_user_uuid ON annotations (user_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_annotations_page ON annotations (page)",
+         "CREATE INDEX IF NOT EXISTS ix_annotations_paper_sha256 "
+         "ON annotations (paper_sha256)"),
+    ),
+    "sharables": (
+        """uuid VARCHAR(36) NOT NULL,
+           kind VARCHAR(8) DEFAULT 'lean' NOT NULL,
+           user_uuid VARCHAR(36),
+           paper_sha256 VARCHAR(64) NOT NULL,
+           created_at DATETIME NOT NULL,
+           revoked_at DATETIME,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(user_uuid) REFERENCES users (uuid),
+           FOREIGN KEY(paper_sha256) REFERENCES papers (sha256)""",
+        ("uuid", "kind", "user_uuid", "paper_sha256", "created_at", "revoked_at"),
+        ("CREATE INDEX IF NOT EXISTS ix_sharables_user_uuid ON sharables (user_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_sharables_paper_sha256 "
+         "ON sharables (paper_sha256)"),
+    ),
+    "paper_references": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_sha256 VARCHAR(64) NOT NULL,
+           "key" VARCHAR NOT NULL,
+           "index" INTEGER NOT NULL,
+           raw TEXT, title TEXT, authors TEXT, year INTEGER, journal TEXT,
+           doi TEXT, arxiv_id TEXT, page INTEGER, y FLOAT,
+           resolved_status VARCHAR, resolved_at DATETIME, resolution TEXT,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_sha256) REFERENCES papers (sha256)""",
+        ("uuid", "paper_sha256", "key", "index", "raw", "title", "authors",
+         "year", "journal", "doi", "arxiv_id", "page", "y",
+         "resolved_status", "resolved_at", "resolution"),
+        ("CREATE INDEX IF NOT EXISTS ix_paper_references_paper_sha256 "
+         "ON paper_references (paper_sha256)",),
+    ),
+    "paper_citations": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_sha256 VARCHAR(64) NOT NULL,
+           reference_uuid VARCHAR(36),
+           label TEXT,
+           page INTEGER NOT NULL,
+           x FLOAT NOT NULL, y FLOAT NOT NULL, w FLOAT NOT NULL, h FLOAT NOT NULL,
+           inferred BOOLEAN,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_sha256) REFERENCES papers (sha256),
+           FOREIGN KEY(reference_uuid) REFERENCES paper_references (uuid)""",
+        ("uuid", "paper_sha256", "reference_uuid", "label", "page",
+         "x", "y", "w", "h", "inferred"),
+        ("CREATE INDEX IF NOT EXISTS ix_paper_citations_paper_sha256 "
+         "ON paper_citations (paper_sha256)",
+         "CREATE INDEX IF NOT EXISTS ix_paper_citations_page ON paper_citations (page)"),
+    ),
+    "paper_links": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_sha256 VARCHAR(64) NOT NULL,
+           kind VARCHAR NOT NULL,
+           label TEXT,
+           page INTEGER NOT NULL,
+           x FLOAT NOT NULL, y FLOAT NOT NULL, w FLOAT NOT NULL, h FLOAT NOT NULL,
+           target_page INTEGER NOT NULL,
+           target_y FLOAT NOT NULL,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_sha256) REFERENCES papers (sha256)""",
+        ("uuid", "paper_sha256", "kind", "label", "page", "x", "y", "w", "h",
+         "target_page", "target_y"),
+        ("CREATE INDEX IF NOT EXISTS ix_paper_links_page ON paper_links (page)",
+         "CREATE INDEX IF NOT EXISTS ix_paper_links_paper_sha256 "
+         "ON paper_links (paper_sha256)"),
+    ),
+}
+
+# Everything that named a paper, and the alias it named it under.
+_PAPER_REFERRERS = (
+    ("copies", "c"),
+    ("annotations", "a"),
+    ("sharables", "s"),
+    ("paper_references", "r"),
+    ("paper_citations", "t"),
+    ("paper_links", "l"),
+)
+
+
+def _require_every_paper_to_have_a_file(conn):
+    """Stop, loudly, if any paper cannot say which file it is.
+
+    A paper is its PDF and is keyed by it, so a row with no digest has no
+    name under the new schema. Nothing here can give it one: the bytes are
+    what would say, and they may be long gone.
+
+    This refuses to start rather than carrying on without them. Carrying on
+    is not on offer — the models ask for a shape this database would not
+    have — and a service that starts and then fails every request is worse
+    than one that says what is wrong while someone can still fix it."""
+    stranded = [
+        row[0] for row in conn.execute(text(
+            "SELECT uuid FROM papers "
+            " WHERE sha256 IS NULL OR sha256 = ''"
+            "    OR file_path IS NULL OR file_path = ''"
+        ))
+    ]
+    if not stranded:
+        return
+    listed = ", ".join(stranded[:5]) + (" …" if len(stranded) > 5 else "")
+    raise RuntimeError(
+        f"{len(stranded)} paper(s) have no file recorded and cannot be keyed "
+        f"by one: {listed}. A paper is its PDF. Give each row the sha256 of "
+        "its file, or remove it and whatever points at it, and start again."
+    )
+
+
+def _rekey_papers_to_the_digest(conn):
+    """Make the digest the paper's key, and drop the UUID it had beside it.
+
+    Runs after the duplicates are closed, because the digest is about to
+    have to be unique by construction rather than by index."""
+    tables = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "papers" not in tables or "uuid" not in _table_columns(conn, "papers"):
+        return  # fresh, or already keyed by the digest
+    _require_every_paper_to_have_a_file(conn)
+
+    # The old key beside the new one, for as long as it takes to carry the
+    # tables across.
+    conn.execute(text("DROP TABLE IF EXISTS _paper_key"))
+    conn.execute(text(
+        "CREATE TABLE _paper_key AS SELECT uuid, sha256 FROM papers"
+    ))
+
+    for target, alias in _PAPER_REFERRERS:
+        if target not in tables:
+            continue
+        stranded = next(conn.execute(text(
+            f"SELECT COUNT(*) FROM {target} WHERE paper_uuid NOT IN "
+            "(SELECT uuid FROM _paper_key)"
+        )))[0]
+        if stranded:
+            # Rows naming a paper that is not there. They were already
+            # broken; say so rather than let the join drop them quietly.
+            logger.warning(
+                "%s %s row(s) name a paper that does not exist and cannot be "
+                "carried over to the new key.", stranded, target,
+            )
+        _rebuild_frozen(
+            conn, _REKEY_SHAPES, target, target, alias,
+            f"JOIN _paper_key k ON k.uuid = {alias}.paper_uuid",
+            {"paper_sha256": "k.sha256"},
+        )
+
+    _rebuild_frozen(conn, _REKEY_SHAPES, "papers", "papers", "p")
+    conn.execute(text("DROP TABLE _paper_key"))
+
+
 def _require_a_file(conn):
     columns = {
         row[1]: row[3] for row in conn.execute(text("PRAGMA table_info(papers)"))
@@ -713,18 +958,7 @@ def _require_a_file(conn):
         return
     if all(columns.get(name) for name in ("file_path", "sha256")):
         return  # already NOT NULL
-    unsettled = next(conn.execute(text(
-        "SELECT COUNT(*) FROM papers "
-        " WHERE sha256 IS NULL OR file_path IS NULL OR file_path = ''"
-    )))[0]
-    if unsettled:
-        logger.warning(
-            "%s paper(s) have no file recorded, so papers.file_path and "
-            "papers.sha256 stay optional. A paper is its PDF: settle or "
-            "remove those rows and the columns tighten on the next start.",
-            unsettled,
-        )
-        return
+    _require_every_paper_to_have_a_file(conn)
     _rebuild_to_models(conn, "papers", "papers", "paper")
 
 
@@ -749,6 +983,8 @@ def migrate():
         # they were two papers before, and because the annotations being
         # repointed have to have reached their table first.
         _one_paper_per_file(conn)
+        # Then the digest can be the key itself.
+        _rekey_papers_to_the_digest(conn)
         for table_name, column_name in _DROPPED_COLUMNS:
             columns = {
                 row[1] for row in conn.execute(text(f"PRAGMA table_info({table_name})"))

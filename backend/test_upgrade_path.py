@@ -135,6 +135,8 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         db.executescript(PREVIOUS_RELEASE)
         self.user = _uuid()
         self.paper = _uuid()
+        # What the shown paper is keyed by once the migration has run.
+        self.shown_file, self.newer_file = "a" * 64, "b" * 64
         self.edition = _uuid()
         self.newer_edition = _uuid()
         self.public_shelf, self.private_shelf = _uuid(), _uuid()
@@ -277,10 +279,10 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
     def test_upgrading_twice_changes_nothing(self):
         self.upgrade()
         once = self.rows("SELECT uuid, kind, body FROM annotations ORDER BY uuid")
-        papers = self.rows("SELECT uuid, sha256 FROM papers ORDER BY uuid")
+        papers = self.rows("SELECT sha256 FROM papers ORDER BY sha256")
         self.upgrade()
         self.assertEqual(self.rows("SELECT uuid, kind, body FROM annotations ORDER BY uuid"), once)
-        self.assertEqual(self.rows("SELECT uuid, sha256 FROM papers ORDER BY uuid"), papers)
+        self.assertEqual(self.rows("SELECT sha256 FROM papers ORDER BY sha256"), papers)
 
     # --- editions ----------------------------------------------------------
 
@@ -300,19 +302,19 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.assertIn("file_path", columns)
         self.assertIn("sha256", columns)
         self.assertEqual(
-            self.rows("SELECT file_path, sha256 FROM papers WHERE uuid=?", self.paper),
-            [("a.pdf", "a" * 64)],
-            "the paper keeps its uuid and takes on its first file",
+            self.rows("SELECT file_path FROM papers WHERE sha256=?", self.shown_file),
+            [("a.pdf",)],
+            "the paper is keyed by the first file it had",
         )
 
     def test_each_edition_becomes_a_paper_of_its_own(self):
         self.upgrade()
         made = self.rows(
-            "SELECT uuid, title, doi, authors, journal, year FROM papers "
-            "WHERE sha256=?", "b" * 64,
+            "SELECT sha256, title, doi, authors, journal, year FROM papers "
+            "WHERE sha256=?", self.newer_file,
         )
         self.assertEqual(len(made), 1, "the newer PDF must become a paper")
-        self.assertNotEqual(made[0][0], self.paper, "and a different one")
+        self.assertNotEqual(made[0][0], self.shown_file, "and a different one")
         self.assertEqual(
             made[0][1:],
             ("Shown", "10.1/shown", '["Ada"]', "A journal", 2026),
@@ -322,8 +324,8 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
     def test_a_copy_stays_on_the_file_it_was_reading(self):
         self.upgrade()
         self.assertEqual(
-            self.rows("SELECT paper_uuid FROM copies WHERE uuid=?", self.shown_copy),
-            [(self.paper,)],
+            self.rows("SELECT paper_sha256 FROM copies WHERE uuid=?", self.shown_copy),
+            [(self.shown_file,)],
         )
         columns = {row[1] for row in self.rows("PRAGMA table_info(copies)")}
         for gone in ("edition_uuid", "edition_sha256", "ignored_edition_uuid"):
@@ -333,7 +335,7 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.upgrade()
         self.assertEqual(
             sorted(row[0] for row in self.rows(
-                "SELECT uuid FROM annotations WHERE paper_uuid=?", self.paper,
+                "SELECT uuid FROM annotations WHERE paper_sha256=?", self.shown_file,
             )),
             sorted([self.note, self.ink, self.clip]),
         )
@@ -343,8 +345,8 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
     def test_a_link_opens_the_paper_the_file_became(self):
         self.upgrade()
         self.assertEqual(
-            self.rows("SELECT paper_uuid FROM sharables WHERE uuid=?", self.sharable),
-            [(self.paper,)],
+            self.rows("SELECT paper_sha256 FROM sharables WHERE uuid=?", self.sharable),
+            [(self.shown_file,)],
         )
         columns = {row[1] for row in self.rows("PRAGMA table_info(sharables)")}
         self.assertNotIn("edition_uuid", columns)
@@ -354,9 +356,9 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
     def test_two_papers_on_one_file_become_one(self):
         self.upgrade()
         self.assertEqual(
-            self.rows("SELECT uuid FROM papers WHERE sha256=?", "a" * 64),
-            [(self.paper,)],
-            "the earlier row survives and the later one is gone",
+            self.rows("SELECT COUNT(*) FROM papers WHERE sha256=?", self.shown_file),
+            [(1,)],
+            "the two rows on that file are one",
         )
         self.assertEqual(
             self.rows("SELECT sha256 FROM papers GROUP BY sha256 HAVING COUNT(*) > 1"),
@@ -368,7 +370,7 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.upgrade()
         kept = self.rows(
             "SELECT uuid, summary, is_author, rating_expertise FROM copies "
-            "WHERE paper_uuid=? AND user_uuid=?", self.paper, self.user,
+            "WHERE paper_sha256=? AND user_uuid=?", self.shown_file, self.user,
         )
         self.assertEqual(len(kept), 1, "one paper, one copy")
         uuid, summary, is_author, expertise = kept[0]
@@ -381,23 +383,22 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
             self.rows("SELECT uuid FROM copies WHERE uuid=?", self.twin_copy), [],
         )
 
-    def test_the_digest_becomes_unique(self):
-        """The rule stops being the writer's to remember."""
+    def test_the_digest_becomes_the_key(self):
+        """The rule stops being the writer's to remember: one file, one row,
+        because the file is what names the row."""
         self.upgrade()
-        unique = {
-            row[1]: row[2]
-            for row in self.rows("PRAGMA index_list(papers)")
-        }
-        self.assertEqual(unique.get("ix_papers_sha256"), 1)
+        columns = {row[1]: row for row in self.rows("PRAGMA table_info(papers)")}
+        self.assertNotIn("uuid", columns, "a paper has one name, not two")
+        self.assertEqual(columns["sha256"][5], 1, "and it is the digest")
 
-        import sqlite3 as _sqlite3
-        db = _sqlite3.connect(self.path)
+        db = sqlite3.connect(self.path)
         try:
-            with self.assertRaises(_sqlite3.IntegrityError):
+            with self.assertRaises(sqlite3.IntegrityError):
                 db.execute(
-                    "INSERT INTO papers (uuid, title, sha256, created_at, updated_at,"
-                    " revision) VALUES (?,?,?,?,?,1)",
-                    (_uuid(), "A third try at the same file", "a" * 64, NOW, NOW),
+                    "INSERT INTO papers (sha256, title, file_path, created_at,"
+                    " updated_at, revision) VALUES (?,?,?,?,?,1)",
+                    (self.shown_file, "A third try at the same file",
+                     "a.pdf", NOW, NOW),
                 )
         finally:
             db.close()
@@ -416,33 +417,32 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         try:
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute(
-                    "INSERT INTO papers (uuid, title, created_at, updated_at,"
+                    "INSERT INTO papers (sha256, title, created_at, updated_at,"
                     " revision) VALUES (?,?,?,?,1)",
-                    (_uuid(), "No file at all", NOW, NOW),
+                    ("f" * 64, "No file at all", NOW, NOW),
                 )
         finally:
             db.close()
 
-    def test_a_paper_with_no_file_leaves_the_columns_alone(self):
-        """The bytes are what would say what the digest is, and they may be
-        long gone. Such a row is reported rather than guessed at, and the
-        service starts rather than refusing to."""
+    def test_a_paper_with_no_file_stops_the_upgrade_and_says_which(self):
+        """A paper is its PDF and is keyed by it, so a row with no digest has
+        no name under the new schema — and nothing here can give it one.
+
+        Better to say so while someone can still fix it than to start and
+        fail every request afterwards."""
+        stranded = _uuid()
         with sqlite3.connect(self.path) as db:
-            for title in ("Stored before a file was required", "So was this one"):
-                db.execute(
-                    "INSERT INTO papers VALUES (?,NULL,?,NULL,NULL,NULL,?,?,1,NULL)",
-                    (_uuid(), title, NOW, NOW),
-                )
-        self.upgrade()
-        optional = {
-            row[1]: row[3] for row in self.rows("PRAGMA table_info(papers)")
-        }
-        self.assertEqual(optional["sha256"], 0, "the column has to wait")
-        # Nothing was dropped to make the constraint fit, and the two of them
-        # sit together: NULL is not a digest, so they are not duplicates.
-        self.assertEqual(
-            self.rows("SELECT COUNT(*) FROM papers WHERE sha256 IS NULL")[0][0], 2,
-        )
+            db.execute(
+                "INSERT INTO papers VALUES (?,NULL,?,NULL,NULL,NULL,?,?,1,NULL)",
+                (stranded, "Stored before a file was required", NOW, NOW),
+            )
+        with self.assertRaises(RuntimeError) as refused:
+            self.upgrade()
+        self.assertIn(stranded, str(refused.exception), "it has to name the row")
+        self.assertIn("sha256", str(refused.exception), "and say what is missing")
+        # The database is left as it was, for the fixing.
+        columns = {row[1] for row in self.rows("PRAGMA table_info(papers)")}
+        self.assertIn("uuid", columns)
 
     def test_a_tag_follows_the_copy_it_was_on(self):
         self.upgrade()
@@ -499,8 +499,8 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
             ("paper_links", self.link),
         ):
             self.assertEqual(
-                self.rows(f"SELECT paper_uuid FROM {table} WHERE uuid=?", row_uuid),
-                [(self.paper,)],
+                self.rows(f"SELECT paper_sha256 FROM {table} WHERE uuid=?", row_uuid),
+                [(self.shown_file,)],
                 f"{table} did not come across",
             )
         self.assertEqual(

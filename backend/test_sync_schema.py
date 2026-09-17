@@ -37,8 +37,16 @@ class SharedSyncSchemaTests(unittest.TestCase):
                     if column.name not in skipped
                 }
                 self.assertEqual(local, server, table_name)
+                # Whatever the model is keyed by, the replica is keyed by
+                # too. A paper is named by its file; everything else by a
+                # UUID its writer made up.
                 primary_keys = {row[1] for row in local_info if row[5]}
-                self.assertEqual(primary_keys, {"uuid"}, table_name)
+                self.assertEqual(
+                    primary_keys,
+                    {column.name
+                     for column in MODELS[table_name].__table__.primary_key},
+                    table_name,
+                )
         finally:
             connection.close()
 

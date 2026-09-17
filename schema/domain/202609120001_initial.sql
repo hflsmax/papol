@@ -78,41 +78,28 @@ CREATE INDEX IF NOT EXISTS ix_board_items_board_uuid ON board_items(board_uuid);
 CREATE INDEX IF NOT EXISTS ix_board_items_group_uuid ON board_items(group_uuid);
 CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256);
 
--- A paper is one PDF and what is known about it. The digest is its
--- identity: two files printing the same DOI are two papers.
---
--- Indexed here, unique on the service. The service decides identity, so it
--- is the service that can hold the line; a replica has to be able to hold
--- two rows on one file while it is finding out which paper it has.
---
--- An import made offline mints a paper of its own, because the row it mints
--- is what the push carries and what asks the service for the file. The
--- service answers with the UUID the paper turned out to be, and the alias
--- reply is what folds the two together. In between, a pull can land the
--- service's own row for that file, and a unique index would fail that pull
--- rather than let the reconciliation happen. The replica converges instead
--- of being constrained: see
--- `a_pull_may_land_the_services_row_for_a_file_an_import_is_still_holding`,
--- which holds both ends of that — the two rows, and the one that is left.
+-- A paper is one PDF and what is known about it, and the digest of that PDF
+-- is its key. Not a column beside a UUID: the only name it has. Everyone
+-- holding the bytes arrives at the same answer without asking, which is why
+-- a replica and the service can agree about which paper this is without
+-- negotiating — and why two files printing one DOI are two papers.
 CREATE TABLE IF NOT EXISTS papers (
-  uuid TEXT PRIMARY KEY NOT NULL,
+  sha256 TEXT PRIMARY KEY NOT NULL,
   doi TEXT,
   title TEXT NOT NULL,
   authors TEXT,
   journal TEXT,
   year INTEGER,
   file_path TEXT NOT NULL,
-  sha256 TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1,
   deleted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_papers_sha256 ON papers(sha256);
 
 CREATE TABLE IF NOT EXISTS copies (
   uuid TEXT PRIMARY KEY NOT NULL,
-  paper_uuid TEXT NOT NULL REFERENCES papers(uuid),
+  paper_sha256 TEXT NOT NULL REFERENCES papers(sha256),
   user_uuid TEXT NOT NULL,
   shelf_uuid TEXT REFERENCES shelves(uuid),
   summary TEXT,
@@ -126,7 +113,7 @@ CREATE TABLE IF NOT EXISTS copies (
   revision INTEGER NOT NULL DEFAULT 0,
   deleted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_copies_paper_uuid ON copies(paper_uuid);
+CREATE INDEX IF NOT EXISTS ix_copies_paper_sha256 ON copies(paper_sha256);
 CREATE INDEX IF NOT EXISTS ix_copies_shelf_uuid ON copies(shelf_uuid);
 
 CREATE TABLE IF NOT EXISTS copy_tags (
@@ -156,7 +143,7 @@ CREATE TABLE IF NOT EXISTS annotations (
   uuid TEXT PRIMARY KEY NOT NULL,
   kind TEXT NOT NULL,
   user_uuid TEXT NOT NULL,
-  paper_uuid TEXT NOT NULL REFERENCES papers(uuid),
+  paper_sha256 TEXT NOT NULL REFERENCES papers(sha256),
   -- Null only for a note about the paper that was never put on a page.
   page INTEGER,
   -- Several stored paths can be one logical mark: text painted across lines
@@ -171,4 +158,4 @@ CREATE TABLE IF NOT EXISTS annotations (
   deleted_at TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_annotations_paper
-  ON annotations(paper_uuid, user_uuid, kind);
+  ON annotations(paper_sha256, user_uuid, kind);

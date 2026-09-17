@@ -400,13 +400,13 @@ class RoomAvailabilityOut(BaseModel):
 
 class RoomDetail(RoomSummary):
     paper_title: str
-    paper_uuid: Optional[str] = None
+    paper_sha256: Optional[str] = None
     messages: List[RoomMessageOut] = []
     availabilities: List[RoomAvailabilityOut] = []
     viewer_can_lead: bool = False
     viewer_is_participant: bool = False
     viewer_has_copy: bool = False
-    viewer_hidden_entry_uuid: Optional[str] = None  # paper UUID, if viewer's copy is hidden
+    viewer_hidden_entry_sha256: Optional[str] = None  # paper UUID, if viewer's copy is hidden
 
 
 class RoomMessageCreate(BaseModel):
@@ -580,7 +580,7 @@ class ShelfUpdate(BaseModel):
 
 class UserEntry(BaseModel):
     """A user's displayed copy of a paper."""
-    paper_uuid: str
+    paper_sha256: str
     user: UserPublic
     is_author: bool = False  # this user wrote the paper
     thought: Optional[str] = None  # the user's public one-sentence take
@@ -626,7 +626,7 @@ class ReferenceOut(BaseModel):
     resolution: Optional[ResolvedWork] = None
     # A paper already in Papol that this reference names, when there is
     # one: the user can go straight to it instead of out to a publisher.
-    papol_paper_uuid: Optional[str] = None
+    papol_paper_sha256: Optional[str] = None
 
 
 class ReferencePreviewIn(BaseModel):
@@ -667,7 +667,7 @@ class PaperReferences(BaseModel):
     `status` is what the viewer acts on: `pending` means come back shortly,
     `unavailable` means this Papol has no analyzer and the feature is
     simply off."""
-    paper_uuid: str
+    paper_sha256: str
     status: str  # pending | ready | failed | unavailable
     detail: Optional[str] = None
     references: List[ReferenceOut] = []
@@ -749,7 +749,7 @@ class SharableOut(BaseModel):
     answered once, to be copied and handed on, and never mentioned again."""
     uuid: str
     kind: Literal["rich", "lean"]
-    paper_uuid: str
+    paper_sha256: str
     created_at: datetime
 
     class Config:
@@ -790,7 +790,7 @@ class SharedInNook(BaseModel):
 
     Enough to walk them over to their own copy and no more: the link opened
     a PDF, and what they want next is that PDF as theirs."""
-    paper_uuid: str
+    paper_sha256: str
     sha256: Optional[str] = None
 
 
