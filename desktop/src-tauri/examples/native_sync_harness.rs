@@ -95,50 +95,56 @@ async fn main() {
             account_uuid,
             vec![
                 DataChange {
-                    table: "comments".into(),
+                    // Notes, ink and clips are one table: the same mapping
+                    // with a different kind and a different body.
+                    table: "annotations".into(),
                     uuid: note_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
+                        ("kind".into(), json!("note")),
                         ("paper_sha256".into(), json!(paper_sha256)),
                         ("content".into(), json!("Native offline note")),
                         ("page".into(), json!(1)),
-                        ("anchor_type".into(), json!("point")),
-                        ("anchor".into(), json!(r#"{"x":0.25,"y":0.5}"#)),
+                        (
+                            "body".into(),
+                            json!(r#"{"anchor":{"type":"point","x":0.25,"y":0.5}}"#),
+                        ),
                     ]),
                 },
                 DataChange {
-                    table: "ink_strokes".into(),
+                    table: "annotations".into(),
                     uuid: ink_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
+                        ("kind".into(), json!("ink")),
                         ("paper_sha256".into(), json!(paper_sha256)),
                         ("page".into(), json!(1)),
                         (
-                            "points".into(),
-                            json!(r#"[{"x":0.1,"y":0.2},{"x":0.3,"y":0.4}]"#),
+                            "body".into(),
+                            json!(concat!(
+                                r##"{"points":[{"x":0.1,"y":0.2},{"x":0.3,"y":0.4}],"##,
+                                r##""color":"#b3923d","width":0.004,"##,
+                                r##""opacity":0.7,"shape":"flat"}"##,
+                            )),
                         ),
-                        ("color".into(), json!("#b3923d")),
-                        ("width".into(), json!(0.004)),
-                        ("opacity".into(), json!(0.7)),
-                        ("shape".into(), json!("flat")),
                     ]),
                 },
                 DataChange {
-                    table: "paper_clips".into(),
+                    table: "annotations".into(),
                     uuid: paper_clip_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
+                        ("kind".into(), json!("clip")),
                         ("paper_sha256".into(), json!(paper_sha256)),
                         ("page".into(), json!(1)),
                         (
-                            "source".into(),
-                            json!(r#"{"x":0.1,"y":0.1,"w":0.2,"h":0.2}"#),
+                            "body".into(),
+                            json!(concat!(
+                                r#"{"source":{"x":0.1,"y":0.1,"w":0.2,"h":0.2},"#,
+                                r#""frame":{"x":0.2,"y":0.2,"w":0.3,"h":0.3},"#,
+                                r#""floating":false}"#,
+                            )),
                         ),
-                        (
-                            "frame".into(),
-                            json!(r#"{"x":0.2,"y":0.2,"w":0.3,"h":0.3}"#),
-                        ),
-                        ("floating".into(), json!(false)),
                     ]),
                 },
             ],
@@ -183,7 +189,11 @@ async fn main() {
     let reopened =
         LocalStore::open(Path::new(database)).expect("restart after offline annotations");
     let offline_notes = reopened
-        .query(account_uuid, "comments", json!({"parent_uuid": paper_sha256}))
+        .query(
+            account_uuid,
+            "annotations",
+            json!({"paper_sha256": paper_sha256, "kind": "note"}),
+        )
         .expect("offline notes survive restart");
     let offline_import = reopened
         .query(account_uuid, "paper", json!({"uuid": pdf.sha256}))
