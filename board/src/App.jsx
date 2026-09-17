@@ -17,21 +17,21 @@ function route() {
 
 const inDemoBoards = () => window.location.pathname.includes('/demo/boards/');
 
-const papolHome = () => homePath({ demo: inDemoBoards() });
+/**
+ * Where the house leads: out of this board and into where the board is kept,
+ * which is its jacket in the Library. The viewer's house has always worked
+ * this way — out of the paper and onto the paper's jacket — and it falls back
+ * to Papol itself only for a reading that has no jacket to go to, a shared
+ * link or a file opened from disk. A board always has one, because opening
+ * its canvas already asked who you are.
+ */
+const papolHome = (uuid) => (uuid
+  ? boardJacketPath(uuid, { demo: inDemoBoards() })
+  : homePath({ demo: inDemoBoards() }));
 
-// Where the board is kept: its jacket in the Library. This is the Back, and
-// it names what it leaves, which is what a Back is for. The home button
-// beside it still goes to Papol itself and names nothing.
-const jacketOfBoard = (uuid) => boardJacketPath(uuid, { demo: inDemoBoards() });
-
-function goHome() {
+function goHome(uuid) {
   if (closeDesktopDocumentWindow()) return;
-  window.location.assign(papolHome());
-}
-
-function goToJacket(uuid) {
-  if (closeDesktopDocumentWindow()) return;
-  window.location.assign(jacketOfBoard(uuid));
+  window.location.assign(papolHome(uuid));
 }
 
 export default function App() {
@@ -52,10 +52,8 @@ export default function App() {
     {boardUuid
       ? <BoardPage
           boardUuid={boardUuid}
-          onHome={goHome}
-          homeHref={papolHome}
-          onBack={() => goToJacket(boardUuid)}
-          backHref={jacketOfBoard(boardUuid)}
+          onHome={() => goHome(boardUuid)}
+          homeHref={() => papolHome(boardUuid)}
         />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;
