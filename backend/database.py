@@ -1,7 +1,8 @@
-from sqlalchemy import MetaData, create_engine, text
+from sqlalchemy import MetaData, bindparam, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 from sqlalchemy.schema import CreateColumn, CreateIndex, CreateTable
 from contextvars import ContextVar
+import json
 import logging
 import os
 import uuid
@@ -962,6 +963,69 @@ def _require_a_file(conn):
     _rebuild_to_models(conn, "papers", "papers", "paper")
 
 
+# A change in the log is a row as it stood when it was written, and a replica
+# replays it by name. A migration that reshapes a synchronized table therefore
+# invalidates its own history: the rows in the log still speak of columns the
+# table has not got, and a replica applying one refuses the whole page —
+# "Server sent unknown copies.paper_uuid" — without advancing its cursor. It
+# never gets past that page, so every existing installation stops
+# synchronizing for good the first time it pulls after the upgrade.
+#
+# Those entries are dropped rather than rewritten. Nothing is lost by it: the
+# snapshot that precedes every pull is the complete server mirror of exactly
+# these tables, so a replica that misses a change learns the same state from
+# the snapshot a moment earlier. The cursor only ever has to grow, and the
+# gap the deletions leave costs nothing.
+#
+# The rule is the shape itself rather than a list of migrations, so a later
+# rename is covered by having happened: an entry survives when every field it
+# names is still a column of its table, and goes when it is not.
+def _forget_changes_no_replica_could_read(conn):
+    tables = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "_server_change_log" not in tables:
+        return
+    columns = {
+        name: {column.name for column in table.columns}
+        for name, table in Base.metadata.tables.items()
+    }
+    if not columns:
+        # Nothing has declared a shape to judge the log against. Called with
+        # the models unimported, every entry would look unreadable and the
+        # whole log would go; say nothing instead.
+        return
+    stale = []
+    for sequence, table_name, row_json in conn.execute(text(
+        "SELECT sequence, table_name, row_json FROM _server_change_log"
+    )):
+        known = columns.get(table_name)
+        if known is not None:
+            try:
+                named = set(json.loads(row_json))
+            except (TypeError, ValueError):
+                named = None
+            if named is not None and named <= known:
+                continue
+        stale.append(sequence)
+    if not stale:
+        return
+    for start in range(0, len(stale), 500):
+        batch = stale[start:start + 500]
+        conn.execute(
+            text("DELETE FROM _server_change_log WHERE sequence IN :sequences")
+            .bindparams(bindparam("sequences", expanding=True)),
+            {"sequences": batch},
+        )
+    logger.info(
+        "Forgot %s change log entr%s written under a schema no replica has; "
+        "the snapshot carries that state instead.",
+        len(stale), "y" if len(stale) == 1 else "ies",
+    )
+
+
 def migrate():
     """Retire obsolete tables and columns, and add columns an existing table
     lacks.
@@ -1007,3 +1071,6 @@ def migrate():
         # Last: the rebuild copies whatever the model declares, so every
         # column it declares has to be there to copy.
         _require_a_file(conn)
+        # Later still: the log is judged against the shape every table
+        # above has finished arriving at.
+        _forget_changes_no_replica_could_read(conn)

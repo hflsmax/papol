@@ -8,6 +8,7 @@ so a migration that drops every annotation on the floor passes all of them.
 These tests start from the shape the last release actually wrote and run
 `migrate()` over it, which is the only way that question gets asked.
 """
+import json
 import os
 import sqlite3
 import tempfile
@@ -490,6 +491,83 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
                           self.shown_copy)),
             1,
         )
+
+    def test_a_change_written_under_the_old_shape_is_not_replayed(self):
+        """A replica applies a pulled change by name, and refuses a page that
+        names a column its table has not got — without advancing its cursor.
+
+        So a change written before this migration is one no upgraded
+        installation could ever get past: it would stop synchronizing for
+        good on its first pull. Those entries go, and the snapshot that
+        precedes every pull carries the same state instead."""
+        with sqlite3.connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE _server_change_log ("
+                "  sequence INTEGER PRIMARY KEY AUTOINCREMENT, user_uuid TEXT NOT NULL,"
+                "  table_name TEXT NOT NULL, row_uuid TEXT NOT NULL,"
+                "  revision INTEGER NOT NULL, operation TEXT NOT NULL,"
+                "  row_json TEXT NOT NULL, created_at TEXT NOT NULL)"
+            )
+            written = {
+                # A copy and a note as the previous release wrote them down:
+                # naming their paper by its UUID, and pinned to an edition.
+                "copies": {
+                    "uuid": self.shown_copy, "paper_uuid": self.paper,
+                    "user_uuid": self.user, "shelf_uuid": self.public_shelf,
+                    "edition_uuid": self.edition, "edition_sha256": self.shown_file,
+                    "ignored_edition_uuid": None, "summary": None, "thought": None,
+                    "is_author": False, "rating_expertise": None,
+                    "rating_reading": None, "rating_liking": None,
+                    "created_at": NOW, "updated_at": NOW, "revision": 1,
+                    "deleted_at": None,
+                },
+                "annotations": {
+                    "uuid": self.note, "kind": "note", "user_uuid": self.user,
+                    "paper_uuid": self.paper, "edition_uuid": self.edition,
+                    "page": 2, "group_uuid": None, "content": "On the page",
+                    "name": "Lemma 3", "body": "{}", "created_at": NOW,
+                    "updated_at": NOW, "revision": 1, "deleted_at": None,
+                },
+                # A table that stopped existing two migrations ago. A replica
+                # refuses this one even sooner: it is not a table it knows.
+                "comments": {
+                    "uuid": self.note, "paper_uuid": self.paper,
+                    "user_uuid": self.user, "page": 2, "content": "On the page",
+                    "created_at": NOW, "updated_at": NOW, "revision": 1,
+                    "deleted_at": None,
+                },
+                # And one that survives every rename between then and now.
+                "shelves": {
+                    "uuid": self.public_shelf, "user_uuid": self.user,
+                    "name": "Display", "color": "#7ba26c", "is_public": True,
+                    "is_default": True, "position": 0, "created_at": NOW,
+                    "updated_at": NOW, "revision": 1, "deleted_at": None,
+                },
+            }
+            for table_name, row in written.items():
+                db.execute(
+                    "INSERT INTO _server_change_log"
+                    "  (user_uuid, table_name, row_uuid, revision, operation,"
+                    "   row_json, created_at) VALUES (?,?,?,1,'upsert',?,?)",
+                    (self.user, table_name, row["uuid"], json.dumps(row), NOW),
+                )
+        self.upgrade()
+
+        import models  # the shape every surviving entry is judged against
+        columns = {
+            name: {column.name for column in table.columns}
+            for name, table in models.Base.metadata.tables.items()
+        }
+        left = self.rows("SELECT table_name, row_json FROM _server_change_log")
+        self.assertEqual(
+            [table_name for table_name, _ in left], ["shelves"],
+            "only a change the upgraded replica can still read may stay",
+        )
+        for table_name, row_json in left:
+            self.assertLessEqual(
+                set(json.loads(row_json)), columns[table_name],
+                f"a {table_name} change still names a column that is gone",
+            )
 
     def test_the_bibliography_follows_its_file(self):
         self.upgrade()
