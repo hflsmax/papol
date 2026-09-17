@@ -4879,8 +4879,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-jacket textarea.board-jacket-note:focus { border-color: var(--accent); background: var(--card); outline: none; }
 .board-jacket-actions { display: flex; gap: 10px; align-items: center; }
 
-.board-toolbar .board-back { flex: none; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--accent); font-family: var(--font-serif); font-size: var(--fs-sm); text-decoration: none; white-space: nowrap; }
-.board-toolbar .board-back:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .board-toolbar .board-home:active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
 .board-toolbar .board-home svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
