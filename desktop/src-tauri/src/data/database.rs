@@ -119,9 +119,7 @@ impl LocalStore {
 
         for change in changes {
             if !valid_row_id(&change.table, &change.uuid) {
-                return Err(format!(
-                    "A {} row is not named that way", change.table,
-                ));
+                return Err(format!("A {} row is not named that way", change.table,));
             }
             let rule = registry["tables"]
                 .get(&change.table)
@@ -150,8 +148,11 @@ impl LocalStore {
             validate_ownership(&transaction, account_uuid, &change)?;
             let old_revision: Option<i64> = transaction
                 .query_row(
-                    &format!("SELECT revision FROM {} WHERE {}=?1",
-                             change.table, row_key(&change.table)),
+                    &format!(
+                        "SELECT revision FROM {} WHERE {}=?1",
+                        change.table,
+                        row_key(&change.table)
+                    ),
                     [&change.uuid],
                     |row| row.get(0),
                 )
@@ -171,7 +172,11 @@ impl LocalStore {
             {
                 return Err(format!("{} rows can only be created locally", change.table));
             }
-            let revision = if already_held { base_revision } else { base_revision + 1 };
+            let revision = if already_held {
+                base_revision
+            } else {
+                base_revision + 1
+            };
             if !already_held {
                 apply_local_change(
                     &transaction,
@@ -665,7 +670,10 @@ impl LocalStore {
             .transaction()
             .map_err(|error| error.to_string())?;
         for change in changes {
-            if change.row.get(row_key(&change.table)).and_then(Value::as_str)
+            if change
+                .row
+                .get(row_key(&change.table))
+                .and_then(Value::as_str)
                 != Some(change.uuid.as_str())
             {
                 return Err("Pulled row identity does not match its envelope".into());
@@ -1617,9 +1625,12 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
 /// holding those bytes arrives at. Everything else is named by a UUID its
 /// writer made up.
 fn row_key(table: &str) -> &'static str {
-    if table == "papers" { "sha256" } else { "uuid" }
+    if table == "papers" {
+        "sha256"
+    } else {
+        "uuid"
+    }
 }
-
 
 /// Whether a row id suits the table it names, which is the same question
 /// the service asks of a push.
@@ -1630,7 +1641,6 @@ fn valid_row_id(table: &str, id: &str) -> bool {
         Uuid::parse_str(id).is_ok()
     }
 }
-
 
 fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Result<(), String> {
     if table != "annotations" {
@@ -2102,7 +2112,10 @@ fn refresh_blob_reference(
         .map_err(|error| error.to_string())?;
     let reference: Option<(Option<String>, Option<String>)> = connection
         .query_row(
-            &format!("SELECT sha256,deleted_at FROM {table} WHERE {}=?1", row_key(table)),
+            &format!(
+                "SELECT sha256,deleted_at FROM {table} WHERE {}=?1",
+                row_key(table)
+            ),
             [row_uuid],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -2194,7 +2207,9 @@ fn apply_remote_row(
         return Err(format!("Server sent unknown {table}.{field}"));
     }
     if !row.contains_key(row_key(table)) || !row.contains_key("revision") {
-        return Err(format!("Server {table} row is missing its name or revision"));
+        return Err(format!(
+            "Server {table} row is missing its name or revision"
+        ));
     }
     let mut fields: BTreeMap<String, SqlValue> = row
         .iter()
@@ -2273,7 +2288,10 @@ fn apply_local_change(
     fields.insert("updated_at".into(), SqlValue::Text(now.clone()));
     fields.insert("deleted_at".into(), SqlValue::Null);
     if inserting {
-        fields.insert(row_key(&change.table).into(), SqlValue::Text(change.uuid.clone()));
+        fields.insert(
+            row_key(&change.table).into(),
+            SqlValue::Text(change.uuid.clone()),
+        );
         fields.insert("created_at".into(), SqlValue::Text(now));
         if matches!(
             change.table.as_str(),
@@ -2350,7 +2368,10 @@ fn touch_parent_board(
 
 fn read_row(connection: &Connection, table: &str, uuid: &str) -> Result<Value, String> {
     let mut statement = connection
-        .prepare(&format!("SELECT * FROM {table} WHERE {}=?1", row_key(table)))
+        .prepare(&format!(
+            "SELECT * FROM {table} WHERE {}=?1",
+            row_key(table)
+        ))
         .map_err(|error| error.to_string())?;
     let names: Vec<String> = statement
         .column_names()
@@ -4019,22 +4040,20 @@ mod tests {
         let cached = store
             .import_shared_paper(
                 &account_uuid,
-                vec![
-                    Map::from_iter([
-                        ("table".into(), json!("papers")),
-                        ("doi".into(), Value::Null),
-                        ("title".into(), json!("Shared paper")),
-                        ("authors".into(), Value::Null),
-                        ("journal".into(), Value::Null),
-                        ("year".into(), Value::Null),
-                        ("file_path".into(), json!("shared.pdf")),
-                        ("sha256".into(), json!(paper_sha256.clone())),
-                        ("created_at".into(), json!(now)),
-                        ("updated_at".into(), json!(now)),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                ],
+                vec![Map::from_iter([
+                    ("table".into(), json!("papers")),
+                    ("doi".into(), Value::Null),
+                    ("title".into(), json!("Shared paper")),
+                    ("authors".into(), Value::Null),
+                    ("journal".into(), Value::Null),
+                    ("year".into(), Value::Null),
+                    ("file_path".into(), json!("shared.pdf")),
+                    ("sha256".into(), json!(paper_sha256.clone())),
+                    ("created_at".into(), json!(now)),
+                    ("updated_at".into(), json!(now)),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
             )
             .unwrap();
         assert_eq!(cached, 1);
@@ -4072,22 +4091,20 @@ mod tests {
         store
             .apply_snapshot(
                 "7",
-                vec![
-                    Map::from_iter([
-                        ("table".into(), json!("papers")),
-                        ("doi".into(), Value::Null),
-                        ("title".into(), json!("Paper")),
-                        ("authors".into(), Value::Null),
-                        ("journal".into(), Value::Null),
-                        ("year".into(), Value::Null),
-                        ("file_path".into(), json!("paper.pdf")),
-                        ("sha256".into(), json!(paper_sha256.clone())),
-                        ("created_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                ],
+                vec![Map::from_iter([
+                    ("table".into(), json!("papers")),
+                    ("doi".into(), Value::Null),
+                    ("title".into(), json!("Paper")),
+                    ("authors".into(), Value::Null),
+                    ("journal".into(), Value::Null),
+                    ("year".into(), Value::Null),
+                    ("file_path".into(), json!("paper.pdf")),
+                    ("sha256".into(), json!(paper_sha256.clone())),
+                    ("created_at".into(), json!("2026-09-12T00:00:00Z")),
+                    ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
             )
             .unwrap();
         store

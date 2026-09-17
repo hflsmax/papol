@@ -491,7 +491,6 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
     outcome
 }
 
-
 fn migrate_within(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection
         .transaction()
@@ -596,13 +595,21 @@ fn migrate_within(connection: &mut Connection) -> Result<(), String> {
     apply_sql(
         &transaction,
         "202609160002_one_paper_per_file",
-        if keyed_by_uuid { MERGE_DUPLICATE_PAPERS } else { "" },
+        if keyed_by_uuid {
+            MERGE_DUPLICATE_PAPERS
+        } else {
+            ""
+        },
     )?;
     // Then the digest can be the key itself.
     apply_sql(
         &transaction,
         "202609170001_papers_keyed_by_the_digest",
-        if keyed_by_uuid { REKEY_PAPERS_TO_THE_DIGEST } else { "" },
+        if keyed_by_uuid {
+            REKEY_PAPERS_TO_THE_DIGEST
+        } else {
+            ""
+        },
     )?;
     transaction.commit().map_err(|error| error.to_string())
 }
@@ -840,7 +847,10 @@ INSERT INTO paper_clips VALUES
         // p2 held the very bytes p1 did, so it is folded into p1.
         assert_eq!(count(&connection, "SELECT COUNT(*) FROM papers"), 2);
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM papers WHERE sha256='abc'"),
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM papers WHERE sha256='abc'"
+            ),
             1,
             "the two rows on that file are one",
         );
@@ -872,7 +882,10 @@ INSERT INTO paper_clips VALUES
         );
         // One copy, not two: the user was holding one paper all along.
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM copies WHERE paper_sha256='abc'"),
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM copies WHERE paper_sha256='abc'"
+            ),
             1,
         );
         assert_eq!(count(&connection, "SELECT COUNT(*) FROM copies"), 1);
@@ -887,13 +900,19 @@ INSERT INTO paper_clips VALUES
             "the surviving copy did not take what the other alone carried",
         );
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM copy_tags WHERE copy_uuid='c1' AND tag_uuid='t1'"),
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM copy_tags WHERE copy_uuid='c1' AND tag_uuid='t1'"
+            ),
             1,
             "the tag did not follow the copy",
         );
         // Every annotation followed its file, and none was left behind.
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM annotations WHERE paper_sha256='abc'"),
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM annotations WHERE paper_sha256='abc'"
+            ),
             3,
         );
         for column in ["edition_uuid", "edition_sha256", "ignored_edition_uuid"] {
