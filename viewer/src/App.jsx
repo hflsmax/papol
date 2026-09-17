@@ -45,7 +45,9 @@ import { cleanExcerptText } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
+import { readSections, sectionAt } from './sections';
 import ReturnPill from './ReturnPill';
+import DocumentMap from './DocumentMap';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
 import {
@@ -522,6 +524,11 @@ export default function App() {
   const [searchIndexing, setSearchIndexing] = useState(false);
   const [activeSearchResult, setActiveSearchResult] = useState(0);
   const [searchWrap, setSearchWrap] = useState(null);
+  // The paper's own headings, the panel that lists them, and where in the
+  // document the reader currently is — which is what the bar names.
+  const [sections, setSections] = useState([]);
+  const [sectionsReading, setSectionsReading] = useState(false);
+  const [readingPlace, setReadingPlace] = useState(null);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
@@ -1144,6 +1151,46 @@ export default function App() {
 
   useEffect(() => {
     setSearchIndex([]);
+  }, [doc]);
+
+  useEffect(() => {
+    setSections([]);
+    setReadingPlace(null);
+  }, [doc]);
+
+  // The paper's headings, read once the document is open.
+  //
+  // A PDF carrying its own outline answers from it and costs nothing. One
+  // that does not has to be read, page by page, which is why this waits for
+  // an idle moment instead of competing with the first render: the bar can
+  // say "Contents" for a second longer, and the reader gets their first
+  // page sooner.
+  useEffect(() => {
+    if (!doc) return undefined;
+    let cancelled = false;
+    const start = () => {
+      if (cancelled) return;
+      setSectionsReading(true);
+      readSections(doc, { cancelled: () => cancelled })
+        .then((read) => {
+          if (cancelled || !read) return;
+          setSections(read.sections);
+        })
+        // A paper whose headings cannot be read is a paper without a
+        // contents panel, not a paper that failed to open.
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setSectionsReading(false);
+        });
+    };
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(start, { timeout: 2000 })
+      : window.setTimeout(start, 400);
+    return () => {
+      cancelled = true;
+      if (window.requestIdleCallback) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
   }, [doc]);
 
   // Search is optional and indexing a long document is not. Defer the pass
@@ -3241,6 +3288,56 @@ export default function App() {
     };
   }, [doc, hasScale, wantedNoteUuid]);
 
+  // Where the reader is, for the marker on the map and for the section it
+  // lights.
+  //
+  // Near the top of the view rather than its middle: a section begins at
+  // its heading, and you are in it from the moment the heading is above
+  // you. Debounced, and only while there is a map to move a marker on.
+  const mapped = sections.length > 0 || numbered.some(hasAnchor);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !doc || !hasScale || !mapped) return undefined;
+    let timer = null;
+    const look = () => {
+      const box = scroller.getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + Math.min(72, box.height * 0.18);
+      const nearest = [...scroller.querySelectorAll('.pdf-page')].reduce((best, pageEl) => {
+        const rect = pageEl.getBoundingClientRect();
+        if (rect.height < 10) return best;
+        const dx = cx < rect.left ? rect.left - cx : Math.max(0, cx - rect.right);
+        const dy = cy < rect.top ? rect.top - cy : Math.max(0, cy - rect.bottom);
+        const distance = Math.hypot(dx, dy);
+        return !best || distance < best.distance ? { pageEl, rect, distance } : best;
+      }, null);
+      if (!nearest) return;
+      const place = {
+        page: Number(nearest.pageEl.dataset.page),
+        // From the bottom of the page, as a section's own y is.
+        y: Math.max(0, Math.min(1, 1 - (cy - nearest.rect.top) / nearest.rect.height)),
+      };
+      setReadingPlace((was) => (
+        was && was.page === place.page && Math.abs(was.y - place.y) < 0.005 ? was : place
+      ));
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(look, 120);
+    };
+    scroller.addEventListener('scroll', schedule, { passive: true });
+    look();
+    return () => {
+      scroller.removeEventListener('scroll', schedule);
+      window.clearTimeout(timer);
+    };
+  }, [doc, hasScale, mapped]);
+
+  const currentSection = useMemo(
+    () => sectionAt(sections, readingPlace),
+    [sections, readingPlace],
+  );
+
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
     if (!wantedNoteUuid || !doc || notes.length === 0) return;
@@ -3281,6 +3378,48 @@ export default function App() {
     scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
   };
 
+  // A section begins at its heading, so the heading lands near the top of
+  // the view rather than in its middle: what you asked to see is what comes
+  // after it, and centring the heading would give half the screen to the
+  // section you were leaving. The near/far rule is the anchors' own.
+  const goToSection = (section) => {
+    const scroller = scrollerRef.current;
+    const pageEl = scroller?.querySelector(`[data-page="${section.page}"]`);
+    if (!scroller || !pageEl) return;
+    const page = pageEl.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    const headingY = page.top + (1 - section.y) * page.height;
+    const top = scroller.scrollTop + headingY - box.top - Math.min(64, box.height * 0.1);
+    const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
+    scroller.scrollTo({ top: Math.max(0, top), behavior: far ? 'auto' : 'smooth' });
+  };
+
+  // The front of the paper, which is a place on the map like any other.
+  const goToTop = () => {
+    scrollerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
+  // An anchor in the contents is one line, so it says the shortest true
+  // thing about itself: its name, else the opening of the note written on
+  // it, else the page it holds.
+  const contentsAnchors = useMemo(
+    () => numbered.filter(hasAnchor).map((note) => {
+      const name = (note.name || '').trim();
+      const written = (note.content || '').trim().split('\n')[0].trim();
+      return {
+        uuid: note.uuid,
+        page: note.page,
+        // The map places an anchor at the point it holds, not merely on
+        // its page, so a paper of few pages still spreads its anchors out.
+        anchorY: note.anchor?.y ?? 0.5,
+        note,
+        label: name
+          || (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
+          || `Page ${note.page}`,
+      };
+    }),
+    [numbered],
+  );
 
   // Once imported, leave the ephemeral file URL. The canonical nook viewer
   // is the only surface allowed to load or persist paper state.
@@ -3601,7 +3740,19 @@ export default function App() {
             </svg>
           </a>
         ) : null}
-        <span className="spacer" />
+        {/* The paper itself, drawn to length across the middle of the bar.
+            It takes the room the spacer used to hold, and falls back to
+            being that spacer while there is nothing yet to draw. */}
+        <DocumentMap
+          pages={doc?.numPages || 0}
+          sections={sections}
+          anchors={contentsAnchors}
+          place={readingPlace}
+          current={currentSection?.id}
+          onSection={goToSection}
+          onAnchor={(anchor) => goToNote(anchor.note)}
+          onTop={goToTop}
+        />
         {/* A failed sync is reported, not offered again: the viewer is for
             reading, and the library is where sync is driven from. */}
         <DesktopSyncingStatus retry={false} />
@@ -3637,9 +3788,12 @@ export default function App() {
             </div>
           )}
         </div>
-        <span className="tools" role="group" aria-label="Tool">
+        <span className={`tools${sheet ? ' open' : ''}`} role="group" aria-label="Tool">
+          {/* The rack sits over the map rather than pushing it: reaching
+              for a tool should not redraw the paper's shape. */}
+          <span className="tools-rack">
           {availableTools.map((t) => (
-            <span className="tool-slot" key={t.id}>
+            <span className={`tool-slot${tool === t.id ? ' held' : ''}`} key={t.id}>
               <button
                 type="button"
                 className={`tool${tool === t.id ? ' on' : ''}`}
@@ -3911,6 +4065,7 @@ export default function App() {
 
             </span>
           ))}
+          </span>
         </span>
         {/* The paper page no longer offers the raw file, so the way to keep
             a copy lives here, beside the reading of it — and at the end of
@@ -3970,26 +4125,6 @@ export default function App() {
                 </button>
               )
             )}
-            {!source?.openedFile && !(DESKTOP && MAC) && <a
-              className="bar-link"
-              href={pdfHref(paper)}
-              download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
-              onClick={(event) => {
-                // Desktop saves the copy already in its local store.
-                if (!nativeDataActive()) return;
-                event.preventDefault();
-                const name = event.currentTarget.getAttribute('download');
-                downloadablePdfHref(paper).then((href) => {
-                  const link = document.createElement('a');
-                  link.href = href;
-                  link.download = name;
-                  link.click();
-                  setTimeout(() => URL.revokeObjectURL(href), 60_000);
-                }).catch(() => {});
-              }}
-            >
-              Download
-            </a>}
             {nookPromptOpen && ['confirm', 'ask', 'waiting'].includes(nookStep) && (
               <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title" data-tauri-drag-region="false">
                 <strong id="nook-ask-title">Add this paper to your nook</strong>
@@ -4065,6 +4200,30 @@ export default function App() {
                       target="_blank"
                       rel="noreferrer"
                     >{paperInfo?.doi || paper.doi ? 'DOI' : 'Page'}</a>
+                  )}
+                  {/* Saving the PDF is something you do to the paper, so it
+                      belongs with the paper's other links rather than on the
+                      bar, where it was spending a button's worth of room on
+                      an errand almost nobody runs twice. */}
+                  {!source?.openedFile && !(DESKTOP && MAC) && (
+                    <a
+                      className="ref-link"
+                      href={pdfHref(paper)}
+                      download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
+                      onClick={(event) => {
+                        // Desktop saves the copy already in its local store.
+                        if (!nativeDataActive()) return;
+                        event.preventDefault();
+                        const name = event.currentTarget.getAttribute('download');
+                        downloadablePdfHref(paper).then((href) => {
+                          const link = document.createElement('a');
+                          link.href = href;
+                          link.download = name;
+                          link.click();
+                          setTimeout(() => URL.revokeObjectURL(href), 60_000);
+                        }).catch(() => {});
+                      }}
+                    >Download</a>
                   )}
                 </div>
               </div>

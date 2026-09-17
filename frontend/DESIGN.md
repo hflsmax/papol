@@ -162,6 +162,49 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   video and one serif title. The grid collapses to one column on narrow
   screens; new lessons are added as catalog entries.
 
+- **Document map** — the viewer's navigation, and the only kind it has: the
+  paper drawn to length across `.viewer-bar`, in the room the spacer used
+  to hold. Nothing opens. Each top-level section is a segment as wide as
+  the section is long, so a glance says Model Architecture is a quarter of
+  the paper and Conclusion is a paragraph — which a list of names can never
+  say. Subsections are left out on purpose: they outnumber sections three
+  to one and, drawn as their equals, turn the strip into a barcode of boxes
+  too narrow to name. Anchors run in a lane underneath at the same scale,
+  so a tick under the middle of Results is *in* Results and nothing has to
+  say so; that shared scale is the whole idea, and it is why the two lanes
+  are stacked rather than merged. A single click on any segment or tick
+  goes there. Grounds carry meaning and colour does not: `--paper` for a
+  section, `--paper-sunken` for the front of the paper (title, authors,
+  abstract — the one stretch with no heading of its own), `--accent-soft`
+  for the appendix, because back matter is a part of a document rather than
+  a state of it. The section being read is `--accent` with inverse text, as
+  a selected native row is, and a 2px `--ink` marker crosses both lanes at
+  the exact reading position — the segment says which section, the marker
+  says where in it. Names are set inside segments only where there is real
+  room for one; below that a name would be cut to three letters, which is
+  worse than none, and the tooltip carries it instead. Each lane is one tab
+  stop with arrows to walk it: a bar must not cost twenty-five presses to
+  get past.
+
+- **Tool rack** — `.tools`: in the viewer's bar the tool palette shows only
+  the tool in hand, and opens to the full set on hover, on `:focus-within`,
+  and while one of its sheets is open. It opens *downwards*, out of the bar
+  and over the page, on a `--card` ground with `--shadow-md`: opening
+  sideways would reach back across the document map it just made room for,
+  and the stretch it would cover is the map's end — the appendix, the part
+  of a paper a reader is least likely to be holding in mind. Choosing a
+  tool still costs one click; the others are a pointer-move away, not a
+  click away, which is the rule the palette was built on. **The tool in
+  hand keeps the top of the rack** (`order: -1`), so the glyph under the
+  pointer when the rack opens is the glyph that was under it a moment
+  before — let the palette keep its printed order instead and a user
+  holding the brush who clicks without looking ends up holding the arrow.
+  The other five keep their order relative to one another. A touch screen
+  has no hover to open it with, so under `(hover: none)` the rack is never
+  collapsed, stands as a row, keeps its printed order, and takes its room
+  back from the map. Nothing else in the bar hides this way: the rack earns
+  it by being six controls wide next to a map that wants every pixel.
+
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:
   `--green-soft` for public fields (ratings, thought) and `--accent-soft`

@@ -210,6 +210,145 @@ ${macHandoffStyles}
   stroke-linejoin: round;
 }
 
+/* ---------- Document map ---------- */
+
+/* The paper drawn to length across the bar, in the room the spacer used to
+   hold. Two lanes at one scale: the sections above, the anchors below, so
+   a tick sitting under the middle of Results is in Results and nothing has
+   to say so. Flat by construction — there is nothing to open. */
+.docmap {
+  position: relative;
+  flex: 1;
+  min-width: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-ui);
+}
+
+/* A groove, so the strip reads as one object on the bar's white ground and
+   a section that is only a few pixels wide is still visibly a section. */
+.docmap-track {
+  position: relative;
+  display: flex;
+  height: 20px;
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  overflow: hidden;
+}
+
+.viewer-bar .docmap-seg,
+.viewer-bar .docmap-seg:hover:not(:disabled) {
+  flex-basis: 0;
+  /* Every section stays clickable, however short it is. Below this it
+     would be a hairline nobody could hit. */
+  min-width: 4px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--card);
+  border-radius: 0;
+  background: var(--paper);
+  box-shadow: none;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  overflow: hidden;
+  transition: background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.docmap-seg:first-child { border-left: 0; }
+
+/* The front of the paper — title, authors, abstract. The one stretch of a
+   paper with no heading of its own, so it is set back from the sections
+   rather than counted as one. */
+.docmap-seg.front { background: var(--paper-sunken); }
+
+/* Back matter. The appendix is a part of the document, not a state of it,
+   so it takes a ground rather than a colour. */
+.docmap-seg.back { background: var(--accent-soft); }
+
+.viewer-bar .docmap-seg:hover:not(:disabled) {
+  background: var(--accent-line);
+  color: var(--ink);
+}
+
+/* Where the reader is, said the way a selected native row says it. */
+.viewer-bar .docmap-seg.now,
+.viewer-bar .docmap-seg.now:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--ink-inverse);
+}
+
+.docmap-seg:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.docmap-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The anchors, at the same scale as the sections above them. */
+.docmap-lane {
+  position: relative;
+  height: 7px;
+}
+
+.viewer-bar .docmap-lane .docmap-anchor,
+.viewer-bar .docmap-lane .docmap-anchor:hover:not(:disabled) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* A 2px tick is not a target, so the mark and the thing you press are
+     not the same size. */
+  width: 11px;
+  margin-left: -5px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.docmap-tick {
+  width: 2px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--accent);
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+
+.viewer-bar .docmap-anchor:hover:not(:disabled) .docmap-tick,
+.docmap-anchor:focus-visible .docmap-tick { background: var(--ink); }
+
+.docmap-anchor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* The exact place, across both lanes: the segment says which section, this
+   says where in it. */
+.docmap-here {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+/* In Papol macOS the bar is the title bar, and the map is the one control
+   in it that should give way — it has a whole document to show and will
+   use whatever it is given. */
+[data-shell='desktop'] .viewer-bar > .docmap {
+  flex-shrink: 1;
+  min-width: 72px;
+}
+
 .learn-papol {
   position: absolute;
   z-index: 42;
@@ -398,8 +537,72 @@ ${macHandoffStyles}
 }
 /* What the user is holding. Icon buttons rather than a menu: the choice
    changes often enough while marking a paper up that it should cost one
-   click and no reading. */
-.tools { flex: none; display: flex; align-items: center; gap: 2px; }
+   click and no reading.
+ *
+ * At rest the rack shows that one tool and nothing else, because the rest
+ * of the bar is a map of the paper and the paper deserves the room. The
+ * others are a pointer-move away, not a click away, so choosing a tool
+ * still costs the single click it always did.
+ *
+ * It opens downwards, out of the bar and over the page. Opening sideways
+ * would have it reach back across the map it just made room for, and the
+ * stretch it would cover is the map's end — the appendix, which is the
+ * part of a paper a reader is least likely to be holding in mind and most
+ * likely to be looking for. Below the bar it covers a few lines of a page
+ * that is still there when the rack closes.
+ *
+ * The tool in hand is the face of the rack and stays at the top of it, so
+ * the glyph under the pointer when the rack opens is the same glyph that
+ * was under it a moment before. Letting the palette keep its printed order
+ * instead would slide a different tool into that spot — hold the brush,
+ * reach for the rack, click without looking, and you are holding the arrow.
+ * The other five keep their order relative to one another.
+ *
+ * Hover is not the only way in — focus opens it too, and a touch screen,
+ * which has no hover to give, is served the whole rack at the bottom of
+ * this sheet. */
+.tools {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.tools-rack {
+  position: absolute;
+  /* The same layer the bar's other sheets hang on. */
+  z-index: 30;
+  /* Back by its own border and padding, so the tool in hand stays exactly
+     where it sat before the rack opened. */
+  top: -2px;
+  right: -2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+/* Only the tool in hand, until the rack is opened — and it keeps the top
+   of the rack once it is. */
+.tools .tool-slot { display: none; }
+.tools .tool-slot.held { display: flex; order: -1; }
+
+.tools:hover .tool-slot,
+.tools:focus-within .tool-slot,
+.tools.open .tool-slot { display: flex; }
+
+/* Open, it hangs off the bar over the page, which is what --shadow-md is
+   for. */
+.tools:hover .tools-rack,
+.tools:focus-within .tools-rack,
+.tools.open .tools-rack {
+  border-color: var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
 .tool-slot { position: relative; display: flex; }
 
 /* Hung under the brush, pointing at it.
@@ -2196,12 +2399,33 @@ ${macHandoffStyles}
   .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
+  /* Too little room for a name to survive being cut to three letters, and
+     a wrong-looking word is worse than none. The map keeps its shape, its
+     anchors and its marker, which is what it is for. */
+  .docmap-name { display: none; }
+  .docmap { min-width: 56px; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one
    is simply there, and the small annotations are given a finger's worth of
    room. */
 @media (hover: none) {
+  /* No hover to open the rack with, so it is never closed: the tools stand
+     in a row across the bar, as they always did, and take their own room
+     back from the map. */
+  .tools { position: static; width: auto; height: auto; }
+  .tools .tools-rack {
+    position: static;
+    flex-direction: row;
+    padding: 0;
+    border-color: transparent;
+    background: none;
+    box-shadow: none;
+  }
+  /* Nothing is ever hidden here, so nothing has to be lifted to the front
+     of the row to be found: the palette keeps its printed order. */
+  .tools .tool-slot { display: flex; }
+  .tools .tool-slot.held { order: 0; }
   .anchor-row .anchor-write { opacity: 1; }
   /* The name looks like a field on hover; with no hover to give, it just
      looks like one. */
