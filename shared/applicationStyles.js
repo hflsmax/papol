@@ -165,7 +165,16 @@ input[type='checkbox'] {
   right: 20px;
   bottom: 20px;
   z-index: 90;
-  padding: 9px 16px;
+  /* A flex row, not a line of text. The × that slides in on hover is an
+     inline-block with its overflow hidden, and such a box takes its
+     baseline from its bottom edge — which swelled the line and set the
+     word five pixels low in a chip taller than its own padding. Flex
+     items have no baseline to argue about. */
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  line-height: 1;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   background: var(--card);
