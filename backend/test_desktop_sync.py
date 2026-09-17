@@ -1209,6 +1209,39 @@ class DesktopSyncContractTests(unittest.TestCase):
         owners = {row["user_uuid"] for row in snapshot["rows"] if row.get("user_uuid")}
         self.assertEqual(owners, {me["uuid"]})
 
+    def test_the_website_refuses_the_metadata_a_push_would_refuse(self):
+        """An edit that saves here has to be one the Mac can push back.
+
+        The website used to take a title of any length and a year of any
+        size, while the push path held a title to 500 characters — so an
+        edit made in the browser could be one that would never
+        synchronize, and nothing said so at the time."""
+        with self.sessions() as db:
+            shelf = Shelf(
+                user_uuid=self.user_uuid, name="Shelf", color="#123456",
+                is_public=False,
+            )
+            paper = Paper(
+                title="Agreed paper", file_path="agreed.pdf", sha256="9" * 64,
+            )
+            db.add_all([shelf, paper])
+            db.flush()
+            db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))
+            commit_sync(db)
+            paper_sha256 = paper.sha256
+
+        for refused in ({"title": "t" * 501}, {"title": ""}, {"year": 99999}):
+            with self.subTest(refused=refused):
+                response = self.client.request(
+                    "PUT", f"/api/papers/{paper_name(paper_sha256)}",
+                    headers=self.headers, json=refused,
+                )
+                self.assertEqual(response.status_code, 422, response.text)
+
+        with self.sessions() as db:
+            kept = db.query(Paper).filter(Paper.sha256 == paper_sha256).one()
+            self.assertEqual(kept.title, "Agreed paper")
+
     def test_server_only_actions_accept_desktop_sync_uuids(self):
         with self.sessions() as db:
             shelf = Shelf(user_uuid=self.user_uuid, name="Desktop shelf", color="#123456", is_public=False)

@@ -29,7 +29,7 @@ from services.client_requirements import (
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
-from schemas import AnnotationCreate
+from schemas import AnnotationCreate, PaperMetadata
 from services.annotations import KINDS, NOTE
 from app_limits import limit, mebibytes
 
@@ -308,6 +308,21 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
     )
 
 
+def _check_paper_metadata(paper: Paper) -> None:
+    """Hold a paper to the one shape its record may take.
+
+    The same check the edit form makes, asked of the paper after the change
+    rather than of the change — a push may name one field, and what has to
+    be true is true of the row."""
+    try:
+        PaperMetadata.of(paper)
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error.errors(include_context=False, include_url=False),
+        )
+
+
 def _assign_values(db: Session, record, values: dict, user: User):
     if isinstance(record, Paper):
         # The PDF is the paper's identity: metadata may be corrected, but
@@ -318,8 +333,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key not in {"deleted_at", "sha256", "file_path"}:
                 setattr(record, key, value)
         record.title = (record.title or "").strip()
-        if not record.title or len(record.title) > limit("text", "source_label"):
-            raise HTTPException(status_code=422, detail="Paper title must be 1–500 characters")
+        _check_paper_metadata(record)
         return
     if isinstance(record, Board):
         if "shelf_uuid" in values:

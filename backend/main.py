@@ -55,7 +55,7 @@ from schemas import (
     ProfileUpdate, PasswordChange, AccountDeletion, UserEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
-    PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
+    PaperCreate, PaperMetadata, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
     ExtractedMetadata, ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     AnnotationCreate, AnnotationUpdate, AnnotationOut,
@@ -2296,6 +2296,18 @@ async def update_paper(
     for key, value in metadata.items():
         setattr(paper, key, value)
     if metadata:
+        if paper.title is not None:
+            paper.title = paper.title.strip()
+        # The same shape a replica's push is held to, asked of the paper
+        # after the edit rather than of the edit: one field may arrive, and
+        # what has to be true is true of the row.
+        try:
+            PaperMetadata.of(paper)
+        except ValidationError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=error.errors(include_context=False, include_url=False),
+            )
         _rekey_rooms(db, paper, was)
 
     commit_sync(db)

@@ -49,6 +49,10 @@
     "feedback": 4000,
     "feedback_page": 300,
     "paper_thought": 200,
+    "paper_title": 500,
+    "paper_doi": 300,
+    "paper_authors": 4000,
+    "paper_journal": 500,
     "tag_name": 60,
     "shelf_name": 40,
     "reference_key": 300,
@@ -78,6 +82,10 @@
   "ratings": {
     "min": 1,
     "max": 5
+  },
+  "publication_year": {
+    "min": 1000,
+    "max": 2200
   },
   "viewer": {
     "zoom_min": 0.5,
