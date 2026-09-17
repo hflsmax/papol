@@ -69,7 +69,7 @@ from schemas import (
     BoardGroupUngroup, BoardGroupLayout, BoardGroupOut,
 )
 from auth import (
-    hash_password, verify_password, create_token, get_current_user,
+    hash_password, verify_password, create_token, login_platform, get_current_user,
     get_optional_user, bearer_scheme
 )
 from pdf_parser import (
@@ -418,7 +418,7 @@ DEFAULT_WELCOME = (
 # ---------------- Auth ----------------
 
 @app.post("/api/auth/register", response_model=AuthResponse)
-async def register(data: UserRegister, db: Session = Depends(get_db)):
+async def register(data: UserRegister, request: Request, db: Session = Depends(get_db)):
     email = data.email.lower()
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="An account with this email already exists")
@@ -448,12 +448,12 @@ async def register(data: UserRegister, db: Session = Depends(get_db)):
     ))
     db.commit()
 
-    token = create_token(db, user)
+    token = create_token(db, user, login_platform(request))
     return AuthResponse(token=token, user=UserPrivate.model_validate(user))
 
 
 @app.post("/api/auth/login", response_model=AuthResponse)
-async def login(data: UserLogin, db: Session = Depends(get_db)):
+async def login(data: UserLogin, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email.lower()).first()
     # A closed account keeps its row so seminars and messages still resolve,
     # but it is nobody's account any more. Its password hash could not match
@@ -462,7 +462,7 @@ async def login(data: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="This account has been closed")
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = create_token(db, user)
+    token = create_token(db, user, login_platform(request))
     return AuthResponse(token=token, user=UserPrivate.model_validate(user))
 
 

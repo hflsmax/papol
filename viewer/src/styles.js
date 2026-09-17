@@ -300,7 +300,6 @@ button.link.danger { color: var(--red); }
 }
 .pdf-search input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .search-pop button { min-width: 28px; height: 28px; padding: 2px 7px; }
-.pdf-search .search-button { height: auto; padding: 5px 9px; }
 .search-count { min-width: 58px; color: var(--ink-faint); font-size: var(--fs-2xs); text-align: center; white-space: nowrap; }
 
 .search-wrap-sign {
@@ -367,17 +366,16 @@ button.link.danger { color: var(--red); }
 .learn-papol .pdf-viewer-tip-actions .learn-papol-close { margin-top: 0; }
 .local-notes-hide { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
 .local-notes-hide input { margin: 0; accent-color: var(--accent); }
-.paper-info-button { cursor: pointer; background: var(--card); }
-.info-glyph {
-  display: inline-grid;
+.paper-info-button {
+  display: grid;
   place-items: center;
-  width: 15px;
-  height: 15px;
-  margin-right: 3px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font: 600 10px/1 var(--font-ui);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--card);
+  cursor: pointer;
 }
+.info-glyph { font: italic 600 var(--fs-sm)/1 var(--font-serif); }
 .paper-info-pop {
   position: absolute;
   z-index: 30;
@@ -2182,8 +2180,6 @@ button.link.danger { color: var(--red); }
   .pages { padding: 12px; }
   .search-pop { position: fixed; left: 12px; right: 12px; top: 58px; width: auto; }
   .search-pop input { flex: 1; width: auto; }
-  .pdf-search .search-button { font-size: 0; padding-inline: 7px; }
-  .pdf-search .search-button span { font-size: 1rem; }
 }
 
 @media (min-width: 861px) {

@@ -72,6 +72,9 @@ class AuthToken(Base):
     # The last authenticated request made with this session. Signing in is
     # itself a use, so it starts at the creation time.
     last_used_at = Column(DateTime, default=datetime.utcnow)
+    # Which Papol this sign-in came from: "web" or "macos". Null on the
+    # sessions that predate the record; nothing is inferred for them.
+    platform = Column(String, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
 
     user = relationship("User")

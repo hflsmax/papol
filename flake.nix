@@ -3,9 +3,17 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    # nixpkgs 26.11 dropped x86_64-darwin, so the unstable input above cannot
+    # even be evaluated on an Intel Mac: it throws before any output is built.
+    # 26.05 is the last release that supports the platform and is maintained
+    # until the end of 2026. Only the x86_64-darwin devShell reads this input;
+    # every other system, and everything Papol deploys, still comes from
+    # nixpkgs above and is unchanged by its presence.
+    nixpkgs-x86-darwin.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
   };
 
-  outputs = { self, nixpkgs }: let
+  outputs = { self, nixpkgs, nixpkgs-x86-darwin }: let
     # Keep the Linux outputs for deployment, but expose the development
     # environment on the macOS hosts used to work on the project as well.
     supportedSystems = [
@@ -69,7 +77,13 @@
       };
     };
 
-    devPkgsFor = system: import nixpkgs {
+    # The development shell's package set. Every system takes the pinned
+    # nixpkgs above; x86_64-darwin is the one exception, for the reason given
+    # beside its input.
+    nixpkgsFor = system:
+      if system == "x86_64-darwin" then nixpkgs-x86-darwin else nixpkgs;
+
+    devPkgsFor = system: import (nixpkgsFor system) {
       inherit system;
       overlays = [ skipUpstreamTests ];
     };
@@ -121,6 +135,21 @@
       pkgs.gh              # pull requests and releases on GitHub
     ];
 
+    # Rust is deliberately absent above: a Mac is assumed to carry its own
+    # rustup toolchain, and putting one on PATH here would quietly shadow it
+    # and change what `cargo tauri build` produces. That assumption is worth
+    # keeping where it holds, but x86_64-darwin is already pinned to its own
+    # frozen nixpkgs, so it may as well take Rust from there too rather than
+    # make a retired platform carry a separate rustup install to get past
+    # `require_command cargo` in deploy.sh. An Apple Silicon shell is
+    # untouched and still uses the host toolchain.
+    x86DarwinRustPackages = pkgs: with pkgs; [
+      cargo
+      rustc
+      rustfmt
+      clippy
+    ];
+
     # Tutorial recorders share one pinned browser driver. Build its npm closure
     # once through Nix and expose it to every recorder through NODE_PATH; the
     # tutorial directories do not need mutable node_modules trees.
@@ -157,7 +186,12 @@
     nixosModules.papol = self.nixosModules.default;
 
     packages = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
+      # nixpkgsFor, not nixpkgs, for the same reason the devShell uses it:
+      # `nixpkgs.legacyPackages.x86_64-darwin` throws outright on 26.11, and
+      # that throw escapes into every evaluation of this flake on an Intel
+      # Mac — including `nix develop`, which has no interest in these
+      # packages at all. Every other system still resolves to nixpkgs.
+      pkgs = (nixpkgsFor system).legacyPackages.${system};
     in {
       # The frontend imports ../shared, which reads ../config/app_limits.json,
       # so the build gets those folders too and runs from frontend/.
@@ -194,9 +228,11 @@
         else pkgs.mkShell;
     in {
       default = mkShell ({
-        packages = if pkgs.stdenv.isDarwin
+        packages = (if pkgs.stdenv.isDarwin
           then macosDevPackages pkgs
-          else linuxDevPackages pkgs;
+          else linuxDevPackages pkgs)
+          ++ nixpkgs.lib.optionals (system == "x86_64-darwin")
+               (x86DarwinRustPackages pkgs);
 
         # Tauri's build scripts find their system libraries through
         # pkg-config, which mkShell only populates for what it is told about.

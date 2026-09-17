@@ -63,7 +63,7 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
 // Native synchronization is process-wide, while the Library, Viewer and
 // Board each run in their own WebView. Listen to the native event as well as
 // this window's lifecycle event so every toolbar reflects the same work.
-export default function DesktopSyncingStatus() {
+export default function DesktopSyncingStatus({ retry = true }) {
   const initial = getSyncStatus();
   const [status, setStatus] = useState({
     syncing: DESKTOP && nativeDataActive() && nativeSyncInProgress(),
@@ -117,8 +117,12 @@ export default function DesktopSyncingStatus() {
         title={status.error || OFFLINE_MODE_MESSAGE}
       >
         <span className="desktop-syncing-status-label">{status.error ? 'Sync failed' : 'Offline'}</span>
-        <span aria-hidden="true">·</span>
-        <button type="button" onClick={reconnect}>{status.error ? 'Retry' : 'Sync'}</button>
+        {(retry || !status.error) && (
+          <>
+            <span aria-hidden="true">·</span>
+            <button type="button" onClick={reconnect}>{status.error ? 'Retry' : 'Sync'}</button>
+          </>
+        )}
       </span>
     );
   }

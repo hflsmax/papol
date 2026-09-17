@@ -3601,11 +3601,12 @@ export default function App() {
           </a>
         ) : null}
         <span className="spacer" />
-        <DesktopSyncingStatus />
+        {/* A failed sync is reported, not offered again: the viewer is for
+            reading, and the library is where sync is driven from. */}
+        <DesktopSyncingStatus retry={false} />
+        {/* No button of its own: search is opened with Ctrl/Command+F, and
+            the box that opens is anchored here. */}
         <div className={`pdf-search${searchOpen ? ' open' : ''}`}>
-          <button type="button" className="search-button" onClick={() => setSearchOpen((open) => !open)} title="Search PDF (Ctrl/Command+F)" aria-label="Search PDF" aria-expanded={searchOpen}>
-            <span aria-hidden="true">⌕</span> Search
-          </button>
           {searchOpen && (
             <div className="search-pop" role="search">
               <input
@@ -3938,8 +3939,10 @@ export default function App() {
               }}
               aria-expanded={paperInfoOpen}
               aria-haspopup="dialog"
+              aria-label="Paper information"
+              title="Paper information"
             >
-              <span className="info-glyph" aria-hidden="true">i</span> Info
+              <span className="info-glyph" aria-hidden="true">i</span>
             </button>
             {/* A paper that is not yet this user's, and could be: a file
                 they opened, or one somebody shared with them. Either way
