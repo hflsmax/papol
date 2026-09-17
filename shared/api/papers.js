@@ -19,7 +19,7 @@ const DESKTOP_EXTRACT_TIMEOUT_MS = appLimits.timeouts_ms.desktop_metadata;
 
 // ---------- Papers ----------
 
-// Papers are addressed by their UUID, and only by it.
+// Papers are addressed by the digest of their file, and only by it.
 export function paperHref(paper) {
   return appPath(`/paper/${paper.sha256}`);
 }

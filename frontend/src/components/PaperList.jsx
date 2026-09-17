@@ -15,7 +15,9 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   const [browserOpen, setBrowserOpen] = useState(
     () => window.sessionStorage.getItem('papol.paperBrowserOpen') === 'true'
   );
-  const [toggleWarning, setToggleWarning] = useState(null); // { uuid, text }
+  // { uuid, text }, where uuid names the row that refused: a paper by its
+  // file, a board by `board:` and its UUID.
+  const [toggleWarning, setToggleWarning] = useState(null);
   const [openShelfPicker, setOpenShelfPicker] = useState(null);
   // The row this nook was asked to reveal, while it is being shown. Coming
   // back from a board lands here, and the row it came from should be the
@@ -28,11 +30,11 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   const handleShelfMove = async (paper, shelfUuid) => {
     setToggleWarning(null);
     try {
-      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
+      await updatePaper(paper.sha256, { shelf_uuid: shelfUuid });
       setOpenShelfPicker(null);
       onChanged();
     } catch (err) {
-      setToggleWarning({ uuid: paper.uuid, text: err.message });
+      setToggleWarning({ uuid: paper.sha256, text: err.message });
     }
   };
   const handleBoardShelfMove = async (board, shelfUuid) => {
@@ -219,11 +221,11 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
               </li>;
             }
             const paper = entry.value;
-            return <React.Fragment key={`paper-${paper.uuid}`}>
+            return <React.Fragment key={`paper-${paper.sha256}`}>
             <li
               className={isOwn && paper.is_public === false ? 'paper-private' : ''}
               onContextMenu={contextMenuHandler(() => [
-                { label: 'Open Paper', onSelect: () => onSelectPaper(paper.uuid) },
+                { label: 'Open Paper', onSelect: () => onSelectPaper(paper.sha256) },
                 isOwn && shelves.length > 0 && { separator: true },
                 isOwn && shelves.length > 0 && {
                   label: 'Move to Shelf',
@@ -240,18 +242,18 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
               {isOwn && (
                 <span
                   className="hint-anchor bar-anchor shelf-bar"
-                  onMouseEnter={() => setOpenShelfPicker(paper.uuid)}
-                  onMouseLeave={() => setOpenShelfPicker((current) => current === paper.uuid ? null : current)}
+                  onMouseEnter={() => setOpenShelfPicker(paper.sha256)}
+                  onMouseLeave={() => setOpenShelfPicker((current) => current === paper.sha256 ? null : current)}
                 >
                   <button
                     className="shelf-current"
                     style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === paper.shelf_uuid)?.color || 'var(--line-strong)' }}
-                    onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === paper.uuid ? null : paper.uuid); }}
+                    onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === paper.sha256 ? null : paper.sha256); }}
                     title="Move to another shelf"
                     aria-label="Choose shelf"
-                    aria-expanded={openShelfPicker === paper.uuid}
+                    aria-expanded={openShelfPicker === paper.sha256}
                   />
-                  {openShelfPicker === paper.uuid && (
+                  {openShelfPicker === paper.sha256 && (
                     <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
                       {shelves.map((shelf) => (
                         <button
@@ -268,7 +270,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                       ))}
                     </span>
                   )}
-                  {toggleWarning?.uuid === paper.uuid && (
+                  {toggleWarning?.uuid === paper.sha256 && (
                     <HintPop
                       text={toggleWarning.text}
                       onClose={() => setToggleWarning(null)}

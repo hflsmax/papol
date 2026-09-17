@@ -49,8 +49,10 @@ function parseRoute() {
   const path = demo
     ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
     : rawPath;
-  // Users, papers and seminars are addressed by their UUID, and only by it.
+  // Users and seminars are addressed by their UUID, and only by it. A paper
+  // is addressed by the digest of its file, which is the only name it has.
   const UUID_PATTERN = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
+  const SHA256_PATTERN = '([0-9a-f]{64})';
   const routed = (route) => ({
     ...route,
     ...(demo ? { demo: true } : {}),
@@ -59,7 +61,7 @@ function parseRoute() {
   let uuid;
   if ((uuid = at(`/u/${UUID_PATTERN}/boards`))) return routed({ page: 'space', uuid, section: 'boards' });
   if ((uuid = at(`/u/${UUID_PATTERN}`))) return routed({ page: 'space', uuid });
-  if ((uuid = at(`/paper/${UUID_PATTERN}`))) return routed({ page: 'paper', uuid });
+  if ((uuid = at(`/paper/${SHA256_PATTERN}`))) return routed({ page: 'paper', uuid });
   if ((uuid = at(`/room/${UUID_PATTERN}`))) return routed({ page: 'room', uuid });
   if (path === '/profile') return routed({ page: 'profile' });
   if (path === '/join') return routed({ page: 'join' });

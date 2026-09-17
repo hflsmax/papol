@@ -5,7 +5,7 @@
 // remains the sole authority for whether demo mode is active.
 
 import {
-  demoPapers, demoNotes, demoPaperUuid, noteAsComment,
+  demoPapers, demoNotes, demoPaperSha256, noteAsComment,
 } from './demoWorld.js';
 import { inDemo } from './appUrls.js';
 import appLimits from './appLimits.js';
@@ -22,8 +22,9 @@ export function exitDemo() {
   db = null;
 }
 
-// Every demo row is named by UUID, as every Papol row is. Seeds name rows by
-// kind and a small ordinal; rows made while playing get a random UUID.
+// Every demo row is named by UUID, as every Papol row but a paper is — a
+// paper is named by its file. Seeds name rows by kind and a small ordinal;
+// rows made while playing get a random UUID.
 const KIND_DIGITS = {
   user: 'a', tag: 'b', shelf: 'c', copy: 'd', room: 'e', participant: 'f',
   message: '1', availability: '2', notification: '3',
@@ -64,7 +65,7 @@ function seed() {
   let cid = 1;
   // Seeds name a paper by its place in demoPapers, and a user by ordinal.
   const copy = (paper, user, extra = {}) => ({
-    uuid: demoUuid('copy', cid++), paper_sha256: demoPaperUuid(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, onDisplay: true, is_author: false,
+    uuid: demoUuid('copy', cid++), paper_sha256: demoPaperSha256(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, onDisplay: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     tag_uuids: [], created_at: daysAgo(5), ...extra,
   });
@@ -120,8 +121,8 @@ function seed() {
   // Spread SpongeBob's papers across the shelves so every shelf demonstrates
   // real membership, color, visibility, and counts.
   for (const item of copies.filter((copyItem) => copyItem.user_uuid === ME)) {
-    if (item.paper_sha256 === demoPaperUuid(1) || item.paper_sha256 === demoPaperUuid(10)) item.shelf_uuid = demoUuid('shelf', 3);
-    if (item.paper_sha256 === demoPaperUuid(9)) item.shelf_uuid = demoUuid('shelf', 4);
+    if (item.paper_sha256 === demoPaperSha256(1) || item.paper_sha256 === demoPaperSha256(10)) item.shelf_uuid = demoUuid('shelf', 3);
+    if (item.paper_sha256 === demoPaperSha256(9)) item.shelf_uuid = demoUuid('shelf', 4);
   }
   // The hint has done its work; a copy carries no visibility of its own.
   for (const item of copies) delete item.onDisplay;
@@ -231,7 +232,7 @@ const privateUser = (u) => ({
 
 const userByUuid = (uuid) => ensure().users.find((u) => u.uuid === uuid);
 const paperKey = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
-const paperCopies = (p) => ensure().copies.filter((c) => c.paper_sha256 === p.uuid);
+const paperCopies = (p) => ensure().copies.filter((c) => c.paper_sha256 === p.sha256);
 const shelfOf = (c) => ensure().shelves.find((shelf) => shelf.uuid === c.shelf_uuid) || null;
 // On display is the shelf's answer, and only ever the shelf's.
 const onDisplay = (c) => !!(c && shelfOf(c)?.is_public);
@@ -266,7 +267,6 @@ function paperDetail(p) {
   return {
     sha256: p.sha256, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
-    sha256: p.sha256,
     created_at: p.created_at,
     summary: mine ? mine.summary : null,
     thought: mine ? mine.thought : null,
@@ -278,7 +278,7 @@ function paperDetail(p) {
     shelf_uuid: mine ? mine.shelf_uuid : null,
     tags: tagsOf(mine),
     notes: mine
-      ? ensure().comments.filter((c) => c.paper_sha256 === p.uuid && c.user_uuid === ME)
+      ? ensure().comments.filter((c) => c.paper_sha256 === p.sha256 && c.user_uuid === ME)
           .map((c) => ({ ...c, kind: 'note' }))
       : [],
     also_read_by: displayedCopies(p).map(userEntry),
@@ -301,7 +301,6 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     sha256: p.sha256, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: c ? c.created_at : p.created_at,
-    sha256: p.sha256,
     summary: c && !hidePrivate ? c.summary : null,
     thought: c ? c.thought : null,
     is_public: c ? onDisplay(c) : null,

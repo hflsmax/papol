@@ -34,7 +34,7 @@ export function resolveSource() {
   if (!inDemo && /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
-  if (inDemo) return DEMO_PDFS[pdf] ? localSource(DEMO_PDFS[pdf]) : null;
+  if (inDemo) return DEMO_PAPERS[pdf] ? localSource(pdf) : null;
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
   return apiSource(pdf);
 }
@@ -76,13 +76,13 @@ function apiSource(
     requiresSignIn: true,
     async load() {
       const loaded = await paper();
-      paperSha256 = loaded.uuid;
-      source.homeHref = appPath(`/paper/${loaded.uuid}`);
+      paperSha256 = loaded.sha256;
+      source.homeHref = appPath(`/paper/${loaded.sha256}`);
       return { doc: loaded, notes: [] };
     },
     async loadNotes() {
       const loaded = await paper();
-      paperSha256 = loaded.uuid;
+      paperSha256 = loaded.sha256;
       return notesIn(await loadPaperNotes(loaded));
     },
     // One interface for every kind of annotation. A caller says which kind it is
@@ -245,8 +245,8 @@ function openedFileSource(pdfHash, name) {
 // demo, and gone on reload.
 // The demo world is shared with Papol's own demo, so a note written into
 // it appears on the paper page and in the viewer alike.
-const DEMO_PAPERS = Object.fromEntries(demoPapers.map((p) => [p.uuid, p]));
-const DEMO_PDFS = Object.fromEntries(demoPapers.map((p) => [p.sha256, p.uuid]));
+// One map, because a paper and its PDF are one thing: the digest names both.
+const DEMO_PAPERS = Object.fromEntries(demoPapers.map((p) => [p.sha256, p]));
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 

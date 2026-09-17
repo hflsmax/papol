@@ -12,22 +12,9 @@
  * at load, keeping the demo world always recent.
  */
 
-// Demo papers are named by UUID, as every Papol paper is. Seeds elsewhere
-// refer to them by their place in this list.
-const demoPaperUuids = [
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1001',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1002',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1003',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1004',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1005',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1006',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1007',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1008',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1009',
-  '5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c1010',
-];
-// Which paper, named the way every paper is named: by its file.
-export const demoPaperUuid = (ordinal) => demoPapers[ordinal - 1].sha256;
+// A demo paper is named the way every Papol paper is: by its file. Seeds
+// elsewhere refer to them by their place in this list.
+export const demoPaperSha256 = (ordinal) => demoPapers[ordinal - 1].sha256;
 const demoNoteUuid = (ordinal) => `5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3${String(ordinal).padStart(3, '0')}`;
 
 export const demoPapers = [

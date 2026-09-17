@@ -51,12 +51,12 @@ const space = {
   shelves: [{ uuid: 1, name: 'Display' }, { uuid: 2, name: 'Personal' }],
   tags: [{ uuid: 9, name: 'reread' }],
   papers: [
-    { uuid: 'a', shelf_uuid: 1, tags: [{ uuid: 9 }], created_at: '2026-01-01T00:00:00Z' },
-    { uuid: 'b', shelf_uuid: 2, tags: [], created_at: '2026-03-01T00:00:00Z' },
-    { uuid: 'c', shelf_uuid: 1, tags: [], created_at: '2026-02-01T00:00:00Z' },
+    { sha256: 'a', shelf_uuid: 1, tags: [{ uuid: 9 }], created_at: '2026-01-01T00:00:00Z' },
+    { sha256: 'b', shelf_uuid: 2, tags: [], created_at: '2026-03-01T00:00:00Z' },
+    { sha256: 'c', shelf_uuid: 1, tags: [], created_at: '2026-02-01T00:00:00Z' },
   ],
 };
-const ids = (papers) => papers.map((paper) => paper.uuid);
+const ids = (papers) => papers.map((paper) => paper.sha256);
 
 test('lists the nook newest first, narrowed by shelf or tag', () => {
   assert.deepEqual(ids(papersInSource('all', { space })), ['b', 'c', 'a']);
@@ -71,9 +71,9 @@ test('a shelf that no longer exists lists the whole nook', () => {
 
 test('lists the library with live seminars first', () => {
   const library = [
-    { uuid: 'quiet', created_at: '2026-05-01T00:00:00Z' },
-    { uuid: 'scheduled', room_status: 'scheduled', created_at: '2026-01-01T00:00:00Z' },
-    { uuid: 'called', room_status: 'open', created_at: '2025-01-01T00:00:00Z' },
+    { sha256: 'quiet', created_at: '2026-05-01T00:00:00Z' },
+    { sha256: 'scheduled', room_status: 'scheduled', created_at: '2026-01-01T00:00:00Z' },
+    { sha256: 'called', room_status: 'open', created_at: '2025-01-01T00:00:00Z' },
   ];
   assert.deepEqual(ids(papersInSource('library', { library })), ['called', 'scheduled', 'quiet']);
   assert.deepEqual(ids(papersInSource('library', { library: null })), []);

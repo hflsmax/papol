@@ -204,7 +204,7 @@ export default function PaperDetail({
   const handleInlineRating = async (key, value) => {
     setError(null);
     try {
-      const saved = await updatePaper(paper.uuid, { [key]: value });
+      const saved = await updatePaper(paper.sha256, { [key]: value });
       loadPaper(key === 'is_author' ? { is_author: saved?.is_author ?? value } : null);
     } catch (err) {
       setError(err.message);
@@ -215,7 +215,7 @@ export default function PaperDetail({
     setError(null);
     setToggleWarning(null);
     try {
-      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
+      await updatePaper(paper.sha256, { shelf_uuid: shelfUuid });
       loadPaper();
     } catch (err) {
       setToggleWarning(err.message);
@@ -292,7 +292,7 @@ export default function PaperDetail({
     setError(null);
     setIsSharingReading(true);
     try {
-      const sharable = await createSharable(paper.uuid, {
+      const sharable = await createSharable(paper.sha256, {
         includeAnnotations: shareIncludesAnnotations,
       });
       const href = sharableHref(sharable.uuid);
@@ -356,7 +356,7 @@ export default function PaperDetail({
   const handleDelete = async () => {
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
-      await deletePaper(paper.uuid);
+      await deletePaper(paper.sha256);
       onBack();
     } catch (err) {
       setError(err.message);
@@ -371,7 +371,7 @@ export default function PaperDetail({
         .map((a) => a.trim())
         .filter((a) => a);
 
-      await updatePaper(paper.uuid, {
+      await updatePaper(paper.sha256, {
         title: editData.title,
         authors: JSON.stringify(authorsList),
         journal: editData.journal || null,
@@ -390,7 +390,7 @@ export default function PaperDetail({
     setError(null);
     setIsExtractingMetadata(true);
     try {
-      const extracted = await reextractPaperMetadata(paper.uuid);
+      const extracted = await reextractPaperMetadata(paper.sha256);
       setEditData((current) => ({
         ...current,
         ...(extracted.title != null && { title: extracted.title }),
@@ -411,7 +411,7 @@ export default function PaperDetail({
   const saveSummary = async () => {
     setError(null);
     try {
-      await updatePaper(paper.uuid, { summary: summaryDraft.trim() || null });
+      await updatePaper(paper.sha256, { summary: summaryDraft.trim() || null });
       setEditingSummary(false);
       loadPaper();
     } catch (err) {
@@ -422,7 +422,7 @@ export default function PaperDetail({
   const saveThought = async () => {
     setError(null);
     try {
-      const saved = await updatePaper(paper.uuid, { thought: thoughtDraft.trim() || null });
+      const saved = await updatePaper(paper.sha256, { thought: thoughtDraft.trim() || null });
       setEditingThought(false);
       loadPaper({ thought: saved?.thought ?? null });
     } catch (err) {
@@ -459,7 +459,7 @@ export default function PaperDetail({
   );
   const tagExists = availableTags.some((tag) => tag.name.toLowerCase() === tagQuery);
   const attachTag = async (tag) => {
-    await updatePaper(paper.uuid, {
+    await updatePaper(paper.sha256, {
       tag_uuids: [...assignedTagUuids, tag.uuid],
     });
     setTagDraft('');
@@ -753,7 +753,7 @@ export default function PaperDetail({
                     </a>
                     <a
                       role="menuitem"
-                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.uuid}`)}`)}
+                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.sha256}`)}`)}
                       title="Sign in to use the built-in viewer"
                     >
                       <strong>Use built-in viewer</strong>
@@ -1171,7 +1171,7 @@ export default function PaperDetail({
                       className="tag-chip selected"
                       key={tag.uuid}
                       onClick={async () => {
-                        await updatePaper(paper.uuid, { tag_uuids: paper.tags.filter((t) => t.uuid !== tag.uuid).map((t) => t.uuid) });
+                        await updatePaper(paper.sha256, { tag_uuids: paper.tags.filter((t) => t.uuid !== tag.uuid).map((t) => t.uuid) });
                         loadPaper();
                       }}
                       title="Remove tag from this paper"
@@ -1220,7 +1220,7 @@ export default function PaperDetail({
           </section>
 
           <CommentSection
-            paperSha256={paper.uuid}
+            paperSha256={paper.sha256}
             shared={Boolean(paper.sharable_uuid)}
             comments={(paper.notes || []).filter((note) => note.content)}
             noteHref={noteHref}
