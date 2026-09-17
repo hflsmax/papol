@@ -1046,6 +1046,58 @@ def _forget_changes_no_replica_could_read(conn):
     )
 
 
+def _make_the_cursor_only_grow(conn):
+    """Rebuild the change log so its sequence cannot be handed out twice.
+
+    The column was an ordinary SQLite integer key, which is the row id, and
+    a row id is max + 1 of the rows still there. The log has always had
+    entries removed from it — an account closing takes its own, a merge
+    drops what it invalidated, a migration drops what no replica could read
+    — and every one of those could leave the next change carrying a number
+    some replica is already past. That replica would then pull nothing, for
+    good, and say nothing about it.
+
+    AUTOINCREMENT is the fix, and SQLite will not add it in place. The
+    rebuild carries the rows over with the sequences they have, which is
+    what sets the high-water mark: the next change comes after the last one
+    written rather than after the last one kept.
+
+    Its own existence is the record that it has run — found with
+    AUTOINCREMENT, there is nothing to do.
+    """
+    present = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "_server_change_log" not in present:
+        return  # fresh; create_all writes it the right way
+    declared = next(conn.execute(text(
+        "SELECT sql FROM sqlite_master WHERE type='table' "
+        "AND name='_server_change_log'"
+    )))[0] or ""
+    if "AUTOINCREMENT" in declared.upper():
+        return
+
+    table = Base.metadata.tables["_server_change_log"]
+    staging_metadata = MetaData()
+    for other in Base.metadata.tables.values():
+        if other.name != table.name:
+            other.to_metadata(staging_metadata)
+    staging = table.to_metadata(staging_metadata, name="_new_server_change_log")
+    conn.execute(text("DROP TABLE IF EXISTS _new_server_change_log"))
+    conn.execute(CreateTable(staging))
+    columns = ", ".join(f'"{column.name}"' for column in table.columns)
+    conn.execute(text(
+        f"INSERT INTO _new_server_change_log ({columns}) "
+        f"SELECT {columns} FROM _server_change_log ORDER BY sequence"
+    ))
+    conn.execute(text("DROP TABLE _server_change_log"))
+    conn.execute(text(
+        "ALTER TABLE _new_server_change_log RENAME TO _server_change_log"
+    ))
+
+
 def migrate():
     """Retire obsolete tables and columns, and add columns an existing table
     lacks.
@@ -1092,6 +1144,9 @@ def migrate():
         # Last: the rebuild copies whatever the model declares, so every
         # column it declares has to be there to copy.
         _require_a_file(conn)
+        # Before anything is dropped from the log, so that what the rebuild
+        # carries over is what sets the high-water mark.
+        _make_the_cursor_only_grow(conn)
         # Later still: the log is judged against the shape every table
         # above has finished arriving at.
         _forget_changes_no_replica_could_read(conn)
