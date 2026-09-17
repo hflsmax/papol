@@ -6,16 +6,17 @@ from auth import get_current_user, get_optional_user
 from database import Base, get_db
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from models import Copy, EditionReference, Paper, PaperEdition, Shelf, User
+from models import Copy, Paper, PaperReference, Shelf, User
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from services.papers import paper_name
 
 HASH = "c" * 64
 
 
 class ReferencePreviewTests(unittest.TestCase):
-    """Registering a citation read off the page must not give an edition a
+    """Registering a citation read off the page must not give a paper a
     second row for a reference the analyzer already read."""
 
     @classmethod
@@ -61,38 +62,36 @@ class ReferencePreviewTests(unittest.TestCase):
             db.commit()
             type(self).current_user_uuid = user.uuid
 
-            paper = Paper(title="KinetiX", doi="10.1234/kinetix")
+            paper = Paper(
+                title="KinetiX", doi="10.1234/kinetix",
+                file_path=f"{HASH}.pdf", sha256=HASH, references_status="ready",
+            )
             db.add(paper)
             db.commit()
-            edition = PaperEdition(
-                paper_uuid=paper.uuid, file_path=f"{HASH}.pdf", sha256=HASH,
-                references_status="ready",
-            )
             shelf = Shelf(user_uuid=user.uuid, name="Reading", color="#b3923d")
-            db.add_all([edition, shelf])
+            db.add(shelf)
             db.commit()
             db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
-                edition_uuid=edition.uuid, edition_sha256=HASH,
+                paper_sha256=paper.sha256, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
             ))
             # GROBID's own reading: entry 27 is printed as "[27]" and named
             # "b26", because its rows count from zero.
             db.add_all([
-                EditionReference(
-                    edition_uuid=edition.uuid, key=f"b{index}", index=index,
+                PaperReference(
+                    paper_sha256=paper.sha256, key=f"b{index}", index=index,
                     raw=f"Entry {index + 1} as the analyzer read it.",
                 )
                 for index in range(27)
             ])
             db.commit()
-            type(self).edition_uuid = edition.uuid
+            type(self).paper_sha256 = paper.sha256
 
     def preview(self, key, raw):
         with patch.object(
             main, "resolve_reference", AsyncMock(side_effect=lambda ref: main.reference_out(ref)),
         ):
             return self.client.post(
-                f"/api/editions/{self.edition_uuid}/references/preview",
+                f"/api/papers/{paper_name(self.paper_sha256)}/references/preview",
                 json={"key": key, "raw": raw},
             )
 
@@ -102,8 +101,8 @@ class ReferencePreviewTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["key"], "b26")
         with self.Session() as db:
-            rows = db.query(EditionReference).filter(
-                EditionReference.edition_uuid == self.edition_uuid,
+            rows = db.query(PaperReference).filter(
+                PaperReference.paper_sha256 == self.paper_sha256,
             ).count()
         self.assertEqual(rows, 27, "no second row for an entry already held")
         self.assertEqual(
@@ -117,8 +116,8 @@ class ReferencePreviewTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["key"], "knuth74")
         with self.Session() as db:
-            rows = db.query(EditionReference).filter(
-                EditionReference.edition_uuid == self.edition_uuid,
+            rows = db.query(PaperReference).filter(
+                PaperReference.paper_sha256 == self.paper_sha256,
             ).count()
         self.assertEqual(rows, 28)
 

@@ -28,7 +28,7 @@ export function annotationKinds(annotations) {
 
   return {
     notes: list && {
-      list: async (editionUuid) => notesIn(await list(editionUuid, 'note')),
+      list: async () => notesIn(await list('note')),
       create: create && (({ page, anchor, content }) => made('note')({
         page: page ?? null, content: content ?? '', body: { anchor: anchor ?? null },
       })),
@@ -39,9 +39,9 @@ export function annotationKinds(annotations) {
       remove,
     },
     ink: list && {
-      list: async (editionUuid) => inkIn(await list(editionUuid, 'ink')),
-      create: create && ((editionUuid, { page, group_uuid: groupUuid, ...body }) => made('ink')({
-        edition_uuid: editionUuid, page, group_uuid: groupUuid ?? null, body,
+      list: async () => inkIn(await list('ink')),
+      create: create && (({ page, group_uuid: groupUuid, ...body }) => made('ink')({
+        page, group_uuid: groupUuid ?? null, body,
       })),
       // Carrying a stroke says where its points are now. The nib it was
       // drawn with is not part of the answer, so it is not sent.
@@ -49,9 +49,9 @@ export function annotationKinds(annotations) {
       remove,
     },
     clips: list && {
-      list: async (editionUuid) => clipsIn(await list(editionUuid, 'clip')),
-      create: create && ((editionUuid, { page, ...body }) => made('clip')({
-        edition_uuid: editionUuid, page, body,
+      list: async () => clipsIn(await list('clip')),
+      create: create && (({ page, ...body }) => made('clip')({
+        page, body,
       })),
       move: update && ((uuid, frame, floating) => changed(uuid, { body: { frame, floating } })),
       remove,

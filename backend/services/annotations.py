@@ -44,7 +44,6 @@ def annotation_out(annotation: Annotation) -> AnnotationOut:
     return AnnotationOut(
         uuid=annotation.uuid,
         kind=annotation.kind,
-        edition_uuid=annotation.edition_uuid,
         page=annotation.page,
         group_uuid=annotation.group_uuid,
         content=annotation.content,
@@ -54,24 +53,18 @@ def annotation_out(annotation: Annotation) -> AnnotationOut:
     )
 
 
-def annotations_of(db, user_uuid: str, *, paper_uuid=None, edition_uuid=None,
-                   kinds=None) -> list[Annotation]:
+def annotations_of(db, user_uuid: str, *, paper_sha256=None, kinds=None) -> list[Annotation]:
     """One user's annotations, oldest first.
 
     Oldest first is not a preference: later ink has to be drawn over earlier
     ink, so the order rows come back in is the order they are painted.
-
-    Passing `paper_uuid` alone takes in a note written about the paper and
-    never placed on a page, which has no edition to be found by.
     """
     query = db.query(Annotation).filter(
         Annotation.user_uuid == user_uuid,
         Annotation.deleted_at.is_(None),
     )
-    if paper_uuid is not None:
-        query = query.filter(Annotation.paper_uuid == paper_uuid)
-    if edition_uuid is not None:
-        query = query.filter(Annotation.edition_uuid == edition_uuid)
+    if paper_sha256 is not None:
+        query = query.filter(Annotation.paper_sha256 == paper_sha256)
     if kinds is not None:
         query = query.filter(Annotation.kind.in_(tuple(kinds)))
     return query.order_by(Annotation.created_at, Annotation.uuid).all()

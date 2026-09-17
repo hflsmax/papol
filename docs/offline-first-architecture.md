@@ -247,7 +247,7 @@ _local_blob_refs (
 
 Server-only infrastructure follows the same convention, for example `_server_applied_mutations`, `_server_change_log`, and `_server_client_cursors`. Authentication, administration, and other non-replicated server domains remain ordinary server-only tables.
 
-Synchronized domain tables should include at least a stable UUID `id`, `revision`, `updated_at`, `deleted_at` or an equivalent tombstone flag, and normal query indexes. Papol will share papers and editions as read-only dependencies and synchronize user-owned copies, private notes, ink, clips, shelves, tags, boards, board items, and board groups. Public library and seminar data can remain a bounded cache or online-only view.
+Synchronized domain tables should include at least a stable UUID `id`, `revision`, `updated_at`, `deleted_at` or an equivalent tombstone flag, and normal query indexes. Papol will share papers as read-only dependencies and synchronize user-owned copies, private notes, ink, clips, shelves, tags, boards, board items, and board groups. Public library and seminar data can remain a bounded cache or online-only view.
 
 This deliberately avoids separate “sync DTO” types for ordinary rows. Push and pull carry a generic row envelope plus the row's shared columns. A small registry allowlists synchronized tables, writable columns, and ownership rules; conflict behavior is one rule for every table, so the registry does not choose one. Adding a normal nullable field requires one shared migration and corresponding application usage—not a new cache overlay, optimistic response shape, ID mapper, and endpoint translator.
 

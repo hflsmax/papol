@@ -1816,10 +1816,6 @@ button.link.danger { color: var(--red); }
 /* An anchor with nothing written on it yet: an annotation, not a note. */
 .pin.bare { color: var(--accent); }
 
-/* A note placed on another edition of this paper: shown where it was put,
-   marked, never moved. */
-.pin.drifted { color: var(--ink-soft); }
-
 .pin.dragging { cursor: grabbing; opacity: 0.85; }
 
 /* Pointed at from the page: the row lights up, then fades back. */
@@ -2030,15 +2026,6 @@ button.link.danger { color: var(--red); }
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.drift {
-  margin-left: auto;
-  padding: 1px 7px;
-  border-radius: var(--radius-pill);
-  background: var(--gold-soft);
-  border: 1px solid var(--gold-line);
-  color: var(--gold-ink);
 }
 
 .note-text {

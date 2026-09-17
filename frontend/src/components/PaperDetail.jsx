@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  getPaper, updatePaper, deletePaper, addPaperEdition, adoptEdition, ignoreEdition, createTag, listTags, listShelves,
+  getPaper, updatePaper, deletePaper, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../../../shared/api/papers.js';
 import {
   createSharable, leanSharable, revokeSharable, sharableHref,
 } from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
+import { paperName } from '../../../shared/paperName.js';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
@@ -22,7 +23,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperDetail({
-  paperUuid, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
+  paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   hideBack = false, onReportableError,
 }) {
   const [paper, setPaper] = useState(null);
@@ -34,10 +35,8 @@ export default function PaperDetail({
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
-  const [isAddingEdition, setIsAddingEdition] = useState(false);
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
-  const [pendingPdf, setPendingPdf] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
   // Set when Read is pressed on a paper the user has not taken yet. Up
   // here with the rest: there are early returns below, and a hook after
@@ -64,7 +63,6 @@ export default function PaperDetail({
   // a link that carries their annotations.
   const [stoppingShare, setStoppingShare] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
-  const pdfInputRef = useRef(null);
   const readControlRef = useRef(null);
   const shareControlRef = useRef(null);
   const readingUrlRef = useRef(null);
@@ -108,50 +106,9 @@ export default function PaperDetail({
     };
   }, [shareOpen]);
 
-  const handlePdfPick = (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    setError(null);
-    setPendingPdf(file);
-  };
-
-  // Both edition choices are made on the service, so the copy they change
-  // comes back down only on the next pull. Carry the edition the service
-  // settled on into the reload, or the offer redraws itself as if unanswered.
-  const editionOverlay = (saved) => (saved ? {
-    edition_uuid: saved.edition_uuid,
-    edition_sha256: saved.edition_sha256,
-    ignored_edition_uuid: saved.ignored_edition_uuid,
-  } : null);
-
-  // Adopting is the user's own call: their located notes were placed on
-  // the PDF they have, and on a different file they may not line up.
-  const handleAdoptEdition = async () => {
-    setError(null);
-    try {
-      const saved = await adoptEdition(paper.uuid, paper.latest_edition.uuid);
-      loadPaper(editionOverlay(saved));
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  // Waving the offer away is not a decision about the PDF: the user keeps
-  // what they have, and a later edition asks again.
-  const handleIgnoreEdition = async () => {
-    setError(null);
-    try {
-      const saved = await ignoreEdition(paper.uuid, paper.latest_edition.uuid);
-      loadPaper(editionOverlay(saved));
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   useEffect(() => {
     loadPaper();
-  }, [paperUuid]);
+  }, [paperSha256]);
 
   // Coming back from the viewer is a history step, so the browser restores
   // this page from its cache with whatever notes it had when the user
@@ -176,7 +133,7 @@ export default function PaperDetail({
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [paperUuid, editMode, editingSummary, editingThought]);
+  }, [paperSha256, editMode, editingSummary, editingThought]);
 
   // Every load after the first follows a change made here, so whatever lists
   // this paper beside the page (Papol macOS's nook) is told to catch up.
@@ -188,7 +145,7 @@ export default function PaperDetail({
   const loadPaper = async (overlay = null) => {
     setError(null);
     try {
-      const data = await getPaper(paperUuid);
+      const data = await getPaper(paperSha256);
       setPaper(overlay ? { ...data, ...overlay } : data);
       setIsLoading(false);
       if (currentUser && data.viewer_has_entry) {
@@ -203,31 +160,18 @@ export default function PaperDetail({
     }
   };
 
-  const editionHash = (editionUuid = paper?.edition_uuid) =>
-    paper?.editions?.find((edition) => edition.uuid === editionUuid)?.sha256 || null;
-
+  // The paper is its PDF, and the content hash is what names that PDF in
+  // a viewer URL.
   const viewerHref = () => {
-    if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}`);
-    const hash = editionHash();
-    return hash ? appPath(`/viewer/?pdf=${hash}`) : null;
+    if (!paper?.sha256) return null;
+    const base = demoActive() ? '/demo/viewer/' : '/viewer/';
+    return appPath(`${base}?pdf=${paper.sha256}`);
   };
 
   const noteHref = (comment) => {
-    if (demoActive()) return appPath(`/demo/viewer/?pdf=${paper.sha256 || editionHash()}&note=${comment.uuid}`);
-    const hash = editionHash(comment.edition_uuid || paper?.edition_uuid);
-    return hash ? appPath(`/viewer/?pdf=${hash}&note=${comment.uuid}`) : null;
+    const href = viewerHref();
+    return href ? `${href}&note=${comment.uuid}` : null;
   };
-
-  // A newer edition exists and this user's copy is not on it. Only ever
-  // an offer: nothing moves a user's copy but the user.
-  const newEdition =
-    paper &&
-    paper.viewer_has_entry &&
-    paper.latest_edition &&
-    paper.latest_edition.uuid !== paper.edition_uuid &&
-    paper.latest_edition.uuid !== paper.ignored_edition_uuid
-      ? paper.latest_edition
-      : null;
 
   const parseAuthors = (authorsJson) => {
     if (!authorsJson) return [];
@@ -261,7 +205,7 @@ export default function PaperDetail({
   const handleInlineRating = async (key, value) => {
     setError(null);
     try {
-      const saved = await updatePaper(paper.uuid, { [key]: value });
+      const saved = await updatePaper(paper.sha256, { [key]: value });
       loadPaper(key === 'is_author' ? { is_author: saved?.is_author ?? value } : null);
     } catch (err) {
       setError(err.message);
@@ -272,7 +216,7 @@ export default function PaperDetail({
     setError(null);
     setToggleWarning(null);
     try {
-      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
+      await updatePaper(paper.sha256, { shelf_uuid: shelfUuid });
       loadPaper();
     } catch (err) {
       setToggleWarning(err.message);
@@ -291,7 +235,7 @@ export default function PaperDetail({
       window.history.replaceState(
         window.history.state,
         '',
-        appPath(`${modePrefix}/paper/${added.uuid}`),
+        appPath(`${modePrefix}/paper/${paperName(added.sha256)}`),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
       // the nook needs the user's shelves for its shelf menu.
@@ -349,7 +293,7 @@ export default function PaperDetail({
     setError(null);
     setIsSharingReading(true);
     try {
-      const sharable = await createSharable(paper.uuid, {
+      const sharable = await createSharable(paper.sha256, {
         includeAnnotations: shareIncludesAnnotations,
       });
       const href = sharableHref(sharable.uuid);
@@ -413,7 +357,7 @@ export default function PaperDetail({
   const handleDelete = async () => {
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
-      await deletePaper(paper.uuid);
+      await deletePaper(paper.sha256);
       onBack();
     } catch (err) {
       setError(err.message);
@@ -428,7 +372,7 @@ export default function PaperDetail({
         .map((a) => a.trim())
         .filter((a) => a);
 
-      await updatePaper(paper.uuid, {
+      await updatePaper(paper.sha256, {
         title: editData.title,
         authors: JSON.stringify(authorsList),
         journal: editData.journal || null,
@@ -436,20 +380,10 @@ export default function PaperDetail({
         doi: editData.doi || null,
       });
 
-      // The picked PDF rides along with the save, so nothing about the
-      // paper changes until the user commits the form.
-      if (pendingPdf) {
-        setIsAddingEdition(true);
-        await addPaperEdition(paper.uuid, pendingPdf);
-        setPendingPdf(null);
-      }
-
       setEditMode(null);
       window.location.reload();
     } catch (err) {
       setError(err.message);
-    } finally {
-      setIsAddingEdition(false);
     }
   };
 
@@ -457,7 +391,7 @@ export default function PaperDetail({
     setError(null);
     setIsExtractingMetadata(true);
     try {
-      const extracted = await reextractPaperMetadata(paper.uuid);
+      const extracted = await reextractPaperMetadata(paper.sha256);
       setEditData((current) => ({
         ...current,
         ...(extracted.title != null && { title: extracted.title }),
@@ -478,7 +412,7 @@ export default function PaperDetail({
   const saveSummary = async () => {
     setError(null);
     try {
-      await updatePaper(paper.uuid, { summary: summaryDraft.trim() || null });
+      await updatePaper(paper.sha256, { summary: summaryDraft.trim() || null });
       setEditingSummary(false);
       loadPaper();
     } catch (err) {
@@ -489,7 +423,7 @@ export default function PaperDetail({
   const saveThought = async () => {
     setError(null);
     try {
-      const saved = await updatePaper(paper.uuid, { thought: thoughtDraft.trim() || null });
+      const saved = await updatePaper(paper.sha256, { thought: thoughtDraft.trim() || null });
       setEditingThought(false);
       loadPaper({ thought: saved?.thought ?? null });
     } catch (err) {
@@ -517,8 +451,8 @@ export default function PaperDetail({
   const authors = parseAuthors(paper.authors);
   const hasEntry = currentUser != null && paper.viewer_has_entry;
   // A link hands over a PDF, so there has to be one to hand over: a paper
-  // whose entry has no readable edition has nothing for the viewer to open.
-  const canShareThisPdf = hasEntry && Boolean(paper.edition_uuid);
+  // with no readable file has nothing for the viewer to open.
+  const canShareThisPdf = hasEntry && Boolean(paper.file_path);
   const assignedTagUuids = new Set((paper.tags || []).map((tag) => tag.uuid));
   const tagQuery = tagDraft.trim().toLowerCase();
   const tagSuggestions = availableTags.filter(
@@ -526,7 +460,7 @@ export default function PaperDetail({
   );
   const tagExists = availableTags.some((tag) => tag.name.toLowerCase() === tagQuery);
   const attachTag = async (tag) => {
-    await updatePaper(paper.uuid, {
+    await updatePaper(paper.sha256, {
       tag_uuids: [...assignedTagUuids, tag.uuid],
     });
     setTagDraft('');
@@ -543,10 +477,10 @@ export default function PaperDetail({
   // Papol macOS keeps the user's PDF in its local store. Save that copy,
   // which needs no network and exists before the paper syncs, and read it
   // only when asked, since a PDF can be large.
-  const localPdf = nativeDataActive() && hasEntry && Boolean(paper.edition_sha256);
+  const localPdf = nativeDataActive() && hasEntry && Boolean(paper.sha256);
   const saveLocalPdf = async () => {
     try {
-      const href = await nativeBlobUrl(paper.edition_sha256, 'application/pdf');
+      const href = await nativeBlobUrl(paper.sha256, 'application/pdf');
       const link = document.createElement('a');
       link.href = href;
       link.download = pdfFileName(paper);
@@ -683,36 +617,12 @@ export default function PaperDetail({
                 >
                   View PDF
                 </a>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={() => pdfInputRef.current?.click()}
-                  disabled={isAddingEdition}
-                  title="Picks the PDF your copy will read, applied when you save. Other users keep theirs until they choose to update."
-                >
-                  {isAddingEdition ? 'Uploading…' : 'Replace PDF'}
-                </button>
-                {pendingPdf && (
-                  <span className="pdf-pending">{pendingPdf.name}</span>
-                )}
-                <input
-                  type="file"
-                  accept=".pdf"
-                  ref={pdfInputRef}
-                  style={{ display: 'none' }}
-                  onChange={handlePdfPick}
-                />
               </div>
             </div>
           )}
 
           <div className="form-actions">
-            <button
-              onClick={() => {
-                setPendingPdf(null);
-                setEditMode(null);
-              }}
-            >
+            <button onClick={() => setEditMode(null)}>
               Cancel
             </button>
             <button className="primary" onClick={handleMetadataSave}>
@@ -722,39 +632,6 @@ export default function PaperDetail({
         </div>
       ) : (
         <div className="paper-info">
-          {newEdition && (
-            <div className="edition-notice">
-              <span className="edition-notice-icon" aria-hidden="true">i</span>
-              <div>
-                <p className="edition-notice-head">
-                  A newer PDF is uploaded by another user.
-                </p>
-                <p className="edition-notice-warn">
-                  Your notes sit on your current PDF and may not line up on the new one.
-                </p>
-                {/* A link carrying this user's annotations is a reason they
-                    have to settle first, so the offer is withdrawn and named
-                    rather than left to fail when clicked. A link carrying the
-                    paper alone is not theirs to settle. */}
-                {paper.sharable_uuid && (
-                  <p className="edition-notice-warn">
-                    The link you handed out opens the PDF you are reading now.
-                    Stop sharing it below before moving to this one.
-                  </p>
-                )}
-                <div className="edition-notice-actions">
-                  {!paper.sharable_uuid && (
-                    <button className="link-btn" onClick={handleAdoptEdition}>
-                      Update my nook
-                    </button>
-                  )}
-                  <button className="link-btn" onClick={handleIgnoreEdition}>
-                    Ignore
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="detail-title-row" onContextMenu={paperContextMenu}>
             <h2>{paper.title}</h2>
             {hasEntry && (
@@ -877,7 +754,7 @@ export default function PaperDetail({
                     </a>
                     <a
                       role="menuitem"
-                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.uuid}`)}`)}
+                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paperName(paper.sha256)}`)}`)}
                       title="Sign in to use the built-in viewer"
                     >
                       <strong>Use built-in viewer</strong>
@@ -1295,7 +1172,7 @@ export default function PaperDetail({
                       className="tag-chip selected"
                       key={tag.uuid}
                       onClick={async () => {
-                        await updatePaper(paper.uuid, { tag_uuids: paper.tags.filter((t) => t.uuid !== tag.uuid).map((t) => t.uuid) });
+                        await updatePaper(paper.sha256, { tag_uuids: paper.tags.filter((t) => t.uuid !== tag.uuid).map((t) => t.uuid) });
                         loadPaper();
                       }}
                       title="Remove tag from this paper"
@@ -1344,7 +1221,7 @@ export default function PaperDetail({
           </section>
 
           <CommentSection
-            paperUuid={paper.uuid}
+            paperSha256={paper.sha256}
             shared={Boolean(paper.sharable_uuid)}
             comments={(paper.notes || []).filter((note) => note.content)}
             noteHref={noteHref}

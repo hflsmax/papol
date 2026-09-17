@@ -4,7 +4,7 @@ from pathlib import Path
 
 from models import (
     Annotation, Board, BoardGroup, BoardItem, Copy, CopyTagLink, Paper,
-    PaperEdition, Shelf, Tag,
+    Shelf, Tag,
 )
 
 
@@ -19,7 +19,7 @@ WRITABLE_MODELS = {
     "copy_tags": CopyTagLink,
 }
 
-DEPENDENCY_MODELS = {"papers": Paper, "paper_editions": PaperEdition}
+DEPENDENCY_MODELS = {"papers": Paper}
 MODELS = WRITABLE_MODELS | DEPENDENCY_MODELS
 
 

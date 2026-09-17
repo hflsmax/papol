@@ -5,7 +5,7 @@ import AutoTextarea from './AutoTextarea';
 import { confirmAction } from '../../../shared/confirmAction';
 
 export default function CommentSection({
-  noteHref, onOpenNote, paperUuid, comments, currentUser, onCommentChange,
+  noteHref, onOpenNote, paperSha256, comments, currentUser, onCommentChange,
   shared = false }) {
   const [newComment, setNewComment] = useState('');
   const [composing, setComposing] = useState(false);
@@ -34,7 +34,7 @@ export default function CommentSection({
     setError(null);
 
     try {
-      await addComment(paperUuid, newComment.trim());
+      await addComment(paperSha256, newComment.trim());
       setNewComment('');
       setComposing(false);
       onCommentChange();

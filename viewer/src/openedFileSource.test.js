@@ -117,7 +117,7 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   annotations.set('legacy-annotation', { uuid: 'legacy-annotation', kind: 'note', sha256: HASH });
   const source = resolveSource();
   assert.deepEqual(source.initialPaper, {
-    title: 'Local paper', sha256: HASH, edition_sha256: HASH, opened_file: true,
+    title: 'Local paper', sha256: HASH, opened_file: true,
   });
   const loaded = await source.load();
 
@@ -143,8 +143,7 @@ test('an opened file already in the nook exposes its paper identity', async () =
   existingPaper = {
     uuid: '55555555-5555-4555-8555-555555555555',
     title: 'Saved paper',
-    edition_uuid: '44444444-4444-4444-8444-444444444444',
-    edition_sha256: HASH,
+    sha256: HASH,
   };
   calls.length = 0;
 
@@ -169,8 +168,7 @@ test('an opened file already in the nook hands the viewer to its canonical versi
   existingPaper = {
     uuid: '55555555-5555-4555-8555-555555555555',
     title: 'Saved paper',
-    edition_uuid: '44444444-4444-4444-8444-444444444444',
-    edition_sha256: HASH,
+    sha256: HASH,
   };
   const source = resolveSource();
   const found = await source.loadNookPaper();
@@ -207,16 +205,17 @@ test('Add to nook imports only the paper graph, with no file-viewer annotations'
   calls.length = 0;
   const source = resolveSource();
   await source.load();
-  const paperUuid = await source.addToNook();
+  const paperSha256 = await source.addToNook();
 
-  assert.match(paperUuid, /^[0-9a-f-]{36}$/);
+  assert.match(paperSha256, /^[0-9a-f]{64}$/);
   assert.equal(calls.filter(([command]) => command === 'opened_file_read').length, 1);
   assert.equal(calls.filter(([command]) => command === 'blob_import').length, 1);
   const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
-  assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'paper_editions', 'copies']);
-  assert.equal(mutations[0][1].values.paper_uuid, paperUuid);
-  assert.equal(mutations[0][1].values.sha256, HASH);
-  assert.equal(mutations[0][2].values.shelf_uuid, SHELF);
+  assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'copies']);
+  assert.equal(mutations[0][0].uuid, paperSha256);
+  // The paper's name is the file, so it is not repeated as a value.
+  assert.equal(mutations[0][0].values.sha256, undefined);
+  assert.equal(mutations[0][1].values.shelf_uuid, SHELF);
   assert.equal(mutations.length, 1);
   assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
 });
@@ -256,6 +255,8 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
   assert.deepEqual(paperChange.values, {
     doi: '10.1234/parsed', title: 'Parsed title',
     authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
+    // A paper is its PDF: the row is named by it, and carries the path.
+    file_path: `${HASH}.pdf`,
   });
 });
 
@@ -272,9 +273,9 @@ test('first sign-in adds an open file locally without waiting for its nook snaps
   values.set('papol_token', 'new-session-token');
   await hydrateCredential();
   values.set('papol.localAccountUuid', ACCOUNT);
-  const paperUuid = await source.addToNook();
+  const paperSha256 = await source.addToNook();
 
-  assert.match(paperUuid, /^[0-9a-f-]{36}$/);
+  assert.match(paperSha256, /^[0-9a-f]{64}$/);
   const syncs = calls.filter(([command]) => command === 'sync_now');
   assert.ok(syncs.length > 0);
   assert.ok(syncs.every(([, args]) => (
@@ -285,7 +286,7 @@ test('first sign-in adds an open file locally without waiting for its nook snaps
   assert.deepEqual(
     calls.filter(([command]) => command === 'data_mutate')
       .flatMap(([, args]) => args.changes.map((change) => change.table)),
-    ['papers', 'paper_editions', 'copies'],
+    ['papers', 'copies'],
   );
   assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
 });

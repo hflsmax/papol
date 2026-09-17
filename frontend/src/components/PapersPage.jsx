@@ -101,7 +101,7 @@ export default function PapersPage({
       {currentUser && (
         <PaperUpload
           onPaperCreated={(paper) => {
-            if (paper?.uuid != null) onSelectPaper(paper.uuid);
+            if (paper?.sha256 != null) onSelectPaper(paper.sha256);
             else load();
           }}
           onReviewChange={setReviewingUpload}
@@ -163,7 +163,7 @@ export default function PapersPage({
               </li>
             ))}
             {shown.map((paper) => (
-              <li key={paper.uuid} className="paper-group">
+              <li key={paper.sha256} className="paper-group">
                 <div className="paper-group-head">
                   {/* Same arrangement as the nook's rows: the pill beside
                       the title rather than inside the heading, so it sits

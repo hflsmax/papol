@@ -242,8 +242,8 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
         if (!carriesPaper(event)) return;
         event.preventDefault();
         setDropKey(null);
-        const { uuid, shelfUuid } = JSON.parse(event.dataTransfer.getData(PAPER_DRAG_TYPE));
-        if (shelfUuid !== item.shelfUuid) onMovePaper(uuid, item.shelfUuid);
+        const { sha256, shelfUuid } = JSON.parse(event.dataTransfer.getData(PAPER_DRAG_TYPE));
+        if (shelfUuid !== item.shelfUuid) onMovePaper(sha256, item.shelfUuid);
       },
     };
   };

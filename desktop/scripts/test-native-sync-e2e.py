@@ -110,7 +110,7 @@ def main():
                     "--example", "native_sync_harness", "--",
                     str(temporary / "local.sqlite3"), backend,
                     auth["token"], auth["user"]["uuid"],
-                    paper["uuid"], paper["edition_uuid"],
+                    paper["sha256"],
                 ],
                 cwd=ROOT,
                 capture_output=True,
@@ -140,12 +140,24 @@ def main():
             with urllib.request.urlopen(clip_request, timeout=5) as response:
                 assert response.read() == b"native viewer clip bytes"
             snapshot = request(f"{backend}/api/sync/snapshot", token=auth["token"])
-            rows = {(row["table"], row["uuid"]): row for row in snapshot["rows"]}
-            assert rows[("comments", result["note_uuid"])]["content"] == "Native offline note"
-            assert rows[("ink_strokes", result["ink_uuid"])]["page"] == 1
-            assert rows[("paper_clips", result["paper_clip_uuid"])]["floating"] is False
-            assert rows[("papers", result["imported_paper_uuid"])]["title"] == "Native imported PDF"
-            assert rows[("paper_editions", result["imported_edition_uuid"])]["sha256"] == result["imported_pdf_sha256"]
+            # A paper is named by its file; everything else by a UUID.
+            rows = {
+                (row["table"], row["sha256"] if row["table"] == "papers" else row["uuid"]): row
+                for row in snapshot["rows"]
+            }
+            # Notes, ink and clips share one table; each is told apart by
+            # its kind and carries its geometry in its body.
+            note = rows[("annotations", result["note_uuid"])]
+            assert note["content"] == "Native offline note"
+            assert note["kind"] == "note"
+            ink = rows[("annotations", result["ink_uuid"])]
+            assert (ink["kind"], ink["page"]) == ("ink", 1)
+            assert '"points"' in ink["body"]
+            clip = rows[("annotations", result["paper_clip_uuid"])]
+            assert clip["kind"] == "clip"
+            assert '"floating":false' in clip["body"].replace(" ", "")
+            assert rows[("papers", result["imported_paper_sha256"])]["title"] == "Native imported PDF"
+            assert rows[("papers", result["imported_paper_sha256"])]["sha256"] == result["imported_pdf_sha256"]
             imported_pdf = urllib.request.Request(
                 f"{backend}/api/sync/blobs/{result['imported_pdf_sha256']}",
                 headers={"Authorization": f"Bearer {auth['token']}"},

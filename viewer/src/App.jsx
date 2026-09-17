@@ -18,6 +18,7 @@ import {
   signedIn as signedInHere,
 } from './source';
 import { appPath, backendPath, stripAppBase } from './base';
+import { paperName } from '../../shared/paperName.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
@@ -451,7 +452,7 @@ export default function App() {
   const immediatePdfPaper = useMemo(() => {
     if (source?.openedFile) return source.initialPaper;
     if (nativeDataActive() && source?.pdfHash) {
-      return { edition_sha256: source.pdfHash };
+      return { sha256: source.pdfHash };
     }
     return null;
   }, [source]);
@@ -617,11 +618,11 @@ export default function App() {
     return kept == null ? true : kept === 'true';
   });
 
-  // Their ink on this edition.
+  // Their ink on this paper.
   const [ink, setInk] = useState([]);
   const [selectedInk, setSelectedInk] = useState(null);
   const [hoveredInk, setHoveredInk] = useState({ pages: new Set(), objects: EMPTY_INK });
-  // Private views cut from this edition. Their source and placement use
+  // Private views cut from this paper. Their source and placement use
   // page fractions, so they survive zoom and are restored with the paper.
   const [clips, setClips] = useState([]);
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
@@ -988,7 +989,7 @@ export default function App() {
   // viewers still wait for the authorized paper response and its file path.
   const pdfPaper = immediatePdfPaper || paper;
   const pdfIdentity = pdfPaper
-    ? `${pdfPaper.opened_file && !pdfPaper.uuid ? 'opened:' : 'paper:'}${pdfPaper.edition_sha256 || ''}`
+    ? `${pdfPaper.opened_file && !pdfPaper.uuid ? 'opened:' : 'paper:'}${pdfPaper.sha256 || ''}`
     : null;
 
   useLayoutEffect(() => {
@@ -1084,7 +1085,7 @@ export default function App() {
 
   useEffect(() => {
     if (!paperInfoOpen || paperInfo) return undefined;
-    const pdfHash = paper?.edition_sha256 || paper?.sha256;
+    const pdfHash = paper?.sha256;
     if (!pdfHash) return undefined;
     let cancelled = false;
     setPaperInfoError(null);
@@ -1220,12 +1221,12 @@ export default function App() {
 
   // The references, fetched once the paper is known and then waited on.
   // Reading a PDF's bibliography takes a pass over the whole document, so
-  // the first user of an edition starts that pass and everyone after
+  // the first reader of a PDF starts that pass and everyone after
   // them gets the stored answer straight away.
   useEffect(() => {
-    const editionUuid = paper?.edition_uuid;
-    const pdfHash = paper?.edition_sha256 || paper?.sha256;
-    if (!firstPageReady || !editionUuid || !pdfHash) return undefined;
+    const paperSha256 = paper?.sha256;
+    const pdfHash = paper?.sha256;
+    if (!firstPageReady || !paperSha256 || !pdfHash) return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -1237,7 +1238,7 @@ export default function App() {
     const ask = () => {
       // A shared reading reads the same bibliography on the authority of
       // its link, so the source answers when it has its own way in.
-      (source?.references?.list || getViewerReferences)(pdfHash, editionUuid)
+      (source?.references?.list || getViewerReferences)(pdfHash, paperSha256)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -1452,23 +1453,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // A file opened from disk has no edition until it joins a nook.
-    if ((!paper?.edition_uuid && !paper?.opened_file) || !annotations?.clips) return undefined;
+    // A file opened from disk is in no nook, so there is nothing on it.
+    if ((!paper?.sha256 && !paper?.opened_file) || !annotations?.clips) return undefined;
     let cancelled = false;
-    annotations.clips.list(paper.edition_uuid)
+    annotations.clips.list()
       .then((loaded) => { if (!cancelled) setClips(loaded); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [paper?.edition_uuid, source]);
+  }, [paper?.sha256, source]);
 
-  // The ink already on this edition. Like the references, it belongs to
-  // the file rather than to the paper, so it is asked for once the paper
-  // has said which edition is open.
+  // The ink already on this paper, asked for once the paper is known.
   useEffect(() => {
     if (!paper || !annotations?.ink) return undefined;
     let cancelled = false;
     annotations.ink
-      .list(paper.edition_uuid)
+      .list()
       .then((loaded) => {
         if (!cancelled) setInk(loaded);
       })
@@ -1514,12 +1513,12 @@ export default function App() {
             setReference((current) => current?.uuid === referenceUuid
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);
-            if (!paper?.edition_uuid) return;
+            if (!paper?.sha256) return;
             // Registering a citation read off the page writes to the
-            // edition. The card already shows what is printed there, which
+            // paper. The card already shows what is printed there, which
             // is what a shared reading can offer.
             if (readOnly) return;
-            const pdfHash = paper.edition_sha256 || paper.sha256;
+            const pdfHash = paper.sha256;
             const full = await resolveViewerReference(pdfHash, {
               key: inlineReference.key,
               raw,
@@ -1708,31 +1707,17 @@ export default function App() {
     markViewerPerformance('layout-ready', { scale });
   }, [scale]);
 
-  // A note placed on a different edition may sit anywhere on this one; it
-  // is shown, and marked, never moved.
   // The rail is a map of the document: anchors run in page order, and
   // within a page in the order they were made. A note with no place in the
   // PDF has no page to sort by, so it sits at the end.
-  const numberedCache = useRef(new WeakMap());
-  const paperEditionUuid = paper?.edition_uuid;
   const numbered = useMemo(
-    () => notes
-        .map((n) => {
-          const drifted = n.anchor != null && paperEditionUuid != null
-            && n.edition_uuid !== paperEditionUuid;
-          const cached = numberedCache.current.get(n);
-          if (cached?.drifted === drifted) return cached;
-          const decorated = { ...n, drifted };
-          numberedCache.current.set(n, decorated);
-          return decorated;
-        })
-        .sort(
-          (a, b) =>
-            (a.page ?? Infinity) - (b.page ?? Infinity) ||
-            String(a.created_at).localeCompare(String(b.created_at)) ||
-            String(a.uuid).localeCompare(String(b.uuid))
-        ),
-    [notes, paperEditionUuid]
+    () => [...notes].sort(
+      (a, b) =>
+        (a.page ?? Infinity) - (b.page ?? Infinity) ||
+        String(a.created_at).localeCompare(String(b.created_at)) ||
+        String(a.uuid).localeCompare(String(b.uuid))
+    ),
+    [notes]
   );
 
   const notesByPage = usePageGroups(numbered, hasAnchor);
@@ -1757,7 +1742,7 @@ export default function App() {
     if (!annotations?.ink) return;
     const provisional = `wet-${++tempInkUuid.current}`;
     setInk((all) => [...all, { ...stroke, uuid: provisional }]);
-    const saving = annotations.ink.create(paper?.edition_uuid, stroke);
+    const saving = annotations.ink.create(stroke);
     inkSaving.current.set(provisional, saving);
     try {
       const saved = await saving;
@@ -1934,7 +1919,7 @@ export default function App() {
       window.removeEventListener('mouseup', mouseFinished, true);
       window.removeEventListener('resize', update);
     };
-  }, [doc, scale, paper?.edition_uuid, source]);
+  }, [doc, scale, paper?.sha256, source]);
 
   // Every stroke of the ink stroke in hand.
   const selectedStrokes = useMemo(() => (selectedInk
@@ -2842,7 +2827,7 @@ export default function App() {
     setTool('arrow');
     toolBefore.current = null;
     try {
-      const saving = annotations.clips.create(paper.edition_uuid, clip);
+      const saving = annotations.clips.create(clip);
       clipSaving.current.set(provisional, saving);
       const saved = await saving;
       setClips((all) => all.map((candidate) => (
@@ -3325,13 +3310,13 @@ export default function App() {
   // file that matched a nook paper says so on the paper itself; a shared
   // paper says so through the nook lookup its source made.
   const showInNookHref = source?.openedFile
-    ? (paper?.uuid || null)
+    ? (paper?.sha256 || null)
     : (nookCopy && source?.nookHref?.(nookCopy)) || null;
   const showInNook = () => {
     // The desktop keeps the library in its own window, so showing a paper
     // means raising that window rather than leaving this one.
     if (source?.openedFile) {
-      focusDesktopLibraryWindow(paper.uuid);
+      focusDesktopLibraryWindow(paper.sha256);
       return;
     }
     window.location.assign(showInNookHref);
@@ -3585,7 +3570,7 @@ export default function App() {
               // opened from disk — has no page in this user's Papol, so
               // the library is simply brought forward as it was.
               onClick: () => focusDesktopLibraryWindow(
-                readOnly ? undefined : paper?.uuid,
+                readOnly ? undefined : paper?.sha256,
               ),
               label: 'Open Library',
             }}
@@ -4061,12 +4046,12 @@ export default function App() {
                 {paperInfoError && <p className="ref-unmatched">Details unavailable.</p>}
                 {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
                 <div className="ref-links">
-                  {paper.uuid && (
+                  {paper.sha256 && (
                     <a
                       className="ref-link here"
-                      href={appPath(`/paper/${paper.uuid}`)}
+                      href={appPath(`/paper/${paperName(paper.sha256)}`)}
                       onClick={(event) => {
-                        if (focusDesktopLibraryWindow(paper.uuid)) event.preventDefault();
+                        if (focusDesktopLibraryWindow(paper.sha256)) event.preventDefault();
                       }}
                     >Show in Papol</a>
                   )}
@@ -4275,7 +4260,7 @@ export default function App() {
               anchor={openCite.anchor}
               reference={reference}
               error={referenceError}
-              requiresNook={source?.openedFile && !paper?.edition_uuid}
+              requiresNook={source?.openedFile && !paper?.copy_uuid}
               onClose={closeReference}
               position={openCite.index}
               count={openCite.referenceUuids.length}
@@ -4776,11 +4761,6 @@ export default function App() {
                     <GlyphFor note={note} />
                   </span>
                   {label(note)}
-                  {note.drifted && (
-                    <span className="drift" title="Placed on a different PDF of this paper — it may not line up">
-                      other PDF
-                    </span>
-                  )}
                 </p>
                 {editing === note.uuid ? (
                   <>

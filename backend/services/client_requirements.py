@@ -18,6 +18,18 @@ DOWNLOAD_KEY = "desktop_download_url"
 
 DEFAULT_DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases"
 
+# The oldest build that speaks the wire this server speaks.
+#
+# Not a policy: a fact. A paper is named by the digest of its PDF, and a
+# build from before that names one by a UUID this server has never held —
+# so there is nothing to say to it, and saying so is kinder than answering
+# every request with a puzzle. The constant moves when the wire moves, which
+# is what stops a protocol change from shipping without its floor.
+#
+# The setting can hold clients to something newer than this. It cannot let
+# in a build that cannot be talked to.
+PROTOCOL_MINIMUM_VERSION = "0.2.0"
+
 SUPPORTED = "supported"
 DEPRECATED = "deprecated"
 INCOMPATIBLE = "incompatible"
@@ -64,10 +76,21 @@ def client_version(user_agent: str | None) -> str | None:
     return rest[0] if rest else None
 
 
+def minimum_version(db) -> str:
+    """The floor: whichever is higher of what the wire needs and what was
+    asked for. A setting below the protocol's own floor is not a way to let
+    an unspeakable build back in; it simply has nothing left to say."""
+    asked = setting_value(db, MINIMUM_KEY)
+    requested, wire = parse_version(asked), parse_version(PROTOCOL_MINIMUM_VERSION)
+    if requested is not None and (wire is None or requested > wire):
+        return asked
+    return PROTOCOL_MINIMUM_VERSION
+
+
 def requirements(db) -> dict:
     """What the server asks of its clients, as the app is told it."""
     return {
-        "minimum_version": setting_value(db, MINIMUM_KEY),
+        "minimum_version": minimum_version(db),
         "recommended_version": setting_value(db, RECOMMENDED_KEY),
         "download_url": setting_value(db, DOWNLOAD_KEY) or DEFAULT_DOWNLOAD_URL,
     }
@@ -76,10 +99,11 @@ def requirements(db) -> dict:
 def verdict(db, user_agent: str | None) -> str:
     """Where this caller stands against the floor.
 
-    Every unknown answers "supported", and each for the same reason: a floor
-    that has not been set, a caller that is not the application, and a
-    version string nobody can read are all cases where refusing service
-    would be the server inventing a rule it was never given.
+    Every unknown answers "supported": a caller that is not the application
+    and a version string nobody can read are both cases where refusing
+    service would be the server inventing a rule it was never given. The
+    floor itself is never unknown — the wire has one whether or not anyone
+    has asked for a higher.
     """
     version = parse_version(client_version(user_agent))
     if version is None:

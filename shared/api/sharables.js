@@ -1,17 +1,18 @@
 import { appPath } from '../appUrls.js';
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
+import { paperName } from '../paperName.js';
 
-// ---------- Sharables (a user's reading of one edition, given by link) ----------
+// ---------- Sharables (a user's reading of one paper, given by link) ----------
 
 // A sharable lives only on the service: the link has to open for someone
 // who is not this user, on a machine that is not this one, so there is
 // nothing for the local replica to answer. Desktop callers publish their
 // pending work first, since the link names notes and ink that must have
 // arrived before anyone follows it.
-export function createSharable(paperUuid, { includeAnnotations = false } = {}) {
+export function createSharable(paperSha256, { includeAnnotations = false } = {}) {
   return onServer(() => jsonRequest(
-    `/papers/${paperUuid}/sharable`, 'POST', { include_annotations: includeAnnotations },
+    `/papers/${paperName(paperSha256)}/sharable`, 'POST', { include_annotations: includeAnnotations },
   ));
 }
 
@@ -21,8 +22,8 @@ export function createSharable(paperUuid, { includeAnnotations = false } = {}) {
 // with, so this is how a shared paper there knows it is shared. A plain
 // read with nothing of the user's pending on it, so unlike the operations
 // above there is no work to publish first.
-export function mySharable(paperUuid) {
-  return request(`/papers/${paperUuid}/sharable`);
+export function mySharable(paperSha256) {
+  return request(`/papers/${paperName(paperSha256)}/sharable`);
 }
 
 // Downwards only: a link that has been lean is never enriched again,

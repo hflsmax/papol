@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { appPath } from './base';
+import { paperName } from '../../shared/paperName.js';
 import ExperimentalBadge from './ExperimentalBadge';
 
 /**
@@ -203,10 +204,10 @@ export default function ReferenceCard({
           )}
 
           <div className="ref-links">
-            {reference.papol_paper_uuid && (
+            {reference.papol_paper_sha256 && (
               // Papol already holds this paper: the user can go to it
               // rather than out to a publisher.
-              <a className="ref-link here" href={appPath(`/paper/${reference.papol_paper_uuid}`)}>
+              <a className="ref-link here" href={appPath(`/paper/${paperName(reference.papol_paper_sha256)}`)}>
                 In Papol
               </a>
             )}

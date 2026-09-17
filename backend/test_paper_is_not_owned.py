@@ -21,7 +21,10 @@ from sqlalchemy.pool import StaticPool
 import main
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
-from models import Copy, Paper, PaperEdition, Shelf, User
+from models import Copy, Paper, Shelf, User
+from services.papers import paper_name
+
+NOBODYS_HASH = "d" * 64
 
 HIDDEN_HASH = "c" * 64
 
@@ -80,15 +83,11 @@ class PaperIsNotOwned(unittest.TestCase):
             db.add_all([keeper, other])
             db.commit()
 
-            paper = Paper(title="On a paper nobody owns", doi="10.1234/unowned")
-            db.add(paper)
-            db.commit()
-            edition = PaperEdition(
-                paper_uuid=paper.uuid,
-                file_path=f"{HIDDEN_HASH}.pdf",
-                sha256=HIDDEN_HASH,
+            paper = Paper(
+                title="On a paper nobody owns", doi="10.1234/unowned",
+                file_path=f"{HIDDEN_HASH}.pdf", sha256=HIDDEN_HASH,
             )
-            db.add(edition)
+            db.add(paper)
             db.commit()
 
             # A private shelf: this copy is shown to nobody.
@@ -103,15 +102,14 @@ class PaperIsNotOwned(unittest.TestCase):
             db.add_all([shelf, their_shelf])
             db.commit()
             db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=keeper.uuid, shelf_uuid=shelf.uuid,
-                edition_uuid=edition.uuid, edition_sha256=HIDDEN_HASH,
+                paper_sha256=paper.sha256, user_uuid=keeper.uuid, shelf_uuid=shelf.uuid,
                 summary="Mine alone",
             ))
             db.commit()
 
             self.keeper_uuid = keeper.uuid
             self.other_uuid = other.uuid
-            self.paper_uuid = paper.uuid
+            self.paper_sha256 = paper.sha256
         type(self).current_user_uuid = self.other_uuid
 
     def as_visitor(self):
@@ -123,27 +121,108 @@ class PaperIsNotOwned(unittest.TestCase):
         """Displaying a copy is not what puts a paper in the Library."""
         listing = self.client.get("/api/papers")
         self.assertEqual(listing.status_code, 200, listing.text)
-        self.assertIn(self.paper_uuid, [p["uuid"] for p in listing.json()])
+        self.assertIn(self.paper_sha256, [p["uuid"] for p in listing.json()])
+
+    def test_two_uploads_of_one_file_at_once_land_on_the_same_paper(self):
+        """The digest is unique, so one of two racing uploads loses the
+        insert. Losing means the paper is already there, which is the answer
+        the request wanted: it takes the row that won rather than being
+        refused an upload that was never wrong."""
+        from unittest.mock import patch
+
+        raced = f"{'e' * 64}.pdf"
+        (main.UPLOADS_DIR / raced).write_bytes(b"%PDF-1.4 raced\n%%EOF")
+        self.addCleanup((main.UPLOADS_DIR / raced).unlink, True)
+        digest = main._sha256_of(main.UPLOADS_DIR / raced)
+
+        with self.Session() as db:
+            db.add(Paper(
+                title="Stored by whoever got there first",
+                file_path=raced, sha256=digest,
+            ))
+            db.commit()
+            winner = db.query(Paper).filter(Paper.sha256 == digest).one().sha256
+
+        # The look-up misses, as it does for the request that loses the race;
+        # the insert then collides with the row that won.
+        real = main._paper_with_digest
+        misses = [True]
+
+        def _first_look_finds_nothing(db, wanted):
+            if misses:
+                misses.pop()
+                return None
+            return real(db, wanted)
+
+        with patch.object(main, "_paper_with_digest", _first_look_finds_nothing):
+            made = self.client.post("/api/papers", json={
+                "title": "Uploaded at the same moment",
+                "file_path": raced,
+            })
+
+        self.assertEqual(made.status_code, 200, made.text)
+        self.assertEqual(made.json()["sha256"], winner, "it must take the row that won")
+        with self.Session() as db:
+            self.assertEqual(
+                db.query(Paper).filter(Paper.sha256 == digest).count(), 1,
+            )
+
+    def test_the_library_lists_a_paper_nobody_holds(self):
+        """A paper with no copies at all is still a paper the Library holds.
+
+        Leaving a paper is not a deletion, and a file that arrived without
+        anyone taking it is still a file Papol has: either way the row is
+        there to be found and added, with no readers shown against it."""
+        with self.Session() as db:
+            nobodys = Paper(
+                title="Held by nobody", doi="10.1234/unheld",
+                file_path=f"{NOBODYS_HASH}.pdf", sha256=NOBODYS_HASH,
+            )
+            db.add(nobodys)
+            db.commit()
+            nobodys_file = nobodys.sha256
+
+        listing = self.client.get("/api/papers")
+        self.assertEqual(listing.status_code, 200, listing.text)
+        row = next(
+            (p for p in listing.json() if p["uuid"] == nobodys_file), None,
+        )
+        self.assertIsNotNone(row, "a paper nobody holds must still be listed")
+        self.assertEqual(row["users"], [], "and be shown with no readers")
+        self.assertEqual(row["file_path"], f"{NOBODYS_HASH}.pdf")
+
+        # And it opens, so the row is one a user can act on rather than a
+        # line they cannot follow.
+        page = self.client.get(f"/api/papers/{paper_name(nobodys_file)}")
+        self.assertEqual(page.status_code, 200, page.text)
+        self.assertFalse(page.json()["viewer_has_entry"])
+
+    def test_leaving_a_paper_does_not_take_it_out_of_the_library(self):
+        """The last reader walking away is not a deletion."""
+        self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/add-to-nook")
+        self.client.delete(f"/api/papers/{paper_name(self.paper_sha256)}")
+        listing = self.client.get("/api/papers")
+        self.assertIn(self.paper_sha256, [p["uuid"] for p in listing.json()])
 
     def test_any_signed_in_user_opens_it(self):
-        page = self.client.get(f"/api/papers/{self.paper_uuid}")
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(page.status_code, 200, page.text)
         self.assertEqual(page.json()["title"], "On a paper nobody owns")
 
     def test_any_signed_in_user_may_take_a_copy(self):
-        added = self.client.post(f"/api/papers/{self.paper_uuid}/add-to-nook")
+        added = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/add-to-nook")
         self.assertEqual(added.status_code, 200, added.text)
 
     # --- What stays the keeper's own business -------------------------
 
     def test_the_keeper_is_not_named_on_a_paper_they_do_not_display(self):
         """The paper is everyone's; that this user reads it is theirs."""
-        page = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()
         named = [entry["user"]["uuid"] for entry in page.get("also_read_by", [])]
         self.assertNotIn(self.keeper_uuid, named)
 
     def test_the_keepers_summary_stays_theirs(self):
-        page = self.client.get(f"/api/papers/{self.paper_uuid}").json()
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()
         self.assertIsNone(page.get("summary"))
 
     # --- The account boundary is not ownership ------------------------
@@ -153,7 +232,7 @@ class PaperIsNotOwned(unittest.TestCase):
         Library is for people with accounts (US-1.4), so the paper page
         asks for one — whoever displays the paper, and whatever it is."""
         self.as_visitor()
-        page = self.client.get(f"/api/papers/{self.paper_uuid}")
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(page.status_code, 401, page.text)
 
 

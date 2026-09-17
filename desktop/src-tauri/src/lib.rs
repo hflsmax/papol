@@ -705,8 +705,8 @@ const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
-    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperUuid) => \
-      window.__TAURI_INTERNALS__.invoke('focus_library_window', { paperUuid });";
+    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperSha256) => \
+      window.__TAURI_INTERNALS__.invoke('focus_library_window', { paperSha256 });";
 
 fn document_environment(surface: &str) -> String {
     format!(
@@ -717,8 +717,8 @@ fn document_environment(surface: &str) -> String {
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
            window.__TAURI_INTERNALS__.invoke('close_document_window'); \
-         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperUuid) => \
-           window.__TAURI_INTERNALS__.invoke('focus_library_window', {{ paperUuid }});"
+         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperSha256) => \
+           window.__TAURI_INTERNALS__.invoke('focus_library_window', {{ paperSha256 }});"
     )
 }
 
@@ -732,18 +732,18 @@ fn close_document_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-fn focus_library_window(app: tauri::AppHandle, paper_uuid: Option<String>) {
+fn focus_library_window(app: tauri::AppHandle, paper_sha256: Option<String>) {
     use tauri::Emitter;
 
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
-        if let Some(paper_uuid) = paper_uuid {
+        if let Some(paper_sha256) = paper_sha256 {
             let _ = app.emit_to(
                 "main",
                 "papol://show-paper-requested",
-                serde_json::json!({"paper_uuid": paper_uuid}),
+                serde_json::json!({"paper_sha256": paper_sha256}),
             );
         }
     }

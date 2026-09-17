@@ -1,4 +1,5 @@
 import { newestFirst, seminarRank } from './paperFormat.js';
+import { paperName } from '../../shared/paperName.js';
 
 // What Papol macOS's paper browser is showing, how that is written in a URL,
 // and which papers it lists. Kept free of React and the page so it can be
@@ -19,10 +20,10 @@ export function sourcePath(source) {
 
 // An import reviewed from the public library belongs to the user's nook once
 // it is created. Select that nook source while opening the new paper itself.
-export function paperCreatedNavigation(source, paperUuid) {
+export function paperCreatedNavigation(source, paperSha256) {
   return {
     source: source === 'library' ? 'all' : source,
-    path: `/paper/${paperUuid}`,
+    path: `/paper/${paperName(paperSha256)}`,
   };
 }
 

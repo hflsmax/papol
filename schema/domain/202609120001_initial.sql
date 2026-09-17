@@ -78,42 +78,30 @@ CREATE INDEX IF NOT EXISTS ix_board_items_board_uuid ON board_items(board_uuid);
 CREATE INDEX IF NOT EXISTS ix_board_items_group_uuid ON board_items(group_uuid);
 CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256);
 
+-- A paper is one PDF and what is known about it, and the digest of that PDF
+-- is its key. Not a column beside a UUID: the only name it has. Everyone
+-- holding the bytes arrives at the same answer without asking, which is why
+-- a replica and the service can agree about which paper this is without
+-- negotiating — and why two files printing one DOI are two papers.
 CREATE TABLE IF NOT EXISTS papers (
-  uuid TEXT PRIMARY KEY NOT NULL,
+  sha256 TEXT PRIMARY KEY NOT NULL,
   doi TEXT,
   title TEXT NOT NULL,
   authors TEXT,
   journal TEXT,
   year INTEGER,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  revision INTEGER NOT NULL DEFAULT 1,
-  deleted_at TEXT
-);
-
--- A content-addressed blob may back more than one edition, so the digest is
--- an indexed lookup key rather than an identity.
-CREATE TABLE IF NOT EXISTS paper_editions (
-  uuid TEXT PRIMARY KEY NOT NULL,
-  paper_uuid TEXT NOT NULL REFERENCES papers(uuid),
   file_path TEXT NOT NULL,
-  sha256 TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1,
   deleted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_paper_editions_paper_uuid ON paper_editions(paper_uuid);
-CREATE INDEX IF NOT EXISTS ix_paper_editions_sha256 ON paper_editions(sha256);
 
 CREATE TABLE IF NOT EXISTS copies (
   uuid TEXT PRIMARY KEY NOT NULL,
-  paper_uuid TEXT NOT NULL REFERENCES papers(uuid),
+  paper_sha256 TEXT NOT NULL REFERENCES papers(sha256),
   user_uuid TEXT NOT NULL,
   shelf_uuid TEXT REFERENCES shelves(uuid),
-  edition_uuid TEXT REFERENCES paper_editions(uuid),
-  edition_sha256 TEXT,
-  ignored_edition_uuid TEXT REFERENCES paper_editions(uuid),
   summary TEXT,
   thought TEXT,
   is_author INTEGER NOT NULL DEFAULT 0,
@@ -125,7 +113,7 @@ CREATE TABLE IF NOT EXISTS copies (
   revision INTEGER NOT NULL DEFAULT 0,
   deleted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_copies_paper_uuid ON copies(paper_uuid);
+CREATE INDEX IF NOT EXISTS ix_copies_paper_sha256 ON copies(paper_sha256);
 CREATE INDEX IF NOT EXISTS ix_copies_shelf_uuid ON copies(shelf_uuid);
 
 CREATE TABLE IF NOT EXISTS copy_tags (
@@ -146,8 +134,8 @@ CREATE INDEX IF NOT EXISTS ix_copy_tags_tag_uuid ON copy_tags(tag_uuid);
 -- view. They differ in what they draw, not in what they are, so they share a
 -- table and say which they are in `kind`.
 --
--- The columns here are the ones every kind answers: whose it is, which paper
--- and which PDF of it, which page, and the words a user can read back. What
+-- The columns here are the ones every kind answers: whose it is, which
+-- paper, which page, and the words a user can read back. What
 -- is particular to one kind — an anchor, a polyline and its nib, a source
 -- rectangle and where it sits — is geometry, and geometry was already stored
 -- as JSON text before this table existed. It lives in `body`.
@@ -155,9 +143,8 @@ CREATE TABLE IF NOT EXISTS annotations (
   uuid TEXT PRIMARY KEY NOT NULL,
   kind TEXT NOT NULL,
   user_uuid TEXT NOT NULL,
-  paper_uuid TEXT NOT NULL REFERENCES papers(uuid),
+  paper_sha256 TEXT NOT NULL REFERENCES papers(sha256),
   -- Null only for a note about the paper that was never put on a page.
-  edition_uuid TEXT REFERENCES paper_editions(uuid),
   page INTEGER,
   -- Several stored paths can be one logical mark: text painted across lines
   -- is drawn as separate strokes but picked up and erased as one.
@@ -170,7 +157,5 @@ CREATE TABLE IF NOT EXISTS annotations (
   revision INTEGER NOT NULL DEFAULT 0,
   deleted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_annotations_edition
-  ON annotations(edition_uuid, user_uuid, kind);
 CREATE INDEX IF NOT EXISTS ix_annotations_paper
-  ON annotations(paper_uuid, user_uuid, kind);
+  ON annotations(paper_sha256, user_uuid, kind);
