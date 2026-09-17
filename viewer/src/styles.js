@@ -207,6 +207,223 @@ button.link.danger { color: var(--red); }
   stroke-linejoin: round;
 }
 
+/* ---------- Contents ---------- */
+
+/* The paper's own structure, at the leading edge of the bar beside the way
+   out of it. It reads as chrome rather than as a control on the page: no
+   border, no fill until it is pointed at, the same 28px shape and quiet
+   hover as the Back chevron it stands next to. */
+.contents { position: relative; flex: none; font-family: var(--font-ui); }
+
+.viewer-bar .contents-button,
+.viewer-bar .contents-button:hover:not(:disabled) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 260px;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+.viewer-bar .contents-button:hover:not(:disabled) {
+  background: rgba(29, 33, 41, 0.07);
+  color: var(--ink);
+}
+
+.viewer-bar .contents-button:active:not(:disabled),
+.viewer-bar .contents-button.open,
+.viewer-bar .contents-button.open:hover:not(:disabled) {
+  background: rgba(29, 33, 41, 0.11);
+  color: var(--ink);
+}
+
+/* Chrome in Papol macOS takes the arrow cursor, as the Back chevron does. */
+[data-shell='desktop'] .viewer-bar .contents-button { cursor: default; }
+
+/* Every other control in the desktop bar keeps its size; this one is the
+   exception, because what it holds is a section's name and no name has a
+   size. It gives way before the tools do, down to its glyph, and the name
+   inside it ellipses rather than pushing them off the bar. */
+[data-shell='desktop'] .viewer-bar > .contents {
+  flex-shrink: 1;
+  min-width: 30px;
+}
+
+.contents-button svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.contents-glyph { width: 16px; height: 16px; }
+
+/* The section being read. It is the only thing in the bar that changes as
+   the paper moves under it, and it is at the leading edge, so a longer or
+   shorter name pushes nothing about. */
+.contents-now {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.contents-chevron {
+  width: 11px;
+  height: 11px;
+  color: var(--ink-faint);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.contents-button.open .contents-chevron { transform: rotate(180deg); }
+
+.contents-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 9px);
+  left: 0;
+  width: min(340px, calc(100vw - 24px));
+  max-height: min(62vh, 520px);
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 10px 28px rgba(29, 33, 41, 0.2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  text-align: left;
+}
+
+/* A hairline is all the separation the groups need; three coloured
+   headings in a panel this small would be louder than the list itself. */
+.contents-group + .contents-group {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.contents-kicker {
+  margin: 6px 9px 3px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+}
+
+/* One row shape for a section and for an anchor, and one alignment down the
+   whole panel: the number at the left, the page at the right, the title
+   taking what is between. That right-hand column is what makes the paper's
+   sections and the reader's own marks read as one map of one document. */
+.contents-pop .contents-row,
+.contents-pop .contents-row:hover:not(:disabled) {
+  display: grid;
+  grid-template-columns: 2.6em minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  text-align: left;
+}
+
+.contents-pop .contents-row:hover:not(:disabled) { background: var(--paper); }
+
+/* A paper that numbers nothing gets no number column. Anchors keep theirs,
+   because the glyph they wear lives in it, and the page column still lines
+   up down the panel either way. */
+.contents-pop.plain .contents-row:not(.contents-anchor) {
+  grid-template-columns: minmax(0, 1fr) max-content;
+}
+
+.contents-pop.plain .contents-row:not(.contents-anchor) .contents-number { display: none; }
+
+/* With the sections flush left, an anchor keeps only the gutter its glyph
+   needs, so the two kinds of row start within a few pixels of each other
+   instead of stepping apart. */
+.contents-pop.plain .contents-anchor {
+  grid-template-columns: 18px minmax(0, 1fr) max-content;
+}
+
+.contents-pop .contents-row:focus-visible { outline-offset: -2px; }
+
+/* Where the reader is. A soft ground rather than a rule or a bar: the
+   panel is a list of names, and the current one should be found without
+   anything being drawn over the names around it. */
+.contents-pop .contents-row.now,
+.contents-pop .contents-row.now:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.contents-pop .contents-row.now .contents-title { font-weight: 600; }
+
+/* A subsection: one indent, and a step quieter. Deeper than this is folded
+   into it by the reader (see sections.js). */
+.contents-pop .contents-row[data-level='1'] { padding-left: 24px; }
+.contents-pop .contents-row[data-level='1'] .contents-title { color: var(--ink-soft); }
+.contents-pop .contents-row[data-level='1'].now .contents-title { color: var(--accent); }
+
+.contents-number {
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.contents-row.now .contents-number { color: var(--accent); }
+
+.contents-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contents-page {
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.contents-row.now .contents-page { color: var(--accent); }
+
+/* An anchor wears its own glyph where a section wears its number, so the
+   two kinds of row are told apart without leaving the column. */
+.contents-anchor .contents-number {
+  display: inline-grid;
+  place-items: center;
+  align-self: center;
+  justify-self: start;
+  color: var(--accent);
+}
+
+.contents-anchor .contents-number svg { width: 13px; height: 13px; }
+
+.contents-note {
+  margin: 0;
+  padding: 9px 9px 11px;
+  color: var(--ink-faint);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contents-chevron { transition: none; }
+}
+
 .learn-papol {
   position: absolute;
   z-index: 42;
@@ -2206,6 +2423,11 @@ button.link.danger { color: var(--red); }
   .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
+  /* The bar has no width to spare for a section's name, and the tools it
+     carries are needed more often than the panel is. The outline glyph on
+     its own still opens the same list. */
+  .contents-now { display: none; }
+  .contents-pop { width: min(320px, calc(100vw - 24px)); }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one

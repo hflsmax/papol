@@ -44,7 +44,9 @@ import { cleanExcerptText } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
+import { readSections, sectionAt } from './sections';
 import ReturnPill from './ReturnPill';
+import ContentsMenu from './ContentsMenu';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
 import {
@@ -521,6 +523,12 @@ export default function App() {
   const [searchIndexing, setSearchIndexing] = useState(false);
   const [activeSearchResult, setActiveSearchResult] = useState(0);
   const [searchWrap, setSearchWrap] = useState(null);
+  // The paper's own headings, the panel that lists them, and where in the
+  // document the reader currently is — which is what the bar names.
+  const [sections, setSections] = useState([]);
+  const [sectionsReading, setSectionsReading] = useState(false);
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const [readingPlace, setReadingPlace] = useState(null);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
@@ -1145,6 +1153,47 @@ export default function App() {
     setSearchIndex([]);
   }, [doc]);
 
+  useEffect(() => {
+    setSections([]);
+    setReadingPlace(null);
+    setContentsOpen(false);
+  }, [doc]);
+
+  // The paper's headings, read once the document is open.
+  //
+  // A PDF carrying its own outline answers from it and costs nothing. One
+  // that does not has to be read, page by page, which is why this waits for
+  // an idle moment instead of competing with the first render: the bar can
+  // say "Contents" for a second longer, and the reader gets their first
+  // page sooner.
+  useEffect(() => {
+    if (!doc) return undefined;
+    let cancelled = false;
+    const start = () => {
+      if (cancelled) return;
+      setSectionsReading(true);
+      readSections(doc, { cancelled: () => cancelled })
+        .then((read) => {
+          if (cancelled || !read) return;
+          setSections(read.sections);
+        })
+        // A paper whose headings cannot be read is a paper without a
+        // contents panel, not a paper that failed to open.
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setSectionsReading(false);
+        });
+    };
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(start, { timeout: 2000 })
+      : window.setTimeout(start, 400);
+    return () => {
+      cancelled = true;
+      if (window.requestIdleCallback) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
+  }, [doc]);
+
   // Search is optional and indexing a long document is not. Defer the pass
   // over every PDF page until search is actually opened, then retain it for
   // the rest of this document's session.
@@ -1331,6 +1380,11 @@ export default function App() {
       if (e.key === 'Escape' && returnPillNotice) {
         e.preventDefault();
         setReturnPillNotice(false);
+        return;
+      }
+      if (e.key === 'Escape' && contentsOpen) {
+        e.preventDefault();
+        setContentsOpen(false);
         return;
       }
       if (e.key === 'Escape' && paperPopupOpen) {
@@ -3256,6 +3310,55 @@ export default function App() {
     };
   }, [doc, hasScale, wantedNoteUuid]);
 
+  // Where the reader is, so the bar can name the section they are in.
+  //
+  // Near the top of the view rather than its middle: a section begins at
+  // its heading, and you are in it from the moment the heading is above
+  // you. Debounced, and only while there are sections to name — the bar's
+  // label is worth no work at all when the paper has none.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !doc || !hasScale || sections.length === 0) return undefined;
+    let timer = null;
+    const look = () => {
+      const box = scroller.getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + Math.min(72, box.height * 0.18);
+      const nearest = [...scroller.querySelectorAll('.pdf-page')].reduce((best, pageEl) => {
+        const rect = pageEl.getBoundingClientRect();
+        if (rect.height < 10) return best;
+        const dx = cx < rect.left ? rect.left - cx : Math.max(0, cx - rect.right);
+        const dy = cy < rect.top ? rect.top - cy : Math.max(0, cy - rect.bottom);
+        const distance = Math.hypot(dx, dy);
+        return !best || distance < best.distance ? { pageEl, rect, distance } : best;
+      }, null);
+      if (!nearest) return;
+      const place = {
+        page: Number(nearest.pageEl.dataset.page),
+        // From the bottom of the page, as a section's own y is.
+        y: Math.max(0, Math.min(1, 1 - (cy - nearest.rect.top) / nearest.rect.height)),
+      };
+      setReadingPlace((was) => (
+        was && was.page === place.page && Math.abs(was.y - place.y) < 0.005 ? was : place
+      ));
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(look, 120);
+    };
+    scroller.addEventListener('scroll', schedule, { passive: true });
+    look();
+    return () => {
+      scroller.removeEventListener('scroll', schedule);
+      window.clearTimeout(timer);
+    };
+  }, [doc, hasScale, sections.length]);
+
+  const currentSection = useMemo(
+    () => sectionAt(sections, readingPlace),
+    [sections, readingPlace],
+  );
+
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
     if (!wantedNoteUuid || !doc || notes.length === 0) return;
@@ -3296,6 +3399,41 @@ export default function App() {
     scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
   };
 
+  // A section begins at its heading, so the heading lands near the top of
+  // the view rather than in its middle: what you asked to see is what comes
+  // after it, and centring the heading would give half the screen to the
+  // section you were leaving. The near/far rule is the anchors' own.
+  const goToSection = (section) => {
+    setContentsOpen(false);
+    const scroller = scrollerRef.current;
+    const pageEl = scroller?.querySelector(`[data-page="${section.page}"]`);
+    if (!scroller || !pageEl) return;
+    const page = pageEl.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    const headingY = page.top + (1 - section.y) * page.height;
+    const top = scroller.scrollTop + headingY - box.top - Math.min(64, box.height * 0.1);
+    const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
+    scroller.scrollTo({ top: Math.max(0, top), behavior: far ? 'auto' : 'smooth' });
+  };
+
+  // An anchor in the contents is one line, so it says the shortest true
+  // thing about itself: its name, else the opening of the note written on
+  // it, else the page it holds.
+  const contentsAnchors = useMemo(
+    () => numbered.filter(hasAnchor).map((note) => {
+      const name = (note.name || '').trim();
+      const written = (note.content || '').trim().split('\n')[0].trim();
+      return {
+        uuid: note.uuid,
+        page: note.page,
+        note,
+        label: name
+          || (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
+          || `Page ${note.page}`,
+      };
+    }),
+    [numbered],
+  );
 
   // Once imported, leave the ephemeral file URL. The canonical nook viewer
   // is the only surface allowed to load or persist paper state.
@@ -3616,6 +3754,33 @@ export default function App() {
             </svg>
           </a>
         ) : null}
+        {/* Where you are in the paper, beside the way out of it: the left
+            of the bar answers "where am I", the right is what you do to
+            the page. */}
+        {doc && (
+          <ContentsMenu
+            open={contentsOpen}
+            onOpen={() => {
+              setContentsOpen(true);
+              // One thing hangs off the bar at a time.
+              setPaperInfoOpen(false);
+              setNookPromptOpen(false);
+              setPdfViewerTip(false);
+              setSheet(null);
+            }}
+            onClose={() => setContentsOpen(false)}
+            loading={sectionsReading}
+            sections={sections}
+            anchors={contentsAnchors}
+            current={currentSection?.id}
+            currentAnchor={activeNoteUuid}
+            onSection={goToSection}
+            onAnchor={(anchor) => {
+              setContentsOpen(false);
+              goToNote(anchor.note);
+            }}
+          />
+        )}
         <span className="spacer" />
         {/* A failed sync is reported, not offered again: the viewer is for
             reading, and the library is where sync is driven from. */}

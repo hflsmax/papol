@@ -162,6 +162,25 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   video and one serif title. The grid collapses to one column on narrow
   screens; new lessons are added as catalog entries.
 
+- **Contents** — the viewer's one navigation control, at the leading edge of
+  `.viewer-bar` beside Back: the left of that bar answers "where am I", the
+  right is what you do to the page. It is not an icon with a menu behind it;
+  it *names the section being read*, so the bar answers that question with
+  nothing opened, and falls back to the word "Contents" where a paper offers
+  no headings. Opening it gives one list under quiet small-caps kickers —
+  Sections, Appendix, Anchors — separated by hairlines, never by three
+  coloured headings. One row shape serves all three: a number column at the
+  left, a page column at the right, the title taking what is between. That
+  right-hand column running the height of the panel is what makes the
+  paper's own structure and the reader's own marks read as one map of one
+  document. Sections and anchors are grouped, never interleaved: nested
+  under sections an anchor would take a third width of indent and the eye
+  could no longer pick out "my anchors", which is the one thing that list is
+  for. The section being read is marked with `--accent-soft` and `--accent`,
+  as a selected desktop row is — never a rule or a bar drawn over the names
+  around it. Where the paper numbers nothing, the number column is not set
+  aside at all.
+
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:
   `--green-soft` for public fields (ratings, thought) and `--accent-soft`
