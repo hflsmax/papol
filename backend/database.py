@@ -157,9 +157,13 @@ def _table_columns(conn, name: str) -> list:
     return [row[1] for row in conn.execute(text(f"PRAGMA table_info({name})"))]
 
 
-def _rebuild_table(conn, target: str, source: str, alias: str,
-                   join: str = "", sources: dict | None = None):
+def _rebuild_to_models(conn, target: str, source: str, alias: str,
+                       join: str = "", sources: dict | None = None):
     """Make `target` as the models now define it and carry `source` into it.
+
+    For bringing a table up to today's shape, where following the models is
+    the whole point. A migration that has to produce the shape of its own
+    moment wants `_rebuild_frozen` instead.
 
     SQLite will not drop a column named in a foreign key, and every column
     retiring here is one. So the table is rebuilt rather than altered: the
@@ -317,19 +321,19 @@ def _fold_editions(conn):
     # loses the columns that named it.
     on = "LEFT JOIN _edition_paper m ON m.edition_uuid = {alias}.edition_uuid"
     if "copies" in tables:
-        _rebuild_table(
+        _rebuild_frozen(
             conn, "copies", "copies", "c", on.format(alias="c"),
             {"paper_uuid": "COALESCE(m.paper_uuid, c.paper_uuid)"},
         )
     if "annotations" in tables:
         # A note about the paper was never on a page, so it has no edition
         # to follow and stays where it is.
-        _rebuild_table(
+        _rebuild_frozen(
             conn, "annotations", "annotations", "a", on.format(alias="a"),
             {"paper_uuid": "COALESCE(m.paper_uuid, a.paper_uuid)"},
         )
     if "sharables" in tables:
-        _rebuild_table(
+        _rebuild_frozen(
             conn, "sharables", "sharables", "s", on.format(alias="s"),
             {"paper_uuid": "COALESCE(m.paper_uuid, s.paper_uuid)"},
         )
@@ -342,7 +346,7 @@ def _fold_editions(conn):
     ):
         if source not in tables:
             continue
-        _rebuild_table(
+        _rebuild_frozen(
             conn, target, source, "r",
             "JOIN _edition_paper m ON m.edition_uuid = r.edition_uuid",
             {"paper_uuid": "m.paper_uuid"},
@@ -382,6 +386,169 @@ def _fold_editions(conn):
 # not seen became a paper of its own. The earliest row survives and
 # everything pointing at the others is carried onto it.
 #
+# The shapes these tables had when editions were folded away.
+#
+# Written out rather than read from the models, because a migration has to
+# produce the schema of its own moment. Driving it off live metadata means a
+# later rename quietly rewrites an old database into a shape its data does
+# not fit — the column the models have moved on to is not the column the
+# rows are in, so the link is dropped on the floor and nothing says so.
+_FOLD_SHAPES = {
+    "copies": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_uuid VARCHAR(36) NOT NULL,
+           user_uuid VARCHAR(36) NOT NULL,
+           shelf_uuid VARCHAR(36),
+           summary TEXT,
+           thought TEXT,
+           is_author BOOLEAN DEFAULT '0' NOT NULL,
+           rating_expertise INTEGER,
+           rating_reading INTEGER,
+           rating_liking INTEGER,
+           created_at DATETIME,
+           updated_at DATETIME,
+           revision INTEGER DEFAULT '0' NOT NULL,
+           deleted_at DATETIME,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(user_uuid) REFERENCES users (uuid),
+           FOREIGN KEY(paper_uuid) REFERENCES papers (uuid),
+           CONSTRAINT uq_copy UNIQUE (paper_uuid, user_uuid),
+           FOREIGN KEY(shelf_uuid) REFERENCES shelves (uuid)""",
+        ("uuid", "paper_uuid", "user_uuid", "shelf_uuid", "summary", "thought",
+         "is_author", "rating_expertise", "rating_reading", "rating_liking",
+         "created_at", "updated_at", "revision", "deleted_at"),
+        ("CREATE INDEX IF NOT EXISTS ix_copies_user_uuid ON copies (user_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_copies_shelf_uuid ON copies (shelf_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_copies_paper_uuid ON copies (paper_uuid)"),
+    ),
+    "annotations": (
+        """uuid VARCHAR(36) NOT NULL,
+           kind VARCHAR(8) NOT NULL,
+           user_uuid VARCHAR(36) NOT NULL,
+           paper_uuid VARCHAR(36) NOT NULL,
+           page INTEGER,
+           group_uuid VARCHAR(36),
+           content TEXT NOT NULL,
+           name VARCHAR,
+           body TEXT DEFAULT '{}' NOT NULL,
+           created_at DATETIME,
+           updated_at DATETIME,
+           revision INTEGER DEFAULT '0' NOT NULL,
+           deleted_at DATETIME,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_uuid) REFERENCES papers (uuid),
+           FOREIGN KEY(user_uuid) REFERENCES users (uuid)""",
+        ("uuid", "kind", "user_uuid", "paper_uuid", "page", "group_uuid",
+         "content", "name", "body", "created_at", "updated_at", "revision",
+         "deleted_at"),
+        ("CREATE INDEX IF NOT EXISTS ix_annotations_user_uuid ON annotations (user_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_annotations_page ON annotations (page)",
+         "CREATE INDEX IF NOT EXISTS ix_annotations_paper_uuid ON annotations (paper_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_annotations_kind ON annotations (kind)"),
+    ),
+    "sharables": (
+        """uuid VARCHAR(36) NOT NULL,
+           kind VARCHAR(8) DEFAULT 'lean' NOT NULL,
+           user_uuid VARCHAR(36),
+           paper_uuid VARCHAR(36) NOT NULL,
+           created_at DATETIME NOT NULL,
+           revoked_at DATETIME,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_uuid) REFERENCES papers (uuid),
+           FOREIGN KEY(user_uuid) REFERENCES users (uuid)""",
+        ("uuid", "kind", "user_uuid", "paper_uuid", "created_at", "revoked_at"),
+        ("CREATE INDEX IF NOT EXISTS ix_sharables_user_uuid ON sharables (user_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_sharables_paper_uuid ON sharables (paper_uuid)"),
+    ),
+    "paper_references": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_uuid VARCHAR(36) NOT NULL,
+           "key" VARCHAR NOT NULL,
+           "index" INTEGER NOT NULL,
+           raw TEXT, title TEXT, authors TEXT, year INTEGER, journal TEXT,
+           doi TEXT, arxiv_id TEXT, page INTEGER, y FLOAT,
+           resolved_status VARCHAR, resolved_at DATETIME, resolution TEXT,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_uuid) REFERENCES papers (uuid)""",
+        ("uuid", "paper_uuid", "key", "index", "raw", "title", "authors",
+         "year", "journal", "doi", "arxiv_id", "page", "y",
+         "resolved_status", "resolved_at", "resolution"),
+        ("CREATE INDEX IF NOT EXISTS ix_paper_references_paper_uuid "
+         "ON paper_references (paper_uuid)",),
+    ),
+    "paper_citations": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_uuid VARCHAR(36) NOT NULL,
+           reference_uuid VARCHAR(36),
+           label TEXT,
+           page INTEGER NOT NULL,
+           x FLOAT NOT NULL, y FLOAT NOT NULL, w FLOAT NOT NULL, h FLOAT NOT NULL,
+           inferred BOOLEAN,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(reference_uuid) REFERENCES paper_references (uuid),
+           FOREIGN KEY(paper_uuid) REFERENCES papers (uuid)""",
+        ("uuid", "paper_uuid", "reference_uuid", "label", "page",
+         "x", "y", "w", "h", "inferred"),
+        ("CREATE INDEX IF NOT EXISTS ix_paper_citations_page ON paper_citations (page)",
+         "CREATE INDEX IF NOT EXISTS ix_paper_citations_paper_uuid "
+         "ON paper_citations (paper_uuid)"),
+    ),
+    "paper_links": (
+        """uuid VARCHAR(36) NOT NULL,
+           paper_uuid VARCHAR(36) NOT NULL,
+           kind VARCHAR NOT NULL,
+           label TEXT,
+           page INTEGER NOT NULL,
+           x FLOAT NOT NULL, y FLOAT NOT NULL, w FLOAT NOT NULL, h FLOAT NOT NULL,
+           target_page INTEGER NOT NULL,
+           target_y FLOAT NOT NULL,
+           PRIMARY KEY (uuid),
+           FOREIGN KEY(paper_uuid) REFERENCES papers (uuid)""",
+        ("uuid", "paper_uuid", "kind", "label", "page", "x", "y", "w", "h",
+         "target_page", "target_y"),
+        ("CREATE INDEX IF NOT EXISTS ix_paper_links_paper_uuid ON paper_links (paper_uuid)",
+         "CREATE INDEX IF NOT EXISTS ix_paper_links_page ON paper_links (page)"),
+    ),
+}
+
+
+def _rebuild_frozen(conn, target: str, source: str, alias: str,
+                    join: str = "", sources: dict | None = None):
+    """Rebuild `source` into `target` at the shape `_FOLD_SHAPES` records.
+
+    The same move as `_rebuild_to_models`, against a schema written down
+    here instead of read from the models, so that what this migration
+    produces cannot drift with them."""
+    body, columns, indexes = _FOLD_SHAPES[target]
+    sources = sources or {}
+    available = set(_table_columns(conn, source))
+    staging = f"_new_{target}"
+
+    picked, expressions = [], []
+    for name in columns:
+        if name in sources:
+            expression = sources[name]
+        elif name in available:
+            # Quoted: a column may be spelled with a SQLite keyword, and
+            # `index` is.
+            expression = f'{alias}."{name}"'
+        else:
+            continue
+        picked.append(f'"{name}"')
+        expressions.append(expression)
+
+    conn.execute(text(f"DROP TABLE IF EXISTS {staging}"))
+    conn.execute(text(f"CREATE TABLE {staging} ({body})"))
+    conn.execute(text(
+        f"INSERT INTO {staging} ({', '.join(picked)}) "
+        f"SELECT {', '.join(expressions)} FROM {source} {alias} {join}"
+    ))
+    conn.execute(text(f"DROP TABLE {source}"))
+    conn.execute(text(f"ALTER TABLE {staging} RENAME TO {target}"))
+    for index in indexes:
+        conn.execute(text(index))
+
+
 # Done once, under `_one_paper_per_file` below. The pairs are historical:
 # the old upload path matched on DOI, so the same file uploaded under a
 # title Papol had not seen became a paper of its own.
@@ -558,7 +725,7 @@ def _require_a_file(conn):
             unsettled,
         )
         return
-    _rebuild_table(conn, "papers", "papers", "paper")
+    _rebuild_to_models(conn, "papers", "papers", "paper")
 
 
 def migrate():
