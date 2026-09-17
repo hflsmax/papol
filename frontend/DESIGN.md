@@ -303,6 +303,17 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   to walk it: a bar must not cost twenty-five presses to get past. The keyboard has no
   spot to point at, so Enter on a segment goes to the head of its section.
 
+- **Jacket** — `.board-jacket`, `.paper-jacket`: a work's one screen in the
+  Library, where what is known about it is kept and from which it is opened.
+  A paper has had one all along; a board's is new, and it is why the board's
+  `description` column finally has somewhere to be read. Both sit inside the
+  Library's own chrome with a Back to the nook or library they were opened
+  from (`jacketOrigin.js`, one remembered place per tab serving both kinds).
+  The board's two writable fields — its name and its description — are kept
+  the way an anchor's card keeps its own: when the field is left, not when a
+  button is pressed. The way in is one `primary` button, because a jacket
+  has exactly one thing it is for.
+
 - **Anchor card** — `.note-pop`: an anchor's name, its note and its delete,
   on a `--card` ground with `--shadow-md`, hung off its pin on the page.
   It replaced the rail. The rail did two jobs: it listed the anchors, which

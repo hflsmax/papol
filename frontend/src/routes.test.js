@@ -93,3 +93,11 @@ test('a paper name is not a user and not a room', () => {
     assert.equal(parseRoute(`/room/${name}`).page, 'home');
   }
 });
+
+test("a board link opens that board's jacket, not its canvas", () => {
+  // Singular, as a paper's is. The plural `/boards/<uuid>` belongs to the
+  // board application — the canvas — which this router never sees.
+  assert.deepEqual(parseRoute(`/board/${UUID}`), { page: 'board', uuid: UUID });
+  assert.deepEqual(parseRoute(`/board/${UUID}/`), { page: 'board', uuid: UUID });
+  assert.deepEqual(parseRoute(`/demo/board/${UUID}`), { page: 'board', uuid: UUID, demo: true });
+});

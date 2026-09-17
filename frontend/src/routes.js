@@ -28,6 +28,7 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if ((uuid = at(`/u/${UUID}/boards`))) return routed({ page: 'space', uuid, section: 'boards' });
   if ((uuid = at(`/u/${UUID}`))) return routed({ page: 'space', uuid });
   if ((uuid = at(`/paper/${PAPER}`))) return routed({ page: 'paper', uuid });
+  if ((uuid = at(`/board/${UUID}`))) return routed({ page: 'board', uuid });
   if ((uuid = at(`/room/${UUID}`))) return routed({ page: 'room', uuid });
   if (path === '/profile') return routed({ page: 'profile' });
   if (path === '/join') return routed({ page: 'join' });

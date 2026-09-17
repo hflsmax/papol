@@ -598,7 +598,7 @@ export const desktopStyles = `
   background: var(--card);
 }
 
-.desktop-detail-pane .paper-detail > .panel {
+.desktop-detail-pane .paper-jacket > .panel {
   padding: 0;
   border: 0;
   background: transparent;

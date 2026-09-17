@@ -5,6 +5,7 @@ import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
+import { boardJacketPath } from '../../shared/appUrls.js';
 import { homePath } from '../../shared/appUrls.js';
 
 function route() {
@@ -14,13 +15,23 @@ function route() {
     : new URLSearchParams(window.location.search).get('board');
 }
 
-const papolHome = () => homePath({
-  demo: window.location.pathname.includes('/demo/boards/'),
-});
+const inDemoBoards = () => window.location.pathname.includes('/demo/boards/');
+
+const papolHome = () => homePath({ demo: inDemoBoards() });
+
+// Where the board is kept: its jacket in the Library. This is the Back, and
+// it names what it leaves, which is what a Back is for. The home button
+// beside it still goes to Papol itself and names nothing.
+const jacketOfBoard = (uuid) => boardJacketPath(uuid, { demo: inDemoBoards() });
 
 function goHome() {
   if (closeDesktopDocumentWindow()) return;
   window.location.assign(papolHome());
+}
+
+function goToJacket(uuid) {
+  if (closeDesktopDocumentWindow()) return;
+  window.location.assign(jacketOfBoard(uuid));
 }
 
 export default function App() {
@@ -39,7 +50,13 @@ export default function App() {
     <CompatibilityBar />
     <MacHandoffBar />
     {boardUuid
-      ? <BoardPage boardUuid={boardUuid} onHome={goHome} homeHref={papolHome} />
+      ? <BoardPage
+          boardUuid={boardUuid}
+          onHome={goHome}
+          homeHref={papolHome}
+          onBack={() => goToJacket(boardUuid)}
+          backHref={jacketOfBoard(boardUuid)}
+        />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;
 }

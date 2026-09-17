@@ -9,10 +9,11 @@ import {
   rememberSource, shelfOf, sourcePath, tagOf,
 } from '../desktopSources';
 import { formatAuthors } from '../paperFormat';
-import PaperDetail from './PaperDetail';
+import PaperJacket from './PaperJacket';
 import PaperUpload from './PaperUpload';
 import appLimits from '../../../shared/appLimits.js';
 import BoardCreateForm from './BoardCreateForm';
+import { lastEdited as formatBoardDate } from '../../../shared/lastEdited.js';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
 import { confirmAction } from '../../../shared/confirmAction';
@@ -66,12 +67,6 @@ function DefaultViewerPrompt() {
   );
 }
 
-const boardDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
-const formatBoardDate = (value) => new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric',
-  year: boardDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
-  hour: 'numeric', minute: '2-digit',
-}).format(boardDate(value));
 
 const previewCardHeight = (item) => {
   if (['image', 'youtube', 'webpage'].includes(item.kind)) return 180;
@@ -650,7 +645,7 @@ export function DesktopBrowser({
     detail = (
       <div className="desktop-scroll">
         <div className="desktop-content">
-          <PaperDetail
+          <PaperJacket
             // Moving the paper to another shelf from the sidebar reloads it,
             // so its own shelf control never shows the old shelf.
             key={`${paperSha256}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_uuid ?? ''}`}

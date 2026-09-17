@@ -7,7 +7,8 @@ import { getNotifications, getPendingAdminMessages } from '../../shared/api/noti
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import Space from './components/Space';
-import PaperDetail from './components/PaperDetail';
+import BoardJacket from './components/BoardJacket';
+import PaperJacket from './components/PaperJacket';
 import { demoActive, enterDemo, exitDemo } from '../../shared/demo.js';
 import ProfilePage from './components/ProfilePage';
 import PapersPage from './components/PapersPage';
@@ -34,8 +35,8 @@ import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
 import { parseRoute } from './routes';
 import {
-  originAfterMove, paperBackTarget, readPaperOrigin, writePaperOrigin,
-} from './paperOrigin';
+  originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
+} from './jacketOrigin';
 import { paperName } from '../../shared/paperName.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
@@ -82,9 +83,9 @@ function navigate(path, { replace = false } = {}) {
   // to do nothing.
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
-  // A paper page's Back leads to the nook or library it was opened from,
+  // A jacket's Back leads to the nook or library it was opened from,
   // and this is the one door every in-app move goes through.
-  writePaperOrigin(originAfterMove(readPaperOrigin(), window.location.pathname, mountedDestination));
+  writeJacketOrigin(originAfterMove(readJacketOrigin(), window.location.pathname, mountedDestination));
   if (replace) {
     // Moving a selection through a list is not a step worth a Back.
     window.history.replaceState(
@@ -102,7 +103,16 @@ function navigate(path, { replace = false } = {}) {
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
+// A board row opens the board's jacket, as a paper row opens a paper's: the
+// Library shows what it holds, and opening the work itself is the next step.
 function openBoard(uuid) {
+  navigate(`/board/${uuid}`);
+}
+
+// The way in, from the jacket. The canvas is a separate application, so this
+// leaves the Library — on the desktop into a document window beside it, on
+// the web by going there.
+function openBoardCanvas(uuid) {
   const path = demoActive() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
   if (DESKTOP) {
     openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
@@ -530,18 +540,18 @@ export default function App({ startupUser = null, startupError = null }) {
   };
   const backHref = window.history.state?.papolBackHref || appPath('/');
 
-  // A paper page always has a Back, and it always leads to a place papers
+  // A jacket always has a Back, and it always leads to a place works
   // are kept: the nook or library this one was opened from, or — for a link
   // someone was sent, with no such place behind it — the user's own nook,
   // and the library for a visitor. It used to be hidden whenever the page
   // was not reached by an in-app click, which includes every return from
   // the viewer: the most travelled road onto this page had no way off it.
-  const paperBack = paperBackTarget({ origin: readPaperOrigin(), userUuid: user?.uuid });
-  const goBackFromPaper = () => {
+  const jacketBack = jacketBackTarget({ origin: readJacketOrigin(), userUuid: user?.uuid });
+  const goBackFromJacket = () => {
     // When that place is the entry just behind this one, step back onto it
     // rather than stacking a second copy of it on top.
-    if (window.history.state?.papolBackHref === mountedPath(paperBack.path)) window.history.back();
-    else navigate(paperBack.path);
+    if (window.history.state?.papolBackHref === mountedPath(jacketBack.path)) window.history.back();
+    else navigate(jacketBack.path);
   };
 
   const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
@@ -725,15 +735,25 @@ export default function App({ startupUser = null, startupError = null }) {
         />
       )}
       {route.page === 'paper' && (
-        <PaperDetail
+        <PaperJacket
           paperSha256={route.uuid}
           currentUser={user}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
-          onBack={goBackFromPaper}
-          backHref={mountedPath(paperBack.path)}
-          backLabel={paperBack.label}
+          onBack={goBackFromJacket}
+          backHref={mountedPath(jacketBack.path)}
+          backLabel={jacketBack.label}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onReportableError={offerDesktopError}
+        />
+      )}
+      {route.page === 'board' && (
+        <BoardJacket
+          boardUuid={route.uuid}
+          currentUser={user}
+          onOpen={openBoardCanvas}
+          onBack={goBackFromJacket}
+          backHref={mountedPath(jacketBack.path)}
+          backLabel={jacketBack.label}
         />
       )}
       {route.page === 'papers' && (

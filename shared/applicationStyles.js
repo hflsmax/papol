@@ -4863,6 +4863,24 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
    wear, so one glyph means one thing everywhere in Papol. */
 .board-toolbar .board-home { display: grid; flex: none; place-items: center; width: 32px; height: 28px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--accent); text-decoration: none; }
 .board-toolbar .board-home:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+/* The way back to where the board is kept, beside the house that leaves for
+   Papol. Worded, because unlike the house it names what it returns to. */
+/* ---------- A board's jacket ---------- */
+
+/* Its one screen in the Library: what is known about the board, and the way
+   in. Set like a paper's, because the two are the same kind of thing. */
+.board-jacket { display: flex; flex-direction: column; gap: 12px; }
+.board-jacket-head { display: flex; align-items: center; gap: 10px; }
+.board-jacket .board-jacket-name { flex: 1; min-width: 0; margin: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-2xl); line-height: 1.2; }
+.board-jacket input.board-jacket-name:hover { border-color: var(--line); }
+.board-jacket input.board-jacket-name:focus { border-color: var(--accent); background: var(--card); outline: none; }
+.board-jacket-facts { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin: 0; color: var(--ink-faint); font-size: var(--fs-sm); }
+.board-jacket .board-jacket-note { width: 100%; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-md); line-height: 1.55; resize: vertical; white-space: pre-wrap; }
+.board-jacket textarea.board-jacket-note:focus { border-color: var(--accent); background: var(--card); outline: none; }
+.board-jacket-actions { display: flex; gap: 10px; align-items: center; }
+
+.board-toolbar .board-back { flex: none; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--accent); font-family: var(--font-serif); font-size: var(--fs-sm); text-decoration: none; white-space: nowrap; }
+.board-toolbar .board-back:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .board-toolbar .board-home:active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
 .board-toolbar .board-home svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }

@@ -33,7 +33,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 ## 2. Papers, ratings, and display
 
 - **US-2.1** As a user, I can upload a PDF into my own nook; metadata (DOI, title, authors, journal, year) is auto-extracted for me to review and edit.
-- **US-2.2** As a user, I can rate each paper 1–5 on three dimensions — **My expertise**, **Reading depth**, **Merit** — directly on the paper page, one click per change. Each dimension is optional: a set rating shows a small "clear" control; an unset one reads "unrated". Visitors see unrated dimensions as a quiet "unrated".
+- **US-2.2** As a user, I can rate each paper 1–5 on three dimensions — **My expertise**, **Reading depth**, **Merit** — directly on the paper's jacket, one click per change. Each dimension is optional: a set rating shows a small "clear" control; an unset one reads "unrated". Visitors see unrated dimensions as a quiet "unrated".
 - **US-2.3** As a user, only I can delete papers in my nook (via Edit Metadata → Delete paper) and edit my personal fields: summary, ratings, display. Deleting takes my copy and my notes; my ink and clips stay where they are, for when I add the paper again.
 - **US-2.4** **Metadata is shared**: any user can Edit Metadata on any visible paper, and the change applies to every copy of it. The edit form warns about this. "Edit Metadata" and "Edit Summary" are separate buttons — summary belongs to the copy, so only its own user may edit it.
 - **US-2.5** As a user, I choose whether my copy is **on display**, by the shelf I keep it on. A displayed copy shows me standing against the paper — to nook visitors, in the Library, and in "also read by". A copy not on display is mine alone: nobody is told I have it. Summaries and private notes are mine either way.
@@ -57,8 +57,8 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-2.12** **What a user keeps to themselves.** My summary, my notes, my ink
   and clips — and that I keep this paper at all: a user who does not display
   their copy is named nowhere on the paper.
-- **US-2.13** **A paper page is for people with accounts.** The Library asks
-  for one (US-1.4), and the paper page is the Library's. Display decides
+- **US-2.13** **A paper's jacket is for people with accounts.** The Library asks
+  for one (US-1.4), and the jacket is the Library's. Display decides
   nothing here: it governs the copy it belongs to and nothing else.
 
 ## 3. Browsing
@@ -66,7 +66,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-3.1** As a user, I can see every user in the Library with avatar, affiliation, and how many papers each has on display. The people and the papers are two views of one Library, not two places.
 - **US-3.2** As a user, I can visit another user's nook and browse the copies they display, with their ratings. Summaries and notes stay private to the user who wrote them.
 - **US-3.3** As a user, I can open the **Library**, which lists **every paper** — not only the ones somebody displays, because no user's shelf decides what is findable. Each paper appears once, with a row per user who displays a copy (avatar, name, ratings) linking to theirs; a paper nobody displays simply shows no such row. Search matches papers and user names.
-- **US-3.4** As a user, a paper's page shows "Also read by" chips for every other user who **displays** a copy of the same paper. Users who keep theirs to themselves are not named. Hovering a chip shows their ratings; clicking visits their nook.
+- **US-3.4** As a user, a paper's jacket shows "Also read by" chips for every other user who **displays** a copy of the same paper. Users who keep theirs to themselves are not named. Hovering a chip shows their ratings; clicking visits their nook.
 
 ## 4. Calling a seminar
 
@@ -81,12 +81,28 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 - **US-5.2** All planning happens in the cohort: participants (the caller, the leader, and users who join or contribute) are shown as chips. Only users with a **displayed** entry of the paper can join, message, or submit availability — hidden-entry users are invited to put their copy on display first, right from the cohort.
 - **US-5.3** Every participant can submit and update their **availability** (free-form) until the seminar is scheduled; all availability is visible in the cohort.
 - **US-5.4** The cohort has a **discussion thread** for coordination — short messages with author and time.
-- **US-5.5** The **leader announces** the seminar by picking a time and a platform; the cohort switches to "scheduled", the paper page shows the result, and participants and users are notified.
-- **US-5.6** The paper page always reflects the cohort: none called, waiting for a leader, planning, or scheduled — with a "Join the cohort" door for signed-in users.
+- **US-5.5** The **leader announces** the seminar by picking a time and a platform; the cohort switches to "scheduled", the paper's jacket shows the result, and participants and users are notified.
+- **US-5.6** A paper's jacket always reflects the cohort: none called, waiting for a leader, planning, or scheduled — with a "Join the cohort" door for signed-in users.
 
 ## 5b. Boards
 
 - **US-5.7** As a user, I can open a board in a dedicated full-screen app served at `/boards/<guid>`, on the same origin as Papol so my session carries over without a second sign-in. Board discovery and creation remain in my nook.
+
+- **US-5.8** **A board has a jacket, as a paper does.** Every work in the
+  Library has one screen where what is known about it is kept and from which
+  it is opened: a paper's jacket at `/paper/<name>`, a board's at
+  `/board/<guid>`. A board row in a nook opens its jacket, the jacket opens
+  the canvas, and the canvas comes back to the jacket. The jacket is where a
+  board's **description** is read and written — it had nowhere to be shown
+  before — beside its name, how many cards it holds, when it was last
+  edited, and whose it is when it is not mine.
+
+- **US-5.9** The canvas has two ways out and they mean different things: a
+  **Back** to the board's jacket, which names where it returns to, and the
+  **home button**, which leaves for Papol itself and names nothing (US-7.16).
+  On the desktop there is no Back on the canvas at all: the jacket is still
+  open in the Library window behind it, because the canvas is a document
+  window beside that window rather than instead of it.
 
 ## 6. Feedback
 
@@ -97,10 +113,10 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 ## 7. Reading and located notes
 
 - **US-7.1** As a user, I can open any paper in my nook in Papol's **PDF viewer** — a separate app served at `/viewer`, on the same origin, so my session carries over with no second sign-in.
-- **US-7.2** As a user, I can take a **located note**: choose *Add a note*, click the spot on the page it belongs to, and write it. A located note **is** one of my notes — the same private notes that live on the paper page, with a place in the PDF attached. There is one list, not two.
+- **US-7.2** As a user, I can take a **located note**: choose *Add a note*, click the spot on the page it belongs to, and write it. A located note **is** one of my notes — the same private notes that live on the paper's jacket, with a place in the PDF attached. There is one list, not two.
 - **US-7.3** A note's location is **typed**. Today the type is `point`, stored as fractions of the page in PDF user space, so a note lands in the same place at any zoom, on any screen. `rect`, `polygon` and `quote` join later without a migration and without disturbing existing notes.
-- **US-7.4** Every note that has a place is on the page as a **pin** and on the **Navigator** as a mark — a triangle for a bare anchor, a dialog box once something is written on it — and clicking the mark goes there. Clicking the pin opens the anchor's **card**, hung off the pin — as dropping a new anchor does: its name, its note, and the way to delete it. The card is where an anchor is edited, and the only place; nothing is saved by a button, a field is kept when it is left. There is no list beside the page. A note with no place has no pin to hang a card on, so it is read and written on the paper page, where it was made.
-- **US-7.5** On the paper page, a note that has a place shows a **page** chip that opens the viewer at that note. A note taken there and a note typed on the paper page are the same kind of thing, in the same list.
+- **US-7.4** Every note that has a place is on the page as a **pin** and on the **Navigator** as a mark — a triangle for a bare anchor, a dialog box once something is written on it — and clicking the mark goes there. Clicking the pin opens the anchor's **card**, hung off the pin — as dropping a new anchor does: its name, its note, and the way to delete it. The card is where an anchor is edited, and the only place; nothing is saved by a button, a field is kept when it is left. There is no list beside the page. A note with no place has no pin to hang a card on, so it is read and written on the paper's jacket, where it was made.
+- **US-7.5** On a paper's jacket, a note that has a place shows a **page** chip that opens the viewer at that note. A note taken there and a note typed on its jacket are the same kind of thing, in the same list.
 
 ## 7b. Following a citation
 
@@ -114,7 +130,7 @@ Papers are **keyed by DOI** (falling back to title): entries in different nooks 
 
 ## 7c. Sharing a reading
 
-- **US-7.13** As a user, I can hand someone a **link to the PDF I am reading**, from the Share menu on the paper page. It opens the PDF in Papol's viewer, read-only, for anyone holding it — no account, no sign-in.
+- **US-7.13** As a user, I can hand someone a **link to the PDF I am reading**, from the Share menu on the paper's jacket. It opens the PDF in Papol's viewer, read-only, for anyone holding it — no account, no sign-in.
 - **US-7.14** One tick box decides **what the link carries, and therefore whose it is**. Left alone, I get the PDF's own link: the same link for everyone, carrying the paper and naming nobody — I copy it and pass it on, and that is the end of my part in it. Ticked, Papol makes **my** link, carrying my notes, paint and clips.
 - **US-7.15** A link is one or the other for its whole life. I have **one link of my own per paper I read** — asking again gives it back rather than making a second — and the PDF's own link is beside it, not instead of it: having handed over one is never a reason to be refused the other.
 - **US-7.16** What a visitor sees through my link is my reading **as it is now**, not a snapshot: a note I reword is reworded for everyone holding it. They see the PDF, my name, my annotations, and the paper's bibliography — and nothing else in my nook. The way out is the **home button**, which leads to Papol itself and names no paper: a link hands over a reading, not a place in the Library. Through the PDF's own link they see the paper and no user at all.

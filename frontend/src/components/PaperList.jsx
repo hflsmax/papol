@@ -217,7 +217,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   </span>}
                   {toggleWarning?.uuid === pickerUuid && <HintPop text={toggleWarning.text} onClose={() => setToggleWarning(null)} />}
                 </span>}
-                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/boards/${board.uuid}`)} data-document onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4></div></div>
+                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/board/${board.uuid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4></div></div>
               </li>;
             }
             const paper = entry.value;
