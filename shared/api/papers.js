@@ -10,6 +10,7 @@ import { planOfflineNookAddition } from '../nookTransition.js';
 import { onServer } from './serverOperation.js';
 import { mySharable } from './sharables.js';
 import appLimits from '../appLimits.js';
+import { paperName } from '../paperName.js';
 import {
   forgetPendingPaperBlob, hasPendingPaperBlob, paperCopyUuid, rememberPaperIdentity,
   rememberPendingPaperBlob, setPaperCopyUuid,
@@ -19,9 +20,10 @@ const DESKTOP_EXTRACT_TIMEOUT_MS = appLimits.timeouts_ms.desktop_metadata;
 
 // ---------- Papers ----------
 
-// Papers are addressed by their UUID, and only by it.
+// A paper is addressed by the name it goes by in a URL: the first half of
+// the digest of its PDF. See shared/paperName.js.
 export function paperHref(paper) {
-  return appPath(`/paper/${paper.sha256}`);
+  return appPath(`/paper/${paperName(paper.sha256)}`);
 }
 
 // Uploaded PDFs live in uploads/. Demo papers link to each paper's
@@ -160,12 +162,20 @@ async function liveLinkOn(uuid) {
   }
 }
 
-export async function getPaper(uuid) {
+// `name` is whatever a link carried: the paper's short name, or its full
+// digest. Both are answered, and the paper that comes back carries the full
+// one, which is what every later call on this page uses.
+export async function getPaper(name) {
+  const uuid = name;
   let localComments = null;
   if (nativeDataActive()) {
     // A nook paper is read from the replica: the server may not have it yet,
     // or may be out of reach.
     try {
+      // Every one of these is asked by the name the link carried, short or
+      // whole: the replica resolves it, as the service does. Waiting for the
+      // paper to say its full name before asking for the rest would cost the
+      // page a round trip to learn what both ends can work out for themselves.
       localComments = nativeRepository.annotations(uuid, null, 'note');
       // A link out is a state of the paper, but the replica has no sharables
       // to answer with, so it is asked for beside the paper rather than after
@@ -176,7 +186,9 @@ export async function getPaper(uuid) {
       const paper = paperView(row);
       paper.notes = comments.map(annotationView);
       paper.sharable_uuid = link;
-      setPaperCopyUuid(uuid, paper.copy_uuid);
+      // Keyed by the paper's own name, never by the one the link happened to
+      // carry: everything that reads this back holds the whole digest.
+      setPaperCopyUuid(paper.sha256, paper.copy_uuid);
       return paper;
     } catch (error) {
       // A paper outside this nook, opened from the library, comes from the service.
@@ -189,7 +201,7 @@ export async function getPaper(uuid) {
       nativeRepository.nook(),
     ])
     : null;
-  const remotePaper = request(`/papers/${uuid}`);
+  const remotePaper = request(`/papers/${name}`);
   const [paperResult, state] = await Promise.all([remotePaper, localState]);
   const paper = rememberPaperIdentity(paperResult);
   if (state) {

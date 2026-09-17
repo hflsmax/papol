@@ -83,9 +83,13 @@ A UUID becoming a digest, a path gaining a segment, a route being retired. This
 is the change class that produced the failure above, and it deserves its own
 pass. Every one of these has to move together:
 
+- `shared/paperName.js` — what a paper is called in a URL, and the only place
+  that decides it
 - `frontend/src/routes.js` — which page a path opens
 - `frontend/src/routes.test.js` — the shapes that must keep working, and the
   shapes that must keep *not* working
+- `backend/services/papers.py`, `desktop/src-tauri/src/data/database.rs` — the
+  two resolvers that turn a name from a URL back into the stored identity
 - `frontend/scripts/browser-smoke.mjs` — the links the smoke test opens
 - `health/links.sh` — the links production is checked with after a deploy
 - `shared/demo.js` — the demo answers the same paths without a service
@@ -94,6 +98,14 @@ pass. Every one of these has to move together:
 Grep for the old shape before declaring it done: `grep -rn '{8}-\[0-9a-f\]'`
 finds UUID patterns, `grep -rn '{64}'` finds digests. A pattern nobody changed
 is not evidence that it did not need changing.
+
+And keep the two apart. A **name** is what a link carries and a lookup
+resolves; an **identity** is what rows are keyed by, blobs are stored under,
+and bytes are checked against. A paper's name in a URL is the first half of its
+digest; its identity is all of it, and shortening the one must never shorten
+the other. `backend/test_paper_names.py` holds that line, and the test that
+matters most there is the one asserting the blob check still demands all 64
+characters: a name half as long would be a check half as strong.
 
 ## Why a test is not enough
 

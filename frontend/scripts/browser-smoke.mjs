@@ -21,9 +21,12 @@ const mime = {
 // of these is opened in the browser and has to render the page it names.
 // `/` alone is what let a paper link fall through to the home page unnoticed.
 const PAPER_DIGEST = '5cf24221f8fa36824ddd1178cbfb5cf36d0dcfcf335c8de87826c4082b70cbf1';
+const PAPER_NAME = PAPER_DIGEST.slice(0, 32);
 const USER_UUID = '2f1c6f60-3f5b-4a19-9c2a-7d0e1b8c4a53';
 const pages = [
   { path: '/', page: 'home' },
+  { path: `/paper/${PAPER_NAME}`, page: 'paper' },
+  // A link handed out before the name was shortened is still that paper's.
   { path: `/paper/${PAPER_DIGEST}`, page: 'paper' },
   { path: `/u/${USER_UUID}`, page: 'space' },
   { path: `/room/${USER_UUID}`, page: 'room' },

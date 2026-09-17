@@ -2542,9 +2542,15 @@ fn query_annotations(
     account_uuid: &str,
     parameters: Value,
 ) -> Result<Value, String> {
-    let paper_sha256 = parameters["paper_sha256"]
+    let asked = parameters["paper_sha256"]
         .as_str()
         .ok_or("Annotation query requires paper_sha256")?;
+    // A paper opened from a link is asked for by the name the link carried,
+    // which may be the short one. Resolve it, and where it resolves to nothing
+    // ask as given: a name no paper here answers to has no annotations here
+    // either, and an empty list says that better than an error does.
+    let paper_sha256 = resolve_paper_name(connection, asked).unwrap_or_else(|_| asked.to_string());
+    let paper_sha256 = paper_sha256.as_str();
     let kind = parameters["kind"].as_str();
     let mut sql = String::from(
         "SELECT uuid FROM annotations WHERE user_uuid=?1 AND paper_sha256=?2 AND deleted_at IS NULL",
@@ -2722,8 +2728,46 @@ fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, St
         .map(Value::Array)
 }
 
+// The name a link carries: the first half of a paper's digest, or, on a link
+// handed out before the name was shortened, all of it. Both name the same
+// paper, and both have become the stored name by the time this returns —
+// nothing past here holds half a name.
+//
+// Two papers sharing one name would be a bug rather than a coincidence at 128
+// bits, so an ambiguous name is refused rather than settled by picking one.
+fn resolve_paper_name(connection: &Connection, name: &str) -> Result<String, String> {
+    let name = name.trim().to_ascii_lowercase();
+    if !name.chars().all(|character| character.is_ascii_hexdigit()) {
+        return Err("Paper not found".to_string());
+    }
+    if name.len() == 64 {
+        return Ok(name);
+    }
+    if name.len() != 32 {
+        return Err("Paper not found".to_string());
+    }
+    // A prefix range rather than LIKE: it reads straight off the primary key,
+    // and no character of a digest can be a wildcard.
+    let mut statement = connection
+        .prepare("SELECT sha256 FROM papers WHERE sha256>=?1 AND sha256<?2 LIMIT 2")
+        .map_err(|error| error.to_string())?;
+    let mut found: Vec<String> = Vec::new();
+    let rows = statement
+        .query_map(params![name, format!("{name}g")], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    for row in rows {
+        found.push(row.map_err(|error| error.to_string())?);
+    }
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        0 => Err("Paper not found".to_string()),
+        _ => Err("That name means more than one paper".to_string()),
+    }
+}
+
 fn query_paper(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
-    paper_view(connection, account_uuid, uuid)
+    let paper_sha256 = resolve_paper_name(connection, uuid)?;
+    paper_view(connection, account_uuid, &paper_sha256)
 }
 
 fn query_paper_by_pdf(
@@ -4486,6 +4530,65 @@ mod tests {
         assert_eq!(paper["title"], "Imported offline");
         assert!(reopened.has_blob(paper["sha256"].as_str().unwrap()));
         assert_eq!(reopened.outbox_count(), 0);
+    }
+
+    // A paper is asked for by the name a link carried: the first half of its
+    // digest, or, on an older link, all of it. The replica answers both, and
+    // what it hands back is named the way it is stored.
+    #[test]
+    fn a_paper_is_found_by_the_name_a_link_carries() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let blob = store
+            .import_blob(
+                b"%PDF-1.4\nnamed by its file",
+                Some("application/pdf".into()),
+            )
+            .unwrap();
+        store
+            .mutate("7", pdf_import_changes(&blob.sha256, "A paper with a name"))
+            .unwrap();
+
+        for name in [blob.sha256.clone(), blob.sha256[..32].to_string()] {
+            let paper = store.query("7", "paper", json!({"uuid": name})).unwrap();
+            assert_eq!(paper["title"], "A paper with a name");
+            assert_eq!(paper["sha256"], json!(blob.sha256));
+        }
+
+        // The name is read as written, without regard to case.
+        let shouted = blob.sha256[..32].to_uppercase();
+        let paper = store.query("7", "paper", json!({"uuid": shouted})).unwrap();
+        assert_eq!(paper["sha256"], json!(blob.sha256));
+    }
+
+    // Only the two lengths Papol writes. Anything between them is refused
+    // rather than resolved to whichever paper happens to start that way.
+    #[test]
+    fn a_name_of_the_wrong_shape_is_not_a_paper() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let blob = store
+            .import_blob(
+                b"%PDF-1.4\nnamed by its file",
+                Some("application/pdf".into()),
+            )
+            .unwrap();
+        store
+            .mutate("7", pdf_import_changes(&blob.sha256, "A paper with a name"))
+            .unwrap();
+
+        for wrong in [
+            blob.sha256[..31].to_string(),
+            blob.sha256[..33].to_string(),
+            blob.sha256[..48].to_string(),
+            blob.sha256[..63].to_string(),
+            "z".repeat(32),
+            "_".repeat(32),
+            String::new(),
+        ] {
+            let answer = store.query("7", "paper", json!({"uuid": wrong}));
+            assert!(answer.is_err(), "{wrong} should name no paper");
+        }
     }
 
     #[test]

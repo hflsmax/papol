@@ -102,6 +102,8 @@ check "/library" papers
 check "/u/$NOBODY" space
 check "/room/$NOBODY" room
 if [ -n "$DIGEST" ]; then
+  # The name a link carries today, and the whole digest an older link carries.
+  check "/paper/${DIGEST:0:32}" paper
   check "/paper/$DIGEST" paper
 else
   printf '    skip  /paper/<digest> — no paper named; pass one as the second argument\n'

@@ -30,6 +30,7 @@ import { applicationStyles } from '../../shared/applicationStyles.js';
 import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
 import { parseRoute } from './routes';
+import { paperName } from '../../shared/paperName.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
@@ -397,7 +398,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperSha256) => {
     rememberSource('all');
-    const path = `/paper/${paperSha256}`;
+    const path = `/paper/${paperName(paperSha256)}`;
     const mountedPath = appPath(path);
     if (`${window.location.pathname}${window.location.search}` === mountedPath) {
       setRoute(parseRoute());
@@ -679,7 +680,7 @@ export default function App({ startupUser = null, startupError = null }) {
           <Space
             userUuid={user.uuid}
             currentUser={user}
-            onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+            onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
             onSelectBoard={openBoard}
           />
         ) : DESKTOP ? (
@@ -695,7 +696,7 @@ export default function App({ startupUser = null, startupError = null }) {
         <Space
           userUuid={route.uuid}
           currentUser={user}
-          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
           initialSection={route.section}
           onBack={goBack}
@@ -713,14 +714,14 @@ export default function App({ startupUser = null, startupError = null }) {
             mode !== 'demo' &&
             !window.history.state?.papolNavigation
           }
-          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onReportableError={offerDesktopError}
         />
       )}
       {route.page === 'papers' && (
         <PapersPage
           currentUser={user}
-          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
           incomingPaperFile={incomingPaperFile}
           onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}

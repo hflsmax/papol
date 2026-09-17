@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { boardFileBlob, deleteBoard, getBoard, updateBoard } from '../../../shared/api/boards.js';
 import { getUserSpace } from '../../../shared/api/people.js';
+import { paperName } from '../../../shared/paperName.js';
 import { deletePaper, listPapers, paperHref, updatePaper } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
@@ -570,7 +571,7 @@ export function DesktopBrowser({
       setComposer(null);
       setSelectedBoardUuid(entries[next].uuid);
     } else {
-      onNavigate(`/paper/${entries[next].uuid}`, { replace: route.page === 'paper' });
+      onNavigate(`/paper/${paperName(entries[next].uuid)}`, { replace: route.page === 'paper' });
     }
   };
 
@@ -656,7 +657,7 @@ export function DesktopBrowser({
             onBack={sourceHome}
             onChanged={reload}
             onRead={openUser}
-            onSelectPaper={(uuid) => onNavigate(`/paper/${uuid}`)}
+            onSelectPaper={(sha256) => onNavigate(`/paper/${paperName(sha256)}`)}
             onReportableError={onReportableError}
           />
         </div>
@@ -812,7 +813,7 @@ export function DesktopBrowser({
                   }}
                   onDragEnd={() => setDraggingUuid(null)}
                   onContextMenu={contextMenuHandler(() => [
-                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paper.uuid}`) },
+                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperName(paper.uuid)}`) },
                     !libraryView && shelves.length > 0 && { separator: true },
                     !libraryView && shelves.length > 0 && {
                       label: 'Move to Shelf',
