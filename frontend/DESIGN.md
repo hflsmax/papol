@@ -187,17 +187,23 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   get past.
 
 - **Tool rack** — `.tools`: in the viewer's bar the tool palette shows only
-  the tool in hand, and opens to the full row on hover, on `:focus-within`,
-  and while one of its sheets is open. It opens *over* the document map
-  rather than pushing it, because a strip whose every segment resized when
-  you reached past it would be unusable, and it takes a `--card` ground and
-  `--shadow-sm` while open, since it is then standing on top of something.
-  Choosing a tool still costs one click — the others are a pointer-move
-  away, not a click away — which is the rule the palette was built on. A
-  touch screen has no hover to open it with, so under `(hover: none)` the
-  rack is never collapsed and takes its room back from the map. Nothing
-  else in the bar hides this way: the rack earns it by being six controls
-  wide next to a map that wants every pixel.
+  the tool in hand, and opens to the full set on hover, on `:focus-within`,
+  and while one of its sheets is open. It opens *downwards*, out of the bar
+  and over the page, on a `--card` ground with `--shadow-md`: opening
+  sideways would reach back across the document map it just made room for,
+  and the stretch it would cover is the map's end — the appendix, the part
+  of a paper a reader is least likely to be holding in mind. Choosing a
+  tool still costs one click; the others are a pointer-move away, not a
+  click away, which is the rule the palette was built on. **The tool in
+  hand keeps the top of the rack** (`order: -1`), so the glyph under the
+  pointer when the rack opens is the glyph that was under it a moment
+  before — let the palette keep its printed order instead and a user
+  holding the brush who clicks without looking ends up holding the arrow.
+  The other five keep their order relative to one another. A touch screen
+  has no hover to open it with, so under `(hover: none)` the rack is never
+  collapsed, stands as a row, keeps its printed order, and takes its room
+  back from the map. Nothing else in the bar hides this way: the rack earns
+  it by being six controls wide next to a map that wants every pixel.
 
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:

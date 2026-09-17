@@ -539,9 +539,21 @@ button.link.danger { color: var(--red); }
  * At rest the rack shows that one tool and nothing else, because the rest
  * of the bar is a map of the paper and the paper deserves the room. The
  * others are a pointer-move away, not a click away, so choosing a tool
- * still costs the single click it always did. The rack opens over the map
- * rather than shoving it aside: a strip whose every segment resized when
- * you reached past it would be unusable.
+ * still costs the single click it always did.
+ *
+ * It opens downwards, out of the bar and over the page. Opening sideways
+ * would have it reach back across the map it just made room for, and the
+ * stretch it would cover is the map's end — the appendix, which is the
+ * part of a paper a reader is least likely to be holding in mind and most
+ * likely to be looking for. Below the bar it covers a few lines of a page
+ * that is still there when the rack closes.
+ *
+ * The tool in hand is the face of the rack and stays at the top of it, so
+ * the glyph under the pointer when the rack opens is the same glyph that
+ * was under it a moment before. Letting the palette keep its printed order
+ * instead would slide a different tool into that spot — hold the brush,
+ * reach for the rack, click without looking, and you are holding the arrow.
+ * The other five keep their order relative to one another.
  *
  * Hover is not the only way in — focus opens it too, and a touch screen,
  * which has no hover to give, is served the whole rack at the bottom of
@@ -550,38 +562,43 @@ button.link.danger { color: var(--red); }
   position: relative;
   flex: none;
   width: 32px;
-  height: 30px;
+  height: 32px;
 }
 
 .tools-rack {
   position: absolute;
-  z-index: 5;
-  top: 50%;
-  right: 0;
+  /* The same layer the bar's other sheets hang on. */
+  z-index: 30;
+  /* Back by its own border and padding, so the tool in hand stays exactly
+     where it sat before the rack opened. */
+  top: -2px;
+  right: -2px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 2px;
   padding: 1px;
   border: 1px solid transparent;
   border-radius: var(--radius);
-  transform: translateY(-50%);
 }
 
-/* Only the tool in hand, until the rack is opened. */
+/* Only the tool in hand, until the rack is opened — and it keeps the top
+   of the rack once it is. */
 .tools .tool-slot { display: none; }
-.tools .tool-slot.held { display: flex; }
+.tools .tool-slot.held { display: flex; order: -1; }
 
 .tools:hover .tool-slot,
 .tools:focus-within .tool-slot,
 .tools.open .tool-slot { display: flex; }
 
-/* Open, it is a surface of its own: it is standing on the map. */
+/* Open, it hangs off the bar over the page, which is what --shadow-md is
+   for. */
 .tools:hover .tools-rack,
 .tools:focus-within .tools-rack,
 .tools.open .tools-rack {
   border-color: var(--line);
   background: var(--card);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 .tool-slot { position: relative; display: flex; }
 
@@ -2404,10 +2421,21 @@ button.link.danger { color: var(--red); }
    room. */
 @media (hover: none) {
   /* No hover to open the rack with, so it is never closed: the tools stand
-     in a row and take their own room back from the map. */
+     in a row across the bar, as they always did, and take their own room
+     back from the map. */
   .tools { position: static; width: auto; height: auto; }
-  .tools .tools-rack { position: static; transform: none; padding: 0; }
+  .tools .tools-rack {
+    position: static;
+    flex-direction: row;
+    padding: 0;
+    border-color: transparent;
+    background: none;
+    box-shadow: none;
+  }
+  /* Nothing is ever hidden here, so nothing has to be lifted to the front
+     of the row to be found: the palette keeps its printed order. */
   .tools .tool-slot { display: flex; }
+  .tools .tool-slot.held { order: 0; }
   .anchor-row .anchor-write { opacity: 1; }
   /* The name looks like a field on hover; with no hover to give, it just
      looks like one. */
