@@ -406,7 +406,8 @@ class RoomDetail(RoomSummary):
     viewer_can_lead: bool = False
     viewer_is_participant: bool = False
     viewer_has_copy: bool = False
-    viewer_hidden_entry_sha256: Optional[str] = None  # paper UUID, if viewer's copy is hidden
+    # The paper's digest, when the viewer keeps it but does not display it.
+    viewer_hidden_entry_sha256: Optional[str] = None
 
 
 class RoomMessageCreate(BaseModel):

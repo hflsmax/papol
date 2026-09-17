@@ -78,7 +78,14 @@ from pdf_parser import (
 import grobid
 import biblio
 import metadata_lookup
-from cohorts import in_active_cohort as _in_active_cohort, paper_key_for as _paper_key_for
+from cohorts import (
+    cohort_user_uuids as _paper_user_uuids,
+    in_active_cohort as _in_active_cohort,
+    key_of as _key_of,
+    paper_key_for as _paper_key_for,
+    papers_with_key as _papers_for_key,
+    rekey_rooms as _rekey_rooms,
+)
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
 )
@@ -1837,19 +1844,6 @@ async def extract_paper_metadata(
 
 
 
-def _papers_for_key(db: Session, key: str) -> list[Paper]:
-    return [p for p in db.query(Paper).all() if _paper_key_for(p) == key]
-
-
-def _paper_user_uuids(db: Session, key: str, public_only: bool = True) -> set[str]:
-    return {
-        r.user_uuid
-        for p in _papers_for_key(db, key)
-        for r in p.copies
-        if r.is_public or not public_only
-    }
-
-
 def _notify(db: Session, user_uuids, room: Room, content: str):
     for uid in user_uuids:
         db.add(Notification(user_uuid=uid, room_uuid=room.uuid, content=content))
@@ -2295,8 +2289,14 @@ async def update_paper(
             raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
 
+    # A seminar remembers the key it was called under, and that key is read
+    # off the very metadata being edited here. Noted before the edit so the
+    # seminars standing on it can be carried over rather than stranded.
+    was = _paper_key_for(paper)
     for key, value in metadata.items():
         setattr(paper, key, value)
+    if metadata:
+        _rekey_rooms(db, paper, was)
 
     commit_sync(db)
     db.refresh(paper)
@@ -2944,9 +2944,13 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
     has read: the user can open it rather than leave. Matched on the same
     key papers are deduplicated by, so this agrees with Papol's own idea of
     when two papers are the same paper."""
+    # The two columns a key is made of, not the papers themselves: this runs
+    # once per reference list a viewer opens, and loading every paper in the
+    # Library as a row — with its copies waiting to be fetched behind it —
+    # was most of the cost of showing a bibliography.
     by_key = {}
-    for paper in db.query(Paper).all():
-        by_key.setdefault(_paper_key_for(paper), paper.sha256)
+    for sha256, doi, title in db.query(Paper.sha256, Paper.doi, Paper.title):
+        by_key.setdefault(_key_of(doi, title), sha256)
 
     found = {}
     for reference in references:
@@ -3121,7 +3125,8 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     users_displaying = _paper_user_uuids(db, room.paper_key, public_only=True)
 
     # The canonical paper this room is about, and the viewer's copy of it
-    paper = next(iter(_papers_for_key(db, room.paper_key)), None)
+    digest = next(iter(_papers_for_key(db, room.paper_key)), None)
+    paper = db.get(Paper, digest) if digest else None
     own = _copy_of(paper, viewer) if paper else None
     # Every paper has a page and this viewer is signed in, so the cohort
     # always names the paper it is about. Whether the viewer keeps a copy,
@@ -3145,7 +3150,11 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
         and any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_is_participant=any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_has_copy=viewer.uuid in users_displaying,
-        viewer_hidden_entry_sha256=hidden_entry.uuid if hidden_entry else None,
+        # The paper's own name, which is its file's digest. It read
+        # `.uuid` here, from when a paper had one beside the digest; a
+        # paper has not carried a UUID since it became its file, so every
+        # cohort a viewer held a hidden copy in answered with a 500.
+        viewer_hidden_entry_sha256=hidden_entry.sha256 if hidden_entry else None,
     )
 
 
