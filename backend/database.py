@@ -1096,6 +1096,9 @@ def _make_the_cursor_only_grow(conn):
     conn.execute(text(
         "ALTER TABLE _new_server_change_log RENAME TO _server_change_log"
     ))
+    # A rebuild puts its own indexes back: the table it dropped took them
+    # with it, and the pass that would otherwise add them has already run.
+    _add_missing_indexes(conn, table)
 
 
 def migrate():

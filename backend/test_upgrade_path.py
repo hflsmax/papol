@@ -676,7 +676,19 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         index that table declares — so an index added to a model after its
         table existed used to reach fresh databases and no other. The one
         database it was written for, the one with the rows in it, kept
-        scanning."""
+        scanning.
+
+        The change log is here too, in the shape that makes the upgrade
+        rebuild it: a rebuild drops the table it is replacing, and the pass
+        that adds indexes has already run by then."""
+        with sqlite3.connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE _server_change_log ("
+                "  sequence INTEGER PRIMARY KEY, user_uuid TEXT NOT NULL,"
+                "  table_name TEXT NOT NULL, row_uuid TEXT NOT NULL,"
+                "  revision INTEGER NOT NULL, operation TEXT NOT NULL,"
+                "  row_json TEXT NOT NULL, created_at TEXT NOT NULL)"
+            )
         self.upgrade()
         import database
 
