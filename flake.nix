@@ -2,18 +2,35 @@
   description = "Papol - Paper Documentation Webapp";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Two nixpkgs, and which of them carries the name `nixpkgs` matters for
+    # more than this file reads.
+    #
+    # `nix develop` resolves its own shell by looking up bashInteractive
+    # under the input *literally named* `nixpkgs`, whatever the flake goes
+    # on to do with its inputs — a lookup no output here asks for and none
+    # can redirect. nixpkgs 26.11 dropped x86_64-darwin and throws on sight
+    # there, so while that name belonged to the rolling channel, every
+    # `nix develop` on an Intel Mac opened with
+    #
+    #   error (ignored): cached failure of attribute 'legacyPackages.x86_64-darwin'
+    #
+    # and then fell back to whatever bash it could find on PATH. Nix ignores
+    # the failure, so nothing broke; it simply said so, alarmingly, every
+    # single time.
+    #
+    # The name therefore goes to the branch that still evaluates on every
+    # system Papol is developed on. 26.05 is the last release to support
+    # x86_64-darwin and is maintained until the end of 2026.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
 
-    # nixpkgs 26.11 dropped x86_64-darwin, so the unstable input above cannot
-    # even be evaluated on an Intel Mac: it throws before any output is built.
-    # 26.05 is the last release that supports the platform and is maintained
-    # until the end of 2026. Only the x86_64-darwin devShell reads this input;
-    # every other system, and everything Papol deploys, still comes from
-    # nixpkgs above and is unchanged by its presence.
-    nixpkgs-x86-darwin.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
+    # The rolling channel, named for what it is. This is what Papol deploys
+    # from and what every system except x86_64-darwin builds against —
+    # `nixpkgsFor` below is where that is decided, and the decision has not
+    # changed. Only the names have.
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-x86-darwin }: let
+  outputs = { self, nixpkgs, nixpkgs-unstable }: let
     # Keep the Linux outputs for deployment, but expose the development
     # environment on the macOS hosts used to work on the project as well.
     supportedSystems = [
@@ -77,11 +94,11 @@
       };
     };
 
-    # The development shell's package set. Every system takes the pinned
-    # nixpkgs above; x86_64-darwin is the one exception, for the reason given
-    # beside its input.
+    # Which nixpkgs a system builds from. Every system takes the rolling
+    # channel; x86_64-darwin is the one exception, for the reason given
+    # beside the inputs.
     nixpkgsFor = system:
-      if system == "x86_64-darwin" then nixpkgs-x86-darwin else nixpkgs;
+      if system == "x86_64-darwin" then nixpkgs else nixpkgs-unstable;
 
     devPkgsFor = system: import (nixpkgsFor system) {
       inherit system;
@@ -186,11 +203,12 @@
     nixosModules.papol = self.nixosModules.default;
 
     packages = forAllSystems (system: let
-      # nixpkgsFor, not nixpkgs, for the same reason the devShell uses it:
-      # `nixpkgs.legacyPackages.x86_64-darwin` throws outright on 26.11, and
-      # that throw escapes into every evaluation of this flake on an Intel
-      # Mac — including `nix develop`, which has no interest in these
-      # packages at all. Every other system still resolves to nixpkgs.
+      # nixpkgsFor, not nixpkgs-unstable, for the same reason the devShell
+      # uses it: `nixpkgs-unstable.legacyPackages.x86_64-darwin` throws
+      # outright on 26.11, and that throw would escape into every evaluation
+      # of this flake on an Intel Mac — including `nix develop`, which has no
+      # interest in these packages at all. Every other system still resolves
+      # to the rolling channel.
       pkgs = (nixpkgsFor system).legacyPackages.${system};
     in {
       # The frontend imports ../shared, which reads ../config/app_limits.json,
