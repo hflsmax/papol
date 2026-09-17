@@ -69,22 +69,22 @@ if status != 200:
     raise SystemExit(
         f"could not make a paper from {PDF}: {paper}\n"
         "Name an upload this server already holds with PAPOL_E2E_PDF.")
-paper_uuid, edition_uuid = paper["uuid"], paper["edition_uuid"]
+paper_sha256 = paper["sha256"]
 
 # A note and a stroke, so the suite can tell a rich link from a lean one by
 # what reaches the page rather than by what the API says.
 note = f"Alice's note {suffix} — this should reach whoever follows the link"
-assert call("POST", f"/api/papers/{paper_uuid}/annotations", token=sharer_token, body={
-    "kind": "note", "edition_uuid": edition_uuid, "page": 1, "content": note,
+assert call("POST", f"/api/papers/{paper_sha256}/annotations", token=sharer_token, body={
+    "kind": "note", "page": 1, "content": note,
     "body": {"anchor": {"type": "point", "x": 0.3, "y": 0.4}}})[0] == 200
-assert call("POST", f"/api/papers/{paper_uuid}/annotations", token=sharer_token, body={
-    "kind": "ink", "edition_uuid": edition_uuid, "page": 1,
+assert call("POST", f"/api/papers/{paper_sha256}/annotations", token=sharer_token, body={
+    "kind": "ink", "page": 1,
     "body": {"points": [{"x": 0.15, "y": 0.25}, {"x": 0.55, "y": 0.28}],
              "color": "#b3923d", "width": 0.006, "opacity": 0.9, "shape": "round"}})[0] == 200
 
-_, rich = call("POST", f"/api/papers/{paper_uuid}/sharable", token=sharer_token,
+_, rich = call("POST", f"/api/papers/{paper_sha256}/sharable", token=sharer_token,
                body={"include_marks": True})
-_, lean = call("POST", f"/api/papers/{paper_uuid}/sharable", token=sharer_token,
+_, lean = call("POST", f"/api/papers/{paper_sha256}/sharable", token=sharer_token,
                body={"include_marks": False})
 
 with open(FIXTURE, "w") as written:
@@ -92,7 +92,7 @@ with open(FIXTURE, "w") as written:
         "base": BASE, "title": title, "note": note,
         "sharer": {"token": sharer_token, "uuid": sharer_uuid, "name": sharer_name},
         "user": {"token": user_token, "uuid": user_uuid, "name": user_name},
-        "paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
+        "paper_sha256": paper_sha256,
         "rich": rich["uuid"], "lean": lean["uuid"],
         "rich_url": f"{BASE}/viewer/?share={rich['uuid']}",
         "lean_url": f"{BASE}/viewer/?share={lean['uuid']}",

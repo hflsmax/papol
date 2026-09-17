@@ -27,7 +27,7 @@ from sync.changes import commit_sync
 from database import Base, PapolSession, current_request_session, get_db
 from models import (
     Annotation, AppliedMutation, Board, BoardItem, Copy, CopyTagLink, Paper,
-    PaperEdition, Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
+    Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
     User,
 )
 
@@ -464,124 +464,103 @@ class DesktopSyncContractTests(unittest.TestCase):
         content = b"%PDF-1.4\noffline paper\n%%EOF"
         digest = hashlib.sha256(content).hexdigest()
         with self.sessions() as db:
-            canonical_paper = Paper(title="Imported while offline")
-            db.add(canonical_paper)
-            db.flush()
-            canonical_edition = PaperEdition(
-                paper=canonical_paper, paper_uuid=canonical_paper.uuid,
-                file_path=f"{digest}.pdf", sha256=digest, uploaded_by=self.user_uuid,
+            canonical_paper = Paper(
+                title="Imported while offline", file_path=f"{digest}.pdf",
+                sha256=digest, uploaded_by=self.user_uuid,
             )
-            db.add(canonical_edition)
+            db.add(canonical_paper)
             db.commit()
-            canonical_paper_db_uuid = canonical_paper.uuid
-            canonical_paper_uuid = canonical_paper.uuid
-            canonical_edition_uuid = canonical_edition.uuid
+            canonical_paper_db_uuid = canonical_paper.sha256
+            canonical_paper_sha256 = canonical_paper.sha256
         upload = self.client.put(
             f"/api/sync/blobs/{digest}", headers=self.headers, content=content,
         )
         self.assertEqual(upload.status_code, 204, upload.text)
-        paper_uuid, edition_uuid, copy_uuid = (str(uuid.uuid4()) for _ in range(3))
+        # The replica names the paper by the digest of the bytes it just
+        # imported. So would the service. There is nothing to reconcile.
+        copy_uuid = str(uuid.uuid4())
         payload = {
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
                 {
-                    "table": "papers", "uuid": paper_uuid, "operation": "upsert",
-                    "values": {"title": "Imported while offline", "doi": None},
-                },
-                {
-                    "table": "paper_editions", "uuid": edition_uuid, "operation": "upsert",
+                    "table": "papers", "uuid": digest, "operation": "upsert",
                     "values": {
-                        "paper_uuid": paper_uuid, "file_path": f"{digest}.pdf", "sha256": digest,
+                        "title": "Imported while offline", "doi": None,
+                        "file_path": f"{digest}.pdf",
                     },
                 },
                 {
                     "table": "copies", "uuid": copy_uuid, "operation": "upsert",
-                    "values": {
-                        "paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
-                        "edition_sha256": digest, "summary": "Local first",
-                    },
+                    "values": {"paper_sha256": digest, "summary": "Local first"},
                 },
             ],
         }
         result = self.request("POST", "/api/sync/push", json=payload).json()
         self.assertEqual([row["table"] for row in result["rows"]], [
-            "papers", "paper_editions", "copies",
+            "papers", "copies",
         ])
-        self.assertEqual(result["aliases"], {
-            paper_uuid: canonical_paper_uuid, edition_uuid: canonical_edition_uuid,
-        })
-        self.assertEqual(result["rows"][0]["uuid"], canonical_paper_uuid)
-        self.assertEqual(result["rows"][1]["uuid"], canonical_edition_uuid)
-        self.assertEqual(result["rows"][1]["sha256"], digest)
+        self.assertEqual(
+            result["aliases"], {},
+            "both ends read the name off the same bytes, so none is needed",
+        )
+        self.assertEqual(result["rows"][0]["sha256"], canonical_paper_sha256)
         downloaded = self.client.get(f"/api/sync/blobs/{digest}", headers=self.headers)
         self.assertEqual(downloaded.status_code, 200, downloaded.text)
         self.assertEqual(downloaded.content, content)
 
-        duplicate_paper, duplicate_edition, duplicate_copy = (
-            str(uuid.uuid4()) for _ in range(3)
-        )
+        duplicate_copy = str(uuid.uuid4())
         duplicate = self.request("POST", "/api/sync/push", json={
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [
                 {
-                    "table": "papers", "uuid": duplicate_paper, "operation": "upsert",
-                    # The byte identity must win even when filename-derived
-                    # metadata differs between repeated desktop imports.
-                    "values": {"title": "A different filename", "doi": None},
-                },
-                {
-                    "table": "paper_editions", "uuid": duplicate_edition,
-                    "operation": "upsert", "values": {
-                        "paper_uuid": duplicate_paper, "file_path": f"{digest}.pdf",
-                        "sha256": digest,
+                    "table": "papers", "uuid": digest, "operation": "upsert",
+                    # The bytes are the name, so a second import of the same
+                    # file cannot become a second paper however it is titled.
+                    "values": {
+                        "title": "A different filename", "doi": None,
+                        "file_path": f"{digest}.pdf",
                     },
                 },
                 {
                     "table": "copies", "uuid": duplicate_copy, "operation": "upsert",
                     "values": {
-                        "paper_uuid": duplicate_paper, "edition_uuid": duplicate_edition,
-                        "edition_sha256": digest, "summary": "Updated offline",
+                        "paper_sha256": digest, "summary": "Updated offline",
                     },
                 },
             ],
         }).json()
-        self.assertEqual(duplicate["aliases"], {
-            duplicate_paper: canonical_paper_uuid,
-            duplicate_edition: canonical_edition_uuid,
-            duplicate_copy: copy_uuid,
-        })
+        # Only the copy needs one: a user has one copy per paper, so the
+        # second import is the first one again.
+        self.assertEqual(duplicate["aliases"], {duplicate_copy: copy_uuid})
         with self.sessions() as db:
-            copies = db.query(Copy).filter(Copy.paper_uuid == canonical_paper_db_uuid).all()
+            copies = db.query(Copy).filter(Copy.paper_sha256 == canonical_paper_db_uuid).all()
             self.assertEqual(len(copies), 1)
             self.assertEqual(copies[0].summary, "Updated offline")
 
-    def test_offline_add_to_nook_reuses_a_visible_paper_and_edition(self):
+    def test_offline_add_to_nook_reuses_a_visible_paper(self):
         with self.sessions() as db:
             other = User(
                 email="other@example.test", display_name="Other user",
                 password_hash="unused",
             )
-            paper = Paper(title="Visible before adding")
+            paper = Paper(
+                title="Visible before adding", file_path="visible.pdf",
+                sha256="a" * 64,
+            )
             db.add_all([other, paper])
             db.flush()
+            paper.uploaded_by = other.uuid
             shelf = Shelf(
                 user_uuid=other.uuid, name="Public", color="#123456",
                 is_public=True, is_default=True,
             )
-            edition = PaperEdition(
-                paper=paper, paper_uuid=paper.uuid, file_path="visible.pdf",
-                sha256="a" * 64, uploaded_by=other.uuid,
-            )
-            db.add_all([shelf, edition])
+            db.add(shelf)
             db.flush()
-            db.add(Copy(
-                paper=paper, user_uuid=other.uuid, shelf=shelf,
-                edition=edition, edition_sha256=edition.sha256,
-            ))
+            db.add(Copy(paper=paper, user_uuid=other.uuid, shelf=shelf))
             db.commit()
-            paper_uuid, edition_uuid = paper.uuid, edition.uuid
+            paper_sha256 = paper.sha256
             own_shelf_uuid = db.query(Shelf).filter(
                 Shelf.user_uuid == self.user_uuid, Shelf.is_default.is_(True),
             ).one().uuid
@@ -595,14 +574,12 @@ class DesktopSyncContractTests(unittest.TestCase):
                 "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                 "base_revision": 0,
                 "values": {
-                    "paper_uuid": paper_uuid, "shelf_uuid": own_shelf_uuid,
-                    "edition_uuid": edition_uuid, "edition_sha256": "a" * 64,
+                    "paper_sha256": paper_sha256, "shelf_uuid": own_shelf_uuid,
                 },
             }],
         }).json()
         self.assertEqual(result["rows"][0]["uuid"], copy_uuid)
-        self.assertEqual(result["rows"][0]["paper_uuid"], paper_uuid)
-        self.assertEqual(result["rows"][0]["edition_uuid"], edition_uuid)
+        self.assertEqual(result["rows"][0]["paper_sha256"], paper_sha256)
 
     def test_opening_a_removed_paper_again_revives_the_users_copy(self):
         """A file removed from the nook and opened again returns to it.
@@ -619,19 +596,16 @@ class DesktopSyncContractTests(unittest.TestCase):
         )
         self.assertEqual(upload.status_code, 204, upload.text)
         client = str(uuid.uuid4())
-        paper_uuid, edition_uuid, copy_uuid = (str(uuid.uuid4()) for _ in range(3))
+        copy_uuid = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
-                {"table": "papers", "uuid": paper_uuid, "operation": "upsert",
-                 "values": {"title": "Removed and opened again", "doi": None}},
-                {"table": "paper_editions", "uuid": edition_uuid, "operation": "upsert",
-                 "values": {"paper_uuid": paper_uuid, "file_path": f"{digest}.pdf",
-                            "sha256": digest}},
+                {"table": "papers", "uuid": digest, "operation": "upsert",
+                 "values": {"title": "Removed and opened again", "doi": None,
+                            "file_path": f"{digest}.pdf"}},
                 {"table": "copies", "uuid": copy_uuid, "operation": "upsert",
-                 "values": {"paper_uuid": paper_uuid, "edition_uuid": edition_uuid,
-                            "edition_sha256": digest}},
+                 "values": {"paper_sha256": digest}},
             ],
         })
         self.request("POST", "/api/sync/push", json={
@@ -641,20 +615,16 @@ class DesktopSyncContractTests(unittest.TestCase):
                          "operation": "delete", "values": {}}],
         })
 
-        again_paper, again_edition, again_copy = (str(uuid.uuid4()) for _ in range(3))
+        again_copy = str(uuid.uuid4())
         revived = self.request("POST", "/api/sync/push", json={
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 3,
             "changes": [
-                {"table": "papers", "uuid": again_paper, "operation": "upsert",
-                 "values": {"title": "Removed and opened again", "doi": None}},
-                {"table": "paper_editions", "uuid": again_edition, "operation": "upsert",
-                 "values": {"paper_uuid": again_paper, "file_path": f"{digest}.pdf",
-                            "sha256": digest}},
+                {"table": "papers", "uuid": digest, "operation": "upsert",
+                 "values": {"title": "Removed and opened again", "doi": None,
+                            "file_path": f"{digest}.pdf"}},
                 {"table": "copies", "uuid": again_copy, "base_revision": 0,
-                 "operation": "upsert",
-                 "values": {"paper_uuid": again_paper, "edition_uuid": again_edition,
-                            "edition_sha256": digest}},
+                 "operation": "upsert", "values": {"paper_sha256": digest}},
             ],
         }).json()
 
@@ -667,7 +637,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertNotIn("row_deleted", reasons)
         copy_row = next(row for row in revived["rows"] if row["table"] == "copies")
         self.assertIsNone(copy_row["deleted_at"])
-        self.assertEqual(copy_row["edition_sha256"], digest)
+        self.assertEqual(copy_row["paper_sha256"], digest)
         with self.sessions() as db:
             copies = db.query(Copy).filter(Copy.user_uuid == self.user_uuid).all()
             self.assertEqual(len(copies), 1)
@@ -679,33 +649,29 @@ class DesktopSyncContractTests(unittest.TestCase):
                 email="reviver@example.test", display_name="Other user",
                 password_hash="unused",
             )
-            paper = Paper(title="Removed on the web")
+            paper = Paper(
+                title="Removed on the web", file_path="removed.pdf", sha256="b" * 64,
+            )
             db.add_all([other, paper])
             db.flush()
+            paper.uploaded_by = other.uuid
             shelf = Shelf(
                 user_uuid=other.uuid, name="Public", color="#123456",
                 is_public=True, is_default=True,
             )
-            edition = PaperEdition(
-                paper=paper, paper_uuid=paper.uuid, file_path="removed.pdf",
-                sha256="b" * 64, uploaded_by=other.uuid,
-            )
-            db.add_all([shelf, edition])
+            db.add(shelf)
             db.flush()
-            db.add(Copy(
-                paper=paper, user_uuid=other.uuid, shelf=shelf,
-                edition=edition, edition_sha256=edition.sha256,
-            ))
+            db.add(Copy(paper=paper, user_uuid=other.uuid, shelf=shelf))
             db.commit()
-            paper_uuid = paper.uuid
+            paper_sha256 = paper.sha256
 
-        self.request("POST", f"/api/papers/{paper_uuid}/add-to-nook")
-        self.request("DELETE", f"/api/papers/{paper_uuid}")
-        self.request("POST", f"/api/papers/{paper_uuid}/add-to-nook")
+        self.request("POST", f"/api/papers/{paper_sha256}/add-to-nook")
+        self.request("DELETE", f"/api/papers/{paper_sha256}")
+        self.request("POST", f"/api/papers/{paper_sha256}/add-to-nook")
 
         with self.sessions() as db:
             copies = db.query(Copy).filter(
-                Copy.user_uuid == self.user_uuid, Copy.paper_uuid == paper_uuid,
+                Copy.user_uuid == self.user_uuid, Copy.paper_sha256 == paper_sha256,
             ).all()
             self.assertEqual(len(copies), 1)
             self.assertIsNone(copies[0].deleted_at)
@@ -838,30 +804,24 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_a_stale_ink_edit_wins_and_reports_a_recoverable_conflict(self):
         with self.sessions() as db:
-            paper = Paper(title="Conflict paper")
+            paper = Paper(
+                title="Conflict paper", file_path="conflict.pdf", sha256="2" * 64,
+                uploaded_by=self.user_uuid,
+            )
             db.add(paper)
             db.flush()
-            edition = PaperEdition(
-                paper=paper, paper_uuid=paper.uuid,
-                file_path="conflict.pdf", sha256="2" * 64, uploaded_by=self.user_uuid,
-            )
-            db.add(edition)
-            db.flush()
             db.add(Copy(
-                paper=paper, paper_uuid=paper.uuid, user_uuid=self.user_uuid,
-                edition=edition, edition_uuid=edition.uuid,
-                edition_sha256=edition.sha256,
+                paper=paper, paper_sha256=paper.sha256, user_uuid=self.user_uuid,
             ))
             db.commit()
-            edition_uuid, paper_uuid = edition.uuid, paper.uuid
+            paper_sha256 = paper.sha256
         ink_uuid, client = str(uuid.uuid4()), str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 1,
             "changes": [{
                 "table": "annotations", "uuid": ink_uuid, "base_revision": 0,
                 "operation": "upsert", "values": {
-                    "kind": "ink", "paper_uuid": paper_uuid,
-                    "edition_uuid": edition_uuid, "page": 1,
+                    "kind": "ink", "paper_sha256": paper_sha256, "page": 1,
                     "body": json.dumps({
                         "points": [{"x": 0.1, "y": 0.2}], "color": "#111111",
                         "width": 0.004, "opacity": 1, "shape": "flat",
@@ -897,26 +857,23 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_annotation_snapshot_and_offline_mutations_use_uuid_relationships(self):
         with self.sessions() as db:
-            paper = Paper(title="Offline annotations")
+            paper = Paper(
+                title="Offline annotations", file_path="offline.pdf", sha256="1" * 64,
+                uploaded_by=self.user_uuid,
+            )
             db.add(paper)
             db.flush()
-            edition = PaperEdition(
-                paper=paper, paper_uuid=paper.uuid,
-                file_path="offline.pdf", sha256="1" * 64, uploaded_by=self.user_uuid,
-            )
-            db.add(edition)
-            db.flush()
-            db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=self.user_uuid, edition_uuid=edition.uuid,
-                edition_sha256=edition.sha256,
-            ))
+            db.add(Copy(paper_sha256=paper.sha256, user_uuid=self.user_uuid))
             db.commit()
-            paper_uuid, edition_uuid = paper.uuid, edition.uuid
+            paper_sha256 = paper.sha256
 
         initial = self.request("GET", "/api/sync/snapshot").json()
-        identities = {(row["table"], row["uuid"]) for row in initial["rows"]}
-        self.assertIn(("papers", paper_uuid), identities)
-        self.assertIn(("paper_editions", edition_uuid), identities)
+        # A paper is named by its file; every other row by its own UUID.
+        identities = {
+            (row["table"], row["sha256"] if row["table"] == "papers" else row["uuid"])
+            for row in initial["rows"]
+        }
+        self.assertIn(("papers", paper_sha256), identities)
         self.assertTrue(any(table == "copies" for table, _ in identities))
         self.assertTrue(any(table == "shelves" for table, _ in identities))
         ids = [str(uuid.uuid4()) for _ in range(3)]
@@ -928,8 +885,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                 {
                     "table": "annotations", "uuid": ids[0], "operation": "upsert",
                     "values": {
-                        "kind": "note", "paper_uuid": paper_uuid,
-                        "edition_uuid": edition_uuid,
+                        "kind": "note", "paper_sha256": paper_sha256,
                         "content": "offline note", "page": 1,
                         "body": json.dumps({
                             "anchor": {"type": "point", "x": 0.2, "y": 0.3},
@@ -939,8 +895,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                 {
                     "table": "annotations", "uuid": ids[1], "operation": "upsert",
                     "values": {
-                        "kind": "ink", "paper_uuid": paper_uuid,
-                        "edition_uuid": edition_uuid, "page": 1,
+                        "kind": "ink", "paper_sha256": paper_sha256, "page": 1,
                         "body": json.dumps({
                             "points": [{"x": 0.1, "y": 0.2}], "color": "#b3923d",
                             "width": 0.004, "opacity": 1, "shape": "flat",
@@ -950,8 +905,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                 {
                     "table": "annotations", "uuid": ids[2], "operation": "upsert",
                     "values": {
-                        "kind": "clip", "paper_uuid": paper_uuid,
-                        "edition_uuid": edition_uuid, "page": 1,
+                        "kind": "clip", "paper_sha256": paper_sha256, "page": 1,
                         "body": json.dumps({
                             "source": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
                             "frame": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
@@ -965,7 +919,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual({row["uuid"] for row in pushed["rows"]}, set(ids))
         refreshed = self.request("GET", "/api/sync/snapshot").json()
         self.assertTrue({
-            "papers", "paper_editions", "annotations",
+            "papers", "annotations",
         }.issubset({row["table"] for row in refreshed["rows"]}))
         with self.sessions() as db:
             self.assertEqual(
@@ -999,37 +953,30 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertIn(("board_items", item["uuid"]), identities)
         self.assertIn(("board_items", second_item["uuid"]), identities)
 
-    def test_viewer_reference_boundary_accepts_a_synced_edition_uuid(self):
+    def test_viewer_reference_boundary_accepts_a_synced_paper_sha256(self):
         digest = "3" * 64
         with self.sessions() as db:
-            paper = Paper(title="Desktop viewer references")
-            db.add(paper)
-            db.flush()
-            edition = PaperEdition(
-                paper=paper,
-                paper_uuid=paper.uuid,
+            paper = Paper(
+                title="Desktop viewer references",
                 file_path="viewer.pdf",
                 sha256=digest,
                 uploaded_by=self.user_uuid,
                 references_status="unavailable",
             )
-            db.add(edition)
+            db.add(paper)
             db.flush()
             db.add(Copy(
                 paper=paper,
-                paper_uuid=paper.uuid,
+                paper_sha256=paper.sha256,
                 user_uuid=self.user_uuid,
-                edition=edition,
-                edition_uuid=edition.uuid,
-                edition_sha256=digest,
             ))
             db.commit()
-            edition_uuid = edition.uuid
+            paper_sha256 = paper.sha256
 
         response = self.request(
-            "GET", f"/api/viewer-references/{digest}?edition_uuid={edition_uuid}",
+            "GET", f"/api/viewer-references/{digest}?paper_sha256={paper_sha256}",
         )
-        self.assertEqual(response.json()["edition_uuid"], edition_uuid)
+        self.assertEqual(response.json()["paper_sha256"], paper_sha256)
 
     def test_metadata_reextraction_prefers_pdf_doi_over_stale_saved_doi(self):
         digest = "4" * 64
@@ -1037,28 +984,19 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper = Paper(
                 title="Incorrect imported title",
                 doi="10.0000/stale-doi",
-            )
-            db.add(paper)
-            db.flush()
-            edition = PaperEdition(
-                paper=paper,
-                paper_uuid=paper.uuid,
                 file_path="countersnapping.pdf",
                 sha256=digest,
                 uploaded_by=self.user_uuid,
             )
-            db.add(edition)
+            db.add(paper)
             db.flush()
             db.add(Copy(
                 paper=paper,
-                paper_uuid=paper.uuid,
+                paper_sha256=paper.sha256,
                 user_uuid=self.user_uuid,
-                edition=edition,
-                edition_uuid=edition.uuid,
-                edition_sha256=digest,
             ))
             db.commit()
-            paper_uuid = paper.uuid
+            paper_sha256 = paper.sha256
 
         metadata = {
             "doi": "10.1073/pnas.2423301122",
@@ -1072,7 +1010,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         }
         lookup = AsyncMock(return_value=metadata)
         with (
-            patch.object(main, "_edition_pdf_path", return_value=Path("paper.pdf")),
+            patch.object(main, "_paper_pdf_path", return_value=Path("paper.pdf")),
             patch.object(
                 main,
                 "extract_doi_from_pdf",
@@ -1081,7 +1019,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             patch.object(main.metadata_lookup, "by_doi", lookup),
         ):
             response = self.client.post(
-                f"/api/papers/{paper_uuid}/extract-metadata",
+                f"/api/papers/{paper_sha256}/extract-metadata",
                 headers=self.headers,
             )
 
@@ -1095,61 +1033,18 @@ class DesktopSyncContractTests(unittest.TestCase):
             "year": metadata["year"],
         })
 
-    def test_edition_choices_are_published_to_cursor_sync(self):
-        with self.sessions() as db:
-            paper = Paper(title="Edition sync")
-            db.add(paper)
-            db.flush()
-            first = PaperEdition(
-                paper=paper, paper_uuid=paper.uuid,
-                file_path="first.pdf", sha256="1" * 64, uploaded_by=self.user_uuid,
-            )
-            second = PaperEdition(
-                paper=paper, paper_uuid=paper.uuid,
-                file_path="second.pdf", sha256="2" * 64, uploaded_by=self.user_uuid,
-            )
-            db.add_all([first, second])
-            db.flush()
-            copy = Copy(
-                paper=paper, user_uuid=self.user_uuid, edition=first,
-                edition_sha256=first.sha256,
-            )
-            db.add(copy)
-            db.commit()
-            paper_uuid = paper.uuid
-            second_uuid = second.uuid
-            copy_uuid = copy.uuid
-
-        self.request(
-            "POST", f"/api/papers/{paper_uuid}/ignore-edition",
-            json={"edition_uuid": second_uuid},
-        )
-        with self.sessions() as db:
-            change = db.query(ServerChange).one()
-            self.assertEqual(change.table_name, "copies")
-            self.assertEqual(change.row_uuid, copy_uuid)
-            db.query(ServerChange).delete()
-            db.commit()
-
-        self.request(
-            "POST", f"/api/papers/{paper_uuid}/adopt-edition",
-            json={"edition_uuid": second_uuid},
-        )
-        with self.sessions() as db:
-            change = db.query(ServerChange).one()
-            self.assertEqual(change.table_name, "copies")
-            self.assertEqual(change.row_uuid, copy_uuid)
-
     def test_nook_rows_sync_together_with_uuid_relationships(self):
         with self.sessions() as db:
             default_shelf = db.query(Shelf).filter(Shelf.user_uuid == self.user_uuid).first()
-            paper = Paper(title="Offline nook")
+            paper = Paper(
+                title="Offline nook", file_path="nook.pdf", sha256="6" * 64,
+            )
             db.add(paper)
             db.flush()
             copy = Copy(paper=paper, shelf=default_shelf, user_uuid=self.user_uuid)
             db.add(copy)
             commit_sync(db)
-            paper_uuid, copy_uuid = paper.uuid, copy.uuid
+            paper_sha256, copy_uuid = paper.sha256, copy.uuid
 
         shelf_uuid, tag_uuid, link_uuid = (str(uuid.uuid4()) for _ in range(3))
         payload = {
@@ -1183,7 +1078,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual([row["table"] for row in result["rows"]], [
             "shelves", "tags", "copies", "copy_tags",
         ])
-        self.assertEqual(result["rows"][2]["paper_uuid"], paper_uuid)
+        self.assertEqual(result["rows"][2]["paper_sha256"], paper_sha256)
         self.assertEqual(result["rows"][2]["shelf_uuid"], shelf_uuid)
         with self.sessions() as db:
             saved = db.query(Copy).filter(Copy.uuid == copy_uuid).one()
@@ -1233,7 +1128,9 @@ class DesktopSyncContractTests(unittest.TestCase):
         with self.sessions() as db:
             public = Shelf(user_uuid=self.user_uuid, name="Offline public", color="#123456", is_public=True)
             private = Shelf(user_uuid=self.user_uuid, name="Offline private", color="#654321", is_public=False)
-            paper = Paper(title="Shelved offline")
+            paper = Paper(
+                title="Shelved offline", file_path="shelved.pdf", sha256="7" * 64,
+            )
             db.add_all([public, private, paper])
             db.flush()
             copy = Copy(paper=paper, shelf=public, user_uuid=self.user_uuid)
@@ -1306,17 +1203,19 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_server_only_actions_accept_desktop_sync_uuids(self):
         with self.sessions() as db:
             shelf = Shelf(user_uuid=self.user_uuid, name="Desktop shelf", color="#123456", is_public=False)
-            paper = Paper(title="Desktop paper")
+            paper = Paper(
+                title="Desktop paper", file_path="desktop.pdf", sha256="8" * 64,
+            )
             db.add_all([shelf, paper])
             db.flush()
             db.add(Copy(paper=paper, shelf=shelf, user_uuid=self.user_uuid))
             commit_sync(db)
-            shelf_uuid, paper_uuid = shelf.uuid, paper.uuid
+            shelf_uuid, paper_sha256 = shelf.uuid, paper.sha256
 
-        self.request("PUT", f"/api/papers/{paper_uuid}", json={"thought": "Read on the train"})
+        self.request("PUT", f"/api/papers/{paper_sha256}", json={"thought": "Read on the train"})
         self.request("PUT", f"/api/shelves/{shelf_uuid}", json={"is_public": True})
         with self.sessions() as db:
-            copy = db.query(Copy).join(Paper).filter(Paper.uuid == paper_uuid).one()
+            copy = db.query(Copy).join(Paper).filter(Paper.sha256 == paper_sha256).one()
             self.assertEqual(copy.thought, "Read on the train")
             self.assertTrue(copy.is_public)
         self.request("DELETE", f"/api/shelves/{shelf_uuid}")
@@ -1326,8 +1225,8 @@ class DesktopSyncContractTests(unittest.TestCase):
             "PUT", f"/api/shelves/{uuid.uuid4()}", headers=self.headers, json={"is_public": True},
         )
         self.assertEqual(missing.status_code, 404, missing.text)
-        paper = self.request("GET", f"/api/papers/{paper_uuid}").json()
-        self.assertEqual(paper["uuid"], paper_uuid)
+        paper = self.request("GET", f"/api/papers/{paper_sha256}").json()
+        self.assertEqual(paper["uuid"], paper_sha256)
         self.assert_no_id_fields(paper)
 
 

@@ -118,7 +118,9 @@ impl LocalStore {
         let mut rows = Vec::new();
 
         for change in changes {
-            Uuid::parse_str(&change.uuid).map_err(|_| "Synchronized row IDs must be UUIDs")?;
+            if !valid_row_id(&change.table, &change.uuid) {
+                return Err(format!("A {} row is not named that way", change.table,));
+            }
             let rule = registry["tables"]
                 .get(&change.table)
                 .ok_or_else(|| format!("{} is not synchronized", change.table))?;
@@ -146,26 +148,44 @@ impl LocalStore {
             validate_ownership(&transaction, account_uuid, &change)?;
             let old_revision: Option<i64> = transaction
                 .query_row(
-                    &format!("SELECT revision FROM {} WHERE uuid=?1", change.table),
+                    &format!(
+                        "SELECT revision FROM {} WHERE {}=?1",
+                        change.table,
+                        row_key(&change.table)
+                    ),
                     [&change.uuid],
                     |row| row.get(0),
                 )
                 .optional()
                 .map_err(|error| error.to_string())?;
             let base_revision = old_revision.unwrap_or(0);
+            // A paper is named by its file, so importing one Papol already
+            // holds names the row that is already there. That is not a
+            // second creation and not an error — the change still travels,
+            // because it is what tells the service this user has the file.
+            // Whether they may have a second *copy* of it is a different
+            // question, and `reject_duplicate_pdf_import` has answered it.
+            let already_held = change.table == "papers" && old_revision.is_some();
             if rule["create_only"].as_bool() == Some(true)
+                && !already_held
                 && (old_revision.is_some() || change.operation != "upsert")
             {
                 return Err(format!("{} rows can only be created locally", change.table));
             }
-            let revision = base_revision + 1;
-            apply_local_change(
-                &transaction,
-                account_uuid,
-                &change,
-                revision,
-                old_revision.is_none(),
-            )?;
+            let revision = if already_held {
+                base_revision
+            } else {
+                base_revision + 1
+            };
+            if !already_held {
+                apply_local_change(
+                    &transaction,
+                    account_uuid,
+                    &change,
+                    revision,
+                    old_revision.is_none(),
+                )?;
+            }
             validate_local_row(&transaction, &change.table, &change.uuid)?;
             refresh_blob_reference(&transaction, &change.table, &change.uuid)?;
             let row = read_row(&transaction, &change.table, &change.uuid)?;
@@ -300,21 +320,23 @@ impl LocalStore {
                 .remove("table")
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .ok_or("Cached paper row is missing its table")?;
-            if !matches!(table.as_str(), "papers" | "paper_editions") {
+            if table.as_str() != "papers" {
                 return Err("Only shared paper rows may enter the local cache".into());
             }
             let uuid = row
-                .get("uuid")
+                .get("sha256")
                 .and_then(Value::as_str)
-                .ok_or("Cached paper row is missing its uuid")?
+                .ok_or("Cached paper row is missing its digest")?
                 .to_owned();
-            Uuid::parse_str(&uuid).map_err(|_| "Cached paper row has an invalid uuid")?;
+            if !valid_sha256(&uuid) {
+                return Err("Cached paper row has an invalid digest".into());
+            }
             if row.get("deleted_at").is_some_and(|value| !value.is_null()) {
                 return Err("A deleted paper cannot be added to a nook".into());
             }
             let already_cached: Option<i64> = transaction
                 .query_row(
-                    &format!("SELECT 1 FROM {table} WHERE uuid=?1"),
+                    &format!("SELECT 1 FROM {table} WHERE {}=?1", row_key(&table)),
                     [&uuid],
                     |row| row.get(0),
                 )
@@ -595,9 +617,9 @@ impl LocalStore {
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .ok_or("Push result row is missing its table")?;
             let row_uuid = row
-                .get("uuid")
+                .get(row_key(&table))
                 .and_then(Value::as_str)
-                .ok_or("Push result row is missing its uuid")?
+                .ok_or("Push result row is missing its name")?
                 .to_owned();
             let sha256 = row.get("sha256").and_then(Value::as_str).map(str::to_owned);
             validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
@@ -648,7 +670,12 @@ impl LocalStore {
             .transaction()
             .map_err(|error| error.to_string())?;
         for change in changes {
-            if change.row.get("uuid").and_then(Value::as_str) != Some(change.uuid.as_str()) {
+            if change
+                .row
+                .get(row_key(&change.table))
+                .and_then(Value::as_str)
+                != Some(change.uuid.as_str())
+            {
                 return Err("Pulled row identity does not match its envelope".into());
             }
             if change.row.get("revision").and_then(Value::as_i64) != Some(change.revision) {
@@ -734,9 +761,9 @@ impl LocalStore {
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .ok_or("Snapshot row is missing its table")?;
             let uuid = row
-                .get("uuid")
+                .get(row_key(&table))
                 .and_then(Value::as_str)
-                .ok_or("Snapshot row is missing its uuid")?
+                .ok_or("Snapshot row is missing its name")?
                 .to_owned();
             validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
             apply_remote_row(&transaction, &table, row, pending == 0)?;
@@ -891,11 +918,11 @@ impl LocalStore {
         let mut statement = connection
             .prepare(
                 r#"SELECT DISTINCT digest FROM (
-                   SELECT pe.sha256 AS digest
-                   FROM paper_editions pe
-                   JOIN copies c ON c.paper_uuid=pe.paper_uuid
+                   SELECT p.sha256 AS digest
+                   FROM papers p
+                   JOIN copies c ON c.paper_sha256=p.sha256
                    WHERE c.user_uuid=?1 AND c.deleted_at IS NULL
-                     AND pe.deleted_at IS NULL AND pe.sha256 IS NOT NULL
+                     AND p.deleted_at IS NULL AND p.sha256 IS NOT NULL
                    UNION ALL
                    SELECT bi.sha256 AS digest
                    FROM board_items bi
@@ -1000,7 +1027,6 @@ impl LocalStore {
                      DELETE FROM boards;
                      DELETE FROM tags;
                      DELETE FROM shelves;
-                     DELETE FROM paper_editions;
                      DELETE FROM papers;
                      DELETE FROM _local_blob_refs;
                      DELETE FROM _local_blobs;
@@ -1065,23 +1091,19 @@ impl LocalStore {
                     .map_err(|error| error.to_string())?;
             }
 
-            // Papers and editions are shared cache rows. Remove them only
-            // when no other local account still owns a copy or annotation.
+            // Papers are shared cache rows. Remove them only when no other
+            // local account still owns a copy or annotation.
             transaction
                 .execute_batch(
                     "DELETE FROM _local_blob_refs
-                       WHERE table_name='paper_editions' AND row_uuid IN (
-                         SELECT paper_editions.uuid FROM paper_editions
-                         WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=paper_editions.paper_uuid)
-                           AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_uuid=paper_editions.paper_uuid)
+                       WHERE table_name='papers' AND row_uuid IN (
+                         SELECT papers.sha256 FROM papers
+                         WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_sha256=papers.sha256)
+                           AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_sha256=papers.sha256)
                        );
-                     DELETE FROM paper_editions
-                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=paper_editions.paper_uuid)
-                         AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_uuid=paper_editions.paper_uuid);
                      DELETE FROM papers
-                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_uuid=papers.uuid)
-                         AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_uuid=papers.uuid)
-                         AND NOT EXISTS (SELECT 1 FROM paper_editions WHERE paper_editions.paper_uuid=papers.uuid);",
+                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_sha256=papers.sha256)
+                         AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_sha256=papers.sha256);",
                 )
                 .map_err(|error| error.to_string())?;
 
@@ -1356,38 +1378,16 @@ fn validate_import_batch(changes: &[DataChange]) -> Result<(), String> {
         .filter(|change| change.table == "papers")
         .map(|change| change.uuid.as_str())
         .collect();
-    let new_editions: HashSet<&str> = changes
-        .iter()
-        .filter(|change| change.table == "paper_editions")
-        .map(|change| change.uuid.as_str())
-        .collect();
-    if new_papers.is_empty() && new_editions.is_empty() {
+    if new_papers.is_empty() {
         return Ok(());
     }
-    for paper_uuid in new_papers {
-        let edition = changes
-            .iter()
-            .find(|change| {
-                change.table == "paper_editions"
-                    && change.values.get("paper_uuid").and_then(Value::as_str) == Some(paper_uuid)
-            })
-            .ok_or("A local paper import needs an edition")?;
+    for paper_sha256 in new_papers {
         let owned_copy = changes.iter().any(|change| {
             change.table == "copies"
-                && change.values.get("paper_uuid").and_then(Value::as_str) == Some(paper_uuid)
-                && change.values.get("edition_uuid").and_then(Value::as_str)
-                    == Some(edition.uuid.as_str())
+                && change.values.get("paper_sha256").and_then(Value::as_str) == Some(paper_sha256)
         });
         if !owned_copy {
             return Err("A local paper import needs an owned copy".into());
-        }
-    }
-    for edition_uuid in new_editions {
-        if !changes.iter().any(|change| {
-            change.table == "copies"
-                && change.values.get("edition_uuid").and_then(Value::as_str) == Some(edition_uuid)
-        }) {
-            return Err("A local edition import must attach to an owned copy".into());
         }
     }
     Ok(())
@@ -1398,17 +1398,18 @@ fn reject_duplicate_pdf_import(
     account_uuid: &str,
     changes: &[DataChange],
 ) -> Result<(), String> {
-    for digest in changes.iter().filter_map(|change| {
-        (change.table == "paper_editions")
-            .then(|| change.values.get("sha256").and_then(Value::as_str))
-            .flatten()
-    }) {
+    // A paper's name is its digest, so the import says which file it is by
+    // saying which paper it is.
+    for digest in changes
+        .iter()
+        .filter(|change| change.table == "papers")
+        .map(|change| change.uuid.as_str())
+    {
         let existing: Option<i64> = connection
             .query_row(
-                "SELECT 1 FROM copies LEFT JOIN paper_editions \
-                 ON paper_editions.uuid=copies.edition_uuid \
+                "SELECT 1 FROM copies JOIN papers ON papers.sha256=copies.paper_sha256 \
                  WHERE copies.user_uuid=?1 AND copies.deleted_at IS NULL \
-                 AND (copies.edition_sha256=?2 OR paper_editions.sha256=?2) LIMIT 1",
+                 AND papers.sha256=?2 LIMIT 1",
                 params![account_uuid, digest],
                 |row| row.get(0),
             )
@@ -1559,22 +1560,11 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
         if title.is_empty() || title.chars().count() > 500 {
             return Err("Paper title must be 1–500 characters".into());
         }
-    } else if change.table == "paper_editions" {
-        let digest = change
-            .values
-            .get("sha256")
-            .and_then(Value::as_str)
-            .ok_or("A local edition needs its SHA-256")?;
-        if digest.len() != 64 || !digest.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err("A local edition needs a valid SHA-256".into());
-        }
-        if change
-            .values
-            .get("paper_uuid")
-            .and_then(Value::as_str)
-            .is_none()
-        {
-            return Err("A local edition needs its paper".into());
+        // A paper is its PDF, so a new one names the file it is.
+        if let Some(digest) = change.values.get("sha256").and_then(Value::as_str) {
+            if digest.len() != 64 || !digest.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err("A local paper needs a valid SHA-256".into());
+            }
         }
     } else if change.table == "board_items" {
         if let Some(source_url) = change.values.get("source_url").and_then(Value::as_str) {
@@ -1627,6 +1617,29 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// The column a table names its rows by.
+///
+/// A paper is named by the digest of its file — the one name everyone
+/// holding those bytes arrives at. Everything else is named by a UUID its
+/// writer made up.
+fn row_key(table: &str) -> &'static str {
+    if table == "papers" {
+        "sha256"
+    } else {
+        "uuid"
+    }
+}
+
+/// Whether a row id suits the table it names, which is the same question
+/// the service asks of a push.
+fn valid_row_id(table: &str, id: &str) -> bool {
+    if table == "papers" {
+        valid_sha256(id)
+    } else {
+        Uuid::parse_str(id).is_ok()
+    }
 }
 
 fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Result<(), String> {
@@ -1788,21 +1801,6 @@ fn validate_remote_ownership(
     if table == "papers" {
         return Ok(());
     }
-    if table == "paper_editions" {
-        let paper_uuid = row
-            .get("paper_uuid")
-            .and_then(Value::as_str)
-            .ok_or("Server edition row is missing its paper")?;
-        let exists: Option<i64> = connection
-            .query_row("SELECT 1 FROM papers WHERE uuid=?1", [paper_uuid], |row| {
-                row.get(0)
-            })
-            .optional()
-            .map_err(|error| error.to_string())?;
-        return exists
-            .map(|_| ())
-            .ok_or_else(|| "Server edition has no local paper".into());
-    }
     if matches!(
         table,
         "annotations" | "copies" | "copy_tags" | "shelves" | "tags"
@@ -1854,7 +1852,7 @@ fn apply_identity_aliases(
 ) -> Result<(), String> {
     // Collapse the most dependent identities first. A duplicate imported
     // copy may still point at the temporary paper ID; removing/merging it
-    // before the paper alias avoids violating UNIQUE(paper_uuid,user_uuid).
+    // before the paper alias avoids violating UNIQUE(paper_sha256,user_uuid).
     for (old_uuid, new_value) in aliases {
         let new_uuid = new_value
             .as_str()
@@ -1940,14 +1938,14 @@ fn apply_identity_aliases(
             .ok_or("Server alias target must be a UUID")?;
         Uuid::parse_str(new_uuid).map_err(|_| "Server alias target must be a UUID")?;
         let old_paper: Option<i64> = transaction
-            .query_row("SELECT 1 FROM papers WHERE uuid=?1", [old_uuid], |row| {
+            .query_row("SELECT 1 FROM papers WHERE sha256=?1", [old_uuid], |row| {
                 row.get(0)
             })
             .optional()
             .map_err(|error| error.to_string())?;
         if old_paper.is_some() {
             let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM papers WHERE uuid=?1", [new_uuid], |row| {
+                .query_row("SELECT 1 FROM papers WHERE sha256=?1", [new_uuid], |row| {
                     row.get(0)
                 })
                 .optional()
@@ -1955,16 +1953,12 @@ fn apply_identity_aliases(
             if canonical_exists.is_none() {
                 transaction
                     .execute(
-                        "UPDATE papers SET uuid=?1 WHERE uuid=?2",
+                        "UPDATE papers SET sha256=?1 WHERE sha256=?2",
                         params![new_uuid, old_uuid],
                     )
                     .map_err(|error| error.to_string())?;
             }
-            for (table, column) in [
-                ("paper_editions", "paper_uuid"),
-                ("copies", "paper_uuid"),
-                ("annotations", "paper_uuid"),
-            ] {
+            for (table, column) in [("copies", "paper_sha256"), ("annotations", "paper_sha256")] {
                 transaction
                     .execute(
                         &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
@@ -1972,64 +1966,20 @@ fn apply_identity_aliases(
                     )
                     .map_err(|error| error.to_string())?;
             }
-            if canonical_exists.is_some() {
-                transaction
-                    .execute("DELETE FROM papers WHERE uuid=?1", [old_uuid])
-                    .map_err(|error| error.to_string())?;
-            }
-            continue;
-        }
-        let old_edition: Option<i64> = transaction
-            .query_row(
-                "SELECT 1 FROM paper_editions WHERE uuid=?1",
-                [old_uuid],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?;
-        if old_edition.is_some() {
-            let canonical_exists: Option<i64> = transaction
-                .query_row(
-                    "SELECT 1 FROM paper_editions WHERE uuid=?1",
-                    [new_uuid],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|error| error.to_string())?;
-            if canonical_exists.is_none() {
-                transaction
-                    .execute(
-                        "UPDATE paper_editions SET uuid=?1 WHERE uuid=?2",
-                        params![new_uuid, old_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
-            for (table, column) in [
-                ("copies", "edition_uuid"),
-                ("copies", "ignored_edition_uuid"),
-                ("annotations", "edition_uuid"),
-            ] {
-                transaction
-                    .execute(
-                        &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
-                        params![new_uuid, old_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
-            // The canonical edition can already have a blob reference when a
+            // The canonical paper can already have a blob reference when a
             // snapshot introduced it before this offline import was pushed.
             // Rebuild the reference under the canonical identity instead of
             // renaming the temporary row into the same primary key.
             transaction
                 .execute(
-                    "DELETE FROM _local_blob_refs WHERE table_name='paper_editions' AND row_uuid=?1",
+                    "DELETE FROM _local_blob_refs WHERE table_name='papers' AND row_uuid=?1",
                     [old_uuid],
                 )
                 .map_err(|error| error.to_string())?;
-            refresh_blob_reference(transaction, "paper_editions", new_uuid)?;
+            refresh_blob_reference(transaction, "papers", new_uuid)?;
             if canonical_exists.is_some() {
                 transaction
-                    .execute("DELETE FROM paper_editions WHERE uuid=?1", [old_uuid])
+                    .execute("DELETE FROM papers WHERE sha256=?1", [old_uuid])
                     .map_err(|error| error.to_string())?;
             }
             continue;
@@ -2151,7 +2101,7 @@ fn refresh_blob_reference(
     row_uuid: &str,
 ) -> Result<(), String> {
     match table {
-        "board_items" | "paper_editions" => {}
+        "board_items" | "papers" => {}
         _ => return Ok(()),
     }
     connection
@@ -2162,7 +2112,10 @@ fn refresh_blob_reference(
         .map_err(|error| error.to_string())?;
     let reference: Option<(Option<String>, Option<String>)> = connection
         .query_row(
-            &format!("SELECT sha256,deleted_at FROM {table} WHERE uuid=?1"),
+            &format!(
+                "SELECT sha256,deleted_at FROM {table} WHERE {}=?1",
+                row_key(table)
+            ),
             [row_uuid],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -2225,7 +2178,7 @@ fn refresh_blob_references_for_digest(connection: &Connection, sha256: &str) -> 
     connection
         .execute(
             "INSERT OR REPLACE INTO _local_blob_refs(table_name,row_uuid,sha256) \
-             SELECT 'paper_editions',uuid,sha256 FROM paper_editions \
+             SELECT 'papers',sha256,sha256 FROM papers \
              WHERE sha256=?1 AND deleted_at IS NULL",
             [sha256],
         )
@@ -2253,8 +2206,10 @@ fn apply_remote_row(
     if let Some(field) = row.keys().find(|field| !columns.contains(*field)) {
         return Err(format!("Server sent unknown {table}.{field}"));
     }
-    if !row.contains_key("uuid") || !row.contains_key("revision") {
-        return Err("Server row is missing uuid or revision".into());
+    if !row.contains_key(row_key(table)) || !row.contains_key("revision") {
+        return Err(format!(
+            "Server {table} row is missing its name or revision"
+        ));
     }
     let mut fields: BTreeMap<String, SqlValue> = row
         .iter()
@@ -2279,9 +2234,10 @@ fn apply_remote_row(
     transaction
         .execute(
             &format!(
-                "INSERT INTO {table} ({}) VALUES ({}) ON CONFLICT(uuid) DO UPDATE SET {}{}",
+                "INSERT INTO {table} ({}) VALUES ({}) ON CONFLICT({}) DO UPDATE SET {}{}",
                 names.join(","),
                 placeholders.join(","),
+                row_key(table),
                 updates.join(","),
                 revision_guard,
             ),
@@ -2332,7 +2288,10 @@ fn apply_local_change(
     fields.insert("updated_at".into(), SqlValue::Text(now.clone()));
     fields.insert("deleted_at".into(), SqlValue::Null);
     if inserting {
-        fields.insert("uuid".into(), SqlValue::Text(change.uuid.clone()));
+        fields.insert(
+            row_key(&change.table).into(),
+            SqlValue::Text(change.uuid.clone()),
+        );
         fields.insert("created_at".into(), SqlValue::Text(now));
         if matches!(
             change.table.as_str(),
@@ -2409,7 +2368,10 @@ fn touch_parent_board(
 
 fn read_row(connection: &Connection, table: &str, uuid: &str) -> Result<Value, String> {
     let mut statement = connection
-        .prepare(&format!("SELECT * FROM {table} WHERE uuid=?1"))
+        .prepare(&format!(
+            "SELECT * FROM {table} WHERE {}=?1",
+            row_key(table)
+        ))
         .map_err(|error| error.to_string())?;
     let names: Vec<String> = statement
         .column_names()
@@ -2580,19 +2542,14 @@ fn query_annotations(
     account_uuid: &str,
     parameters: Value,
 ) -> Result<Value, String> {
-    let paper_uuid = parameters["paper_uuid"]
+    let paper_sha256 = parameters["paper_sha256"]
         .as_str()
-        .ok_or("Annotation query requires paper_uuid")?;
-    let edition_uuid = parameters["edition_uuid"].as_str();
+        .ok_or("Annotation query requires paper_sha256")?;
     let kind = parameters["kind"].as_str();
     let mut sql = String::from(
-        "SELECT uuid FROM annotations WHERE user_uuid=?1 AND paper_uuid=?2 AND deleted_at IS NULL",
+        "SELECT uuid FROM annotations WHERE user_uuid=?1 AND paper_sha256=?2 AND deleted_at IS NULL",
     );
-    let mut bound: Vec<&str> = vec![account_uuid, paper_uuid];
-    if let Some(edition_uuid) = edition_uuid {
-        bound.push(edition_uuid);
-        sql.push_str(&format!(" AND edition_uuid=?{}", bound.len()));
-    }
+    let mut bound: Vec<&str> = vec![account_uuid, paper_sha256];
     if let Some(kind) = kind {
         bound.push(kind);
         sql.push_str(&format!(" AND kind=?{}", bound.len()));
@@ -2665,16 +2622,16 @@ fn query_nook(connection: &Connection, account_uuid: &str) -> Result<Value, Stri
 fn paper_view(
     connection: &Connection,
     account_uuid: &str,
-    paper_uuid: &str,
+    paper_sha256: &str,
 ) -> Result<Value, String> {
     let copy_uuid: String = connection
         .query_row(
-            "SELECT uuid FROM copies WHERE user_uuid=?1 AND paper_uuid=?2 AND deleted_at IS NULL",
-            params![account_uuid, paper_uuid],
+            "SELECT uuid FROM copies WHERE user_uuid=?1 AND paper_sha256=?2 AND deleted_at IS NULL",
+            params![account_uuid, paper_sha256],
             |row| row.get(0),
         )
         .map_err(|_| "Paper not found".to_string())?;
-    let mut paper = read_row(connection, "papers", paper_uuid)?;
+    let mut paper = read_row(connection, "papers", paper_sha256)?;
     let copy = read_row(connection, "copies", &copy_uuid)?;
     let object = paper.as_object_mut().ok_or("Invalid local paper")?;
     let copy = copy.as_object().ok_or("Invalid local copy")?;
@@ -2687,44 +2644,10 @@ fn paper_view(
         "rating_expertise",
         "rating_reading",
         "rating_liking",
-        "edition_sha256",
-        "ignored_edition_uuid",
     ] {
         object.insert(
             field.into(),
             copy.get(field).cloned().unwrap_or(Value::Null),
-        );
-    }
-    let mut edition_statement = connection
-        .prepare(
-            "SELECT uuid FROM paper_editions WHERE paper_uuid=?1 AND deleted_at IS NULL \
-             ORDER BY created_at,uuid",
-        )
-        .map_err(|error| error.to_string())?;
-    let edition_uuids = edition_statement
-        .query_map([paper_uuid], |row| row.get::<_, String>(0))
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-    let editions = edition_uuids
-        .iter()
-        .map(|uuid| read_row(connection, "paper_editions", uuid))
-        .collect::<Result<Vec<_>, _>>()?;
-    if let Some(latest) = editions.last() {
-        object.insert("latest_edition".into(), latest.clone());
-    }
-    object.insert("editions".into(), Value::Array(editions));
-    if let Some(edition_uuid) = copy.get("edition_uuid").and_then(Value::as_str) {
-        let edition = read_row(connection, "paper_editions", edition_uuid)?;
-        let edition_row = edition.as_object().ok_or("Invalid local edition")?;
-        object.insert("edition_uuid".into(), json!(edition_uuid));
-        object.insert(
-            "file_path".into(),
-            edition_row.get("file_path").cloned().unwrap_or(Value::Null),
-        );
-        object.insert(
-            "edition_sha256".into(),
-            edition_row.get("sha256").cloned().unwrap_or(Value::Null),
         );
     }
     let mut statement = connection
@@ -2775,7 +2698,7 @@ fn copy_is_public(connection: &Connection, copy: &Map<String, Value>) -> Result<
 
 fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let mut statement = connection.prepare(
-        "SELECT paper_uuid,created_at FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY created_at DESC,uuid"
+        "SELECT paper_sha256,created_at FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY created_at DESC,uuid"
     ).map_err(|error| error.to_string())?;
     let copies = statement
         .query_map([account_uuid], |row| {
@@ -2808,16 +2731,16 @@ fn query_paper_by_pdf(
     account_uuid: &str,
     sha256: &str,
 ) -> Result<Value, String> {
-    let paper_uuid: String = connection
+    let paper_sha256: String = connection
         .query_row(
-            "SELECT paper_editions.paper_uuid FROM paper_editions JOIN copies \
-         ON copies.edition_uuid=paper_editions.uuid WHERE copies.user_uuid=?1 \
-         AND copies.deleted_at IS NULL AND paper_editions.sha256=?2 LIMIT 1",
+            "SELECT papers.sha256 FROM papers JOIN copies \
+         ON copies.paper_sha256=papers.sha256 WHERE copies.user_uuid=?1 \
+         AND copies.deleted_at IS NULL AND papers.sha256=?2 LIMIT 1",
             params![account_uuid, sha256],
             |row| row.get(0),
         )
         .map_err(|_| "Paper PDF not found".to_string())?;
-    paper_view(connection, account_uuid, &paper_uuid)
+    paper_view(connection, account_uuid, &paper_sha256)
 }
 
 fn query_sync_status(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
@@ -3000,34 +2923,23 @@ mod tests {
     }
 
     fn pdf_import_changes(sha256: &str, title: &str) -> Vec<DataChange> {
-        let paper_uuid = Uuid::new_v4().to_string();
-        let edition_uuid = Uuid::new_v4().to_string();
+        // The paper is named by the file, so the import does not invent a
+        // name for it — it reads one off the bytes it just stored.
         vec![
             DataChange {
                 table: "papers".into(),
-                uuid: paper_uuid.clone(),
-                operation: "upsert".into(),
-                values: Map::from_iter([("title".into(), json!(title))]),
-            },
-            DataChange {
-                table: "paper_editions".into(),
-                uuid: edition_uuid.clone(),
+                uuid: sha256.to_owned(),
                 operation: "upsert".into(),
                 values: Map::from_iter([
-                    ("paper_uuid".into(), json!(paper_uuid)),
+                    ("title".into(), json!(title)),
                     ("file_path".into(), json!(format!("{sha256}.pdf"))),
-                    ("sha256".into(), json!(sha256)),
                 ]),
             },
             DataChange {
                 table: "copies".into(),
                 uuid: Uuid::new_v4().to_string(),
                 operation: "upsert".into(),
-                values: Map::from_iter([
-                    ("paper_uuid".into(), json!(paper_uuid)),
-                    ("edition_uuid".into(), json!(edition_uuid)),
-                    ("edition_sha256".into(), json!(sha256)),
-                ]),
+                values: Map::from_iter([("paper_sha256".into(), json!(sha256))]),
             },
         ]
     }
@@ -3075,42 +2987,44 @@ mod tests {
     fn paper_list_is_ordered_by_when_each_copy_was_added_to_the_nook() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let older_paper_uuid = Uuid::new_v4().to_string();
-        let newer_paper_uuid = Uuid::new_v4().to_string();
+        let older_paper_sha256 = "a".repeat(64);
+        let newer_paper_sha256 = "b".repeat(64);
         let first_copy_uuid = Uuid::new_v4().to_string();
         let second_copy_uuid = Uuid::new_v4().to_string();
         {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical old',?2,?2)",
-                    params![older_paper_uuid, "2025-01-01T00:00:00Z"],
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) \
+                     VALUES (?1,'Canonical old','old.pdf',?2,?2)",
+                    params![older_paper_sha256, "2025-01-01T00:00:00Z"],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical new',?2,?2)",
-                    params![newer_paper_uuid, "2026-08-01T00:00:00Z"],
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) \
+                     VALUES (?1,'Canonical new','new.pdf',?2,?2)",
+                    params![newer_paper_sha256, "2026-08-01T00:00:00Z"],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO copies(uuid,paper_uuid,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
-                    params![first_copy_uuid, newer_paper_uuid, "2026-08-02T00:00:00Z"],
+                    "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                    params![first_copy_uuid, newer_paper_sha256, "2026-08-02T00:00:00Z"],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO copies(uuid,paper_uuid,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
-                    params![second_copy_uuid, older_paper_uuid, "2026-09-01T00:00:00Z"],
+                    "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                    params![second_copy_uuid, older_paper_sha256, "2026-09-01T00:00:00Z"],
                 )
                 .unwrap();
         }
 
         let papers = store.query("7", "papers", json!({})).unwrap();
-        assert_eq!(papers[0]["uuid"], older_paper_uuid);
+        assert_eq!(papers[0]["sha256"], older_paper_sha256);
         assert_eq!(papers[0]["created_at"], "2026-09-01T00:00:00Z");
-        assert_eq!(papers[1]["uuid"], newer_paper_uuid);
+        assert_eq!(papers[1]["sha256"], newer_paper_sha256);
         assert_eq!(papers[1]["created_at"], "2026-08-02T00:00:00Z");
     }
 
@@ -3118,31 +3032,25 @@ mod tests {
     fn a_patch_enqueues_the_complete_writable_row() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let paper_uuid = Uuid::new_v4().to_string();
-        let edition_uuid = Uuid::new_v4().to_string();
+        let paper_sha256 = "e".repeat(64);
         let stroke_uuid = Uuid::new_v4().to_string();
         let now = chrono_text();
         {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at,revision) VALUES (?1,'Paper',?2,?2,1)",
-                    params![paper_uuid, now],
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at,revision) \
+                     VALUES (?1,'Paper','paper.pdf',?2,?2,1)",
+                    params![paper_sha256, now],
                 )
                 .unwrap();
             connection
                 .execute(
-                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,created_at,updated_at,revision) VALUES (?1,?2,'paper.pdf',?3,?3,1)",
-                    params![edition_uuid, paper_uuid, now],
-                )
-                .unwrap();
-            connection
-                .execute(
-                    "INSERT INTO annotations(uuid,kind,user_uuid,paper_uuid,edition_uuid,page,body,created_at,updated_at,revision) \
-                     VALUES (?1,'ink','7',?2,?3,2,\
+                    "INSERT INTO annotations(uuid,kind,user_uuid,paper_sha256,page,body,created_at,updated_at,revision) \
+                     VALUES (?1,'ink','7',?2,2,\
                      '{\"points\":[{\"x\":0.1,\"y\":0.2}],\"color\":\"#111111\",\"width\":0.01,\"opacity\":0.8,\"shape\":\"flat\"}',\
-                     ?4,?4,1)",
-                    params![stroke_uuid, paper_uuid, edition_uuid, now],
+                     ?3,?3,1)",
+                    params![stroke_uuid, paper_sha256, now],
                 )
                 .unwrap();
         }
@@ -3172,8 +3080,7 @@ mod tests {
         let values = &queued.changes[0].values;
         for field in [
             "kind",
-            "paper_uuid",
-            "edition_uuid",
+            "paper_sha256",
             "group_uuid",
             "page",
             "content",
@@ -3539,32 +3446,25 @@ mod tests {
     fn missing_blobs_include_every_account_pdf_and_board_file() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let paper_uuid = Uuid::new_v4().to_string();
-        let edition_uuid = Uuid::new_v4().to_string();
         let copy_uuid = Uuid::new_v4().to_string();
         let board_uuid = Uuid::new_v4().to_string();
         let board_item_uuid = Uuid::new_v4().to_string();
         let foreign_board_uuid = Uuid::new_v4().to_string();
         let foreign_item_uuid = Uuid::new_v4().to_string();
         let pdf = "a".repeat(64);
+        let paper_sha256 = pdf.clone();
         let board_file = "b".repeat(64);
         let foreign_file = "c".repeat(64);
         let now = "2026-09-12T00:00:00Z";
         {
             let connection = store.connection.lock().unwrap();
-            connection
-                .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Paper',?2,?2)",
-                    params![paper_uuid, now],
-                )
-                .unwrap();
             connection.execute(
-                "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
-                params![edition_uuid, paper_uuid, pdf, now],
+                "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
+                params![paper_sha256, now],
             ).unwrap();
             connection.execute(
-                "INSERT INTO copies(uuid,paper_uuid,user_uuid,edition_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?4,?4)",
-                params![copy_uuid, paper_uuid, edition_uuid, now],
+                "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                params![copy_uuid, paper_sha256, now],
             ).unwrap();
             for (board, item, digest, account) in [
                 (&board_uuid, &board_item_uuid, &board_file, "7"),
@@ -3604,28 +3504,21 @@ mod tests {
         let corrupt = "d".repeat(64);
         std::fs::write(store.blob_directory.join(&kept), bytes).unwrap();
         std::fs::write(store.blob_directory.join(&corrupt), b"not these bytes").unwrap();
-        let paper_uuid = Uuid::new_v4().to_string();
-        let kept_edition = Uuid::new_v4().to_string();
-        let corrupt_edition = Uuid::new_v4().to_string();
+        let kept_paper = kept.clone();
+        let corrupt_paper = corrupt.clone();
         let now = "2026-09-12T00:00:00Z";
         {
             let connection = store.connection.lock().unwrap();
-            connection
-                .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Paper',?2,?2)",
-                    params![paper_uuid, now],
-                )
-                .unwrap();
-            for (edition, digest) in [(&kept_edition, &kept), (&corrupt_edition, &corrupt)] {
+            for paper in [&kept_paper, &corrupt_paper] {
                 connection.execute(
-                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
-                    params![edition, paper_uuid, digest, now],
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
+                    params![paper, now],
+                ).unwrap();
+                connection.execute(
+                    "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                    params![Uuid::new_v4().to_string(), paper, now],
                 ).unwrap();
             }
-            connection.execute(
-                "INSERT INTO copies(uuid,paper_uuid,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
-                params![Uuid::new_v4().to_string(), paper_uuid, now],
-            ).unwrap();
         }
 
         assert_eq!(
@@ -3639,7 +3532,7 @@ mod tests {
         let references: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM _local_blob_refs WHERE row_uuid=?1 AND sha256=?2",
-                params![kept_edition, kept],
+                params![kept_paper, kept],
                 |row| row.get(0),
             )
             .unwrap();
@@ -3686,10 +3579,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let unique_paper = Uuid::new_v4().to_string();
-        let unique_edition = Uuid::new_v4().to_string();
+
         let unique_copy = Uuid::new_v4().to_string();
         let shared_paper = Uuid::new_v4().to_string();
-        let shared_edition = Uuid::new_v4().to_string();
+
         let first_copy = Uuid::new_v4().to_string();
         let second_copy = Uuid::new_v4().to_string();
         let first_board = Uuid::new_v4().to_string();
@@ -3717,35 +3610,27 @@ mod tests {
         {
             let connection = store.connection.lock().unwrap();
             let now = "2026-09-12T00:00:00Z";
-            for (paper, title) in [(&unique_paper, "Unique"), (&shared_paper, "Shared")] {
-                connection
-                    .execute(
-                        "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,?2,?3,?3)",
-                        params![paper, title, now],
-                    )
-                    .unwrap();
-            }
-            for (edition, paper, blob) in [
-                (&unique_edition, &unique_paper, &unique_blob.sha256),
-                (&shared_edition, &shared_paper, &shared_blob.sha256),
+            for (paper, title, blob) in [
+                (&unique_paper, "Unique", &unique_blob.sha256),
+                (&shared_paper, "Shared", &shared_blob.sha256),
             ] {
                 connection.execute(
-                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?3,?4,?4)",
-                    params![edition, paper, blob, now],
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,?2,?1 || '.pdf',?3,?3)",
+                    params![paper, title, now],
                 ).unwrap();
                 connection.execute(
-                    "INSERT INTO _local_blob_refs(table_name,row_uuid,sha256) VALUES ('paper_editions',?1,?2)",
-                    params![edition, blob],
+                    "INSERT INTO _local_blob_refs(table_name,row_uuid,sha256) VALUES ('papers',?1,?2)",
+                    params![paper, blob],
                 ).unwrap();
             }
-            for (copy, paper, edition, account) in [
-                (&unique_copy, &unique_paper, &unique_edition, "7"),
-                (&first_copy, &shared_paper, &shared_edition, "7"),
-                (&second_copy, &shared_paper, &shared_edition, "8"),
+            for (copy, paper, account) in [
+                (&unique_copy, &unique_paper, "7"),
+                (&first_copy, &shared_paper, "7"),
+                (&second_copy, &shared_paper, "8"),
             ] {
                 connection.execute(
-                    "INSERT INTO copies(uuid,paper_uuid,user_uuid,edition_uuid,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?5)",
-                    params![copy, paper, account, edition, now],
+                    "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,?3,?4,?4)",
+                    params![copy, paper, account, now],
                 ).unwrap();
             }
             for (board, item, blob, account) in [
@@ -3810,7 +3695,7 @@ mod tests {
         assert_eq!(
             connection
                 .query_row(
-                    "SELECT COUNT(*) FROM papers WHERE uuid=?1",
+                    "SELECT COUNT(*) FROM papers WHERE sha256=?1",
                     [&unique_paper],
                     |row| row.get::<_, i64>(0)
                 )
@@ -3820,7 +3705,7 @@ mod tests {
         assert_eq!(
             connection
                 .query_row(
-                    "SELECT COUNT(*) FROM papers WHERE uuid=?1",
+                    "SELECT COUNT(*) FROM papers WHERE sha256=?1",
                     [&shared_paper],
                     |row| row.get::<_, i64>(0)
                 )
@@ -4024,7 +3909,7 @@ mod tests {
                     row.get(0)
                 })
                 .unwrap();
-            assert_eq!(migration_count, 5);
+            assert_eq!(migration_count, 8);
         }
     }
 
@@ -4045,10 +3930,10 @@ mod tests {
                    VALUES ('202609120001_domain');\
                  CREATE TABLE copies (\
                    uuid TEXT PRIMARY KEY NOT NULL,\
-                   paper_uuid TEXT NOT NULL,\
+                   paper_sha256 TEXT NOT NULL,\
                    user_uuid TEXT NOT NULL,\
                    marketed INTEGER NOT NULL DEFAULT 0);\
-                 INSERT INTO copies (uuid, paper_uuid, user_uuid, marketed) \
+                 INSERT INTO copies (uuid, paper_sha256, user_uuid, marketed) \
                    VALUES ('kept-private', 'p', 'u', 0), ('on-display', 'p', 'u', 1);",
             )
             .unwrap();
@@ -4127,8 +4012,7 @@ mod tests {
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let account_uuid = Uuid::new_v4().to_string();
         let shelf_uuid = Uuid::new_v4().to_string();
-        let paper_uuid = Uuid::new_v4().to_string();
-        let edition_uuid = Uuid::new_v4().to_string();
+        let paper_sha256 = "e".repeat(64);
         let copy_uuid = Uuid::new_v4().to_string();
         let now = "2026-09-14T00:00:00Z";
         store
@@ -4156,35 +4040,23 @@ mod tests {
         let cached = store
             .import_shared_paper(
                 &account_uuid,
-                vec![
-                    Map::from_iter([
-                        ("table".into(), json!("papers")),
-                        ("uuid".into(), json!(paper_uuid.clone())),
-                        ("doi".into(), Value::Null),
-                        ("title".into(), json!("Shared paper")),
-                        ("authors".into(), Value::Null),
-                        ("journal".into(), Value::Null),
-                        ("year".into(), Value::Null),
-                        ("created_at".into(), json!(now)),
-                        ("updated_at".into(), json!(now)),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                    Map::from_iter([
-                        ("table".into(), json!("paper_editions")),
-                        ("uuid".into(), json!(edition_uuid.clone())),
-                        ("paper_uuid".into(), json!(paper_uuid.clone())),
-                        ("file_path".into(), json!("shared.pdf")),
-                        ("sha256".into(), json!("a".repeat(64))),
-                        ("created_at".into(), json!(now)),
-                        ("updated_at".into(), json!(now)),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                ],
+                vec![Map::from_iter([
+                    ("table".into(), json!("papers")),
+                    ("doi".into(), Value::Null),
+                    ("title".into(), json!("Shared paper")),
+                    ("authors".into(), Value::Null),
+                    ("journal".into(), Value::Null),
+                    ("year".into(), Value::Null),
+                    ("file_path".into(), json!("shared.pdf")),
+                    ("sha256".into(), json!(paper_sha256.clone())),
+                    ("created_at".into(), json!(now)),
+                    ("updated_at".into(), json!(now)),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
             )
             .unwrap();
-        assert_eq!(cached, 2);
+        assert_eq!(cached, 1);
         assert_eq!(store.outbox_count(), 0);
 
         store
@@ -4195,17 +4067,15 @@ mod tests {
                     uuid: copy_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(paper_uuid.clone())),
+                        ("paper_sha256".into(), json!(paper_sha256.clone())),
                         ("shelf_uuid".into(), json!(shelf_uuid)),
-                        ("edition_uuid".into(), json!(edition_uuid)),
-                        ("edition_sha256".into(), json!("a".repeat(64))),
                     ]),
                 }],
             )
             .unwrap();
         assert_eq!(store.outbox_count(), 1);
         let paper = store
-            .query(&account_uuid, "paper", json!({"uuid": paper_uuid}))
+            .query(&account_uuid, "paper", json!({"uuid": paper_sha256}))
             .unwrap();
         assert_eq!(paper["title"], "Shared paper");
         assert_eq!(paper["copy_uuid"], copy_uuid);
@@ -4215,51 +4085,26 @@ mod tests {
     fn annotation_snapshot_enables_offline_editing_across_restart() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let paper_uuid = Uuid::new_v4().to_string();
-        let edition_uuid = Uuid::new_v4().to_string();
-        let duplicate_edition_uuid = Uuid::new_v4().to_string();
+        let paper_sha256 = "e".repeat(64);
         let note_uuid = Uuid::new_v4().to_string();
         let store = LocalStore::open(&path).unwrap();
         store
             .apply_snapshot(
                 "7",
-                vec![
-                    Map::from_iter([
-                        ("table".into(), json!("papers")),
-                        ("uuid".into(), json!(paper_uuid.clone())),
-                        ("doi".into(), Value::Null),
-                        ("title".into(), json!("Paper")),
-                        ("authors".into(), Value::Null),
-                        ("journal".into(), Value::Null),
-                        ("year".into(), Value::Null),
-                        ("created_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                    Map::from_iter([
-                        ("table".into(), json!("paper_editions")),
-                        ("uuid".into(), json!(edition_uuid.clone())),
-                        ("paper_uuid".into(), json!(paper_uuid.clone())),
-                        ("file_path".into(), json!("paper.pdf")),
-                        ("sha256".into(), json!("1".repeat(64))),
-                        ("created_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                    Map::from_iter([
-                        ("table".into(), json!("paper_editions")),
-                        ("uuid".into(), json!(duplicate_edition_uuid)),
-                        ("paper_uuid".into(), json!(paper_uuid.clone())),
-                        ("file_path".into(), json!("duplicate.pdf")),
-                        ("sha256".into(), json!("1".repeat(64))),
-                        ("created_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
-                        ("revision".into(), json!(1)),
-                        ("deleted_at".into(), Value::Null),
-                    ]),
-                ],
+                vec![Map::from_iter([
+                    ("table".into(), json!("papers")),
+                    ("doi".into(), Value::Null),
+                    ("title".into(), json!("Paper")),
+                    ("authors".into(), Value::Null),
+                    ("journal".into(), Value::Null),
+                    ("year".into(), Value::Null),
+                    ("file_path".into(), json!("paper.pdf")),
+                    ("sha256".into(), json!(paper_sha256.clone())),
+                    ("created_at".into(), json!("2026-09-12T00:00:00Z")),
+                    ("updated_at".into(), json!("2026-09-12T00:00:00Z")),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
             )
             .unwrap();
         store
@@ -4271,8 +4116,7 @@ mod tests {
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("kind".into(), json!("note")),
-                        ("paper_uuid".into(), json!(paper_uuid.clone())),
-                        ("edition_uuid".into(), json!(edition_uuid.clone())),
+                        ("paper_sha256".into(), json!(paper_sha256.clone())),
                         ("content".into(), json!("Written offline")),
                         ("page".into(), json!(2)),
                         (
@@ -4290,7 +4134,7 @@ mod tests {
             .query(
                 "7",
                 "annotations",
-                json!({"paper_uuid": paper_uuid, "kind": "note"}),
+                json!({"paper_sha256": paper_sha256, "kind": "note"}),
             )
             .unwrap();
         assert_eq!(notes[0]["uuid"], note_uuid);
@@ -4476,7 +4320,7 @@ mod tests {
     fn nook_snapshot_supports_offline_organization_across_restart() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let paper_uuid = Uuid::new_v4().to_string();
+        let paper_sha256 = "e".repeat(64);
         let shelf_uuid = Uuid::new_v4().to_string();
         let copy_uuid = Uuid::new_v4().to_string();
         let tag_uuid = Uuid::new_v4().to_string();
@@ -4490,12 +4334,13 @@ mod tests {
                     vec![
                         Map::from_iter([
                             ("table".into(), json!("papers")),
-                            ("uuid".into(), json!(paper_uuid)),
                             ("doi".into(), Value::Null),
                             ("title".into(), json!("Offline systems")),
                             ("authors".into(), Value::Null),
                             ("journal".into(), Value::Null),
                             ("year".into(), Value::Null),
+                            ("file_path".into(), json!("offline-systems.pdf")),
+                            ("sha256".into(), json!(paper_sha256.clone())),
                             ("created_at".into(), json!(timestamp)),
                             ("updated_at".into(), json!(timestamp)),
                             ("revision".into(), json!(1)),
@@ -4518,12 +4363,9 @@ mod tests {
                         Map::from_iter([
                             ("table".into(), json!("copies")),
                             ("uuid".into(), json!(copy_uuid)),
-                            ("paper_uuid".into(), json!(paper_uuid)),
+                            ("paper_sha256".into(), json!(paper_sha256)),
                             ("user_uuid".into(), json!("7")),
                             ("shelf_uuid".into(), json!(shelf_uuid)),
-                            ("edition_uuid".into(), Value::Null),
-                            ("edition_sha256".into(), Value::Null),
-                            ("ignored_edition_uuid".into(), Value::Null),
                             ("summary".into(), Value::Null),
                             ("thought".into(), Value::Null),
                             ("is_author".into(), json!(0)),
@@ -4584,71 +4426,45 @@ mod tests {
     fn pdf_import_commits_file_domain_rows_and_outbox_before_network() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
-        let paper_uuid = Uuid::new_v4().to_string();
-        let edition_uuid = Uuid::new_v4().to_string();
         let copy_uuid = Uuid::new_v4().to_string();
-        let canonical_paper_uuid = Uuid::new_v4().to_string();
-        let canonical_edition_uuid = Uuid::new_v4().to_string();
+        let digest;
         {
             let store = LocalStore::open(&path).unwrap();
             let blob = store
                 .import_blob(b"%PDF-1.4\noffline", Some("application/pdf".into()))
                 .unwrap();
+            digest = blob.sha256.clone();
             let receipt = store
                 .mutate(
                     "7",
                     vec![
                         DataChange {
                             table: "papers".into(),
-                            uuid: paper_uuid.clone(),
+                            // Named by the file it is, which is a name the
+                            // service will arrive at too.
+                            uuid: digest.clone(),
                             operation: "upsert".into(),
                             values: Map::from_iter([
                                 ("title".into(), json!("Imported offline")),
                                 ("doi".into(), Value::Null),
-                            ]),
-                        },
-                        DataChange {
-                            table: "paper_editions".into(),
-                            uuid: edition_uuid.clone(),
-                            operation: "upsert".into(),
-                            values: Map::from_iter([
-                                ("paper_uuid".into(), json!(paper_uuid)),
-                                ("file_path".into(), json!(format!("{}.pdf", blob.sha256))),
-                                ("sha256".into(), json!(blob.sha256)),
+                                ("file_path".into(), json!(format!("{digest}.pdf"))),
                             ]),
                         },
                         DataChange {
                             table: "copies".into(),
                             uuid: copy_uuid.clone(),
                             operation: "upsert".into(),
-                            values: Map::from_iter([
-                                ("paper_uuid".into(), json!(paper_uuid)),
-                                ("edition_uuid".into(), json!(edition_uuid)),
-                                ("edition_sha256".into(), json!(blob.sha256)),
-                            ]),
+                            values: Map::from_iter([("paper_sha256".into(), json!(digest))]),
                         },
                     ],
                 )
                 .unwrap();
             let mut rows = receipt.rows;
-            for (index, table) in ["papers", "paper_editions", "copies"]
-                .into_iter()
-                .enumerate()
-            {
+            for (index, table) in ["papers", "copies"].into_iter().enumerate() {
                 let row = rows[index].as_object_mut().unwrap();
                 row.insert("table".into(), json!(table));
                 row.insert("revision".into(), json!(2));
             }
-            rows[0]
-                .as_object_mut()
-                .unwrap()
-                .insert("uuid".into(), json!(canonical_paper_uuid));
-            let edition = rows[1].as_object_mut().unwrap();
-            edition.insert("uuid".into(), json!(canonical_edition_uuid));
-            edition.insert("paper_uuid".into(), json!(canonical_paper_uuid));
-            let copy = rows[2].as_object_mut().unwrap();
-            copy.insert("paper_uuid".into(), json!(canonical_paper_uuid));
-            copy.insert("edition_uuid".into(), json!(canonical_edition_uuid));
             store
                 .accept_push(
                     "7",
@@ -4657,20 +4473,18 @@ mod tests {
                         .map(|row| row.as_object().unwrap().clone())
                         .collect(),
                     vec![],
-                    Map::from_iter([
-                        (paper_uuid.clone(), json!(canonical_paper_uuid)),
-                        (edition_uuid.clone(), json!(canonical_edition_uuid)),
-                    ]),
+                    // Nothing to alias. The replica named the paper and the
+                    // service agreed, because neither of them chose it.
+                    Map::new(),
                 )
                 .unwrap();
         }
         let reopened = LocalStore::open(&path).unwrap();
         let paper = reopened
-            .query("7", "paper", json!({"uuid": canonical_paper_uuid}))
+            .query("7", "paper", json!({"uuid": digest}))
             .unwrap();
         assert_eq!(paper["title"], "Imported offline");
-        assert_eq!(paper["edition_uuid"], canonical_edition_uuid);
-        assert!(reopened.has_blob(paper["edition_sha256"].as_str().unwrap()));
+        assert!(reopened.has_blob(paper["sha256"].as_str().unwrap()));
         assert_eq!(reopened.outbox_count(), 0);
     }
 
@@ -4702,76 +4516,138 @@ mod tests {
         assert_eq!(store.outbox_count(), 1);
     }
 
+    /// Importing a file the replica already holds. There is no alias to
+    /// apply and no second row to merge: the import names the paper that is
+    /// already there, because the file is the name. What has to be true is
+    /// that the blob stays spoken for exactly once.
     #[test]
-    fn accepted_duplicate_pdf_alias_merges_existing_blob_references() {
+    fn importing_a_file_already_held_finds_the_paper_that_is_there() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
         let blob = store
             .import_blob(b"%PDF-1.4\ncanonical bytes", Some("application/pdf".into()))
             .unwrap();
-        let canonical_paper_uuid = Uuid::new_v4().to_string();
-        let canonical_edition_uuid = Uuid::new_v4().to_string();
         {
             let connection = store.connection.lock().unwrap();
             connection
                 .execute(
-                    "INSERT INTO papers(uuid,title,created_at,updated_at) VALUES (?1,'Canonical',?2,?2)",
-                    params![canonical_paper_uuid, chrono_text()],
-                )
-                .unwrap();
-            connection
-                .execute(
-                    "INSERT INTO paper_editions(uuid,paper_uuid,file_path,sha256,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?5)",
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,?2,?3,?4,?4)",
                     params![
-                        canonical_edition_uuid,
-                        canonical_paper_uuid,
-                        format!("{}.pdf", blob.sha256),
                         blob.sha256,
+                        "Canonical",
+                        format!("{}.pdf", blob.sha256),
                         chrono_text(),
                     ],
                 )
                 .unwrap();
-            refresh_blob_reference(&connection, "paper_editions", &canonical_edition_uuid).unwrap();
+            refresh_blob_reference(&connection, "papers", &blob.sha256).unwrap();
         }
 
         let receipt = store
             .mutate(
                 "7",
-                pdf_import_changes(&blob.sha256, "Duplicate offline import"),
+                pdf_import_changes(&blob.sha256, "Imported again, same bytes"),
             )
             .unwrap();
-        let temporary_edition_uuid = receipt.rows[1]["uuid"].as_str().unwrap().to_owned();
+        assert_eq!(receipt.rows[0]["sha256"], blob.sha256);
+        // The change still travels: it is how the service is told this user
+        // has the file, even though the row was already here.
+        assert_eq!(store.outbox_count(), 1);
         store
-            .accept_push(
-                "7",
-                receipt.local_sequence,
-                vec![],
-                vec![],
-                Map::from_iter([(
-                    temporary_edition_uuid.clone(),
-                    json!(canonical_edition_uuid),
-                )]),
-            )
+            .accept_push("7", receipt.local_sequence, vec![], vec![], Map::new())
             .unwrap();
 
         let connection = store.connection.lock().unwrap();
+        let on_that_file: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM papers WHERE sha256=?1",
+                [&blob.sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(on_that_file, 1, "one file is one paper");
         let references: i64 = connection
             .query_row(
-                "SELECT COUNT(*) FROM _local_blob_refs WHERE table_name='paper_editions' AND row_uuid=?1 AND sha256=?2",
-                params![canonical_edition_uuid, blob.sha256],
+                "SELECT COUNT(*) FROM _local_blob_refs WHERE table_name='papers' AND sha256=?1",
+                [&blob.sha256],
                 |row| row.get(0),
             )
             .unwrap();
-        let temporary_references: i64 = connection
+        assert_eq!(references, 1, "the blob is spoken for once, not twice");
+        let orphans: i64 = connection
             .query_row(
-                "SELECT COUNT(*) FROM _local_blob_refs WHERE table_name='paper_editions' AND row_uuid=?1",
-                [temporary_edition_uuid],
+                "SELECT COUNT(*) FROM copies WHERE paper_sha256 NOT IN (SELECT sha256 FROM papers)",
+                [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(references, 1);
-        assert_eq!(temporary_references, 0);
+        assert_eq!(orphans, 0);
         drop(connection);
         assert_eq!(store.outbox_count(), 0);
+    }
+
+    /// There used to be a window here: an import minted a paper of its own,
+    /// a pull could land the service's row for the same file, and the two
+    /// were reconciled afterwards by an alias. Naming a paper by its file
+    /// closes it. The replica and the service choose the same name because
+    /// neither of them chooses — so the pull meets the row the import made,
+    /// rather than a second one to be merged later.
+    #[test]
+    fn a_pull_meets_the_row_an_import_already_made_for_that_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        let store = LocalStore::open(&path).unwrap();
+        let blob = store
+            .import_blob(b"%PDF-1.4\nin flight", Some("application/pdf".into()))
+            .unwrap();
+
+        // Imported offline, not yet pushed.
+        let receipt = store
+            .mutate("7", pdf_import_changes(&blob.sha256, "Imported offline"))
+            .unwrap();
+        assert_eq!(receipt.rows[0]["sha256"], blob.sha256);
+        assert_eq!(store.outbox_count(), 1);
+
+        // The service's own row for the very same bytes arrives meanwhile.
+        let now = chrono_text();
+        store
+            .apply_snapshot(
+                "7",
+                vec![Map::from_iter([
+                    ("table".into(), json!("papers")),
+                    ("doi".into(), Value::Null),
+                    ("title".into(), json!("The same file, from the service")),
+                    ("authors".into(), Value::Null),
+                    ("journal".into(), Value::Null),
+                    ("year".into(), Value::Null),
+                    ("file_path".into(), json!(format!("{}.pdf", blob.sha256))),
+                    ("sha256".into(), json!(blob.sha256)),
+                    ("created_at".into(), json!(now)),
+                    ("updated_at".into(), json!(now)),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
+            )
+            .expect("a pull must not be refused by work the replica has in flight");
+
+        let connection = store.connection.lock().unwrap();
+        let on_that_file: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM papers WHERE sha256=?1",
+                [&blob.sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(on_that_file, 1, "one file is one paper, at every moment");
+        // And the copy the import made is still on it: the pull met the row
+        // rather than replacing it with one of its own.
+        let held: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM copies WHERE paper_sha256=?1 AND deleted_at IS NULL",
+                [&blob.sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(held, 1);
     }
 }

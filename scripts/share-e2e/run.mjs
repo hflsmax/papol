@@ -101,8 +101,8 @@ try {
   }
   check('the paper lands in their nook', !!added, 'no copy within 20s');
   if (added) {
-    check('it is the same paper', added.paper_uuid === fx.paper_uuid);
-    const annotations = await (await api(`/papers/${added.paper_uuid}/annotations`, fx.user.token)).json();
+    check('it is the same paper', added.paper_sha256 === fx.paper_sha256);
+    const annotations = await (await api(`/papers/${added.paper_sha256}/annotations`, fx.user.token)).json();
     check("their copy carries none of the sharer's annotations",
       Array.isArray(annotations) && annotations.length === 0, `${annotations?.length} came across`);
     await browser.navigate(fx.rich_url);
@@ -114,7 +114,7 @@ try {
 
   console.log("\n== The sharer's own Share menu ==");
   await browser.signIn({ token: fx.sharer.token, accountUuid: fx.sharer.uuid, origin: fx.base });
-  await browser.navigate(`${fx.base}/paper/${fx.paper_uuid}`);
+  await browser.navigate(`${fx.base}/paper/${fx.paper_sha256}`);
   await browser.waitFor("document.body.innerText.includes('Share')",
     { timeout: 25_000, what: 'the paper page' });
   const opened = await browser.evaluate(`

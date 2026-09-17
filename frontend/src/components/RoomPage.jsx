@@ -60,8 +60,8 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
         </div>
         <div className="seminar-head">
           <h2 className="room-title">
-            {room.paper_uuid ? (
-              <a href={appPath(`/paper/${room.paper_uuid}`)} title="Open the paper">
+            {room.paper_sha256 ? (
+              <a href={appPath(`/paper/${room.paper_sha256}`)} title="Open the paper">
                 {room.paper_title}
               </a>
             ) : (

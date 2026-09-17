@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import urllib.parse
 from datetime import datetime
@@ -10,7 +11,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -20,7 +21,7 @@ from cohorts import in_active_cohort, paper_key_for
 from database import get_db
 from models import (
     Annotation, AppliedMutation, Board, BoardGroup, BoardItem, Copy, CopyTagLink,
-    Paper, PaperEdition, ServerChange, Shelf, SyncClient, Tag, User,
+    Paper, ServerChange, Shelf, SyncClient, Tag, User,
 )
 from services.client_requirements import (
     INCOMPATIBLE, client_version, requirements, verdict,
@@ -70,13 +71,29 @@ def _require_supported_client(request: Request, db: Session) -> None:
 
 class RowChange(BaseModel):
     table: Literal[
-        "boards", "board_groups", "board_items", "papers", "paper_editions",
+        "boards", "board_groups", "board_items", "papers",
         "annotations", "shelves", "tags", "copies", "copy_tags",
     ]
-    uuid: UUID
+    # The row's own name. A UUID for everything a client makes up, and for
+    # a paper the digest of its PDF — which is not made up at all: both ends
+    # read it off the same bytes and arrive at the same answer, which is
+    # what lets an offline import name its paper without asking first.
+    uuid: str
     base_revision: int | None = Field(default=None, ge=0)
     operation: Literal["upsert", "patch", "delete"]
     values: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _id_suits_the_table(self):
+        if self.table == "papers":
+            if not re.fullmatch(r"[0-9a-f]{64}", self.uuid):
+                raise ValueError("a paper is named by the sha256 of its PDF")
+        else:
+            try:
+                UUID(self.uuid)
+            except ValueError:
+                raise ValueError(f"{self.table} rows are named by UUID")
+        return self
 
 
 class PushRequest(BaseModel):
@@ -93,43 +110,68 @@ def _canonical_payload(payload: PushRequest) -> bytes:
     ).encode()
 
 
+def _key_of(record) -> str:
+    """The row's own name, asked of the row."""
+    return record.sha256 if isinstance(record, Paper) else record.uuid
+
+
+def _row_key(model):
+    """The column a table names its rows by: a paper's file, or a UUID."""
+    return model.sha256 if model is Paper else model.uuid
+
+
 def _find_owned(db: Session, model, row_uuid: str, user_uuid: str):
     for pending in db.new:
-        if isinstance(pending, model) and pending.uuid == row_uuid:
-            if isinstance(pending, (Paper, PaperEdition)):
+        if isinstance(pending, model) and _key_of(pending) == row_uuid:
+            if isinstance(pending, Paper):
                 return pending
             if isinstance(pending, (Annotation, Board, Copy, CopyTagLink, Shelf, Tag)):
                 return pending if pending.user_uuid == user_uuid else None
             return pending if pending.board.user_uuid == user_uuid else None
-    query = db.query(model).filter(model.uuid == row_uuid)
-    if model in {Paper, PaperEdition}:
+    query = db.query(model).filter(_row_key(model) == row_uuid)
+    if model is Paper:
         return query.first()
     if model in {Annotation, Board, Copy, CopyTagLink, Shelf, Tag}:
         return query.filter(model.user_uuid == user_uuid).first()
     return query.join(Board).filter(Board.user_uuid == user_uuid).first()
 
 
-def _owned_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
+def _receive_paper_file(digest: str) -> str:
+    """Put the uploaded bytes where papers are read from, and say what the
+    file is called. The blob has to have been sent already: a paper names
+    its file, so a paper Papol cannot open is not one it can store."""
+    source = BLOBS_DIR / digest
+    if not source.is_file():
+        raise HTTPException(status_code=409, detail="Paper blob has not been uploaded")
+    PDF_FILES_DIR.mkdir(exist_ok=True)
+    filename = f"{digest}.pdf"
+    destination = PDF_FILES_DIR / filename
+    if not destination.exists():
+        shutil.copyfile(source, destination)
+    return filename
+
+
+def _owned_paper(db: Session, paper_sha256: str, user_uuid: str) -> Paper:
     paper = db.query(Paper).join(Copy).filter(
-        Paper.uuid == paper_uuid, Copy.user_uuid == user_uuid,
+        Paper.sha256 == paper_sha256, Copy.user_uuid == user_uuid,
     ).first()
     if not paper:
         raise HTTPException(status_code=409, detail="Referenced paper is unavailable")
     return paper
 
 
-def _paper_by_uuid(db: Session, paper_uuid: str) -> Paper:
+def _paper_by_digest(db: Session, paper_sha256: str) -> Paper:
     for pending in db.new:
-        if isinstance(pending, Paper) and pending.uuid == paper_uuid:
+        if isinstance(pending, Paper) and pending.sha256 == paper_sha256:
             return pending
-    paper = db.get(Paper, paper_uuid) if isinstance(paper_uuid, str) else None
+    paper = db.get(Paper, paper_sha256) if isinstance(paper_sha256, str) else None
     if not paper or paper.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Referenced paper is unavailable")
     return paper
 
 
-def _visible_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
-    paper = _paper_by_uuid(db, paper_uuid)
+def _visible_paper(db: Session, paper_sha256: str, user_uuid: str) -> Paper:
+    paper = _paper_by_digest(db, paper_sha256)
     if paper in db.new or getattr(paper, "_sync_import_user", None) == user_uuid:
         return paper
     visible = any(
@@ -139,35 +181,6 @@ def _visible_paper(db: Session, paper_uuid: str, user_uuid: str) -> Paper:
     if not visible:
         raise HTTPException(status_code=409, detail="Referenced paper is unavailable")
     return paper
-
-
-def _owned_edition(db: Session, edition_uuid: str, user_uuid: str) -> PaperEdition:
-    for pending in db.new:
-        if (isinstance(pending, PaperEdition) and pending.uuid == edition_uuid
-                and pending.uploaded_by == user_uuid):
-            return pending
-    edition = db.query(PaperEdition).join(Paper).join(Copy).filter(
-        PaperEdition.uuid == edition_uuid, Copy.user_uuid == user_uuid,
-    ).first()
-    if edition is None:
-        edition = db.get(PaperEdition, edition_uuid) if isinstance(edition_uuid, str) else None
-        if edition is not None and getattr(edition, "_sync_import_user", None) == user_uuid:
-            return edition
-        edition = None
-    if not edition:
-        raise HTTPException(status_code=409, detail="Referenced edition is unavailable")
-    return edition
-
-
-def _edition_for_new_copy(db: Session, edition_uuid: str, paper: Paper) -> PaperEdition:
-    for pending in db.new:
-        if (isinstance(pending, PaperEdition) and pending.uuid == edition_uuid
-                and pending.paper is paper and pending.deleted_at is None):
-            return pending
-    edition = db.get(PaperEdition, edition_uuid) if isinstance(edition_uuid, str) else None
-    if edition is None or edition.deleted_at is not None or edition.paper_uuid != paper.uuid:
-        raise HTTPException(status_code=409, detail="Referenced edition is unavailable")
-    return edition
 
 
 def _owned_shelf(db: Session, shelf_uuid: str | None, user_uuid: str) -> Shelf | None:
@@ -230,23 +243,12 @@ def _owned_group(db: Session, group_uuid: str | None, board: Board) -> BoardGrou
 def _new_record(db: Session, change: RowChange, user: User, values: dict):
     row_uuid = str(change.uuid)
     if change.table == "papers":
-        return Paper(uuid=row_uuid, title="")
-    if change.table == "paper_editions":
-        paper_uuid = values.get("paper_uuid")
-        sha256 = values.get("sha256")
-        if not isinstance(paper_uuid, str) or not isinstance(sha256, str):
-            raise HTTPException(status_code=422, detail="Paper edition needs paper_uuid and sha256")
-        source = BLOBS_DIR / sha256
-        if not source.is_file():
-            raise HTTPException(status_code=409, detail="Edition blob has not been uploaded")
-        PDF_FILES_DIR.mkdir(exist_ok=True)
-        filename = f"{sha256}.pdf"
-        destination = PDF_FILES_DIR / filename
-        if not destination.exists():
-            shutil.copyfile(source, destination)
-        return PaperEdition(
-            uuid=row_uuid, paper=_paper_by_uuid(db, paper_uuid),
-            file_path=filename, sha256=sha256, uploaded_by=user.uuid,
+        # The row's name is the digest, so the bytes it names have to be
+        # here before the row is.
+        _receive_paper_file(row_uuid)
+        return Paper(
+            sha256=row_uuid, title="", file_path=f"{row_uuid}.pdf",
+            uploaded_by=user.uuid,
         )
     if change.table == "boards":
         shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
@@ -254,28 +256,17 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
             uuid=row_uuid, user_uuid=user.uuid, shelf=shelf, name="", description=None,
         )
     if change.table == "annotations":
-        paper_uuid = values.get("paper_uuid")
-        if not isinstance(paper_uuid, str):
+        paper_sha256 = values.get("paper_sha256")
+        if not isinstance(paper_sha256, str):
             raise HTTPException(
-                status_code=422, detail="annotations.paper_uuid is required",
+                status_code=422, detail="annotations.paper_sha256 is required",
             )
-        paper = _owned_paper(db, paper_uuid, user.uuid)
-        edition = None
-        if values.get("edition_uuid") is not None:
-            edition = _owned_edition(db, values["edition_uuid"], user.uuid)
-            if edition.paper is not paper:
-                raise HTTPException(
-                    status_code=409, detail="That PDF belongs to another paper",
-                )
+        paper = _owned_paper(db, paper_sha256, user.uuid)
         kind = values.get("kind")
         if kind not in KINDS:
             raise HTTPException(status_code=422, detail="Unknown annotation kind")
-        if kind != NOTE and edition is None:
-            raise HTTPException(
-                status_code=422, detail=f"A {kind} belongs on a PDF",
-            )
         return Annotation(
-            uuid=row_uuid, kind=kind, paper=paper, edition=edition,
+            uuid=row_uuid, kind=kind, paper=paper,
             user_uuid=user.uuid, content="", body="{}",
         )
     if change.table == "shelves":
@@ -286,14 +277,13 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
     if change.table == "tags":
         return Tag(uuid=row_uuid, user_uuid=user.uuid, name="")
     if change.table == "copies":
-        paper_uuid = values.get("paper_uuid")
-        if not isinstance(paper_uuid, str):
-            raise HTTPException(status_code=422, detail="copies.paper_uuid is required")
-        paper = _visible_paper(db, paper_uuid, user.uuid)
-        edition = _edition_for_new_copy(db, values["edition_uuid"], paper) if values.get("edition_uuid") else None
+        paper_sha256 = values.get("paper_sha256")
+        if not isinstance(paper_sha256, str):
+            raise HTTPException(status_code=422, detail="copies.paper_sha256 is required")
+        paper = _visible_paper(db, paper_sha256, user.uuid)
         shelf = _owned_shelf(db, values.get("shelf_uuid"), user.uuid)
         return Copy(
-            uuid=row_uuid, paper=paper, edition=edition, shelf=shelf,
+            uuid=row_uuid, paper=paper, shelf=shelf,
             user_uuid=user.uuid, is_author=False,
         )
     if change.table == "copy_tags":
@@ -319,18 +309,16 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
 
 def _assign_values(db: Session, record, values: dict, user: User):
     if isinstance(record, Paper):
+        # The PDF is the paper's identity: metadata may be corrected, but
+        # different bytes are a different paper, not an edit to this one.
+        if "sha256" in values and values["sha256"] != record.sha256:
+            raise HTTPException(status_code=422, detail="Paper content cannot change")
         for key, value in values.items():
-            if key != "deleted_at":
+            if key not in {"deleted_at", "sha256", "file_path"}:
                 setattr(record, key, value)
         record.title = (record.title or "").strip()
         if not record.title or len(record.title) > limit("text", "source_label"):
             raise HTTPException(status_code=422, detail="Paper title must be 1–500 characters")
-        return
-    if isinstance(record, PaperEdition):
-        if "paper_uuid" in values:
-            record.paper = _paper_by_uuid(db, values["paper_uuid"])
-        if "sha256" in values and values["sha256"] != record.sha256:
-            raise HTTPException(status_code=422, detail="Edition content cannot change")
         return
     if isinstance(record, Board):
         if "shelf_uuid" in values:
@@ -344,17 +332,10 @@ def _assign_values(db: Session, record, values: dict, user: User):
         return
 
     if isinstance(record, Annotation):
-        if "paper_uuid" in values:
-            record.paper = _owned_paper(db, values["paper_uuid"], user.uuid)
-        if "edition_uuid" in values:
-            edition_uuid = values["edition_uuid"]
-            record.edition = _owned_edition(db, edition_uuid, user.uuid) if edition_uuid else None
-        if record.edition is not None and record.edition.paper is not record.paper:
-            raise HTTPException(
-                status_code=409, detail="That PDF belongs to another paper",
-            )
+        if "paper_sha256" in values:
+            record.paper = _owned_paper(db, values["paper_sha256"], user.uuid)
         for key, value in values.items():
-            if key not in {"paper_uuid", "edition_uuid", "deleted_at"}:
+            if key not in {"paper_sha256", "deleted_at"}:
                 setattr(record, key, value)
         # The client decides which kind of annotation it made; every kind is then
         # held to its own shape, so a replica cannot write a stroke with no
@@ -364,7 +345,6 @@ def _assign_values(db: Session, record, values: dict, user: User):
         try:
             AnnotationCreate(
                 kind=record.kind,
-                edition_uuid=record.edition_uuid,
                 page=record.page,
                 group_uuid=record.group_uuid,
                 content=record.content or "",
@@ -398,8 +378,8 @@ def _assign_values(db: Session, record, values: dict, user: User):
             raise HTTPException(status_code=422, detail="Tag name must be 1–60 characters")
         return
     if isinstance(record, Copy):
-        if "paper_uuid" in values:
-            record.paper = _visible_paper(db, values["paper_uuid"], user.uuid)
+        if "paper_sha256" in values:
+            record.paper = _visible_paper(db, values["paper_sha256"], user.uuid)
         if "shelf_uuid" in values:
             shelf = _owned_shelf(db, values["shelf_uuid"], user.uuid)
             # Visibility belongs to the shelf, so the move is the whole of
@@ -412,19 +392,9 @@ def _assign_values(db: Session, record, values: dict, user: User):
                         detail="Leave the seminar before moving this paper to a private shelf",
                     )
             record.shelf = shelf
-        if "edition_uuid" in values:
-            edition_uuid = values["edition_uuid"]
-            record.edition = _edition_for_new_copy(db, edition_uuid, record.paper) if edition_uuid else None
-        if "ignored_edition_uuid" in values:
-            ignored_uuid = values["ignored_edition_uuid"]
-            record.ignored_edition = _owned_edition(db, ignored_uuid, user.uuid) if ignored_uuid else None
         for key, value in values.items():
-            if key not in {
-                "paper_uuid", "shelf_uuid", "edition_uuid", "ignored_edition_uuid", "deleted_at",
-            }:
+            if key not in {"paper_sha256", "shelf_uuid", "deleted_at"}:
                 setattr(record, key, value)
-        if record.edition is not None and record.edition.paper is not record.paper:
-            raise HTTPException(status_code=409, detail="Copy edition belongs to another paper")
         # The same limits PaperUpdate enforces for the online edit form.
         for key in ("rating_expertise", "rating_reading", "rating_liking"):
             rating = values.get(key)
@@ -560,47 +530,16 @@ def _apply_change(db: Session, change: RowChange, user: User):
 
 def _validate_import_batch(changes: list[RowChange]):
     papers = {str(change.uuid) for change in changes if change.table == "papers"}
-    editions = {str(change.uuid) for change in changes if change.table == "paper_editions"}
-    if not papers and not editions:
+    if not papers:
         return
     if any(change.operation != "upsert" or change.base_revision not in {None, 0}
-           for change in changes if change.table in {"papers", "paper_editions"}):
+           for change in changes if change.table == "papers"):
         raise HTTPException(status_code=422, detail="Paper imports are create-only")
-    for paper_uuid in papers:
-        edition = next((change for change in changes
-                        if change.table == "paper_editions"
-                        and change.values.get("paper_uuid") == paper_uuid), None)
-        if edition is None or not any(
-            change.table == "copies"
-            and change.values.get("paper_uuid") == paper_uuid
-            and change.values.get("edition_uuid") == str(edition.uuid)
-            for change in changes
-        ):
-            raise HTTPException(status_code=422, detail="Paper import needs an owned edition and copy")
-    for edition_uuid in editions:
-        if not any(change.table == "copies" and change.values.get("edition_uuid") == edition_uuid
+    for paper_sha256 in papers:
+        if not any(change.table == "copies"
+                   and change.values.get("paper_sha256") == paper_sha256
                    for change in changes):
-            raise HTTPException(status_code=422, detail="Edition import needs an owned copy")
-
-
-def _canonical_import_paper(
-    db: Session, change: RowChange, sha256: str | None = None,
-) -> Paper | None:
-    if sha256:
-        edition = db.query(PaperEdition).filter(
-            PaperEdition.sha256 == sha256,
-            PaperEdition.deleted_at.is_(None),
-        ).first()
-        if edition is not None:
-            return edition.paper
-    doi = change.values.get("doi")
-    title = change.values.get("title")
-    query = db.query(Paper).filter(Paper.deleted_at.is_(None))
-    if isinstance(doi, str) and doi.strip():
-        return query.filter(func.lower(Paper.doi) == doi.strip().lower()).first()
-    if isinstance(title, str) and title.strip():
-        return query.filter(func.lower(Paper.title) == title.strip().lower()).first()
-    return None
+            raise HTTPException(status_code=422, detail="Paper import needs an owned copy")
 
 
 @router.post("/push")
@@ -628,11 +567,6 @@ def push(
     touched = []
     aliases: dict[str, str] = {}
     _validate_import_batch(payload.changes)
-    import_digests = {
-        change.values.get("paper_uuid"): change.values.get("sha256")
-        for change in payload.changes
-        if change.table == "paper_editions"
-    }
     with db.no_autoflush:
         for original in payload.changes:
             change = original.model_copy(deep=True)
@@ -642,33 +576,19 @@ def push(
             }
             requested_uuid = str(change.uuid)
             if change.table == "papers":
-                canonical = _canonical_import_paper(
-                    db, change, import_digests.get(requested_uuid),
-                )
-                if canonical is not None and canonical.uuid != requested_uuid:
-                    aliases[requested_uuid] = canonical.uuid
-                    canonical._sync_import_user = user.uuid
-                    touched.append(canonical)
-                    continue
-            if change.table == "paper_editions":
-                paper = _paper_by_uuid(db, change.values.get("paper_uuid"))
-                digest = change.values.get("sha256")
-                canonical = next((edition for edition in paper.editions
-                                  if edition.sha256 == digest and edition.deleted_at is None), None)
-                if canonical is not None and canonical.uuid != requested_uuid:
-                    aliases[requested_uuid] = canonical.uuid
-                    canonical._sync_import_user = user.uuid
-                    source = BLOBS_DIR / digest
-                    destination = PDF_FILES_DIR / canonical.file_path
-                    PDF_FILES_DIR.mkdir(exist_ok=True)
-                    if source.is_file() and not destination.exists():
-                        shutil.copyfile(source, destination)
-                    touched.append(canonical)
+                # No alias: the replica named this paper by its digest, and
+                # so would we. When Papol already holds the file, the import
+                # is simply the user saying they have it too.
+                held = db.get(Paper, requested_uuid)
+                if held is not None:
+                    held._sync_import_user = user.uuid
+                    _receive_paper_file(requested_uuid)
+                    touched.append(held)
                     continue
             if change.table == "copies" and change.base_revision in {None, 0}:
-                paper = _visible_paper(db, change.values.get("paper_uuid"), user.uuid)
+                paper = _visible_paper(db, change.values.get("paper_sha256"), user.uuid)
                 owned = db.query(Copy).filter(
-                    Copy.user_uuid == user.uuid, Copy.paper_uuid == paper.uuid,
+                    Copy.user_uuid == user.uuid, Copy.paper_sha256 == paper.sha256,
                 )
                 canonical = owned.filter(Copy.deleted_at.is_(None)).first() or owned.first()
                 if canonical is not None and canonical.uuid != requested_uuid:
@@ -697,7 +617,7 @@ def push(
             if conflict:
                 conflicts.append(conflict)
     for record in touched:
-        if isinstance(record, (Paper, PaperEdition)):
+        if isinstance(record, Paper):
             record.revision = (record.revision or 0) + 1
             record.updated_at = datetime.utcnow()
     prepare_sync_changes(db)
@@ -737,13 +657,22 @@ def push(
 
 
 @router.get("/snapshot")
-def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def snapshot(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Current read dependencies and private annotations for this account.
 
     This bounded snapshot is refreshed before cursor replication. It avoids
     pretending globally shared paper metadata belongs in one user's change
     log while still giving the offline viewer complete foreign-key parents.
+
+    Gated like the push and the pull, and for a plainer reason than either:
+    the rows name a paper by the digest of its file, and a build that reads
+    them expecting a UUID would not fail — it would store the wrong thing.
     """
+    _require_supported_client(request, db)
     copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
     shelves = db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all()
     tags = db.query(Tag).filter(Tag.user_uuid == user.uuid).all()
@@ -757,15 +686,10 @@ def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_d
         db.query(BoardItem).filter(BoardItem.board_uuid.in_(board_uuids)).all()
         if board_uuids else []
     )
-    paper_uuids = {copy.paper_uuid for copy in copies}
-    papers = db.query(Paper).filter(Paper.uuid.in_(paper_uuids)).all() if paper_uuids else []
-    editions = (
-        db.query(PaperEdition).filter(PaperEdition.paper_uuid.in_(paper_uuids)).all()
-        if paper_uuids else []
-    )
+    paper_sha256s = {copy.paper_sha256 for copy in copies}
+    papers = db.query(Paper).filter(Paper.sha256.in_(paper_sha256s)).all() if paper_sha256s else []
     records = [
         *papers,
-        *editions,
         *shelves,
         *tags,
         *boards,
@@ -826,13 +750,13 @@ def get_blob(
         path = BOARD_FILES_DIR / item.file_path
         media_type = item.mime_type or "application/octet-stream"
     else:
-        edition = db.query(PaperEdition).join(Paper).join(Copy).filter(
-            PaperEdition.sha256 == sha256, Copy.user_uuid == user.uuid,
+        paper = db.query(Paper).join(Copy).filter(
+            Paper.sha256 == sha256, Copy.user_uuid == user.uuid,
             Copy.deleted_at.is_(None),
         ).first()
-        if not edition:
+        if not paper or not paper.file_path:
             raise HTTPException(status_code=404, detail="Blob not found")
-        path = PDF_FILES_DIR / edition.file_path
+        path = PDF_FILES_DIR / paper.file_path
         media_type = "application/pdf"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Blob not found")

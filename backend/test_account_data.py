@@ -18,7 +18,7 @@ from sqlalchemy.pool import StaticPool
 
 import account
 from database import Base
-from models import Annotation, Copy, Paper, PaperEdition, Shelf, User
+from models import Annotation, Copy, Paper, Shelf, User
 
 PDF_HASH = "c" * 64
 
@@ -41,33 +41,32 @@ class AccountDataTests(unittest.TestCase):
             )
             db.add_all([user, other])
             db.commit()
-            paper = Paper(title="On leaving", doi="10.1234/leave")
+            paper = Paper(
+                title="On leaving", doi="10.1234/leave",
+                file_path=f"{PDF_HASH}.pdf", sha256=PDF_HASH,
+            )
             db.add(paper)
             db.commit()
-            edition = PaperEdition(
-                paper_uuid=paper.uuid, file_path=f"{PDF_HASH}.pdf", sha256=PDF_HASH,
-            )
             shelf = Shelf(user_uuid=user.uuid, name="Reading", color="#b3923d")
-            db.add_all([edition, shelf])
+            db.add(shelf)
             db.commit()
             db.add_all([
                 Copy(
-                    paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
-                    edition_uuid=edition.uuid, edition_sha256=PDF_HASH,
+                    paper_sha256=paper.sha256, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
                 ),
                 Annotation(
-                    kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
-                    edition_uuid=edition.uuid, page=4, content="Placed here",
+                    kind="note", paper_sha256=paper.sha256, user_uuid=user.uuid,
+                    page=4, content="Placed here",
                     name="Lemma 2",
                     body=json.dumps({"anchor": {"type": "point", "x": 0.2, "y": 0.8}}),
                 ),
                 Annotation(
-                    kind="note", paper_uuid=paper.uuid, user_uuid=user.uuid,
+                    kind="note", paper_sha256=paper.sha256, user_uuid=user.uuid,
                     content="About the paper", body="{}",
                 ),
                 Annotation(
-                    kind="ink", paper_uuid=paper.uuid, user_uuid=user.uuid,
-                    edition_uuid=edition.uuid, page=4,
+                    kind="ink", paper_sha256=paper.sha256, user_uuid=user.uuid,
+                    page=4,
                     body=json.dumps({
                         "points": [{"x": 0.1, "y": 0.2}, {"x": 0.4, "y": 0.2}],
                         "color": "#d92b1f", "width": 0.006,
@@ -75,8 +74,8 @@ class AccountDataTests(unittest.TestCase):
                     }),
                 ),
                 Annotation(
-                    kind="clip", paper_uuid=paper.uuid, user_uuid=user.uuid,
-                    edition_uuid=edition.uuid, page=5,
+                    kind="clip", paper_sha256=paper.sha256, user_uuid=user.uuid,
+                    page=5,
                     body=json.dumps({
                         "source": {"x": 0.1, "y": 0.1, "w": 0.3, "h": 0.2},
                         "frame": {"x": 0.5, "y": 0.5, "w": 0.3, "h": 0.2},
@@ -85,8 +84,8 @@ class AccountDataTests(unittest.TestCase):
                 ),
                 # Another user's annotation on the same PDF, which must survive.
                 Annotation(
-                    kind="ink", paper_uuid=paper.uuid, user_uuid=other.uuid,
-                    edition_uuid=edition.uuid, page=4,
+                    kind="ink", paper_sha256=paper.sha256, user_uuid=other.uuid,
+                    page=4,
                     body=json.dumps({
                         "points": [{"x": 0.9, "y": 0.9}], "color": "#b3923d",
                         "width": 0.004, "opacity": 1.0, "shape": "flat",
@@ -187,23 +186,20 @@ class AnnotationChangeTests(unittest.TestCase):
             user = User(email="a@b.c", display_name="Ada", password_hash="unused")
             db.add(user)
             db.commit()
-            paper = Paper(title="On changing an annotation")
+            paper = Paper(
+                title="On changing an annotation",
+                file_path=f"{PDF_HASH}.pdf", sha256=PDF_HASH,
+            )
             db.add(paper)
             db.commit()
-            edition = PaperEdition(
-                paper_uuid=paper.uuid, file_path=f"{PDF_HASH}.pdf", sha256=PDF_HASH,
-            )
             shelf = Shelf(user_uuid=user.uuid, name="Reading", color="#b3923d")
-            db.add_all([edition, shelf])
+            db.add(shelf)
             db.commit()
             db.add(Copy(
-                paper_uuid=paper.uuid, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
-                edition_uuid=edition.uuid, edition_sha256=PDF_HASH,
+                paper_sha256=paper.sha256, user_uuid=user.uuid, shelf_uuid=shelf.uuid,
             ))
             db.commit()
-            self.user_uuid, self.paper_uuid, self.edition_uuid = (
-                user.uuid, paper.uuid, edition.uuid,
-            )
+            self.user_uuid, self.paper_sha256 = user.uuid, paper.sha256
 
         def test_db():
             with self.Session() as db:
@@ -225,8 +221,8 @@ class AnnotationChangeTests(unittest.TestCase):
         self.engine.dispose()
 
     def stroke(self):
-        made = self.client.post(f"/api/papers/{self.paper_uuid}/annotations", json={
-            "kind": "ink", "edition_uuid": self.edition_uuid, "page": 1,
+        made = self.client.post(f"/api/papers/{self.paper_sha256}/annotations", json={
+            "kind": "ink", "page": 1,
             "body": {
                 "points": [{"x": 0.1, "y": 0.2}], "color": "#112233",
                 "width": 0.005, "opacity": 0.9, "shape": "round",
@@ -258,8 +254,8 @@ class AnnotationChangeTests(unittest.TestCase):
         # Pydantic puts the raised exception itself in a validation error's
         # context. Handing that to a JSON response turns a 422 into a 500
         # while it is being written out, so the context is left behind.
-        refused = self.client.post(f"/api/papers/{self.paper_uuid}/annotations", json={
-            "kind": "ink", "edition_uuid": self.edition_uuid, "page": 1,
+        refused = self.client.post(f"/api/papers/{self.paper_sha256}/annotations", json={
+            "kind": "ink", "page": 1,
             "body": {"anchor": {"type": "point", "x": 0.1, "y": 0.1}},
         })
         self.assertEqual(refused.status_code, 422, refused.text)

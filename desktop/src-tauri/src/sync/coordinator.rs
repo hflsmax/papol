@@ -449,7 +449,7 @@ impl Coordinator {
 
         // When uploads are enabled, push first so aliases can collapse a
         // temporary offline import before a snapshot introduces the same
-        // paper or edition UUID. Pull-only reconciliation leaves the outbox
+        // paper UUID. Pull-only reconciliation leaves the outbox
         // untouched; snapshot application already preserves pending rows.
         meter.begin(SyncPhase::Snapshot, Some(1));
         let snapshot_url = backend

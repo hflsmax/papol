@@ -3,60 +3,118 @@
   "tables": {
     "boards": {
       "owner": "user_uuid",
-      "client_writable": ["name", "description", "shelf_uuid", "deleted_at"]
+      "client_writable": [
+        "name",
+        "description",
+        "shelf_uuid",
+        "deleted_at"
+      ]
     },
     "board_groups": {
       "owner": "board.user_uuid",
-      "client_writable": ["board_uuid", "kind", "title", "header", "auto_arrange", "deleted_at"]
+      "client_writable": [
+        "board_uuid",
+        "kind",
+        "title",
+        "header",
+        "auto_arrange",
+        "deleted_at"
+      ]
     },
     "board_items": {
       "owner": "board.user_uuid",
       "client_writable": [
-        "board_uuid", "group_uuid", "kind", "content", "excerpt_text",
-        "sha256", "original_filename", "mime_type", "source_url",
-        "source_label", "staged", "text_align", "position", "x", "y",
-        "width", "deleted_at"
+        "board_uuid",
+        "group_uuid",
+        "kind",
+        "content",
+        "excerpt_text",
+        "sha256",
+        "original_filename",
+        "mime_type",
+        "source_url",
+        "source_label",
+        "staged",
+        "text_align",
+        "position",
+        "x",
+        "y",
+        "width",
+        "deleted_at"
       ],
-      "blob_columns": ["sha256"]
+      "blob_columns": [
+        "sha256"
+      ]
     },
     "papers": {
       "create_only": true,
-      "client_writable": ["doi", "title", "authors", "journal", "year"]
-    },
-    "paper_editions": {
-      "create_only": true,
-      "client_writable": ["paper_uuid", "file_path", "sha256"],
-      "blob_columns": ["sha256"],
+      "client_writable": [
+        "doi",
+        "title",
+        "authors",
+        "journal",
+        "year",
+        "file_path",
+        "sha256"
+      ],
+      "blob_columns": [
+        "sha256"
+      ],
       "server_columns": [
-        "uploaded_by", "references_status", "references_error", "references_at"
+        "uploaded_by",
+        "references_status",
+        "references_error",
+        "references_at"
       ]
     },
     "annotations": {
       "owner": "user_uuid",
       "client_writable": [
-        "kind", "paper_uuid", "edition_uuid", "page", "group_uuid",
-        "content", "name", "body", "deleted_at"
+        "kind",
+        "paper_sha256",
+        "page",
+        "group_uuid",
+        "content",
+        "name",
+        "body",
+        "deleted_at"
       ]
     },
     "shelves": {
       "owner": "user_uuid",
-      "client_writable": ["name", "color", "position", "deleted_at"]
+      "client_writable": [
+        "name",
+        "color",
+        "position",
+        "deleted_at"
+      ]
     },
     "tags": {
       "owner": "user_uuid",
-      "client_writable": ["name", "deleted_at"]
+      "client_writable": [
+        "name",
+        "deleted_at"
+      ]
     },
     "copies": {
       "owner": "user_uuid",
       "client_writable": [
-        "paper_uuid", "shelf_uuid", "edition_uuid", "edition_sha256",
-        "ignored_edition_uuid", "summary", "rating_expertise",
-        "rating_reading", "rating_liking", "deleted_at"
+        "paper_sha256",
+        "shelf_uuid",
+        "summary",
+        "rating_expertise",
+        "rating_reading",
+        "rating_liking",
+        "deleted_at"
       ]
     },
     "copy_tags": {
       "owner": "user_uuid",
-      "client_writable": ["copy_uuid", "tag_uuid", "deleted_at"]
+      "client_writable": [
+        "copy_uuid",
+        "tag_uuid",
+        "deleted_at"
+      ]
     }
   }
 }

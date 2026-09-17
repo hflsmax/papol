@@ -17,7 +17,8 @@ from auth import get_current_user
 from database import Base, get_db
 from models import Setting, SyncClient, User
 from services.client_requirements import (
-    DEPRECATED, INCOMPATIBLE, SUPPORTED, client_version, parse_version, verdict,
+    DEPRECATED, INCOMPATIBLE, PROTOCOL_MINIMUM_VERSION, SUPPORTED,
+    client_version, minimum_version, parse_version, verdict,
 )
 
 AGENT = "Papol macOS/{}".format
@@ -72,8 +73,26 @@ class VerdictTests(unittest.TestCase):
         self.floor(minimum="0.1.0", recommended="0.3.0")
         self.assertEqual(self.verdict_for(AGENT("0.2.0")), DEPRECATED)
 
-    def test_no_floor_refuses_nobody(self):
-        self.assertEqual(self.verdict_for(AGENT("0.0.1")), SUPPORTED)
+    def test_the_wire_has_a_floor_of_its_own(self):
+        """Nobody has to remember to set one. A build that cannot be talked
+        to is refused because of what it is, not because of a setting."""
+        self.assertEqual(self.verdict_for(AGENT("0.0.1")), INCOMPATIBLE)
+        with self.Session() as db:
+            self.assertEqual(minimum_version(db), PROTOCOL_MINIMUM_VERSION)
+
+    def test_the_floor_cannot_be_set_lower_than_the_wire(self):
+        """A setting is a way to ask for something newer. It is not a way to
+        let in a build this server has nothing to say to."""
+        self.floor(minimum="0.0.1")
+        with self.Session() as db:
+            self.assertEqual(minimum_version(db), PROTOCOL_MINIMUM_VERSION)
+        self.assertEqual(self.verdict_for(AGENT("0.1.9")), INCOMPATIBLE)
+
+    def test_the_floor_can_be_set_higher(self):
+        self.floor(minimum="9.9.9")
+        with self.Session() as db:
+            self.assertEqual(minimum_version(db), "9.9.9")
+        self.assertEqual(self.verdict_for(AGENT(PROTOCOL_MINIMUM_VERSION)), INCOMPATIBLE)
 
     def test_a_caller_that_is_not_papol_is_never_gated(self):
         # The web app ships with this server and cannot be out of step with
@@ -139,6 +158,21 @@ class SyncGateTests(unittest.TestCase):
 
     def test_a_current_build_pulls_normally(self):
         allowed = self.pull(AGENT("0.2.0"))
+        self.assertEqual(allowed.status_code, 200, allowed.text)
+
+    def test_the_snapshot_is_refused_too(self):
+        """The plainest reason of the three: a snapshot names each paper by
+        the digest of its file, and an older build reading that expecting a
+        UUID would not fail — it would store the wrong thing."""
+        refused = self.client.get(
+            "/api/sync/snapshot", headers={"User-Agent": AGENT("0.1.0")},
+        )
+        self.assertEqual(refused.status_code, 426, refused.text)
+        self.assertEqual(refused.json()["detail"]["error"], "client_incompatible")
+
+        allowed = self.client.get(
+            "/api/sync/snapshot", headers={"User-Agent": AGENT("0.2.0")},
+        )
         self.assertEqual(allowed.status_code, 200, allowed.text)
 
     def test_pushing_from_an_old_build_is_refused_too(self):

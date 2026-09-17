@@ -7,18 +7,15 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() {
     let arguments: Vec<String> = std::env::args().collect();
-    if arguments.len() != 7 {
-        eprintln!(
-            "usage: native_sync_harness DATABASE BACKEND TOKEN ACCOUNT_ID PAPER_ID EDITION_ID"
-        );
+    if arguments.len() != 6 {
+        eprintln!("usage: native_sync_harness DATABASE BACKEND TOKEN ACCOUNT_ID PAPER_SHA256");
         std::process::exit(2);
     }
     let database = &arguments[1];
     let backend = &arguments[2];
     let token = &arguments[3];
     let account_uuid = arguments[4].as_str();
-    let paper_uuid = &arguments[5];
-    let edition_uuid = &arguments[6];
+    let paper_sha256 = &arguments[5];
     let board_uuid = Uuid::new_v4().to_string();
     let item_uuid = Uuid::new_v4().to_string();
     let clip_uuid = Uuid::new_v4().to_string();
@@ -92,59 +89,62 @@ async fn main() {
     let note_uuid = Uuid::new_v4().to_string();
     let ink_uuid = Uuid::new_v4().to_string();
     let paper_clip_uuid = Uuid::new_v4().to_string();
-    let imported_paper_uuid = Uuid::new_v4().to_string();
-    let imported_edition_uuid = Uuid::new_v4().to_string();
     let imported_copy_uuid = Uuid::new_v4().to_string();
     seeded
         .mutate(
             account_uuid,
             vec![
                 DataChange {
-                    table: "comments".into(),
+                    // Notes, ink and clips are one table: the same mapping
+                    // with a different kind and a different body.
+                    table: "annotations".into(),
                     uuid: note_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(paper_uuid)),
-                        ("edition_uuid".into(), json!(edition_uuid)),
+                        ("kind".into(), json!("note")),
+                        ("paper_sha256".into(), json!(paper_sha256)),
                         ("content".into(), json!("Native offline note")),
                         ("page".into(), json!(1)),
-                        ("anchor_type".into(), json!("point")),
-                        ("anchor".into(), json!(r#"{"x":0.25,"y":0.5}"#)),
+                        (
+                            "body".into(),
+                            json!(r#"{"anchor":{"type":"point","x":0.25,"y":0.5}}"#),
+                        ),
                     ]),
                 },
                 DataChange {
-                    table: "ink_strokes".into(),
+                    table: "annotations".into(),
                     uuid: ink_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("edition_uuid".into(), json!(edition_uuid)),
+                        ("kind".into(), json!("ink")),
+                        ("paper_sha256".into(), json!(paper_sha256)),
                         ("page".into(), json!(1)),
                         (
-                            "points".into(),
-                            json!(r#"[{"x":0.1,"y":0.2},{"x":0.3,"y":0.4}]"#),
+                            "body".into(),
+                            json!(concat!(
+                                r##"{"points":[{"x":0.1,"y":0.2},{"x":0.3,"y":0.4}],"##,
+                                r##""color":"#b3923d","width":0.004,"##,
+                                r##""opacity":0.7,"shape":"flat"}"##,
+                            )),
                         ),
-                        ("color".into(), json!("#b3923d")),
-                        ("width".into(), json!(0.004)),
-                        ("opacity".into(), json!(0.7)),
-                        ("shape".into(), json!("flat")),
                     ]),
                 },
                 DataChange {
-                    table: "paper_clips".into(),
+                    table: "annotations".into(),
                     uuid: paper_clip_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("edition_uuid".into(), json!(edition_uuid)),
+                        ("kind".into(), json!("clip")),
+                        ("paper_sha256".into(), json!(paper_sha256)),
                         ("page".into(), json!(1)),
                         (
-                            "source".into(),
-                            json!(r#"{"x":0.1,"y":0.1,"w":0.2,"h":0.2}"#),
+                            "body".into(),
+                            json!(concat!(
+                                r#"{"source":{"x":0.1,"y":0.1,"w":0.2,"h":0.2},"#,
+                                r#""frame":{"x":0.2,"y":0.2,"w":0.3,"h":0.3},"#,
+                                r#""floating":false}"#,
+                            )),
                         ),
-                        (
-                            "frame".into(),
-                            json!(r#"{"x":0.2,"y":0.2,"w":0.3,"h":0.3}"#),
-                        ),
-                        ("floating".into(), json!(false)),
                     ]),
                 },
             ],
@@ -162,19 +162,12 @@ async fn main() {
             vec![
                 DataChange {
                     table: "papers".into(),
-                    uuid: imported_paper_uuid.clone(),
+                    // Named by the file, not by a name made up for it.
+                    uuid: pdf.sha256.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("title".into(), json!("Native imported PDF")),
                         ("doi".into(), Value::Null),
-                    ]),
-                },
-                DataChange {
-                    table: "paper_editions".into(),
-                    uuid: imported_edition_uuid.clone(),
-                    operation: "upsert".into(),
-                    values: Map::from_iter([
-                        ("paper_uuid".into(), json!(imported_paper_uuid)),
                         ("file_path".into(), json!(format!("{}.pdf", pdf.sha256))),
                         ("sha256".into(), json!(pdf.sha256)),
                     ]),
@@ -184,9 +177,7 @@ async fn main() {
                     uuid: imported_copy_uuid,
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(imported_paper_uuid)),
-                        ("edition_uuid".into(), json!(imported_edition_uuid)),
-                        ("edition_sha256".into(), json!(pdf.sha256)),
+                        ("paper_sha256".into(), json!(pdf.sha256)),
                         ("summary".into(), json!("Imported entirely offline")),
                     ]),
                 },
@@ -198,10 +189,14 @@ async fn main() {
     let reopened =
         LocalStore::open(Path::new(database)).expect("restart after offline annotations");
     let offline_notes = reopened
-        .query(account_uuid, "comments", json!({"parent_uuid": paper_uuid}))
+        .query(
+            account_uuid,
+            "annotations",
+            json!({"paper_sha256": paper_sha256, "kind": "note"}),
+        )
         .expect("offline notes survive restart");
     let offline_import = reopened
-        .query(account_uuid, "paper", json!({"uuid": imported_paper_uuid}))
+        .query(account_uuid, "paper", json!({"uuid": pdf.sha256}))
         .expect("offline PDF survives restart");
     let sync = Coordinator::new()
         .expect("create restart coordinator")
@@ -221,8 +216,7 @@ async fn main() {
             "note_uuid": note_uuid,
             "ink_uuid": ink_uuid,
             "paper_clip_uuid": paper_clip_uuid,
-            "imported_paper_uuid": imported_paper_uuid,
-            "imported_edition_uuid": imported_edition_uuid,
+            "imported_paper_sha256": pdf.sha256,
             "imported_pdf_sha256": pdf.sha256,
             "offline_import": offline_import,
             "before": before,

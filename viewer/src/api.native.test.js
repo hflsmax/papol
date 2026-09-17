@@ -23,8 +23,7 @@ global.window = {
       if (command === 'data_query' && arguments_.queryName === 'paper_by_pdf') {
         return {
           uuid: '11111111-1111-4111-8111-111111111111',
-          edition_uuid: '22222222-2222-4222-8222-222222222222',
-          edition_sha256: 'a'.repeat(64),
+          sha256: 'a'.repeat(64),
         };
       }
       if (command === 'data_query') return [];
@@ -47,11 +46,10 @@ const {
   pdfLoadInput, rememberPaperIdentity,
 } = await import('./api.js');
 const PAPER = '11111111-1111-4111-8111-111111111111';
-const EDITION = '22222222-2222-4222-8222-222222222222';
 
 rememberPaperIdentity({
   uuid: '11111111-1111-4111-8111-111111111111',
-  edition_uuid: '22222222-2222-4222-8222-222222222222',
+  sha256: 'a'.repeat(64),
 });
 
 test('every kind of annotation reaches the one native table', async () => {
@@ -62,14 +60,14 @@ test('every kind of annotation reaches the one native table', async () => {
   const call = calls.find(([command, args]) => command === 'data_mutate'
     && args.changes[0].table === 'annotations');
   assert.equal(call[1].changes[0].values.kind, 'note');
-  assert.equal(call[1].changes[0].values.paper_uuid, PAPER);
-  assert.equal(call[1].changes[0].values.edition_uuid, EDITION);
+  assert.equal(call[1].changes[0].values.paper_sha256, PAPER);
+  assert.equal(call[1].changes[0].values.page, 3);
   // Geometry travels as text and comes back parsed.
   assert.equal(typeof call[1].changes[0].values.body, 'string');
   assert.deepEqual(note.body.anchor, { type: 'point', x: 0.25, y: 0.5 });
 
   const stroke = await createAnnotation(PAPER, {
-    kind: 'ink', edition_uuid: EDITION, page: 1,
+    kind: 'ink', page: 1,
     body: {
       points: [{ x: 0.1, y: 0.2 }], color: '#b3923d',
       width: 0.004, opacity: 1, shape: 'flat',
@@ -78,7 +76,7 @@ test('every kind of annotation reaches the one native table', async () => {
   assert.deepEqual(stroke.body.points, [{ x: 0.1, y: 0.2 }]);
 
   const clip = await createAnnotation(PAPER, {
-    kind: 'clip', edition_uuid: EDITION, page: 1,
+    kind: 'clip', page: 1,
     body: {
       source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
       frame: { x: 0.2, y: 0.2, w: 0.3, h: 0.3 },
@@ -92,16 +90,13 @@ test('every kind of annotation reaches the one native table', async () => {
   assert.equal(deleteCall[1].changes[0].table, 'annotations');
 });
 
-test('a local edition UUID reads annotations without falling through to integer REST routes', async () => {
+test('a local paper UUID reads annotations without falling through to integer REST routes', async () => {
   calls.length = 0;
-  const localEditionUuid = '6e13e900-fece-4d91-8eaa-f8e0c48a75cc';
-  await listAnnotations(PAPER, { editionUuid: localEditionUuid, kind: 'ink' });
-  await listAnnotations(PAPER, { editionUuid: localEditionUuid, kind: 'clip' });
+  await listAnnotations(PAPER, { kind: 'ink' });
+  await listAnnotations(PAPER, { kind: 'clip' });
   const reads = calls.filter(([command, args]) => command === 'data_query'
     && args.queryName === 'annotations');
-  assert.deepEqual(reads.map(([, args]) => args.parameters.edition_uuid), [
-    localEditionUuid, localEditionUuid,
-  ]);
+  assert.deepEqual(reads.map(([, args]) => args.parameters.paper_sha256), [PAPER, PAPER]);
   assert.deepEqual(reads.map(([, args]) => args.parameters.kind), ['ink', 'clip']);
 });
 
@@ -119,7 +114,7 @@ test('paper identity is available before its notes are queried', async () => {
 test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', async () => {
   const nook = await pdfLoadInput({
     uuid: '11111111-1111-4111-8111-111111111111',
-    edition_sha256: 'a'.repeat(64),
+    sha256: 'a'.repeat(64),
   });
   assert.ok(nook.data instanceof Uint8Array);
   assert.deepEqual([...nook.data], [37, 80, 68, 70]);
@@ -127,7 +122,7 @@ test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', asy
 
   const opened = await pdfLoadInput({
     opened_file: true,
-    edition_sha256: 'b'.repeat(64),
+    sha256: 'b'.repeat(64),
   });
   assert.ok(opened.data instanceof Uint8Array);
   assert.deepEqual([...opened.data], [37, 80, 68, 70, 45, 49, 46, 52]);
