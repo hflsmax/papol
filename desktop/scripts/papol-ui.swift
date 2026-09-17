@@ -46,6 +46,7 @@
 // Requires Accessibility permission for whatever runs it: System Settings →
 // Privacy & Security → Accessibility.
 
+import AppKit
 import ApplicationServices
 import Foundation
 
@@ -202,23 +203,52 @@ func roles(_ pid: pid_t) -> Int32 {
     return 0
 }
 
-func find(_ pid: pid_t, named wanted: String) -> AXUIElement? {
+/// The element with that name, optionally of a named role.
+///
+/// A page repeats a word freely: this application publishes "Sign in" as
+/// the link that navigates there, twice as the heading above the form, and
+/// as the button that submits it. Taking the first match means taking the
+/// link, and pressing it reloads the form the caller meant to submit —
+/// which looks like a submit that silently did nothing. Pass a role when
+/// the name alone is ambiguous; `dump` shows which roles are in play.
+func find(_ pid: pid_t, named wanted: String, role wantedRole: String? = nil) -> AXUIElement? {
     guard let window = windows(of: pid).first else { return nil }
     var match: AXUIElement?
     walk(window) { element, _ in
         if match != nil { return false }
-        if name(of: element) == wanted, role(of: element) != "AXStaticText" {
-            match = element
-            return false
-        }
-        return true
+        let kind = role(of: element)
+        guard name(of: element) == wanted, kind != "AXStaticText" else { return true }
+        if let wantedRole, kind != wantedRole { return true }
+        match = element
+        return false
     }
     return match
 }
 
-func press(_ pid: pid_t, named wanted: String) -> Int32 {
+/// Every role a name is published under, so an ambiguous one can say so
+/// rather than quietly picking the first.
+func rolesNamed(_ pid: pid_t, _ wanted: String) -> [String] {
+    guard let window = windows(of: pid).first else { return [] }
+    var found: [String] = []
+    walk(window) { element, _ in
+        let kind = role(of: element)
+        if name(of: element) == wanted, kind != "AXStaticText" { found.append(kind) }
+        return true
+    }
+    return found
+}
+
+func press(_ pid: pid_t, named wanted: String, role wantedRole: String? = nil) -> Int32 {
     refuseInstalled(pid, "press things in")
-    guard let element = find(pid, named: wanted) else {
+    let published = rolesNamed(pid, wanted)
+    if wantedRole == nil, Set(published).count > 1 {
+        print("""
+        \(wanted) is published as \(published.joined(separator: ", ")) — say which \
+        one, as `press \(pid) "\(wanted)" \(published.last ?? "AXButton")`
+        """)
+        return 1
+    }
+    guard let element = find(pid, named: wanted, role: wantedRole) else {
         print("no element named \(wanted) — run `dump \(pid)` to see what is there")
         return 1
     }
@@ -269,7 +299,149 @@ func shot(_ pid: pid_t, to path: String) -> Int32 {
     return capture.terminationStatus
 }
 
+/// Type into a named field, as a keyboard does.
+///
+/// Setting a field's value through the accessibility API is the obvious
+/// thing and it does not work: the attribute is written, `AXUIElement`
+/// reports success, and React never hears about it, because nothing
+/// dispatched the input event its onChange is waiting for. The field ends
+/// up empty and the API says it did not. Real key events go through the
+/// webview's normal input path instead, so the page cannot tell them from
+/// a person typing. Posting them is what Accessibility permission is for.
+///
+/// The unicode string is set on each event rather than mapping characters
+/// to key codes, so this does not depend on the layout the user happens to
+/// have — an `@` arrives as `@` on a keyboard that has it somewhere else.
+func typeText(_ pid: pid_t, into wanted: String, text: String) -> Int32 {
+    refuseInstalled(pid, "type into")
+    guard let field = find(pid, named: wanted) else {
+        print("no element named \(wanted) — run `dump \(pid)` to see what is there")
+        return 1
+    }
+    // Keys go to whatever is frontmost and focused, not to the element we
+    // just found, so both have to be arranged before sending any. Posting
+    // straight to the process was tried instead and does not arrive: a
+    // webview takes key events through the ordinary responder chain, which
+    // means through being the active application.
+    AXUIElementSetAttributeValue(
+        AXUIElementCreateApplication(pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+    if let window = windows(of: pid).first {
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        // Raising a window makes it the main one, which is not the same as
+        // giving it the keyboard. A window that is main but not focused
+        // takes no key events at all, and the application still answers
+        // that it is frontmost — so this reads as a page ignoring what was
+        // typed rather than as a window that never had the caret.
+        AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+    }
+    NSRunningApplication(processIdentifier: pid)?.activate(options: [.activateAllWindows])
+    Thread.sleep(forTimeInterval: 0.6)
+    let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    guard front == pid else {
+        print("""
+        pid \(pid) would not come to the front (\(front.map(String.init) ?? "nothing") is \
+        there), and a keystroke goes to whichever application is — refusing \
+        rather than typing this into someone else's window
+        """)
+        return 1
+    }
+    // Ask for focus twice over, then check. Setting the attribute is what
+    // WebKit documents; pressing the field is what a pointer would do, and
+    // one of the two takes where the other does not. Clicking by screen
+    // coordinate was tried and is worse: the position is right, but a
+    // window with no rendered surface does not receive the click, and it
+    // lands on whatever the display has at that point instead — here, the
+    // navigation, which quietly took the page somewhere else.
+    AXUIElementSetAttributeValue(field, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+    AXUIElementPerformAction(field, kAXPressAction as CFString)
+    Thread.sleep(forTimeInterval: 0.35)
+    let focused: Bool = attribute(field, kAXFocusedAttribute as String) ?? false
+    guard focused else {
+        print("""
+        \(wanted) would not take focus, so anything typed would go to whatever \
+        holds the caret instead — refusing rather than typing into the dark
+        """)
+        return 1
+    }
+
+    guard let source = CGEventSource(stateID: .hidSystemState) else {
+        print("could not create an event source")
+        return 1
+    }
+    // Typing appends, so a field that already holds something ends up with
+    // both — and the result reads as a field that ignored the focus rather
+    // than one that kept its old contents. Select what is there first and
+    // let the first keystroke replace it. Clearing through the value
+    // attribute instead would be invisible to React, exactly as writing the
+    // text that way is.
+    if let selectAllDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+       let selectAllUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) {
+        selectAllDown.flags = .maskCommand
+        selectAllUp.flags = .maskCommand
+        selectAllDown.post(tap: .cghidEventTap)
+        selectAllUp.post(tap: .cghidEventTap)
+        Thread.sleep(forTimeInterval: 0.1)
+    }
+    for character in text {
+        var utf16 = Array(String(character).utf16)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+            print("could not create a key event")
+            return 1
+        }
+        down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        // A webview coalesces events posted faster than it renders, and
+        // drops characters when it does. This is slow enough to survive that.
+        Thread.sleep(forTimeInterval: 0.012)
+    }
+    Thread.sleep(forTimeInterval: 0.3)
+
+    // Say what the field holds now rather than that the keys were sent.
+    // What was typed and what arrived are different claims, and only the
+    // second one is worth anything.
+    let arrived: String = attribute(field, kAXValueAttribute as String) ?? ""
+    if arrived == text {
+        print("typed \(text.count) characters into \(wanted)")
+        return 0
+    }
+    // A password field publishes bullets rather than what it holds, so the
+    // text can never be read back. Its length still can, and that is the
+    // whole of what this is able to check — say so rather than imply the
+    // characters were compared.
+    if arrived.count == text.count, arrived.allSatisfy({ !$0.isLetter && !$0.isNumber }) {
+        print("typed \(text.count) characters into \(wanted) (masked; length matches)")
+        return 0
+    }
+    print("""
+    typed into \(wanted), but it now holds \(arrived.isEmpty ? "nothing" : "\"\(arrived)\"") \
+    rather than "\(text)" — the field may not have taken focus
+    """)
+    return 1
+}
+
 // MARK: - arguments
+
+/// Without Accessibility permission every attribute read below fails, and
+/// each command turns that into its own ordinary-looking answer: `windows`
+/// says "no windows", `dump` says the window may still be loading. Both
+/// read exactly like a running application that is simply empty. Say which
+/// it is, once, before any of them can mislead.
+func requireTrusted() {
+    guard !AXIsProcessTrusted() else { return }
+    print("""
+    this process does not have Accessibility permission, so the API below \
+    reports nothing at all — which is indistinguishable from an application \
+    with no windows. Grant it to whatever runs this (the terminal, or the \
+    editor hosting it) in System Settings → Privacy & Security → \
+    Accessibility. macOS decides this once per process, so restart that \
+    program afterwards; a running one keeps the answer it was given.
+    """)
+    exit(3)
+}
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 func requirePid(_ index: Int) -> pid_t {
@@ -278,6 +450,13 @@ func requirePid(_ index: Int) -> pid_t {
         exit(2)
     }
     return pid
+}
+
+switch arguments.first {
+case "windows", "dev", "dump", "roles", "press", "shot", "type":
+    requireTrusted()
+default:
+    break
 }
 
 switch arguments.first {
@@ -291,10 +470,14 @@ case "roles":
     exit(roles(requirePid(1)))
 case "press":
     guard arguments.count > 2 else { print("press needs a pid and a name"); exit(2) }
-    exit(press(requirePid(1), named: arguments[2]))
+    exit(press(requirePid(1), named: arguments[2],
+               role: arguments.count > 3 ? arguments[3] : nil))
 case "shot":
     guard arguments.count > 2 else { print("shot needs a pid and a file"); exit(2) }
     exit(shot(requirePid(1), to: arguments[2]))
+case "type":
+    guard arguments.count > 3 else { print("type needs a pid, a field name, and text"); exit(2) }
+    exit(typeText(requirePid(1), into: arguments[2], text: arguments[3]))
 default:
     print("""
     papol-ui — look at Papol macOS by the names of things on screen
@@ -303,7 +486,11 @@ default:
       dev                  the development build's pid, and only that
       dump <pid>           every named element in its first window
       roles <pid>          how many elements of each role the page published
-      press <pid> <name>   press the element with that name
+      press <pid> <name> [role]
+                           press the element with that name; a name published
+                           under several roles needs one of them naming
+      type <pid> <name> <text>
+                           focus that field and type into it, as a keyboard does
       shot <pid> <file>    raise the window and capture it
     """)
 }
