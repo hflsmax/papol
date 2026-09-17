@@ -146,9 +146,9 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - The web app is content-first at a 760px reading measure. At 560px, navigation
   becomes a full-width tab row, forms become one column, paired actions stack,
   and controls must remain usable without hover.
-- The PDF viewer changes from a two-column page/anchor layout to an overlay
-  rail at 860px, then compacts toolbar labels at 560px. Pages remain the only
-  document scroller at every width.
+- The PDF viewer is one column at every width — the pages, under the bar —
+  and compacts toolbar labels at 560px. Pages remain the only document
+  scroller at every width.
 - The board compacts its toolbar at 700px and scales canvas affordances against
   zoom. Screen-space targets must remain usable even while board content is
   transformed.
@@ -161,6 +161,193 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   two-column grid of bordered white cards. Each card contains only a 16:9
   video and one serif title. The grid collapses to one column on narrow
   screens; new lessons are added as catalog entries.
+
+- **Navigator** — the viewer's navigation, and the only kind it has: the
+  paper drawn across `.viewer-bar`, in the room the spacer used to hold —
+  to length, evened out enough that every section can be read. Nothing opens. It is 40px tall — all the room the desktop title
+  bar has to give — and centred in the bar, in three lanes at one scale: a
+  7px lane of subsection ticks over the strip, the 18px strip of sections,
+  and a 15px lane of anchors and notes under it (strip to lower lane is
+  six parts to five). What the paper says
+  about itself stands above the strip and what the reader has put on it
+  hangs below. A lane with nothing in it takes no room, except that the
+  upper one is kept whenever there are marks below: it is also what sets
+  the strip a little under centre, where a solid band over a few specks
+  looks centred.
+  section is a segment as wide as the section is long, so a glance says
+  Model Architecture is a quarter of the paper and Conclusion is a
+  paragraph — which a list of names can never say. Subsections are left out
+  on purpose: they outnumber sections three to one and, drawn as their
+  equals, turn the strip into a barcode of boxes too narrow to name.
+  They are not left out, though: a subsection is a small `--ink-faint`
+  caret (10px by 7px) in the lane over the strip, pointing down at the top
+  edge of its section, at its place. It is the anchors' triangle again,
+  smaller and turned over: the reader's marks point up at the strip from
+  below and the paper's own point down at it from above, so the two lanes
+  are one idea seen twice. (A plain stub standing over the strip was tried
+  first and read as a stray stroke; dots floated free of the strip, tabs
+  were heavier than the anchors they should be less than, and a hairline
+  carried on through the strip crossed the names.) It divides nothing, so
+  the two levels can never be taken for each other; it is a button (13px
+  wide, reaching 4px into the strip, because the mark and the thing you
+  press are not the same size) and a click makes the journey a press on
+  the strip makes, so the marker ends up standing under the caret.
+  Which level is "the sections" is read from the outline (`topLevel`), and
+  each heading keeps the depth the outline gave it: folding the depths
+  together once poured a paper's subsections in among its sections as
+  equals, which is exactly the barcode. **Sections are evened out by one number**
+  (`EVENNESS` in `Navigator.jsx`, 0.7). Drawn strictly to length, a paper
+  is mostly its longest section: one segment spends half the bar saying
+  one name, and the short sections after it share a thumb's width. The
+  width a long section has beyond its name says nothing, and it is exactly
+  what the short ones lack. So each length is raised to the power
+  (1 − evenness) before the bar is shared out (`evened`): 0 is the paper to
+  scale, 1 is every section alike, and at 0.7 a section ten times as long
+  is drawn twice as wide. Longer is always still wider — the order of
+  the lengths never changes, only how far apart they stand — so the shape
+  of the paper is still read at a glance, and so are its names. Under
+  that there is a 36px floor (`shareOut`), for what evening out cannot
+  reach: the one-line sections that end a paper, and the section of no
+  length at all — two headings side by side in two columns start at one
+  height, and the first is then nothing long. Where there are more
+  sections than floors to go round, they share the bar equally. **The two ends of
+  the paper are not evened out; they are given their width outright** —
+  56px to the front (the stretch before the first heading, and the abstract
+  where the outline names one, taken as a run from the very start) and 76px
+  to the bibliography, room for the word "References". Between them they
+  are a third of a typical paper by length, and neither is a place anybody
+  goes *into*: all either needs is its name and a door at the end of the
+  bar it stands at. The names are read off the outlines held and
+  hold nothing else (`isFrontMatter`, `isBibliography`): 29 of 42 papers
+  open on "Abstract" and no other front-matter heading occurs in any of
+  them, so "Abstract" is the whole list. The obvious other names — Summary
+  at Cell, Significance at PNAS, Highlights at Elsevier — wait until a
+  paper on the shelf is seen to use one. A name nobody here prints is a
+  guess, and a guess here narrows a section somebody may be reading. **A
+  journal's end-of-paper notices are not drawn at all** —
+  Acknowledg(e)ments, Author contributions, Competing interests, Data
+  availability (statement), Additional and Further information,
+  Publisher's note (`isEndMatter` in `sections.js`, whole titles only, so
+  "Funding models for open science" is still a section). Each is a
+  sentence or two of form, they come four or five in a row, and on a bar
+  where every section is given room to be read they took that room from
+  the sections a reader does go to; the section before them simply runs on
+  through. That list too is only what the outlines
+  here carry — 34 of 1071 entries, in 24 of 42 papers. The rest of the same
+  publishers' end matter (Funding, Conflict of interest, Ethics
+  declarations, Reporting summary) is left out on the same principle. **Subsections are evened inside their
+  section by the same number**, so a section of one long part and three
+  short ones does not draw the three as one crowd against its edge. The
+  section keeps the width it was given — this only sets the pace within it
+  — so the two levels never disturb each other. The scale therefore
+  changes pace from section to section and within one, and *everything* on the bar is
+  placed through the one scale that results (`barScale`, a piecewise map
+  over every cell the two levels cut the paper into): ticks, marks,
+  the marker and a press. Stretching a short section moves all of them
+  together, so a place on the bar is still one place in the paper, and the
+  marker on a section's edge still means its heading is at the middle of
+  the window. A name is dropped only below 20px, which a very narrow
+  window can still produce. Segments are *placed* on the scale, never flowed along it: flowed, each
+  one's padding and rule took room before the rest was shared out, and the
+  heads of the sections drifted off the scale everything else is on. The
+  left edge of a segment is where its section begins, exactly — bring the
+  marker to that edge and the heading is at the middle of the window. The
+  rest of the height is the lane under the strip, where every anchor is a
+  triangle pointing up at its place and every note is a dialog box with
+  its tip turned up from the middle to do the same. Its corners are as
+  round as a box can take: square, a box with a tip in the middle of its
+  lid reads as a briefcase at this size, and rounder still as an acorn.
+  The lane has no ground of its own — the marks stand on the bar's white.
+  That makes the pair top-heavy: the strip is a solid band and the marks
+  are specks, so a box centred by the ruler reads as sitting high, and the
+  Navigator is set 2px below centre, where it looks centred. With no
+  anchors or notes there is no lane, the box is only the strip, and it is
+  centred exactly. A mark under the middle of Results is *in*
+  Results and nothing has to say so; that shared scale is the whole idea,
+  and it is why the two lanes are stacked rather than merged. The marks
+  differ in silhouette, not only in colour (`--accent` for an anchor,
+  `--accent-strong` for a note), and each is a button that goes to its
+  place. **The Navigator is a scrubber.** A press anywhere on it — the
+  strip, or the lane between two marks — goes to *exactly* that place, not
+  to the head of the section it falls in, and the press can be held and
+  drawn along: the paper closes on the pointer a fraction of the way each
+  frame, so it glides rather than steps, and a place more than a window and
+  a half away is landed near at once because the distance in between is
+  only waiting. A mark keeps its own click and goes to its anchor. Grounds carry meaning and colour does not: `--paper`
+  for a section, `--paper-sunken` for the front of the paper (title,
+  authors, abstract — the one stretch with no heading of its own),
+  `--accent-soft` for the appendix, because back matter is a part of a
+  document rather than a state of it. **Sections alternate**: every other
+  segment is a shade darker (`--line` in the body, `--accent-line` in the
+  appendix, with the name stepped to `--ink-soft`), so where one section
+  ends and the next begins is read off the grounds and not off a hairline —
+  and each family keeps to itself, so the alternation never hides where the
+  back matter starts. Hover is `--line-strong`, darker than any ground a
+  segment can have. **No segment is lit for the section
+  being read.** A 2px `--ink` marker across the strip says where the reader
+  is, to the line: it stands at the middle of the window, on the strip's
+  scale, and is moved by the scroll itself, frame by frame. It stops short
+  of the lane, where the marks are doing their own pointing. The middle is
+  also where a press brings a place to, so the marker arrives under the
+  pointer — pressing a spot and being at it are one point on the bar.
+  Every segment is named, cut short with an ellipsis where it must be, and
+  the tooltip carries the whole of it. **The tooltip is the Navigator's
+  own, and instant.**
+  The browser's waits a second and will not move until the pointer rests
+  again, which suits a toolbar of large separate buttons; here a paper is
+  ruled off along a few hundred pixels, a section can be five of them
+  wide, and the hand moves a pixel at a time asking "and this?". So the
+  name of whatever is under the pointer — section, subsection, anchor —
+  is shown the moment it is there and follows it, as an `--ink` chip under
+  the bar, during a held press too. Each lane is one tab stop with arrows
+  to walk it: a bar must not cost twenty-five presses to get past. The keyboard has no
+  spot to point at, so Enter on a segment goes to the head of its section.
+
+- **Anchor card** — `.note-pop`: an anchor's name, its note and its delete,
+  on a `--card` ground with `--shadow-md`, hung off its pin on the page.
+  It replaced the rail. The rail did two jobs: it listed the anchors, which
+  the Navigator now does better — at their places, on the paper's own
+  scale — and it edited them, a window's width from what they were about.
+  Editing belongs where the anchor is, so the card opens on the page and
+  the text it concerns stays under the reader's eyes. It opens from a
+  click on the pin, and only from there: a mark on the Navigator *goes* to
+  its anchor and opens nothing, because getting to a place and working on
+  it are different wishes and the bar is for the first. The one card that
+  opens by itself is that of an anchor just dropped, with the note already
+  in hand: type and it
+  is a note, click away and it is an anchor. A pin that is only clicked
+  takes no keyboard focus — pins are read far more often than rewritten.
+  **There is no Save.** A field is kept when it is left, and the card is
+  left by clicking anywhere else; Escape takes back what was typed in the
+  field it is pressed in, and undo takes back what was already kept. The
+  name is a field that does not look like one until hovered; empty, it asks
+  for a title ("Write a title…") rather than showing the page number, which
+  read as the anchor's name when it was only the lack of one. The glyph
+  in the card's corner is the pin's own and changes with it, an anchor
+  until the first letter is written. The card is set in the page's
+  percentages so it survives zoom, is centred under the pin but held
+  inside the sheet (the next sheet paints over whatever hangs past this
+  one), and turns upwards in the lowest part of a page. In a shared
+  reading it is the same card without its fields or its delete.
+
+- **Tool rack** — `.tools`: in the viewer's bar the tool palette shows only
+  the tool in hand, and opens to the full set on hover, on `:focus-within`,
+  and while one of its sheets is open. It opens *downwards*, out of the bar
+  and over the page, on a `--card` ground with `--shadow-md`: opening
+  sideways would reach back across the Navigator it just made room for,
+  and the stretch it would cover is the map's end — the appendix, the part
+  of a paper a reader is least likely to be holding in mind. Choosing a
+  tool still costs one click; the others are a pointer-move away, not a
+  click away, which is the rule the palette was built on. **The tool in
+  hand keeps the top of the rack** (`order: -1`), so the glyph under the
+  pointer when the rack opens is the glyph that was under it a moment
+  before — let the palette keep its printed order instead and a user
+  holding the brush who clicks without looking ends up holding the arrow.
+  The other five keep their order relative to one another. A touch screen
+  has no hover to open it with, so under `(hover: none)` the rack is never
+  collapsed, stands as a row, keeps its printed order, and takes its room
+  back from the map. Nothing else in the bar hides this way: the rack earns
+  it by being six controls wide next to a map that wants every pixel.
 
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:

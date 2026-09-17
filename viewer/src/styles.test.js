@@ -7,7 +7,7 @@ test('viewer styles reference only declared or runtime tokens', () => {
   const declared = new Set(
     [...styles.matchAll(/--([\w-]+)\s*:/g)].map((match) => match[1]),
   );
-  const runtime = new Set(['danger', 'glyph-cutout', 'loaded', 'rail-user-w', 'swatch']);
+  const runtime = new Set(['danger', 'glyph-cutout', 'here', 'loaded', 'pin-x', 'swatch']);
   const unresolved = [...new Set(
     [...styles.matchAll(/var\(--([\w-]+)/g)].map((match) => match[1]),
   )].filter((token) => !declared.has(token) && !runtime.has(token));

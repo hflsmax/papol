@@ -12,17 +12,14 @@ export const styles = `
   --orange-soft: #fbeee2;
   --orange-line: #efd2b6;
 
-  /* The rail's width, in one place: the handle clings to its edge and the
-     pages take what is left, so all three have to agree. */
-  --rail-w: 344px;
 }
 
 ${itemActionsStyles}
 
 * { box-sizing: border-box; }
 
-/* The viewer is one screenful: the bar on top, the pages and the rail
-   filling the rest and scrolling inside themselves. dvh rather than vh so
+/* The viewer is one screenful: the bar on top, the pages filling the rest
+   and scrolling inside themselves. dvh rather than vh so
    a phone's retracting address bar does not leave a strip of nothing at
    the bottom. */
 #root {
@@ -133,11 +130,11 @@ ${macHandoffStyles}
 .viewer-bar {
   position: sticky;
   top: 0;
-  /* Above the rail's handle (35). The bar makes a stacking context, so a
-     sheet hanging off a button in it can never rise past this number,
-     whatever the sheet's own z-index says — which is how the brush's
-     colours came to be painted under the handle. Still under the error bar
-     and the help sheet, which are the two things that should cover it. */
+  /* Above everything that lies over the pages (the return pill, 36). The
+     bar makes a stacking context, so a sheet hanging off a button in it can
+     never rise past this number, whatever the sheet's own z-index says.
+     Still under the error bar and the help sheet, which are the two things
+     that should cover it. */
   z-index: 38;
   flex: none;
   display: flex;
@@ -208,6 +205,292 @@ ${macHandoffStyles}
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* ---------- Navigator ---------- */
+
+/* The paper drawn to length across the bar, in the room the spacer used to
+   hold, as tall as the bar's other controls and centred among them. Two
+   lanes at one scale: the strip of sections takes six parts of the height
+   to the lane's five, and the anchors and notes stand in the lane, under
+   it, each pointing up at its place — so a triangle under the middle of
+   Results is in Results and nothing has to say so. Flat by construction — there is
+   nothing to open. It is pressed and drawn along like a scrubber, so the
+   browser's own gestures are kept off it. */
+.navigator {
+  position: relative;
+  flex: 1;
+  align-self: center;
+  min-width: 72px;
+  /* Three lanes at one scale, and all the room the desktop title bar has
+     to give (40px): the subsections' ticks over the strip, the strip, and
+     the anchors and notes under it. Strip to lower lane is six parts to
+     five. The upper lane is kept even when
+     it is empty, because it is also what sets the strip a little below
+     centre: the strip is a solid band and the marks under it are specks on
+     the bar's white, so a pair centred by the ruler reads as sitting
+     high. */
+  --nav-top: 7px;
+  --nav-strip: 18px;
+  --nav-lane: 15px;
+  height: calc(var(--nav-top) + var(--nav-strip) + var(--nav-lane));
+  font-family: var(--font-ui);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* What is centred in the bar is what can be seen. A lane with nothing in it
+   is not seen, so it takes no room: no marks, no lower lane; and with
+   neither marks nor ticks the box is only the strip, centred exactly. */
+.navigator.unmarked { --nav-lane: 0px; }
+.navigator.unmarked.unticked { --nav-top: 0px; }
+.navigator.unmarked .navigator-lane { display: none; }
+
+/* A groove, so the strip reads as one object on the bar's white ground and
+   a section that is only a few pixels wide is still visibly a section. */
+.navigator-track {
+  position: absolute;
+  inset: var(--nav-top) 0 auto;
+  /* A stacking context of its own: the segments inside are ordered among
+     themselves, and none of that should reach the marker laid over them. */
+  z-index: 0;
+  height: var(--nav-strip);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  overflow: hidden;
+}
+
+.viewer-bar .navigator-seg,
+.viewer-bar .navigator-seg:hover:not(:disabled) {
+  /* Each at its own place on the scale, to the pixel: the left edge of a
+     segment is where its section begins, and its rule is drawn inside the
+     box so the edge and the rule are the same line. How wide it is comes
+     from the Navigator's scale, which gives a short section a minimum and
+     takes the room from the long ones. */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  /* So its name can ask how much room there is (see .navigator-name). */
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  /* Tight, because every section is named and the short ones have no room
+     to spend on air. */
+  padding: 0 0 0 4px;
+  border: 0;
+  border-left: 1px solid var(--card);
+  border-radius: 0;
+  background: var(--paper);
+  box-shadow: none;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  overflow: hidden;
+  transition: background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.navigator-seg:first-child { border-left: 0; }
+
+/* The front of the paper — title, authors, abstract. The one stretch of a
+   paper with no heading of its own, so it is set back from the sections
+   rather than counted as one. */
+.navigator-seg.front { background: var(--paper-sunken); }
+
+/* Back matter. The appendix is a part of the document, not a state of it,
+   so it takes a ground rather than a colour. */
+.navigator-seg.back { background: var(--accent-soft); }
+
+/* Every other section is a shade darker, so where one ends and the next
+   begins is read off the grounds themselves and not off a hairline between
+   them — which is all that separated two short sections side by side. The
+   two grounds of the body and the two of the appendix keep to their own
+   families, so the alternation never hides where the back matter starts.
+   A name on the darker ground is set a step darker to stay legible. */
+.viewer-bar .navigator-seg.alt { background: var(--line); color: var(--ink-soft); }
+.viewer-bar .navigator-seg.alt.back { background: var(--accent-line); }
+
+/* Hover names the section under the pointer. Nothing marks the section
+   being read: the marker already says where the reader is, to the line,
+   and a lit segment said the same thing again more loudly and less
+   exactly. */
+.viewer-bar .navigator-seg:hover:not(:disabled) {
+  /* Darker than any ground a segment can have, the alternate ones
+     included, so hover shows on all of them. */
+  background: var(--line-strong);
+  color: var(--ink);
+}
+
+.navigator-seg:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* The subsections, in a lane over the strip: a small caret pointing down at
+   the top edge of its section, at its place. Sections are the grounds and the
+   names; this is the level below, kept to a mark so the two can never be
+   taken for each other — drawn as segments of their own, subsections made
+   a barcode of the strip and passed for chapters. The ticks stand above
+   and the anchors hang below, so what the paper says about itself and what
+   the reader has put on it are on opposite sides of it; and a tick is the
+   smaller of the two, because it is the paper's detail and the marks are
+   the reader's own. */
+.navigator-subs {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--nav-top);
+}
+
+.viewer-bar .navigator-subs .navigator-sub,
+.viewer-bar .navigator-subs .navigator-sub:hover:not(:disabled) {
+  position: absolute;
+  top: 0;
+  /* Reaching a little into the strip, and wider than the caret it holds:
+     the mark and the thing you press are not the same size. */
+  height: calc(var(--nav-top) + 4px);
+  width: 13px;
+  margin-left: -6.5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.navigator-sub svg {
+  position: absolute;
+  left: 1.5px;
+  /* Its point on the strip's top edge. */
+  top: calc(var(--nav-top) - 7px);
+  width: 10px;
+  height: 7px;
+  color: var(--ink-faint);
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.viewer-bar .navigator-sub:hover:not(:disabled) svg,
+.navigator-sub:focus-visible svg { color: var(--ink); }
+
+.navigator-sub:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+
+.navigator-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Every section is named, down to the width where what is left of the name
+   is not a letter but the edge of one — a stray stroke in a sliver, which
+   reads as a fault in the strip rather than as a word cut short. */
+@container (max-width: 20px) {
+  .navigator-name { display: none; }
+}
+
+/* The anchors and notes, under the strip and at its scale. The lane is
+   part of the scrubber like the strip above it: a press between two marks
+   goes to that place, and only a mark itself keeps its own click. */
+.navigator-lane {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--nav-lane);
+}
+
+.viewer-bar .navigator-lane .navigator-anchor,
+.viewer-bar .navigator-lane .navigator-anchor:hover:not(:disabled) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* A little wider than the mark: the mark and the thing you press are
+     not the same size. */
+  width: 20px;
+  margin-left: -10px;
+  padding: 0;
+  display: grid;
+  /* Hard against the strip, so the point of each mark touches the place it
+     is pointing at. */
+  place-items: start center;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  /* The colours the pins wear on the page: an anchor, and an anchor with
+     something written on it. The shapes differ too — a triangle and a
+     dialog box — so the difference does not rest on colour. */
+  color: var(--accent);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.viewer-bar .navigator-lane .navigator-anchor.written,
+.viewer-bar .navigator-lane .navigator-anchor.written:hover:not(:disabled) {
+  color: var(--accent-strong);
+}
+
+.navigator-anchor svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.viewer-bar .navigator-lane .navigator-anchor:hover:not(:disabled),
+.viewer-bar .navigator-lane .navigator-anchor:focus-visible { color: var(--ink); }
+
+.navigator-anchor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* The exact place: the middle of the window, on the strip's scale. It is
+   moved by the scroll itself, a frame at a time, so it has no transition
+   to lag behind the paper with. It crosses the strip and stops short of
+   the lane, where the marks are doing their own pointing. The halo keeps
+   it legible on the appendix's ground. */
+.navigator-here {
+  display: none;
+  position: absolute;
+  top: calc(var(--nav-top) - 2px);
+  height: calc(var(--nav-strip) + 4px);
+  left: var(--here, 0%);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--card);
+  pointer-events: none;
+}
+
+.navigator[data-located] .navigator-here { display: block; }
+
+/* The name of what is under the pointer, shown the moment it is there and
+   moved with it (see Navigator's tell). It hangs under the bar, over the
+   top of the page, where it covers nothing the pointer is choosing among. */
+.navigator-tip {
+  position: absolute;
+  z-index: 2000;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  max-width: min(420px, 100%);
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+
+.navigator-tip[hidden] { display: none; }
+
+/* In Papol macOS the bar is the title bar, and the map is the one control
+   in it that should give way — it has a whole document to show and will
+   use whatever it is given. */
+[data-shell='desktop'] .viewer-bar > .navigator {
+  flex-shrink: 1;
+  min-width: 72px;
 }
 
 .learn-papol {
@@ -369,16 +652,34 @@ ${macHandoffStyles}
 .learn-papol .pdf-viewer-tip-actions .learn-papol-close { margin-top: 0; }
 .local-notes-hide { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
 .local-notes-hide input { margin: 0; accent-color: var(--accent); }
-.paper-info-button {
+/* The same 32px square as the tools it stands beside, holding the same 18px
+   glyph. Three classes, because two were not enough: written as
+   .paper-info-button alone, its padding of nothing lost to the bar-link's
+   6px 12px, which left a 28px box two pixels of room and pushed the letter
+   off to one side. */
+.viewer-bar .bar-link.paper-info-button {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background: var(--card);
   cursor: pointer;
 }
-.info-glyph { font: italic 600 var(--fs-sm)/1 var(--font-serif); }
+
+/* A ringed i, drawn rather than set: a letter centres on its font's
+   metrics, which is nowhere near its ink, and a drawing centres where it
+   is put. */
+.info-glyph {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.info-glyph .info-dot { fill: currentColor; stroke: none; }
 .paper-info-pop {
   position: absolute;
   z-index: 30;
@@ -396,10 +697,91 @@ ${macHandoffStyles}
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* An abstract can run to four hundred words, and a box that grows to hold
+   one reaches the bottom of the window and covers the paper it describes.
+   So the box stops well short of that and its contents scroll — the
+   contents, not the box, because the × is pinned to the box's corner and
+   has to stay there while the text moves. The band above the scroller is
+   the ×'s own: nothing scrolls under it, so no line is ever read through
+   it. And the scroller keeps the wheel to itself, so reaching the end of an
+   abstract does not start turning the pages behind it. */
+.paper-info-pop:not(.nook-ask) { padding-top: 26px; padding-right: 6px; }
+
+.paper-info-scroll {
+  max-height: min(60vh, 480px);
+  padding-right: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* What the user is holding. Icon buttons rather than a menu: the choice
    changes often enough while marking a paper up that it should cost one
-   click and no reading. */
-.tools { flex: none; display: flex; align-items: center; gap: 2px; }
+   click and no reading.
+ *
+ * At rest the rack shows that one tool and nothing else, because the rest
+ * of the bar is a map of the paper and the paper deserves the room. The
+ * others are a pointer-move away, not a click away, so choosing a tool
+ * still costs the single click it always did.
+ *
+ * It opens downwards, out of the bar and over the page. Opening sideways
+ * would have it reach back across the map it just made room for, and the
+ * stretch it would cover is the map's end — the appendix, which is the
+ * part of a paper a reader is least likely to be holding in mind and most
+ * likely to be looking for. Below the bar it covers a few lines of a page
+ * that is still there when the rack closes.
+ *
+ * The tool in hand is the face of the rack and stays at the top of it, so
+ * the glyph under the pointer when the rack opens is the same glyph that
+ * was under it a moment before. Letting the palette keep its printed order
+ * instead would slide a different tool into that spot — hold the brush,
+ * reach for the rack, click without looking, and you are holding the arrow.
+ * The other five keep their order relative to one another.
+ *
+ * Hover is not the only way in — focus opens it too, and a touch screen,
+ * which has no hover to give, is served the whole rack at the bottom of
+ * this sheet. */
+.tools {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.tools-rack {
+  position: absolute;
+  /* The same layer the bar's other sheets hang on. */
+  z-index: 30;
+  /* Back by its own border and padding, so the tool in hand stays exactly
+     where it sat before the rack opened. */
+  top: -2px;
+  right: -2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+/* Only the tool in hand, until the rack is opened — and it keeps the top
+   of the rack once it is. */
+.tools .tool-slot { display: none; }
+.tools .tool-slot.held { display: flex; order: -1; }
+
+.tools:hover .tool-slot,
+.tools:focus-within .tool-slot,
+.tools.open .tool-slot { display: flex; }
+
+/* Open, it hangs off the bar over the page, which is what --shadow-md is
+   for. */
+.tools:hover .tools-rack,
+.tools:focus-within .tools-rack,
+.tools.open .tools-rack {
+  border-color: var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
 .tool-slot { position: relative; display: flex; }
 
 /* Hung under the brush, pointing at it.
@@ -651,18 +1033,15 @@ ${macHandoffStyles}
 /* ---------- Pages ---------- */
 
 .viewer-body {
-  --rail-w: clamp(220px, var(--rail-user-w, 344px), min(520px, 45vw));
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
   /* Whatever the bar leaves — measured rather than assumed, so the bar can
      change height without the pages hanging off the bottom of the window. */
   flex: 1;
   min-height: 0;
 }
-
-.viewer-body.rail-hidden { grid-template-columns: minmax(0, 1fr); }
 
 /* ---------- Return pill ---------- */
 
@@ -675,7 +1054,7 @@ ${macHandoffStyles}
   position: absolute;
   z-index: 36;
   bottom: 20px;
-  left: calc((100% - var(--rail-w)) / 2);
+  left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -689,7 +1068,6 @@ ${macHandoffStyles}
   white-space: nowrap;
 }
 
-.viewer-body.rail-hidden .link-return { left: 50%; }
 
 .link-return .link-return-button,
 .link-return .link-return-button:hover:not(:disabled) {
@@ -780,11 +1158,10 @@ ${macHandoffStyles}
   position: absolute;
   z-index: 42;
   bottom: 20px;
-  left: calc((100% - var(--rail-w)) / 2);
+  left: 50%;
   transform: translateX(-50%);
 }
 
-.viewer-body.rail-hidden .link-return-notice { left: 50%; }
 
 .link-return-notice .learn-papol {
   position: static;
@@ -843,89 +1220,6 @@ ${macHandoffStyles}
   border-bottom: 1px solid var(--accent);
 }
 
-.rail-handle {
-  position: absolute;
-  z-index: 35;
-  top: 18px;
-  right: var(--rail-w);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 18px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-right: none;
-  border-radius: var(--radius) 0 0 var(--radius);
-  background: var(--card);
-  color: var(--ink-faint);
-  font-size: var(--fs-lg);
-  line-height: 1;
-  box-shadow: -2px 0 6px rgba(25, 35, 50, 0.08);
-}
-
-.rail-handle:hover:not(:disabled) {
-  background: var(--paper);
-  color: var(--accent);
-  border-color: var(--line);
-}
-
-.rail-hidden .rail-handle { right: 0; }
-
-.rail-hidden .rail-handle {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: 6px 0 0 6px;
-  color: var(--accent);
-  box-shadow: -2px 2px 10px rgba(25, 35, 50, 0.12);
-}
-
-/* WebKit's macOS scroll indicator floats over the right edge of its scroll
-   view. Keep the rail controls out of that lane: when the rail is closed
-   the page's indicator remains on top at the window edge, and when it is
-   open its handle sits just inside the rail instead of covering the page's
-   indicator. */
-[data-platform='mac'] .rail-hidden .rail-handle { right: 14px; }
-[data-platform='mac'] .viewer-body:not(.rail-hidden) .rail-handle {
-  right: calc(var(--rail-w) - 18px);
-  border-right: 1px solid var(--line);
-  border-left: none;
-  border-radius: 0 var(--radius) var(--radius) 0;
-  box-shadow: 2px 0 6px rgba(25, 35, 50, 0.08);
-}
-
-.rail-handle-icon,
-.rail-handle-icon svg { display: block; width: 15px; height: 15px; }
-
-.rail-resizer {
-  position: absolute;
-  z-index: 34;
-  top: 0;
-  right: calc(var(--rail-w) - 5px);
-  bottom: 0;
-  width: 10px;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.rail-resizer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  width: 2px;
-  background: transparent;
-  transition: background 120ms ease;
-}
-
-.rail-resizer:hover::after,
-.rail-resizer:focus-visible::after,
-.resizing-rail .rail-resizer::after { background: var(--accent); }
-.rail-resizer:focus-visible { outline: none; }
-.resizing-rail { cursor: col-resize; user-select: none; }
 
 .pages {
   position: relative;
@@ -1381,25 +1675,6 @@ ${macHandoffStyles}
 
 .pin-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 
-/* A question mark where the count was. The count said how many anchors
-   there are, which the list underneath already says. */
-.rail-help {
-  float: right;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: none;
-  color: var(--ink-faint);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.rail-help:hover { border-color: var(--accent); color: var(--accent); }
-
 .help-back {
   position: fixed;
   inset: 0;
@@ -1515,7 +1790,16 @@ ${macHandoffStyles}
   right: 20px;
   bottom: 20px;
   z-index: 60;
-  padding: 9px 16px;
+  /* A flex row, not a line of text. The × that slides in on hover is an
+     inline-block with its overflow hidden, and such a box takes its
+     baseline from its bottom edge — which swelled the line and set the
+     word five pixels low in a chip taller than its own padding. Flex
+     items have no baseline to argue about. */
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  line-height: 1;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-pill);
   background: var(--card);
@@ -1821,176 +2105,138 @@ ${macHandoffStyles}
 
 .pin.dragging { cursor: grabbing; opacity: 0.85; }
 
-/* Pointed at from the page: the row lights up, then fades back. */
-@keyframes railFlash {
-  0%, 55% { box-shadow: 0 0 0 2px var(--accent); }
-  100% { box-shadow: 0 0 0 2px transparent; }
-}
+/* ---------- Anchor card ---------- */
 
-/* Five seconds: long enough to find the row without hunting, and to still
-   be lit when the eye comes back from the page. App.jsx drops the class a
-   moment after this ends — the two are meant to stay in step. */
-/* The same anchor, seen in the rail while it is being carried on the page.
-   Steady rather than animated: it lasts exactly as long as the hand does. */
-.anchor-row.carrying, .note-card.carrying {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
-.anchor-row.flash, .note-card.flash { animation: railFlash 5s ease-out; }
-
-/* ---------- Rail ---------- */
-
-.rail {
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 0 18px 24px;
-  background: var(--card);
-  border-left: 1px solid var(--line);
-  scrollbar-gutter: stable;
-}
-
-.rail-header {
-  position: sticky;
-  z-index: 3;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 -18px;
-  padding: 18px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
-}
-
-.rail-heading { min-width: 0; }
-
-.rail-kicker {
-  display: block;
-  margin-bottom: 1px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: 0.08em;
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-
-.rail-title-row { display: flex; align-items: center; gap: 8px; }
-
-.rail h2 {
-  margin: 0;
-  font-size: 1.16rem;
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.rail-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: 650 var(--fs-2xs)/1 var(--font-ui);
-}
-
-.rail-header-actions { display: flex; align-items: center; gap: 6px; }
-
-.rail-close,
-.rail-help {
-  float: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ink-faint);
-  font: 500 var(--fs-base)/1 var(--font-ui);
-}
-
-.rail-close { display: none; font-size: 1.25rem; }
-
-.rail-close:hover:not(:disabled),
-.rail-help:hover:not(:disabled) {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--accent);
-}
-
-.rail-intro {
-  margin: 14px 0 12px;
-  color: var(--ink-faint);
-  font: var(--fs-xs)/1.45 var(--font-ui);
-}
-
-.rail-list { padding-top: 14px; }
-.rail-intro + .rail-list { padding-top: 0; }
-
-.rail-empty {
+/* An anchor's card, hung off its pin on the page: its name, what is
+   written on it, and the way to delete it. It is the only place an anchor
+   is edited — the list of them is the Navigator, and the rail that used to
+   hold both is gone. Set in the page's own percentages, so it keeps its
+   place through any zoom; centred under the pin and held inside the sheet,
+   because the next sheet is painted over whatever hangs past this one. */
+.note-pop {
+  --note-pop-w: min(280px, calc(100% - 16px));
+  position: absolute;
+  z-index: 6;
+  left: clamp(8px, calc(var(--pin-x) - var(--note-pop-w) / 2), calc(100% - var(--note-pop-w) - 8px));
+  width: var(--note-pop-w);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  margin-top: 48px;
-  padding: 24px 18px;
-  text-align: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  pointer-events: auto;
+  cursor: default;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
-.rail-empty-glyph {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 14px;
-  border-radius: 50%;
-  background: var(--accent-soft);
+.note-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The glyph its pin is wearing, and it changes with the pin: an anchor
+   until something is written, a note from the first letter. */
+.note-pop-glyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
   color: var(--accent);
 }
 
-.rail-empty-glyph svg { width: 22px; height: 22px; }
-.rail-empty h3 { margin: 0 0 6px; font-size: var(--fs-base); }
-.rail-empty p { max-width: 245px; margin: 0 0 12px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
-.rail-empty .link { font-size: var(--fs-xs); }
+.note-pop-glyph svg { display: block; width: 100%; height: 100%; }
 
-.empty { color: var(--ink-faint); font-size: var(--fs-md); }
-
-.manual {
-  color: var(--ink-soft);
-  font-size: var(--fs-md);
+/* The name is a field that does not look like one until it is wanted. Empty,
+   it asks for a title rather than showing the page: a page number there
+   read as the anchor's name, and it is only the lack of one. */
+.note-pop .note-pop-name {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.manual p { margin: 0 0 10px; }
-.manual b { color: var(--ink); font-weight: 600; }
-
-.note-card {
-  position: relative;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 11px 12px;
-  /* Room for the × in the corner. After the shorthand, or the shorthand
-     puts it back. */
-  padding-right: 28px;
-  margin-bottom: 10px;
-  background: linear-gradient(145deg, #f7f9fc, var(--accent-soft));
-  cursor: pointer;
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
-}
-
-.note-card:hover,
-.note-card:focus-within {
-  border-color: var(--line-strong);
-  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.08);
+.note-pop input.note-pop-name::placeholder { color: var(--ink-faint); font-weight: 500; }
+.note-pop input.note-pop-name:hover { border-color: var(--line); }
+.note-pop input.note-pop-name:focus {
+  border-color: var(--accent);
+  background: var(--card);
   outline: none;
-  transform: translateY(-1px);
 }
 
+.note-pop .note-pop-delete,
+.note-pop .note-pop-delete:hover:not(:disabled) {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-faint);
+}
+
+.note-pop .note-pop-delete:hover:not(:disabled) {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.note-pop-delete svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Words about a paper are set in the paper's own kind of type. */
+.note-pop .note-pop-text {
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-pop textarea.note-pop-text:focus {
+  border-color: var(--accent);
+  background: var(--card);
+  outline: none;
+}
+
+.note-pop p.note-pop-text { max-height: 220px; overflow: auto; }
+
+/* Closing buttons of the cards that have them. */
 .card-x {
   position: absolute;
   top: 4px;
@@ -2003,14 +2249,8 @@ ${macHandoffStyles}
   color: var(--ink-faint);
   font-size: var(--fs-lg);
   line-height: 1;
-  opacity: 0;
   transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
-
-.note-card:hover > .card-x,
-.note-card:focus-within > .card-x,
-.anchor-row:hover > .card-x,
-.anchor-row:focus-within > .card-x { opacity: 1; }
 
 .card-x:hover:not(:disabled) {
   border: none;
@@ -2018,175 +2258,12 @@ ${macHandoffStyles}
   color: var(--red);
 }
 
-.note-card.draft { background: var(--card); border-color: var(--accent); cursor: default; }
-
-.note-where {
-  margin: 0 0 4px;
-  flex-wrap: wrap;
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xs);
-  color: var(--ink-faint);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.note-text {
-  margin: 0 0 6px;
-  font-size: var(--fs-md);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/* A bare anchor: an annotation in a list of notes, deliberately not a card. */
-.anchor-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 6px 6px 6px 10px;
-  margin-bottom: 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xs);
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
-}
-
-.anchor-row:hover,
-.anchor-row:focus-visible {
-  border-color: var(--line-strong);
-  background: #f2f6fb;
-  box-shadow: 0 2px 8px rgba(29, 33, 41, 0.06);
-  outline: none;
-}
-
-/* The anchor's label: its name, or the page until it has one. It says it
-   can be edited by looking like a field on hover, not by adding an icon. */
-.name {
-  padding: 0 2px;
-  border: none;
-  background: none;
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-  border-bottom: 1px dotted transparent;
-  cursor: text;
-  text-align: left;
-}
-
-.name:hover:not(:disabled) {
-  border: none;
-  border-bottom: 1px dotted var(--ink-faint);
-  background: var(--card);
-  color: var(--ink);
-}
-
-.name-input {
-  width: 9rem;
-  padding: 1px 4px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  font-family: inherit;
-  font-size: inherit;
-  color: var(--ink);
-}
-
-/* The rail's bullet is the same annotation the page carries. */
-.row-glyph {
-  flex: none;
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  color: var(--accent-strong);
-}
-
-.row-glyph svg { display: block; width: 100%; height: 100%; }
-
-.anchor-row .row-glyph { color: var(--accent); }
-
-.anchor-where { flex: 1; }
-
-.anchor-row .anchor-write { font-size: var(--fs-2xs); opacity: 0; }
-.anchor-row:hover .anchor-write { opacity: 1; }
-
-.anchor-jump {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  font-size: var(--fs-base);
-  text-decoration: none;
-  opacity: 0.62;
-}
-
-.anchor-jump:hover:not(:disabled),
-.anchor-jump:focus-visible { opacity: 1; }
-
-.anchor-row .card-x { position: static; width: 16px; height: 16px; font-size: var(--fs-md); }
-.note-actions { display: flex; gap: 10px; align-items: center; }
-
-.rail textarea {
-  width: 100%;
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
-  padding: 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  margin-bottom: 8px;
-  resize: vertical;
-}
-
 /* ---------- Narrower windows ---------- */
 
-/* Below two comfortable columns the rail stops taking one of its own and
-   slides over the pages instead. It does not go under them: every jump in
-   the viewer scrolls the .pages element, so a layout where the window
-   scrolled instead would quietly break going to an anchor. */
 @media (max-width: 860px) {
-  /* The rail lies over the pages here, so the pill centres on the window. */
-  .viewer-body .link-return,
-  .viewer-body .link-return-notice { left: 50%; }
-  .viewer-body {
-    --rail-w: min(344px, 88vw);
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rail {
-    position: absolute;
-    z-index: 30;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: var(--rail-w);
-    box-shadow: -8px 0 24px rgba(25, 35, 50, 0.16);
-  }
-
-  .rail-scrim {
-    position: absolute;
-    z-index: 29;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: rgba(29, 33, 41, 0.24);
-    cursor: default;
-  }
-
-  .rail-close { display: grid; }
-  .rail-resizer { display: none; }
-
   .pages { padding: 12px; }
-  .search-pop { position: fixed; left: 12px; right: 12px; top: 58px; width: auto; }
+  .search-pop { position: fixed; left: 12px; right: 12px; top: 64px; width: auto; }
   .search-pop input { flex: 1; width: auto; }
-}
-
-@media (min-width: 861px) {
-  .rail-scrim { display: none; }
 }
 
 /* A phone. The bar has to hold a way back, the file and the zoom in about
@@ -2196,20 +2273,38 @@ ${macHandoffStyles}
   .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
+  /* Too little room for a name to survive being cut to three letters, and
+     a wrong-looking word is worse than none. The map keeps its shape, its
+     anchors and its marker, which is what it is for. */
+  .navigator-name { display: none; }
+  .navigator { min-width: 56px; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one
    is simply there, and the small annotations are given a finger's worth of
    room. */
 @media (hover: none) {
-  .anchor-row .anchor-write { opacity: 1; }
+  /* No hover to open the rack with, so it is never closed: the tools stand
+     in a row across the bar, as they always did, and take their own room
+     back from the map. */
+  .tools { position: static; width: auto; height: auto; }
+  .tools .tools-rack {
+    position: static;
+    flex-direction: row;
+    padding: 0;
+    border-color: transparent;
+    background: none;
+    box-shadow: none;
+  }
+  /* Nothing is ever hidden here, so nothing has to be lifted to the front
+     of the row to be found: the palette keeps its printed order. */
+  .tools .tool-slot { display: flex; }
+  .tools .tool-slot.held { order: 0; }
   /* The name looks like a field on hover; with no hover to give, it just
      looks like one. */
-  .name { border-bottom: 1px dotted var(--ink-faint); }
+  .note-pop input.note-pop-name { border-color: var(--line); }
+  .note-pop .note-pop-delete { width: 30px; height: 30px; }
   .card-x { width: 26px; height: 26px; }
-  .card-x { opacity: 1; }
-  .anchor-row .card-x { width: 22px; height: 22px; }
-  .note-card { padding-right: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

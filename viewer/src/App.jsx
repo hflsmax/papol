@@ -34,7 +34,7 @@ import { canOpenPrivateSource } from './viewerAccess.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { readNamedReference } from './references';
-import { GlyphFor, ToolGlyph } from './glyphs';
+import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
 import { STRIP_RATIO } from './ink';
@@ -45,7 +45,9 @@ import { cleanExcerptText } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
+import { readSections } from './sections';
 import ReturnPill from './ReturnPill';
+import Navigator from './Navigator';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
 import {
@@ -78,13 +80,6 @@ export const preloadPdfPage = () => {
 };
 const PdfPage = lazy(preloadPdfPage);
 
-// The width at which the rail stops having a column of its own — the same
-// number as the breakpoint in styles.js, and it has to stay that way.
-const NARROW = 860;
-const MIN_RAIL_WIDTH = appLimits.viewer.rail_width_min;
-const MAX_RAIL_WIDTH = appLimits.viewer.rail_width_max;
-const DEFAULT_RAIL_WIDTH = 344;
-const clampRailWidth = (width) => Math.min(MAX_RAIL_WIDTH, Math.max(MIN_RAIL_WIDTH, width));
 const markReturnToPapol = () => {
   // This is a one-shot navigation handoff, not demo-mode state. Papol
   // consumes it on arrival so returning from the viewer does not greet the
@@ -522,6 +517,8 @@ export default function App() {
   const [searchIndexing, setSearchIndexing] = useState(false);
   const [activeSearchResult, setActiveSearchResult] = useState(0);
   const [searchWrap, setSearchWrap] = useState(null);
+  // The paper's own headings, which the Navigator draws across the bar.
+  const [sections, setSections] = useState([]);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
@@ -580,19 +577,28 @@ export default function App() {
   const [sendError, setSendError] = useState(null);
   const [sendComplete, setSendComplete] = useState(false);
   const [activeNoteUuid, setActiveNoteUuid] = useState(null);
-  // The anchor just pointed at: its entry in the rail lights up briefly.
-  const [flashUuid, setFlashUuid] = useState(null);
-  // Opening a paper is for reading. The anchors rail is available from its
-  // handle, but every viewer window starts with the paper using the whole
-  // width rather than inheriting an open rail from an earlier paper.
-  const [railOpen, setRailOpen] = useState(false);
-  const [railWidth, setRailWidth] = useState(() => {
-    const saved = Number(localStorage.getItem('papol_viewer_rail_width'));
-    return Number.isFinite(saved) && saved > 0 ? clampRailWidth(saved) : DEFAULT_RAIL_WIDTH;
-  });
+  // The anchor whose card is open is the active one. This says which of the
+  // card's fields should take the keyboard as it opens: the note for an
+  // anchor just dropped, the one asked for from the context menu, and
+  // neither for a pin that was only clicked to be read.
+  const [noteCardFocus, setNoteCardFocus] = useState(null);
+  // A card is left by clicking anywhere that is not the card — the page,
+  // the bar, the gutter. Pins are left out: they open and close cards
+  // themselves, and closing here first would turn every second click on a
+  // pin into a reopening.
+  useEffect(() => {
+    if (activeNoteUuid == null) return undefined;
+    const leave = (event) => {
+      if (event.target.closest?.('.note-pop, .pin, .context-menu')) return;
+      setActiveNoteUuid(null);
+      setNoteCardFocus(null);
+    };
+    document.addEventListener('pointerdown', leave, true);
+    return () => document.removeEventListener('pointerdown', leave, true);
+  }, [activeNoteUuid]);
   // The paper's bibliography, and where it is cited in the PDF. Null until
   // it has been asked for; `status` says whether it is worth waiting on.
-  // What the user is holding. Remembered, like the rail: someone marking
+  // What the user is holding. Remembered: someone marking
   // up a paper puts the brush down between sittings, not between pages.
   const [tool, setTool] = useState(() => {
     if (source?.annotationsRequireNook || source?.readOnly) return 'arrow';
@@ -677,10 +683,6 @@ export default function App() {
       .then((events) => setFeedbackLog(diagnosticLogExcerpt(events)))
       .catch(() => {});
   }, [feedbackOpen]);
-  // The anchor being carried across the page, so its row in the rail can
-  // say so: the pin and the row are the same anchor seen twice, and moving
-  // one ought to be visible in the other.
-  const [draggingNoteUuid, setDraggingNoteUuid] = useState(null);
   // Cows. Nowhere near the server and gone on reload: they are not an annotation
   // on the paper, they are company.
   const [placedAnimals, setPlacedAnimals] = useState([]);
@@ -786,10 +788,6 @@ export default function App() {
   const [, renderLinkHistory] = useState(0);
   const restoringView = useRef(null);
   const [referenceError, setReferenceError] = useState(null);
-  const [editing, setEditing] = useState(null); // note uuid being reworded
-  const [naming, setNaming] = useState(null); // note uuid being renamed
-  const [nameDraft, setNameDraft] = useState('');
-  const [editText, setEditText] = useState('');
   const scrollerRef = useRef(null);
   // Do not mount off-screen pages. A full PdfPage carries drawing, text,
   // annotation and gesture effects; mounting one for every page puts that
@@ -1146,6 +1144,40 @@ export default function App() {
     setSearchIndex([]);
   }, [doc]);
 
+  useEffect(() => {
+    setSections([]);
+  }, [doc]);
+
+  // The paper's headings, read once the document is open.
+  //
+  // Reading the outline costs a destination lookup per heading and nothing
+  // else, but it still waits for an idle moment rather than competing with
+  // the first render: the bar can stand empty for a moment, and the reader
+  // gets their first page sooner.
+  useEffect(() => {
+    if (!doc) return undefined;
+    let cancelled = false;
+    const start = () => {
+      if (cancelled) return;
+      readSections(doc, { cancelled: () => cancelled })
+        .then((read) => {
+          if (cancelled || !read) return;
+          setSections(read.sections);
+        })
+        // A paper whose outline cannot be read is a paper without a
+        // Navigator, not a paper that failed to open.
+        .catch(() => {});
+    };
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(start, { timeout: 2000 })
+      : window.setTimeout(start, 400);
+    return () => {
+      cancelled = true;
+      if (window.requestIdleCallback) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
+  }, [doc]);
+
   // Search is optional and indexing a long document is not. Defer the pass
   // over every PDF page until search is actually opened, then retain it for
   // the rest of this document's session.
@@ -1260,10 +1292,6 @@ export default function App() {
       if (timer) clearTimeout(timer);
     };
   }, [firstPageReady, paper, source]);
-
-  useEffect(() => {
-    localStorage.setItem('papol_viewer_rail_width', String(railWidth));
-  }, [railWidth]);
 
   useEffect(() => {
     if (source?.annotationsRequireNook) return;
@@ -1672,8 +1700,7 @@ export default function App() {
   }, [openCite]);
 
   // Open at the width of the viewer, and stay fitted through actual window
-  // resizes until the user picks a zoom. Opening the rail is not a window
-  // resize and must not silently change the document's zoom.
+  // resizes until the user picks a zoom.
   useLayoutEffect(() => {
     const el = scrollerRef.current;
     if (!doc || !el) return undefined;
@@ -1707,9 +1734,10 @@ export default function App() {
     markViewerPerformance('layout-ready', { scale });
   }, [scale]);
 
-  // The rail is a map of the document: anchors run in page order, and
-  // within a page in the order they were made. A note with no place in the
-  // PDF has no page to sort by, so it sits at the end.
+  // Anchors run in page order, and within a page in the order they were
+  // made. A note with no place in the PDF has no page to sort by, so it
+  // sits at the end; it has no pin and no mark, and is kept on the paper's
+  // own page in Papol, where it was written.
   const numbered = useMemo(
     () => [...notes].sort(
       (a, b) =>
@@ -2654,7 +2682,7 @@ export default function App() {
       return;
     }
     keepFocus(f);
-  }, [scale, railOpen]);
+  }, [scale]);
 
   // While a wheel or pinch gesture is moving, PdfPage stretches the current
   // bitmap with a compositor transform so zoom stays under the pointer. Once
@@ -2754,9 +2782,15 @@ export default function App() {
       anchor_type: spot.anchor.type,
       content: '',
       created_at: new Date().toISOString(),
+      // What its card is mounted under. The uuid is about to change, and a
+      // card being typed into must not be torn down when it does.
+      _cardKey: `new${tempUuid}`,
     };
     setNotes((prev) => [...prev, optimistic]);
+    // Its card opens with the note in hand: type and it is a note, click
+    // away and it is an anchor.
     setActiveNoteUuid(tempUuid);
+    setNoteCardFocus('text');
 
     const saving = annotations.notes
       .create({ ...spot, content: '' })
@@ -2936,105 +2970,47 @@ export default function App() {
     }
   };
 
-  // An anchor's label is its name, and the page number stands in until it
-  // has one. Clicking the label renames it.
-  const saveName = async (note, record = true) => {
-    const name = nameDraft.trim();
-    setNaming(null);
-    if (name === (note.name || '')) return;
-    setNotes((prev) => prev.map((n) => (n.uuid === note.uuid ? { ...n, name } : n)));
-    try {
-      const real = await settledUuid(note.uuid);
-      if (real == null) return;
-      const saved = await annotations.notes.rename(real, name);
-      if (record && saved) {
-        remember({
-          undo: () => renameNote(saved.uuid, note.name || '', false),
-          redo: () => renameNote(saved.uuid, name, false),
-        });
-      }
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  const label = (note) =>
-    naming === note.uuid ? (
-      <input
-        className="name-input"
-        autoFocus
-        value={nameDraft}
-        placeholder={note.anchor ? `page ${note.page}` : 'a name'}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => setNameDraft(e.target.value)}
-        onBlur={() => saveName(note)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') saveName(note);
-          if (e.key === 'Escape') setNaming(null);
-        }}
-      />
-    ) : (
-      <button
-        className="name"
-        title="Click to name this anchor"
-        onClick={(e) => {
-          e.stopPropagation();
-          startNaming(note);
-        }}
-      >
-        {note.name || (note.anchor ? `page ${note.page}` : 'not placed on the page')}
-      </button>
-    );
-
-  const startNaming = (note) => {
-    setNameDraft(note.name || '');
-    setNaming(note.uuid);
-  };
-
-  // Clicking an anchor on the page says which entry it is: the row lights
-  // up, scrolls into view, and fades back on its own.
-  const flashTimer = useRef(null);
+  // Clicking a pin opens its card, and clicking it again puts the card
+  // away. Nothing takes the keyboard: a pin is clicked to be read far more
+  // often than to be rewritten, and the fields are one click further.
   const pointAtNote = (uuid) => {
-    if (uuid == null) {
-      setActiveNoteUuid(null);
-      setFlashUuid(null);
-      clearTimeout(flashTimer.current);
-      return;
-    }
-    setActiveNoteUuid(uuid);
-    setRailOpen(true);
-    setFlashUuid(uuid);
-    clearTimeout(flashTimer.current);
-    // A shade longer than the 5s fade in styles.js, so the class outlives
-    // the animation rather than cutting it short.
-    flashTimer.current = setTimeout(() => setFlashUuid(null), 6100);
-    requestAnimationFrame(() => {
-      document
-        .querySelector(`.rail [data-note="${uuid}"]`)
-        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    });
+    setNoteCardFocus(null);
+    setActiveNoteUuid((open) => (uuid == null || open === uuid ? null : uuid));
   };
 
-  const startWriting = (note) => {
-    setEditing(note.uuid);
-    setEditText(note.content || '');
+  // From the context menu, where what is wanted has already been said.
+  const openNoteCard = (note, field) => {
     goToNote(note);
+    setActiveNoteUuid(note.uuid);
+    setNoteCardFocus(field);
   };
 
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
     const updated = await annotations.notes.update(real, content);
-    setNotes((prev) => prev.map((note) => (note.uuid === real ? updated : note)));
+    // Laid over the note rather than put in its place: what the viewer
+    // keeps on a note for itself — the key its open card is mounted under —
+    // has to outlive a save made from that card.
+    setNotes((prev) => prev.map((note) => (note.uuid === real ? { ...note, ...updated } : note)));
     return updated;
   };
 
   const renameNote = async (uuid, name, record = false) => {
     const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
+    if (note && (note.name || '') === name) return note;
+    setNotes((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, name } : n)));
     const real = await settledUuid(uuid);
     if (real == null) return null;
-    const saved = await annotations.notes.rename(real, name);
-    if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? saved : n)));
+    let saved = null;
+    try {
+      saved = await annotations.notes.rename(real, name);
+    } catch (e) {
+      setNotes((prev) => prev.map((n) => (n.uuid === real ? { ...n, name: note?.name || '' } : n)));
+      setError(e.message);
+      return null;
+    }
+    if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? { ...n, ...saved } : n)));
     if (record && note && saved) {
       remember({
         undo: () => renameNote(saved.uuid, note.name || '', false),
@@ -3044,13 +3020,14 @@ export default function App() {
     return saved;
   };
 
-  const saveEdit = async (uuid, record = true) => {
-    if (!editText.trim()) return;
+  // What the card's note field hands back when it is left. An anchor may
+  // go back to having nothing written on it.
+  const writeNote = async (uuid, content, record = true) => {
     const before = notesRef.current.find((note) => note.uuid === uuid)?.content || '';
-    const content = editText.trim();
+    if (content === before) return;
+    setNotes((prev) => prev.map((note) => (note.uuid === uuid ? { ...note, content } : note)));
     try {
       const updated = await updateNoteContent(uuid, content);
-      setEditing(null);
       if (record && updated) {
         remember({
           undo: () => updateNoteContent(updated.uuid, before),
@@ -3058,6 +3035,7 @@ export default function App() {
         });
       }
     } catch (e) {
+      setNotes((prev) => prev.map((note) => (note.uuid === uuid ? { ...note, content: before } : note)));
       setError(e.message);
     }
   };
@@ -3081,8 +3059,6 @@ export default function App() {
     // name a different note — and open its card, or light its row, for no
     // reason anyone could see.
     setActiveNoteUuid((open) => (open === uuid ? null : open));
-    setFlashUuid((lit) => (lit === uuid ? null : lit));
-    setDraggingNoteUuid((carried) => (carried === uuid ? null : carried));
     try {
       const real = await settledUuid(uuid);
       if (real != null) await annotations.notes.remove(real);
@@ -3106,8 +3082,8 @@ export default function App() {
     { label: 'Go to Anchor', onSelect: () => goToNote(note) },
   ] : [
     { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => startWriting(note) },
-    { label: 'Rename Anchor…', onSelect: () => startNaming(note) },
+    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => openNoteCard(note, 'text') },
+    { label: 'Rename Anchor…', onSelect: () => openNoteCard(note, 'name') },
     { separator: true },
     { label: 'Delete Anchor', onSelect: () => removeNote(note.uuid) },
     { separator: true },
@@ -3263,8 +3239,15 @@ export default function App() {
 
   // Go to the note's own place on the page, not merely the page: the
   // anchor lands in the middle of the view.
+  //
+  // Going is not opening. A mark on the Navigator, a link to a note and
+  // "Go to Anchor" are all ways of getting to a place; the card is for
+  // working on the anchor, and it opens from the pin — or on its own for an
+  // anchor just dropped. Arriving anywhere puts away whatever card was open
+  // where the reader came from.
   const goToNote = (note) => {
-    setActiveNoteUuid(note.uuid);
+    setActiveNoteUuid(null);
+    setNoteCardFocus(null);
     if (!note.anchor) return;
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${note.page}"]`);
@@ -3281,6 +3264,48 @@ export default function App() {
     scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
   };
 
+  // A section begins at its heading, so the heading lands near the top of
+  // the view rather than in its middle: what you asked to see is what comes
+  // after it, and centring the heading would give half the screen to the
+  // section you were leaving. The near/far rule is the anchors' own.
+  const goToSection = (section) => {
+    const scroller = scrollerRef.current;
+    const pageEl = scroller?.querySelector(`[data-page="${section.page}"]`);
+    if (!scroller || !pageEl) return;
+    const page = pageEl.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    const headingY = page.top + (1 - section.y) * page.height;
+    const top = scroller.scrollTop + headingY - box.top - Math.min(64, box.height * 0.1);
+    const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
+    scroller.scrollTo({ top: Math.max(0, top), behavior: far ? 'auto' : 'smooth' });
+  };
+
+  // The front of the paper, which is a place on the map like any other.
+  const goToTop = () => {
+    scrollerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
+  // An anchor in the contents is one line, so it says the shortest true
+  // thing about itself: its name, else the opening of the note written on
+  // it, else the page it holds.
+  const contentsAnchors = useMemo(
+    () => numbered.filter(hasAnchor).map((note) => {
+      const name = (note.name || '').trim();
+      const written = (note.content || '').trim().split('\n')[0].trim();
+      return {
+        uuid: note.uuid,
+        page: note.page,
+        // The map places an anchor at the point it holds, not merely on
+        // its page, so a paper of few pages still spreads its anchors out.
+        anchorY: note.anchor?.y ?? 0.5,
+        note,
+        label: name
+          || (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
+          || `Page ${note.page}`,
+      };
+    }),
+    [numbered],
+  );
 
   // Once imported, leave the ephemeral file URL. The canonical nook viewer
   // is the only surface allowed to load or persist paper state.
@@ -3397,6 +3422,9 @@ export default function App() {
   const pageOpenReference = useEvent(openReference);
   const pageFollowLink = useEvent(followLink);
   const pageSelectNote = useEvent(pointAtNote);
+  const pageRenameNote = useEvent((uuid, name) => renameNote(uuid, name, true));
+  const pageWriteNote = useEvent((uuid, content) => writeNote(uuid, content));
+  const pageRemoveNote = useEvent((uuid) => removeNote(uuid));
   const pageMoveNote = useEvent(moveNote);
   const pageDrawStroke = useEvent(drawStroke);
   const pageSelectInk = useEvent((stroke) => setSelectedInk(stroke ? {
@@ -3507,39 +3535,6 @@ export default function App() {
     </span>
   );
 
-  const beginRailResize = (event) => {
-    if (window.innerWidth <= NARROW) return;
-    event.preventDefault();
-    const pointerId = event.pointerId;
-    const handle = event.currentTarget;
-    handle.setPointerCapture(pointerId);
-    document.body.classList.add('resizing-rail');
-
-    const move = (moveEvent) => {
-      const available = Math.min(MAX_RAIL_WIDTH, window.innerWidth * 0.45);
-      setRailWidth(clampRailWidth(Math.min(available, window.innerWidth - moveEvent.clientX)));
-    };
-    const finish = () => {
-      document.body.classList.remove('resizing-rail');
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', finish);
-      handle.removeEventListener('pointercancel', finish);
-      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
-    };
-
-    handle.addEventListener('pointermove', move);
-    handle.addEventListener('pointerup', finish);
-    handle.addEventListener('pointercancel', finish);
-  };
-
-  const resizeRailWithKeyboard = (event) => {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    if (event.key === 'Home') return setRailWidth(MIN_RAIL_WIDTH);
-    if (event.key === 'End') return setRailWidth(MAX_RAIL_WIDTH);
-    setRailWidth((width) => clampRailWidth(width + (event.key === 'ArrowLeft' ? 16 : -16)));
-  };
-
   return (
     <>
       <CompatibilityBar />
@@ -3601,7 +3596,19 @@ export default function App() {
             </svg>
           </a>
         ) : null}
-        <span className="spacer" />
+        {/* The paper itself, drawn to length across the middle of the bar.
+            It takes the room the spacer used to hold, and falls back to
+            being that spacer while there is nothing yet to draw. */}
+        <Navigator
+          pages={doc?.numPages || 0}
+          sections={sections}
+          anchors={contentsAnchors}
+          scrollerRef={scrollerRef}
+          live={Boolean(doc && hasScale)}
+          onSection={goToSection}
+          onAnchor={(anchor) => goToNote(anchor.note)}
+          onTop={goToTop}
+        />
         {/* A failed sync is reported, not offered again: the viewer is for
             reading, and the library is where sync is driven from. */}
         <DesktopSyncingStatus retry={false} />
@@ -3637,9 +3644,12 @@ export default function App() {
             </div>
           )}
         </div>
-        <span className="tools" role="group" aria-label="Tool">
+        <span className={`tools${sheet ? ' open' : ''}`} role="group" aria-label="Tool">
+          {/* The rack sits over the map rather than pushing it: reaching
+              for a tool should not redraw the paper's shape. */}
+          <span className="tools-rack">
           {availableTools.map((t) => (
-            <span className="tool-slot" key={t.id}>
+            <span className={`tool-slot${tool === t.id ? ' held' : ''}`} key={t.id}>
               <button
                 type="button"
                 className={`tool${tool === t.id ? ' on' : ''}`}
@@ -3911,6 +3921,7 @@ export default function App() {
 
             </span>
           ))}
+          </span>
         </span>
         {/* The paper page no longer offers the raw file, so the way to keep
             a copy lives here, beside the reading of it — and at the end of
@@ -3943,7 +3954,11 @@ export default function App() {
               aria-label="Paper information"
               title="Paper information"
             >
-              <span className="info-glyph" aria-hidden="true">i</span>
+              <svg className="info-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9.1" />
+                <path d="M12 11.2v5.6" />
+                <circle className="info-dot" cx="12" cy="7.7" r="1.15" />
+              </svg>
             </button>
             {/* A paper that is not yet this user's, and could be: a file
                 they opened, or one somebody shared with them. Either way
@@ -3970,26 +3985,6 @@ export default function App() {
                 </button>
               )
             )}
-            {!source?.openedFile && !(DESKTOP && MAC) && <a
-              className="bar-link"
-              href={pdfHref(paper)}
-              download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
-              onClick={(event) => {
-                // Desktop saves the copy already in its local store.
-                if (!nativeDataActive()) return;
-                event.preventDefault();
-                const name = event.currentTarget.getAttribute('download');
-                downloadablePdfHref(paper).then((href) => {
-                  const link = document.createElement('a');
-                  link.href = href;
-                  link.download = name;
-                  link.click();
-                  setTimeout(() => URL.revokeObjectURL(href), 60_000);
-                }).catch(() => {});
-              }}
-            >
-              Download
-            </a>}
             {nookPromptOpen && ['confirm', 'ask', 'waiting'].includes(nookStep) && (
               <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title" data-tauri-drag-region="false">
                 <strong id="nook-ask-title">Add this paper to your nook</strong>
@@ -4028,6 +4023,9 @@ export default function App() {
                 <button type="button" className="card-x" onClick={() => setPaperInfoOpen(false)} aria-label="Close" title="Close">
                   ×
                 </button>
+                {/* What scrolls, apart from what closes it: the × stays in its
+                    corner of the box while an abstract moves beneath. */}
+                <div className="paper-info-scroll">
                 <h3 className="ref-title">{paperInfo?.title || paper.title}</h3>
                 {(paperInfo?.authors || paperAuthors(paper.authors)).length > 0 && (
                   <p className="ref-authors">
@@ -4066,6 +4064,31 @@ export default function App() {
                       rel="noreferrer"
                     >{paperInfo?.doi || paper.doi ? 'DOI' : 'Page'}</a>
                   )}
+                  {/* Saving the PDF is something you do to the paper, so it
+                      belongs with the paper's other links rather than on the
+                      bar, where it was spending a button's worth of room on
+                      an errand almost nobody runs twice. */}
+                  {!source?.openedFile && !(DESKTOP && MAC) && (
+                    <a
+                      className="ref-link"
+                      href={pdfHref(paper)}
+                      download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
+                      onClick={(event) => {
+                        // Desktop saves the copy already in its local store.
+                        if (!nativeDataActive()) return;
+                        event.preventDefault();
+                        const name = event.currentTarget.getAttribute('download');
+                        downloadablePdfHref(paper).then((href) => {
+                          const link = document.createElement('a');
+                          link.href = href;
+                          link.download = name;
+                          link.click();
+                          setTimeout(() => URL.revokeObjectURL(href), 60_000);
+                        }).catch(() => {});
+                      }}
+                    >Download</a>
+                  )}
+                </div>
                 </div>
               </div>
             )}
@@ -4083,28 +4106,7 @@ export default function App() {
       )}
 
 
-      <div
-        className={`viewer-body${railOpen ? '' : ' rail-hidden'}`}
-        style={{ '--rail-user-w': `${railWidth}px` }}
-      >
-        {/* A handle on the rail's edge: it clings there when the rail is
-            open and to the window's edge when it is away. */}
-        <button
-          className="rail-handle"
-          onClick={() => {
-            focus.current = captureFocus(null);
-            setRailOpen((v) => !v);
-          }}
-          aria-pressed={railOpen}
-          aria-label={railOpen ? 'Hide my anchors' : 'Show my anchors'}
-          title={railOpen ? 'Hide my anchors' : 'Show my anchors'}
-        >
-          {railOpen ? (
-            <span aria-hidden="true">›</span>
-          ) : (
-            <span className="rail-handle-icon" aria-hidden="true"><ToolGlyph id="anchor" /></span>
-          )}
-        </button>
+      <div className="viewer-body">
         <ReturnPill
           returnView={returnView}
           onwardView={onwardView}
@@ -4203,6 +4205,10 @@ export default function App() {
               renderScaleStore={renderScaleStore}
               notes={notesByPage.get(n) || EMPTY_INK}
               activeNoteUuid={notesByPage.get(n)?.some((note) => note.uuid === activeNoteUuid) ? activeNoteUuid : null}
+              noteCardFocus={notesByPage.get(n)?.some((note) => note.uuid === activeNoteUuid) ? noteCardFocus : null}
+              onRenameNote={pageRenameNote}
+              onWriteNote={pageWriteNote}
+              onRemoveNote={pageRemoveNote}
               analysis={analysis}
               openReferenceUuid={openReferencePage === n ? openCite?.referenceUuid ?? null : null}
               onOpenReference={pageOpenReference}
@@ -4239,7 +4245,6 @@ export default function App() {
               onSelectClip={setSelectedClipUuid}
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
-              onDragNote={setDraggingNoteUuid}
               onContextNote={noteContextMenu}
               animal={animal}
               animalSpeed={animalSpeed}
@@ -4590,246 +4595,6 @@ export default function App() {
           </div>
         )}
 
-        {railOpen && <button className="rail-scrim" type="button" aria-label="Close anchors" onClick={() => setRailOpen(false)} />}
-
-        {railOpen && (
-          <div
-            className="rail-resizer"
-            role="separator"
-            aria-label="Resize anchors sidebar"
-            aria-orientation="vertical"
-            aria-valuemin={MIN_RAIL_WIDTH}
-            aria-valuemax={MAX_RAIL_WIDTH}
-            aria-valuenow={Math.round(railWidth)}
-            tabIndex={0}
-            onPointerDown={beginRailResize}
-            onKeyDown={resizeRailWithKeyboard}
-          />
-        )}
-
-        {railOpen && (
-        <aside className="rail" aria-label="Paper anchors">
-          <div className="rail-header">
-            <div className="rail-heading">
-              <span className="rail-kicker">
-                {userName && sharedReading ? `${userName}’s notes` : 'Paper notes'}
-              </span>
-              <div className="rail-title-row">
-                <h2>Anchors</h2>
-                <span className="rail-count" aria-label={`${numbered.length} ${numbered.length === 1 ? 'anchor' : 'anchors'}`}>
-                  {numbered.length}
-                </span>
-              </div>
-            </div>
-            <div className="rail-header-actions">
-              <button
-                type="button"
-                className="rail-help"
-                aria-label="Open tools help"
-                title="Tools help"
-                onClick={() => setHelpOpen(true)}
-              >
-                <span aria-hidden="true">?</span>
-              </button>
-              <button
-                type="button"
-                className="rail-close"
-                aria-label="Close anchors"
-                title="Close anchors"
-                onClick={() => setRailOpen(false)}
-              >
-                <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          </div>
-
-          {numbered.length === 0 && (
-            <div className="rail-empty">
-              <span className="rail-empty-glyph" aria-hidden="true">
-                <ToolGlyph id="anchor" />
-              </span>
-              <h3>{fromALink ? 'No anchors here' : 'No anchors yet'}</h3>
-              {fromALink ? (
-                <>
-                  <p>
-                    {!sharedReading
-                      ? 'This link shares the paper only.'
-                      : userName
-                        ? `${userName} left no anchors on this paper.`
-                        : 'No anchors were left on this paper.'}
-                  </p>
-                  {/* Why the rail is empty is only half of it. The other
-                      half is that it need not stay that way. */}
-                  {annotationsNeedANook && (
-                    <p>Add this paper to your nook to write your own.</p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p>Choose the Anchor tool, then click anywhere on the paper to save your place.</p>
-                  <button type="button" className="link" onClick={() => setHelpOpen(true)}>See all annotation tools</button>
-                </>
-              )}
-            </div>
-          )}
-
-          {numbered.length > 0 && (
-            <p className="rail-intro">Select an anchor to return to that place in the paper.</p>
-          )}
-
-          <div className="rail-list">
-
-          {numbered.map((note) =>
-            // An anchor with nothing written on it is an annotation, not a note:
-            // one quiet line, until there are words to show.
-            !note.content && editing !== note.uuid ? (
-              <div
-                key={note.uuid}
-                data-note={note.uuid}
-                className={`anchor-row${
-                  note.uuid === flashUuid ? ' flash' : ''
-                }${note.uuid === draggingNoteUuid ? ' carrying' : ''}`}
-                onClick={() => goToNote(note)}
-                onContextMenu={(event) => noteContextMenu(event, note)}
-              >
-                <span className="row-glyph">
-                  <GlyphFor note={note} />
-                </span>
-                <span className="anchor-where">{label(note)}</span>
-                <button
-                  type="button"
-                  className="link anchor-jump"
-                  aria-label={`Go to ${note.name || (note.anchor ? `page ${note.page}` : 'unplaced anchor')}`}
-                  title="Go to anchor"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    goToNote(note);
-                  }}
-                >
-                  <span aria-hidden="true">→</span>
-                </button>
-                {!readOnly && (
-                  <button
-                    className="link anchor-write"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startWriting(note);
-                    }}
-                  >
-                    add a note
-                  </button>
-                )}
-                {!readOnly && (
-                  <button
-                    className="card-x"
-                    title="Delete this anchor"
-                    aria-label="Delete this anchor"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeNote(note.uuid);
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div
-                key={note.uuid}
-                data-note={note.uuid}
-                className={`note-card${
-                  note.uuid === flashUuid ? ' flash' : ''
-                }${note.uuid === draggingNoteUuid ? ' carrying' : ''}`}
-                onClick={() => goToNote(note)}
-                onContextMenu={(event) => noteContextMenu(event, note)}
-              >
-                {!readOnly && (
-                  <button
-                    className="card-x"
-                    title="Delete this anchor"
-                    aria-label="Delete this anchor"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeNote(note.uuid);
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-                <p className="note-where">
-                  <span className="row-glyph">
-                    <GlyphFor note={note} />
-                  </span>
-                  {label(note)}
-                </p>
-                {editing === note.uuid ? (
-                  <>
-                    <textarea
-                      autoFocus
-                      rows={3}
-                      value={editText}
-                      placeholder="What is worth remembering here?"
-                      onChange={(e) => setEditText(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setEditing(null);
-                      }}
-                    />
-                    <div className="note-actions">
-                      <button
-                        className="primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          saveEdit(note.uuid);
-                        }}
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditing(null);
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="note-text">{note.content}</p>
-                    <div className="note-actions">
-                      <button
-                        className="link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          goToNote(note);
-                        }}
-                      >
-                        go to anchor
-                      </button>
-                      {!readOnly && (
-                        <button
-                          className="link"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startWriting(note);
-                          }}
-                        >
-                          edit
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          )}
-
-          </div>
-
-        </aside>
-        )}
       </div>
     </>
   );
