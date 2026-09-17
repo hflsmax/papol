@@ -10,6 +10,7 @@ import { planOfflineNookAddition } from '../nookTransition.js';
 import { onServer } from './serverOperation.js';
 import { mySharable } from './sharables.js';
 import appLimits from '../appLimits.js';
+import { paperName } from '../paperName.js';
 import {
   forgetPendingPaperBlob, hasPendingPaperBlob, paperCopyUuid, rememberPaperIdentity,
   rememberPendingPaperBlob, setPaperCopyUuid,
@@ -19,9 +20,10 @@ const DESKTOP_EXTRACT_TIMEOUT_MS = appLimits.timeouts_ms.desktop_metadata;
 
 // ---------- Papers ----------
 
-// Papers are addressed by the digest of their file, and only by it.
+// A paper is addressed by the name it goes by in a URL: the first half of
+// the digest of its PDF. See shared/paperName.js.
 export function paperHref(paper) {
-  return appPath(`/paper/${paper.sha256}`);
+  return appPath(`/paper/${paperName(paper.sha256)}`);
 }
 
 // Uploaded PDFs live in uploads/. Demo papers link to each paper's
@@ -89,7 +91,7 @@ export async function discardPaperImport(extractedData) {
 
 export function reextractPaperMetadata(paperSha256) {
   return onServer(
-    () => request(`/papers/${paperSha256}/extract-metadata`, { method: 'POST' }),
+    () => request(`/papers/${paperName(paperSha256)}/extract-metadata`, { method: 'POST' }),
     { pull: false },
   );
 }
@@ -142,7 +144,7 @@ export async function createPaper(paperData) {
     await nativeRepository.transact(changes);
     forgetPendingPaperBlob(sha256);
     setPaperCopyUuid(paperSha256, copyUuid);
-    return paperView(await nativeRepository.paper(paperSha256));
+    return paperView(await nativeRepository.paper(paperName(paperSha256)));
   }
   return jsonRequest('/papers', 'POST', paperData);
 }
@@ -160,7 +162,8 @@ async function liveLinkOn(uuid) {
   }
 }
 
-export async function getPaper(uuid) {
+export async function getPaper(name) {
+  const uuid = paperName(name);
   let localComments = null;
   if (nativeDataActive()) {
     // A nook paper is read from the replica: the server may not have it yet,
@@ -176,7 +179,8 @@ export async function getPaper(uuid) {
       const paper = paperView(row);
       paper.notes = comments.map(annotationView);
       paper.sharable_uuid = link;
-      setPaperCopyUuid(uuid, paper.copy_uuid);
+      // Keyed by the paper's own digest, which is what reads it back.
+      setPaperCopyUuid(paper.sha256, paper.copy_uuid);
       return paper;
     } catch (error) {
       // A paper outside this nook, opened from the library, comes from the service.
@@ -257,7 +261,7 @@ export async function addToNook(paper) {
   const paperSha256 = typeof paper === 'string' ? paper : paper?.sha256;
   if (!paperSha256) throw new Error('Paper not found');
   if (!nativeDataActive() || typeof paper === 'string') {
-    return request(`/papers/${paperSha256}/add-to-nook`, { method: 'POST' });
+    return request(`/papers/${paperName(paperSha256)}/add-to-nook`, { method: 'POST' });
   }
 
   const shelves = await nativeRepository.shelves();
@@ -268,7 +272,7 @@ export async function addToNook(paper) {
   await importNativeSharedPaper(paper);
   await nativeRepository.transact([change]);
   setPaperCopyUuid(paperSha256, copyUuid);
-  return paperView(await nativeRepository.paper(paperSha256));
+  return paperView(await nativeRepository.paper(paperName(paperSha256)));
 }
 
 async function localCopyUuid(uuid) {
@@ -276,7 +280,7 @@ async function localCopyUuid(uuid) {
   if (remembered) return remembered;
   if (!nativeDataActive()) return null;
   try {
-    const paper = await nativeRepository.paper(uuid);
+    const paper = await nativeRepository.paper(paperName(uuid));
     setPaperCopyUuid(uuid, paper.copy_uuid);
     return paper.copy_uuid;
   } catch (error) {
@@ -292,7 +296,7 @@ export async function updatePaper(uuid, data) {
   ]);
   if (nativeDataActive() && Object.keys(data).every((key) => localFields.has(key))) {
     const copyUuid = await localCopyUuid(uuid);
-    if (!copyUuid) return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${uuid}`, 'PUT', data)));
+    if (!copyUuid) return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${paperName(uuid)}`, 'PUT', data)));
     const values = { ...data };
     const desiredTags = values.tag_uuids;
     delete values.tag_uuids;
@@ -318,7 +322,7 @@ export async function updatePaper(uuid, data) {
     const receipt = await nativeRepository.transact(changes);
     return receipt.rows[0];
   }
-  return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${uuid}`, 'PUT', data)));
+  return rememberPaperIdentity(await onServer(() => jsonRequest(`/papers/${paperName(uuid)}`, 'PUT', data)));
 }
 
 export async function deletePaper(uuid) {
@@ -328,7 +332,7 @@ export async function deletePaper(uuid) {
       table: 'copies', uuid: copyUuid, operation: 'delete', values: {},
     }]).then(() => ({ message: 'Paper removed from your nook' }));
   }
-  return request(`/papers/${uuid}`, { method: 'DELETE' });
+  return request(`/papers/${paperName(uuid)}`, { method: 'DELETE' });
 }
 
 export function createTag(name) {
@@ -397,7 +401,7 @@ export function addComment(paperSha256, content) {
       values: { kind: 'note', paper_sha256: paperSha256, content, body: '{}' },
     }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperSha256}/annotations`, 'POST', {
+  return jsonRequest(`/papers/${paperName(paperSha256)}/annotations`, 'POST', {
     kind: 'note', content,
   });
 }

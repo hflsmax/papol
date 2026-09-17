@@ -29,6 +29,8 @@ import { isBrowsing, lastShownSource, rememberSource, resolveSource } from './de
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
+import { parseRoute } from './routes';
+import { paperName } from '../../shared/paperName.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
@@ -42,38 +44,6 @@ import {
 } from '../../shared/clientCompatibility.js';
 import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
-
-function parseRoute() {
-  const rawPath = stripAppBase(window.location.pathname || '/');
-  const demo = rawPath === '/demo' || rawPath.startsWith('/demo/');
-  const path = demo
-    ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
-    : rawPath;
-  // Users and seminars are addressed by their UUID, and only by it. A paper
-  // is addressed by the digest of its file, which is the only name it has.
-  const UUID_PATTERN = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
-  const SHA256_PATTERN = '([0-9a-f]{64})';
-  const routed = (route) => ({
-    ...route,
-    ...(demo ? { demo: true } : {}),
-  });
-  const at = (pattern) => path.match(new RegExp(`^${pattern}/?$`, 'i'))?.[1].toLowerCase();
-  let uuid;
-  if ((uuid = at(`/u/${UUID_PATTERN}/boards`))) return routed({ page: 'space', uuid, section: 'boards' });
-  if ((uuid = at(`/u/${UUID_PATTERN}`))) return routed({ page: 'space', uuid });
-  if ((uuid = at(`/paper/${SHA256_PATTERN}`))) return routed({ page: 'paper', uuid });
-  if ((uuid = at(`/room/${UUID_PATTERN}`))) return routed({ page: 'room', uuid });
-  if (path === '/profile') return routed({ page: 'profile' });
-  if (path === '/join') return routed({ page: 'join' });
-  if (path === '/about') return routed({ page: 'about' });
-  if (path === '/learn') return routed({ page: 'learn' });
-  if (path === '/signin') return routed({ page: 'signin' });
-  if (path === '/library' || path === '/papers') return routed({ page: 'papers' });
-  if (path === '/village' || path === '/users') return routed({ page: 'papers' });
-  if (path === '/inbox') return routed({ page: 'inbox' });
-  if (path === '/admin') return routed({ page: 'admin' });
-  return routed({ page: 'home' });
-}
 
 const demoPath = (path) => {
   if (path === '/') return '/demo';
@@ -428,7 +398,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperSha256) => {
     rememberSource('all');
-    const path = `/paper/${paperSha256}`;
+    const path = `/paper/${paperName(paperSha256)}`;
     const mountedPath = appPath(path);
     if (`${window.location.pathname}${window.location.search}` === mountedPath) {
       setRoute(parseRoute());
@@ -710,7 +680,7 @@ export default function App({ startupUser = null, startupError = null }) {
           <Space
             userUuid={user.uuid}
             currentUser={user}
-            onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+            onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
             onSelectBoard={openBoard}
           />
         ) : DESKTOP ? (
@@ -726,7 +696,7 @@ export default function App({ startupUser = null, startupError = null }) {
         <Space
           userUuid={route.uuid}
           currentUser={user}
-          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
           initialSection={route.section}
           onBack={goBack}
@@ -744,14 +714,14 @@ export default function App({ startupUser = null, startupError = null }) {
             mode !== 'demo' &&
             !window.history.state?.papolNavigation
           }
-          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onReportableError={offerDesktopError}
         />
       )}
       {route.page === 'papers' && (
         <PapersPage
           currentUser={user}
-          onSelectPaper={(uuid) => navigate(`/paper/${uuid}`)}
+          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
           incomingPaperFile={incomingPaperFile}
           onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
@@ -904,7 +874,10 @@ export default function App({ startupUser = null, startupError = null }) {
         Feedback
       </button>
       {feedbackDialog}
-      <div className="app" onClickCapture={routeAppLinks}>
+      {/* Which page this URL opened, said out loud. The browser smoke
+          test and the health probe read it to tell a link that arrived
+          from one that quietly fell through to the home page. */}
+      <div className="app" data-page={route.page} onClickCapture={routeAppLinks}>
         <header className="topnav">
           <a className="brand" href={appPath('/')}>Papol</a>
           <nav>

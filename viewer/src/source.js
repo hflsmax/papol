@@ -4,6 +4,7 @@ import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
 import { notesIn } from './annotationKinds.js';
 import { appPath } from './base.js';
+import { paperName } from '../../shared/paperName.js';
 import {
   getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
   getSharedReferences, getSharedReference, getViewerPaperInfo,
@@ -77,7 +78,7 @@ function apiSource(
     async load() {
       const loaded = await paper();
       paperSha256 = loaded.sha256;
-      source.homeHref = appPath(`/paper/${loaded.sha256}`);
+      source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
       return { doc: loaded, notes: [] };
     },
     async loadNotes() {
@@ -270,7 +271,7 @@ function localSource(paperSha256) {
   let annotations = seedFor(paperSha256);
 
   return {
-    homeHref: appPath(`/demo/paper/${paperSha256}`),
+    homeHref: appPath(`/demo/paper/${paperName(paperSha256)}`),
     // The paper's details panel shows the demo paper's own fields; there is
     // no catalogue entry to add to them.
     async info() {

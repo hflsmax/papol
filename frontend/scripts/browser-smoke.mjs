@@ -16,8 +16,29 @@ const mime = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
 };
+// The links a visitor actually arrives on. A single-page app answers 200 for
+// every path it has never heard of, so serving the shell proves nothing: each
+// of these is opened in the browser and has to render the page it names.
+// `/` alone is what let a paper link fall through to the home page unnoticed.
+const PAPER_DIGEST = '5cf24221f8fa36824ddd1178cbfb5cf36d0dcfcf335c8de87826c4082b70cbf1';
+const PAPER_NAME = PAPER_DIGEST.slice(0, 32);
+const USER_UUID = '2f1c6f60-3f5b-4a19-9c2a-7d0e1b8c4a53';
+const pages = [
+  { path: '/', page: 'home' },
+  { path: `/paper/${PAPER_NAME}`, page: 'paper' },
+  { path: `/u/${USER_UUID}`, page: 'space' },
+  { path: `/room/${USER_UUID}`, page: 'room' },
+  { path: '/library', page: 'papers' },
+  { path: '/learn', page: 'learn' },
+  { path: '/signin', page: 'signin' },
+];
+
 let markRendered;
-const rendered = new Promise((resolveRendered) => { markRendered = resolveRendered; });
+let rendered;
+const awaitNextRender = () => {
+  rendered = new Promise((resolveRendered) => { markRendered = resolveRendered; });
+};
+awaitNextRender();
 
 const browserCandidates = () => {
   const configured = process.env.CHROME || process.env.CHROMIUM;
@@ -73,6 +94,7 @@ const server = createServer(async (request, response) => {
       response.writeHead(204).end();
       markRendered({
         startupLoading: url.searchParams.get('startupLoading') === 'true',
+        page: url.searchParams.get('page'),
       });
       return;
     }
@@ -81,9 +103,13 @@ const server = createServer(async (request, response) => {
       response.end('{"detail":"Not authenticated"}');
       return;
     }
-    const relative = url.pathname === '/papol/' || url.pathname === '/'
+    // Production serves the application shell for any path that is not a
+    // built file. Do the same here, or a deep link 404s in the smoke test for
+    // a reason production would never have.
+    const requested = url.pathname.replace(/^\/(?:papol\/)?/, '');
+    const relative = requested === '' || !/\.[a-z0-9]+$/i.test(requested)
       ? 'index.html'
-      : url.pathname.replace(/^\/(?:papol\/)?/, '');
+      : requested;
     const file = resolve(dist, relative);
     const relativeToDist = pathRelative(dist, file);
     if (relativeToDist.startsWith('..') || isAbsolute(relativeToDist)
@@ -105,11 +131,13 @@ const server = createServer(async (request, response) => {
           loadingObserver.observe(document, { childList: true, subtree: true });
           const ready = () => {
             observeLoading();
+            const app = document.querySelector('.app');
             if (document.querySelector('#root > style')
-                && document.querySelector('.app')
+                && app
                 && document.querySelector('.topnav')) {
               loadingObserver.disconnect();
-              fetch('/__papol_smoke_ready?startupLoading=' + startupLoading, { method: 'POST' });
+              fetch('/__papol_smoke_ready?startupLoading=' + startupLoading
+                + '&page=' + encodeURIComponent(app.dataset.page || ''), { method: 'POST' });
             } else {
               setTimeout(ready, 10);
             }
@@ -128,61 +156,86 @@ const server = createServer(async (request, response) => {
 
 await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
 const { port } = server.address();
-const profile = await mkdtemp(join(tmpdir(), 'papol-browser-smoke-'));
-let errors = '';
-let child;
+const chromium = await findExecutable(browserCandidates());
+
+// One headless run of one link: open it, wait for the application to say it
+// has rendered, and report which page it rendered.
+async function openLink(path) {
+  const profile = await mkdtemp(join(tmpdir(), 'papol-browser-smoke-'));
+  let errors = '';
+  let child;
+  awaitNextRender();
+  try {
+    child = spawn(chromium, [
+      '--headless',
+      '--no-sandbox',
+      '--disable-gpu',
+      `--user-data-dir=${profile}`,
+      '--remote-debugging-port=0',
+      '--enable-logging=stderr',
+      '--v=0',
+      `http://127.0.0.1:${port}/papol${path}`,
+    ]);
+
+    child.stderr.on('data', (chunk) => { errors += chunk; });
+    const closed = new Promise((resolveClosed) => {
+      child.once('close', (code) => resolveClosed({ kind: 'closed', code }));
+    });
+    const launchError = new Promise((resolveLaunchError) => {
+      child.once('error', (error) => resolveLaunchError({ kind: 'error', error }));
+    });
+    let timeoutId;
+    const timeout = new Promise((resolveTimeout) => {
+      timeoutId = setTimeout(() => resolveTimeout({ kind: 'timeout' }), 20_000);
+    });
+    const outcome = await Promise.race([
+      rendered.then((result) => ({ kind: 'rendered', ...result })),
+      closed,
+      launchError,
+      timeout,
+    ]);
+    clearTimeout(timeoutId);
+    return { ...outcome, errors };
+  } finally {
+    if (child?.exitCode === null) {
+      const closed = new Promise((resolveClosed) => child.once('close', resolveClosed));
+      child.kill('SIGTERM');
+      await closed;
+    }
+    await rm(profile, { recursive: true, force: true });
+  }
+}
 
 try {
-  const chromium = await findExecutable(browserCandidates());
-  child = spawn(chromium, [
-    '--headless',
-    '--no-sandbox',
-    '--disable-gpu',
-    `--user-data-dir=${profile}`,
-    '--remote-debugging-port=0',
-    '--enable-logging=stderr',
-    '--v=0',
-    `http://127.0.0.1:${port}/papol/`,
-  ]);
-
-  child.stderr.on('data', (chunk) => { errors += chunk; });
-  const closed = new Promise((resolveClosed) => {
-    child.once('close', (code) => resolveClosed({ kind: 'closed', code }));
-  });
-  const launchError = new Promise((resolveLaunchError) => {
-    child.once('error', (error) => resolveLaunchError({ kind: 'error', error }));
-  });
-  let timeoutId;
-  const timeout = new Promise((resolveTimeout) => {
-    timeoutId = setTimeout(() => resolveTimeout({ kind: 'timeout' }), 20_000);
-  });
-  const outcome = await Promise.race([
-    rendered.then((result) => ({ kind: 'rendered', ...result })),
-    closed,
-    launchError,
-    timeout,
-  ]);
-  clearTimeout(timeoutId);
-  if (outcome.kind === 'error') throw outcome.error;
-  if (outcome.kind === 'timeout') throw new Error(`Papol did not render within 20 seconds.\n${errors}`);
-  if (outcome.kind === 'closed') {
-    throw new Error(`Chromium exited with status ${outcome.code} before Papol rendered.\n${errors}`);
-  }
-  if (outcome.startupLoading) {
-    throw new Error('Papol rendered the full-page startup loading screen before the guest shell.');
+  for (const { path, page } of pages) {
+    const link = `/papol${path}`;
+    const outcome = await openLink(path);
+    if (outcome.kind === 'error') throw outcome.error;
+    if (outcome.kind === 'timeout') {
+      throw new Error(`${link} did not render within 20 seconds.\n${outcome.errors}`);
+    }
+    if (outcome.kind === 'closed') {
+      throw new Error(
+        `Chromium exited with status ${outcome.code} before ${link} rendered.\n${outcome.errors}`,
+      );
+    }
+    if (outcome.startupLoading) {
+      throw new Error(`${link} rendered the full-page startup loading screen before the guest shell.`);
+    }
+    // The whole point of walking these links. A path the router does not know
+    // renders the home page and looks perfectly healthy from outside.
+    if (outcome.page !== page) {
+      throw new Error(
+        `${link} opened the ${outcome.page || 'unnamed'} page, not the ${page} page. `
+        + 'A link of this shape no longer reaches what it names.',
+      );
+    }
+    if (/Uncaught (?:ReferenceError|TypeError|SyntaxError)/.test(outcome.errors)) {
+      throw new Error(`Browser runtime error on ${link}:\n${outcome.errors}`);
+    }
   }
 } finally {
-  if (child?.exitCode === null) {
-    const closed = new Promise((resolveClosed) => child.once('close', resolveClosed));
-    child.kill('SIGTERM');
-    await closed;
-  }
   await new Promise((resolveClose) => server.close(resolveClose));
-  await rm(profile, { recursive: true, force: true });
 }
 
-if (/Uncaught (?:ReferenceError|TypeError|SyntaxError)/.test(errors)) {
-  throw new Error(`Browser runtime error:\n${errors}`);
-}
-
-console.log('Production browser smoke test rendered the Papol app.');
+console.log(`Production browser smoke test opened ${pages.length} links, each on the page it names.`);

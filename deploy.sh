@@ -315,6 +315,37 @@ macos_release() {
       ;;
   esac
   [ "$version" != "$current" ] || die "desktop is already version $version"
+
+  # A release only ever moves forwards, and never below the wire's floor.
+  # v0.1.4 went out at 0.1.4 after the re-key had already taken the app to
+  # 0.2.0, which put the published build under the minimum the service asks
+  # for: every reader who downloaded it was told their Papol was too old.
+  # Nothing in the release path noticed, so these two now do.
+  local floor
+  floor=$(sed -n 's/^PROTOCOL_MINIMUM_VERSION = "\(.*\)"$/\1/p' \
+    "$DEV_DIR/backend/services/client_requirements.py")
+  node - "$version" "$current" "${floor:-0.0.0}" <<'NODE' || die "release version refused"
+const [version, current, floor] = process.argv.slice(2);
+const parts = (text) => text.split('.').map(Number);
+const compare = (left, right) => {
+  const [a, b] = [parts(left), parts(right)];
+  for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+};
+if (compare(version, current) < 0) {
+  console.error(`deploy: ${version} is older than the current ${current}; a release moves forwards`);
+  process.exit(1);
+}
+if (compare(version, floor) < 0) {
+  console.error(
+    `deploy: ${version} is below the service's minimum of ${floor}, so it would be `
+    + 'refused the moment it was installed. Move PROTOCOL_MINIMUM_VERSION or the '
+    + 'release, but do not publish a build the service will not speak to.',
+  );
+  process.exit(1);
+}
+NODE
+
   tag="macos-v$version"
   if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     die "tag $tag already exists locally"
@@ -1284,6 +1315,7 @@ deploy_prod() {
   fi
 
   health_check
+  link_check "$old"
 }
 
 # The service is up when it serves the page — which also says the build
@@ -1305,6 +1337,38 @@ health_check() {
   printf '\n'
   as_root journalctl -u "$UNIT" -n 30 --no-pager
   die "production did not come up — the log is above, and the database backup is beside it"
+}
+
+# Answering is not the same as working. The page above is the application
+# shell, which production serves for every path including the ones the browser
+# router no longer knows, so a deployment whose paper links are all dead passes
+# the check above without a murmur. Open the real links and see.
+link_check() {
+  local previous="$1" digest status=0
+
+  # The public URL, not the port above. The built application asks for its own
+  # scripts under /papol, which the proxy in front of the service strips: on
+  # the loopback port those requests fall into the single-page catch-all and
+  # come back as HTML, so nothing renders and every link looks dead. Papol is
+  # only whole where a reader meets it.
+  local public="${PAPOL_PUBLIC_URL:-https://mc-pony.com/papol}"
+
+  # A paper production really has, so the link under test is one a reader
+  # could be holding. Newest first: it is the most likely to exist tomorrow.
+  digest=$(sqlite "$PROD_DIR/backend/papol.db" \
+    "select sha256 from papers where deleted_at is null order by created_at desc limit 1;" \
+    2>/dev/null) || digest=""
+
+  say "Opening production's links"
+  "$DEV_DIR/health/links.sh" "$public" "$digest" || status=$?
+  [ "$status" -eq 0 ] && return 0
+  # 2 is the check failing to stand up — no browser, or the application never
+  # loading at all. That says nothing about this revision's routing, so it is
+  # reported and stepped over rather than being blamed on the deployment.
+  [ "$status" -eq 2 ] && { note "the link check could not run; open a paper link by hand"; return 0; }
+  die "production is serving pages, but some of its links no longer open what
+    they name. The service is up and the previous checkout is at $previous;
+    git -C $PROD_DIR reset --hard $previous puts the code back."
 }
 
 # --- pulling production data into development -------------------------------

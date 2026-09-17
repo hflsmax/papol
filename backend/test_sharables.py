@@ -12,6 +12,7 @@ from fastapi import Depends, HTTPException
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
 from models import Annotation, Copy, Paper, Sharable, Shelf, User
+from services.papers import paper_name
 
 SHARED_HASH = "a" * 64
 OTHER_HASH = "b" * 64
@@ -156,7 +157,7 @@ class SharableTests(unittest.TestCase):
 
     def share(self, include_annotations=True):
         made = self.client.post(
-            f"/api/papers/{self.paper_sha256}/sharable",
+            f"/api/papers/{paper_name(self.paper_sha256)}/sharable",
             json={"include_annotations": include_annotations},
         )
         self.assertEqual(made.status_code, 200, made.text)
@@ -172,7 +173,7 @@ class SharableTests(unittest.TestCase):
         self.assertEqual(opened["annotations"], [])
 
     def test_the_quiet_link_is_what_an_unasked_request_gets(self):
-        made = self.client.post(f"/api/papers/{self.paper_sha256}/sharable")
+        made = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/sharable")
         self.assertEqual(made.json()["kind"], "lean")
 
     def test_the_paper_s_link_and_a_reading_of_it_are_different_links(self):
@@ -210,7 +211,7 @@ class SharableTests(unittest.TestCase):
         made = self.share(include_annotations=False)
 
         self.assertIsNone(self.client.get(f"/api/shared/{made['uuid']}").json()["user"])
-        detail = self.client.get(f"/api/papers/{self.paper_sha256}").json()
+        detail = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()
         self.assertIsNone(detail["sharable_uuid"])
 
     def test_the_paper_s_link_is_nobody_s_to_take_back(self):
@@ -232,7 +233,7 @@ class SharableTests(unittest.TestCase):
 
     def test_the_paper_page_shows_the_user_their_own_link(self):
         made = self.share()
-        detail = self.client.get(f"/api/papers/{self.paper_sha256}")
+        detail = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(detail.json()["sharable_uuid"], made["uuid"])
 
         # Another user of the same paper is told nothing about it.
@@ -241,12 +242,12 @@ class SharableTests(unittest.TestCase):
             db.commit()
         type(self).current_user_uuid = self.stranger_uuid
         self.assertIsNone(
-            self.client.get(f"/api/papers/{self.paper_sha256}").json()["sharable_uuid"],
+            self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()["sharable_uuid"],
         )
 
     def test_a_user_without_a_copy_has_no_reading_to_share(self):
         type(self).current_user_uuid = self.stranger_uuid
-        refused = self.client.post(f"/api/papers/{self.paper_sha256}/sharable")
+        refused = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/sharable")
         self.assertEqual(refused.status_code, 403)
 
     def test_the_link_opens_this_users_annotations_on_this_paper_and_no_others(self):
@@ -375,7 +376,7 @@ class SharableTests(unittest.TestCase):
     def test_leaving_the_nook_turns_a_rich_link_lean(self):
         made = self.share()
         self.assertEqual(made["kind"], "rich")
-        removed = self.client.delete(f"/api/papers/{self.paper_sha256}")
+        removed = self.client.delete(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(removed.status_code, 200, removed.text)
 
         opened = self.client.get(f"/api/shared/{made['uuid']}")
@@ -408,7 +409,7 @@ class SharableTests(unittest.TestCase):
 
     def test_taking_the_paper_back_does_not_re_enrich_a_demoted_link(self):
         made = self.share()
-        self.client.delete(f"/api/papers/{self.paper_sha256}")
+        self.client.delete(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.client.get(f"/api/shared/{made['uuid']}")
         with self.Session() as db:
             copy = db.query(Copy).filter(
@@ -444,7 +445,7 @@ class SharableTests(unittest.TestCase):
         made = self.share()
         self.client.post(f"/api/sharables/{made['uuid']}/lean")
 
-        detail = self.client.get(f"/api/papers/{self.paper_sha256}").json()
+        detail = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()
         self.assertIsNone(detail["sharable_uuid"])
         # Not theirs to enrich again, and not theirs to revoke.
         self.assertEqual(
@@ -496,17 +497,17 @@ class SharableTests(unittest.TestCase):
         one the whole paper would have carried, or a shared paper there
         would show as unshared and its link could not be stopped."""
         self.assertIsNone(
-            self.client.get(f"/api/papers/{self.paper_sha256}/sharable").json(),
+            self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}/sharable").json(),
         )
 
         mine = self.share(include_annotations=True)
-        asked = self.client.get(f"/api/papers/{self.paper_sha256}/sharable")
+        asked = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}/sharable")
         self.assertEqual(asked.status_code, 200, asked.text)
         self.assertEqual(asked.json()["uuid"], mine["uuid"])
 
         self.client.delete(f"/api/sharables/{mine['uuid']}")
         self.assertIsNone(
-            self.client.get(f"/api/papers/{self.paper_sha256}/sharable").json(),
+            self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}/sharable").json(),
         )
 
     def test_the_paper_s_own_link_is_nobody_s_to_be_reported(self):
@@ -514,13 +515,13 @@ class SharableTests(unittest.TestCase):
         out answers nothing — the same rule the paper itself follows."""
         self.share(include_annotations=False)
         self.assertIsNone(
-            self.client.get(f"/api/papers/{self.paper_sha256}/sharable").json(),
+            self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}/sharable").json(),
         )
 
     def test_nobody_learns_of_a_link_from_someone_else_s_reading(self):
         self.share(include_annotations=True)
         type(self).current_user_uuid = self.stranger_uuid
-        asked = self.client.get(f"/api/papers/{self.paper_sha256}/sharable")
+        asked = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}/sharable")
         self.assertEqual(asked.status_code, 200, asked.text)
         self.assertIsNone(asked.json())
 
@@ -586,7 +587,7 @@ class TakingASharedPaperIntoYourNook(SharableTests):
         be, because whoever holds one may have no account at all."""
         link = self.share(include_annotations=False)
         self.as_stranger()
-        ordinary = self.client.post(f"/api/papers/{self.paper_sha256}/add-to-nook")
+        ordinary = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/add-to-nook")
         self.assertEqual(ordinary.status_code, 200, ordinary.text)
         # Already kept, so the link says so rather than making a second copy.
         by_link = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")

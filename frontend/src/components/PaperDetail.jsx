@@ -7,6 +7,7 @@ import {
   createSharable, leanSharable, revokeSharable, sharableHref,
 } from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
+import { paperName } from '../../../shared/paperName.js';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
@@ -234,7 +235,7 @@ export default function PaperDetail({
       window.history.replaceState(
         window.history.state,
         '',
-        appPath(`${modePrefix}/paper/${added.uuid}`),
+        appPath(`${modePrefix}/paper/${paperName(added.sha256)}`),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
       // the nook needs the user's shelves for its shelf menu.
@@ -753,7 +754,7 @@ export default function PaperDetail({
                     </a>
                     <a
                       role="menuitem"
-                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paper.sha256}`)}`)}
+                      href={appPath(`/signin?next=${encodeURIComponent(`/paper/${paperName(paper.sha256)}`)}`)}
                       title="Sign in to use the built-in viewer"
                     >
                       <strong>Use built-in viewer</strong>

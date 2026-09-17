@@ -94,7 +94,7 @@ from services.annotations import (
     KINDS, NOTE, annotation_out, annotations_of, body_text,
 )
 from services.notifications import setting_value
-from services.papers import displayed_copies
+from services.papers import AmbiguousPaperName, displayed_copies, paper_by_name
 from services.sharables import live_sharable_for, open_sharable
 
 # Uploads directory
@@ -1939,7 +1939,13 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
 
 # Every row is named, in the database and on the wire, by its UUID.
 def _get_paper_or_404(paper_sha256: str, db: Session) -> Paper:
-    paper = db.query(Paper).filter(Paper.sha256 == paper_sha256).first()
+    try:
+        paper = paper_by_name(paper_sha256, db)
+    except AmbiguousPaperName:
+        raise HTTPException(
+            status_code=409,
+            detail="That name means more than one paper; use the paper's full digest",
+        ) from None
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     return paper
@@ -2697,9 +2703,7 @@ async def paper_references(
     `ready`. Older unanalyzed papers are started on first access. Pass
     `refresh=true` to read a PDF again — the way to retry one GROBID could
     not handle."""
-    paper = db.query(Paper).filter(Paper.sha256 == paper_sha256).first()
-    if paper is None:
-        raise HTTPException(status_code=404, detail="Paper not found")
+    paper = _get_paper_or_404(paper_sha256, db)
     return await _paper_references(paper, background, db, refresh)
 
 
@@ -2816,9 +2820,7 @@ async def preview_pdf_reference(
     printed bibliography entry itself; registering it here gives that entry
     the same cached Crossref/OpenAlex enrichment as analyzed references.
     """
-    paper = db.query(Paper).filter(Paper.sha256 == paper_sha256).first()
-    if paper is None:
-        raise HTTPException(status_code=404, detail="Paper not found")
+    paper = _get_paper_or_404(paper_sha256, db)
 
     key = data.key.strip()
     raw = " ".join(data.raw.split())
@@ -2878,13 +2880,11 @@ async def viewer_references(
     if _public_pdf_path(digest) is not None:
         return await _bundled_paper_references(paper_sha256, digest, background)
     paper = _viewer_paper_or_404(digest, current_user, db, share)
-    if share:
-        # What a paper cites is a property of the file, not of the user
-        # who shared it, so a shared reading carries its bibliography.
-        return await _paper_references(paper, background, db)
-    return await paper_references(
-        paper.sha256, background, current_user=current_user, db=db,
-    )
+    # What a paper cites is a property of the file, not of the user who
+    # shared it, so a shared reading carries its bibliography like any other.
+    # The paper is already in hand either way: naming it again only to look it
+    # up again would be asking the question this route has already answered.
+    return await _paper_references(paper, background, db)
 
 
 @app.get("/api/viewer-references/item/{reference_uuid}", response_model=ReferenceOut)

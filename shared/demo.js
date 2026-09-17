@@ -8,6 +8,7 @@ import {
   demoPapers, demoNotes, demoPaperSha256, noteAsComment,
 } from './demoWorld.js';
 import { inDemo } from './appUrls.js';
+import { PAPER_NAME_PATTERN, paperName } from './paperName.js';
 import appLimits from './appLimits.js';
 
 export function demoActive() {
@@ -355,8 +356,14 @@ function requireUserOf(room) {
   }
 }
 
+// A request names a paper the way a link does: by the first half of its
+// digest — one shape, so no route here has to ask which it was given.
+const paperRoute = (rest = '') => new RegExp(`^/papers/(${PAPER_NAME_PATTERN})${rest}$`);
+
+// The identity a name resolves to is the whole digest.
 function findPaper(ref) {
-  const p = ensure().papers.find((x) => x.sha256 === ref.toLowerCase());
+  const name = paperName(ref);
+  const p = ensure().papers.find((x) => paperName(x.sha256) === name);
   if (!p) throw demoError('Paper not found', 404);
   return p;
 }
@@ -491,7 +498,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers/extract') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/extract-metadata$/))) {
+  if ((m = path.match(paperRoute('/extract-metadata')))) {
     const paper = findPaper(m[1]);
     return {
       doi: paper.doi,
@@ -504,7 +511,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers' && method === 'POST') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/add-to-nook$/))) {
+  if ((m = path.match(paperRoute('/add-to-nook')))) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     const defaultShelf = d.shelves.find((shelf) => shelf.is_default) || d.shelves[0];
@@ -515,7 +522,7 @@ async function routeDemoRequest(path, options = {}) {
       created_at: now() });
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/annotations$/)) && method === 'POST') {
+  if ((m = path.match(paperRoute('/annotations'))) && method === 'POST') {
     const paper = findPaper(m[1]);
     if (!copyOf(paper, ME)) throw demoError('Add this paper to your nook first', 403);
     const c = { uuid: newUuid(), kind: body.kind || 'note', paper_sha256: paper.sha256,
@@ -524,7 +531,7 @@ async function routeDemoRequest(path, options = {}) {
     d.comments.push(c);
     return c;
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/annotations$/))) {
+  if ((m = path.match(paperRoute('/annotations')))) {
     const paper = findPaper(m[1]);
     return ensure().comments
       .filter((c) => c.paper_sha256 === paper.sha256 && c.user_uuid === ME)
@@ -545,7 +552,7 @@ async function routeDemoRequest(path, options = {}) {
     d.comments.splice(i, 1);
     return { message: 'Annotation deleted' };
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/room$/))) {
+  if ((m = path.match(paperRoute('/room')))) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!onDisplay(mine)) {
@@ -562,7 +569,7 @@ async function routeDemoRequest(path, options = {}) {
     ensureParticipant(room);
     return roomSummary(room);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})$/)) && method === 'PUT') {
+  if ((m = path.match(paperRoute())) && method === 'PUT') {
     const paper = findPaper(m[1]);
     // `is_public` is answered by moving the copy's shelf, below — it is
     // asked for here but never written onto the copy.
@@ -596,7 +603,7 @@ async function routeDemoRequest(path, options = {}) {
     for (const k of metadata) if (k in body) paper[k] = body[k];
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})$/)) && method === 'DELETE') {
+  if ((m = path.match(paperRoute())) && method === 'DELETE') {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
@@ -607,7 +614,7 @@ async function routeDemoRequest(path, options = {}) {
     }
     return { message: 'Paper removed from your nook' };
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})$/)) && method === 'GET') {
+  if ((m = path.match(paperRoute())) && method === 'GET') {
     return paperDetail(findPaper(m[1]));
   }
 

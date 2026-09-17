@@ -3,6 +3,7 @@ import { getRoom } from '../../../shared/api/rooms.js';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
 import { appPath } from '../base';
+import { paperName } from '../../../shared/paperName.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { subscribeNativeSyncResults } from '../../../shared/nativeData.js';
 
@@ -61,7 +62,7 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
         <div className="seminar-head">
           <h2 className="room-title">
             {room.paper_sha256 ? (
-              <a href={appPath(`/paper/${room.paper_sha256}`)} title="Open the paper">
+              <a href={appPath(`/paper/${paperName(room.paper_sha256)}`)} title="Open the paper">
                 {room.paper_title}
               </a>
             ) : (

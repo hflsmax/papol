@@ -1,4 +1,5 @@
 import { newestFirst, seminarRank } from './paperFormat.js';
+import { paperName } from '../../shared/paperName.js';
 
 // What Papol macOS's paper browser is showing, how that is written in a URL,
 // and which papers it lists. Kept free of React and the page so it can be
@@ -22,7 +23,7 @@ export function sourcePath(source) {
 export function paperCreatedNavigation(source, paperSha256) {
   return {
     source: source === 'library' ? 'all' : source,
-    path: `/paper/${paperSha256}`,
+    path: `/paper/${paperName(paperSha256)}`,
   };
 }
 

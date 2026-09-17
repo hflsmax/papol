@@ -1,6 +1,7 @@
 import { appPath } from '../appUrls.js';
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
+import { paperName } from '../paperName.js';
 
 // ---------- Sharables (a user's reading of one paper, given by link) ----------
 
@@ -11,7 +12,7 @@ import { onServer } from './serverOperation.js';
 // arrived before anyone follows it.
 export function createSharable(paperSha256, { includeAnnotations = false } = {}) {
   return onServer(() => jsonRequest(
-    `/papers/${paperSha256}/sharable`, 'POST', { include_annotations: includeAnnotations },
+    `/papers/${paperName(paperSha256)}/sharable`, 'POST', { include_annotations: includeAnnotations },
   ));
 }
 
@@ -22,7 +23,7 @@ export function createSharable(paperSha256, { includeAnnotations = false } = {})
 // read with nothing of the user's pending on it, so unlike the operations
 // above there is no work to publish first.
 export function mySharable(paperSha256) {
-  return request(`/papers/${paperSha256}/sharable`);
+  return request(`/papers/${paperName(paperSha256)}/sharable`);
 }
 
 // Downwards only: a link that has been lean is never enriched again,
