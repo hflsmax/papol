@@ -11,6 +11,7 @@ import shutil
 import tempfile
 import unittest
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -24,6 +25,7 @@ from sqlalchemy.pool import StaticPool
 import main
 import sync.api as sync_api
 from sync.changes import commit_sync
+from sync.forgetting import replay_window
 from database import Base, PapolSession, current_request_session, get_db
 from models import (
     Annotation, AppliedMutation, Board, BoardItem, Copy, CopyTagLink, Paper,
@@ -327,7 +329,13 @@ class DesktopSyncContractTests(unittest.TestCase):
         with self.sessions() as db:
             self.assertEqual(db.query(Board).count(), 1)
             self.assertEqual(db.query(BoardItem).count(), 1)
-            self.assertEqual(db.query(ServerChange).count(), 4)
+            # Four changes were written; the second pull acknowledged the
+            # first two, and the log does not keep what its only replica
+            # has taken.
+            self.assertEqual(
+                [change.sequence for change in db.query(ServerChange).all()],
+                [3, 4],
+            )
             self.assertEqual(db.query(AppliedMutation).count(), 2)
             sync_client = db.query(SyncClient).one()
             self.assertEqual(sync_client.client_uuid, client_uuid)
@@ -1229,6 +1237,131 @@ class DesktopSyncContractTests(unittest.TestCase):
         paper = self.request("GET", f"/api/papers/{paper_name(paper_sha256)}").json()
         self.assertEqual(paper["uuid"], paper_sha256)
         self.assert_no_id_fields(paper)
+
+    # --- what synchronization stops remembering ----------------------------
+
+    def board(self, name: str, client_uuid: str, sequence: int) -> str:
+        board_uuid = str(uuid.uuid4())
+        self.request("POST", "/api/sync/push", json={
+            "protocol_version": 1,
+            "client_uuid": client_uuid,
+            "mutation_uuid": str(uuid.uuid4()),
+            "local_sequence": sequence,
+            "changes": [{
+                "table": "boards", "uuid": board_uuid,
+                "base_revision": 0, "operation": "upsert",
+                "values": {"name": name},
+            }],
+        })
+        return board_uuid
+
+    def caught_up(self, client_uuid: str) -> int:
+        """Pull this replica to the end, and have it say it got there.
+
+        A cursor is acknowledged by the pull that comes back carrying it,
+        never by the pull that hands it out — the client has to have stored
+        it first, or a reply lost on the way would be a page skipped."""
+        cursor = 0
+        while True:
+            page = self.request(
+                "GET", f"/api/sync/pull?cursor={cursor}&client_uuid={client_uuid}",
+            ).json()
+            if page["cursor"] == cursor:
+                return cursor
+            cursor = page["cursor"]
+
+    def test_the_change_log_keeps_what_a_second_replica_has_not_taken(self):
+        """The lowest cursor any replica has reached is the floor.
+
+        A user with a Mac and a laptop: the Mac syncs after every change,
+        the laptop was last opened a change ago. What the laptop has still
+        to be given stays, however far ahead the Mac has got."""
+        mac, laptop = str(uuid.uuid4()), str(uuid.uuid4())
+        self.board("First", mac, 1)
+        behind = self.caught_up(laptop)
+        self.board("Second", mac, 2)
+        ahead = self.caught_up(mac)
+        self.assertGreater(ahead, behind)
+
+        with self.sessions() as db:
+            kept = [change.sequence for change in db.query(ServerChange).all()]
+        self.assertEqual(kept, [sequence for sequence in (1, 2) if sequence > behind])
+
+    def test_one_replica_caught_up_lets_the_whole_log_go(self):
+        client_uuid = str(uuid.uuid4())
+        self.board("First", client_uuid, 1)
+        self.board("Second", client_uuid, 2)
+        self.caught_up(client_uuid)
+        with self.sessions() as db:
+            self.assertEqual(db.query(ServerChange).count(), 0)
+
+    def test_the_cursor_goes_on_growing_after_the_log_is_emptied(self):
+        """The replica's cursor stays meaningful across a prune.
+
+        An ordinary SQLite key would start again at 1 here, and every
+        change after that would carry a sequence this replica is already
+        past — so it would pull nothing, for good, and nothing would say
+        so."""
+        client_uuid = str(uuid.uuid4())
+        self.board("First", client_uuid, 1)
+        cursor = self.caught_up(client_uuid)
+        self.assertGreater(cursor, 0)
+
+        board_uuid = self.board("After the prune", client_uuid, 2)
+        page = self.request(
+            "GET", f"/api/sync/pull?cursor={cursor}&client_uuid={client_uuid}",
+        ).json()
+        self.assertEqual(
+            [(change["table"], change["uuid"]) for change in page["changes"]],
+            [("boards", board_uuid)],
+        )
+        self.assertGreater(page["cursor"], cursor)
+
+    def test_an_account_with_no_replica_keeps_its_whole_log(self):
+        """Nothing has said it is past anything, so nothing is let go of."""
+        self.request("POST", "/api/boards", json={"name": "From the website"})
+        with self.sessions() as db:
+            self.assertEqual(db.query(ServerChange).count(), 1)
+            self.assertEqual(db.query(SyncClient).count(), 0)
+
+    def test_a_reply_no_client_can_still_be_retrying_is_let_go_of(self):
+        client_uuid = str(uuid.uuid4())
+        self.board("Long ago", client_uuid, 1)
+        with self.sessions() as db:
+            stored = db.query(AppliedMutation).one()
+            stored.created_at = datetime.utcnow() - replay_window() - timedelta(days=1)
+            db.commit()
+
+        self.board("Today", client_uuid, 2)
+        self.request("GET", f"/api/sync/pull?cursor=0&client_uuid={client_uuid}")
+
+        with self.sessions() as db:
+            self.assertEqual(
+                [row.path for row in db.query(AppliedMutation).all()],
+                ["/api/sync/push"],
+            )
+
+    def test_a_reply_a_client_may_still_ask_for_again_is_kept(self):
+        """The window is what a retry needs, not what a request takes."""
+        client_uuid = str(uuid.uuid4())
+        mutation_uuid = str(uuid.uuid4())
+        payload = {
+            "protocol_version": 1,
+            "client_uuid": client_uuid,
+            "mutation_uuid": mutation_uuid,
+            "local_sequence": 1,
+            "changes": [{
+                "table": "boards", "uuid": str(uuid.uuid4()),
+                "base_revision": 0, "operation": "upsert",
+                "values": {"name": "Pushed once"},
+            }],
+        }
+        first = self.request("POST", "/api/sync/push", json=payload).json()
+        self.request("GET", f"/api/sync/pull?cursor=0&client_uuid={client_uuid}")
+        again = self.request("POST", "/api/sync/push", json=payload).json()
+        self.assertEqual(again, first)
+        with self.sessions() as db:
+            self.assertEqual(db.query(Board).count(), 1)
 
 
 if __name__ == "__main__":

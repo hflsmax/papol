@@ -20,6 +20,9 @@
     "admin_table_rows": 500,
     "bibliography_results": 5
   },
+  "retention_days": {
+    "replay_cache": 90
+  },
   "text": {
     "email": 254,
     "display_name": 80,

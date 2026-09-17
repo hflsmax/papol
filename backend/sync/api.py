@@ -27,6 +27,7 @@ from services.client_requirements import (
     INCOMPATIBLE, client_version, requirements, verdict,
 )
 from sync.changes import prepare_sync_changes, row_snapshot
+from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
 from schemas import AnnotationCreate
 from services.annotations import KINDS, NOTE
@@ -793,6 +794,14 @@ def pull(
         client.app_version = (
             client_version(request.headers.get("user-agent")) or client.app_version
         )
+        db.flush()
+        # A replica moving its cursor forward is the only moment anything
+        # learns that a change has been taken everywhere it was going. It
+        # is where the log stops being needed, so it is where the log is
+        # let go of, and the reply this client can no longer be retrying
+        # goes with it.
+        forget_acknowledged_changes(db, user.uuid)
+        forget_old_replays(db, user.uuid)
         db.commit()
     records = db.query(ServerChange).filter(
         ServerChange.user_uuid == user.uuid,
