@@ -418,7 +418,7 @@ export function DesktopBrowser({
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
-  const [draggingUuid, setDraggingUuid] = useState(null);
+  const [draggingSha256, setDraggingSha256] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [selectedBoardUuid, setSelectedBoardUuid] = useState(null);
   const [boardDetail, setBoardDetail] = useState(null);
@@ -427,7 +427,7 @@ export function DesktopBrowser({
   const listRef = useRef(null);
   const paperSha256 = route.page === 'paper' ? route.uuid : null;
   const selectedKey = source === 'boards' ? selectedBoardUuid : paperSha256;
-  const isSelected = (paper) => paperSha256 != null && paper.uuid === paperSha256;
+  const isSelected = (paper) => paperSha256 != null && paper.sha256 === paperSha256;
 
   useEffect(() => {
     if (route.page !== 'paper') rememberSource(source);
@@ -521,7 +521,7 @@ export function DesktopBrowser({
   const movePaper = async (paper, shelfUuid) => {
     setActionError(null);
     try {
-      await updatePaper(paper.uuid, { shelf_uuid: shelfUuid });
+      await updatePaper(paper.sha256, { shelf_uuid: shelfUuid });
       reload();
     } catch (error) { setActionError(error.message); }
   };
@@ -540,7 +540,7 @@ export function DesktopBrowser({
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     setActionError(null);
     try {
-      await deletePaper(paper.uuid);
+      await deletePaper(paper.sha256);
       if (isSelected(paper)) sourceHome();
       reload();
     } catch (error) { setActionError(error.message); }
@@ -563,7 +563,10 @@ export function DesktopBrowser({
     const entries = boardsView ? shownBoards : shownPapers;
     if (event.target.closest?.('input, textarea') || entries.length === 0) return;
     event.preventDefault();
-    const index = entries.findIndex((entry) => entry.uuid === selectedKey);
+    // A board is named by its UUID and a paper by its file, so the list
+    // being shown decides which name to look for.
+    const keyOf = (entry) => (boardsView ? entry.uuid : entry.sha256);
+    const index = entries.findIndex((entry) => keyOf(entry) === selectedKey);
     const step = event.key === 'ArrowDown' ? 1 : -1;
     const next = index < 0 ? 0 : Math.min(entries.length - 1, Math.max(0, index + step));
     if (next === index) return;
@@ -571,7 +574,7 @@ export function DesktopBrowser({
       setComposer(null);
       setSelectedBoardUuid(entries[next].uuid);
     } else {
-      onNavigate(`/paper/${paperName(entries[next].uuid)}`, { replace: route.page === 'paper' });
+      onNavigate(`/paper/${paperName(entries[next].sha256)}`, { replace: route.page === 'paper' });
     }
   };
 
@@ -604,8 +607,8 @@ export function DesktopBrowser({
             onPaperCreated={(paper) => {
               setComposer(null);
               reload();
-              if (paper?.uuid != null) {
-                const destination = paperCreatedNavigation(source, paper.uuid);
+              if (paper?.sha256 != null) {
+                const destination = paperCreatedNavigation(source, paper.sha256);
                 rememberSource(destination.source);
                 onNavigate(destination.path);
               }
@@ -798,8 +801,8 @@ export function DesktopBrowser({
               const users = paper.users?.length || 0;
               return (
                 <a
-                  key={paper.uuid}
-                  className={`desktop-row${selected ? ' selected' : ''}${draggingUuid === paper.uuid ? ' dragging' : ''}`}
+                  key={paper.sha256}
+                  className={`desktop-row${selected ? ' selected' : ''}${draggingSha256 === paper.sha256 ? ' dragging' : ''}`}
                   href={paperHref(paper)}
                   aria-current={selected ? 'true' : undefined}
                   // A paper in the user's own nook can be dropped on one of
@@ -807,13 +810,13 @@ export function DesktopBrowser({
                   draggable={libraryView ? 'false' : 'true'}
                   onDragStart={libraryView ? undefined : (event) => {
                     event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ uuid: paper.uuid, shelfUuid: paper.shelf_uuid }));
+                    event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ sha256: paper.sha256, shelfUuid: paper.shelf_uuid }));
                     event.dataTransfer.setData('text/plain', paper.title);
-                    setDraggingUuid(paper.uuid);
+                    setDraggingSha256(paper.sha256);
                   }}
-                  onDragEnd={() => setDraggingUuid(null)}
+                  onDragEnd={() => setDraggingSha256(null)}
                   onContextMenu={contextMenuHandler(() => [
-                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperName(paper.uuid)}`) },
+                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperName(paper.sha256)}`) },
                     !libraryView && shelves.length > 0 && { separator: true },
                     !libraryView && shelves.length > 0 && {
                       label: 'Move to Shelf',

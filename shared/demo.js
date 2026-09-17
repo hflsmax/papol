@@ -5,9 +5,10 @@
 // remains the sole authority for whether demo mode is active.
 
 import {
-  demoPapers, demoNotes, demoPaperUuid, noteAsComment,
+  demoPapers, demoNotes, demoPaperSha256, noteAsComment,
 } from './demoWorld.js';
 import { inDemo } from './appUrls.js';
+import { PAPER_NAME_PATTERN, paperName } from './paperName.js';
 import appLimits from './appLimits.js';
 
 export function demoActive() {
@@ -22,8 +23,9 @@ export function exitDemo() {
   db = null;
 }
 
-// Every demo row is named by UUID, as every Papol row is. Seeds name rows by
-// kind and a small ordinal; rows made while playing get a random UUID.
+// Every demo row is named by UUID, as every Papol row but a paper is — a
+// paper is named by its file. Seeds name rows by kind and a small ordinal;
+// rows made while playing get a random UUID.
 const KIND_DIGITS = {
   user: 'a', tag: 'b', shelf: 'c', copy: 'd', room: 'e', participant: 'f',
   message: '1', availability: '2', notification: '3',
@@ -64,7 +66,7 @@ function seed() {
   let cid = 1;
   // Seeds name a paper by its place in demoPapers, and a user by ordinal.
   const copy = (paper, user, extra = {}) => ({
-    uuid: demoUuid('copy', cid++), paper_sha256: demoPaperUuid(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, onDisplay: true, is_author: false,
+    uuid: demoUuid('copy', cid++), paper_sha256: demoPaperSha256(paper), user_uuid: demoUuid('user', user), summary: null, thought: null, onDisplay: true, is_author: false,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     tag_uuids: [], created_at: daysAgo(5), ...extra,
   });
@@ -120,8 +122,8 @@ function seed() {
   // Spread SpongeBob's papers across the shelves so every shelf demonstrates
   // real membership, color, visibility, and counts.
   for (const item of copies.filter((copyItem) => copyItem.user_uuid === ME)) {
-    if (item.paper_sha256 === demoPaperUuid(1) || item.paper_sha256 === demoPaperUuid(10)) item.shelf_uuid = demoUuid('shelf', 3);
-    if (item.paper_sha256 === demoPaperUuid(9)) item.shelf_uuid = demoUuid('shelf', 4);
+    if (item.paper_sha256 === demoPaperSha256(1) || item.paper_sha256 === demoPaperSha256(10)) item.shelf_uuid = demoUuid('shelf', 3);
+    if (item.paper_sha256 === demoPaperSha256(9)) item.shelf_uuid = demoUuid('shelf', 4);
   }
   // The hint has done its work; a copy carries no visibility of its own.
   for (const item of copies) delete item.onDisplay;
@@ -231,7 +233,7 @@ const privateUser = (u) => ({
 
 const userByUuid = (uuid) => ensure().users.find((u) => u.uuid === uuid);
 const paperKey = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
-const paperCopies = (p) => ensure().copies.filter((c) => c.paper_sha256 === p.uuid);
+const paperCopies = (p) => ensure().copies.filter((c) => c.paper_sha256 === p.sha256);
 const shelfOf = (c) => ensure().shelves.find((shelf) => shelf.uuid === c.shelf_uuid) || null;
 // On display is the shelf's answer, and only ever the shelf's.
 const onDisplay = (c) => !!(c && shelfOf(c)?.is_public);
@@ -266,7 +268,6 @@ function paperDetail(p) {
   return {
     sha256: p.sha256, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
-    sha256: p.sha256,
     created_at: p.created_at,
     summary: mine ? mine.summary : null,
     thought: mine ? mine.thought : null,
@@ -278,7 +279,7 @@ function paperDetail(p) {
     shelf_uuid: mine ? mine.shelf_uuid : null,
     tags: tagsOf(mine),
     notes: mine
-      ? ensure().comments.filter((c) => c.paper_sha256 === p.uuid && c.user_uuid === ME)
+      ? ensure().comments.filter((c) => c.paper_sha256 === p.sha256 && c.user_uuid === ME)
           .map((c) => ({ ...c, kind: 'note' }))
       : [],
     also_read_by: displayedCopies(p).map(userEntry),
@@ -301,7 +302,6 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     sha256: p.sha256, doi: p.doi, title: p.title, authors: p.authors,
     journal: p.journal, year: p.year, file_path: p.file_path,
     created_at: c ? c.created_at : p.created_at,
-    sha256: p.sha256,
     summary: c && !hidePrivate ? c.summary : null,
     thought: c ? c.thought : null,
     is_public: c ? onDisplay(c) : null,
@@ -356,8 +356,14 @@ function requireUserOf(room) {
   }
 }
 
+// A request names a paper the way a link does: by the first half of its
+// digest — one shape, so no route here has to ask which it was given.
+const paperRoute = (rest = '') => new RegExp(`^/papers/(${PAPER_NAME_PATTERN})${rest}$`);
+
+// The identity a name resolves to is the whole digest.
 function findPaper(ref) {
-  const p = ensure().papers.find((x) => x.sha256 === ref.toLowerCase());
+  const name = paperName(ref);
+  const p = ensure().papers.find((x) => paperName(x.sha256) === name);
   if (!p) throw demoError('Paper not found', 404);
   return p;
 }
@@ -492,7 +498,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers/extract') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/extract-metadata$/))) {
+  if ((m = path.match(paperRoute('/extract-metadata')))) {
     const paper = findPaper(m[1]);
     return {
       doi: paper.doi,
@@ -505,7 +511,7 @@ async function routeDemoRequest(path, options = {}) {
   if (path === '/papers' && method === 'POST') {
     throw demoError('Uploading papers is not available in the demo — create a real account to build your own nook.');
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/add-to-nook$/))) {
+  if ((m = path.match(paperRoute('/add-to-nook')))) {
     const paper = findPaper(m[1]);
     if (copyOf(paper, ME)) throw demoError('This paper is already in your nook');
     const defaultShelf = d.shelves.find((shelf) => shelf.is_default) || d.shelves[0];
@@ -516,7 +522,7 @@ async function routeDemoRequest(path, options = {}) {
       created_at: now() });
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/annotations$/)) && method === 'POST') {
+  if ((m = path.match(paperRoute('/annotations'))) && method === 'POST') {
     const paper = findPaper(m[1]);
     if (!copyOf(paper, ME)) throw demoError('Add this paper to your nook first', 403);
     const c = { uuid: newUuid(), kind: body.kind || 'note', paper_sha256: paper.sha256,
@@ -525,7 +531,7 @@ async function routeDemoRequest(path, options = {}) {
     d.comments.push(c);
     return c;
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/annotations$/))) {
+  if ((m = path.match(paperRoute('/annotations')))) {
     const paper = findPaper(m[1]);
     return ensure().comments
       .filter((c) => c.paper_sha256 === paper.sha256 && c.user_uuid === ME)
@@ -546,7 +552,7 @@ async function routeDemoRequest(path, options = {}) {
     d.comments.splice(i, 1);
     return { message: 'Annotation deleted' };
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})\/room$/))) {
+  if ((m = path.match(paperRoute('/room')))) {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!onDisplay(mine)) {
@@ -563,7 +569,7 @@ async function routeDemoRequest(path, options = {}) {
     ensureParticipant(room);
     return roomSummary(room);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})$/)) && method === 'PUT') {
+  if ((m = path.match(paperRoute())) && method === 'PUT') {
     const paper = findPaper(m[1]);
     // `is_public` is answered by moving the copy's shelf, below — it is
     // asked for here but never written onto the copy.
@@ -597,7 +603,7 @@ async function routeDemoRequest(path, options = {}) {
     for (const k of metadata) if (k in body) paper[k] = body[k];
     return paperDetail(paper);
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})$/)) && method === 'DELETE') {
+  if ((m = path.match(paperRoute())) && method === 'DELETE') {
     const paper = findPaper(m[1]);
     const mine = copyOf(paper, ME);
     if (!mine) throw demoError('Add this paper to your nook first', 403);
@@ -608,7 +614,7 @@ async function routeDemoRequest(path, options = {}) {
     }
     return { message: 'Paper removed from your nook' };
   }
-  if ((m = path.match(/^\/papers\/([0-9a-f]{64})$/)) && method === 'GET') {
+  if ((m = path.match(paperRoute())) && method === 'GET') {
     return paperDetail(findPaper(m[1]));
   }
 

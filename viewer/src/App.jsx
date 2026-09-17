@@ -18,6 +18,7 @@ import {
   signedIn as signedInHere,
 } from './source';
 import { appPath, backendPath, stripAppBase } from './base';
+import { paperName } from '../../shared/paperName.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
@@ -4048,7 +4049,7 @@ export default function App() {
                   {paper.sha256 && (
                     <a
                       className="ref-link here"
-                      href={appPath(`/paper/${paper.sha256}`)}
+                      href={appPath(`/paper/${paperName(paper.sha256)}`)}
                       onClick={(event) => {
                         if (focusDesktopLibraryWindow(paper.sha256)) event.preventDefault();
                       }}

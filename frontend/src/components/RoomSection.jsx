@@ -167,7 +167,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
     let active = true;
     const refresh = () => {
       const requestedAt = roomsRevision.current;
-      listPaperRooms(paper.uuid)
+      listPaperRooms(paper.sha256)
         .then((rooms) => {
           if (active && roomsRevision.current === requestedAt) setDesktopRooms(rooms);
         })
@@ -179,7 +179,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
       active = false;
       unsubscribe();
     };
-  }, [paper.uuid]);
+  }, [paper.sha256]);
 
   const rooms = desktopRooms ?? paper.rooms ?? [];
 
@@ -187,7 +187,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
     setCallWarning(null);
     setIsBusy(true);
     try {
-      const room = await callSeminar(paper.uuid);
+      const room = await callSeminar(paper.sha256);
       // The server response is authoritative. Use it immediately because a
       // subsequent desktop paper reload still reads its offline replica.
       roomsRevision.current += 1;

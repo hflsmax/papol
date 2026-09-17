@@ -21,10 +21,7 @@ global.window = {
       calls.push([command, arguments_]);
       if (command === 'local_setting_get') return 'manual';
       if (command === 'data_query' && arguments_.queryName === 'paper_by_pdf') {
-        return {
-          uuid: '11111111-1111-4111-8111-111111111111',
-          sha256: 'a'.repeat(64),
-        };
+        return { sha256: 'a'.repeat(64) };
       }
       if (command === 'data_query') return [];
       if (command === 'blob_read') return [37, 80, 68, 70];
@@ -45,12 +42,11 @@ const {
   createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes,
   pdfLoadInput, rememberPaperIdentity,
 } = await import('./api.js');
-const PAPER = '11111111-1111-4111-8111-111111111111';
+// A paper is its file, so the digest the viewer was opened on is also the
+// name every annotation call gives it.
+const PAPER = 'a'.repeat(64);
 
-rememberPaperIdentity({
-  uuid: '11111111-1111-4111-8111-111111111111',
-  sha256: 'a'.repeat(64),
-});
+rememberPaperIdentity({ sha256: PAPER });
 
 test('every kind of annotation reaches the one native table', async () => {
   const note = await createAnnotation(PAPER, {
@@ -90,7 +86,7 @@ test('every kind of annotation reaches the one native table', async () => {
   assert.equal(deleteCall[1].changes[0].table, 'annotations');
 });
 
-test('a local paper UUID reads annotations without falling through to integer REST routes', async () => {
+test('a local paper digest reads annotations without falling through to integer REST routes', async () => {
   calls.length = 0;
   await listAnnotations(PAPER, { kind: 'ink' });
   await listAnnotations(PAPER, { kind: 'clip' });
@@ -104,7 +100,7 @@ test('paper identity is available before its notes are queried', async () => {
   calls.length = 0;
   const paper = await getPaperByPdf('a'.repeat(64));
 
-  assert.equal(paper.uuid, PAPER);
+  assert.equal(paper.sha256, PAPER);
   assert.equal(calls.some(([, args]) => args?.queryName === 'annotations'), false);
 
   await getPaperNotes(paper);
@@ -112,10 +108,7 @@ test('paper identity is available before its notes are queried', async () => {
 });
 
 test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', async () => {
-  const nook = await pdfLoadInput({
-    uuid: '11111111-1111-4111-8111-111111111111',
-    sha256: 'a'.repeat(64),
-  });
+  const nook = await pdfLoadInput({ sha256: 'a'.repeat(64) });
   assert.ok(nook.data instanceof Uint8Array);
   assert.deepEqual([...nook.data], [37, 80, 68, 70]);
   assert.equal('url' in nook, false);
