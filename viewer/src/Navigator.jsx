@@ -39,15 +39,20 @@ export default function Navigator({
   const trackRef = useRef(null);
   const laneRef = useRef(null);
 
+  const top = useMemo(() => topLevel(sections), [sections]);
+
   const segments = useMemo(() => {
     if (!pages) return [];
     const marks = sections
-      // Top-level sections only. A paper's subsections outnumber its
-      // sections three to one, and drawn as their equals they turn the
-      // strip into a barcode of boxes too narrow to name — which is the
-      // opposite of seeing the shape of the paper. The sections are the
-      // shape; the subsections are detail inside it.
-      .filter((section) => (section.level ?? 0) === 0)
+      // One level only. A paper's subsections outnumber its sections three
+      // to one, and drawn as their equals they turn the strip into a
+      // barcode of boxes too narrow to name — which is the opposite of
+      // seeing the shape of the paper. The sections are the shape; the
+      // subsections are detail inside it. Which level that is comes from
+      // the outline rather than being assumed to be its first: a paper
+      // filed under one bookmark of its own title keeps its sections a
+      // level down (see topLevel).
+      .filter((section) => (section.level ?? 0) === top)
       .map((section) => ({ ...section, at: positionOf(section.page, section.y) }))
       .filter((section) => section.at >= 0 && section.at <= pages)
       // The outline keeps the author's order; a map keeps the paper's.
@@ -64,7 +69,7 @@ export default function Navigator({
       out.unshift({ id: 'front', front: true, at: 0, span: marks[0].at, title: 'Start' });
     }
     return out;
-  }, [sections, pages]);
+  }, [sections, pages, top]);
 
   const marks = useMemo(
     () => anchors.map((anchor) => ({ ...anchor, at: positionOf(anchor.page, anchor.anchorY) })),

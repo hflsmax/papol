@@ -462,13 +462,39 @@ export const sortSections = (sections) =>
  * come last, so the first one that announces itself opens a part running to
  * the end.
  */
+/**
+ * Which level of the outline is the paper's own sections.
+ *
+ * Normally level 0. But a publisher's outline often wraps the whole article
+ * in a single bookmark named after its title, and hangs every real section
+ * underneath it — at which point level 0 is one entry spanning the paper,
+ * and drawing it would be drawing a contents with one line in it. So the
+ * top level is the shallowest one holding more than a single entry, which
+ * is level 0 for a paper that bookmarks its sections directly and level 1
+ * for a paper filed under its own name.
+ */
+export function topLevel(sections) {
+  const counts = new Map();
+  for (const section of sections || []) {
+    const level = section.level ?? 0;
+    counts.set(level, (counts.get(level) || 0) + 1);
+  }
+  for (const level of [...counts.keys()].sort((a, b) => a - b)) {
+    if (counts.get(level) > 1) return level;
+  }
+  return 0;
+}
+
 const BIBLIOGRAPHY = new Set(['references', 'bibliography', 'works cited']);
 
 export function markParts(sections) {
   let appendix = false;
   let afterReferences = false;
+  // Back matter is decided among the paper's own sections, whichever level
+  // of the outline those turned out to be.
+  const top = topLevel(sections);
   return (sections || []).map((section, index) => {
-    if (section.level === 0) {
+    if ((section.level ?? 0) === top) {
       // A paper that names its appendix says so. One that does not still
       // marks the boundary, because nothing follows a bibliography except
       // the material that was held back from the paper.

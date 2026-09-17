@@ -12,6 +12,7 @@ import {
   keepHeadings,
   linesFromItems,
   markParts,
+  topLevel,
   promoteTitles,
   readSections,
   sectionAt,
@@ -350,4 +351,29 @@ test('the section being read is the last one begun at or above it', () => {
   // Landing on a heading names that section, not the one before it.
   assert.equal(sectionAt(sections, { page: 3, y: 0.81 })?.id, 's1');
   assert.equal(sectionAt(sections, null), null);
+});
+
+test('the top level is the shallowest one holding more than one entry', () => {
+  // A paper that bookmarks its sections directly.
+  assert.equal(topLevel([
+    { level: 0 }, { level: 0 }, { level: 1 }, { level: 1 },
+  ]), 0);
+  // A publisher's outline: the whole article under one bookmark of its own
+  // title, every real section a child of it.
+  assert.equal(topLevel([
+    { level: 0 }, { level: 1 }, { level: 1 }, { level: 1 },
+  ]), 1);
+  assert.equal(topLevel([]), 0);
+  // Nothing has more than one entry; the only section there is still counts.
+  assert.equal(topLevel([{ level: 0 }]), 0);
+});
+
+test('back matter is found at whichever level the sections turned out to be', () => {
+  const marked = markParts([
+    { level: 0, number: '', title: 'A paper filed under its own title', page: 1, y: 0.9 },
+    { level: 1, number: '', title: 'Introduction', page: 1, y: 0.5 },
+    { level: 1, number: '', title: 'References', page: 8, y: 0.9 },
+    { level: 1, number: '', title: 'Supplementary Figures', page: 9, y: 0.9 },
+  ]);
+  assert.deepEqual(marked.map((section) => section.appendix), [false, false, false, true]);
 });
