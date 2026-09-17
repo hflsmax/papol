@@ -315,6 +315,37 @@ macos_release() {
       ;;
   esac
   [ "$version" != "$current" ] || die "desktop is already version $version"
+
+  # A release only ever moves forwards, and never below the wire's floor.
+  # v0.1.4 went out at 0.1.4 after the re-key had already taken the app to
+  # 0.2.0, which put the published build under the minimum the service asks
+  # for: every reader who downloaded it was told their Papol was too old.
+  # Nothing in the release path noticed, so these two now do.
+  local floor
+  floor=$(sed -n 's/^PROTOCOL_MINIMUM_VERSION = "\(.*\)"$/\1/p' \
+    "$DEV_DIR/backend/services/client_requirements.py")
+  node - "$version" "$current" "${floor:-0.0.0}" <<'NODE' || die "release version refused"
+const [version, current, floor] = process.argv.slice(2);
+const parts = (text) => text.split('.').map(Number);
+const compare = (left, right) => {
+  const [a, b] = [parts(left), parts(right)];
+  for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+};
+if (compare(version, current) < 0) {
+  console.error(`deploy: ${version} is older than the current ${current}; a release moves forwards`);
+  process.exit(1);
+}
+if (compare(version, floor) < 0) {
+  console.error(
+    `deploy: ${version} is below the service's minimum of ${floor}, so it would be `
+    + 'refused the moment it was installed. Move PROTOCOL_MINIMUM_VERSION or the '
+    + 'release, but do not publish a build the service will not speak to.',
+  );
+  process.exit(1);
+}
+NODE
+
   tag="macos-v$version"
   if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     die "tag $tag already exists locally"
