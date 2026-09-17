@@ -26,7 +26,7 @@ const positionOf = (page, y) => (
 // rest.
 const ROOM_FOR_A_NAME = 0.06;
 
-export default function DocumentMap({
+export default function Navigator({
   pages = 0,
   sections = [],
   anchors = [],
@@ -93,9 +93,9 @@ export default function DocumentMap({
   const focusable = (index, isCurrent) => (current ? (isCurrent ? 0 : -1) : (index === 0 ? 0 : -1));
 
   return (
-    <div className="docmap" data-tauri-drag-region="false">
+    <div className="navigator" data-tauri-drag-region="false">
       <div
-        className="docmap-track"
+        className="navigator-track"
         ref={trackRef}
         role="toolbar"
         aria-label="Sections"
@@ -108,7 +108,7 @@ export default function DocumentMap({
             <button
               key={segment.id}
               type="button"
-              className={`docmap-seg${isCurrent ? ' now' : ''}${segment.appendix ? ' back' : ''}${segment.front ? ' front' : ''}`}
+              className={`navigator-seg${isCurrent ? ' now' : ''}${segment.appendix ? ' back' : ''}${segment.front ? ' front' : ''}`}
               style={{ flexGrow: Math.max(segment.span, 0.0001) }}
               data-level={segment.level ?? 0}
               tabIndex={focusable(index, isCurrent)}
@@ -118,7 +118,7 @@ export default function DocumentMap({
               onClick={() => (segment.front ? onTop() : onSection(segment))}
             >
               {segment.span / pages > ROOM_FOR_A_NAME && (
-                <span className="docmap-name">{segment.front ? segment.title : name}</span>
+                <span className="navigator-name">{segment.front ? segment.title : name}</span>
               )}
             </button>
           );
@@ -126,7 +126,7 @@ export default function DocumentMap({
       </div>
 
       <div
-        className="docmap-lane"
+        className="navigator-lane"
         ref={laneRef}
         role="toolbar"
         aria-label="Anchors"
@@ -136,20 +136,20 @@ export default function DocumentMap({
           <button
             key={mark.uuid}
             type="button"
-            className="docmap-anchor"
+            className="navigator-anchor"
             style={{ left: percent(mark.at) }}
             tabIndex={index === 0 ? 0 : -1}
             title={`${mark.label} — page ${mark.page}`}
             aria-label={`${mark.label}, page ${mark.page}`}
             onClick={() => onAnchor(mark)}
           >
-            <span className="docmap-tick" aria-hidden="true" />
+            <span className="navigator-tick" aria-hidden="true" />
           </button>
         ))}
       </div>
 
       {place && (
-        <span className="docmap-here" style={{ left: percent(positionOf(place.page, place.y)) }} />
+        <span className="navigator-here" style={{ left: percent(positionOf(place.page, place.y)) }} />
       )}
     </div>
   );

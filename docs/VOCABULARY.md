@@ -79,6 +79,8 @@ the viewer's text-layer geometry. See §12.7.
 | **Citation** | One in-text marker — the "[12]" a user clicks — and its box. | "[3, 5]" is two citations, because each leads somewhere different. `inferred` marks one matched only by reading its number: a guess, shown as one. |
 | **Link** | An analyzed cross-reference to another position in the same PDF — "see Section 3.2", "Figure 4". | Following one offers **← Back to where you were** (the *return pill*). |
 | **Resolution** | What the bibliographic lookup added to a reference: `none`, `ok`, `miss`, `error`. | Filled the first time someone opens that reference, and kept. |
+| **Section** | One heading the paper declares, and the run of the paper under it — down to a subsection, no further. | Read from the PDF's own outline where it has one, because that is the author's answer; found in the printed text otherwise. An **appendix** is a section like any other, marked as back matter: the part after the bibliography, or one that names itself. |
+| **Navigator** | The viewer's navigation, and the only kind it has: the paper drawn to length across the bar, its sections as segments as wide as they are long, the reader's anchors in a lane beneath at the same scale. | One word in all three registers — `Navigator.jsx`, `.navigator-*`, and the word for it in prose. Nothing opens: a section's *width* is the fact a list of names cannot state. It draws apparatus (§4) and annotations (§3) on one scale, which is what makes an anchor legible as being *in* a section. |
 
 Reading a bibliography happens once per **paper** and is kept, so only the
 first user of a PDF waits.

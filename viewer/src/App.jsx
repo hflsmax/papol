@@ -47,7 +47,7 @@ import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
 import { readSections, sectionAt } from './sections';
 import ReturnPill from './ReturnPill';
-import DocumentMap from './DocumentMap';
+import Navigator from './Navigator';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
 import {
@@ -3743,7 +3743,7 @@ export default function App() {
         {/* The paper itself, drawn to length across the middle of the bar.
             It takes the room the spacer used to hold, and falls back to
             being that spacer while there is nothing yet to draw. */}
-        <DocumentMap
+        <Navigator
           pages={doc?.numPages || 0}
           sections={sections}
           anchors={contentsAnchors}

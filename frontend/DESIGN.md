@@ -162,7 +162,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   video and one serif title. The grid collapses to one column on narrow
   screens; new lessons are added as catalog entries.
 
-- **Document map** — the viewer's navigation, and the only kind it has: the
+- **Navigator** — the viewer's navigation, and the only kind it has: the
   paper drawn to length across `.viewer-bar`, in the room the spacer used
   to hold. Nothing opens. Each top-level section is a segment as wide as
   the section is long, so a glance says Model Architecture is a quarter of
@@ -190,7 +190,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   the tool in hand, and opens to the full set on hover, on `:focus-within`,
   and while one of its sheets is open. It opens *downwards*, out of the bar
   and over the page, on a `--card` ground with `--shadow-md`: opening
-  sideways would reach back across the document map it just made room for,
+  sideways would reach back across the Navigator it just made room for,
   and the stretch it would cover is the map's end — the appendix, the part
   of a paper a reader is least likely to be holding in mind. Choosing a
   tool still costs one click; the others are a pointer-move away, not a

@@ -216,7 +216,7 @@ ${macHandoffStyles}
    hold. Two lanes at one scale: the sections above, the anchors below, so
    a tick sitting under the middle of Results is in Results and nothing has
    to say so. Flat by construction — there is nothing to open. */
-.docmap {
+.navigator {
   position: relative;
   flex: 1;
   min-width: 72px;
@@ -228,7 +228,7 @@ ${macHandoffStyles}
 
 /* A groove, so the strip reads as one object on the bar's white ground and
    a section that is only a few pixels wide is still visibly a section. */
-.docmap-track {
+.navigator-track {
   position: relative;
   display: flex;
   height: 20px;
@@ -237,8 +237,8 @@ ${macHandoffStyles}
   overflow: hidden;
 }
 
-.viewer-bar .docmap-seg,
-.viewer-bar .docmap-seg:hover:not(:disabled) {
+.viewer-bar .navigator-seg,
+.viewer-bar .navigator-seg:hover:not(:disabled) {
   flex-basis: 0;
   /* Every section stays clickable, however short it is. Below this it
      would be a hairline nobody could hit. */
@@ -260,45 +260,45 @@ ${macHandoffStyles}
     color var(--motion-fast) var(--ease-out);
 }
 
-.docmap-seg:first-child { border-left: 0; }
+.navigator-seg:first-child { border-left: 0; }
 
 /* The front of the paper — title, authors, abstract. The one stretch of a
    paper with no heading of its own, so it is set back from the sections
    rather than counted as one. */
-.docmap-seg.front { background: var(--paper-sunken); }
+.navigator-seg.front { background: var(--paper-sunken); }
 
 /* Back matter. The appendix is a part of the document, not a state of it,
    so it takes a ground rather than a colour. */
-.docmap-seg.back { background: var(--accent-soft); }
+.navigator-seg.back { background: var(--accent-soft); }
 
-.viewer-bar .docmap-seg:hover:not(:disabled) {
+.viewer-bar .navigator-seg:hover:not(:disabled) {
   background: var(--accent-line);
   color: var(--ink);
 }
 
 /* Where the reader is, said the way a selected native row says it. */
-.viewer-bar .docmap-seg.now,
-.viewer-bar .docmap-seg.now:hover:not(:disabled) {
+.viewer-bar .navigator-seg.now,
+.viewer-bar .navigator-seg.now:hover:not(:disabled) {
   background: var(--accent);
   color: var(--ink-inverse);
 }
 
-.docmap-seg:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.navigator-seg:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
-.docmap-name {
+.navigator-name {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 /* The anchors, at the same scale as the sections above them. */
-.docmap-lane {
+.navigator-lane {
   position: relative;
   height: 7px;
 }
 
-.viewer-bar .docmap-lane .docmap-anchor,
-.viewer-bar .docmap-lane .docmap-anchor:hover:not(:disabled) {
+.viewer-bar .navigator-lane .navigator-anchor,
+.viewer-bar .navigator-lane .navigator-anchor:hover:not(:disabled) {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -315,7 +315,7 @@ ${macHandoffStyles}
   box-shadow: none;
 }
 
-.docmap-tick {
+.navigator-tick {
   width: 2px;
   height: 7px;
   border-radius: 1px;
@@ -323,14 +323,14 @@ ${macHandoffStyles}
   transition: background-color var(--motion-fast) var(--ease-out);
 }
 
-.viewer-bar .docmap-anchor:hover:not(:disabled) .docmap-tick,
-.docmap-anchor:focus-visible .docmap-tick { background: var(--ink); }
+.viewer-bar .navigator-anchor:hover:not(:disabled) .navigator-tick,
+.navigator-anchor:focus-visible .navigator-tick { background: var(--ink); }
 
-.docmap-anchor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.navigator-anchor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 /* The exact place, across both lanes: the segment says which section, this
    says where in it. */
-.docmap-here {
+.navigator-here {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -344,7 +344,7 @@ ${macHandoffStyles}
 /* In Papol macOS the bar is the title bar, and the map is the one control
    in it that should give way — it has a whole document to show and will
    use whatever it is given. */
-[data-shell='desktop'] .viewer-bar > .docmap {
+[data-shell='desktop'] .viewer-bar > .navigator {
   flex-shrink: 1;
   min-width: 72px;
 }
@@ -2402,8 +2402,8 @@ ${macHandoffStyles}
   /* Too little room for a name to survive being cut to three letters, and
      a wrong-looking word is worse than none. The map keeps its shape, its
      anchors and its marker, which is what it is for. */
-  .docmap-name { display: none; }
-  .docmap { min-width: 56px; }
+  .navigator-name { display: none; }
+  .navigator { min-width: 56px; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one
