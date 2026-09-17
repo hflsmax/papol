@@ -657,13 +657,22 @@ def push(
 
 
 @router.get("/snapshot")
-def snapshot(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def snapshot(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Current read dependencies and private annotations for this account.
 
     This bounded snapshot is refreshed before cursor replication. It avoids
     pretending globally shared paper metadata belongs in one user's change
     log while still giving the offline viewer complete foreign-key parents.
+
+    Gated like the push and the pull, and for a plainer reason than either:
+    the rows name a paper by the digest of its file, and a build that reads
+    them expecting a UUID would not fail — it would store the wrong thing.
     """
+    _require_supported_client(request, db)
     copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
     shelves = db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all()
     tags = db.query(Tag).filter(Tag.user_uuid == user.uuid).all()
