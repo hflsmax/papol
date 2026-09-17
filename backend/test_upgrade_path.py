@@ -619,6 +619,34 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.assertEqual(after[self.shown_copy], 1)
         self.assertEqual(after[self.hidden_copy], 0)
 
+    # --- indexes -----------------------------------------------------------
+
+    def test_every_index_the_models_declare_is_on_the_upgraded_database(self):
+        """An index is part of the schema, and arrives with the upgrade.
+
+        `create_all` skips a table it can already find, and with it every
+        index that table declares — so an index added to a model after its
+        table existed used to reach fresh databases and no other. The one
+        database it was written for, the one with the rows in it, kept
+        scanning."""
+        self.upgrade()
+        import database
+
+        have = {
+            row[0] for row in self.rows(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        want = {
+            index.name: table.name
+            for table in database.Base.metadata.sorted_tables
+            for index in table.indexes
+        }
+        self.assertEqual(
+            sorted(name for name in want if name not in have), [],
+        )
+
 
 class FreshInstallTests(unittest.TestCase):
     def test_a_database_that_never_had_the_old_tables_upgrades_quietly(self):

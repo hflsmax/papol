@@ -75,6 +75,26 @@ def _add_column_ddl(column) -> str:
     return CreateColumn(column).compile(dialect=engine.dialect).string
 
 
+def _add_missing_indexes(conn, table):
+    """Put up the indexes this table declares and does not have.
+
+    `create_all` only makes tables it cannot find, and it skips a table's
+    indexes along with the table. So an index declared on a model *after*
+    its table already existed is never created anywhere: the developer
+    writes `index=True`, every test passes against a fresh database that
+    got the index from `create_all`, and the one database it was meant for
+    — the one with the rows in it — goes on doing full scans. The rebuilds
+    above put back the indexes of the tables they rebuild, which is why
+    this was survivable, but a table nothing has had to rebuild has been
+    picking up nothing at all.
+
+    Written here rather than left to `create_all` because the index is the
+    only part of a model's schema that had no owner. A column has the pass
+    above; a table has `create_all`; an index had neither."""
+    for index in table.indexes:
+        conn.execute(CreateIndex(index, if_not_exists=True))
+
+
 # Columns the models no longer carry. A copy used to keep its own copy of
 # its shelf's visibility, under either spelling; the shelf answers for it
 # now, so the column is dropped rather than carried along as a second
@@ -1068,6 +1088,7 @@ def migrate():
                     conn.execute(text(
                         f"ALTER TABLE {table.name} ADD COLUMN {_add_column_ddl(column)}"
                     ))
+            _add_missing_indexes(conn, table)
         # Last: the rebuild copies whatever the model declares, so every
         # column it declares has to be there to copy.
         _require_a_file(conn)
