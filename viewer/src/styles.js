@@ -1,5 +1,6 @@
 import { designTokens } from '../../shared/designTokens.js';
 import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
+import { macHandoffStyles } from '../../shared/macHandoffStyles.js';
 
 export const styles = `
 :root {
@@ -91,6 +92,8 @@ button.link {
 }
 
 button.link.danger { color: var(--red); }
+
+${macHandoffStyles}
 
 .shell { max-width: 640px; margin: 80px auto; padding: 0 20px; }
 .loading, .hint { color: var(--ink-faint); }

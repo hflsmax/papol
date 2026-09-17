@@ -13,6 +13,7 @@ import {
   openedFileUrl, paperView, newUuid,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
+import { paperName } from '../../shared/paperName.js';
 import { lookupPaperMetadata } from '../../shared/api/papers.js';
 
 const openedFileImports = new Map();
@@ -231,7 +232,11 @@ export function listAnnotations(paperSha256, { kind } = {}) {
   const query = new URLSearchParams();
   if (kind) query.set('kind', kind);
   const suffix = query.size ? `?${query}` : '';
-  return request(`/papers/${paperSha256}/annotations${suffix}`);
+  // The service answers to a paper's name, which is half its digest; the
+  // replica above is storage and is keyed by the whole of it. Everything
+  // here holds the full digest, so the shortening happens at the URL and
+  // nowhere before it (shared/paperName.js).
+  return request(`/papers/${paperName(paperSha256)}/annotations${suffix}`);
 }
 
 export function createAnnotation(paperSha256, annotation) {
@@ -249,7 +254,7 @@ export function createAnnotation(paperSha256, annotation) {
       },
     }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperSha256}/annotations`, 'POST', annotation);
+  return jsonRequest(`/papers/${paperName(paperSha256)}/annotations`, 'POST', annotation);
 }
 
 export function updateAnnotation(uuid, changes) {
