@@ -24,7 +24,7 @@ import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperDetail({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
-  hideBack = false, onReportableError,
+  hideBack = false, backLabel = 'Back', onReportableError,
 }) {
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -439,7 +439,7 @@ export default function PaperDetail({
     return (
       <div className="panel paper-detail">
         <div className="error" role="alert">{error}</div>
-        {!hideBack && <BackLink href={backHref} onBack={onBack}>Back</BackLink>}
+        {!hideBack && <BackLink href={backHref} onBack={onBack}>{backLabel}</BackLink>}
       </div>
     );
   }
@@ -518,7 +518,7 @@ export default function PaperDetail({
   return (
     <div className="paper-detail">
       {!hideBack && (
-        <BackLink className="back-btn" href={backHref} onBack={onBack} />
+        <BackLink className="back-btn" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
       )}
 
       {error && <div className="error" role="alert">{error}</div>}

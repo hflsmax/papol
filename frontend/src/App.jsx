@@ -33,6 +33,9 @@ import {
 import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
 import { parseRoute } from './routes';
+import {
+  originAfterMove, paperBackTarget, readPaperOrigin, writePaperOrigin,
+} from './paperOrigin';
 import { paperName } from '../../shared/paperName.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
@@ -66,6 +69,10 @@ const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 // the banner back without knowing anything about this file.
 const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DISMISSED);
 
+// A path as the address bar spells it: under /demo while the demo is on,
+// and under the base the app is served from.
+const mountedPath = (path) => appPath(demoActive() ? demoPath(path) : path);
+
 function navigate(path, { replace = false } = {}) {
   const destination = demoActive() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
@@ -75,6 +82,9 @@ function navigate(path, { replace = false } = {}) {
   // to do nothing.
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
+  // A paper page's Back leads to the nook or library it was opened from,
+  // and this is the one door every in-app move goes through.
+  writePaperOrigin(originAfterMove(readPaperOrigin(), window.location.pathname, mountedDestination));
   if (replace) {
     // Moving a selection through a list is not a step worth a Back.
     window.history.replaceState(
@@ -520,6 +530,20 @@ export default function App({ startupUser = null, startupError = null }) {
   };
   const backHref = window.history.state?.papolBackHref || appPath('/');
 
+  // A paper page always has a Back, and it always leads to a place papers
+  // are kept: the nook or library this one was opened from, or — for a link
+  // someone was sent, with no such place behind it — the user's own nook,
+  // and the library for a visitor. It used to be hidden whenever the page
+  // was not reached by an in-app click, which includes every return from
+  // the viewer: the most travelled road onto this page had no way off it.
+  const paperBack = paperBackTarget({ origin: readPaperOrigin(), userUuid: user?.uuid });
+  const goBackFromPaper = () => {
+    // When that place is the entry just behind this one, step back onto it
+    // rather than stacking a second copy of it on top.
+    if (window.history.state?.papolBackHref === mountedPath(paperBack.path)) window.history.back();
+    else navigate(paperBack.path);
+  };
+
   const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
 
   const routeAppLinks = (event) => {
@@ -705,12 +729,9 @@ export default function App({ startupUser = null, startupError = null }) {
           paperSha256={route.uuid}
           currentUser={user}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
-          onBack={goBack}
-          backHref={backHref}
-          hideBack={
-            mode !== 'demo' &&
-            !window.history.state?.papolNavigation
-          }
+          onBack={goBackFromPaper}
+          backHref={mountedPath(paperBack.path)}
+          backLabel={paperBack.label}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onReportableError={offerDesktopError}
         />
