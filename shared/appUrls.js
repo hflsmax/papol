@@ -33,6 +33,13 @@ export function homePath({ demo = false } = {}) {
   return appPath(demo ? '/demo' : '/');
 }
 
+// A board's **jacket** — its one screen in the Library, where its name, its
+// description and the way in are kept. Singular, as a paper's is: the plural
+// `/boards/<uuid>` is the canvas, which is a different application.
+export function boardJacketPath(uuid, { demo = false } = {}) {
+  return appPath(`${demo ? '/demo' : ''}/board/${uuid}`);
+}
+
 export function stripAppBase(value) {
   if (!APP_BASE) return value || '/';
   if (value === APP_BASE) return '/';

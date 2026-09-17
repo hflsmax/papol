@@ -16,6 +16,7 @@ import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { hasCardPreview } from './cardPreview.js';
+import { browserDate, lastEdited as formatLastEdit } from '../../shared/lastEdited.js';
 import { localViewerBacklink } from './sourceLink.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -64,11 +65,6 @@ const itemTypeIcons = {
   image: '▧', file: '↧', youtube: '▶', webpage: '↗',
 };
 
-const browserDate = (value) => new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
-const formatLastEdit = (value) => new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric', year: browserDate(value).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
-  hour: 'numeric', minute: '2-digit',
-}).format(browserDate(value));
 const stagedSourceLabel = (item) => {
   if (item.source_label && item.source_label !== 'Open source') return item.source_label;
   try {
@@ -79,7 +75,7 @@ const stagedSourceLabel = (item) => {
   }
 };
 
-export default function BoardPage({ boardUuid, onHome, homeHref }) {
+export default function BoardPage({ boardUuid, onHome, homeHref, onBack, backHref }) {
   const [board, setBoard] = useState(null);
   const [view, setView] = useState(() => initialBoardView(boardUuid));
   const [error, setError] = useState(null);
@@ -1919,6 +1915,10 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
               </svg>
             </BackLink>
           : null}
+      {/* Beside the house, the way back to where this board is kept. The
+          two are different errands: home leaves for Papol and names
+          nothing, Back returns to the board's own jacket. */}
+      {!DESKTOP && <BackLink className="board-back" href={backHref} onBack={onBack}>&larr; Board</BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}

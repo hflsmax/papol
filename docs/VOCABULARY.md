@@ -37,6 +37,7 @@ acting on.
 | --- | --- | --- |
 | **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is (`USER_STORIES.md` §2b). Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
 | **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
+| **Jacket** | A work's one screen in the Library: what is known about it, and the way in. A paper has one; a board has one. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`. Named for the dust jacket, which is where a library keeps a work's title, its blurb and what other readers said — the same freight, and the reason it is not called a **page**: that word is a sheet of a PDF (§3), in the UI, the API and the store alike. A jacket is not the application that opens the work, either; those are **surfaces** (§9), and a jacket is a place *in* one. Every work has a jacket in every shell — on the desktop it sits in the Library window while the work itself opens in a document window of its own. |
 | **Summary** | My private prose about a paper. Mine alone, whatever the shelf says. | Belongs to the copy, so only its own user reads or writes it. |
 | **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | Labelled "My thought". Distinct from Summary in both length and audience — the labels are the only thing keeping the pair apart. |
 | **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored as `rating_expertise`, `rating_reading`, `rating_liking`. The third column's name predates its label. See §12.6. |
@@ -89,7 +90,7 @@ first user of a PDF waits.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Board** | A private ideation space inside one user's nook, served full-screen at `/boards/<guid>`. | |
+| **Board** | A private ideation space inside one user's nook. | Two addresses, as a paper has: its **jacket** (§2) in the Library, and the canvas it opens on, served full-screen at `/boards/<guid>`. |
 | **Card** | One item on a board. Its `kind` is `comment`, `excerpt`, `image`, `file`, `youtube` or `webpage`. | `board_items`. "Card" is the product word; "item" is the schema word. |
 | **Board group** | A visual and behavioural grouping of cards: a **booklet** or a **collection**. | `board_groups.kind`. Unrelated to a stroke group (§3). |
 | **Excerpt** | Text carried out of the viewer onto a board — a selection, a painted passage, or a clip's contents. | Unwrapped from the PDF's visual line breaks on the way out; genuine paragraph breaks kept. |
@@ -102,8 +103,8 @@ first user of a PDF waits.
 | --- | --- | --- |
 | **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The UUID in the link is the whole of the permission. | |
 | **Home button** | The house worn by the viewer, the board and the desktop toolbar alike: out of this document and into Papol itself. | `homePath()`, `source.homeHref`. It names nothing it leaves behind — no paper, no board, no nook — because a home button pointing back at what you just closed is a back button wearing a house. That is what lets a shared reading use it: a link hands over one reading of one PDF, not a place in the Library. Not a **backlink** (§5), which is a board card's link to where its excerpt came from; and not the library app's **Back**, which is ordinary page history. |
-| **Rich** | A sharable carrying one user's **reading** — their annotations on that paper. Belongs to them; shown on their paper page; theirs to revoke. | |
-| **Lean** | A sharable carrying the PDF alone. One per paper, belongs to nobody, names no user. | Never shown on a paper page and never counted against its maker: nothing of theirs is in it. |
+| **Rich** | A sharable carrying one user's **reading** — their annotations on that paper. Belongs to them; shown on their paper's jacket; theirs to revoke. | |
+| **Lean** | A sharable carrying the PDF alone. One per paper, belongs to nobody, names no user. | Never shown on a paper's jacket and never counted against its maker: nothing of theirs is in it. |
 | **Demote** | To turn a rich link lean, permanently, when the user takes the paper out of their nook or drops their annotations. | Permanent by design — putting the paper back must not quietly re-expose annotations to everyone still holding the link. |
 | **Revoke** | To stop a link opening at all. Final; sharing again mints a new one. | One word, matching `revokeSharable()` and `revoked_at`. Do **not** say "close": it borrows a window's word for something with no reopening. The row survives revocation, so a revoked link is answered with "no longer shared" rather than a 404 that reads as a typo. |
 
@@ -331,3 +332,20 @@ already does but had no noun for:
 - **Surface** (§9) — one of the three browser applications.
 - **Handoff address** (§8) — the web address re-addressed to the app.
 - **Stroke group** / **board group** (§§3, 5) — the two groups, told apart.
+
+### 12.12 Page — settled
+
+**Page** named two things. In the Library it was a work's own screen ("the
+paper page", US-2.2, US-2.13, US-3.4); in the viewer it is one sheet of a PDF
+— `note.page`, `data-page`, `.pdf-page`, "page 7" in the Navigator's tooltip.
+
+The sheet kept the word, because it owns it in all three registers at once: a
+reader says "page 7", the API answers `page`, and `comments.page` is a
+persisted column, so renaming it would be a wire and schema break for a word
+nobody misreads. The Library's sense gave it up and became the **jacket**
+(§2), which says more about that screen than "page" ever did.
+
+What is left of the word outside the viewer is `route.page` in the frontend's
+router, meaning *which screen* — `home`, `signin`, `paper`, `board`. That is
+the router's own index and not a work's anything; the two jacket routes are
+`paper` and `board`.

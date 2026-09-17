@@ -22,7 +22,7 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
-export default function PaperDetail({
+export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   hideBack = false, backLabel = 'Back', onReportableError,
 }) {
@@ -437,7 +437,7 @@ export default function PaperDetail({
 
   if (error && !paper) {
     return (
-      <div className="panel paper-detail">
+      <div className="panel paper-jacket">
         <div className="error" role="alert">{error}</div>
         {!hideBack && <BackLink href={backHref} onBack={onBack}>{backLabel}</BackLink>}
       </div>
@@ -516,7 +516,7 @@ export default function PaperDetail({
   ]);
 
   return (
-    <div className="paper-detail">
+    <div className="paper-jacket">
       {!hideBack && (
         <BackLink className="back-btn" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
       )}
