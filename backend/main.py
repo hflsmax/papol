@@ -370,8 +370,14 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 # Serve uploaded files
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
-# Serve frontend assets
-app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
+# Serve frontend assets. Mounted only when the build is there, like the
+# viewer and the board below it. An unguarded mount raises at import, so a
+# backend started or a test run against a checkout that has not been built
+# yet died with "Directory 'frontend/dist/assets' does not exist" — a
+# missing frontend reported as a broken service. Without the build the API
+# still answers; what is gone is the website, and `serve_frontend` says so.
+if (FRONTEND_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
 # The PDF viewer is its own app with its own build; Papol serves it at
 # /viewer so it shares this origin — and therefore the user's session —
@@ -3471,10 +3477,26 @@ async def finish_room(
 _REVALIDATE = {"Cache-Control": "public, max-age=0, must-revalidate"}
 
 
+def _frontend_document() -> FileResponse:
+    """The SPA document, or a plain answer when there is no build to serve.
+
+    A checkout that has not been built has no index.html, and reading one
+    that is not there is an unhandled error the admin sees as a 500 with a
+    traceback. The API is fine in that state; it is the website that is
+    missing, so say that instead."""
+    index = FRONTEND_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="The Papol website has not been built; run deploy.sh to build it.",
+        )
+    return FileResponse(index, headers=_REVALIDATE)
+
+
 @app.get("/")
 async def serve_frontend():
     """Serve the frontend index.html."""
-    return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)
+    return _frontend_document()
 
 
 @app.get("/{frontend_path:path}")
@@ -3488,4 +3510,4 @@ async def serve_frontend_path(frontend_path: str):
     candidate = (FRONTEND_DIR / frontend_path).resolve()
     if candidate.parent == FRONTEND_DIR.resolve() and candidate.is_file():
         return FileResponse(candidate, headers=_REVALIDATE)
-    return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)
+    return _frontend_document()
