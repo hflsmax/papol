@@ -424,9 +424,9 @@ export function DesktopBrowser({
   const [boardDetailLoading, setBoardDetailLoading] = useState(false);
   const [boardDetailError, setBoardDetailError] = useState(null);
   const listRef = useRef(null);
-  const paperUuid = route.page === 'paper' ? route.uuid : null;
-  const selectedKey = source === 'boards' ? selectedBoardUuid : paperUuid;
-  const isSelected = (paper) => paperUuid != null && paper.uuid === paperUuid;
+  const paperSha256 = route.page === 'paper' ? route.uuid : null;
+  const selectedKey = source === 'boards' ? selectedBoardUuid : paperSha256;
+  const isSelected = (paper) => paperSha256 != null && paper.uuid === paperSha256;
 
   useEffect(() => {
     if (route.page !== 'paper') rememberSource(source);
@@ -440,7 +440,7 @@ export function DesktopBrowser({
       setBoardDetailError(null);
     }
   }, [source]);
-  useEffect(() => { setComposer(null); }, [paperUuid, source]);
+  useEffect(() => { setComposer(null); }, [paperSha256, source]);
   useEffect(() => {
     if (incomingPaperFile) setComposer('paper');
   }, [incomingPaperFile]);
@@ -642,15 +642,15 @@ export function DesktopBrowser({
         </div>
       </div>
     );
-  } else if (paperUuid != null) {
+  } else if (paperSha256 != null) {
     detail = (
       <div className="desktop-scroll">
         <div className="desktop-content">
           <PaperDetail
             // Moving the paper to another shelf from the sidebar reloads it,
             // so its own shelf control never shows the old shelf.
-            key={`${paperUuid}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_uuid ?? ''}`}
-            paperUuid={paperUuid}
+            key={`${paperSha256}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_uuid ?? ''}`}
+            paperSha256={paperSha256}
             currentUser={currentUser}
             hideBack
             onBack={sourceHome}

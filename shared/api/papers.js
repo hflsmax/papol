@@ -21,7 +21,7 @@ const DESKTOP_EXTRACT_TIMEOUT_MS = appLimits.timeouts_ms.desktop_metadata;
 
 // Papers are addressed by their UUID, and only by it.
 export function paperHref(paper) {
-  return appPath(`/paper/${paper.uuid}`);
+  return appPath(`/paper/${paper.sha256}`);
 }
 
 // Uploaded PDFs live in uploads/. Demo papers link to each paper's
@@ -87,9 +87,9 @@ export async function discardPaperImport(extractedData) {
   await discardNativeBlob(sha256);
 }
 
-export function reextractPaperMetadata(paperUuid) {
+export function reextractPaperMetadata(paperSha256) {
   return onServer(
-    () => request(`/papers/${paperUuid}/extract-metadata`, { method: 'POST' }),
+    () => request(`/papers/${paperSha256}/extract-metadata`, { method: 'POST' }),
     { pull: false },
   );
 }
@@ -104,11 +104,11 @@ export async function createPaper(paperData) {
       shelfUuid = localShelves.find((shelf) => !(shelf.is_public === true || shelf.is_public === 1))?.uuid
         ?? shelfUuid;
     }
-    const paperUuid = newUuid();
+    const paperSha256 = newUuid();
     const copyUuid = newUuid();
     const changes = [
       {
-        table: 'papers', uuid: paperUuid, operation: 'upsert',
+        table: 'papers', uuid: paperSha256, operation: 'upsert',
         values: {
           doi: paperData.doi, title: paperData.title, authors: paperData.authors,
           journal: paperData.journal, year: paperData.year,
@@ -118,7 +118,7 @@ export async function createPaper(paperData) {
       {
         table: 'copies', uuid: copyUuid, operation: 'upsert',
         values: {
-          paper_uuid: paperUuid, shelf_uuid: shelfUuid,
+          paper_sha256: paperSha256, shelf_uuid: shelfUuid,
           summary: paperData.summary,
         },
       },
@@ -129,12 +129,12 @@ export async function createPaper(paperData) {
     });
     if (paperData.initial_comment?.trim()) changes.push({
       table: 'comments', uuid: newUuid(), operation: 'upsert',
-      values: { paper_uuid: paperUuid, content: paperData.initial_comment.trim() },
+      values: { paper_sha256: paperSha256, content: paperData.initial_comment.trim() },
     });
     await nativeRepository.transact(changes);
     forgetPendingPaperBlob(sha256);
-    setPaperCopyUuid(paperUuid, copyUuid);
-    return paperView(await nativeRepository.paper(paperUuid));
+    setPaperCopyUuid(paperSha256, copyUuid);
+    return paperView(await nativeRepository.paper(paperSha256));
   }
   return jsonRequest('/papers', 'POST', paperData);
 }
@@ -187,7 +187,7 @@ export async function getPaper(uuid) {
   if (state) {
     const [comments, nook] = state;
     paper.notes = comments.map(annotationView);
-    const copy = nook.copies.find((candidate) => candidate.paper_uuid === paper.uuid);
+    const copy = nook.copies.find((candidate) => candidate.paper_sha256 === paper.sha256);
     if (copy) {
       Object.assign(paper, {
         copy_uuid: copy.uuid,
@@ -205,7 +205,7 @@ export async function getPaper(uuid) {
         tags: (nook.copy_tags || []).filter((link) => link.copy_uuid === copy.uuid)
           .map((link) => nook.tags.find((tag) => tag.uuid === link.tag_uuid)).filter(Boolean),
       });
-      setPaperCopyUuid(paper.uuid, copy.uuid);
+      setPaperCopyUuid(paper.sha256, copy.uuid);
     }
   }
   return paper;
@@ -246,10 +246,10 @@ async function downloadNativePaperPdf(paper, expectedSha256) {
 }
 
 export async function addToNook(paper) {
-  const paperUuid = typeof paper === 'string' ? paper : paper?.uuid;
-  if (!paperUuid) throw new Error('Paper not found');
+  const paperSha256 = typeof paper === 'string' ? paper : paper?.sha256;
+  if (!paperSha256) throw new Error('Paper not found');
   if (!nativeDataActive() || typeof paper === 'string') {
-    return request(`/papers/${paperUuid}/add-to-nook`, { method: 'POST' });
+    return request(`/papers/${paperSha256}/add-to-nook`, { method: 'POST' });
   }
 
   const shelves = await nativeRepository.shelves();
@@ -259,8 +259,8 @@ export async function addToNook(paper) {
   }
   await importNativeSharedPaper(paper);
   await nativeRepository.transact([change]);
-  setPaperCopyUuid(paperUuid, copyUuid);
-  return paperView(await nativeRepository.paper(paperUuid));
+  setPaperCopyUuid(paperSha256, copyUuid);
+  return paperView(await nativeRepository.paper(paperSha256));
 }
 
 async function localCopyUuid(uuid) {
@@ -382,14 +382,14 @@ export function deleteShelf(uuid) {
 // A note written on the paper page is an annotation with no place on a page:
 // the same row a located note uses, without a page.
 
-export function addComment(paperUuid, content) {
+export function addComment(paperSha256, content) {
   if (nativeDataActive()) {
     return nativeRepository.transact([{
       table: 'annotations', uuid: newUuid(), operation: 'upsert',
-      values: { kind: 'note', paper_uuid: paperUuid, content, body: '{}' },
+      values: { kind: 'note', paper_sha256: paperSha256, content, body: '{}' },
     }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperUuid}/annotations`, 'POST', {
+  return jsonRequest(`/papers/${paperSha256}/annotations`, 'POST', {
     kind: 'note', content,
   });
 }

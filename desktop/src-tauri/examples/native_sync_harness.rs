@@ -8,14 +8,14 @@ use uuid::Uuid;
 async fn main() {
     let arguments: Vec<String> = std::env::args().collect();
     if arguments.len() != 6 {
-        eprintln!("usage: native_sync_harness DATABASE BACKEND TOKEN ACCOUNT_ID PAPER_ID");
+        eprintln!("usage: native_sync_harness DATABASE BACKEND TOKEN ACCOUNT_ID PAPER_SHA256");
         std::process::exit(2);
     }
     let database = &arguments[1];
     let backend = &arguments[2];
     let token = &arguments[3];
     let account_uuid = arguments[4].as_str();
-    let paper_uuid = &arguments[5];
+    let paper_sha256 = &arguments[5];
     let board_uuid = Uuid::new_v4().to_string();
     let item_uuid = Uuid::new_v4().to_string();
     let clip_uuid = Uuid::new_v4().to_string();
@@ -89,7 +89,6 @@ async fn main() {
     let note_uuid = Uuid::new_v4().to_string();
     let ink_uuid = Uuid::new_v4().to_string();
     let paper_clip_uuid = Uuid::new_v4().to_string();
-    let imported_paper_uuid = Uuid::new_v4().to_string();
     let imported_copy_uuid = Uuid::new_v4().to_string();
     seeded
         .mutate(
@@ -100,7 +99,7 @@ async fn main() {
                     uuid: note_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(paper_uuid)),
+                        ("paper_sha256".into(), json!(paper_sha256)),
                         ("content".into(), json!("Native offline note")),
                         ("page".into(), json!(1)),
                         ("anchor_type".into(), json!("point")),
@@ -112,7 +111,7 @@ async fn main() {
                     uuid: ink_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(paper_uuid)),
+                        ("paper_sha256".into(), json!(paper_sha256)),
                         ("page".into(), json!(1)),
                         (
                             "points".into(),
@@ -129,7 +128,7 @@ async fn main() {
                     uuid: paper_clip_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(paper_uuid)),
+                        ("paper_sha256".into(), json!(paper_sha256)),
                         ("page".into(), json!(1)),
                         (
                             "source".into(),
@@ -157,7 +156,8 @@ async fn main() {
             vec![
                 DataChange {
                     table: "papers".into(),
-                    uuid: imported_paper_uuid.clone(),
+                    // Named by the file, not by a name made up for it.
+                    uuid: pdf.sha256.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
                         ("title".into(), json!("Native imported PDF")),
@@ -171,7 +171,7 @@ async fn main() {
                     uuid: imported_copy_uuid,
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("paper_uuid".into(), json!(imported_paper_uuid)),
+                        ("paper_sha256".into(), json!(pdf.sha256)),
                         ("summary".into(), json!("Imported entirely offline")),
                     ]),
                 },
@@ -183,10 +183,10 @@ async fn main() {
     let reopened =
         LocalStore::open(Path::new(database)).expect("restart after offline annotations");
     let offline_notes = reopened
-        .query(account_uuid, "comments", json!({"parent_uuid": paper_uuid}))
+        .query(account_uuid, "comments", json!({"parent_uuid": paper_sha256}))
         .expect("offline notes survive restart");
     let offline_import = reopened
-        .query(account_uuid, "paper", json!({"uuid": imported_paper_uuid}))
+        .query(account_uuid, "paper", json!({"uuid": pdf.sha256}))
         .expect("offline PDF survives restart");
     let sync = Coordinator::new()
         .expect("create restart coordinator")
@@ -206,7 +206,7 @@ async fn main() {
             "note_uuid": note_uuid,
             "ink_uuid": ink_uuid,
             "paper_clip_uuid": paper_clip_uuid,
-            "imported_paper_uuid": imported_paper_uuid,
+            "imported_paper_sha256": pdf.sha256,
             "imported_pdf_sha256": pdf.sha256,
             "offline_import": offline_import,
             "before": before,

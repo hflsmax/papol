@@ -424,9 +424,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // A document user can reveal its paper in the permanent library window.
   // Use the complete nook rather than whichever shelf or tag happened to be
   // open, so the selected row is always present in the list.
-  useEffect(() => subscribeShowPaperRequests((paperUuid) => {
+  useEffect(() => subscribeShowPaperRequests((paperSha256) => {
     rememberSource('all');
-    const path = `/paper/${paperUuid}`;
+    const path = `/paper/${paperSha256}`;
     const mountedPath = appPath(path);
     if (`${window.location.pathname}${window.location.search}` === mountedPath) {
       setRoute(parseRoute());
@@ -728,7 +728,7 @@ export default function App({ startupUser = null, startupError = null }) {
       )}
       {route.page === 'paper' && (
         <PaperDetail
-          paperUuid={route.uuid}
+          paperSha256={route.uuid}
           currentUser={user}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
           onBack={goBack}
@@ -801,9 +801,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // Reading happens in a three-pane browser — source, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
-    const movePaperToShelf = async (paperUuid, shelfUuid) => {
+    const movePaperToShelf = async (paperSha256, shelfUuid) => {
       try {
-        await updatePaper(paperUuid, { shelf_uuid: shelfUuid });
+        await updatePaper(paperSha256, { shelf_uuid: shelfUuid });
       } catch (err) {
         setDesktopNotice(err.message);
         window.setTimeout(() => setDesktopNotice(null), 5000);

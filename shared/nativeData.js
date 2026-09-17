@@ -193,8 +193,8 @@ export const nativeRepository = Object.freeze({
   boards: () => nativeQuery('boards'),
   // Every annotation on a paper, narrowed to one kind when the caller
   // wants less.
-  annotations: (paperUuid, kind = null) => nativeQuery(
-    'annotations', { paper_uuid: paperUuid, kind },
+  annotations: (paperSha256, kind = null) => nativeQuery(
+    'annotations', { paper_sha256: paperSha256, kind },
   ),
   copies: () => nativeQuery('copies'),
   copyTags: () => nativeQuery('copy_tags'),
@@ -214,10 +214,10 @@ export async function importNativeSharedPaper(paper) {
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   const createdAt = paper?.created_at || new Date().toISOString();
   const rows = [{
-    table: 'papers', uuid: paper.uuid, doi: paper.doi ?? null,
+    table: 'papers', doi: paper.doi ?? null,
     title: paper.title, authors: paper.authors ?? null, journal: paper.journal ?? null,
     year: paper.year ?? null, file_path: paper.file_path ?? null,
-    sha256: paper.sha256 ?? null, created_at: createdAt, updated_at: createdAt,
+    sha256: paper.sha256, created_at: createdAt, updated_at: createdAt,
     revision: Number.isInteger(paper.revision) ? paper.revision : 0, deleted_at: null,
   }];
   return invoke('import_shared_paper', { accountUuid, rows });
@@ -485,7 +485,7 @@ export function subscribeSignInRequests(listener) {
 
 export function subscribeShowPaperRequests(listener) {
   return subscribeNativeEvents(['papol://show-paper-requested'], (payload) => {
-    if (UUID.test(payload?.paper_uuid || '')) listener(payload.paper_uuid.toLowerCase());
+    if (UUID.test(payload?.paper_sha256 || '')) listener(payload.paper_sha256.toLowerCase());
   });
 }
 

@@ -3,15 +3,15 @@ import { onServer } from './serverOperation.js';
 
 // ---------- Seminar rooms ----------
 
-export function callSeminar(paperUuid) {
-  return onServer(() => request(`/papers/${paperUuid}/room`, { method: 'POST' }));
+export function callSeminar(paperSha256) {
+  return onServer(() => request(`/papers/${paperSha256}/room`, { method: 'POST' }));
 }
 
 // Seminar rooms are shared, online-only state in Papol macOS rather than
 // rows in its private offline replica. The paper endpoint is the canonical
 // source for the summaries shown beside a paper.
-export async function listPaperRooms(paperUuid) {
-  const paper = await request(`/papers/${paperUuid}`);
+export async function listPaperRooms(paperSha256) {
+  const paper = await request(`/papers/${paperSha256}`);
   return paper.rooms || [];
 }
 

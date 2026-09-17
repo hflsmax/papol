@@ -104,15 +104,15 @@ const {
 } = await import('../../shared/api/papers.js');
 
 test('paper and comment reads start together', async () => {
-  const paperUuid = '11111111-1111-4111-8111-111111111111';
-  queryPaper = { uuid: paperUuid, copy_uuid: '22222222-2222-4222-8222-222222222222' };
+  const paperSha256 = '11111111-1111-4111-8111-111111111111';
+  queryPaper = { uuid: paperSha256, copy_uuid: '22222222-2222-4222-8222-222222222222' };
   let releasePaper;
   queryPaperGate = {
     promise: new Promise((resolve) => { releasePaper = resolve; }),
   };
   calls.length = 0;
 
-  const loading = getPaper(paperUuid);
+  const loading = getPaper(paperSha256);
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.ok(calls.some(([, args]) => args?.queryName === 'paper'));
@@ -278,11 +278,11 @@ test('desktop native mutations carry the local account into Tauri IPC', async ()
 
 test('paper edits resolve their local copy without automatically uploading it', async () => {
   calls.length = 0;
-  const paperUuid = '12121212-1212-4212-8212-121212121212';
+  const paperSha256 = '12121212-1212-4212-8212-121212121212';
   const copyUuid = '34343434-3434-4434-8434-343434343434';
-  queryPaper = { uuid: paperUuid, copy_uuid: copyUuid };
-  await updatePaper(paperUuid, { shelf_uuid: null });
-  await deletePaper(paperUuid);
+  queryPaper = { uuid: paperSha256, copy_uuid: copyUuid };
+  await updatePaper(paperSha256, { shelf_uuid: null });
+  await deletePaper(paperSha256);
   const mutations = calls.filter(([command]) => command === 'data_mutate');
   assert.equal(mutations.length, 2);
   assert.ok(mutations.every(([, args]) => args.changes[0].uuid === copyUuid));
@@ -307,7 +307,7 @@ test('the native repository owns query names and parameter shapes', async () => 
     {
       accountUuid: ACCOUNT,
       queryName: 'annotations',
-      parameters: { paper_uuid: uuid, kind: 'note' },
+      parameters: { paper_sha256: uuid, kind: 'note' },
     },
   ]);
 });
@@ -315,14 +315,14 @@ test('the native repository owns query names and parameter shapes', async () => 
 test('a shared paper and its file can seed an offline nook copy', async () => {
   calls.length = 0;
   await importNativeSharedPaper({
-    uuid: '11111111-1111-4111-8111-111111111111', title: 'Shared paper',
-    created_at: '2026-09-14T00:00:00Z',
+    title: 'Shared paper', created_at: '2026-09-14T00:00:00Z',
     file_path: 'shared.pdf', sha256: 'b'.repeat(64),
   });
   const call = calls.find(([command]) => command === 'import_shared_paper');
   assert.equal(call[1].accountUuid, ACCOUNT);
   assert.deepEqual(call[1].rows.map((row) => row.table), ['papers']);
-  assert.equal(call[1].rows[0].uuid, '11111111-1111-4111-8111-111111111111');
+  // The cached row is named by the file, which is the paper's only name.
+  assert.equal(call[1].rows[0].uuid, undefined);
   assert.equal(call[1].rows[0].sha256, 'b'.repeat(64));
   assert.equal(call[1].rows[0].file_path, 'shared.pdf');
 });
@@ -338,10 +338,10 @@ test('native blob import transfers exact bytes and metadata', async () => {
 test('adding a Library paper directly downloads it without running manual sync', async () => {
   calls.length = 0;
   remoteBlobReady = false;
-  const paperUuid = '11111111-1111-4111-8111-111111111111';
+  const paperSha256 = '11111111-1111-4111-8111-111111111111';
   const digest = 'a'.repeat(64);
   queryPaper = {
-    uuid: paperUuid, title: 'Ready to read', file_path: 'ready.pdf', sha256: digest,
+    uuid: paperSha256, title: 'Ready to read', file_path: 'ready.pdf', sha256: digest,
   };
 
   const added = await addToNook({

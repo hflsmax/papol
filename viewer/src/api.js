@@ -38,7 +38,7 @@ export async function getPaperByPdf(hash) {
 
 export async function getPaperNotes(paper) {
   if (nativeDataActive()) {
-    return listAnnotations(paper.uuid, { kind: 'note' });
+    return listAnnotations(paper.sha256, { kind: 'note' });
   }
   return paper.notes || [];
 }
@@ -95,10 +95,11 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
     const shelves = await nativeRepository.shelves();
     const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
       || shelves[0];
-    const paperUuid = newUuid();
+    // No name is invented for it. The paper is the file, and the service
+    // reads the same name off the same bytes.
     await nativeRepository.transact([
       {
-        table: 'papers', uuid: paperUuid, operation: 'upsert',
+        table: 'papers', uuid: sha256, operation: 'upsert',
         values: {
           doi: metadata?.doi ?? null,
           title: metadata?.title || name,
@@ -106,25 +107,24 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
           journal: metadata?.journal ?? null,
           year: metadata?.year ?? null,
           file_path: `${sha256}.pdf`,
-          sha256,
         },
       },
       {
         table: 'copies', uuid: newUuid(), operation: 'upsert',
-        values: { paper_uuid: paperUuid, shelf_uuid: shelf?.uuid ?? null },
+        values: { paper_sha256: sha256, shelf_uuid: shelf?.uuid ?? null },
       },
     ]);
-    paper = { uuid: paperUuid, sha256 };
+    paper = { sha256 };
   }
 
-  const paperUuid = paper.uuid;
+  const paperSha256 = paper.sha256;
 
   // One table now, so the three kinds are the same mapping with a different
   // kind and a different body.
   const stored = (kind, { uuid, page, content, name, group_uuid: groupUuid, ...body }) => ({
     table: 'annotations', uuid, operation: 'upsert',
     values: {
-      kind, paper_uuid: paperUuid,
+      kind, paper_sha256: paperSha256,
       page: page ?? null, group_uuid: groupUuid ?? null,
       content: content || '', name: name || null,
       body: JSON.stringify(body),
@@ -138,7 +138,7 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
   for (let start = 0; start < annotations.length; start += 200) {
     await nativeRepository.transact(annotations.slice(start, start + 200));
   }
-  return paperUuid;
+  return paperSha256;
 }
 
 // A PDF someone shared is theirs, not this machine's: its bytes come from
@@ -146,7 +146,7 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
 const sharedReading = (paper) => Boolean(paper?.shared_by);
 
 export async function downloadablePdfHref(paper) {
-  if (paper?.opened_file && !paper.uuid) return openedFileUrl(paper.sha256);
+  if (paper?.opened_file && !paper.copy_uuid) return openedFileUrl(paper.sha256);
   if (sharedReading(paper)) return pdfHref(paper);
   if (nativeDataActive()) {
     if (!paper?.sha256) throw new Error('PDF is not available in the local replica');
@@ -159,7 +159,7 @@ export async function downloadablePdfHref(paper) {
 // Tauri-created blob: URLs with status 0, which PDF.js rejects even though the
 // bytes are present. Native viewers therefore hand PDF.js the bytes directly.
 export async function pdfLoadInput(paper) {
-  if (paper?.opened_file && !paper.uuid) {
+  if (paper?.opened_file && !paper.copy_uuid) {
     return { data: await openedFileBytes(paper.sha256) };
   }
   if (sharedReading(paper)) return { url: pdfHref(paper) };
@@ -222,25 +222,25 @@ export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sour
 // made, changed and erased through one pair of calls. `kind` says which, and
 // `body` carries the geometry only that kind has.
 
-export function listAnnotations(paperUuid, { kind } = {}) {
+export function listAnnotations(paperSha256, { kind } = {}) {
   if (nativeDataActive()) {
     return nativeRepository
-      .annotations(paperUuid, kind ?? null)
+      .annotations(paperSha256, kind ?? null)
       .then((rows) => rows.map(annotationView));
   }
   const query = new URLSearchParams();
   if (kind) query.set('kind', kind);
   const suffix = query.size ? `?${query}` : '';
-  return request(`/papers/${paperUuid}/annotations${suffix}`);
+  return request(`/papers/${paperSha256}/annotations${suffix}`);
 }
 
-export function createAnnotation(paperUuid, annotation) {
+export function createAnnotation(paperSha256, annotation) {
   if (nativeDataActive()) {
     return nativeRepository.transact([{
       table: 'annotations', uuid: newUuid(), operation: 'upsert',
       values: {
         kind: annotation.kind,
-        paper_uuid: paperUuid,
+        paper_sha256: paperSha256,
         page: annotation.page ?? null,
         group_uuid: annotation.group_uuid ?? null,
         content: annotation.content ?? '',
@@ -249,7 +249,7 @@ export function createAnnotation(paperUuid, annotation) {
       },
     }]).then((receipt) => annotationView(receipt.rows[0]));
   }
-  return jsonRequest(`/papers/${paperUuid}/annotations`, 'POST', annotation);
+  return jsonRequest(`/papers/${paperSha256}/annotations`, 'POST', annotation);
 }
 
 export function updateAnnotation(uuid, changes) {
@@ -280,8 +280,8 @@ export function deleteAnnotation(uuid) {
 // The bibliography of the PDF being read, and where each work is cited in
 // it. The first ask may answer `pending`: reading a PDF's references takes
 // a pass over the whole document, which happens once and is then kept.
-export function getViewerReferences(pdfHash, paperUuid) {
-  return request(`/viewer-references/${pdfHash}?paper_uuid=${paperUuid}`);
+export function getViewerReferences(pdfHash, paperSha256) {
+  return request(`/viewer-references/${pdfHash}?paper_sha256=${paperSha256}`);
 }
 
 // One reference, looked up the first time anyone opens it.
@@ -292,8 +292,8 @@ export function getViewerReference(uuid) {
 // The same two questions, asked on the authority of a shared link. The
 // bibliography belongs to the PDF, so the answers are the same ones; only
 // what allows the asking differs.
-export function getSharedReferences(share, pdfHash, paperUuid) {
-  return request(`/viewer-references/${pdfHash}?paper_uuid=${paperUuid}&share=${share}`);
+export function getSharedReferences(share, pdfHash, paperSha256) {
+  return request(`/viewer-references/${pdfHash}?paper_sha256=${paperSha256}&share=${share}`);
 }
 
 export function getSharedReference(share, referenceUuid) {

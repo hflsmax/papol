@@ -19,10 +19,10 @@ export function sourcePath(source) {
 
 // An import reviewed from the public library belongs to the user's nook once
 // it is created. Select that nook source while opening the new paper itself.
-export function paperCreatedNavigation(source, paperUuid) {
+export function paperCreatedNavigation(source, paperSha256) {
   return {
     source: source === 'library' ? 'all' : source,
-    path: `/paper/${paperUuid}`,
+    path: `/paper/${paperSha256}`,
   };
 }
 

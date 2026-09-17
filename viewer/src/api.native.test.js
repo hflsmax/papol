@@ -60,7 +60,7 @@ test('every kind of annotation reaches the one native table', async () => {
   const call = calls.find(([command, args]) => command === 'data_mutate'
     && args.changes[0].table === 'annotations');
   assert.equal(call[1].changes[0].values.kind, 'note');
-  assert.equal(call[1].changes[0].values.paper_uuid, PAPER);
+  assert.equal(call[1].changes[0].values.paper_sha256, PAPER);
   assert.equal(call[1].changes[0].values.page, 3);
   // Geometry travels as text and comes back parsed.
   assert.equal(typeof call[1].changes[0].values.body, 'string');
@@ -96,7 +96,7 @@ test('a local paper UUID reads annotations without falling through to integer RE
   await listAnnotations(PAPER, { kind: 'clip' });
   const reads = calls.filter(([command, args]) => command === 'data_query'
     && args.queryName === 'annotations');
-  assert.deepEqual(reads.map(([, args]) => args.parameters.paper_uuid), [PAPER, PAPER]);
+  assert.deepEqual(reads.map(([, args]) => args.parameters.paper_sha256), [PAPER, PAPER]);
   assert.deepEqual(reads.map(([, args]) => args.parameters.kind), ['ink', 'clip']);
 });
 

@@ -22,7 +22,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperDetail({
-  paperUuid, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
+  paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   hideBack = false, onReportableError,
 }) {
   const [paper, setPaper] = useState(null);
@@ -107,7 +107,7 @@ export default function PaperDetail({
 
   useEffect(() => {
     loadPaper();
-  }, [paperUuid]);
+  }, [paperSha256]);
 
   // Coming back from the viewer is a history step, so the browser restores
   // this page from its cache with whatever notes it had when the user
@@ -132,7 +132,7 @@ export default function PaperDetail({
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [paperUuid, editMode, editingSummary, editingThought]);
+  }, [paperSha256, editMode, editingSummary, editingThought]);
 
   // Every load after the first follows a change made here, so whatever lists
   // this paper beside the page (Papol macOS's nook) is told to catch up.
@@ -144,7 +144,7 @@ export default function PaperDetail({
   const loadPaper = async (overlay = null) => {
     setError(null);
     try {
-      const data = await getPaper(paperUuid);
+      const data = await getPaper(paperSha256);
       setPaper(overlay ? { ...data, ...overlay } : data);
       setIsLoading(false);
       if (currentUser && data.viewer_has_entry) {
@@ -1220,7 +1220,7 @@ export default function PaperDetail({
           </section>
 
           <CommentSection
-            paperUuid={paper.uuid}
+            paperSha256={paper.uuid}
             shared={Boolean(paper.sharable_uuid)}
             comments={(paper.notes || []).filter((note) => note.content)}
             noteHref={noteHref}

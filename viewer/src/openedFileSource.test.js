@@ -205,15 +205,16 @@ test('Add to nook imports only the paper graph, with no file-viewer annotations'
   calls.length = 0;
   const source = resolveSource();
   await source.load();
-  const paperUuid = await source.addToNook();
+  const paperSha256 = await source.addToNook();
 
-  assert.match(paperUuid, /^[0-9a-f-]{36}$/);
+  assert.match(paperSha256, /^[0-9a-f]{64}$/);
   assert.equal(calls.filter(([command]) => command === 'opened_file_read').length, 1);
   assert.equal(calls.filter(([command]) => command === 'blob_import').length, 1);
   const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
   assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'copies']);
-  assert.equal(mutations[0][0].uuid, paperUuid);
-  assert.equal(mutations[0][0].values.sha256, HASH);
+  assert.equal(mutations[0][0].uuid, paperSha256);
+  // The paper's name is the file, so it is not repeated as a value.
+  assert.equal(mutations[0][0].values.sha256, undefined);
   assert.equal(mutations[0][1].values.shelf_uuid, SHELF);
   assert.equal(mutations.length, 1);
   assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
@@ -254,8 +255,8 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
   assert.deepEqual(paperChange.values, {
     doi: '10.1234/parsed', title: 'Parsed title',
     authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
-    // A paper is its PDF, so the row carries the file it is.
-    file_path: `${HASH}.pdf`, sha256: HASH,
+    // A paper is its PDF: the row is named by it, and carries the path.
+    file_path: `${HASH}.pdf`,
   });
 });
 
@@ -272,9 +273,9 @@ test('first sign-in adds an open file locally without waiting for its nook snaps
   values.set('papol_token', 'new-session-token');
   await hydrateCredential();
   values.set('papol.localAccountUuid', ACCOUNT);
-  const paperUuid = await source.addToNook();
+  const paperSha256 = await source.addToNook();
 
-  assert.match(paperUuid, /^[0-9a-f-]{36}$/);
+  assert.match(paperSha256, /^[0-9a-f]{64}$/);
   const syncs = calls.filter(([command]) => command === 'sync_now');
   assert.ok(syncs.length > 0);
   assert.ok(syncs.every(([, args]) => (

@@ -115,7 +115,7 @@ export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBo
               <PaperUpload
                 compact
                 onPaperCreated={(paper) => {
-                  if (paper?.uuid != null && onSelectPaper) onSelectPaper(paper.uuid);
+                  if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
                   else loadSpace();
                 }}
                 onReviewChange={setReviewingUpload}

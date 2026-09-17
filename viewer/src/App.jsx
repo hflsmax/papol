@@ -1223,9 +1223,9 @@ export default function App() {
   // the first reader of a PDF starts that pass and everyone after
   // them gets the stored answer straight away.
   useEffect(() => {
-    const paperUuid = paper?.uuid;
+    const paperSha256 = paper?.sha256;
     const pdfHash = paper?.sha256;
-    if (!firstPageReady || !paperUuid || !pdfHash) return undefined;
+    if (!firstPageReady || !paperSha256 || !pdfHash) return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -1237,7 +1237,7 @@ export default function App() {
     const ask = () => {
       // A shared reading reads the same bibliography on the authority of
       // its link, so the source answers when it has its own way in.
-      (source?.references?.list || getViewerReferences)(pdfHash, paperUuid)
+      (source?.references?.list || getViewerReferences)(pdfHash, paperSha256)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -1453,13 +1453,13 @@ export default function App() {
 
   useEffect(() => {
     // A file opened from disk is in no nook, so there is nothing on it.
-    if ((!paper?.uuid && !paper?.opened_file) || !annotations?.clips) return undefined;
+    if ((!paper?.sha256 && !paper?.opened_file) || !annotations?.clips) return undefined;
     let cancelled = false;
     annotations.clips.list()
       .then((loaded) => { if (!cancelled) setClips(loaded); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [paper?.uuid, source]);
+  }, [paper?.sha256, source]);
 
   // The ink already on this paper, asked for once the paper is known.
   useEffect(() => {
@@ -1512,7 +1512,7 @@ export default function App() {
             setReference((current) => current?.uuid === referenceUuid
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);
-            if (!paper?.uuid) return;
+            if (!paper?.sha256) return;
             // Registering a citation read off the page writes to the
             // paper. The card already shows what is printed there, which
             // is what a shared reading can offer.
@@ -1918,7 +1918,7 @@ export default function App() {
       window.removeEventListener('mouseup', mouseFinished, true);
       window.removeEventListener('resize', update);
     };
-  }, [doc, scale, paper?.uuid, source]);
+  }, [doc, scale, paper?.sha256, source]);
 
   // Every stroke of the ink stroke in hand.
   const selectedStrokes = useMemo(() => (selectedInk
@@ -3309,13 +3309,13 @@ export default function App() {
   // file that matched a nook paper says so on the paper itself; a shared
   // paper says so through the nook lookup its source made.
   const showInNookHref = source?.openedFile
-    ? (paper?.uuid || null)
+    ? (paper?.sha256 || null)
     : (nookCopy && source?.nookHref?.(nookCopy)) || null;
   const showInNook = () => {
     // The desktop keeps the library in its own window, so showing a paper
     // means raising that window rather than leaving this one.
     if (source?.openedFile) {
-      focusDesktopLibraryWindow(paper.uuid);
+      focusDesktopLibraryWindow(paper.sha256);
       return;
     }
     window.location.assign(showInNookHref);
@@ -3569,7 +3569,7 @@ export default function App() {
               // opened from disk — has no page in this user's Papol, so
               // the library is simply brought forward as it was.
               onClick: () => focusDesktopLibraryWindow(
-                readOnly ? undefined : paper?.uuid,
+                readOnly ? undefined : paper?.sha256,
               ),
               label: 'Open Library',
             }}
@@ -4042,12 +4042,12 @@ export default function App() {
                 {paperInfoError && <p className="ref-unmatched">Details unavailable.</p>}
                 {paperInfo?.abstract && <p className="ref-abstract full">{paperInfo.abstract}</p>}
                 <div className="ref-links">
-                  {paper.uuid && (
+                  {paper.sha256 && (
                     <a
                       className="ref-link here"
-                      href={appPath(`/paper/${paper.uuid}`)}
+                      href={appPath(`/paper/${paper.sha256}`)}
                       onClick={(event) => {
-                        if (focusDesktopLibraryWindow(paper.uuid)) event.preventDefault();
+                        if (focusDesktopLibraryWindow(paper.sha256)) event.preventDefault();
                       }}
                     >Show in Papol</a>
                   )}
@@ -4256,7 +4256,7 @@ export default function App() {
               anchor={openCite.anchor}
               reference={reference}
               error={referenceError}
-              requiresNook={source?.openedFile && !paper?.uuid}
+              requiresNook={source?.openedFile && !paper?.copy_uuid}
               onClose={closeReference}
               position={openCite.index}
               count={openCite.referenceUuids.length}

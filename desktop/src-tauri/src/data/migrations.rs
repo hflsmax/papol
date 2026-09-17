@@ -366,7 +366,133 @@ DROP TABLE _copy_merge;
 DROP TABLE _paper_merge;
 "#;
 
+// A paper is named by its file, and by nothing else.
+//
+// It carried a UUID beside the digest: two names for one thing, and the
+// reason an offline import had to ask the service which paper it had. Now
+// both ends read the name off the same bytes, so a replica can name a paper
+// the service will recognise without being told.
+//
+// Rows with no digest go. A paper the replica cannot name is one it cannot
+// match to the service, cannot hold a blob for, and cannot push — it is
+// already stranded, and the next snapshot brings back whatever of it the
+// service still has.
+//
+// Frozen at the shape of this moment, like the migrations above it.
+const REKEY_PAPERS_TO_THE_DIGEST: &str = r#"
+DELETE FROM annotations WHERE paper_uuid IN
+  (SELECT uuid FROM papers WHERE sha256 IS NULL OR sha256 = '');
+DELETE FROM copy_tags WHERE copy_uuid IN
+  (SELECT uuid FROM copies WHERE paper_uuid IN
+     (SELECT uuid FROM papers WHERE sha256 IS NULL OR sha256 = ''));
+DELETE FROM copies WHERE paper_uuid IN
+  (SELECT uuid FROM papers WHERE sha256 IS NULL OR sha256 = '');
+DELETE FROM _local_blob_refs WHERE table_name = 'papers' AND row_uuid IN
+  (SELECT uuid FROM papers WHERE sha256 IS NULL OR sha256 = '');
+DELETE FROM papers WHERE sha256 IS NULL OR sha256 = '';
+
+CREATE TABLE _paper_key AS SELECT uuid, sha256 FROM papers;
+
+CREATE TABLE _new_papers (
+  sha256 TEXT PRIMARY KEY NOT NULL,
+  doi TEXT,
+  title TEXT NOT NULL,
+  authors TEXT,
+  journal TEXT,
+  year INTEGER,
+  file_path TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT
+);
+INSERT INTO _new_papers
+  SELECT sha256, doi, title, authors, journal, year,
+         COALESCE(file_path, sha256 || '.pdf'),
+         created_at, updated_at, revision, deleted_at
+    FROM papers;
+DROP TABLE papers;
+ALTER TABLE _new_papers RENAME TO papers;
+
+CREATE TABLE _new_copies (
+  uuid TEXT PRIMARY KEY NOT NULL,
+  paper_sha256 TEXT NOT NULL REFERENCES papers(sha256),
+  user_uuid TEXT NOT NULL,
+  shelf_uuid TEXT REFERENCES shelves(uuid),
+  summary TEXT,
+  thought TEXT,
+  is_author INTEGER NOT NULL DEFAULT 0,
+  rating_expertise INTEGER,
+  rating_reading INTEGER,
+  rating_liking INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT
+);
+INSERT INTO _new_copies
+  SELECT c.uuid, k.sha256, c.user_uuid, c.shelf_uuid, c.summary, c.thought,
+         c.is_author, c.rating_expertise, c.rating_reading, c.rating_liking,
+         c.created_at, c.updated_at, c.revision, c.deleted_at
+    FROM copies c JOIN _paper_key k ON k.uuid = c.paper_uuid;
+DROP TABLE copies;
+ALTER TABLE _new_copies RENAME TO copies;
+CREATE INDEX IF NOT EXISTS ix_copies_paper_sha256 ON copies(paper_sha256);
+CREATE INDEX IF NOT EXISTS ix_copies_shelf_uuid ON copies(shelf_uuid);
+
+CREATE TABLE _new_annotations (
+  uuid TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL,
+  user_uuid TEXT NOT NULL,
+  paper_sha256 TEXT NOT NULL REFERENCES papers(sha256),
+  page INTEGER,
+  group_uuid TEXT,
+  content TEXT NOT NULL DEFAULT '',
+  name TEXT,
+  body TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT
+);
+INSERT INTO _new_annotations
+  SELECT a.uuid, a.kind, a.user_uuid, k.sha256, a.page, a.group_uuid,
+         a.content, a.name, a.body, a.created_at, a.updated_at, a.revision,
+         a.deleted_at
+    FROM annotations a JOIN _paper_key k ON k.uuid = a.paper_uuid;
+DROP TABLE annotations;
+ALTER TABLE _new_annotations RENAME TO annotations;
+CREATE INDEX IF NOT EXISTS ix_annotations_paper
+  ON annotations(paper_sha256, user_uuid, kind);
+
+-- The blob a paper's file is held under is now spoken for by the digest.
+UPDATE _local_blob_refs
+   SET row_uuid = (SELECT sha256 FROM _paper_key WHERE uuid = _local_blob_refs.row_uuid)
+ WHERE table_name = 'papers'
+   AND row_uuid IN (SELECT uuid FROM _paper_key);
+
+DROP TABLE _paper_key;
+"#;
+
 pub fn run(connection: &mut Connection) -> Result<(), String> {
+    // A migration takes tables apart and puts them back, so for its length
+    // the references between them are in pieces by design. Enforcing them
+    // mid-rebuild only asks whether a half-finished schema is consistent,
+    // which it is not and does not need to be — what matters is that it is
+    // consistent when the work is done. Off before the transaction, because
+    // SQLite ignores this pragma inside one.
+    connection
+        .execute_batch("PRAGMA foreign_keys=OFF;")
+        .map_err(|error| error.to_string())?;
+    let outcome = migrate_within(connection);
+    connection
+        .execute_batch("PRAGMA foreign_keys=ON;")
+        .map_err(|error| error.to_string())?;
+    outcome
+}
+
+
+fn migrate_within(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;
@@ -454,10 +580,29 @@ pub fn run(connection: &mut Connection) -> Result<(), String> {
         .optional()
         .map_err(|error| error.to_string())?
         .unwrap_or(false);
+    // Both of these speak of a paper by its UUID, which is the shape they
+    // were written for. A replica made after the re-key never had that
+    // column, and there is nothing in either for it to do.
+    let keyed_by_uuid = has_papers
+        && transaction
+            .query_row(
+                "SELECT 1 FROM pragma_table_info('papers') WHERE name='uuid'",
+                [],
+                |_| Ok(true),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .unwrap_or(false);
     apply_sql(
         &transaction,
         "202609160002_one_paper_per_file",
-        if has_papers { MERGE_DUPLICATE_PAPERS } else { "" },
+        if keyed_by_uuid { MERGE_DUPLICATE_PAPERS } else { "" },
+    )?;
+    // Then the digest can be the key itself.
+    apply_sql(
+        &transaction,
+        "202609170001_papers_keyed_by_the_digest",
+        if keyed_by_uuid { REKEY_PAPERS_TO_THE_DIGEST } else { "" },
     )?;
     transaction.commit().map_err(|error| error.to_string())
 }
@@ -674,13 +819,30 @@ INSERT INTO paper_clips VALUES
         // Editions are folded away: each file became a paper of its own, and
         // the copy stayed on the file it was reading.
         assert!(!has_table(&connection, "paper_editions"));
+        assert_eq!(
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM pragma_table_info('papers') WHERE name='uuid'",
+            ),
+            0,
+            "a paper has one name, not two",
+        );
+        assert_eq!(
+            count(
+                &connection,
+                "SELECT COUNT(*) FROM pragma_table_info('papers') \
+                 WHERE name='sha256' AND pk=1",
+            ),
+            1,
+            "and it is the digest",
+        );
         // Three files across the two old papers, but only two distinct ones:
         // p2 held the very bytes p1 did, so it is folded into p1.
         assert_eq!(count(&connection, "SELECT COUNT(*) FROM papers"), 2);
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM papers WHERE uuid='p2'"),
-            0,
-            "the duplicate paper should be gone",
+            count(&connection, "SELECT COUNT(*) FROM papers WHERE sha256='abc'"),
+            1,
+            "the two rows on that file are one",
         );
         assert_eq!(
             count(
@@ -694,24 +856,23 @@ INSERT INTO paper_clips VALUES
         assert_eq!(
             count(
                 &connection,
-                "SELECT COUNT(*) FROM papers WHERE uuid='p1' AND sha256='abc' \
+                "SELECT COUNT(*) FROM papers WHERE sha256='abc' \
                  AND file_path='p1.pdf'",
             ),
             1,
-            "the first file kept the paper's own uuid",
+            "and it is keyed by the file it holds",
         );
         assert_eq!(
             count(
                 &connection,
-                "SELECT COUNT(*) FROM papers WHERE uuid<>'p1' AND sha256='def' \
-                 AND title='A paper'",
+                "SELECT COUNT(*) FROM papers WHERE sha256='def' AND title='A paper'",
             ),
             1,
             "the second file became a paper of its own",
         );
         // One copy, not two: the user was holding one paper all along.
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM copies WHERE paper_uuid='p1'"),
+            count(&connection, "SELECT COUNT(*) FROM copies WHERE paper_sha256='abc'"),
             1,
         );
         assert_eq!(count(&connection, "SELECT COUNT(*) FROM copies"), 1);
@@ -732,7 +893,7 @@ INSERT INTO paper_clips VALUES
         );
         // Every annotation followed its file, and none was left behind.
         assert_eq!(
-            count(&connection, "SELECT COUNT(*) FROM annotations WHERE paper_uuid='p1'"),
+            count(&connection, "SELECT COUNT(*) FROM annotations WHERE paper_sha256='abc'"),
             3,
         );
         for column in ["edition_uuid", "edition_sha256", "ignored_edition_uuid"] {
@@ -759,7 +920,7 @@ INSERT INTO paper_clips VALUES
             count(
                 &connection,
                 "SELECT COUNT(*) FROM _local_blob_refs \
-                 WHERE table_name='papers' AND row_uuid='p1' AND sha256='abc'",
+                 WHERE table_name='papers' AND row_uuid='abc' AND sha256='abc'",
             ),
             1,
         );

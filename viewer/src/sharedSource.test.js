@@ -34,7 +34,7 @@ const values = new Map();
 const asked = [];
 // What the service says about this user's own nook. `null` is "you have
 // not got it"; 'explode' stands in for the lookup failing outright.
-let inNook = { paper_uuid: PAPER, sha256: HASH };
+let inNook = { paper_sha256: PAPER, sha256: HASH };
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -65,12 +65,12 @@ global.fetch = async (url, options = {}) => {
     });
   }
   if (path === `/api/shared/${SHARE}/add-to-nook`) {
-    return new Response(JSON.stringify({ paper_uuid: PAPER, sha256: HASH }), {
+    return new Response(JSON.stringify({ paper_sha256: PAPER, sha256: HASH }), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     });
   }
   if (path === `/api/viewer-references/${HASH}`) {
-    return new Response(JSON.stringify({ paper_uuid: PAPER, status: 'ready', references: [] }), {
+    return new Response(JSON.stringify({ paper_sha256: PAPER, status: 'ready', references: [] }), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -132,7 +132,7 @@ test('a signed-in user is told where their own copy is', async () => {
     const source = resolveSource();
     const found = await source.loadNookPaper();
 
-    assert.deepEqual(found, { paper_uuid: PAPER, sha256: HASH });
+    assert.deepEqual(found, { paper_sha256: PAPER, sha256: HASH });
     // And where pressing "Show in nook" would take them: their own copy of
     // this PDF, not the link that showed them someone else's reading.
     assert.equal(source.nookHref(found), `/viewer/?pdf=${HASH}`);
@@ -150,7 +150,7 @@ test('a signed-in user who has not got the paper is offered it', async () => {
     // Nothing to show, so there is nothing to build a link to either.
     assert.equal(source.nookHref(null), null);
   } finally {
-    inNook = { paper_uuid: PAPER, sha256: HASH };
+    inNook = { paper_sha256: PAPER, sha256: HASH };
     await signedOut();
   }
 });
@@ -162,7 +162,7 @@ test('adding a shared paper asks on the authority of the link', async () => {
     const source = resolveSource();
     const added = await source.addToNook();
 
-    assert.deepEqual(added, { paper_uuid: PAPER, sha256: HASH });
+    assert.deepEqual(added, { paper_sha256: PAPER, sha256: HASH });
     const call = asked.at(-1);
     assert.equal(
       new URL(call.url, 'http://127.0.0.1').pathname,
@@ -228,7 +228,7 @@ test('a shared reading reads its bibliography on the authority of the link', asy
   const url = new URL(asked.at(-1).url, 'http://127.0.0.1');
   assert.equal(url.pathname, `/api/viewer-references/${HASH}`);
   assert.equal(url.searchParams.get('share'), SHARE);
-  assert.equal(url.searchParams.get('paper_uuid'), PAPER);
+  assert.equal(url.searchParams.get('paper_sha256'), PAPER);
 });
 
 test('a lean link carries the paper and none of the user\u2019s annotations', async () => {

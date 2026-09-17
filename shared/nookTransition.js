@@ -7,7 +7,7 @@ export function planOfflineNookAddition(paper, shelves, createUuid) {
     change: {
       table: 'copies', uuid: copyUuid, operation: 'upsert',
       values: {
-        paper_uuid: paper.uuid, shelf_uuid: shelf?.uuid ?? null,
+        paper_sha256: paper.sha256, shelf_uuid: shelf?.uuid ?? null,
       },
     },
   };
