@@ -27,6 +27,9 @@ import {
 import { DesktopBrowser, useNookSpace } from './components/DesktopLibrary';
 import { isBrowsing, lastShownSource, rememberSource, resolveSource } from './desktopSources';
 import { applicationStyles } from '../../shared/applicationStyles.js';
+import {
+  MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
+} from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
 import { appPath, stripAppBase } from './base';
 import { parseRoute } from './routes';
@@ -57,15 +60,11 @@ const SIGN_IN_PAGES = new Set([
 // The macOS application is signed, notarized, and attached to this project's
 // GitHub releases by .github/workflows/desktop-macos.yml.
 const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
-const MACOS_BANNER_DISMISSAL_KEY = 'papol.macosDownloadBannerDismissed';
 
-function macosBannerWasDismissed() {
-  try {
-    return window.localStorage.getItem(MACOS_BANNER_DISMISSAL_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
+// Closing this is one of the things a browser remembers about a user, so it
+// is named in shared/featureStates.js rather than here, and Admin can bring
+// the banner back without knowing anything about this file.
+const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DISMISSED);
 
 function navigate(path, { replace = false } = {}) {
   const destination = demoActive() && !['/signin', '/join'].includes(path)
@@ -631,11 +630,9 @@ export default function App({ startupUser = null, startupError = null }) {
         className="macos-download-banner-dismiss"
         aria-label="Dismiss macOS app announcement"
         onClick={() => {
-          try {
-            window.localStorage.setItem(MACOS_BANNER_DISMISSAL_KEY, '1');
-          } catch {
-            // The banner can still be dismissed for this visit when storage is unavailable.
-          }
+          // The banner can still be dismissed for this visit when storage
+          // is unavailable, which is what a refused write reports.
+          setFeatureState(MACOS_DOWNLOAD_BANNER_DISMISSED, true);
           setShowMacosDownloadBanner(false);
         }}
       >
