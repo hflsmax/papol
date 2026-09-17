@@ -77,6 +77,27 @@ Then open one real paper link in a real browser and read it. Not the home page,
 not a link the app just generated for you in the same session — a link from
 before the release, the way a reader holds one.
 
+## Papol is in development, and that is a licence
+
+There are no readers but us. Nobody is holding a link written last month, no
+client is pinned to a response shape, and no deployment has to survive the one
+before it. So when a change could be made compatibly or cleanly, **make it
+cleanly and break the old thing.** Compatibility costs a branch in the code, a
+second shape in every test, and a second thing to hold in the head, and it is
+being paid for nobody.
+
+Concretely, prefer to: change a URL rather than answer both; rename a field
+rather than accept either name; migrate a column rather than read around it;
+delete a route rather than deprecate it. The first version of the shortened
+paper name answered both 32 and 64 characters so old links would survive. There
+were no old links worth surviving — only two shapes in three resolvers, two in
+every test, and a question at every boundary about which kind of name this was.
+It went.
+
+This is a licence to be succinct, not a licence to be careless: an incompatible
+change still has to be complete. What it buys is the right to not carry the
+past. Revisit it the day Papol has a reader who is not us.
+
 ## When a name changes shape
 
 A UUID becoming a digest, a path gaining a segment, a route being retired. This
@@ -99,13 +120,18 @@ Grep for the old shape before declaring it done: `grep -rn '{8}-\[0-9a-f\]'`
 finds UUID patterns, `grep -rn '{64}'` finds digests. A pattern nobody changed
 is not evidence that it did not need changing.
 
-And keep the two apart. A **name** is what a link carries and a lookup
-resolves; an **identity** is what rows are keyed by, blobs are stored under,
-and bytes are checked against. A paper's name in a URL is the first half of its
+And keep the two apart. A **name** is what a URL and the wire carry and a
+lookup resolves; an **identity** is what rows are keyed by, blobs are stored
+under, and bytes are checked against. A paper's name is the first half of its
 digest; its identity is all of it, and shortening the one must never shorten
 the other. `backend/test_paper_names.py` holds that line, and the test that
 matters most there is the one asserting the blob check still demands all 64
 characters: a name half as long would be a check half as strong.
+
+One shape each, per the section above. The service does not answer a paper's
+full digest as though it were a name, and nothing sends one: `paperName()` and
+`paper_name()` are applied at every boundary, so no code below them has to ask
+which kind of name it is holding.
 
 ## Why a test is not enough
 

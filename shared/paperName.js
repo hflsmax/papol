@@ -17,6 +17,9 @@
 // and 2^128 to aim at a paper somebody already has. The service still checks
 // for it rather than assuming, because a name that silently means two things
 // is worse than a name that is refused.
+//
+// The full digest is not a name and is not answered as one. A link written
+// before this is not a Papol link.
 export const PAPER_NAME_LENGTH = 32;
 
 // The digest as it is written in a URL.
@@ -24,9 +27,9 @@ export function paperName(sha256) {
   return String(sha256 || '').slice(0, PAPER_NAME_LENGTH).toLowerCase();
 }
 
-// Both lengths are answered: the short name, and the full digest that older
-// links carry. A link someone was handed years ago is still that paper's link.
-export const PAPER_NAME_PATTERN = `[0-9a-f]{${PAPER_NAME_LENGTH}}(?:[0-9a-f]{32})?`;
+// One shape, and only one. A paper is named this way in a URL and on the wire,
+// so nothing has to ask which kind of name it is holding.
+export const PAPER_NAME_PATTERN = `[0-9a-f]{${PAPER_NAME_LENGTH}}`;
 
 export function isPaperName(value) {
   return new RegExp(`^${PAPER_NAME_PATTERN}$`, 'i').test(String(value || ''));

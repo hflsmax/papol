@@ -17,7 +17,15 @@ from sqlalchemy.orm import Session
 # shared/paperName.js, which writes the links this reads.
 PAPER_NAME_LENGTH = 32
 
-_NAME = re.compile(rf"[0-9a-f]{{{PAPER_NAME_LENGTH}}}(?:[0-9a-f]{{32}})?")
+_NAME = re.compile(rf"[0-9a-f]{{{PAPER_NAME_LENGTH}}}")
+
+
+def paper_name(sha256: str) -> str:
+    """The name a paper goes by in a URL and on the wire.
+
+    The mirror of shared/paperName.js, which writes what this reads.
+    """
+    return (sha256 or "")[:PAPER_NAME_LENGTH].lower()
 
 
 class AmbiguousPaperName(Exception):
@@ -25,23 +33,21 @@ class AmbiguousPaperName(Exception):
 
 
 def paper_by_name(name: str, db: Session) -> Paper | None:
-    """The paper a link names, or None.
+    """The paper a name refers to, or None.
 
-    A link carries the first half of the digest, and older links carry all of
-    it; both name the same paper. The stored identity is untouched by this —
-    every row, foreign key, blob and integrity check is still the full digest,
-    and a short name has become one again by the time this returns. Nothing
-    past this function ever holds half a name.
+    One shape of name and no other, so there is nothing here to decide. The
+    stored identity is untouched by this — every row, foreign key, blob and
+    integrity check is still the full digest, and the name has become one
+    again by the time this returns. Nothing past this function holds half of
+    one.
 
-    Two papers cannot quietly share one name. 128 bits is enough that a clash
+    Two papers cannot quietly share a name. 128 bits is enough that a clash
     would be a bug rather than a coincidence, so the ambiguous case is refused
     out loud instead of being settled by picking one.
     """
     name = (name or "").strip().lower()
     if not _NAME.fullmatch(name):
         return None
-    if len(name) == 64:
-        return db.query(Paper).filter(Paper.sha256 == name).first()
     # A prefix range rather than LIKE: it reads straight off the primary key,
     # and no character of a digest can be a wildcard.
     matches = db.query(Paper).filter(

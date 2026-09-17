@@ -19,6 +19,7 @@ from sqlalchemy.pool import StaticPool
 import account
 from database import Base
 from models import Annotation, Copy, Paper, Shelf, User
+from services.papers import paper_name
 
 PDF_HASH = "c" * 64
 
@@ -221,7 +222,7 @@ class AnnotationChangeTests(unittest.TestCase):
         self.engine.dispose()
 
     def stroke(self):
-        made = self.client.post(f"/api/papers/{self.paper_sha256}/annotations", json={
+        made = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/annotations", json={
             "kind": "ink", "page": 1,
             "body": {
                 "points": [{"x": 0.1, "y": 0.2}], "color": "#112233",
@@ -254,7 +255,7 @@ class AnnotationChangeTests(unittest.TestCase):
         # Pydantic puts the raised exception itself in a validation error's
         # context. Handing that to a JSON response turns a 422 into a 500
         # while it is being written out, so the context is left behind.
-        refused = self.client.post(f"/api/papers/{self.paper_sha256}/annotations", json={
+        refused = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/annotations", json={
             "kind": "ink", "page": 1,
             "body": {"anchor": {"type": "point", "x": 0.1, "y": 0.1}},
         })

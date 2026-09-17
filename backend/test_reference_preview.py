@@ -10,6 +10,7 @@ from models import Copy, Paper, PaperReference, Shelf, User
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from services.papers import paper_name
 
 HASH = "c" * 64
 
@@ -90,7 +91,7 @@ class ReferencePreviewTests(unittest.TestCase):
             main, "resolve_reference", AsyncMock(side_effect=lambda ref: main.reference_out(ref)),
         ):
             return self.client.post(
-                f"/api/papers/{self.paper_sha256}/references/preview",
+                f"/api/papers/{paper_name(self.paper_sha256)}/references/preview",
                 json={"key": key, "raw": raw},
             )
 

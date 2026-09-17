@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 import main
 from database import Base, PapolSession, get_db
 from models import Copy, Paper, Room, Shelf
+from services.papers import paper_name
 
 
 class SeminarTransitionTests(unittest.TestCase):
@@ -76,7 +77,7 @@ class SeminarTransitionTests(unittest.TestCase):
         return response.json()
 
     def test_complete_seminar_state_transition(self):
-        called = self.request("POST", f"/api/papers/{self.paper_sha256}/room")
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
         self.assertEqual(called["status"], "open")
         self.assertEqual(called["participant_count"], 1)
 
@@ -100,11 +101,11 @@ class SeminarTransitionTests(unittest.TestCase):
         finished = self.request("POST", f"/api/rooms/{called['uuid']}/finish")
         self.assertEqual(finished["status"], "finished")
 
-        paper = self.request("GET", f"/api/papers/{self.paper_sha256}")
+        paper = self.request("GET", f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(paper["rooms"][0]["status"], "finished")
 
     def test_host_can_return_planning_seminar_to_called_state(self):
-        called = self.request("POST", f"/api/papers/{self.paper_sha256}/room")
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
         self.request("POST", f"/api/rooms/{called['uuid']}/lead")
 
         reopened = self.request("POST", f"/api/rooms/{called['uuid']}/unhost")
@@ -117,7 +118,7 @@ class SeminarTransitionTests(unittest.TestCase):
         self.assertEqual(premature.status_code, 403)
 
     def test_caller_can_uncall_when_alone(self):
-        called = self.request("POST", f"/api/papers/{self.paper_sha256}/room")
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
 
         removed = self.request("POST", f"/api/rooms/{called['uuid']}/uncall")
         self.assertEqual(removed["message"], "Seminar uncalled")
@@ -128,14 +129,14 @@ class SeminarTransitionTests(unittest.TestCase):
             self.assertIsNone(db.query(Room).filter(Room.uuid == called["uuid"]).first())
 
     def test_caller_can_uncall_an_empty_cohort(self):
-        called = self.request("POST", f"/api/papers/{self.paper_sha256}/room")
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
         self.request("POST", f"/api/rooms/{called['uuid']}/leave")
 
         removed = self.request("POST", f"/api/rooms/{called['uuid']}/uncall")
         self.assertEqual(removed["message"], "Seminar uncalled")
 
     def test_caller_cannot_uncall_after_someone_else_joins(self):
-        called = self.request("POST", f"/api/papers/{self.paper_sha256}/room")
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
         response = self.client.post("/api/auth/register", json={
             "email": "user@example.test",
             "display_name": "Another User",

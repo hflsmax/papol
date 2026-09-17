@@ -30,6 +30,7 @@ from models import (
     Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
     User,
 )
+from services.papers import paper_name
 
 
 class DesktopSyncContractTests(unittest.TestCase):
@@ -665,9 +666,9 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.commit()
             paper_sha256 = paper.sha256
 
-        self.request("POST", f"/api/papers/{paper_sha256}/add-to-nook")
-        self.request("DELETE", f"/api/papers/{paper_sha256}")
-        self.request("POST", f"/api/papers/{paper_sha256}/add-to-nook")
+        self.request("POST", f"/api/papers/{paper_name(paper_sha256)}/add-to-nook")
+        self.request("DELETE", f"/api/papers/{paper_name(paper_sha256)}")
+        self.request("POST", f"/api/papers/{paper_name(paper_sha256)}/add-to-nook")
 
         with self.sessions() as db:
             copies = db.query(Copy).filter(
@@ -1019,7 +1020,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             patch.object(main.metadata_lookup, "by_doi", lookup),
         ):
             response = self.client.post(
-                f"/api/papers/{paper_sha256}/extract-metadata",
+                f"/api/papers/{paper_name(paper_sha256)}/extract-metadata",
                 headers=self.headers,
             )
 
@@ -1212,7 +1213,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             commit_sync(db)
             shelf_uuid, paper_sha256 = shelf.uuid, paper.sha256
 
-        self.request("PUT", f"/api/papers/{paper_sha256}", json={"thought": "Read on the train"})
+        self.request("PUT", f"/api/papers/{paper_name(paper_sha256)}", json={"thought": "Read on the train"})
         self.request("PUT", f"/api/shelves/{shelf_uuid}", json={"is_public": True})
         with self.sessions() as db:
             copy = db.query(Copy).join(Paper).filter(Paper.sha256 == paper_sha256).one()
@@ -1225,7 +1226,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "PUT", f"/api/shelves/{uuid.uuid4()}", headers=self.headers, json={"is_public": True},
         )
         self.assertEqual(missing.status_code, 404, missing.text)
-        paper = self.request("GET", f"/api/papers/{paper_sha256}").json()
+        paper = self.request("GET", f"/api/papers/{paper_name(paper_sha256)}").json()
         self.assertEqual(paper["uuid"], paper_sha256)
         self.assert_no_id_fields(paper)
 

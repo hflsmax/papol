@@ -2880,13 +2880,11 @@ async def viewer_references(
     if _public_pdf_path(digest) is not None:
         return await _bundled_paper_references(paper_sha256, digest, background)
     paper = _viewer_paper_or_404(digest, current_user, db, share)
-    if share:
-        # What a paper cites is a property of the file, not of the user
-        # who shared it, so a shared reading carries its bibliography.
-        return await _paper_references(paper, background, db)
-    return await paper_references(
-        paper.sha256, background, current_user=current_user, db=db,
-    )
+    # What a paper cites is a property of the file, not of the user who
+    # shared it, so a shared reading carries its bibliography like any other.
+    # The paper is already in hand either way: naming it again only to look it
+    # up again would be asking the question this route has already answered.
+    return await _paper_references(paper, background, db)
 
 
 @app.get("/api/viewer-references/item/{reference_uuid}", response_model=ReferenceOut)

@@ -26,8 +26,6 @@ const USER_UUID = '2f1c6f60-3f5b-4a19-9c2a-7d0e1b8c4a53';
 const pages = [
   { path: '/', page: 'home' },
   { path: `/paper/${PAPER_NAME}`, page: 'paper' },
-  // A link handed out before the name was shortened is still that paper's.
-  { path: `/paper/${PAPER_DIGEST}`, page: 'paper' },
   { path: `/u/${USER_UUID}`, page: 'space' },
   { path: `/room/${USER_UUID}`, page: 'room' },
   { path: '/library', page: 'papers' },

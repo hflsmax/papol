@@ -2728,22 +2728,15 @@ fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, St
         .map(Value::Array)
 }
 
-// The name a link carries: the first half of a paper's digest, or, on a link
-// handed out before the name was shortened, all of it. Both name the same
-// paper, and both have become the stored name by the time this returns —
-// nothing past here holds half a name.
+// The name a paper goes by outside the database: the first half of its digest.
+// One shape and no other, so there is nothing here to decide. What this hands
+// back is the stored name — nothing past here holds half of one.
 //
 // Two papers sharing one name would be a bug rather than a coincidence at 128
 // bits, so an ambiguous name is refused rather than settled by picking one.
 fn resolve_paper_name(connection: &Connection, name: &str) -> Result<String, String> {
     let name = name.trim().to_ascii_lowercase();
-    if !name.chars().all(|character| character.is_ascii_hexdigit()) {
-        return Err("Paper not found".to_string());
-    }
-    if name.len() == 64 {
-        return Ok(name);
-    }
-    if name.len() != 32 {
+    if name.len() != 32 || !name.chars().all(|character| character.is_ascii_hexdigit()) {
         return Err("Paper not found".to_string());
     }
     // A prefix range rather than LIKE: it reads straight off the primary key,
@@ -4119,7 +4112,7 @@ mod tests {
             .unwrap();
         assert_eq!(store.outbox_count(), 1);
         let paper = store
-            .query(&account_uuid, "paper", json!({"uuid": paper_sha256}))
+            .query(&account_uuid, "paper", json!({"uuid": &paper_sha256[..32]}))
             .unwrap();
         assert_eq!(paper["title"], "Shared paper");
         assert_eq!(paper["copy_uuid"], copy_uuid);
@@ -4525,16 +4518,15 @@ mod tests {
         }
         let reopened = LocalStore::open(&path).unwrap();
         let paper = reopened
-            .query("7", "paper", json!({"uuid": digest}))
+            .query("7", "paper", json!({"uuid": &digest[..32]}))
             .unwrap();
         assert_eq!(paper["title"], "Imported offline");
         assert!(reopened.has_blob(paper["sha256"].as_str().unwrap()));
         assert_eq!(reopened.outbox_count(), 0);
     }
 
-    // A paper is asked for by the name a link carried: the first half of its
-    // digest, or, on an older link, all of it. The replica answers both, and
-    // what it hands back is named the way it is stored.
+    // A paper is asked for by its name — the first half of its digest — and
+    // what the replica hands back is named the way it is stored.
     #[test]
     fn a_paper_is_found_by_the_name_a_link_carries() {
         let directory = tempfile::tempdir().unwrap();
@@ -4549,11 +4541,10 @@ mod tests {
             .mutate("7", pdf_import_changes(&blob.sha256, "A paper with a name"))
             .unwrap();
 
-        for name in [blob.sha256.clone(), blob.sha256[..32].to_string()] {
-            let paper = store.query("7", "paper", json!({"uuid": name})).unwrap();
-            assert_eq!(paper["title"], "A paper with a name");
-            assert_eq!(paper["sha256"], json!(blob.sha256));
-        }
+        let name = blob.sha256[..32].to_string();
+        let paper = store.query("7", "paper", json!({"uuid": name})).unwrap();
+        assert_eq!(paper["title"], "A paper with a name");
+        assert_eq!(paper["sha256"], json!(blob.sha256));
 
         // The name is read as written, without regard to case.
         let shouted = blob.sha256[..32].to_uppercase();
@@ -4581,7 +4572,8 @@ mod tests {
             blob.sha256[..31].to_string(),
             blob.sha256[..33].to_string(),
             blob.sha256[..48].to_string(),
-            blob.sha256[..63].to_string(),
+            // The whole digest is the identity, not a name.
+            blob.sha256.clone(),
             "z".repeat(32),
             "_".repeat(32),
             String::new(),

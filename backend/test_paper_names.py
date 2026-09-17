@@ -5,12 +5,16 @@ name is 64 characters, twice what every other name in Papol costs, so a link
 carries the first half of it — the same 32 hex digits a UUID holds.
 
 The distinction these tests hold is between a *name* and an *identity*. The
-short form is a name: something a link carries and a lookup resolves. The
+name is one shape and no other: 32 characters, in a URL and on the wire. The
 identity is unchanged and always the full digest — it is what rows are keyed
 by, what blobs are stored under, and what bytes are checked against. Shortening
 the one must not shorten the other, and the last test here is the one that
 matters: the integrity check still demands the whole digest, because a name
 half as long would be a check half as strong.
+
+The full digest is not a name and is not answered as one. Papol has no readers
+holding links written before this, and two accepted shapes cost more to hold in
+the head than the links they would have saved.
 """
 
 import unittest
@@ -103,17 +107,19 @@ class PaperNames(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["sha256"], A_PAPER)
 
-    def test_a_paper_answers_with_its_whole_name(self):
-        """The short form goes no further than the lookup: what comes back is
-        the paper's own name, which is what every later call is made with."""
+    def test_a_paper_answers_with_its_whole_digest(self):
+        """The name goes no further than the lookup: what comes back is the
+        paper's stored identity, which is what the rest of the service uses."""
         body = self.client.get(f"/api/papers/{A_PAPER[:32]}").json()
         self.assertEqual(body["sha256"], A_PAPER)
         self.assertEqual(body["uuid"], A_PAPER)
 
-    def test_a_link_carrying_the_whole_digest_still_opens_its_paper(self):
-        response = self.client.get(f"/api/papers/{A_PAPER}")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["sha256"], A_PAPER)
+    def test_the_whole_digest_is_not_a_name(self):
+        """One shape is read, not two. The digest is the identity; asking for a
+        paper by it is asking with something that is not a name."""
+        self.assertEqual(
+            self.client.get(f"/api/papers/{A_PAPER}").status_code, 404,
+        )
 
     def test_the_name_is_read_without_regard_to_case(self):
         response = self.client.get(f"/api/papers/{A_PAPER[:32].upper()}")
@@ -123,10 +129,10 @@ class PaperNames(unittest.TestCase):
     # ---------- names that are not names ----------
 
     def test_a_name_of_the_wrong_length_is_not_a_paper(self):
-        """Only the two lengths Papol writes. Anything between them is refused
+        """One length is written and one is read. Anything else is refused
         rather than resolved to whichever paper happens to start that way: a
         name that means 'the nearest match' is not a name."""
-        for wrong in (A_PAPER[:31], A_PAPER[:33], A_PAPER[:48], A_PAPER[:63]):
+        for wrong in (A_PAPER[:31], A_PAPER[:33], A_PAPER[:48], A_PAPER[:63], A_PAPER):
             with self.subTest(name=wrong):
                 self.assertEqual(
                     self.client.get(f"/api/papers/{wrong}").status_code, 404,
@@ -169,12 +175,9 @@ class PaperNames(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertIn("more than one", response.json()["detail"])
 
-        # Each of them is still reachable by the name only it has.
-        for digest in (A_PAPER, ITS_TWIN):
-            with self.subTest(digest=digest):
-                answered = self.client.get(f"/api/papers/{digest}")
-                self.assertEqual(answered.status_code, 200)
-                self.assertEqual(answered.json()["sha256"], digest)
+        # Neither is reachable while they share a name: there is no longer
+        # name to ask with, which is the cost of having only one shape, and
+        # the crafted rows that would cause it are not a thing to design for.
 
     def test_the_resolver_says_so_rather_than_choosing(self):
         with self.Session() as db:

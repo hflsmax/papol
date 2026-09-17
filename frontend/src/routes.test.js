@@ -24,14 +24,10 @@ test('a paper link opens that paper', () => {
   );
 });
 
-// Links were handed out carrying the whole digest before the name was
-// shortened, and a link someone holds is that paper's link for good.
-test('a link carrying the whole digest still opens its paper', () => {
-  assert.deepEqual(parseRoute(`/paper/${DIGEST}`), { page: 'paper', uuid: DIGEST });
-  assert.deepEqual(
-    parseRoute(`/paper/${DIGEST.toUpperCase()}`),
-    { page: 'paper', uuid: DIGEST },
-  );
+// The whole digest is not a name. Papol has no readers holding old links to
+// keep working, and one shape costs less to hold in the head than two.
+test('a link carrying the whole digest is not a paper link', () => {
+  assert.equal(parseRoute(`/paper/${DIGEST}`).page, 'home');
 });
 
 test('a paper link opens that paper in the demo', () => {
@@ -76,14 +72,14 @@ test('every standing page is reachable by its path', () => {
 
 // A name of the wrong shape is not a page. Landing on the home page for a
 // link that was meant for a paper is how a good link goes quietly dead.
-// Half a name is not a shorter name, it is a different one. Only the two
-// lengths Papol writes are answered; anything between them is refused rather
-// than resolved to whichever paper happens to start that way.
+// Half a name is not a shorter name, it is a different one. One length is
+// written and one is read; anything else is refused rather than resolved to
+// whichever paper happens to start that way.
 test('a name of the wrong shape is not a paper', () => {
   const wrong = [
     UUID,
     NAME.slice(0, 31), `${NAME}f`, DIGEST.slice(0, 48),
-    DIGEST.slice(0, 63), `${DIGEST}f`,
+    DIGEST, `${DIGEST}f`,
     'new-paper', '',
   ];
   for (const name of wrong) {

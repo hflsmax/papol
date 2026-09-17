@@ -22,6 +22,7 @@ import main
 from auth import get_current_user, get_optional_user
 from database import Base, get_db
 from models import Copy, Paper, Shelf, User
+from services.papers import paper_name
 
 NOBODYS_HASH = "d" * 64
 
@@ -192,36 +193,36 @@ class PaperIsNotOwned(unittest.TestCase):
 
         # And it opens, so the row is one a user can act on rather than a
         # line they cannot follow.
-        page = self.client.get(f"/api/papers/{nobodys_file}")
+        page = self.client.get(f"/api/papers/{paper_name(nobodys_file)}")
         self.assertEqual(page.status_code, 200, page.text)
         self.assertFalse(page.json()["viewer_has_entry"])
 
     def test_leaving_a_paper_does_not_take_it_out_of_the_library(self):
         """The last reader walking away is not a deletion."""
-        self.client.post(f"/api/papers/{self.paper_sha256}/add-to-nook")
-        self.client.delete(f"/api/papers/{self.paper_sha256}")
+        self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/add-to-nook")
+        self.client.delete(f"/api/papers/{paper_name(self.paper_sha256)}")
         listing = self.client.get("/api/papers")
         self.assertIn(self.paper_sha256, [p["uuid"] for p in listing.json()])
 
     def test_any_signed_in_user_opens_it(self):
-        page = self.client.get(f"/api/papers/{self.paper_sha256}")
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(page.status_code, 200, page.text)
         self.assertEqual(page.json()["title"], "On a paper nobody owns")
 
     def test_any_signed_in_user_may_take_a_copy(self):
-        added = self.client.post(f"/api/papers/{self.paper_sha256}/add-to-nook")
+        added = self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/add-to-nook")
         self.assertEqual(added.status_code, 200, added.text)
 
     # --- What stays the keeper's own business -------------------------
 
     def test_the_keeper_is_not_named_on_a_paper_they_do_not_display(self):
         """The paper is everyone's; that this user reads it is theirs."""
-        page = self.client.get(f"/api/papers/{self.paper_sha256}").json()
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()
         named = [entry["user"]["uuid"] for entry in page.get("also_read_by", [])]
         self.assertNotIn(self.keeper_uuid, named)
 
     def test_the_keepers_summary_stays_theirs(self):
-        page = self.client.get(f"/api/papers/{self.paper_sha256}").json()
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}").json()
         self.assertIsNone(page.get("summary"))
 
     # --- The account boundary is not ownership ------------------------
@@ -231,7 +232,7 @@ class PaperIsNotOwned(unittest.TestCase):
         Library is for people with accounts (US-1.4), so the paper page
         asks for one — whoever displays the paper, and whatever it is."""
         self.as_visitor()
-        page = self.client.get(f"/api/papers/{self.paper_sha256}")
+        page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual(page.status_code, 401, page.text)
 
 
