@@ -4396,6 +4396,32 @@ a.btn:hover {
   white-space: nowrap;
 }
 
+/* Every column header is the button that sorts it, so the header still
+   reads as a header — the arrow is the only thing the sort adds. */
+.admin-table th button.admin-sort {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.admin-table th button.admin-sort:hover {
+  color: var(--ink);
+}
+
+/* The arrow keeps its place whether or not the column is the sorted one,
+   so clicking a header never shifts the columns under the pointer. */
+.admin-sort-arrow {
+  display: inline-block;
+  min-width: 8px;
+  color: var(--accent);
+}
+
 .admin-table td {
   padding: 4px 6px;
   border-bottom: 1px solid var(--line);
