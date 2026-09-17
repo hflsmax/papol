@@ -533,7 +533,16 @@ def _apply_change(db: Session, change: RowChange, user: User):
             for item in record.items:
                 item.group = None
         elif isinstance(record, Shelf):
-            if record.is_default or any(copy.deleted_at is None for copy in record.copies):
+            # Its contents, all of them. A shelf holds boards as well as
+            # papers, and only the papers were counted — so a shelf could
+            # be deleted out from under its boards, which then named a
+            # shelf that was not there. The website moves both onto another
+            # shelf; here the answer is the message's own: move them first.
+            emptied = (
+                all(copy.deleted_at is not None for copy in record.copies)
+                and all(board.deleted_at is not None for board in record.boards)
+            )
+            if record.is_default or not emptied:
                 raise HTTPException(status_code=409, detail="Move shelf contents before deleting it")
     else:
         _assign_values(db, record, change.values, user)

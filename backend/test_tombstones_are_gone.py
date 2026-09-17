@@ -12,6 +12,7 @@ owner had deleted, and the Library counted papers nobody keeps any more.
 """
 
 import unittest
+import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -119,6 +120,44 @@ class RemovedRowsAreNotCountedTests(unittest.TestCase):
         self.assertEqual(
             [row["name"] for row in space["tags"]],
             [row["name"] for row in self.request("GET", "/api/tags")],
+        )
+
+    def test_a_shelf_holding_a_board_cannot_be_deleted_from_a_replica(self):
+        """A shelf's contents are its boards as well as its papers.
+
+        Only the papers were counted, so a replica could delete a shelf out
+        from under its boards, which then named a shelf that was not there.
+        The website moves both onto another shelf; here the answer is the
+        message's own."""
+        shelf = self.request("POST", "/api/shelves", json={
+            "name": "Ideas", "color": "#445566", "is_public": False,
+        })
+        board = self.request("POST", "/api/boards", json={
+            "name": "Thinking", "shelf_uuid": shelf["uuid"],
+        })
+        refused = self.client.post(
+            "/api/sync/push", headers=self.headers, json={
+                "protocol_version": 1,
+                "client_uuid": str(uuid.uuid4()),
+                "mutation_uuid": str(uuid.uuid4()),
+                "local_sequence": 1,
+                "changes": [{
+                    "table": "shelves", "uuid": shelf["uuid"],
+                    "operation": "delete", "values": {},
+                }],
+            },
+        )
+        self.assertEqual(refused.status_code, 409, refused.text)
+        self.assertIn("Move shelf contents", refused.json()["detail"])
+
+        # Moved off it, the shelf goes.
+        self.request("PUT", f"/api/boards/{board['uuid']}", json={
+            "shelf_uuid": self.shelf_uuid,
+        })
+        self.request("DELETE", f"/api/shelves/{shelf['uuid']}")
+        self.assertNotIn(
+            shelf["uuid"],
+            [row["uuid"] for row in self.request("GET", "/api/shelves")],
         )
 
     def test_the_library_stops_counting_a_paper_nobody_keeps(self):

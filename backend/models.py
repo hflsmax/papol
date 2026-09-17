@@ -556,7 +556,15 @@ class Sharable(Base):
 
 
 class Room(Base):
-    """A seminar cohort for a paper (keyed like the paper)."""
+    """A seminar cohort for a paper.
+
+    Keyed by the *work* rather than by the paper: a preprint and the
+    published version are two papers, each with its own copies and
+    annotations, and there is still only one conversation to be had about
+    them. So `paper_key` is the DOI, or the title when there is no DOI —
+    read off metadata any user may correct, which is why `cohorts.rekey_rooms`
+    exists to carry a seminar over when one of them does.
+    """
     __tablename__ = "rooms"
 
     uuid = uuid_key()
