@@ -81,12 +81,19 @@ CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256);
 -- A paper is one PDF and what is known about it. The digest is its
 -- identity: two files printing the same DOI are two papers.
 --
--- Indexed here, unique on the service. A replica holds a second row on one
--- file for as long as an offline import is in flight: it mints a paper of
--- its own for the PDF, pushes it, and the service answers with the UUID of
--- the paper it turned out to be. That reconciliation is what the alias
--- reply is for, and a constraint here would refuse the import before it
--- could happen.
+-- Indexed here, unique on the service. The service decides identity, so it
+-- is the service that can hold the line; a replica has to be able to hold
+-- two rows on one file while it is finding out which paper it has.
+--
+-- An import made offline mints a paper of its own, because the row it mints
+-- is what the push carries and what asks the service for the file. The
+-- service answers with the UUID the paper turned out to be, and the alias
+-- reply is what folds the two together. In between, a pull can land the
+-- service's own row for that file, and a unique index would fail that pull
+-- rather than let the reconciliation happen. The replica converges instead
+-- of being constrained: see
+-- `a_pull_may_land_the_services_row_for_a_file_an_import_is_still_holding`,
+-- which holds both ends of that — the two rows, and the one that is left.
 CREATE TABLE IF NOT EXISTS papers (
   uuid TEXT PRIMARY KEY NOT NULL,
   doi TEXT,

@@ -4457,6 +4457,13 @@ mod tests {
         assert_eq!(store.outbox_count(), 1);
     }
 
+    /// The replica is allowed two rows on one file while it is finding out
+    /// which paper it has — an import minted locally, and the service's own
+    /// row for those bytes arriving on a pull before the push is answered.
+    /// That is why the digest is unique on the service and only indexed
+    /// here. What has to be true is that the replica *converges*: once the
+    /// alias reply lands, one paper holds the file and nothing points at
+    /// the row that lost.
     #[test]
     fn accepted_duplicate_pdf_alias_merges_existing_blob_references() {
         let directory = tempfile::tempdir().unwrap();
@@ -4512,13 +4519,133 @@ mod tests {
         let temporary_references: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM _local_blob_refs WHERE table_name='papers' AND row_uuid=?1",
-                [temporary_paper_uuid],
+                [&temporary_paper_uuid],
                 |row| row.get(0),
             )
             .unwrap();
         assert_eq!(references, 1);
         assert_eq!(temporary_references, 0);
+
+        // The two rows the replica was holding are one again.
+        let on_that_file: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM papers WHERE sha256=?1",
+                [&blob.sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(on_that_file, 1, "the replica did not converge on one paper");
+        let survivor: String = connection
+            .query_row("SELECT uuid FROM papers WHERE sha256=?1", [&blob.sha256], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(survivor, canonical_paper_uuid, "and on the service's row");
+        // Nothing is left pointing at the row that lost.
+        for (table, column) in [("copies", "paper_uuid"), ("annotations", "paper_uuid")] {
+            let dangling: i64 = connection
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE {column}=?1"),
+                    [&temporary_paper_uuid],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(dangling, 0, "{table} still points at the temporary paper");
+        }
+        let orphans: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM copies WHERE paper_uuid NOT IN (SELECT uuid FROM papers)",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(orphans, 0);
         drop(connection);
         assert_eq!(store.outbox_count(), 0);
+    }
+
+    /// The window the service's unique index could not tolerate, and the
+    /// replica must: a pull landing the service's row for a file an import
+    /// minted a paper for and has not yet pushed.
+    #[test]
+    fn a_pull_may_land_the_services_row_for_a_file_an_import_is_still_holding() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        let store = LocalStore::open(&path).unwrap();
+        let blob = store
+            .import_blob(b"%PDF-1.4
+in flight", Some("application/pdf".into()))
+            .unwrap();
+
+        // Imported offline: a paper of the replica's own, not yet pushed.
+        let receipt = store
+            .mutate("7", pdf_import_changes(&blob.sha256, "Imported offline"))
+            .unwrap();
+        let minted = receipt.rows[0]["uuid"].as_str().unwrap().to_owned();
+        assert_eq!(store.outbox_count(), 1);
+
+        // The service's own row for the very same bytes arrives meanwhile.
+        let canonical = Uuid::new_v4().to_string();
+        let now = chrono_text();
+        store
+            .apply_snapshot(
+                "7",
+                vec![Map::from_iter([
+                    ("table".into(), json!("papers")),
+                    ("uuid".into(), json!(canonical.clone())),
+                    ("doi".into(), Value::Null),
+                    ("title".into(), json!("The same file, from the service")),
+                    ("authors".into(), Value::Null),
+                    ("journal".into(), Value::Null),
+                    ("year".into(), Value::Null),
+                    ("file_path".into(), json!(format!("{}.pdf", blob.sha256))),
+                    ("sha256".into(), json!(blob.sha256)),
+                    ("created_at".into(), json!(now)),
+                    ("updated_at".into(), json!(now)),
+                    ("revision".into(), json!(1)),
+                    ("deleted_at".into(), Value::Null),
+                ])],
+            )
+            .expect("a pull must not be refused by work the replica has in flight");
+
+        {
+            let connection = store.connection.lock().unwrap();
+            let both: i64 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM papers WHERE sha256=?1",
+                    [&blob.sha256],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(both, 2, "the replica holds both until the push is answered");
+        }
+
+        // And the answer folds them into one.
+        store
+            .accept_push(
+                "7",
+                receipt.local_sequence,
+                vec![],
+                vec![],
+                Map::from_iter([(minted.clone(), json!(canonical.clone()))]),
+            )
+            .unwrap();
+        let connection = store.connection.lock().unwrap();
+        let on_that_file: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM papers WHERE sha256=?1",
+                [&blob.sha256],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(on_that_file, 1);
+        let held: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM copies WHERE paper_uuid=?1 AND deleted_at IS NULL",
+                [&canonical],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(held, 1, "the copy came across to the paper that survived");
     }
 }
