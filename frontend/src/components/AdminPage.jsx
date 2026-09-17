@@ -15,6 +15,7 @@ import {
   adminListMessageRecipients,
 } from '../../../shared/api/admin.js';
 import appLimits from '../../../shared/appLimits.js';
+import { nextSort, sortIndicator, sortRows } from '../adminSort.js';
 
 function AdminMessagePanel() {
   const [content, setContent] = useState('');
@@ -405,6 +406,7 @@ export default function AdminPage() {
   const [edits, setEdits] = useState({});
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [sort, setSort] = useState(null);
   const [sql, setSql] = useState('');
   const [sqlResult, setSqlResult] = useState(null);
   const [sqlError, setSqlError] = useState(null);
@@ -429,12 +431,18 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
+    // Each table has its own columns, so a sort cannot outlive the one it
+    // was made on.
+    setSort(null);
     if (selected) loadTable(selected);
   }, [selected]);
 
   if (error && !data) return <div className="error" role="alert">{error}</div>;
 
   const pkName = data?.primary_key?.[0];
+  // The panel is sent one page of the table, so a sort orders the rows in
+  // hand rather than asking the database for the smallest or the largest.
+  const sortedRows = sortRows(data?.rows ?? [], sort);
 
   const cellValue = (row, col) => {
     const pk = row[pkName];
@@ -532,17 +540,27 @@ export default function AdminPage() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  {data.columns.map((c) => (
-                    <th key={c}>
-                      {c}
-                      {c === pkName ? ' 🔑' : ''}
-                    </th>
-                  ))}
+                  {data.columns.map((c) => {
+                    const { ariaSort, arrow } = sortIndicator(sort, c);
+                    return (
+                      <th key={c} aria-sort={ariaSort}>
+                        <button
+                          className="admin-sort"
+                          onClick={() => setSort(nextSort(sort, c))}
+                          title={`Sort by ${c}`}
+                        >
+                          {c}
+                          {c === pkName ? ' 🔑' : ''}
+                          <span className="admin-sort-arrow" aria-hidden="true">{arrow}</span>
+                        </button>
+                      </th>
+                    );
+                  })}
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((row) => (
+                {sortedRows.map((row) => (
                   <tr key={row[pkName]}>
                     {data.columns.map((col) => (
                       <td key={col}>
