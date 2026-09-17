@@ -16,7 +16,8 @@
 #                  bump, commit, tag, and push a macOS release
 #
 # Code goes up with `prod`. Data never goes from development to production;
-# `pull` explicitly replaces development's database with production's.
+# `pull` explicitly replaces development's database with production's, and
+# brings across the files that database names.
 #
 # Production is deployed and stays up; development is a server that runs for
 # as long as you leave this command running. Production is a checkout of its
@@ -1386,6 +1387,33 @@ sqlite() {
   fi
 }
 
+# The files a pulled database names. Every file Papol stores is written once
+# under a name that never comes back: a paper's PDF and a board's blob are
+# named after their contents, an avatar and a board's upload after a UUID
+# minted for that one write, and the old avatar is deleted rather than
+# replaced. So a name production and development share already holds the same
+# bytes, and pulling is exactly "copy across what development does not have" —
+# which is also why this is quick on every pull after the first, with hundreds
+# of megabytes of papers on both sides.
+pull_files() {
+  local source="$1" target="$2" copied=0 relative destination
+  [ -d "$source" ] || return 0
+  mkdir -p "$target"
+  while IFS= read -r file; do
+    relative="${file#"$source"/}"
+    destination="$target/$relative"
+    [ -e "$destination" ] && continue
+    mkdir -p "$(dirname "$destination")"
+    cp -p "$file" "$destination"
+    copied=$((copied + 1))
+  done < <(find "$source" -type f)
+  if [ "$copied" -eq 0 ]; then
+    note "$(basename "$target") — development already had every file"
+  else
+    note "$(basename "$target") — $copied file(s) copied"
+  fi
+}
+
 # Pulling is deliberately one-way and explicit. Production is read through
 # SQLite's backup API and is never modified.
 pull_data() {
@@ -1404,6 +1432,15 @@ pull_data() {
     cp -p "$DEV_DIR/backend/papol.db" "$dev_bak"
     say "Kept development's database as $(basename "$dev_bak")"
   fi
+
+  # Before the database, not after. A row names a file on disk, and a pull
+  # that brought the rows alone left development holding papers whose PDFs
+  # were never there — a 404 from /uploads at the moment of opening one.
+  # Interrupted here, development still has its own database and a few extra
+  # files, which is nothing; the other order leaves the breakage behind.
+  say "Pulling production's files into development"
+  pull_files "$PROD_DIR/uploads" "$DEV_DIR/uploads"
+  pull_files "$PROD_DIR/board_uploads" "$DEV_DIR/board_uploads"
 
   # .backup takes a consistent snapshot while production continues serving.
   local pulled="$DEV_DIR/backend/papol.db.pull-$$"

@@ -128,7 +128,7 @@ says who may *read this PDF*. Neither moves the other.
 | **Handoff** | Moving the document in front of the user *right now* from the browser into the app — same document, same place. | Distinct from the **download banner**, which advertises the app in general. A handoff names the thing; an advertisement names the software. |
 | **Handoff address** | The web address the user is already at, re-addressed to the app: `https://host/papol/viewer/?pdf=…` becomes `papol://host/papol/viewer/?pdf=…`. | One vocabulary, not two. Only the keys naming a document and a place in it cross over, because anyone at all can send the app one of these. |
 | **Document** | What the offer names: *this paper* or *this board*. Never "the app". | `handoffDocument()`. The demo has no document — nothing of the visitor's own to open. |
-| **Not now / Don't ask again / Always open in Papol** | The three answers: this document, this browser, from now on. Papol never ticks the third itself. | `DEFERRED_KEY`, `RETIRED_KEY`, `ALWAYS_KEY`. |
+| **Not now / Don't ask again** | The two answers: this document, or this browser. Papol never opens the app without being asked. | `DEFERRED_KEY`, `RETIRED_KEY`. |
 
 Papol **cannot tell whether the app is installed** and does not pretend to. The
 only signal is whether the tab loses attention shortly after asking, which is a

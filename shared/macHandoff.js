@@ -19,7 +19,6 @@ export const HANDOFF_QUERY_KEYS = Object.freeze([
 ]);
 
 export const RETIRED_KEY = 'papol.handoff.retired';
-export const ALWAYS_KEY = 'papol.handoff.always';
 export const DEFERRED_KEY = 'papol.handoff.deferred';
 
 export const DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
@@ -172,7 +171,6 @@ export function handoffOffer({
     address,
     identity,
     label: `Open ${document_.noun} in Papol`,
-    always: readFlag(local, ALWAYS_KEY),
   };
 }
 
