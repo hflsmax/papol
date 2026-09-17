@@ -122,6 +122,50 @@ class PaperIsNotOwned(unittest.TestCase):
         self.assertEqual(listing.status_code, 200, listing.text)
         self.assertIn(self.paper_uuid, [p["uuid"] for p in listing.json()])
 
+    def test_two_uploads_of_one_file_at_once_land_on_the_same_paper(self):
+        """The digest is unique, so one of two racing uploads loses the
+        insert. Losing means the paper is already there, which is the answer
+        the request wanted: it takes the row that won rather than being
+        refused an upload that was never wrong."""
+        from unittest.mock import patch
+
+        raced = f"{'e' * 64}.pdf"
+        (main.UPLOADS_DIR / raced).write_bytes(b"%PDF-1.4 raced\n%%EOF")
+        self.addCleanup((main.UPLOADS_DIR / raced).unlink, True)
+        digest = main._sha256_of(main.UPLOADS_DIR / raced)
+
+        with self.Session() as db:
+            db.add(Paper(
+                title="Stored by whoever got there first",
+                file_path=raced, sha256=digest,
+            ))
+            db.commit()
+            winner = db.query(Paper).filter(Paper.sha256 == digest).one().uuid
+
+        # The look-up misses, as it does for the request that loses the race;
+        # the insert then collides with the row that won.
+        real = main._paper_with_digest
+        misses = [True]
+
+        def _first_look_finds_nothing(db, wanted):
+            if misses:
+                misses.pop()
+                return None
+            return real(db, wanted)
+
+        with patch.object(main, "_paper_with_digest", _first_look_finds_nothing):
+            made = self.client.post("/api/papers", json={
+                "title": "Uploaded at the same moment",
+                "file_path": raced,
+            })
+
+        self.assertEqual(made.status_code, 200, made.text)
+        self.assertEqual(made.json()["uuid"], winner, "it must take the row that won")
+        with self.Session() as db:
+            self.assertEqual(
+                db.query(Paper).filter(Paper.sha256 == digest).count(), 1,
+            )
+
     def test_the_library_lists_a_paper_nobody_holds(self):
         """A paper with no copies at all is still a paper the Library holds.
 

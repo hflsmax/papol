@@ -161,8 +161,11 @@ class Paper(Base):
     file_path = Column(Text, nullable=True)
     # Content hash of those exact PDF bytes: the paper's identity, and what
     # names it in a viewer URL. An upload of bytes Papol already holds lands
-    # on the paper holding them rather than making a second.
-    sha256 = Column(String, nullable=True, index=True)
+    # on the paper holding them rather than making a second, and the index is
+    # unique so that this is the database's rule and not only the writer's.
+    # Null for a paper with no file recorded; SQLite counts NULLs as
+    # distinct, so those are not one another's duplicates.
+    sha256 = Column(String, nullable=True, index=True, unique=True)
     uploaded_by = Column(String(36), ForeignKey("users.uuid"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

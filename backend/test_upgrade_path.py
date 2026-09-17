@@ -378,6 +378,42 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
             self.rows("SELECT uuid FROM copies WHERE uuid=?", self.twin_copy), [],
         )
 
+    def test_the_digest_becomes_unique(self):
+        """The rule stops being the writer's to remember."""
+        self.upgrade()
+        unique = {
+            row[1]: row[2]
+            for row in self.rows("PRAGMA index_list(papers)")
+        }
+        self.assertEqual(unique.get("ix_papers_sha256"), 1)
+
+        import sqlite3 as _sqlite3
+        db = _sqlite3.connect(self.path)
+        try:
+            with self.assertRaises(_sqlite3.IntegrityError):
+                db.execute(
+                    "INSERT INTO papers (uuid, title, sha256, created_at, updated_at,"
+                    " revision) VALUES (?,?,?,?,?,1)",
+                    (_uuid(), "A third try at the same file", "a" * 64, NOW, NOW),
+                )
+        finally:
+            db.close()
+
+    def test_papers_with_no_file_are_not_one_anothers_duplicates(self):
+        """NULL is not a digest, so two of them do not collide."""
+        self.upgrade()
+        db = sqlite3.connect(self.path)
+        try:
+            for title in ("No file here", "Nor here"):
+                db.execute(
+                    "INSERT INTO papers (uuid, title, sha256, created_at, updated_at,"
+                    " revision) VALUES (?,?,NULL,?,?,1)",
+                    (_uuid(), title, NOW, NOW),
+                )
+            db.commit()
+        finally:
+            db.close()
+
     def test_a_tag_follows_the_copy_it_was_on(self):
         self.upgrade()
         self.assertEqual(

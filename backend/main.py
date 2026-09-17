@@ -1580,6 +1580,44 @@ def _paper_with_digest(db: Session, digest: str) -> Paper | None:
     ).first()
 
 
+def _paper_for_upload(
+    db: Session, data: PaperCreate, digest: str, user: User
+) -> tuple[Paper, bool]:
+    """The paper these bytes are, made if Papol has not got it yet.
+
+    Two uploads of one file at the same moment both look, both find nothing,
+    and both try to store it. The digest is unique, so one of them loses —
+    and losing means the paper is already there, which is the answer the
+    request wanted. It takes the row that won rather than being refused an
+    upload that was never wrong.
+
+    Nothing else has been written at this point, so the rollback undoes only
+    the row that lost."""
+    existing = _paper_with_digest(db, digest)
+    if existing is not None:
+        return existing, False
+    stored = Paper(
+        doi=data.doi,
+        title=data.title,
+        authors=data.authors,
+        journal=data.journal,
+        year=data.year,
+        file_path=data.file_path,
+        sha256=digest,
+        uploaded_by=user.uuid,
+    )
+    db.add(stored)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        existing = _paper_with_digest(db, digest)
+        if existing is None:
+            raise
+        return existing, False
+    return stored, True
+
+
 def _paper_list_entry(
     paper: Paper, user_copy: Copy | None, hide_private: bool, room_map: dict
 ) -> PaperList:
@@ -1956,22 +1994,9 @@ async def create_paper(
         raise HTTPException(status_code=400, detail="PDF file not found")
 
     digest = _sha256_of(file_path)
-    db_paper = _paper_with_digest(db, digest)
+    db_paper, is_new = _paper_for_upload(db, paper, digest, current_user)
 
-    if db_paper is None:
-        db_paper = Paper(
-            doi=paper.doi,
-            title=paper.title,
-            authors=paper.authors,
-            journal=paper.journal,
-            year=paper.year,
-            file_path=paper.file_path,
-            sha256=digest,
-            uploaded_by=current_user.uuid,
-        )
-        db.add(db_paper)
-        db.flush()
-    else:
+    if not is_new:
         if _copy_of(db_paper, current_user) is not None:
             raise HTTPException(
                 status_code=400, detail="This paper is already in your nook"

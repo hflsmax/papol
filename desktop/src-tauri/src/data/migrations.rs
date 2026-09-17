@@ -296,6 +296,12 @@ DROP TABLE _paper_file;
 //
 // Harmless on a replica with no duplicates: `_paper_merge` comes out empty
 // and every statement after it matches nothing.
+//
+// No unique index follows, as there is on the service. A replica holds a
+// second row on one file while an offline import is in flight — it mints a
+// paper of its own, pushes it, and takes the UUID the service answers with
+// — so the rule is the service's to hold, and this is only the tidy-up of
+// what the old one left behind.
 const MERGE_DUPLICATE_PAPERS: &str = r#"
 CREATE TABLE _paper_merge AS
   SELECT losing.uuid AS loser,

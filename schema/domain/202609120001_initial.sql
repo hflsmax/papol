@@ -79,9 +79,14 @@ CREATE INDEX IF NOT EXISTS ix_board_items_group_uuid ON board_items(group_uuid);
 CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256);
 
 -- A paper is one PDF and what is known about it. The digest is its
--- identity: two files printing the same DOI are two papers. Indexed
--- rather than unique, because a database written before that rule may
--- still hold two rows on one blob.
+-- identity: two files printing the same DOI are two papers.
+--
+-- Indexed here, unique on the service. A replica holds a second row on one
+-- file for as long as an offline import is in flight: it mints a paper of
+-- its own for the PDF, pushes it, and the service answers with the UUID of
+-- the paper it turned out to be. That reconciliation is what the alias
+-- reply is for, and a constraint here would refuse the import before it
+-- could happen.
 CREATE TABLE IF NOT EXISTS papers (
   uuid TEXT PRIMARY KEY NOT NULL,
   doi TEXT,

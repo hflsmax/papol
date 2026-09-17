@@ -379,10 +379,9 @@ def _fold_editions(conn):
 # not seen became a paper of its own. The earliest row survives and
 # everything pointing at the others is carried onto it.
 #
-# Run on every start rather than once. It is a no-op on a database that has
-# no duplicates — which is every database the current upload path writes —
-# and it means a pair that appears any other way is closed at the next
-# restart instead of living on.
+# Done once, under `_one_paper_per_file` below. The pairs are historical:
+# the old upload path matched on DOI, so the same file uploaded under a
+# title Papol had not seen became a paper of its own.
 _PAPER_DEPENDENTS = (
     "annotations", "sharables", "paper_references", "paper_citations", "paper_links",
 )
@@ -394,6 +393,43 @@ _COPY_FIELDS = (
     "summary", "thought",
     "rating_expertise", "rating_reading", "rating_liking",
 )
+
+
+def _one_paper_per_file(conn):
+    """Close the historical pairs, and put up the index that keeps them shut.
+
+    A paper is its PDF, so the digest is unique by rule. Making that a unique
+    index is what turns the rule into something the database holds rather
+    than something every writer has to remember — but it can only go up once
+    the rows that would break it are gone, so the merge comes first.
+
+    The index's own existence is the record that this has been done: found
+    and unique, there is nothing left to do and the merge never runs again.
+    A database carrying the earlier plain index has it replaced."""
+    tables = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "papers" not in tables:
+        return
+    # (seq, name, unique, origin, partial)
+    indexes = {
+        row[1]: row[2] for row in conn.execute(text("PRAGMA index_list(papers)"))
+    }
+    if indexes.get(_SHA256_INDEX) == 1:
+        return
+    _merge_duplicate_papers(conn)
+    if _SHA256_INDEX in indexes:
+        conn.execute(text(f"DROP INDEX {_SHA256_INDEX}"))
+    # Papers with no file recorded are not one another's duplicates: SQLite
+    # counts NULLs as distinct, which is exactly what is wanted here.
+    conn.execute(text(
+        f"CREATE UNIQUE INDEX IF NOT EXISTS {_SHA256_INDEX} ON papers(sha256)"
+    ))
+
+
+_SHA256_INDEX = "ix_papers_sha256"
 
 
 def _merge_duplicate_papers(conn):
@@ -508,9 +544,10 @@ def migrate():
         # `papers.sha256` as an empty column the fold then has to fill.
         _fold_editions(conn)
         _unify_annotations(conn)
-        # After the fold, which can leave two papers on one file when they
-        # were two papers before.
-        _merge_duplicate_papers(conn)
+        # After both, because the fold can leave two papers on one file when
+        # they were two papers before, and because the annotations being
+        # repointed have to have reached their table first.
+        _one_paper_per_file(conn)
         for table_name, column_name in _DROPPED_COLUMNS:
             columns = {
                 row[1] for row in conn.execute(text(f"PRAGMA table_info({table_name})"))
