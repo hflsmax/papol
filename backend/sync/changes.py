@@ -1,11 +1,10 @@
 import json
 from datetime import date, datetime
 
-from models import (
-    Annotation, Board, Copy, CopyTagLink,
-    ServerChange, Shelf, Tag, new_uuid,
+from models import Copy, CopyTagLink, ServerChange, Tag, new_uuid
+from sync.registry import (
+    WRITABLE_MODELS, owner_uuid, registry, validate_registry,
 )
-from sync.registry import WRITABLE_MODELS, registry, validate_registry
 
 
 def _json_value(value):
@@ -23,21 +22,6 @@ def row_snapshot(record):
         for column in record.__table__.columns
         if column.name not in skipped
     }
-
-
-def _board_for(db, record):
-    board = record.board
-    if board is None and record.board_uuid is not None:
-        board = db.get(Board, record.board_uuid)
-    if board is None:
-        raise RuntimeError(f"{record.__tablename__} has no board")
-    return board
-
-
-def _owner_uuid(db, record):
-    if isinstance(record, (Annotation, Board, Copy, CopyTagLink, Shelf, Tag)):
-        return record.user_uuid
-    return _board_for(db, record).user_uuid
 
 
 def _prepare_identity(db, record):
@@ -78,7 +62,7 @@ def prepare_sync_changes(db):
         row = row_snapshot(record)
         operation = "delete" if record.deleted_at is not None else "upsert"
         change = ServerChange(
-            user_uuid=_owner_uuid(db, record),
+            user_uuid=owner_uuid(db, record),
             table_name=record.__table__.name,
             row_uuid=record.uuid,
             revision=record.revision,
