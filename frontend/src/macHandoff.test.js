@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  ALWAYS_KEY, BLUR_GRACE_MS, DETECTION_MS, RETIRED_KEY,
+  BLUR_GRACE_MS, DETECTION_MS, RETIRED_KEY,
   attemptHandoff, deferDocument, documentIsDeferred, handoffAddress,
   handoffCapableMac, handoffDocument, handoffIdentity, handoffOffer, writeFlag,
 } from '../../shared/macHandoff.js';
@@ -119,7 +119,6 @@ test('a Mac browser reading a paper is offered the app', () => {
   assert.equal(offer.label, 'Open this paper in Papol');
   assert.equal(offer.address, 'papol://mc-pony.com/papol/viewer/?pdf=abc123');
   assert.equal(offer.identity, 'pdf:abc123');
-  assert.equal(offer.always, false);
 });
 
 test('a board is named as a board in the offer', () => {
@@ -162,19 +161,6 @@ test('Not now forgets this document and only this document', () => {
   deferDocument(session, handoffIdentity(VIEWER));
   assert.equal(handoffOffer({ href: VIEWER, mac: true, session, local: store() }), null);
   assert.ok(handoffOffer({ href: BOARD, mac: true, session, local: store() }));
-});
-
-test('Always open in Papol is reported back, never assumed', () => {
-  assert.equal(
-    handoffOffer({ href: VIEWER, mac: true, session: store(), local: store() }).always,
-    false,
-  );
-  assert.equal(
-    handoffOffer({
-      href: VIEWER, mac: true, session: store(), local: store({ [ALWAYS_KEY]: '1' }),
-    }).always,
-    true,
-  );
 });
 
 test('a flag round-trips and can be taken back', () => {
