@@ -1522,7 +1522,7 @@ async def list_users(
             display_name=u.display_name,
             affiliation=u.affiliation,
             avatar_path=u.avatar_path,
-            paper_count=sum(1 for r in u.copies if r.is_public),
+            paper_count=sum(1 for r in _live(u.copies) if r.is_public),
         )
         for u in users
     ]
@@ -1536,11 +1536,23 @@ def _room_status_map(db: Session) -> dict:
     return status_map
 
 
+def _live(rows) -> list:
+    """The rows that are still there.
+
+    A removed row is kept as a tombstone so every replica hears about the
+    removal, and a relationship hands those back along with the rest. Every
+    path that asks the database filters them; the paths that walk a loaded
+    row's relationships have to do it themselves, and a count that forgets
+    is a shelf saying it holds seven papers above a list of five."""
+    return [row for row in rows if row.deleted_at is None]
+
+
 def _shelf_out(shelf: Shelf) -> ShelfOut:
     return ShelfOut(
         uuid=shelf.uuid, name=shelf.name, color=shelf.color,
         is_public=bool(shelf.is_public), is_default=bool(shelf.is_default),
-        position=shelf.position, paper_count=len(shelf.copies), board_count=len(shelf.boards),
+        position=shelf.position,
+        paper_count=len(_live(shelf.copies)), board_count=len(_live(shelf.boards)),
     )
 
 
@@ -1717,7 +1729,8 @@ async def get_user_space(
         boards=[_board_out(board, can_edit=not hide_private) for board in boards],
         stats=stats,
         tags=(
-            [TagOut.model_validate(t) for t in sorted(user.tags, key=lambda t: t.name.lower())]
+            [TagOut.model_validate(t)
+             for t in sorted(_live(user.tags), key=lambda t: t.name.lower())]
             if not hide_private else []
         ),
         shelves=[
@@ -2417,7 +2430,8 @@ async def update_shelf(
     if "is_public" in changes and bool(changes["is_public"]) != bool(shelf.is_public):
         becoming_public = bool(changes["is_public"])
         if not becoming_public:
-            blocked = [c for c in shelf.copies if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
+            blocked = [c for c in _live(shelf.copies)
+                       if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
             if blocked:
                 raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
         # Every copy on the shelf moves with it, because none of them was
@@ -2447,7 +2461,7 @@ async def delete_shelf(
     destination = next((item for item in remaining if item.is_default), remaining[0])
     if not destination.is_public:
         blocked = [
-            copy for copy in shelf.copies
+            copy for copy in _live(shelf.copies)
             if copy.is_public and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
         ]
         if blocked:
