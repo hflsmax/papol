@@ -46,7 +46,7 @@ import { linkHistoryDirection } from './linkHistoryShortcut';
 import { pageAtLine } from './readingPage';
 import { readSections, sectionAt } from './sections';
 import ReturnPill from './ReturnPill';
-import ContentsMenu from './ContentsMenu';
+import DocumentMap from './DocumentMap';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
 import {
@@ -527,7 +527,6 @@ export default function App() {
   // document the reader currently is — which is what the bar names.
   const [sections, setSections] = useState([]);
   const [sectionsReading, setSectionsReading] = useState(false);
-  const [contentsOpen, setContentsOpen] = useState(false);
   const [readingPlace, setReadingPlace] = useState(null);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
@@ -1156,7 +1155,6 @@ export default function App() {
   useEffect(() => {
     setSections([]);
     setReadingPlace(null);
-    setContentsOpen(false);
   }, [doc]);
 
   // The paper's headings, read once the document is open.
@@ -1380,11 +1378,6 @@ export default function App() {
       if (e.key === 'Escape' && returnPillNotice) {
         e.preventDefault();
         setReturnPillNotice(false);
-        return;
-      }
-      if (e.key === 'Escape' && contentsOpen) {
-        e.preventDefault();
-        setContentsOpen(false);
         return;
       }
       if (e.key === 'Escape' && paperPopupOpen) {
@@ -3310,15 +3303,16 @@ export default function App() {
     };
   }, [doc, hasScale, wantedNoteUuid]);
 
-  // Where the reader is, so the bar can name the section they are in.
+  // Where the reader is, for the marker on the map and for the section it
+  // lights.
   //
   // Near the top of the view rather than its middle: a section begins at
   // its heading, and you are in it from the moment the heading is above
-  // you. Debounced, and only while there are sections to name — the bar's
-  // label is worth no work at all when the paper has none.
+  // you. Debounced, and only while there is a map to move a marker on.
+  const mapped = sections.length > 0 || numbered.some(hasAnchor);
   useEffect(() => {
     const scroller = scrollerRef.current;
-    if (!scroller || !doc || !hasScale || sections.length === 0) return undefined;
+    if (!scroller || !doc || !hasScale || !mapped) return undefined;
     let timer = null;
     const look = () => {
       const box = scroller.getBoundingClientRect();
@@ -3352,7 +3346,7 @@ export default function App() {
       scroller.removeEventListener('scroll', schedule);
       window.clearTimeout(timer);
     };
-  }, [doc, hasScale, sections.length]);
+  }, [doc, hasScale, mapped]);
 
   const currentSection = useMemo(
     () => sectionAt(sections, readingPlace),
@@ -3404,7 +3398,6 @@ export default function App() {
   // after it, and centring the heading would give half the screen to the
   // section you were leaving. The near/far rule is the anchors' own.
   const goToSection = (section) => {
-    setContentsOpen(false);
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${section.page}"]`);
     if (!scroller || !pageEl) return;
@@ -3414,6 +3407,11 @@ export default function App() {
     const top = scroller.scrollTop + headingY - box.top - Math.min(64, box.height * 0.1);
     const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
     scroller.scrollTo({ top: Math.max(0, top), behavior: far ? 'auto' : 'smooth' });
+  };
+
+  // The front of the paper, which is a place on the map like any other.
+  const goToTop = () => {
+    scrollerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   // An anchor in the contents is one line, so it says the shortest true
@@ -3426,6 +3424,9 @@ export default function App() {
       return {
         uuid: note.uuid,
         page: note.page,
+        // The map places an anchor at the point it holds, not merely on
+        // its page, so a paper of few pages still spreads its anchors out.
+        anchorY: note.anchor?.y ?? 0.5,
         note,
         label: name
           || (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
@@ -3754,34 +3755,19 @@ export default function App() {
             </svg>
           </a>
         ) : null}
-        {/* Where you are in the paper, beside the way out of it: the left
-            of the bar answers "where am I", the right is what you do to
-            the page. */}
-        {doc && (
-          <ContentsMenu
-            open={contentsOpen}
-            onOpen={() => {
-              setContentsOpen(true);
-              // One thing hangs off the bar at a time.
-              setPaperInfoOpen(false);
-              setNookPromptOpen(false);
-              setPdfViewerTip(false);
-              setSheet(null);
-            }}
-            onClose={() => setContentsOpen(false)}
-            loading={sectionsReading}
-            sections={sections}
-            anchors={contentsAnchors}
-            current={currentSection?.id}
-            currentAnchor={activeNoteUuid}
-            onSection={goToSection}
-            onAnchor={(anchor) => {
-              setContentsOpen(false);
-              goToNote(anchor.note);
-            }}
-          />
-        )}
-        <span className="spacer" />
+        {/* The paper itself, drawn to length across the middle of the bar.
+            It takes the room the spacer used to hold, and falls back to
+            being that spacer while there is nothing yet to draw. */}
+        <DocumentMap
+          pages={doc?.numPages || 0}
+          sections={sections}
+          anchors={contentsAnchors}
+          place={readingPlace}
+          current={currentSection?.id}
+          onSection={goToSection}
+          onAnchor={(anchor) => goToNote(anchor.note)}
+          onTop={goToTop}
+        />
         {/* A failed sync is reported, not offered again: the viewer is for
             reading, and the library is where sync is driven from. */}
         <DesktopSyncingStatus retry={false} />
@@ -3817,9 +3803,12 @@ export default function App() {
             </div>
           )}
         </div>
-        <span className="tools" role="group" aria-label="Tool">
+        <span className={`tools${sheet ? ' open' : ''}`} role="group" aria-label="Tool">
+          {/* The rack sits over the map rather than pushing it: reaching
+              for a tool should not redraw the paper's shape. */}
+          <span className="tools-rack">
           {availableTools.map((t) => (
-            <span className="tool-slot" key={t.id}>
+            <span className={`tool-slot${tool === t.id ? ' held' : ''}`} key={t.id}>
               <button
                 type="button"
                 className={`tool${tool === t.id ? ' on' : ''}`}
@@ -4091,6 +4080,7 @@ export default function App() {
 
             </span>
           ))}
+          </span>
         </span>
         {/* The paper page no longer offers the raw file, so the way to keep
             a copy lives here, beside the reading of it — and at the end of
@@ -4150,26 +4140,6 @@ export default function App() {
                 </button>
               )
             )}
-            {!source?.openedFile && !(DESKTOP && MAC) && <a
-              className="bar-link"
-              href={pdfHref(paper)}
-              download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
-              onClick={(event) => {
-                // Desktop saves the copy already in its local store.
-                if (!nativeDataActive()) return;
-                event.preventDefault();
-                const name = event.currentTarget.getAttribute('download');
-                downloadablePdfHref(paper).then((href) => {
-                  const link = document.createElement('a');
-                  link.href = href;
-                  link.download = name;
-                  link.click();
-                  setTimeout(() => URL.revokeObjectURL(href), 60_000);
-                }).catch(() => {});
-              }}
-            >
-              Download
-            </a>}
             {nookPromptOpen && ['confirm', 'ask', 'waiting'].includes(nookStep) && (
               <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title" data-tauri-drag-region="false">
                 <strong id="nook-ask-title">Add this paper to your nook</strong>
@@ -4245,6 +4215,30 @@ export default function App() {
                       target="_blank"
                       rel="noreferrer"
                     >{paperInfo?.doi || paper.doi ? 'DOI' : 'Page'}</a>
+                  )}
+                  {/* Saving the PDF is something you do to the paper, so it
+                      belongs with the paper's other links rather than on the
+                      bar, where it was spending a button's worth of room on
+                      an errand almost nobody runs twice. */}
+                  {!source?.openedFile && !(DESKTOP && MAC) && (
+                    <a
+                      className="ref-link"
+                      href={pdfHref(paper)}
+                      download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
+                      onClick={(event) => {
+                        // Desktop saves the copy already in its local store.
+                        if (!nativeDataActive()) return;
+                        event.preventDefault();
+                        const name = event.currentTarget.getAttribute('download');
+                        downloadablePdfHref(paper).then((href) => {
+                          const link = document.createElement('a');
+                          link.href = href;
+                          link.download = name;
+                          link.click();
+                          setTimeout(() => URL.revokeObjectURL(href), 60_000);
+                        }).catch(() => {});
+                      }}
+                    >Download</a>
                   )}
                 </div>
               </div>

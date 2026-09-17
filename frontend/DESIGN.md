@@ -162,24 +162,42 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   video and one serif title. The grid collapses to one column on narrow
   screens; new lessons are added as catalog entries.
 
-- **Contents** — the viewer's one navigation control, at the leading edge of
-  `.viewer-bar` beside Back: the left of that bar answers "where am I", the
-  right is what you do to the page. It is not an icon with a menu behind it;
-  it *names the section being read*, so the bar answers that question with
-  nothing opened, and falls back to the word "Contents" where a paper offers
-  no headings. Opening it gives one list under quiet small-caps kickers —
-  Sections, Appendix, Anchors — separated by hairlines, never by three
-  coloured headings. One row shape serves all three: a number column at the
-  left, a page column at the right, the title taking what is between. That
-  right-hand column running the height of the panel is what makes the
-  paper's own structure and the reader's own marks read as one map of one
-  document. Sections and anchors are grouped, never interleaved: nested
-  under sections an anchor would take a third width of indent and the eye
-  could no longer pick out "my anchors", which is the one thing that list is
-  for. The section being read is marked with `--accent-soft` and `--accent`,
-  as a selected desktop row is — never a rule or a bar drawn over the names
-  around it. Where the paper numbers nothing, the number column is not set
-  aside at all.
+- **Document map** — the viewer's navigation, and the only kind it has: the
+  paper drawn to length across `.viewer-bar`, in the room the spacer used
+  to hold. Nothing opens. Each top-level section is a segment as wide as
+  the section is long, so a glance says Model Architecture is a quarter of
+  the paper and Conclusion is a paragraph — which a list of names can never
+  say. Subsections are left out on purpose: they outnumber sections three
+  to one and, drawn as their equals, turn the strip into a barcode of boxes
+  too narrow to name. Anchors run in a lane underneath at the same scale,
+  so a tick under the middle of Results is *in* Results and nothing has to
+  say so; that shared scale is the whole idea, and it is why the two lanes
+  are stacked rather than merged. A single click on any segment or tick
+  goes there. Grounds carry meaning and colour does not: `--paper` for a
+  section, `--paper-sunken` for the front of the paper (title, authors,
+  abstract — the one stretch with no heading of its own), `--accent-soft`
+  for the appendix, because back matter is a part of a document rather than
+  a state of it. The section being read is `--accent` with inverse text, as
+  a selected native row is, and a 2px `--ink` marker crosses both lanes at
+  the exact reading position — the segment says which section, the marker
+  says where in it. Names are set inside segments only where there is real
+  room for one; below that a name would be cut to three letters, which is
+  worse than none, and the tooltip carries it instead. Each lane is one tab
+  stop with arrows to walk it: a bar must not cost twenty-five presses to
+  get past.
+
+- **Tool rack** — `.tools`: in the viewer's bar the tool palette shows only
+  the tool in hand, and opens to the full row on hover, on `:focus-within`,
+  and while one of its sheets is open. It opens *over* the document map
+  rather than pushing it, because a strip whose every segment resized when
+  you reached past it would be unusable, and it takes a `--card` ground and
+  `--shadow-sm` while open, since it is then standing on top of something.
+  Choosing a tool still costs one click — the others are a pointer-move
+  away, not a click away — which is the rule the palette was built on. A
+  touch screen has no hover to open it with, so under `(hover: none)` the
+  rack is never collapsed and takes its room back from the map. Nothing
+  else in the bar hides this way: the rack earns it by being six controls
+  wide next to a map that wants every pixel.
 
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:
