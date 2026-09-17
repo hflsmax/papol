@@ -1313,9 +1313,14 @@ health_check() {
 # router no longer knows, so a deployment whose paper links are all dead passes
 # the check above without a murmur. Open the real links and see.
 link_check() {
-  local previous="$1" port digest status=0
-  port=$(prod_port)
-  [ -z "$port" ] && return 0
+  local previous="$1" digest status=0
+
+  # The public URL, not the port above. The built application asks for its own
+  # scripts under /papol, which the proxy in front of the service strips: on
+  # the loopback port those requests fall into the single-page catch-all and
+  # come back as HTML, so nothing renders and every link looks dead. Papol is
+  # only whole where a reader meets it.
+  local public="${PAPOL_PUBLIC_URL:-https://mc-pony.com/papol}"
 
   # A paper production really has, so the link under test is one a reader
   # could be holding. Newest first: it is the most likely to exist tomorrow.
@@ -1324,9 +1329,12 @@ link_check() {
     2>/dev/null) || digest=""
 
   say "Opening production's links"
-  "$DEV_DIR/health/links.sh" "http://127.0.0.1:$port" "$digest" || status=$?
+  "$DEV_DIR/health/links.sh" "$public" "$digest" || status=$?
   [ "$status" -eq 0 ] && return 0
-  [ "$status" -eq 2 ] && { note "no browser here to open them with; check by hand"; return 0; }
+  # 2 is the check failing to stand up — no browser, or the application never
+  # loading at all. That says nothing about this revision's routing, so it is
+  # reported and stepped over rather than being blamed on the deployment.
+  [ "$status" -eq 2 ] && { note "the link check could not run; open a paper link by hand"; return 0; }
   die "production is serving pages, but some of its links no longer open what
     they name. The service is up and the previous checkout is at $previous;
     git -C $PROD_DIR reset --hard $previous puts the code back."

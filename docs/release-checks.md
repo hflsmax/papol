@@ -61,6 +61,18 @@ application root, which says which page the router actually built. It is the
 only check that can tell a live link from a dead one, and the only one worth
 trusting after a change to how anything is named.
 
+**The URL must be the public one**, not `http://127.0.0.1:<port>`. The built
+application asks for its own scripts under `/papol`, a prefix the proxy in
+front of the service strips: on the service's own port those requests miss the
+assets, fall into the single-page catch-all, and come back as HTML. The module
+never loads, nothing renders, and every link looks dead. Papol is only whole
+where a reader meets it, which is the only place worth checking anyway.
+
+`links.sh` renders the home page first and on its own, because every unknown
+path renders the home page: if *that* does not come up, the check is standing
+in the wrong place and has nothing to say about routing. It exits 2 for that,
+and `deploy.sh` steps over a 2 rather than blaming the revision for it.
+
 Then open one real paper link in a real browser and read it. Not the home page,
 not a link the app just generated for you in the same session — a link from
 before the release, the way a reader holds one.
@@ -95,3 +107,9 @@ each can be fooled on its own:
 | `links.sh` | a dead link in production | a page that renders but is useless |
 
 None of them replaces opening the app. They replace *forgetting* to.
+
+A check that reports everything as broken is reporting on itself. The first
+run of `links.sh` against production called all seven links dead, including
+`/` — which cannot be broken, because it is where broken links land. Read a
+total failure as "the check lost its footing" before reading it as "the
+release is bad."
