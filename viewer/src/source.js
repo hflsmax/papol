@@ -242,7 +242,7 @@ function openedFileSource(pdfHash, name) {
 }
 
 // The demo opens with a few anchors already in place, so a visitor meets
-// the feature rather than an empty rail. Fictional, like the rest of the
+// the feature rather than an empty Navigator. Fictional, like the rest of the
 // demo, and gone on reload.
 // The demo world is shared with Papol's own demo, so a note written into
 // it appears on the paper page and in the viewer alike.

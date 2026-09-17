@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalSto
 // The same legacy build as App.jsx (see there): one pdf.js, and one that
 // runs in WebKit.
 import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
+import NoteCard from './NoteCard';
 import { animalFor } from './animals';
 import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
 import { pageOverlays } from './references';
@@ -520,7 +521,11 @@ function PdfPage({
   onSelectClip,
   onSendClip,
   onMoveStroke,
-  onDragNote, onContextNote,
+  onContextNote,
+  noteCardFocus = null,
+  onRenameNote,
+  onWriteNote,
+  onRemoveNote,
   animal,
   animalSpeed,
   animalActivity,
@@ -1222,7 +1227,6 @@ function PdfPage({
     if (d.moved && dragScrollRef.current == null) {
       dragScrollRef.current = requestAnimationFrame(scrollWhileDragging);
     }
-    if (d.moved) onDragNote(d.uuid);
   };
 
   const endDrag = (e, note) => {
@@ -1231,7 +1235,6 @@ function PdfPage({
     dragRef.current = null;
     if (dragScrollRef.current != null) cancelAnimationFrame(dragScrollRef.current);
     dragScrollRef.current = null;
-    onDragNote(null);
     // Dropping the drag state is also what puts a pin back that moved a
     // pixel or two and turned out to be a click: it is drawn from the
     // note's own anchor again.
@@ -2338,6 +2341,23 @@ function PdfPage({
             >
               <GlyphFor note={note} />
             </button>
+          ))}
+          {/* The card of the anchor that is open, hung off its pin. A new
+              anchor trades a temporary uuid for a real one while its card
+              is already being typed into, so it is mounted under a key of
+              its own that the trade does not touch. */}
+          {notes.filter((note) => note.uuid === activeNoteUuid && !(drag?.uuid === note.uuid && drag.moved)
+            && !(readOnly && !note.content && !note.name)).map((note) => (
+            <NoteCard
+              key={note._cardKey || note.uuid}
+              note={note}
+              readOnly={readOnly}
+              focusField={noteCardFocus}
+              onRename={onRenameNote}
+              onWrite={onWriteNote}
+              onDelete={onRemoveNote}
+              onClose={() => onSelectNote(null)}
+            />
           ))}
         </div>
       </div>
