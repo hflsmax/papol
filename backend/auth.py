@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import AuthToken, User
+from services.client_requirements import client_version
 
 _PBKDF2_ITERATIONS = 200_000
 
@@ -38,9 +39,35 @@ def verify_password(password: str, stored: str) -> bool:
     return secrets.compare_digest(candidate, digest)
 
 
-def create_token(db: Session, user: User) -> str:
+WEB = "web"
+MACOS = "macos"
+
+# The client names itself in this header when it signs in. The stored value is
+# one of Papol's own platforms rather than the caller's words: a header from
+# the network decides which known client this is, and nothing more.
+PLATFORM_HEADER = "X-Papol-Platform"
+_ANNOUNCED = {WEB: WEB, MACOS: MACOS, "mac": MACOS, "desktop": MACOS}
+
+
+def login_platform(request) -> str:
+    """Which Papol this sign-in came from.
+
+    An unfamiliar announcement is not an unfamiliar platform: everything that
+    is not the installed application reaches Papol as a page, so "web" is what
+    a caller gets for saying nothing, or for saying something this server does
+    not know.
+    """
+    announced = (request.headers.get(PLATFORM_HEADER) or "").strip().lower()
+    if announced in _ANNOUNCED:
+        return _ANNOUNCED[announced]
+    if client_version(request.headers.get("user-agent")):
+        return MACOS
+    return WEB
+
+
+def create_token(db: Session, user: User, platform: str = WEB) -> str:
     token = secrets.token_hex(32)
-    db.add(AuthToken(token=token, user_uuid=user.uuid))
+    db.add(AuthToken(token=token, user_uuid=user.uuid, platform=platform))
     db.commit()
     return token
 

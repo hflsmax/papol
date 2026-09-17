@@ -23,4 +23,7 @@ export const APP_ENV = Object.freeze({
 });
 
 export const IS_DESKTOP = APP_ENV.runtime === 'desktop';
+// What this Papol calls itself when it signs in. The installed application
+// ships for macOS; everything else reaches the server as a page.
+export const CLIENT_PLATFORM = IS_DESKTOP ? 'macos' : 'web';
 export const UI_SURFACE = APP_ENV.surface;

@@ -1,9 +1,14 @@
+import { CLIENT_PLATFORM } from './appEnvironment.js';
 import { backendPath } from './appUrls.js';
 import { inDemo } from './appUrls.js';
 import { currentCredential } from './credentials.js';
 import { runtimeFetch } from './connectivity.js';
 
 export const API_BASE = backendPath('/api');
+
+// Every call says which Papol made it. Signing in is the one that is kept:
+// the server stamps the platform on the new session.
+export const PLATFORM_HEADER = 'X-Papol-Platform';
 
 export function authHeaders(extra = {}) {
   const token = currentCredential();
@@ -36,7 +41,7 @@ export async function request(path, options = {}) {
   }
   const response = await runtimeFetch(`${API_BASE}${path}`, {
     ...options,
-    headers: authHeaders(options.headers || {}),
+    headers: authHeaders({ [PLATFORM_HEADER]: CLIENT_PLATFORM, ...(options.headers || {}) }),
   });
   return handleResponse(response);
 }
