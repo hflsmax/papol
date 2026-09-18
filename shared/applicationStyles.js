@@ -471,28 +471,73 @@ input[type='checkbox'] {
   font-size: var(--fs-sm);
 }
 
-.compatibility-bar.stopped {
-  background: var(--red);
+/* A build the service will not speak to covers its window rather than
+   banding it: what is wrong is the program, and there is nothing useful
+   left to do in it. */
+.compatibility-stop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  font-family: var(--font-ui);
 }
 
-.compatibility-bar a,
-.compatibility-bar button {
+.compatibility-stop-panel {
+  max-width: 420px;
+  padding: 28px 30px;
+  border-radius: var(--chrome-radius, 10px);
+  background: var(--paper, #fff);
+  color: var(--ink);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 35%);
+}
+
+.compatibility-stop-panel h1 {
+  margin: 0 0 12px;
+  font-size: var(--fs-lg);
+}
+
+.compatibility-stop-panel p {
+  margin: 0 0 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.compatibility-stop-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.compatibility-stop-actions a,
+.compatibility-stop-actions button {
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.compatibility-stop-actions button {
+  padding: 5px 14px;
+  border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  border-radius: var(--chrome-radius, 6px);
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+.compatibility-stop-actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.compatibility-bar a {
   color: inherit;
   font: inherit;
   font-weight: 600;
   text-underline-offset: 2px;
-}
-
-.compatibility-bar button {
-  padding: 3px 12px;
-  border: 1px solid color-mix(in srgb, var(--ink-inverse) 55%, transparent);
-  border-radius: var(--chrome-radius, 6px);
-  background: transparent;
-  box-shadow: none;
-}
-
-.compatibility-bar button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ink-inverse) 18%, transparent);
 }
 
 ${macHandoffStyles}

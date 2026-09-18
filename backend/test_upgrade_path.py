@@ -99,6 +99,14 @@ class UpgradeFromTheRunningShapeTests(unittest.TestCase):
                 )
             db.executescript(ROOMS_BEFORE)
             db.executescript(CHANGE_LOG_BEFORE)
+            # This is the shape the service is on, written down by hand — so
+            # it says which schema it is at, the way a running database does.
+            # Without that it reads as 1, from before anybody was counting.
+            from sync.registry import schema_version
+            db.execute(
+                "INSERT INTO settings (key, value) VALUES ('schema_version', ?)",
+                (str(schema_version()),),
+            )
 
             self.user = _uuid()
             self.shown, self.hidden = "a" * 64, "b" * 64
@@ -332,23 +340,31 @@ class UpgradeFromTheRunningShapeTests(unittest.TestCase):
         )
 
 
-class ADatabaseFromBeforeTheDigestTests(unittest.TestCase):
-    """A shape nothing here can read is refused, loudly.
+class ADatabaseAtAnotherSchemaVersionTests(unittest.TestCase):
+    """A database at a version this build was not written for is refused.
 
-    The migrations that carried a database across the release where a paper
-    became its file have been deleted: they had run everywhere they were
-    ever going to run. What must not happen is the passes that remain
-    finding a schema they do not recognize and carrying on into one the
+    The version is declared in `schema/sync_registry.json` and moved by the
+    developer when a change lands that an existing database cannot be read
+    under. Nothing here works out what shape it is looking at; it is told,
+    and acts on having been told. What must not happen is the passes that
+    remain finding a schema they do not expect and carrying on into one the
     rows do not fit.
     """
 
-    def upgrade_a_database_holding(self, statements):
+    def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        path = os.path.join(directory.name, "papol.db")
-        with sqlite3.connect(path) as db:
-            db.executescript(statements)
-        database = _fresh_database_module(path)
+        self.path = os.path.join(directory.name, "papol.db")
+
+    def recorded(self):
+        with sqlite3.connect(self.path) as db:
+            row = db.execute(
+                "SELECT value FROM settings WHERE key = 'schema_version'"
+            ).fetchone()
+        return int(row[0]) if row else None
+
+    def start_and_expect_refusal(self):
+        database = _fresh_database_module(self.path)
         try:
             with self.assertRaises(RuntimeError) as caught:
                 database.migrate()
@@ -356,21 +372,57 @@ class ADatabaseFromBeforeTheDigestTests(unittest.TestCase):
             database.engine.dispose()
         return str(caught.exception)
 
-    def test_a_paper_that_still_has_a_uuid_beside_its_file(self):
-        said = self.upgrade_a_database_holding(
-            "CREATE TABLE papers (uuid TEXT PRIMARY KEY NOT NULL, sha256 TEXT,"
-            "  title TEXT NOT NULL);"
-        )
-        self.assertIn("papers.uuid", said)
-        self.assertIn("backup", said)
+    def test_a_fresh_database_is_stamped_with_the_declared_version(self):
+        database = _fresh_database_module(self.path)
+        database.migrate()
+        database.engine.dispose()
+        from sync.registry import schema_version
+        self.assertEqual(self.recorded(), schema_version())
 
-    def test_a_table_a_retired_feature_left_behind(self):
-        for table in ("paper_editions", "comments", "ink_strokes", "paper_clips"):
-            with self.subTest(table=table):
-                said = self.upgrade_a_database_holding(
-                    f"CREATE TABLE {table} (uuid TEXT PRIMARY KEY NOT NULL);"
-                )
-                self.assertIn(table, said)
+    def test_a_database_recording_nothing_is_at_version_one(self):
+        """Everything written before anybody was counting is 1. This build
+        declares a later version, so such a database is refused — and the
+        refusal says which two numbers disagreed."""
+        with sqlite3.connect(self.path) as db:
+            db.executescript(
+                "CREATE TABLE papers (sha256 TEXT PRIMARY KEY NOT NULL, title TEXT);"
+            )
+        said = self.start_and_expect_refusal()
+        self.assertIn("at schema 1", said)
+        from sync.registry import schema_version
+        self.assertIn(f"written for schema {schema_version()}", said)
+
+    def test_a_database_at_another_version_is_refused_and_told_how_to_say_otherwise(self):
+        with sqlite3.connect(self.path) as db:
+            db.executescript(
+                "CREATE TABLE settings (key VARCHAR PRIMARY KEY, value TEXT);"
+                "INSERT INTO settings VALUES ('schema_version', '999');"
+                "CREATE TABLE papers (sha256 TEXT PRIMARY KEY NOT NULL, title TEXT);"
+            )
+        said = self.start_and_expect_refusal()
+        self.assertIn("at schema 999", said)
+        self.assertIn("backup", said)
+        # The remedy for a database already brought across by hand is a
+        # statement, spelled out, that records the declared version.
+        from sync.registry import schema_version
+        self.assertIn(f"'schema_version', '{schema_version()}'", said)
+        # And refusing changed nothing.
+        self.assertEqual(self.recorded(), 999)
+
+    def test_the_stamp_is_what_lets_a_database_in(self):
+        """The same database, once it says it is at the declared version,
+        starts — the number is the whole test, not the shape behind it."""
+        from sync.registry import schema_version
+        with sqlite3.connect(self.path) as db:
+            db.executescript(
+                "CREATE TABLE settings (key VARCHAR PRIMARY KEY, value TEXT);"
+                f"INSERT INTO settings VALUES ('schema_version', '{schema_version()}');"
+                "CREATE TABLE papers (sha256 TEXT PRIMARY KEY NOT NULL, title TEXT);"
+            )
+        database = _fresh_database_module(self.path)
+        database.migrate()
+        database.engine.dispose()
+        self.assertEqual(self.recorded(), schema_version())
 
 
 class FreshInstallTests(unittest.TestCase):

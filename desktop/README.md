@@ -275,10 +275,24 @@ the same screens in a browser against the development server instead.
 
 ### Extending offline data
 
-For a nullable field on an existing synchronized row: add it to the ordered
-shared migration in `schema/domain`, mirror it in the SQLAlchemy model, add it
-to `schema/sync_registry.json` only if the desktop may write it, expose it from
-the named local query, and add a round-trip test. A normal new private table
+For a nullable field on an existing synchronized row: add it to
+`schema/domain/domain.sql`, mirror it in the SQLAlchemy model, add it to
+`schema/sync_registry.json` only if the desktop may write it, expose it from
+the named local query, and add a round-trip test.
+
+`domain.sql` is edited in place; there is no second file recording the shape
+it used to have. When the change is one an existing replica or database
+cannot be read under, say so: bump `schema_version` in
+`schema/sync_registry.json`. Nothing works that out for you — whether a
+change is breaking is your judgement, and both ends act on having been told.
+The desktop discards a replica at any other version and pulls the account
+again; the service refuses to start on a database at any other version,
+naming the statement that records the new one once you have brought it
+there. Ship a breaking change with a floor under it (`PROTOCOL_MINIMUM_VERSION`)
+too, so the older build stops being used at all rather than making work into
+a replica the next build will throw away. A compatible change — a nullable
+column, an index — needs neither: `migrate()` adds what a running database
+has not got. A normal new private table
 follows the same pattern plus its ownership rule. Shared, public, security, and
 irreversible actions must stay outside the registry unless their delayed
 offline semantics have been explicitly designed. Do not add a response-cache

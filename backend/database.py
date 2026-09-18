@@ -368,50 +368,78 @@ def _make_the_cursor_only_grow(conn):
     _add_missing_indexes(conn, table)
 
 
-# The shapes that mean a database predates the release where a paper became
-# its file, on 2026-09-17.
+# Which schema this database is at, and what to do when it is not this one.
 #
-# Everything that carried a database across that line — folding away
-# editions, gathering notes, ink and clips into one table of annotations,
-# closing the pairs the old DOI-keyed upload path left behind, and making
-# the digest the key — has been deleted. It had run everywhere it was ever
-# going to run, and a migration nothing can reach is seven hundred lines
-# that every later change has to be read against.
+# The number comes from `schema/sync_registry.json` and is moved by hand:
+# when a change lands that an existing database cannot be read under, the
+# person making it says so there. Nothing here tries to work out what shape
+# it is looking at — naming the tables some old release had is a list that
+# goes out of date the moment the next change lands, and it goes out of date
+# silently, which is the failure it was written to prevent.
 #
-# What is left of it is this. Papol breaks rather than bridges, and the one
-# thing a break must not do is take a database apart quietly: the passes
-# below would find a `papers` table keyed by a UUID, see nothing they
-# recognized, and carry on into a schema the rows do not fit. So the shapes
-# are named, and finding one stops the service while someone can still
-# reach for a backup.
-_BEFORE_THE_DIGEST = {
-    "paper_editions": "a paper could have several editions",
-    "comments": "notes had a table of their own",
-    "ink_strokes": "ink had a table of its own",
-    "paper_clips": "clips had a table of their own",
-}
+# The service refuses rather than rebuilds, because its database is the only
+# copy. Papol breaks rather than bridges, and the one thing a break must not
+# do is take a database apart quietly: the passes below would find a shape
+# they did not expect, see nothing they recognized, and carry on into a
+# schema the rows do not fit. Stopping leaves an admin with a backup one
+# command away.
+SCHEMA_VERSION_KEY = "schema_version"
 
 
-def _refuse_a_database_older_than_the_digest(conn):
-    """Stop, loudly, rather than upgrade a database nothing here can read."""
+def _recorded_schema_version(conn) -> int:
+    """Which schema this database says it is at.
+
+    Everything written before anybody was counting is 1, which is what a
+    database with no `settings` table and a database with no row in it both
+    mean.
+    """
     present = {
         row[0] for row in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE type='table'"
         ))
     }
-    found = [f"`{name}` ({why})" for name, why in _BEFORE_THE_DIGEST.items()
-             if name in present]
-    if "papers" in present and "uuid" in _table_columns(conn, "papers"):
-        found.append("`papers.uuid` (a paper was named by a UUID, not by its file)")
-    if not found:
+    if "settings" not in present:
+        return 1
+    recorded = conn.execute(
+        text("SELECT value FROM settings WHERE key = :key"),
+        {"key": SCHEMA_VERSION_KEY},
+    ).scalar()
+    try:
+        return int(recorded)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _refuse_a_database_this_build_cannot_read(conn):
+    """Stop, loudly, rather than upgrade a database nothing here can read."""
+    from sync.registry import schema_version
+    declared = schema_version()
+    recorded = _recorded_schema_version(conn)
+    if recorded == declared:
         return
+    empty = not conn.execute(text(
+        "SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1"
+    )).first()
+    if empty:
+        return  # nothing written yet; `_stamp_the_schema_version` names it
     raise RuntimeError(
-        "This database was written before a paper became its file: "
-        + ", ".join(found)
-        + ". The migrations that carried a database across that line have "
-        "been removed, so there is nothing here that can read it. Restore a "
-        "backup taken after the 2026-09-17 release, or upgrade through that "
-        "release first."
+        f"This database is at schema {recorded} and this build is written "
+        f"for schema {declared}. Papol does not carry a database across a "
+        "break: restore a backup taken under schema "
+        f"{declared}, or — if this database has already been brought to "
+        f"schema {declared} by hand — record that with "
+        f"\"INSERT INTO settings (key, value) VALUES ('{SCHEMA_VERSION_KEY}', "
+        f"'{declared}') ON CONFLICT(key) DO UPDATE SET value = excluded.value\"."
+    )
+
+
+def _stamp_the_schema_version(conn):
+    """Write down which schema this database is at, now that it is at it."""
+    from sync.registry import schema_version
+    conn.execute(
+        text("INSERT INTO settings (key, value) VALUES (:key, :value) "
+             "ON CONFLICT(key) DO UPDATE SET value = excluded.value"),
+        {"key": SCHEMA_VERSION_KEY, "value": str(schema_version())},
     )
 
 
@@ -430,7 +458,7 @@ def migrate():
     by hand above, and each of those erases itself once it has run.
     """
     with engine.begin() as conn:
-        _refuse_a_database_older_than_the_digest(conn)
+        _refuse_a_database_this_build_cannot_read(conn)
         # Retired features, dropped before the live metadata is reconciled.
         conn.execute(text("DROP TABLE IF EXISTS presence_pings"))
         # Before the metadata pass, which would otherwise try to add
@@ -454,3 +482,7 @@ def migrate():
         # Last: the log is judged against the shape every table above has
         # finished arriving at.
         _forget_changes_no_replica_could_read(conn)
+        # Then the tables the database has not got at all, and — once every
+        # table is there to be at it — the record of which schema they are at.
+        Base.metadata.create_all(bind=conn)
+        _stamp_the_schema_version(conn)

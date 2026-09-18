@@ -39,7 +39,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from database import (
-    engine, get_db, Base, migrate,
+    engine, get_db, migrate,
     SessionLocal, set_request_session, reset_request_session,
 )
 from models import (
@@ -112,9 +112,9 @@ BOARDS_DIR = Path(os.environ.get(
 ))
 BOARDS_DIR.mkdir(exist_ok=True)
 
-# Add columns the models have gained, and create missing tables.
+# Refuse a database this build cannot read; otherwise add the columns and
+# tables the models have gained, and record which schema the result is at.
 migrate()
-Base.metadata.create_all(bind=engine)
 
 
 def _install_demo_pdfs() -> set[str]:

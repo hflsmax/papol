@@ -20,7 +20,7 @@ import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from './components/FeedbackDialog';
 import AdminMessageDialog from './components/AdminMessageDialog';
-import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
+import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
@@ -834,7 +834,7 @@ export default function App({ startupUser = null, startupError = null }) {
           opensViewer={mode === 'guest'}
         />
         {demoIntro}
-        <CompatibilityBar />
+        <CompatibilityGate />
         {adminMessageDialog}
         {feedbackDialog}
         {managingNook && nook.space && (
