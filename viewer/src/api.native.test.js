@@ -7,12 +7,13 @@ const values = new Map([
   ['papol_token', 'token'],
 ]);
 const calls = [];
+let localPdfMissing = false;
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
   setItem: (key, value) => values.set(key, String(value)),
   removeItem: (key) => values.delete(key),
 };
-global.location = new URL('tauri://localhost/viewer/index.html');
+global.location = new URL('https://papol.test/viewer/index.html');
 global.window = {
   location: global.location,
   __PAPOL_ENV__: { runtime: 'desktop', surface: 'viewer', documentWindow: true },
@@ -24,7 +25,14 @@ global.window = {
         return { sha256: 'a'.repeat(64) };
       }
       if (command === 'data_query') return [];
-      if (command === 'blob_read') return [37, 80, 68, 70];
+      if (command === 'blob_read') {
+        if (localPdfMissing) throw new Error('Blob is not available offline');
+        return [37, 80, 68, 70];
+      }
+      if (command === 'blob_ensure') {
+        localPdfMissing = false;
+        return null;
+      }
       if (command === 'opened_file_read') return [37, 80, 68, 70, 45, 49, 46, 52];
       if (command === 'data_mutate') {
         return { rows: [{ uuid: arguments_.changes[0].uuid, ...arguments_.changes[0].values }] };
@@ -41,6 +49,7 @@ global.Event = class Event { constructor(type) { this.type = type; } };
 const {
   createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes, pdfLoadInput,
 } = await import('./api.js');
+const { hydrateCredential } = await import('../../shared/credentials.js');
 // A paper is its file, so the digest the viewer was opened on is also the
 // name every annotation call gives it.
 const PAPER = 'a'.repeat(64);
@@ -118,4 +127,23 @@ test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', asy
   assert.ok(opened.data instanceof Uint8Array);
   assert.deepEqual([...opened.data], [37, 80, 68, 70, 45, 49, 46, 52]);
   assert.equal('url' in opened, false);
+});
+
+test('a handed-off PDF missing locally syncs only that file and then opens it', async () => {
+  calls.length = 0;
+  localPdfMissing = true;
+  await hydrateCredential();
+
+  const input = await pdfLoadInput({ sha256: PAPER });
+
+  assert.deepEqual([...input.data], [37, 80, 68, 70]);
+  assert.deepEqual(
+    calls.filter(([command]) => command === 'blob_read' || command === 'blob_ensure')
+      .map(([command]) => command),
+    ['blob_read', 'blob_ensure', 'blob_read'],
+  );
+  const ensure = calls.find(([command]) => command === 'blob_ensure')[1];
+  assert.equal(ensure.sha256, PAPER);
+  assert.equal(ensure.token, 'token');
+  assert.equal(calls.some(([command]) => command === 'sync_now'), false);
 });

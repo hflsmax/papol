@@ -24,7 +24,17 @@ export function getToken() {
 // to show the owner of this computer their local nook.
 export async function getStartupUser() {
   if (!IS_DESKTOP || !nativeDataActive()) return null;
-  return nativeRepository.account();
+  const user = await nativeRepository.account();
+  if (user) return user;
+  // The replica holds no profile for the account this computer remembers.
+  // A newer build discards a replica an older one wrote, and the profile
+  // written at sign-in goes with it; the browser storage naming the account
+  // is not the replica's and outlives it. Forget the name too. What is left
+  // is a computer with a credential and no local account, and getMe() writes
+  // the profile again the way a first sign-in does — or, with no network,
+  // the user signs in when there is one.
+  setNativeAccount(null);
+  return null;
 }
 
 async function desktopAuthRequest(requester) {

@@ -243,10 +243,31 @@ export async function nativeBlobCache(expectedSha256, blob, mimeType = blob.type
 }
 
 export async function nativeBlobBytes(sha256) {
-  // Rendering is strictly local. Synchronization hydrates every referenced
-  // blob before it reports success; views must never initiate network I/O.
+  // Keep the read itself strictly local. A viewer that deliberately wants to
+  // recover a missing handed-off file uses ensureNativeBlob before retrying.
   const bytes = await invoke('blob_read', { sha256 });
   return new Uint8Array(bytes);
+}
+
+// A handed-off document can arrive before its PDF has reached this Mac. Fetch
+// that one content-addressed file directly, instead of making the reader wait
+// for an account-wide synchronization to walk every pending row and blob.
+export async function ensureNativeBlob(sha256, onProgress) {
+  const token = currentCredential();
+  if (!nativeDataActive() || !token) {
+    throw new Error('Downloading this PDF requires a signed-in account');
+  }
+  onProgress?.({ sha256, fraction: 0, bytes: 0, bytes_per_second: 0 });
+  const stop = subscribeNativeEvents(['papol://blob-progress'], (progress) => {
+    if (progress?.sha256 === sha256) onProgress?.(progress);
+  });
+  try {
+    await invoke('blob_ensure', {
+      backendUrl: nativeBackendUrl(), token, sha256,
+    });
+  } finally {
+    stop();
+  }
 }
 
 export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream') {
@@ -392,7 +413,13 @@ export async function hydrateNativeSyncPreference() {
 }
 
 export function subscribeNativeData(listener) {
-  return subscribeNativeEvents(['papol://data-changed', 'papol://sync-status'], listener);
+  return subscribeNativeEvents([
+    'papol://account-changed', 'papol://data-changed', 'papol://sync-status',
+  ], listener);
+}
+
+export function subscribeNativeHandoffs(listener) {
+  return subscribeNativeEvents(['papol://handoff-received'], listener);
 }
 
 export function isNativeSyncResult(payload) {
@@ -462,7 +489,7 @@ export async function openDroppedPdf(file) {
   await invoke('opened_file_open', { bytes, name: file.name || 'PDF document.pdf' });
 }
 
-// A document window cannot sign in itself; the library window does.
+// A document window cannot sign in itself; the Desk window does.
 export function requestSignIn({ register = false } = {}) {
   return IS_DESKTOP ? invoke('request_sign_in', { register }) : Promise.resolve();
 }

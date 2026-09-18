@@ -593,6 +593,7 @@ export function DesktopBrowser({
             <button type="button" onClick={() => setComposer(null)}>Cancel</button>
           </div>
           <PaperUpload
+            onReportableError={onReportableError}
             onPaperCreated={(paper) => {
               setComposer(null);
               reload();
@@ -615,7 +616,7 @@ export function DesktopBrowser({
           <BoardCreateForm
             shelves={shelves}
             onCreated={(board) => {
-              // Creation belongs to the Library workflow: put the new board
+              // Creation belongs to the Desk workflow: put the new board
               // into the list immediately and focus its overview. Opening the
               // separate canvas is the user's next, explicit action.
               setComposer(null);

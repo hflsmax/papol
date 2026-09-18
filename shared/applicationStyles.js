@@ -1236,7 +1236,7 @@ select:disabled { cursor: default; opacity: .65; }
   font-style: italic;
 }
 
-.library-file-drop-overlay {
+.desk-file-drop-overlay {
   position: fixed;
   z-index: 1000;
   inset: 16px;
@@ -1251,13 +1251,13 @@ select:disabled { cursor: default; opacity: .65; }
   backdrop-filter: blur(2px);
 }
 
-.library-file-drop-overlay.reject {
+.desk-file-drop-overlay.reject {
   border-color: var(--red);
   background: color-mix(in srgb, var(--red-soft) 90%, transparent);
   color: var(--red);
 }
 
-.library-file-drop-card {
+.desk-file-drop-card {
   display: grid;
   justify-items: center;
   gap: 7px;
@@ -1270,9 +1270,9 @@ select:disabled { cursor: default; opacity: .65; }
   text-align: center;
 }
 
-.library-file-drop-card strong { font-size: var(--fs-lg); }
-.library-file-drop-card span { color: var(--ink-soft); font-size: var(--fs-sm); }
-.library-file-drop-notice {
+.desk-file-drop-card strong { font-size: var(--fs-lg); }
+.desk-file-drop-card span { color: var(--ink-soft); font-size: var(--fs-sm); }
+.desk-file-drop-notice {
   position: fixed;
   z-index: 1000;
   right: 20px;

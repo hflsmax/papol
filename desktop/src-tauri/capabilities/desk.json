@@ -1,11 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "main",
-  "description": "Least-privilege native access for Papol's permanent library window.",
-  "windows": ["main"],
+  "identifier": "desk",
+  "description": "Least-privilege native access for Papol's permanent Desk window.",
+  "windows": ["desk"],
   "permissions": [
     "allow-open-document-window",
-    "allow-focus-library-window",
+    "allow-focus-desk-window",
     "allow-open-storage-in-finder",
     "allow-diagnostic-log",
     "allow-diagnostic-recent",
@@ -16,6 +16,7 @@
     "allow-blob-import",
     "allow-blob-cache",
     "allow-blob-read",
+    "allow-blob-ensure",
     "allow-local-clear-data",
     "allow-blob-discard",
     "allow-local-setting-get",

@@ -31,9 +31,9 @@ struct OpenedFiles {
     waiting_links: Mutex<Vec<tauri::Url>>,
 }
 
-/// The permanent library is built hidden so a file-association launch can
+/// The permanent Desk is built hidden so a file-association launch can
 /// open directly into its document. Once the first event-loop turn ends, an
-/// ordinary app launch reveals the library; later PDF opens leave its current
+/// ordinary app launch reveals the Desk; later PDF opens leave its current
 /// visibility alone.
 #[derive(Default)]
 struct WindowLaunch {
@@ -96,7 +96,7 @@ fn add_open_timings(url: &mut tauri::Url, opened_at_ms: u128, read_ms: f64, hash
 /// launch *caused by* an address, so on the first handoff after installing
 /// this runs before `setup` has built anything to show it in — and an
 /// address dropped there is a user who clicked "Open in Papol", watched
-/// Papol start, and got the library instead of their paper.
+/// Papol start, and got the Desk instead of their paper.
 #[cfg(target_os = "macos")]
 fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
     if links.is_empty() {
@@ -113,13 +113,18 @@ fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
         return;
     };
     let scheme = handoff_scheme(&app.config().identifier);
+    use tauri::Emitter;
+    let _ = app.emit(
+        "papol://handoff-received",
+        serde_json::json!({"count": links.len()}),
+    );
     for link in links {
         let Some(target) = deep_link_url(&link, &origin, &scheme) else {
             continue;
         };
-        // The user asked for this document, not for the library, so a cold
+        // The user asked for this document, not for the Desk, so a cold
         // launch opens into it — but only once a window has actually been
-        // made for it, or the library would stay hidden behind nothing.
+        // made for it, or the Desk would stay hidden behind nothing.
         if show_document_window(app, &origin, target) {
             app.state::<WindowLaunch>().note_standalone_viewer();
         }
@@ -190,7 +195,7 @@ fn opened_file_read(
     Ok(tauri::ipc::Response::new(bytes))
 }
 
-/// HTML file drops deliberately stay enabled for the library's import UI.
+/// HTML file drops deliberately stay enabled for the Desk's import UI.
 /// Before sign-in, hand their bytes back to the native shell so WebKit never
 /// falls through to its own PDF renderer and the file gets Papol's viewer.
 #[tauri::command]
@@ -229,15 +234,15 @@ fn opened_file_open(
     }
 }
 
-/// Document windows do not sign in themselves: the library window does, and
+/// Document windows do not sign in themselves: the Desk window does, and
 /// the viewer that asked picks the account up when it is focused again.
 #[tauri::command]
 fn request_sign_in(app: tauri::AppHandle, register: bool) {
     use tauri::Emitter;
 
-    focus_library_window(app.clone(), None);
+    focus_desk_window(app.clone(), None);
     let _ = app.emit_to(
-        "main",
+        "desk",
         "papol://sign-in-requested",
         serde_json::json!({"register": register}),
     );
@@ -451,6 +456,39 @@ fn blob_read(store: tauri::State<'_, data::LocalStore>, sha256: String) -> Resul
 }
 
 #[tauri::command]
+async fn blob_ensure(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+    coordinator: tauri::State<'_, sync::Coordinator>,
+    backend_url: String,
+    token: String,
+    sha256: String,
+) -> Result<(), String> {
+    use tauri::Emitter;
+
+    let progress_app = app.clone();
+    let progress_sha256 = sha256.clone();
+    let report = move |progress: sync::SyncProgress| {
+        // A one-file ensure uses the downloading quarter of the general sync
+        // meter. Send a file-relative fraction so its viewer can draw a bar
+        // from zero to completion without pretending the other phases ran.
+        let fraction = ((progress.fraction - 0.75) * 4.0).clamp(0.0, 1.0);
+        let _ = progress_app.emit(
+            "papol://blob-progress",
+            serde_json::json!({
+                "sha256": progress_sha256,
+                "fraction": fraction,
+                "bytes": progress.bytes,
+                "bytes_per_second": progress.bytes_per_second,
+            }),
+        );
+    };
+    coordinator
+        .ensure_blob(&store, &backend_url, &token, &sha256, &report)
+        .await
+}
+
+#[tauri::command]
 fn local_clear_data(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
@@ -487,11 +525,19 @@ fn local_setting_set(
 
 #[tauri::command]
 fn local_account_set(
+    app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     account_uuid: String,
     profile: serde_json::Value,
 ) -> Result<(), String> {
-    store.set_local_account(&account_uuid, profile)
+    use tauri::Emitter;
+
+    store.set_local_account(&account_uuid, profile.clone())?;
+    let _ = app.emit(
+        "papol://account-changed",
+        serde_json::json!({"accountUuid": account_uuid, "profile": profile}),
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -625,12 +671,12 @@ async fn sync_now(
 }
 
 const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
-      runtime: 'desktop', surface: 'main', documentWindow: false \
+      runtime: 'desktop', surface: 'desk', documentWindow: false \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
-    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperSha256) => \
-      window.__TAURI_INTERNALS__.invoke('focus_library_window', { paperSha256 });";
+    window.__PAPOL_FOCUS_DESK_WINDOW__ = (paperSha256) => \
+      window.__TAURI_INTERNALS__.invoke('focus_desk_window', { paperSha256 });";
 
 fn document_environment(surface: &str) -> String {
     format!(
@@ -641,8 +687,8 @@ fn document_environment(surface: &str) -> String {
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
            window.__TAURI_INTERNALS__.invoke('close_document_window'); \
-         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperSha256) => \
-           window.__TAURI_INTERNALS__.invoke('focus_library_window', {{ paperSha256 }});"
+         window.__PAPOL_FOCUS_DESK_WINDOW__ = (paperSha256) => \
+           window.__TAURI_INTERNALS__.invoke('focus_desk_window', {{ paperSha256 }});"
     )
 }
 
@@ -653,16 +699,16 @@ fn close_document_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-fn focus_library_window(app: tauri::AppHandle, paper_sha256: Option<String>) {
+fn focus_desk_window(app: tauri::AppHandle, paper_sha256: Option<String>) {
     use tauri::Emitter;
 
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = app.get_webview_window("desk") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
         if let Some(paper_sha256) = paper_sha256 {
             let _ = app.emit_to(
-                "main",
+                "desk",
                 "papol://show-paper-requested",
                 serde_json::json!({"paper_sha256": paper_sha256}),
             );
@@ -961,16 +1007,16 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         return true;
     }
 
-    // Build from the main WindowConfig so document windows inherit the same
+    // Build from the Desk WindowConfig so document windows inherit the same
     // native chrome, including the traffic-light position.
     let mut config = app
         .config()
         .app
         .windows
         .iter()
-        .find(|window| window.label == "main")
+        .find(|window| window.label == "desk")
         .cloned()
-        .expect("tauri.conf.json declares the main window");
+        .expect("tauri.conf.json declares the Desk window");
     config.label = document.label;
     config.create = true;
     config.url = tauri::WebviewUrl::External(url);
@@ -1000,8 +1046,8 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
             NewWindowResponse::Deny
         })
         .on_download(|_webview, _event| true);
-    // The same store as the library window: a document window reads the
-    // user's credential from the storage the library wrote it to.
+    // The same store as the Desk window: a document window reads the
+    // user's credential from the storage the Desk wrote it to.
     #[cfg(target_os = "macos")]
     if let Some(store) = webview_data_store(&app.config().identifier) {
         builder = builder.data_store_identifier(store);
@@ -1031,7 +1077,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::MainEventsCleared) {
         let launch = app.state::<WindowLaunch>();
         if matches!(launch.finish(), Some(true)) {
-            focus_library_window(app.clone(), None);
+            focus_desk_window(app.clone(), None);
         }
     }
 
@@ -1063,7 +1109,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             return;
         }
         if matches!(event, tauri::RunEvent::Reopen { .. }) {
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("desk") {
                 if !matches!(window.is_visible(), Ok(true)) {
                     let _ = window.unminimize();
                     let _ = window.show();
@@ -1091,7 +1137,7 @@ pub fn run() {
             Ok(menu)
         })
         .on_window_event(|window, event| {
-            if window.label() == "main" {
+            if window.label() == "desk" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
@@ -1108,7 +1154,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             close_document_window,
-            focus_library_window,
+            focus_desk_window,
             open_storage_in_finder,
             diagnostic_log,
             diagnostic_recent,
@@ -1120,6 +1166,7 @@ pub fn run() {
             blob_import,
             blob_cache,
             blob_read,
+            blob_ensure,
             local_clear_data,
             blob_discard,
             local_setting_get,
@@ -1146,7 +1193,7 @@ pub fn run() {
                 None,
                 Some(&serde_json::Map::from_iter([
                     ("operation".into(), serde_json::json!("startup")),
-                    ("surface".into(), serde_json::json!("main")),
+                    ("surface".into(), serde_json::json!("desk")),
                     (
                         "version".into(),
                         serde_json::json!(env!("CARGO_PKG_VERSION")),
@@ -1188,10 +1235,10 @@ pub fn run() {
                 .app
                 .windows
                 .iter()
-                .find(|window| window.label == "main")
+                .find(|window| window.label == "desk")
                 .cloned()
-                .expect("tauri.conf.json declares the main window");
-            // Keep the library off screen through the initial native open-file
+                .expect("tauri.conf.json declares the Desk window");
+            // Keep the Desk off screen through the initial native open-file
             // events. handle_run_event reveals it for an ordinary app launch.
             config.visible = false;
             let papol_origin = match &config.url {
@@ -1209,7 +1256,7 @@ pub fn run() {
                 // Publish Papol's runtime contract before application modules
                 // execute, without exposing Tauri's entire global API.
                 .initialization_script(DESKTOP_ENVIRONMENT)
-                // Papers are native document windows: the Papol library
+                // Papers are native document windows: the Papol Desk
                 // remains mounted behind them, ready exactly where it was.
                 // Other target=_blank links still belong in the browser.
                 .on_new_window(move |url, _features| {
@@ -1474,7 +1521,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_launch_opens_the_library_once() {
+    fn ordinary_launch_opens_the_desk_once() {
         let launch = WindowLaunch::default();
 
         assert_eq!(launch.finish(), Some(true));
@@ -1482,7 +1529,7 @@ mod tests {
     }
 
     #[test]
-    fn standalone_viewer_launch_keeps_the_library_hidden() {
+    fn standalone_viewer_launch_keeps_the_desk_hidden() {
         let launch = WindowLaunch::default();
 
         assert!(launch.note_standalone_viewer());
@@ -1653,7 +1700,7 @@ mod tests {
         // The first handoff after installing is a cold launch: macOS delivers
         // the address to start the application, so it arrives before `setup`
         // has set an origin. Dropping it there is the user watching Papol
-        // open on the library instead of the paper they asked for.
+        // open on the Desk instead of the paper they asked for.
         let opened = OpenedFiles::default();
         assert!(opened.origin.lock().expect("origin").is_none());
 

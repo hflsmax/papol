@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "label": "main",
+        "label": "desk",
         "create": false,
         "title": "Papol",
         "url": "index.html",
@@ -31,7 +31,7 @@
       }
     ],
     "security": {
-      "capabilities": ["main", "documents"],
+      "capabilities": ["desk", "documents"],
       "freezePrototype": true,
       "devCsp": {
         "default-src": "'self'",

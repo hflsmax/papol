@@ -238,9 +238,9 @@ Authorization: Bearer …
       "sequence": 42,
       "table": "board_items",
       "row_id": "UUID",
-      "operation": "patch",
+      "operation": "upsert",
       "base_revision": 8,
-      "patch": {"x": 120.5, "y": 440.0}
+      "values": {"x": 120.5, "y": 440.0}
     }
   ]
 }

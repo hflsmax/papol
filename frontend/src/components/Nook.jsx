@@ -13,7 +13,7 @@ const storedSection = (userUuid) => {
   catch { return 'papers'; }
 };
 
-export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
+export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError }) {
   const [nook, setNook] = useState(null);
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
@@ -92,6 +92,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
                 <span>New board</span>
               </button>
               <PaperUpload
+                onReportableError={onReportableError}
                 compact
                 onPaperCreated={(paper) => {
                   if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);

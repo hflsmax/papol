@@ -2531,15 +2531,29 @@ fn query_storage_status(connection: &Connection) -> Result<Value, String> {
     Ok(json!({"classes": totals}))
 }
 
+/// The profile of the account signed in on this computer, or null when
+/// the replica holds none.
+///
+/// It holds none when nobody has signed in here, and when a newer build has
+/// discarded a replica an older one wrote — the profile is written at
+/// sign-in and goes with the rest. Either way that is an answer, not a
+/// failure: the caller decides what a computer with no signed-in account
+/// does next.
 fn query_local_account(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
-    let encoded: String = connection
+    let encoded: Option<String> = connection
         .query_row(
             "SELECT profile_json FROM _local_accounts WHERE account_uuid=?1",
             [account_uuid],
             |row| row.get(0),
         )
-        .map_err(|_| "Local account profile is not available".to_string())?;
-    serde_json::from_str(&encoded).map_err(|_| "Local account profile is invalid".into())
+        .optional()
+        .map_err(|error| error.to_string())?;
+    match encoded {
+        None => Ok(Value::Null),
+        Some(encoded) => {
+            serde_json::from_str(&encoded).map_err(|_| "Local account profile is invalid".into())
+        }
+    }
 }
 
 /// A replica opened the way Papol reads one.
@@ -2615,7 +2629,13 @@ mod tests {
                  CREATE TABLE papers (uuid TEXT PRIMARY KEY NOT NULL, title TEXT);\
                  CREATE TABLE paper_editions (uuid TEXT PRIMARY KEY NOT NULL);\
                  CREATE TABLE comments (uuid TEXT PRIMARY KEY NOT NULL);\
-                 INSERT INTO papers VALUES ('an-old-name', 'Named by a UUID');",
+                 INSERT INTO papers VALUES ('an-old-name', 'Named by a UUID');\
+                 CREATE TABLE _local_accounts (\
+                   account_uuid TEXT PRIMARY KEY NOT NULL,\
+                   profile_json TEXT NOT NULL,\
+                   updated_at TEXT NOT NULL);\
+                 INSERT INTO _local_accounts VALUES \
+                   ('7', '{\"uuid\":\"7\",\"display_name\":\"Signed in\"}', '');",
             )
             .unwrap();
     }
@@ -2665,6 +2685,27 @@ mod tests {
             );
         }
         assert!(!stale_blob.join("deadbeef").exists());
+    }
+
+    /// The profile was written at sign-in, so it went with the replica.
+    /// What is left is a computer nobody has signed in on, which is an
+    /// answer the shell acts on — not a failure to report.
+    #[test]
+    fn a_discarded_replica_no_longer_says_who_was_signed_in() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        replica_from_an_older_papol(&path);
+
+        let store = LocalStore::open(&path).unwrap();
+
+        assert_eq!(store.query("7", "account", json!({})).unwrap(), Value::Null);
+        store
+            .set_local_account("7", json!({"uuid": "7", "display_name": "Back"}))
+            .unwrap();
+        assert_eq!(
+            store.query("7", "account", json!({})).unwrap()["display_name"],
+            json!("Back"),
+        );
     }
 
     #[test]
@@ -3556,7 +3597,8 @@ mod tests {
             store.query("7", "account", json!({})).unwrap()["display_name"],
             "User"
         );
-        assert!(store.query("8", "account", json!({})).is_err());
+        // Another account has no profile here, and that is an answer: null.
+        assert_eq!(store.query("8", "account", json!({})).unwrap(), Value::Null);
         assert!(store
             .set_local_account("8", json!({"uuid": "7", "display_name": "Wrong"}))
             .is_err());

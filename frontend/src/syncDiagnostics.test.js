@@ -17,7 +17,7 @@ test('only permanent blocked sync failures produce a diagnostic report', () => {
     conflicts: 2,
     last_synced_at: '2026-09-14T07:03:27Z',
     outbox_error: 'Sync server returned 413 Payload Too Large',
-  }, { surface: 'main', platform: 'MacIntel' });
+  }, { surface: 'desk', platform: 'MacIntel' });
 
   assert.match(report.content, /413 Payload Too Large/);
   assert.match(report.content, /Blocked changes: 1/);

@@ -9,7 +9,9 @@
 // `papol://host/papol/viewer/?pdf=…` — so the app can turn it back into the
 // address the user was already at without a second vocabulary to keep in
 // step (US-7.32).
-const HANDOFF_SCHEME = 'papol';
+// Vite's development server must hand off to the separately registered dev
+// desktop app. Packaged web assets keep the production scheme.
+export const HANDOFF_SCHEME = import.meta.env?.DEV ? 'papol-dev' : 'papol';
 
 // A deep link arrives from whatever page cared to send one, so only the keys
 // that identify a document and a place in it survive the crossing. Anything

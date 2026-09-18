@@ -27,7 +27,7 @@ import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
-import { DesktopBrowser, useNook } from './components/DesktopLibrary';
+import { DesktopBrowser, useNook } from './components/DesktopDesk';
 import { isBrowsing, lastShownListing, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
@@ -40,12 +40,14 @@ import {
   originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
 } from './jacketOrigin';
 import { paperName } from '../../shared/paperName.js';
+import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
-import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
+import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
 import {
   nativeCompatibilityVerdict, openDroppedPdf, recordDiagnosticEvent,
-  subscribeShowPaperRequests, subscribeSignInRequests,
+  setNativeAccount, subscribeNativeData, subscribeShowPaperRequests, subscribeSignInRequests,
+  subscribeNativeHandoffs, scheduleAutomaticNativeSync,
   REPORTABLE_NATIVE_ERROR_EVENT,
 } from '../../shared/nativeData.js';
 import {
@@ -85,7 +87,7 @@ function navigate(path, { replace = false } = {}) {
   // to do nothing.
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
-  // A jacket's Back leads to the nook or library it was opened from,
+  // A jacket's Back leads to the nook or Desk it was opened from,
   // and this is the one door every in-app move goes through.
   writeJacketOrigin(originAfterMove(readJacketOrigin(), window.location.pathname, mountedDestination));
   if (replace) {
@@ -106,13 +108,13 @@ function navigate(path, { replace = false } = {}) {
 }
 
 // A board row opens the board's jacket, as a paper row opens a paper's: the
-// Library shows what it holds, and opening the work itself is the next step.
+// The Desk shows what it holds, and opening the work itself is the next step.
 function openBoard(uuid) {
   navigate(`/board/${uuid}`);
 }
 
 // The way in, from the jacket. The canvas is a separate application, so this
-// leaves the Library — on the desktop into a document window beside it, on
+// leaves the Desk — on the desktop into a document window beside it, on
 // the web by going there.
 function openBoardCanvas(uuid) {
   const path = inDemo() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
@@ -123,23 +125,23 @@ function openBoardCanvas(uuid) {
   window.location.assign(appPath(path));
 }
 
-function LibraryFileDropFeedback({ state, message, opensViewer = false }) {
+function DeskFileDropFeedback({ state, message, opensViewer = false }) {
   return <>
     {state && (
-      <div className={`library-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
-        <div className="library-file-drop-card">
+      <div className={`desk-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
+        <div className="desk-file-drop-card">
           <strong>{state === 'reject'
             ? 'PDF files only'
             : opensViewer ? 'Drop PDF to open' : 'Drop PDF to import'}</strong>
           <span>{state === 'reject'
-            ? 'Papol’s library only supports PDF files.'
+            ? 'Papol’s Desk only supports PDF files.'
             : opensViewer
               ? 'The paper will open in Papol’s PDF viewer.'
               : 'The paper will open for metadata review.'}</span>
         </div>
       </div>
     )}
-    {message && <div className="library-file-drop-notice" role="alert">{message}</div>}
+    {message && <div className="desk-file-drop-notice" role="alert">{message}</div>}
   </>;
 }
 
@@ -153,11 +155,11 @@ export default function App({ startupUser = null, startupError = null }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
-  const [libraryFileDrag, setLibraryFileDrag] = useState(null);
-  const [libraryDropNotice, setLibraryDropNotice] = useState(null);
+  const [deskFileDrag, setDeskFileDrag] = useState(null);
+  const [deskDropNotice, setDeskDropNotice] = useState(null);
   const [incomingPaperFile, setIncomingPaperFile] = useState(null);
-  const libraryDragDepth = useRef(0);
-  const libraryDropNoticeTimer = useRef(null);
+  const deskDragDepth = useRef(0);
+  const deskDropNoticeTimer = useRef(null);
   const offeredErrorReports = useRef(new Set());
   // The welcome modal greets every fresh demo visit. Returning from its
   // viewer is still the same visit, so consume the viewer's one-shot marker
@@ -176,9 +178,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
 
-  const offerDesktopError = useCallback((error, area) => {
-    if (!DESKTOP) return;
+  const offerErrorReport = useCallback((error, area) => {
     const report = unexpectedDesktopErrorReport(error, area, {
+      runtime: DESKTOP ? 'desktop' : 'web',
       surface: window.__PAPOL_ENV__?.surface,
       platform: navigator.platform,
     });
@@ -198,9 +200,9 @@ export default function App({ startupUser = null, startupError = null }) {
 
   useEffect(() => {
     if (!DESKTOP) return undefined;
-    if (startupError) offerDesktopError(startupError, 'desktop startup');
+    if (startupError) offerErrorReport(startupError, 'desktop startup');
     void recordDiagnosticEvent({
-      component: 'frontend', event: 'mounted', fields: { surface: 'main' },
+      component: 'frontend', event: 'mounted', fields: { surface: 'desk' },
     });
     // What the synchronizer already learned comes first, so a window opened
     // without a network still carries yesterday's answer; then ask, because
@@ -210,9 +212,9 @@ export default function App({ startupUser = null, startupError = null }) {
       if (remembered) setClientCompatibility({ verdict: remembered });
       await checkClientCompatibility();
     })();
-    const onError = (event) => offerDesktopError(event.error || event.message, 'JavaScript runtime');
-    const onRejection = (event) => offerDesktopError(event.reason, 'unhandled promise');
-    const onNativeError = (event) => offerDesktopError(
+    const onError = (event) => offerErrorReport(event.error || event.message, 'JavaScript runtime');
+    const onRejection = (event) => offerErrorReport(event.reason, 'unhandled promise');
+    const onNativeError = (event) => offerErrorReport(
       event.detail?.error || 'Unknown native command error',
       event.detail?.area || 'native command',
     );
@@ -224,7 +226,7 @@ export default function App({ startupUser = null, startupError = null }) {
       window.removeEventListener('unhandledrejection', onRejection);
       window.removeEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     };
-  }, [offerDesktopError, startupError]);
+  }, [offerErrorReport, startupError]);
 
   const restoreRealUser = async () => {
     const localUser = await getStartupUser().catch(() => null);
@@ -248,37 +250,37 @@ export default function App({ startupUser = null, startupError = null }) {
   };
 
   useEffect(() => {
-    const importIntoLibrary = mode === 'signed-in';
+    const importIntoDesk = mode === 'signed-in';
     const openInViewer = DESKTOP && mode === 'guest';
-    if (!importIntoLibrary && !openInViewer) return undefined;
+    if (!importIntoDesk && !openInViewer) return undefined;
     const resetDrag = () => {
-      libraryDragDepth.current = 0;
-      setLibraryFileDrag(null);
+      deskDragDepth.current = 0;
+      setDeskFileDrag(null);
     };
     const showNotice = (message) => {
-      setLibraryDropNotice(message);
-      window.clearTimeout(libraryDropNoticeTimer.current);
-      libraryDropNoticeTimer.current = window.setTimeout(
-        () => setLibraryDropNotice(null), 4000,
+      setDeskDropNotice(message);
+      window.clearTimeout(deskDropNoticeTimer.current);
+      deskDropNoticeTimer.current = window.setTimeout(
+        () => setDeskDropNotice(null), 4000,
       );
     };
     const dragEnter = (event) => {
       if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
       event.preventDefault();
-      libraryDragDepth.current += 1;
-      setLibraryFileDrag(libraryFileDragState(event.dataTransfer));
+      deskDragDepth.current += 1;
+      setDeskFileDrag(deskFileDragState(event.dataTransfer));
     };
     const dragOver = (event) => {
       if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
       event.preventDefault();
-      const state = libraryFileDragState(event.dataTransfer);
+      const state = deskFileDragState(event.dataTransfer);
       event.dataTransfer.dropEffect = state === 'reject' ? 'none' : 'copy';
-      setLibraryFileDrag(state);
+      setDeskFileDrag(state);
     };
     const dragLeave = (event) => {
       if (!carriesFiles(event.dataTransfer)) return;
-      libraryDragDepth.current = Math.max(0, libraryDragDepth.current - 1);
-      if (libraryDragDepth.current === 0) setLibraryFileDrag(null);
+      deskDragDepth.current = Math.max(0, deskDragDepth.current - 1);
+      if (deskDragDepth.current === 0) setDeskFileDrag(null);
     };
     const drop = async (event) => {
       if (!carriesFiles(event.dataTransfer)) return;
@@ -291,10 +293,10 @@ export default function App({ startupUser = null, startupError = null }) {
         return;
       }
       if (!isPdfFile(files[0])) {
-        showNotice('Papol’s library only supports PDF files.');
+        showNotice('Papol’s Desk only supports PDF files.');
         return;
       }
-      setLibraryDropNotice(null);
+      setDeskDropNotice(null);
       if (openInViewer) {
         try {
           await openDroppedPdf(files[0]);
@@ -315,7 +317,7 @@ export default function App({ startupUser = null, startupError = null }) {
       window.removeEventListener('dragover', dragOver);
       window.removeEventListener('dragleave', dragLeave);
       window.removeEventListener('drop', drop);
-      window.clearTimeout(libraryDropNoticeTimer.current);
+      window.clearTimeout(deskDropNoticeTimer.current);
     };
   }, [mode]);
 
@@ -406,15 +408,46 @@ export default function App({ startupUser = null, startupError = null }) {
     return () => { cancelled = true; };
   }, [user?.uuid, mode]);
 
+  // The server refused a request for want of a session: a visitor opened a
+  // link to something that needs one, or a session this Papol still held
+  // has ended. Either way the answer is the sign-in page, not an error where
+  // the page should be, and it leads back here once they have signed in.
+  useEffect(() => subscribeUnauthenticated(() => {
+    if (inDemo()) return;
+    void storeCredential(null);
+    // The desktop keeps the owner's local identity and work through a
+    // rejected credential; only network access is gone until they sign in.
+    if (!DESKTOP) setUser(null);
+    const { page } = parseRoute();
+    if (page === 'signin' || page === 'join') return;
+    const here = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+    navigate(here === '/' ? '/signin' : `/signin?next=${encodeURIComponent(here)}`);
+  }), []);
+
   // A document window asked for an account: a PDF opened from disk is being
-  // added to a nook. Signing in happens here, in the library window.
+  // added to a nook. Signing in happens here, in the Desk window.
   const signedInUser = useRef(user);
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
     if (!signedInUser.current || inDemo()) navigate(request?.register ? '/join' : '/signin');
   }), []);
 
-  // A document user can reveal its paper in the permanent library window.
+  // Viewer and board windows have separate WebKit storage. Adopt an account
+  // signed in there so the permanent Desk reflects it immediately.
+  useEffect(() => subscribeNativeData((payload) => {
+    if (inDemo() || !payload?.accountUuid || !payload.profile) return;
+    setNativeAccount(payload.accountUuid);
+    setUser(payload.profile);
+    setAuthChecked(true);
+  }), []);
+
+  // A browser handoff is also a freshness boundary: reconcile account data
+  // while the handed-off PDF is being opened.
+  useEffect(() => subscribeNativeHandoffs(() => {
+    void scheduleAutomaticNativeSync();
+  }), []);
+
+  // A document user can reveal its paper in the permanent Desk window.
   // Use the complete nook rather than whichever shelf or tag happened to be
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperSha256) => {
@@ -543,9 +576,9 @@ export default function App({ startupUser = null, startupError = null }) {
   const backHref = window.history.state?.papolBackHref || appPath('/');
 
   // A jacket always has a Back, and it always leads to a place works
-  // are kept: the nook or library this one was opened from, or — for a link
+  // are kept: the nook or Desk this one was opened from, or — for a link
   // someone was sent, with no such place behind it — the user's own nook,
-  // and the library for a visitor. It used to be hidden whenever the page
+  // and the Desk for a visitor. It used to be hidden whenever the page
   // was not reached by an in-app click, which includes every return from
   // the viewer: the most travelled road onto this page had no way off it.
   const jacketBack = jacketBackTarget({ origin: readJacketOrigin(), userUuid: user?.uuid });
@@ -727,6 +760,7 @@ export default function App({ startupUser = null, startupError = null }) {
         ))}
       {route.page === 'nook' && (
         <Nook
+          onReportableError={offerErrorReport}
           userUuid={route.uuid}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
@@ -745,7 +779,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={mountedPath(jacketBack.path)}
           backLabel={jacketBack.label}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
-          onReportableError={offerDesktopError}
+          onReportableError={offerErrorReport}
         />
       )}
       {route.page === 'board' && (
@@ -760,6 +794,7 @@ export default function App({ startupUser = null, startupError = null }) {
       )}
       {route.page === 'papers' && (
         <PapersPage
+          onReportableError={offerErrorReport}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
@@ -830,9 +865,9 @@ export default function App({ startupUser = null, startupError = null }) {
     return (
       <>
         <style>{applicationStyles}</style>
-        <LibraryFileDropFeedback
-          state={libraryFileDrag}
-          message={libraryDropNotice}
+        <DeskFileDropFeedback
+          state={deskFileDrag}
+          message={deskDropNotice}
           opensViewer={mode === 'guest'}
         />
         {demoIntro}
@@ -881,7 +916,7 @@ export default function App({ startupUser = null, startupError = null }) {
               banner={demoBanner}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
-              onReportableError={offerDesktopError}
+              onReportableError={offerErrorReport}
             />
           ) : (
             <div className="desktop-pane">
@@ -900,7 +935,7 @@ export default function App({ startupUser = null, startupError = null }) {
   return (
     <>
       <style>{applicationStyles}</style>
-      <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
+      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} />
       {demoIntro}
       {adminMessageDialog}
       {macosDownloadBanner}
@@ -939,7 +974,7 @@ export default function App({ startupUser = null, startupError = null }) {
               </a>
             )}
             <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
-              Library
+              Desk
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

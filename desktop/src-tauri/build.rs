@@ -3,7 +3,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "open_document_window",
             "close_document_window",
-            "focus_library_window",
+            "focus_desk_window",
             "open_storage_in_finder",
             "diagnostic_log",
             "diagnostic_recent",
@@ -14,6 +14,7 @@ fn main() {
             "blob_import",
             "blob_cache",
             "blob_read",
+            "blob_ensure",
             "local_clear_data",
             "blob_discard",
             "local_setting_get",

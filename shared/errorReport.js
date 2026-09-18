@@ -11,7 +11,7 @@ export function diagnosticText(value) {
 export function environmentLines(environment = {}) {
   return [
     `Backend: ${BACKEND_BASE || 'not configured'}`,
-    `Surface: ${environment.surface || 'main'}`,
+    `Surface: ${environment.surface || 'desk'}`,
     `Platform: ${environment.platform || 'unknown'}`,
   ];
 }
@@ -22,7 +22,7 @@ export function unexpectedDesktopErrorReport(error, area, environment = {}) {
     ? diagnosticText(error.stack.split('\n').slice(0, 8).join('\n'))
     : null;
   const lines = [
-    'Automatic Papol macOS error report',
+    `Automatic Papol ${environment.runtime === 'web' ? 'web' : 'macOS'} error report`,
     '',
     `Area: ${area || 'application runtime'}`,
     `Error type: ${error?.name || typeof error}`,

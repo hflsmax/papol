@@ -66,9 +66,9 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 
-// library: { onClick, label }. Without onClick the control is disabled.
-export default function DesktopNav({ library = {} }) {
-  const { onClick, label = 'Open Library', disabled } = library;
+// desk: { onClick, label }. Without onClick the control is disabled.
+export default function DesktopNav({ desk = {} }) {
+  const { onClick, label = 'Open Desk', disabled } = desk;
   return (
     <div className="desktop-nav">
       <button

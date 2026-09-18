@@ -125,6 +125,16 @@ ${macHandoffStyles}
   color: var(--red);
 }
 
+.error-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.error-actions button {
+  min-height: 40px;
+}
+
 /* ---------- Bar ---------- */
 
 .viewer-bar {

@@ -10,18 +10,18 @@ import { appPath } from '../base';
 /**
  * A board's jacket: what is known about it, and the way in.
  *
- * A board used to have no jacket at all. Its whole presence in the Library
+ * A board used to have no jacket at all. Its whole presence in the Desk
  * was a row in a nook showing its name, and opening that row left the
- * Library for the canvas — so a board had a description column that nothing
+ * Desk for the canvas — so a board had a description column that nothing
  * could display, and no place to come back to. The canvas's Back had
  * nowhere to lead, which is how it came to lead to the front door and read
  * as a home button, and why a reader who arrived back at Papol had to find
  * the nook and the row again by hand.
  *
- * So a board is now shaped like a paper: a jacket in the Library, and an
+ * So a board is now shaped like a paper: a jacket in the Desk, and an
  * application that opens it. The row opens the jacket, the jacket opens the
  * canvas, and the canvas comes back to the jacket. On the desktop the
- * jacket sits in the Library window and the canvas is a document window of
+ * jacket sits in the Desk window and the canvas is a document window of
  * its own, which is the same arrangement in both shells for the first time.
  *
  * Its two writable fields are kept the way an anchor's card keeps its own:

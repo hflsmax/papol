@@ -53,7 +53,7 @@ import {
   markViewerPerformance, observeViewerPerformanceMark, viewerOpeningTimings,
 } from './performance.js';
 import {
-  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopLibraryWindow,
+  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopDeskWindow,
 } from '../../shared/desktopShell';
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
@@ -489,6 +489,7 @@ export default function App() {
   // first progress event, since a bar at 0% before the request has even
   // answered reads as stalled rather than as "not yet known".
   const [pdfProgress, setPdfProgress] = useState(null);
+  const [pdfSyncing, setPdfSyncing] = useState(false);
   // A quick open should feel immediate, not flash a modal-looking card for a
   // fraction of a second. Local files keep the stable page-shaped skeleton;
   // detailed progress is reserved for slower downloads.
@@ -604,7 +605,7 @@ export default function App() {
   // window's sign-in) | adding.
   const [nookStep, setNookStep] = useState('idle');
   // Kept apart from the sign-in step so clicking away can hide the prompt
-  // without cancelling a sign-in already under way in the library window.
+  // without cancelling a sign-in already under way in the Desk window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
   // This user's own copy of the paper in front of them, when they keep
   // one. What turns "add to nook" into "show in nook": the offer should be
@@ -612,7 +613,7 @@ export default function App() {
   const [nookCopy, setNookCopy] = useState(null);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Asked over a file opened from disk while another app is the system's PDF
-  // viewer, until answered here or in the library window this launch.
+  // viewer, until answered here or in the Desk window this launch.
   useEffect(() => {
     if (!source?.openedFile || !firstPageReady) return undefined;
     let cancelled = false;
@@ -881,7 +882,7 @@ export default function App() {
       return undefined;
     }
     if (source.requiresSignIn && !getToken() && !nativeDataActive()) {
-      setError('Sign in to view your notes.');
+      setError('Sign in to see this paper.');
       return undefined;
     }
     const loaded = source.load();
@@ -937,9 +938,22 @@ export default function App() {
     if (!pdfPaper) return undefined;
     let cancelled = false;
     let task = null;
+    let syncingPdf = false;
     setPdfProgress(null);
+    setPdfSyncing(false);
     markViewerPerformance('pdf-bytes-requested');
-    const inputReady = pdfLoadInput(pdfPaper).then((input) => {
+    const inputReady = pdfLoadInput(pdfPaper, {
+      onSyncProgress: (progress) => {
+        if (cancelled) return;
+        syncingPdf = true;
+        setPdfSyncing(true);
+        setPdfProgress({ loaded: progress.fraction, total: 1 });
+      },
+    }).then((input) => {
+      if (!cancelled) {
+        if (syncingPdf) setPdfProgress({ loaded: 1, total: 1 });
+        setPdfSyncing(false);
+      }
       markViewerPerformance('pdf-bytes-ready', {
         bytes: input?.data?.byteLength ?? null,
       });
@@ -1340,7 +1354,7 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
-      // A viewer in Papol's main window can return to the library. Native
+      // A viewer in Papol's Desk window can return to the Library. Native
       // document windows use the standard Close Window command instead.
       if (DESKTOP && !DOCUMENT_WINDOW && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
         e.preventDefault();
@@ -3266,13 +3280,13 @@ export default function App() {
     // The desktop keeps the library in its own window, so showing a paper
     // means raising that window rather than leaving this one.
     if (source?.openedFile) {
-      focusDesktopLibraryWindow(paper.sha256);
+      focusDesktopDeskWindow(paper.sha256);
       return;
     }
     window.location.assign(showInNookHref);
   };
   const askToSignIn = () => {
-    // On the desktop the library window does the signing in and this one
+    // On the desktop the Desk window does the signing in and this one
     // waits for it. On the web there is no other window: the visitor goes
     // to the sign-in page and is brought back to the link they were
     // reading, where the paper is still theirs to add.
@@ -3285,7 +3299,7 @@ export default function App() {
     setNookPromptOpen(true);
     requestSignIn().catch(() => setNookStep('ask'));
   };
-  // Signing in happens in the library window. This window hears of it when
+  // Signing in happens in the Desk window. This window hears of it when
   // the account is written to shared storage, or when it is focused again.
   useEffect(() => {
     if (nookStep !== 'waiting') return undefined;
@@ -3379,11 +3393,23 @@ export default function App() {
   const pageMoveAnimal = useEvent(moveAnimal);
   const pageEraseAnimal = useEvent(eraseAnimal);
 
+  const signInForPaper = () => {
+    const current = `${stripAppBase(window.location.pathname || '/viewer/')}${window.location.search}${window.location.hash}`;
+    window.location.assign(appPath(`/signin?next=${encodeURIComponent(current)}`));
+  };
+
   if (error && !doc) {
     return (
       <>
         <div className="shell">
           <div className="error" role="alert">{error}</div>
+          {/sign in to see this paper|sign in to view this paper/i.test(error) && (
+            <div className="error-actions">
+              <button type="button" className="primary" onClick={signInForPaper}>
+                Sign in
+              </button>
+            </div>
+          )}
           {!DOCUMENT_WINDOW && <p className="hint">
             <a
               href={source?.homeHref || appPath('/')}
@@ -3481,18 +3507,18 @@ export default function App() {
         }}
       >
         {/* The bar is the window's navigation: back to Papol and a quick way
-            to bring the library back to the front. */}
+            to bring the Desk back to the front. */}
         {DESKTOP ? (
           <DesktopNav
-            library={{
-              // The same errand the web glyph runs: the library, showing
+            desk={{
+              // The same errand the web glyph runs: the Desk, showing
               // this paper. A paper only passing through — shared, or
               // opened from disk — has no page in this user's Papol, so
-              // the library is simply brought forward as it was.
-              onClick: () => focusDesktopLibraryWindow(
+              // the Desk is simply brought forward as it was.
+          onClick: () => focusDesktopDeskWindow(
                 readOnly ? undefined : paper?.sha256,
               ),
-              label: 'Open Library',
+              label: 'Open Desk',
             }}
           />
         ) : (
@@ -3535,7 +3561,7 @@ export default function App() {
           onTop={goToTop}
         />
         {/* A failed sync is reported, not offered again: the viewer is for
-            reading, and the library is where sync is driven from. */}
+            reading, and the Desk is where sync is driven from. */}
         <DesktopSyncingStatus retry={false} />
         {/* No button of its own: search is opened with Ctrl/Command+F, and
             the box that opens is anchored here. */}
@@ -3960,7 +3986,7 @@ export default function App() {
                       className="ref-link here"
                       href={appPath(`/paper/${paperName(paper.sha256)}`)}
                       onClick={(event) => {
-                        if (focusDesktopLibraryWindow(paper.sha256)) event.preventDefault();
+                        if (focusDesktopDeskWindow(paper.sha256)) event.preventDefault();
                       }}
                     >Show in Papol</a>
                   )}
@@ -4055,7 +4081,7 @@ export default function App() {
           {!doc && showPdfLoading && (
             <div className="pdf-loading" role="status" aria-live="polite">
               <div className="pdf-loading-card">
-                <p>Loading the paper…</p>
+                <p>{pdfSyncing ? 'Syncing the paper…' : 'Loading the paper…'}</p>
                 <div className={`pdf-progress-track${pdfPct == null ? ' indeterminate' : ''}`}>
                   <div
                     className="pdf-progress-fill"

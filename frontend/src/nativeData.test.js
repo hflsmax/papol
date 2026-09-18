@@ -27,7 +27,7 @@ global.localStorage = {
 global.location = new URL('http://127.0.0.1:5173/');
 global.window = {
   location: global.location,
-  __PAPOL_ENV__: { runtime: 'desktop', surface: 'main', documentWindow: false },
+  __PAPOL_ENV__: { runtime: 'desktop', surface: 'desk', documentWindow: false },
   __TAURI_INTERNALS__: {
     invoke: async (command, arguments_) => {
       calls.push([command, arguments_]);
@@ -466,5 +466,5 @@ test('native event cleanup retries Tauri registration races', async () => {
   }
 
   const subscriberAttempts = [...stopAttempts.values()];
-  assert.deepEqual(subscriberAttempts, [2, 2]);
+  assert.deepEqual(subscriberAttempts, [2, 2, 2]);
 });

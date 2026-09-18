@@ -101,8 +101,15 @@ check "/signin" signin
 check "/library" papers
 check "/u/$NOBODY" space
 check "/room/$NOBODY" room
+# A paper is not a guest's to read: every page of the real community needs a
+# session (US-1.4), and the service says so with a 401 the moment the page
+# asks for the paper. What the router owes a visitor holding a paper link is
+# the sign-in page, carrying the link as `next` so they land on the paper once
+# they have signed in — not a paper page drawn around a refusal, which is what
+# this check used to accept. So a guest's paper link is expected to open
+# sign-in; a paper link that renders `paper` for a guest is the regression.
 if [ -n "$DIGEST" ]; then
-  check "/paper/${DIGEST:0:32}" paper
+  check "/paper/${DIGEST:0:32}" signin
 else
   printf '    skip  /paper/<digest> — no paper named; pass one as the second argument\n'
 fi
