@@ -1244,20 +1244,39 @@ deploy_prod() {
   build_tree "$PROD_DIR"
 
   # module.nix and flake.nix describe the service itself, and the running
-  # system reads them from this checkout. When they move, restarting is not
+  # system reads them from this checkout, so when they move a restart is not
   # enough — the unit has to be rebuilt around them.
-  local rebuild=no running
-  if [ "$old" != "$rev" ] \
-     && ! git -C "$PROD_DIR" diff --quiet "$old" "$rev" -- module.nix flake.nix flake.lock; then
+  #
+  # Whether they moved is settled by building the system here and comparing
+  # it with the one that is running. That is the only form of the question
+  # that cannot be answered wrongly, and it is not the question this used to
+  # ask: it diffed module.nix between the outgoing and incoming revisions,
+  # which says what changed in the checkout and nothing whatever about what
+  # reached the machine. So a rebuild that failed once could never be
+  # retried. The next run found the checkout already at the target revision,
+  # concluded there was nothing to rebuild, restarted the old unit against
+  # the new code, and reported a service that would not come up — without
+  # ever mentioning the rebuild it had skipped. An hour of production went
+  # that way, and the log said `ImportError` the whole time.
+  #
+  # Building first, and as an ordinary user, is worth as much again: a
+  # module.nix that does not evaluate now fails here, while production is
+  # still up and serving, rather than after it has been stopped.
+  local rebuild=no built staging
+  staging=$(mktemp -d)
+  trap 'rm -rf "$staging"' EXIT
+  say "Building the system this checkout describes"
+  (cd "$staging" && nixos-rebuild build) \
+    || die "this checkout does not describe a system that builds. Production is
+    untouched and still serving; fix module.nix or flake.nix and deploy again."
+  # Read through the symlink but leave it there: while it exists it is the
+  # garbage collector's only reason to spare what was just built.
+  built=$(readlink -f "$staging/result")
+  if [ "$built" = "$(readlink -f /run/current-system)" ]; then
+    note "the running system is already the one this checkout describes"
+  else
     rebuild=yes
-    note "module.nix or flake.nix changed — this deploy rebuilds the system"
-  fi
-  # And the unit may not be this checkout's yet at all: on the first
-  # promotion nothing tracked has changed, but everything has.
-  running=$(systemctl show "$UNIT" -p WorkingDirectory --value 2>/dev/null || true)
-  if [ "$running" != "$PROD_DIR/backend" ]; then
-    rebuild=yes
-    note "the unit still serves from ${running:-nowhere} — this deploy rebuilds the system"
+    note "the running system is not this one — this deploy activates $(basename "$built")"
   fi
 
   say "Stopping $UNIT"
@@ -1274,22 +1293,22 @@ deploy_prod() {
   fi
 
   # From here production is down, so nothing may exit without either
-  # bringing it back or saying plainly that it could not. A rebuild is
-  # exactly where this bites: it runs when module.nix moved, and a
-  # module.nix that does not evaluate is the likeliest reason for it to
-  # fail — which would otherwise end the deploy with a stopped service and
-  # a stack trace about Nix.
+  # bringing it back or saying plainly that it could not. Activation is
+  # where this bites: the system is built by now, so what remains is root
+  # switching to it, and that still needs a password this script cannot
+  # supply — an unanswered sudo prompt is a failed deploy like any other.
   if [ "$rebuild" = yes ]; then
-    say "nixos-rebuild switch"
+    say "Activating the new system"
     if ! as_root nixos-rebuild switch; then
-      note "the rebuild failed — putting the old service back"
+      note "activation failed — putting the old service back"
       as_root systemctl start "$UNIT" \
-        || die "the rebuild failed AND $UNIT would not start. Production is down.
+        || die "activation failed AND $UNIT would not start. Production is down.
     The database is untouched, backed up beside it, and the checkout is at
     $(git -C "$PROD_DIR" rev-parse --short HEAD); putting the code back is
     git -C $PROD_DIR reset --hard $old"
-      die "the rebuild failed; the previous service is running again, from the
-    new checkout. Fix module.nix or flake.nix and deploy again."
+      die "the system built but would not activate, so production is serving the
+    old unit from the new checkout — which is the combination that crash-loops.
+    Deploying again retries the activation; it no longer skips it."
     fi
   else
     say "Starting $UNIT"
