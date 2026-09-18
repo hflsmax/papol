@@ -6,7 +6,7 @@ import {
 import { getNotifications, getPendingAdminMessages } from '../../shared/api/notifications.js';
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
-import Space from './components/Space';
+import Nook from './components/Nook';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
 import { resetDemo } from '../../shared/demo.js';
@@ -27,8 +27,8 @@ import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
-import { DesktopBrowser, useNookSpace } from './components/DesktopLibrary';
-import { isBrowsing, lastShownSource, rememberSource, resolveSource } from './desktopSources';
+import { DesktopBrowser, useNook } from './components/DesktopLibrary';
+import { isBrowsing, lastShownListing, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
   MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
@@ -60,7 +60,7 @@ const demoPath = (path) => {
 };
 
 const SIGN_IN_PAGES = new Set([
-  'space', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -388,7 +388,7 @@ export default function App({ startupUser = null, startupError = null }) {
       return;
     }
     getNotifications()
-      .then((d) => setUnreadCount(d.unread_count))
+      .then((d) => setUnreadCount(d.notifications.filter((n) => !n.read).length))
       .catch(() => {});
   }, [user, route]);
 
@@ -418,7 +418,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // Use the complete nook rather than whichever shelf or tag happened to be
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperSha256) => {
-    rememberSource('all');
+    rememberListing('all');
     const path = `/paper/${paperName(paperSha256)}`;
     const mountedPath = appPath(path);
     if (`${window.location.pathname}${window.location.search}` === mountedPath) {
@@ -433,13 +433,13 @@ export default function App({ startupUser = null, startupError = null }) {
   const [syncRefresh, setSyncRefresh] = useState(0);
   // The desktop sidebar lists the user's shelves and tags, so the desktop
   // app keeps their nook loaded beside whatever is open.
-  const nook = useNookSpace(DESKTOP && user ? user.uuid : null, route);
-  const desktopSource = resolveSource(route, user, {
+  const nookState = useNook(DESKTOP && user ? user.uuid : null, route);
+  const desktopListing = resolveListing(route, user, {
     search: window.location.search,
-    lastShown: lastShownSource(),
+    lastShown: lastShownListing(),
   });
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, space: nook.space, source: desktopSource,
+    user, route, unreadCount, nook: nookState.nook, listing: desktopListing,
   });
   useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
 
@@ -710,7 +710,7 @@ export default function App({ startupUser = null, startupError = null }) {
       <>
       {route.page === 'home' &&
         (user ? (
-          <Space
+          <Nook
             userUuid={user.uuid}
             currentUser={user}
             onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
@@ -725,8 +725,8 @@ export default function App({ startupUser = null, startupError = null }) {
             onDemo={inDemo() ? undefined : handleDemo}
           />
         ))}
-      {route.page === 'space' && (
-        <Space
+      {route.page === 'nook' && (
+        <Nook
           userUuid={route.uuid}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
@@ -804,7 +804,7 @@ export default function App({ startupUser = null, startupError = null }) {
             onUserUpdated={setUser}
             onLogout={handleLogout}
             onSync={() => {
-              nook.reload();
+              nookState.reload();
               setSyncRefresh((revision) => revision + 1);
             }}
           />
@@ -814,8 +814,8 @@ export default function App({ startupUser = null, startupError = null }) {
     </main>
   );
 
-  // Papol macOS: a source-list sidebar in place of the website masthead.
-  // Reading happens in a three-pane browser — source, list, paper — and every
+  // Papol macOS: a sidebar of listings in place of the website masthead.
+  // Reading happens in a three-pane browser — listing, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
     const movePaperToShelf = async (paperSha256, shelfUuid) => {
@@ -825,7 +825,7 @@ export default function App({ startupUser = null, startupError = null }) {
         setDesktopNotice(err.message);
         window.setTimeout(() => setDesktopNotice(null), 5000);
       }
-      nook.reload();
+      nookState.reload();
     };
     return (
       <>
@@ -839,13 +839,13 @@ export default function App({ startupUser = null, startupError = null }) {
         <CompatibilityGate />
         {adminMessageDialog}
         {feedbackDialog}
-        {managingNook && nook.space && (
+        {managingNook && nookState.nook && (
           <NookManager
-            space={nook.space}
-            setSpace={nook.setSpace}
-            onChanged={nook.reload}
+            nook={nookState.nook}
+            setNook={nookState.setNook}
+            onChanged={nookState.reload}
             onClose={() => setManagingNook(false)}
-            onTagDeleted={(tagUuid) => { if (desktopSource === `tag:${tagUuid}`) navigate('/'); }}
+            onTagDeleted={(tagUuid) => { if (desktopListing === `tag:${tagUuid}`) navigate('/'); }}
           />
         )}
         <div className="desktop-app" onClickCapture={routeAppLinks}>
@@ -854,8 +854,8 @@ export default function App({ startupUser = null, startupError = null }) {
             user={user}
             profileActive={route.page === 'profile'}
             onFeedback={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
-            onManageNook={nook.space ? () => setManagingNook(true) : undefined}
-            onMovePaper={nook.space ? movePaperToShelf : undefined}
+            onManageNook={nookState.nook ? () => setManagingNook(true) : undefined}
+            onMovePaper={nookState.nook ? movePaperToShelf : undefined}
             onNavigate={navigate}
             onReportableError={(report) => setFeedbackRequest((current) => current || ({
               key: `error:${report.signature}`,
@@ -863,7 +863,7 @@ export default function App({ startupUser = null, startupError = null }) {
               reportError: true,
             }))}
             onSync={() => {
-              nook.reload();
+              nookState.reload();
               setSyncRefresh((revision) => revision + 1);
             }}
             notice={desktopNotice}
@@ -871,10 +871,10 @@ export default function App({ startupUser = null, startupError = null }) {
           {isBrowsing(route, user) ? (
             <DesktopBrowser
               key={`${mode}:${user.uuid}`}
-              source={desktopSource}
+              listing={desktopListing}
               route={route}
               currentUser={user}
-              nook={nook}
+              nookState={nookState}
               onNavigate={navigate}
               onOpenBoard={openBoard}
               onSyncRefresh={syncRefresh}
@@ -926,7 +926,7 @@ export default function App({ startupUser = null, startupError = null }) {
                 href={appPath('/')}
                 className={
                   route.page === 'home' || route.page === 'board' ||
-                  (route.page === 'space' && route.uuid === user.uuid)
+                  (route.page === 'nook' && route.uuid === user.uuid)
                     ? 'active'
                     : ''
                 }

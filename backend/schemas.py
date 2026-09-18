@@ -395,8 +395,9 @@ class RoomDetail(RoomSummary):
     paper_sha256: str
     messages: List[RoomMessageOut] = []
     availabilities: List[RoomAvailabilityOut] = []
-    viewer_is_participant: bool = False
-    viewer_has_copy: bool = False
+    # Whether the viewer's own copy of the paper sits on a public shelf,
+    # which is what lets them lead. False when they have no copy at all.
+    viewer_copy_is_public: bool = False
 
 
 class RoomMessageCreate(BaseModel):
@@ -434,7 +435,6 @@ class NotificationOut(BaseModel):
 
 
 class NotificationList(BaseModel):
-    unread_count: int
     notifications: List[NotificationOut]
 
 
@@ -606,7 +606,6 @@ class ShelfUpdate(BaseModel):
 
 class UserEntry(BaseModel):
     """A user's displayed copy of a paper."""
-    paper_sha256: str
     user: UserPublic
     is_author: bool = False  # this user wrote the paper
     thought: Optional[str] = None  # the user's public one-sentence take
@@ -741,8 +740,6 @@ class Paper(PaperBase):
     notes: List[AnnotationOut] = []  # the viewer's own notes on this paper
     also_read_by: List[UserEntry] = []  # every displayed copy
     rooms: List[RoomSummary] = []  # this paper's seminar rooms, newest first
-    viewer_has_copy: bool = False  # viewer has a displayed copy
-    viewer_has_entry: bool = False  # viewer has any copy
     tags: List[TagOut] = []
     shelf_uuid: Optional[str] = None
     copy_uuid: Optional[str] = None
@@ -825,7 +822,7 @@ class NookStats(BaseModel):
     seminars: int = 0
 
 
-class UserSpace(BaseModel):
+class Nook(BaseModel):
     user: UserPublic
     papers: List[PaperList]
     boards: List[BoardOut] = []

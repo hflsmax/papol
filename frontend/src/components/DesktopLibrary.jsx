@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { boardFileBlob, deleteBoard, getBoard, updateBoard } from '../../../shared/api/boards.js';
-import { getUserSpace } from '../../../shared/api/people.js';
+import { getNook } from '../../../shared/api/people.js';
 import { paperName } from '../../../shared/paperName.js';
 import { deletePaper, listPapers, paperHref, updatePaper } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
-  PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInSource,
-  rememberSource, shelfOf, sourcePath, tagOf,
-} from '../desktopSources';
+  PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInListing,
+  rememberListing, shelfOf, listingPath, tagOf,
+} from '../desktopListings';
 import { formatAuthors } from '../paperFormat';
 import PaperJacket from './PaperJacket';
 import PaperUpload from './PaperUpload';
@@ -352,26 +352,26 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
 // Papol macOS's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
 // paper opens beside the list instead of replacing it. What a source means
-// and lists is decided in desktopSources.js.
+// and lists is decided in desktopListings.js.
 
 // The user's nook, kept loaded for the sidebar and the list. Reloaded on
 // every navigation and whenever the window comes back to the front, since
 // the paper pane edits it underneath.
-export function useNookSpace(userUuid, refreshKey) {
-  const [space, setSpace] = useState(null);
+export function useNook(userUuid, refreshKey) {
+  const [nook, setNook] = useState(null);
   const [nativeSyncing, setNativeSyncing] = useState(nativeSyncInProgress);
   const currentUserUuid = useRef(userUuid);
   currentUserUuid.current = userUuid;
 
   const reload = useCallback(() => {
     if (!userUuid) return;
-    getUserSpace(userUuid)
-      .then((data) => { if (currentUserUuid.current === userUuid) setSpace(data); })
+    getNook(userUuid)
+      .then((data) => { if (currentUserUuid.current === userUuid) setNook(data); })
       .catch(() => {});
   }, [userUuid]);
 
   useEffect(() => {
-    setSpace(null);
+    setNook(null);
     setNativeSyncing(nativeSyncInProgress());
   }, [userUuid]);
   useEffect(() => { reload(); }, [reload, refreshKey]);
@@ -394,16 +394,16 @@ export function useNookSpace(userUuid, refreshKey) {
   }, [reload]);
 
   return {
-    space, setSpace, reload,
+    nook, setNook, reload,
     syncing: Boolean(userUuid) && nativeSyncing,
   };
 }
 
 export function DesktopBrowser({
-  source, route, currentUser, nook, onNavigate, onOpenBoard, onSyncRefresh, banner,
+  listing, route, currentUser, nookState, onNavigate, onOpenBoard, onSyncRefresh, banner,
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
 }) {
-  const { space, setSpace, reload, syncing } = nook;
+  const { nook, setNook, reload, syncing } = nookState;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
@@ -415,22 +415,22 @@ export function DesktopBrowser({
   const [boardDetailError, setBoardDetailError] = useState(null);
   const listRef = useRef(null);
   const paperSha256 = route.page === 'paper' ? route.uuid : null;
-  const selectedKey = source === 'boards' ? selectedBoardUuid : paperSha256;
+  const selectedKey = listing === 'boards' ? selectedBoardUuid : paperSha256;
   const isSelected = (paper) => paperSha256 != null && paper.sha256 === paperSha256;
 
   useEffect(() => {
-    if (route.page !== 'paper') rememberSource(source);
-  }, [route.page, source]);
+    if (route.page !== 'paper') rememberListing(listing);
+  }, [route.page, listing]);
 
   useEffect(() => {
     setSearch('');
-    if (source !== 'boards') {
+    if (listing !== 'boards') {
       setSelectedBoardUuid(null);
       setBoardDetail(null);
       setBoardDetailError(null);
     }
-  }, [source]);
-  useEffect(() => { setComposer(null); }, [paperSha256, source]);
+  }, [listing]);
+  useEffect(() => { setComposer(null); }, [paperSha256, listing]);
   useEffect(() => {
     if (incomingPaperFile) setComposer('paper');
   }, [incomingPaperFile]);
@@ -438,13 +438,13 @@ export function DesktopBrowser({
   const openUser = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
 
   useEffect(() => {
-    if (source !== 'library') return undefined;
+    if (listing !== 'library') return undefined;
     let active = true;
     listPapers()
       .then((papers) => { if (active) setLibrary(papers); })
       .catch(() => { if (active) setLibrary([]); });
     return () => { active = false; };
-  }, [source, route, onSyncRefresh]);
+  }, [listing, route, onSyncRefresh]);
 
   // Keep the selection in view, and keep keyboard focus on it while the
   // user is moving through the list with the arrow keys.
@@ -455,22 +455,22 @@ export function DesktopBrowser({
     if (listRef.current.contains(document.activeElement)) row.focus({ preventScroll: true });
   }, [selectedKey]);
 
-  const shelves = space?.shelves ?? [];
-  const shelf = shelfOf(source, space);
-  const tag = tagOf(source, space);
-  const boardsView = source === 'boards';
-  const libraryView = source === 'library';
-  const loading = libraryView ? library == null : space == null;
+  const shelves = nook?.shelves ?? [];
+  const shelf = shelfOf(listing, nook);
+  const tag = tagOf(listing, nook);
+  const boardsView = listing === 'boards';
+  const libraryView = listing === 'library';
+  const loading = libraryView ? library == null : nook == null;
 
-  const shownPapers = papersInSource(source, { space, library })
+  const shownPapers = papersInListing(listing, { nook, library })
     .filter((paper) => matchesSearch(search, [paper.title, paper.authors, paper.journal]));
   const shownBoards = boardsView
-    ? (space?.boards || [])
+    ? (nook?.boards ?? [])
       .filter((board) => matchesSearch(search, [board.name, board.description]))
       .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
     : [];
   const selectedBoard = boardsView
-    ? (space?.boards || []).find((board) => board.uuid === selectedBoardUuid) || null
+    ? (nook?.boards ?? []).find((board) => board.uuid === selectedBoardUuid) || null
     : null;
 
   useEffect(() => {
@@ -490,11 +490,11 @@ export function DesktopBrowser({
   }, [boardsView, selectedBoardUuid, selectedBoard?.updated_at, onSyncRefresh]);
 
   useEffect(() => {
-    if (selectedBoardUuid && space && !selectedBoard) {
+    if (selectedBoardUuid && nook && !selectedBoard) {
       setSelectedBoardUuid(null);
       setBoardDetail(null);
     }
-  }, [space, selectedBoard, selectedBoardUuid]);
+  }, [nook, selectedBoard, selectedBoardUuid]);
 
   const title = libraryView ? 'Library' : boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
   const total = boardsView ? shownBoards.length : shownPapers.length;
@@ -505,8 +505,8 @@ export function DesktopBrowser({
     shelf ? (shelf.is_public ? 'Public' : 'Private') : null,
   ].filter(Boolean).join(' · ');
 
-  const canCompose = Boolean(space) && !libraryView;
-  const sourceHome = () => onNavigate(sourcePath(source));
+  const canCompose = Boolean(nook) && !libraryView;
+  const listingHome = () => onNavigate(listingPath(listing));
   const movePaper = async (paper, shelfUuid) => {
     setActionError(null);
     try {
@@ -530,7 +530,7 @@ export function DesktopBrowser({
     setActionError(null);
     try {
       await deletePaper(paper.sha256);
-      if (isSelected(paper)) sourceHome();
+      if (isSelected(paper)) listingHome();
       reload();
     } catch (error) { setActionError(error.message); }
   };
@@ -597,8 +597,8 @@ export function DesktopBrowser({
               setComposer(null);
               reload();
               if (paper?.sha256 != null) {
-                const destination = paperCreatedNavigation(source, paper.sha256);
-                rememberSource(destination.source);
+                const destination = paperCreatedNavigation(listing, paper.sha256);
+                rememberListing(destination.listing);
                 onNavigate(destination.path);
               }
             }}
@@ -623,7 +623,7 @@ export function DesktopBrowser({
               setBoardDetail(board);
               setBoardDetailError(null);
               setBoardDetailLoading(false);
-              setSpace((current) => current ? {
+              setNook((current) => current ? {
                 ...current,
                 boards: [board, ...(current.boards || []).filter((item) => item.uuid !== board.uuid)],
               } : current);
@@ -642,11 +642,11 @@ export function DesktopBrowser({
           <PaperJacket
             // Moving the paper to another shelf from the sidebar reloads it,
             // so its own shelf control never shows the old shelf.
-            key={`${paperSha256}:${(space?.papers || []).find((paper) => isSelected(paper))?.shelf_uuid ?? ''}`}
+            key={`${paperSha256}:${(nook?.papers ?? []).find((paper) => isSelected(paper))?.shelf_uuid ?? ''}`}
             paperSha256={paperSha256}
             currentUser={currentUser}
             hideBack
-            onBack={sourceHome}
+            onBack={listingHome}
             onChanged={reload}
             onRead={openUser}
             onSelectPaper={(sha256) => onNavigate(`/paper/${paperName(sha256)}`)}

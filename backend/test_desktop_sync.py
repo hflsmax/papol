@@ -1114,7 +1114,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_desktop_board_deletion_disappears_from_the_web_nook(self):
         board = self.request("POST", "/api/boards", json={"name": "Delete offline"}).json()
-        before = self.request("GET", f"/api/users/{self.user_uuid}/space").json()
+        before = self.request("GET", f"/api/users/{self.user_uuid}/nook").json()
         self.assertEqual([row["uuid"] for row in before["boards"]], [board["uuid"]])
 
         self.request("POST", "/api/sync/push", json={
@@ -1130,7 +1130,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         })
 
-        after = self.request("GET", f"/api/users/{self.user_uuid}/space").json()
+        after = self.request("GET", f"/api/users/{self.user_uuid}/nook").json()
         self.assertEqual(after["boards"], [])
 
     def test_desktop_shelf_moves_publish_and_hide_like_online_moves(self):
@@ -1194,13 +1194,13 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_every_identity_is_a_uuid(self):
         me = self.request("GET", "/api/auth/me").json()
         uuid.UUID(me["uuid"])
-        space = self.request("GET", f"/api/users/{me['uuid']}/space").json()
-        self.assertEqual(space["user"]["uuid"], me["uuid"])
-        for shelf in space["shelves"]:
+        nook = self.request("GET", f"/api/users/{me['uuid']}/nook").json()
+        self.assertEqual(nook["user"]["uuid"], me["uuid"])
+        for shelf in nook["shelves"]:
             uuid.UUID(shelf["uuid"])
         for tag in self.request("GET", "/api/tags").json():
             uuid.UUID(tag["uuid"])
-        self.assert_no_id_fields(space)
+        self.assert_no_id_fields(nook)
 
         welcome = self.request("GET", "/api/notifications").json()["notifications"][0]
         uuid.UUID(welcome["uuid"])

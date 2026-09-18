@@ -227,7 +227,7 @@ const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_uuid === uid) || nu
 const roomParts = (r) => ensure().participants.filter((x) => x.room_uuid === r.uuid);
 
 const userEntry = (c) => ({
-  paper_sha256: c.paper_sha256, user: publicUser(userByUuid(c.user_uuid)),
+  user: publicUser(userByUuid(c.user_uuid)),
   is_author: !!c.is_author,
   thought: c.thought,
   rating_expertise: c.rating_expertise, rating_reading: c.rating_reading,
@@ -268,8 +268,6 @@ function paperDetail(p) {
       : [],
     also_read_by: displayedCopies(p).map(userEntry),
     rooms: paperRooms(p).map(roomSummary),
-    viewer_has_copy: onDisplay(mine),
-    viewer_has_entry: !!mine,
   };
 }
 
@@ -313,8 +311,7 @@ function roomDetail(r) {
       .map((m) => ({ uuid: m.uuid, content: m.content, created_at: m.created_at, user: publicUser(userByUuid(m.user_uuid)) })),
     availabilities: d.availabilities.filter((a) => a.room_uuid === r.uuid)
       .map((a) => ({ uuid: a.uuid, availability: a.availability, created_at: a.created_at, user: publicUser(userByUuid(a.user_uuid)) })),
-    viewer_is_participant: roomParts(r).some((x) => x.user_uuid === ME),
-    viewer_has_copy: hasCopy,
+    viewer_copy_is_public: hasCopy,
   };
 }
 
@@ -394,7 +391,7 @@ async function routeDemoRequest(path, options = {}) {
   }
   if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
   if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length, board_count: 0 }));
-  if ((m = path.match(/^\/users\/([0-9a-f-]{36})\/space$/))) {
+  if ((m = path.match(/^\/users\/([0-9a-f-]{36})\/nook$/))) {
     const u = userByUuid(m[1]);
     if (!u) throw demoError('User not found', 404);
     const own = u.uuid === ME;
@@ -703,7 +700,6 @@ async function routeDemoRequest(path, options = {}) {
     const mine = d.notifications.filter((n) => n.user_uuid === ME)
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     return {
-      unread_count: mine.filter((n) => !n.read).length,
       notifications: mine.map(({ user_uuid, ...n }) => n),
     };
   }

@@ -25,7 +25,7 @@ acting on.
 | --- | --- | --- |
 | **User** | Someone who uses Papol. | One word in all three registers: `User`, `users`, "user" on the page. Papol has exactly one kind of person, so it needs exactly one noun for them — **not "user"**, which names a role someone is currently playing rather than the account that holds their papers. |
 | **Visitor** | A user who is not signed in. | Sees the demo, a sharable, and the sign-in pages — nothing else. |
-| **Nook** | One user's public reading corner: their copies, shelves, boards, tags. | Product word. The code calls the same payload a **Space** (`getUserSpace`, `Space.jsx`). See §12.1. |
+| **Nook** | One user's public reading corner: their copies, shelves, boards, tags. | One word in all three registers: `Nook`, `getNook()`, `/users/<uuid>/nook`. |
 | **Shelf** | One of a user's five homes for papers, each **public** or **private**. | *Visibility lives here and nowhere else.* `Copy.is_public` asks the shelf each time rather than keeping a second copy of the fact. |
 | **Library** | **Every** paper there is, and every user who displays one. The place a paper is found rather than owned. | No display gates it (§2b); what display governs is the row of users shown against a paper. There is no separate word for the list of users — papers and the people who read them are two views of one Library, not two places. |
 | **Demo** | A fictional Papol that lives entirely in the browser; the URL is the sole authority for whether it is on. | `shared/demo.js`, `shared/demoWorld.js`. No request reaches the backend in demo. |
@@ -187,17 +187,12 @@ Each of these is one word doing two jobs, or two words doing one. Entries
 marked **settled** have been acted on and are kept as the record of what was
 decided; the rest carry a recommendation and nothing more.
 
-### 12.1 Nook / Space
+### 12.1 Nook / Space — settled
 
-**Nook** is the product word for a user's corner. The code calls the same
-payload a **Space** — `getUserSpace()`, `Space.jsx`, the `space` prop threaded
-through the desktop chrome — while `nookTransition.js`, `NookManager.jsx` and
-`sourcePath()` say *nook* right beside it. Two words for one object, in files
-that import each other.
-
-*Recommend* renaming `Space` → `Nook` (`getUserSpace` → `getNook`). "Space" is
-also a section heading in `DESIGN.md` meaning whitespace, which is the second
-reason to give it up.
+The code called the payload a **Space** (`getUserSpace`, `Space.jsx`, a
+`space` prop) beside files that said *nook*. It says **nook** now, in the
+component, the client, the route and the stylesheet; `route.page` for a
+user's nook is `nook`.
 
 ### 12.2 Copy / entry
 
@@ -295,19 +290,14 @@ there is nobody for "host" to name. The vocabulary entry is gone. In a seminar
 say **leader**; of a copy say **its user**; and `host` now means a hostname
 everywhere it appears.
 
-### 12.10 Source
+### 12.10 Source — settled
 
-Three unrelated meanings, all live:
-
-- `desktopSources.js` — *which listing the macOS paper browser is showing*
-  (`'all'`, `'shelf:<uuid>'`, `'library'`).
-- `viewer/src/source.js` — *where this document and its notes come from*
-  (`?pdf=`, `?share=`, demo).
-- `board_items.source_url` / `source_label` — *where a card came from on the
-  web*.
-
-*Recommend* keeping `source_url` (it is the web's own word), renaming the
-desktop one to **listing**, and the viewer one to **origin**.
+Three unrelated meanings were live. Two remain, and they no longer share a
+word: `viewer/src/source.js` is *where this document and its notes come
+from*, and `board_items.source_url` is *where a card came from on the web*.
+The macOS paper browser's third — which listing it is showing (`all`,
+`shelf:<uuid>`, `library`) — is a **listing** (`desktopListings.js`,
+`?listing=`).
 
 ### 12.11 Group
 

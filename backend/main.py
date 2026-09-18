@@ -55,7 +55,7 @@ from schemas import (
     ProfileUpdate, PasswordChange, AccountDeletion, UserEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
-    PaperCreate, PaperMetadata, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
+    PaperCreate, PaperMetadata, PaperUpdate, Paper as PaperSchema, PaperList, Nook,
     ExtractedMetadata, ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     AnnotationCreate, AnnotationUpdate, AnnotationOut,
@@ -1560,7 +1560,6 @@ def _default_shelf(user: User) -> Shelf:
 
 def _user_entry(user_copy: Copy) -> UserEntry:
     return UserEntry(
-        paper_sha256=user_copy.paper.sha256,
         user=UserPublic.model_validate(user_copy.user),
         is_author=user_copy.is_author,
         thought=user_copy.thought,
@@ -1671,8 +1670,8 @@ def _paper_list_entry(
     return entry
 
 
-@app.get("/api/users/{user_uuid}/space", response_model=UserSpace)
-async def get_user_space(
+@app.get("/api/users/{user_uuid}/nook", response_model=Nook)
+async def get_nook(
     user_uuid: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1716,7 +1715,7 @@ async def get_user_space(
             .filter(RoomParticipant.user_uuid == user.uuid)
             .count(),
         )
-    return UserSpace(
+    return Nook(
         user=UserPublic.model_validate(user),
         papers=[
             _paper_list_entry(r.paper, r, hide_private, room_map) for r in copies
@@ -1928,8 +1927,6 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
         .order_by(Room.created_at.desc(), Room.uuid.desc())
         .all()
     ]
-    detail.viewer_has_copy = user_copy is not None and user_copy.is_public
-    detail.viewer_has_entry = user_copy is not None
     return detail
 
 
@@ -3088,8 +3085,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
             for m in sorted(room.messages, key=lambda m: (m.created_at, m.uuid))
         ],
         availabilities=[RoomAvailabilityOut.model_validate(a) for a in room.availabilities],
-        viewer_is_participant=any(p.user_uuid == viewer.uuid for p in room.participants),
-        viewer_has_copy=viewer.uuid in users_displaying,
+        viewer_copy_is_public=viewer.uuid in users_displaying,
     )
 
 

@@ -545,8 +545,6 @@ export function paperView(row) {
     ...row,
     is_public: Boolean(row.is_public),
     is_author: Boolean(row.is_author),
-    viewer_has_entry: true,
-    viewer_has_copy: Boolean(row.is_public),
   };
 }
 

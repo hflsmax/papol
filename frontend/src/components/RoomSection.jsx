@@ -246,7 +246,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
         />
       ))}
 
-      {currentUser && !activeCall && paper.viewer_has_copy && (
+      {currentUser && !activeCall && paper.is_public && (
         <div className="call-block">
           <span className="hint-anchor">
             <button className="primary" disabled={isBusy} onClick={call}>
@@ -261,7 +261,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
           </span>
         </div>
       )}
-      {currentUser && !activeCall && !paper.viewer_has_copy && (
+      {currentUser && !activeCall && !paper.is_public && (
         <div className="call-block">
           <span className="hint-anchor">
             <button
@@ -276,7 +276,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
             {callHint && (
               <HintPop
                 text={
-                  paper.viewer_has_entry
+                  paper.copy_uuid
                     ? 'Move this paper to a public shelf before calling a seminar.'
                     : 'Add this paper to your nook before calling a seminar.'
                 }

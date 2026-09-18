@@ -364,6 +364,7 @@ test('adding a Library paper directly downloads it without running manual sync',
   const digest = 'a'.repeat(64);
   queryPaper = {
     uuid: paperSha256, title: 'Ready to read', file_path: 'ready.pdf', sha256: digest,
+    copy_uuid: '33333333-3333-4333-8333-333333333333',
   };
 
   const added = await addToNook({
@@ -379,7 +380,7 @@ test('adding a Library paper directly downloads it without running manual sync',
   const download = calls.find(([command]) => command === 'network_fetch')[1];
   assert.match(download.url, /\/uploads\/ready\.pdf$/);
   assert.equal(download.options.headers, undefined);
-  assert.equal(added.viewer_has_entry, true);
+  assert.ok(added.copy_uuid);
   queryPaper = null;
 });
 

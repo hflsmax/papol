@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
-import { PAPER_DRAG_TYPE, isBrowsing, sourcePath } from '../desktopSources';
+import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
@@ -21,7 +21,7 @@ const MOD = MAC ? '⌘' : 'Ctrl+';
 
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
 // are also reachable with ⌘1…⌘4.
-export function desktopNavigation({ user, route, unreadCount, space, source }) {
+export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
   const page = route.page;
   if (!user) {
     return [
@@ -41,27 +41,27 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
     ];
   }
   const browsing = isBrowsing(route, user);
-  const at = (key) => browsing && source === key;
+  const at = (key) => browsing && listing === key;
   // One shelf is the whole nook, so it only earns rows once there are two.
-  const shelves = space?.shelves.length > 1 ? space.shelves : [];
-  const tags = space?.tags || [];
+  const shelves = nook?.shelves.length > 1 ? nook.shelves : [];
+  const tags = nook?.tags || [];
   return [
     {
       label: 'My nook',
       manage: true,
       items: [
-        { key: 'all', label: 'All papers', path: sourcePath('all'), glyph: 'papers', shortcut: '1', active: at('all'), count: space?.papers.length },
+        { key: 'all', label: 'All papers', path: listingPath('all'), glyph: 'papers', shortcut: '1', active: at('all'), count: nook?.papers.length },
         ...shelves.map((shelf) => ({
           key: `shelf:${shelf.uuid}`,
           label: shelf.name,
           title: `${shelf.name} · ${shelf.is_public ? 'Public' : 'Private'}`,
-          path: sourcePath(`shelf:${shelf.uuid}`),
+          path: listingPath(`shelf:${shelf.uuid}`),
           shelfUuid: shelf.uuid,
           swatch: shelf.color,
           active: at(`shelf:${shelf.uuid}`),
           count: shelf.paper_count,
         })),
-        { key: 'boards', label: 'Boards', path: sourcePath('boards'), glyph: 'boards', active: at('boards'), count: space?.boards.length },
+        { key: 'boards', label: 'Boards', path: listingPath('boards'), glyph: 'boards', active: at('boards'), count: nook?.boards.length },
       ],
     },
     ...(tags.length > 0 ? [{
@@ -69,7 +69,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
       items: tags.map((tag) => ({
         key: `tag:${tag.uuid}`,
         label: tag.name,
-        path: sourcePath(`tag:${tag.uuid}`),
+        path: listingPath(`tag:${tag.uuid}`),
         hash: true,
         active: at(`tag:${tag.uuid}`),
       })),
@@ -89,7 +89,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
 }
 
 const TITLES = {
-  space: 'Nook',
+  nook: 'Nook',
   paper: 'Paper',
   papers: 'Library',
   room: 'Seminar',

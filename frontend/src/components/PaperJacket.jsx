@@ -148,7 +148,7 @@ export default function PaperJacket({
     try {
       const data = await getPaper(paperSha256);
       setPaper(overlay ? { ...data, ...overlay } : data);
-      if (currentUser && data.viewer_has_entry) {
+      if (currentUser && data.copy_uuid) {
         listShelves().then(setShelves).catch((err) => setError(err.message));
       }
       if (loadedOnce.current) onChanged?.();
@@ -426,7 +426,7 @@ export default function PaperJacket({
   }
 
   const authors = authorList(paper.authors);
-  const hasEntry = currentUser != null && paper.viewer_has_entry;
+  const hasEntry = currentUser != null && paper.copy_uuid != null;
   // A link hands over a PDF, so there has to be one to hand over: a paper
   // with no readable file has nothing for the viewer to open.
   const canShareThisPdf = hasEntry && Boolean(paper.file_path);

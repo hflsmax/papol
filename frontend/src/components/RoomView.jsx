@@ -86,6 +86,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
   const participants = [...room.participants].sort(
     (a, b) => leadsRoom(b) - leadsRoom(a)
   );
+  const isParticipant = room.participants.some((p) => p.uuid === currentUser.uuid);
   const uncallable = canUncall(room, currentUser);
 
   const uncall = async () => {
@@ -117,7 +118,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             The leader is the seminar's benevolent dictator: they volunteer to
             plan its time, place, and style, and to lead the discussion.
           </p>
-          {room.viewer_has_copy ? (
+          {room.viewer_copy_is_public ? (
             <span className="hint-anchor">
               <button
                 className="primary stage-action"
@@ -349,7 +350,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               <Avatar user={u} className="entry-avatar" />
               <span>{u.display_name}</span>
               {leadsRoom(u) && <span className="leader-star">★</span>}
-              {u.uuid === currentUser.uuid && room.viewer_is_participant && (
+              {u.uuid === currentUser.uuid && isParticipant && (
                 <button
                   className="chip-x"
                   title="Leave the cohort"
@@ -370,7 +371,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               )}
             </a>
           ))}
-          {!room.viewer_is_participant && (
+          {!isParticipant && (
             <span className="hint-anchor">
               <button
                 className="join-chip"
@@ -466,7 +467,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
           <ul className="availability-all">
             {participants.map((u) => {
               const entry = room.availabilities.find((a) => a.user.uuid === u.uuid);
-              const isMe = u.uuid === currentUser.uuid && room.viewer_is_participant;
+              const isMe = u.uuid === currentUser.uuid && isParticipant;
               return (
                 <li key={u.uuid}>
                   <Avatar user={u} className="entry-avatar" />
@@ -537,7 +538,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             ))
           )}
         </ol>
-        {room.viewer_is_participant ? (
+        {isParticipant ? (
           <form
             className="compose-row"
             onSubmit={(event) => {
@@ -590,9 +591,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               {msgHint && (
                 <HintPop
                   text={
-                    room.viewer_has_copy
+                    room.viewer_copy_is_public
                       ? 'Join the cohort to post a message.'
-                      : 'Add this paper to your nook (on display) to take part.'
+                      : 'Move this paper to a public shelf to take part.'
                   }
                   onClose={() => setMsgHint(false)}
                 />

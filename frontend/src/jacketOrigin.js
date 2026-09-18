@@ -27,7 +27,7 @@ export function placeOf(pathname) {
   const route = parseRoute(pathname);
   // Home is the signed-in user's own nook, under its shortest name.
   if (route.page === 'home') return '/';
-  if (route.page === 'space') return `/u/${route.uuid}`;
+  if (route.page === 'nook') return `/u/${route.uuid}`;
   if (route.page === 'papers') return '/library';
   return null;
 }

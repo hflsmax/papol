@@ -24,8 +24,8 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   });
   const at = (pattern) => path.match(new RegExp(`^${pattern}/?$`, 'i'))?.[1].toLowerCase();
   let uuid;
-  if ((uuid = at(`/u/${UUID}/boards`))) return routed({ page: 'space', uuid, section: 'boards' });
-  if ((uuid = at(`/u/${UUID}`))) return routed({ page: 'space', uuid });
+  if ((uuid = at(`/u/${UUID}/boards`))) return routed({ page: 'nook', uuid, section: 'boards' });
+  if ((uuid = at(`/u/${UUID}`))) return routed({ page: 'nook', uuid });
   if ((uuid = at(`/paper/${PAPER}`))) return routed({ page: 'paper', uuid });
   if ((uuid = at(`/board/${UUID}`))) return routed({ page: 'board', uuid });
   if ((uuid = at(`/room/${UUID}`))) return routed({ page: 'room', uuid });

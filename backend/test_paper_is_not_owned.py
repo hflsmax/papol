@@ -195,7 +195,7 @@ class PaperIsNotOwned(unittest.TestCase):
         # line they cannot follow.
         page = self.client.get(f"/api/papers/{paper_name(nobodys_file)}")
         self.assertEqual(page.status_code, 200, page.text)
-        self.assertFalse(page.json()["viewer_has_entry"])
+        self.assertIsNone(page.json()["copy_uuid"])
 
     def test_leaving_a_paper_does_not_take_it_out_of_the_library(self):
         """The last reader walking away is not a deletion."""
