@@ -8,6 +8,7 @@ import fitz
 import grobid
 import main
 import metadata_lookup
+import openalex
 from pdf_parser import arxiv_doi, extract_arxiv_id, extract_doi, extract_doi_from_pdf
 
 GROBID_HEADER = """<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
@@ -43,6 +44,23 @@ GROBID_JOURNAL_ONLY_REFERENCE = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
 <monogr><title level="j">Proceedings of the National Academy of Sciences</title>
 <imprint><date when="2013"/></imprint></monogr>
 <note type="raw_reference">M. Schenk, Proceedings of the National Academy of Sciences 110, 3276 (2013).</note>
+</biblStruct></listBibl></back></text></TEI>"""
+
+# A conference paper: its own title under <analytic>, the proceedings at
+# level="m" under <monogr>, and no journal title anywhere.
+GROBID_PROCEEDINGS_REFERENCE = """<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<text><back><listBibl><biblStruct xml:id="b3">
+<analytic><title level="a" type="main">Metamaterial Mechanisms</title>
+<author><persName><forename>Alexandra</forename><surname>Ion</surname></persName></author></analytic>
+<monogr><title level="m">Proceedings of the 29th Annual Symposium on User Interface Software and Technology</title>
+<meeting><address><addrLine>Tokyo, Japan</addrLine></address></meeting>
+<imprint><date when="2016"/></imprint></monogr>
+<note type="raw_reference">Ion A. Metamaterial Mechanisms. In: Proc. UIST 2016.</note>
+</biblStruct><biblStruct xml:id="b4">
+<analytic><title level="a" type="main">Sim2Real transfer</title></analytic>
+<monogr><meeting>CoRL 2020<address><addrLine>Cambridge, MA</addrLine></address></meeting>
+<imprint><date when="2020"/></imprint></monogr>
+<note type="raw_reference">Sim2Real transfer. CoRL 2020.</note>
 </biblStruct></listBibl></back></text></TEI>"""
 
 # An Elsevier paper cites in brackets and numbers its display equations at
@@ -132,6 +150,16 @@ class MetadataExtractionTests(unittest.TestCase):
         })
         self.assertEqual(summary["venue"], "Computers & Graphics")
 
+    def test_crossref_container_is_tidied(self):
+        for printed, shown in (
+            ("Proceedings of the 1967 22nd national conference on   -", "Proceedings of the 1967 22nd national conference on"),
+            ("Proceedings of the 2017 Conference on\n          Language Processing", "Proceedings of the 2017 Conference on Language Processing"),
+            ("STOC '70", "STOC '70"),
+            (" - ", None),
+        ):
+            summary = crossref.summarize_crossref({"container-title": [printed]})
+            self.assertEqual(summary["venue"], shown)
+
     def test_crossref_metadata_includes_the_subtitle(self):
         summary = crossref.summarize_crossref({
             "DOI": "10.1145/3354166.3354181",
@@ -192,6 +220,43 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertEqual(
             reference.journal,
             "Proceedings of the National Academy of Sciences",
+        )
+
+    def test_reads_proceedings_and_meeting_as_the_venue(self):
+        proceedings, meeting = grobid.parse_tei(GROBID_PROCEEDINGS_REFERENCE).references
+        self.assertEqual(proceedings.title, "Metamaterial Mechanisms")
+        self.assertEqual(
+            proceedings.journal,
+            "Proceedings of the 29th Annual Symposium on User Interface Software and Technology",
+        )
+        # The meeting's address is where it was held, not what it was called.
+        self.assertEqual(meeting.title, "Sim2Real transfer")
+        self.assertEqual(meeting.journal, "CoRL 2020")
+
+    def test_openalex_venue_is_the_publisher_not_the_repository(self):
+        arxiv = {"source": {"display_name": "arXiv (Cornell University)", "type": "repository"}}
+        summary = openalex.summarize({
+            "display_name": "Attention Is All You Need",
+            "best_oa_location": {**arxiv, "pdf_url": "https://arxiv.org/pdf/1706.03762"},
+            "primary_location": {"source": None},
+            "locations": [
+                {"source": None},
+                arxiv,
+                {"source": {"display_name": "Neural Information Processing Systems", "type": "conference"}},
+            ],
+        })
+        self.assertEqual(summary["venue"], "Neural Information Processing Systems")
+        self.assertEqual(summary["host"], "arXiv (Cornell University)")
+        self.assertEqual(summary["pdf_url"], "https://arxiv.org/pdf/1706.03762")
+
+    def test_openalex_hosts_are_not_venues(self):
+        arxiv = {"source": {"display_name": "arXiv (Cornell University)", "type": "repository"}}
+        work = {"primary_location": arxiv, "locations": [arxiv], "best_oa_location": arxiv}
+        self.assertEqual(openalex.venue_of(work), (None, "arXiv (Cornell University)"))
+        ebook = {"source": {"display_name": "Elsevier eBooks", "type": "ebook platform"}}
+        self.assertEqual(openalex.venue_of({"primary_location": ebook}), (None, "Elsevier eBooks"))
+        self.assertEqual(
+            openalex.venue_of({"primary_location": None, "locations": []}), (None, None)
         )
 
     def test_normalizes_display_only_all_caps_title(self):

@@ -127,10 +127,43 @@ def abstract_of(work: dict) -> Optional[str]:
     return text or None
 
 
+# Sources that hold a copy of a work without being where it was published.
+# "arXiv (Cornell University)" and "Elsevier eBooks" say where a file is,
+# not what journal or conference the reader should look for.
+_HOSTS = {"repository", "ebook platform"}
+
+
+def venue_of(work: dict) -> tuple[Optional[str], Optional[str]]:
+    """(venue, host): where the work was published, and where a copy lives.
+
+    A work has several locations — the publisher's and any repository
+    holding a copy — and the open-access one is usually the repository,
+    which names itself "arXiv (Cornell University)" where the reader wants
+    the journal or the conference. Only the publisher's location is the
+    venue. The host is returned separately so the caller can fall back to
+    it after everything that names a venue better — CrossRef's container,
+    the bibliography as printed — has been asked: a bare preprint's venue
+    really is arXiv, but only once nothing else claims it."""
+    candidates = [
+        work.get("primary_location"),
+        *(work.get("locations") or []),
+        work.get("best_oa_location"),
+    ]
+    venue = host = None
+    for location in candidates:
+        source = location.get("source") if isinstance(location, dict) else None
+        if not isinstance(source, dict) or not source.get("display_name"):
+            continue
+        if source.get("type") in _HOSTS:
+            host = host or source["display_name"]
+        else:
+            venue = venue or source["display_name"]
+    return venue, host
+
+
 def summarize(work: dict) -> dict:
     """An OpenAlex work as the viewer's popup wants it."""
-    location = work.get("best_oa_location") or work.get("primary_location") or {}
-    source = (location.get("source") or {}) if isinstance(location, dict) else {}
+    venue, host = venue_of(work)
     return {
         "title": work.get("display_name"),
         "authors": [
@@ -139,7 +172,10 @@ def summarize(work: dict) -> dict:
             if a.get("author", {}).get("display_name")
         ],
         "year": work.get("publication_year"),
-        "venue": source.get("display_name"),
+        "venue": venue,
+        # Not part of the card: reference_engine spends it as the venue of
+        # last resort and drops it before the summary is stored.
+        "host": host,
         "abstract": abstract_of(work),
         "citations": work.get("cited_by_count"),
         "doi": (work.get("doi") or "").replace("https://doi.org/", "") or None,

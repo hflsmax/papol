@@ -181,6 +181,101 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(answer.resolution.title, "The Llama 3 Herd of Models")
         self.assertEqual(answer.resolution.url, "https://arxiv.org/abs/2407.21783")
 
+    async def test_indexed_work_without_a_venue_takes_the_printed_one(self):
+        ref = reference(
+            raw="Ion A. Metamaterial Mechanisms. In: Proc. UIST 2016.",
+            title="Metamaterial Mechanisms",
+            year=2016,
+            resolved_status=None,
+            resolution=None,
+            resolved_at=None,
+            authors=None,
+            journal="Proc. UIST 2016",
+            uuid="reference-3",
+            key="b3",
+            index=3,
+            page=None,
+            y=None,
+        )
+        indexed = {"title": "Metamaterial Mechanisms", "year": 2016, "source": "openalex"}
+        with patch.object(
+            reference_engine.biblio, "resolve", AsyncMock(return_value=("ok", indexed))
+        ):
+            answer = await reference_engine.resolve(ref)
+        self.assertEqual(answer.resolved_status, "ok")
+        self.assertEqual(answer.resolution.venue, "Proc. UIST 2016")
+
+    async def test_indexed_venue_outranks_the_printed_one(self):
+        ref = reference(
+            resolved_status=None, resolution=None, resolved_at=None,
+            authors=None, journal="NIPS", uuid="reference-1", key="b1", index=1,
+            page=None, y=None,
+        )
+        indexed = {
+            "title": "Attention Is All You Need", "year": 2017,
+            "venue": "Neural Information Processing Systems", "source": "openalex",
+        }
+        with patch.object(
+            reference_engine.biblio, "resolve", AsyncMock(return_value=("ok", indexed))
+        ):
+            answer = await reference_engine.resolve(ref)
+        self.assertEqual(answer.resolution.venue, "Neural Information Processing Systems")
+
+    async def test_a_host_names_the_venue_only_when_nothing_else_does(self):
+        def ref(journal):
+            return reference(
+                resolved_status=None, resolution=None, resolved_at=None,
+                authors=None, journal=journal, uuid="reference-1", key="b1",
+                index=1, page=None, y=None,
+            )
+        indexed = {
+            "title": "Attention Is All You Need", "year": 2017,
+            "venue": None, "host": "arXiv (Cornell University)", "source": "openalex",
+        }
+        printed_row, preprint_row = ref("Advances in NIPS"), ref(None)
+        with patch.object(
+            reference_engine.biblio,
+            "resolve",
+            AsyncMock(side_effect=lambda _: ("ok", dict(indexed))),
+        ):
+            printed = await reference_engine.resolve(printed_row)
+            preprint = await reference_engine.resolve(preprint_row)
+        self.assertEqual(printed.resolution.venue, "Advances in NIPS")
+        self.assertEqual(preprint.resolution.venue, "arXiv (Cornell University)")
+        # The host was spent, not stored.
+        self.assertNotIn("host", preprint_row.resolution)
+        self.assertNotIn("host", printed_row.resolution)
+
+    async def test_printed_conference_outranks_an_indexed_series(self):
+        def ref(journal):
+            return reference(
+                resolved_status=None, resolution=None, resolved_at=None,
+                authors=None, journal=journal, uuid="reference-9", key="b9",
+                index=9, page=None, y=None,
+            )
+        indexed = {
+            "title": "Reversible Communicating Systems", "year": 2004,
+            "venue": "Lecture notes in computer science", "source": "openalex",
+        }
+        with patch.object(
+            reference_engine.biblio,
+            "resolve",
+            AsyncMock(side_effect=lambda _: ("ok", dict(indexed))),
+        ):
+            named = await reference_engine.resolve(ref("CONCUR 2004 -Concurrency Theory"))
+            bare = await reference_engine.resolve(ref(None))
+        self.assertEqual(named.resolution.venue, "CONCUR 2004 -Concurrency Theory")
+        # A series is still better than nothing.
+        self.assertEqual(bare.resolution.venue, "Lecture notes in computer science")
+
+    def test_crossref_container_outranks_an_openalex_host(self):
+        merged = biblio._merge(
+            {"title": "Deep residual learning", "venue": None, "host": "HAL"},
+            {"title": "Deep residual learning", "venue": "2016 IEEE CVPR"},
+            2016,
+        )
+        self.assertEqual(merged["venue"], "2016 IEEE CVPR")
+
     async def test_exact_crossref_match_skips_search_and_is_enriched(self):
         crossref_summary = {
             "title": "Attention Is All You Need",

@@ -497,10 +497,21 @@ def _reference_from(bibl, key: str, index: int, pages) -> Reference:
     # title there (sometimes as well as level="j"), and a venue is not the
     # cited work's title.
     title = _text(bibl.find(f'{TEI}analytic/{TEI}title[@level="a"]'))
+    proceedings = _text(bibl.find(f'{TEI}monogr/{TEI}title[@level="m"]'))
     if not title:
-        title = _text(bibl.find(f'{TEI}monogr/{TEI}title[@level="m"]'))
+        title, proceedings = proceedings, None
 
-    journal = _text(bibl.find(f'{TEI}monogr/{TEI}title[@level="j"]'))
+    # A journal names itself at level="j". A conference paper names its
+    # proceedings at level="m" instead, beside the paper's own title under
+    # <analytic> — and that monograph title is the venue only when the
+    # paper has a title of its own; otherwise it *is* the work. GROBID
+    # sometimes puts the conference name in <meeting> alone, whose children
+    # hold the address rather than the name.
+    journal = (
+        _text(bibl.find(f'{TEI}monogr/{TEI}title[@level="j"]'))
+        or proceedings
+        or _own_text(bibl.find(f"{TEI}monogr/{TEI}meeting"))
+    )
 
     authors = []
     for person in bibl.iter(f"{TEI}persName"):
@@ -602,4 +613,12 @@ def _text(node) -> Optional[str]:
     if node is None:
         return None
     text = " ".join("".join(node.itertext()).split())
+    return text or None
+
+
+def _own_text(node) -> Optional[str]:
+    """The element's own words, leaving out what its children say."""
+    if node is None:
+        return None
+    text = " ".join((node.text or "").split())
     return text or None
