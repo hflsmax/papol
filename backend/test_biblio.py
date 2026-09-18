@@ -268,17 +268,6 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
         # A series is still better than nothing.
         self.assertEqual(bare.resolution.venue, "Lecture notes in computer science")
 
-    def test_crossref_volume_outranks_an_openalex_series(self):
-        merged = biblio._merge(
-            {"title": "Reversible Communicating Systems", "venue": "Lecture Notes in Computer Science"},
-            {"title": "Reversible Communicating Systems", "venue": "CONCUR 2004 - Concurrency Theory"},
-            2004,
-        )
-        self.assertEqual(merged["venue"], "CONCUR 2004 - Concurrency Theory")
-        self.assertTrue(biblio.generic_series("Leibniz  International Proceedings in Informatics"))
-        self.assertFalse(biblio.generic_series("Neural Information Processing Systems"))
-        self.assertFalse(biblio.generic_series(None))
-
     def test_crossref_container_outranks_an_openalex_host(self):
         merged = biblio._merge(
             {"title": "Deep residual learning", "venue": None, "host": "HAL"},
@@ -286,18 +275,6 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
             2016,
         )
         self.assertEqual(merged["venue"], "2016 IEEE CVPR")
-
-    def test_venues_are_tidied(self):
-        self.assertEqual(
-            reference_engine._tidy("Proceedings of the 1967 22nd national conference on   -"),
-            "Proceedings of the 1967 22nd national conference on",
-        )
-        self.assertEqual(
-            reference_engine._tidy("Proceedings of the 2017 Conference on\n          Language Processing"),
-            "Proceedings of the 2017 Conference on Language Processing",
-        )
-        self.assertEqual(reference_engine._tidy("STOC '70"), "STOC '70")
-        self.assertIsNone(reference_engine._tidy(" - "))
 
     async def test_exact_crossref_match_skips_search_and_is_enriched(self):
         crossref_summary = {

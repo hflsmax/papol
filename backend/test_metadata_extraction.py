@@ -151,6 +151,16 @@ class MetadataExtractionTests(unittest.TestCase):
         })
         self.assertEqual(summary["venue"], "Computers & Graphics")
 
+    def test_crossref_container_is_tidied(self):
+        for printed, shown in (
+            ("Proceedings of the 1967 22nd national conference on   -", "Proceedings of the 1967 22nd national conference on"),
+            ("Proceedings of the 2017 Conference on\n          Language Processing", "Proceedings of the 2017 Conference on Language Processing"),
+            ("STOC '70", "STOC '70"),
+            (" - ", None),
+        ):
+            summary = crossref.summarize_crossref({"container-title": [printed]})
+            self.assertEqual(summary["venue"], shown)
+
     def test_crossref_metadata_includes_the_subtitle(self):
         summary = crossref.summarize_crossref({
             "DOI": "10.1145/3354166.3354181",

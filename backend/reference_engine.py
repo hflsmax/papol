@@ -72,31 +72,36 @@ async def resolve(reference) -> ReferenceOut:
     return reference_out(reference)
 
 
+# Series an index reports as the venue where a bibliography names the
+# conference: "Lecture Notes in Computer Science" for a CONCUR paper.
+# Declared, not detected — a name is here because real bibliographies
+# printed something better beside it.
+_SERIES = {
+    "lecture notes in computer science",
+    "lecture notes in artificial intelligence",
+    "lecture notes in mathematics",
+    "lecture notes in electrical engineering",
+    "leibniz international proceedings in informatics",
+    "lipics",
+    "acm sigplan notices",
+    "electronic notes in theoretical computer science",
+    "electronic proceedings in theoretical computer science",
+    "communications in computer and information science",
+    "advances in intelligent systems and computing",
+    "ifip advances in information and communication technology",
+}
+
+
 def _settle_venue(summary: dict, reference) -> None:
-    """Name the journal or conference, from whoever names it best.
-
-    The index first, when it names a real venue. Then the bibliography as
-    printed: an index that knows the work but not where it appeared is
-    thinner than the page in front of the reader, and an index that only
-    names a series — "Lecture Notes in Computer Science" — is thinner than
-    a bibliography that names the conference. Last, wherever the index
-    found a copy — arXiv for a bare preprint — which is honest but is not
-    a venue, so it only speaks when nothing else does."""
+    """The index's venue, unless it is only a series and the bibliography
+    names the conference; else the venue as printed; else wherever the
+    index found a copy — arXiv for a bare preprint — which is honest but
+    is not a venue, so it speaks only when nothing else does."""
     host = summary.pop("host", None)
-    indexed = _tidy(summary.get("venue"))
-    printed = _tidy(getattr(reference, "journal", None))
-    if printed and biblio.generic_series(indexed):
+    indexed, printed = summary.get("venue"), getattr(reference, "journal", None)
+    if printed and (indexed or "").lower() in _SERIES:
         indexed = None
-    summary["venue"] = indexed or printed or _tidy(host)
-
-
-def _tidy(venue) -> str | None:
-    """CrossRef container titles wrap across lines and, for ACM
-    proceedings, end in the dash that preceded a dropped subtitle."""
-    if not venue:
-        return None
-    text = " ".join(str(venue).split()).rstrip(" -")
-    return text or None
+    summary["venue"] = indexed or printed or host
 
 
 def _bibliography_summary(reference) -> dict:
