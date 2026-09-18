@@ -619,6 +619,94 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.assertEqual(after[self.shown_copy], 1)
         self.assertEqual(after[self.hidden_copy], 0)
 
+    # --- the pull cursor ---------------------------------------------------
+
+    def test_a_change_log_written_without_a_growing_sequence_is_rebuilt(self):
+        """An ordinary integer key is the row id, and a row id is reused.
+
+        The log has always had entries removed from it, so an existing one
+        could hand the next change a sequence some replica had already gone
+        past — and that replica would pull nothing from then on, silently.
+        """
+        with sqlite3.connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE _server_change_log ("
+                "  sequence INTEGER PRIMARY KEY, user_uuid TEXT NOT NULL,"
+                "  table_name TEXT NOT NULL, row_uuid TEXT NOT NULL,"
+                "  revision INTEGER NOT NULL, operation TEXT NOT NULL,"
+                "  row_json TEXT NOT NULL, created_at TEXT NOT NULL)"
+            )
+            for sequence in (1, 2, 3):
+                db.execute(
+                    "INSERT INTO _server_change_log"
+                    "  (sequence, user_uuid, table_name, row_uuid, revision,"
+                    "   operation, row_json, created_at)"
+                    "  VALUES (?,?,'shelves',?,1,'upsert','{}',?)",
+                    (sequence, self.user, _uuid(), NOW),
+                )
+        self.upgrade()
+
+        # The entries it was holding are still there, with the sequences
+        # they had: the cursor a replica is carrying still means the same.
+        self.assertEqual(
+            [row[0] for row in self.rows("SELECT sequence FROM _server_change_log")],
+            [1, 2, 3],
+        )
+        with sqlite3.connect(self.path) as db:
+            db.execute("DELETE FROM _server_change_log")
+            db.execute(
+                "INSERT INTO _server_change_log"
+                "  (user_uuid, table_name, row_uuid, revision, operation,"
+                "   row_json, created_at) VALUES (?,'shelves',?,1,'upsert','{}',?)",
+                (self.user, _uuid(), NOW),
+            )
+        # Emptied and written to again, the next change comes after the
+        # last one written rather than after the last one kept.
+        self.assertEqual(
+            [row[0] for row in self.rows("SELECT sequence FROM _server_change_log")],
+            [4],
+        )
+
+    # --- indexes -----------------------------------------------------------
+
+    def test_every_index_the_models_declare_is_on_the_upgraded_database(self):
+        """An index is part of the schema, and arrives with the upgrade.
+
+        `create_all` skips a table it can already find, and with it every
+        index that table declares — so an index added to a model after its
+        table existed used to reach fresh databases and no other. The one
+        database it was written for, the one with the rows in it, kept
+        scanning.
+
+        The change log is here too, in the shape that makes the upgrade
+        rebuild it: a rebuild drops the table it is replacing, and the pass
+        that adds indexes has already run by then."""
+        with sqlite3.connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE _server_change_log ("
+                "  sequence INTEGER PRIMARY KEY, user_uuid TEXT NOT NULL,"
+                "  table_name TEXT NOT NULL, row_uuid TEXT NOT NULL,"
+                "  revision INTEGER NOT NULL, operation TEXT NOT NULL,"
+                "  row_json TEXT NOT NULL, created_at TEXT NOT NULL)"
+            )
+        self.upgrade()
+        import database
+
+        have = {
+            row[0] for row in self.rows(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        want = {
+            index.name: table.name
+            for table in database.Base.metadata.sorted_tables
+            for index in table.indexes
+        }
+        self.assertEqual(
+            sorted(name for name in want if name not in have), [],
+        )
+
 
 class FreshInstallTests(unittest.TestCase):
     def test_a_database_that_never_had_the_old_tables_upgrades_quietly(self):

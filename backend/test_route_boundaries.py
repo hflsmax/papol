@@ -1,4 +1,5 @@
 import ast
+from collections import Counter
 from pathlib import Path
 
 from main import app
@@ -48,13 +49,25 @@ def test_extracted_routes_keep_their_contract_and_domain_owner():
 
 
 def test_domain_routers_are_registered_once():
-    included = [
-        route.original_router
+    """Every extracted route reaches the app exactly once.
+
+    Asked of the routes the app actually serves, because that is the thing
+    that can go wrong: a router included twice, or a path a domain router
+    owns also declared on `main`, shadows one handler with another and the
+    request goes somewhere nobody meant. FastAPI copies a router's routes
+    into the app on include, so the router object itself is not on the far
+    side to be counted — an earlier version of this test looked for it
+    there, found nothing at all, and had been asserting 0 == 1 ever since.
+    """
+    served = Counter(
+        (method, route.path)
         for route in app.routes
-        if hasattr(route, "original_router")
-    ]
-    for router in (notifications_router, feedback_router, admin_router, sharables_router):
-        assert included.count(router) == 1
+        for method in getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}
+    )
+    duplicated = sorted(
+        contract for contract in EXPECTED_ROUTES if served[contract] != 1
+    )
+    assert duplicated == []
 
 
 def test_backend_layers_point_inward():

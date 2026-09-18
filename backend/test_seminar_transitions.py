@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 import main
 from database import Base, PapolSession, get_db
+from cohorts import key_of, paper_key_for
 from models import Copy, Paper, Room, Shelf
 from services.papers import paper_name
 
@@ -168,6 +169,116 @@ class SeminarTransitionTests(unittest.TestCase):
         )
         self.assertEqual(refused.status_code, 400)
         self.assertIn("no one else", refused.json()["detail"])
+
+    # --- a seminar survives the paper being corrected ----------------------
+
+    def test_a_seminar_follows_the_paper_when_its_title_is_corrected(self):
+        """Any user may fix a paper's metadata, for everyone.
+
+        A seminar is keyed by that metadata, so a correction used to leave
+        every seminar on the paper behind at a key nothing answered to."""
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
+
+        self.request("PUT", f"/api/papers/{paper_name(self.paper_sha256)}", json={
+            "title": "State Machines for Seminars (Corrected)",
+        })
+
+        page = self.request("GET", f"/api/papers/{paper_name(self.paper_sha256)}")
+        self.assertEqual([room["uuid"] for room in page["rooms"]], [called["uuid"]])
+        detail = self.request("GET", f"/api/rooms/{called['uuid']}")
+        self.assertEqual(detail["paper_sha256"], self.paper_sha256)
+        self.assertEqual(detail["paper_title"], "State Machines for Seminars (Corrected)")
+        self.assertTrue(detail["viewer_has_copy"])
+
+    def test_a_corrected_paper_cannot_be_called_to_a_second_seminar(self):
+        """The same seminar, so the guard against a second one still holds."""
+        self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
+        self.request("PUT", f"/api/papers/{paper_name(self.paper_sha256)}", json={
+            "doi": "10.1234/corrected",
+        })
+        again = self.client.post(
+            f"/api/papers/{paper_name(self.paper_sha256)}/room", headers=self.headers,
+        )
+        self.assertEqual(again.status_code, 400, again.text)
+        self.assertIn("already being organized", again.json()["detail"])
+
+    def test_a_seminar_stays_with_the_paper_that_still_answers_to_its_key(self):
+        """Two papers can be one work — a preprint and what it became.
+
+        When one of them is retitled, the seminar belongs to the other, which
+        still answers to the key it was called under."""
+        with self.sessions() as db:
+            shelf = db.query(Shelf).filter(Shelf.user_uuid == self.user_uuid).first()
+            twin = Paper(
+                title="State Machines for Seminars",
+                file_path="preprint.pdf", sha256="6" * 64,
+            )
+            db.add(twin)
+            db.flush()
+            db.add(Copy(paper=twin, shelf=shelf, user_uuid=self.user_uuid))
+            db.commit()
+            twin_sha256 = twin.sha256
+
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
+        self.request("PUT", f"/api/papers/{paper_name(self.paper_sha256)}", json={
+            "title": "State Machines for Seminars (Published)",
+        })
+
+        with self.sessions() as db:
+            room = db.query(Room).filter(Room.uuid == called["uuid"]).one()
+            self.assertEqual(room.paper_key, "title:state machines for seminars")
+        moved = self.request("GET", f"/api/papers/{paper_name(self.paper_sha256)}")
+        self.assertEqual(moved["rooms"], [])
+        stayed = self.request("GET", f"/api/papers/{paper_name(twin_sha256)}")
+        self.assertEqual([room["uuid"] for room in stayed["rooms"]], [called["uuid"]])
+
+    def test_a_cohort_reads_a_hidden_copy_by_the_paper_s_own_name(self):
+        """A viewer in the cohort who does not display the paper.
+
+        The room used to answer with the paper's `.uuid`, from when a paper
+        had one beside its digest, so this was a 500."""
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
+        with self.sessions() as db:
+            private = Shelf(
+                user_uuid=self.user_uuid, name="Private", color="#222222",
+                is_public=False,
+            )
+            db.add(private)
+            db.flush()
+            copy = db.query(Copy).filter(Copy.user_uuid == self.user_uuid).one()
+            copy.shelf = private
+            db.commit()
+
+        detail = self.request("GET", f"/api/rooms/{called['uuid']}")
+        self.assertEqual(detail["viewer_hidden_entry_sha256"], self.paper_sha256)
+
+
+class PaperKeyTests(unittest.TestCase):
+    """Two ways of reading one key, which have to agree.
+
+    `paper_key_for` takes a paper; `key_of` takes the two columns it is made
+    of, so a query can ask without loading every paper as a row. They are
+    the same rule written twice, and this is what holds them together.
+    """
+
+    CASES = (
+        ("10.1234/ABC", "A Title"),
+        ("  10.1234/abc  ", "A Title"),
+        (None, "  Mixed Case Title "),
+        ("", "Uber Kurz oder Lang"),
+        (None, "\u039c\u0388\u0393\u0391"),
+    )
+
+    def test_both_readings_of_a_key_agree(self):
+        for doi, title in self.CASES:
+            with self.subTest(doi=doi, title=title):
+                paper = Paper(doi=doi, title=title, file_path="x.pdf", sha256="0" * 64)
+                self.assertEqual(paper_key_for(paper), key_of(doi, title))
+
+    def test_a_title_keeps_the_case_folding_python_gives_it(self):
+        """SQLite's lower() would fold only the ASCII, which is why this key
+        is read in Python rather than in the query."""
+        self.assertEqual(key_of(None, "\u00dcber"), "title:\u00fcber")
 
 
 if __name__ == "__main__":

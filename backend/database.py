@@ -75,6 +75,26 @@ def _add_column_ddl(column) -> str:
     return CreateColumn(column).compile(dialect=engine.dialect).string
 
 
+def _add_missing_indexes(conn, table):
+    """Put up the indexes this table declares and does not have.
+
+    `create_all` only makes tables it cannot find, and it skips a table's
+    indexes along with the table. So an index declared on a model *after*
+    its table already existed is never created anywhere: the developer
+    writes `index=True`, every test passes against a fresh database that
+    got the index from `create_all`, and the one database it was meant for
+    — the one with the rows in it — goes on doing full scans. The rebuilds
+    above put back the indexes of the tables they rebuild, which is why
+    this was survivable, but a table nothing has had to rebuild has been
+    picking up nothing at all.
+
+    Written here rather than left to `create_all` because the index is the
+    only part of a model's schema that had no owner. A column has the pass
+    above; a table has `create_all`; an index had neither."""
+    for index in table.indexes:
+        conn.execute(CreateIndex(index, if_not_exists=True))
+
+
 # Columns the models no longer carry. A copy used to keep its own copy of
 # its shelf's visibility, under either spelling; the shelf answers for it
 # now, so the column is dropped rather than carried along as a second
@@ -1026,6 +1046,61 @@ def _forget_changes_no_replica_could_read(conn):
     )
 
 
+def _make_the_cursor_only_grow(conn):
+    """Rebuild the change log so its sequence cannot be handed out twice.
+
+    The column was an ordinary SQLite integer key, which is the row id, and
+    a row id is max + 1 of the rows still there. The log has always had
+    entries removed from it — an account closing takes its own, a merge
+    drops what it invalidated, a migration drops what no replica could read
+    — and every one of those could leave the next change carrying a number
+    some replica is already past. That replica would then pull nothing, for
+    good, and say nothing about it.
+
+    AUTOINCREMENT is the fix, and SQLite will not add it in place. The
+    rebuild carries the rows over with the sequences they have, which is
+    what sets the high-water mark: the next change comes after the last one
+    written rather than after the last one kept.
+
+    Its own existence is the record that it has run — found with
+    AUTOINCREMENT, there is nothing to do.
+    """
+    present = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "_server_change_log" not in present:
+        return  # fresh; create_all writes it the right way
+    declared = next(conn.execute(text(
+        "SELECT sql FROM sqlite_master WHERE type='table' "
+        "AND name='_server_change_log'"
+    )))[0] or ""
+    if "AUTOINCREMENT" in declared.upper():
+        return
+
+    table = Base.metadata.tables["_server_change_log"]
+    staging_metadata = MetaData()
+    for other in Base.metadata.tables.values():
+        if other.name != table.name:
+            other.to_metadata(staging_metadata)
+    staging = table.to_metadata(staging_metadata, name="_new_server_change_log")
+    conn.execute(text("DROP TABLE IF EXISTS _new_server_change_log"))
+    conn.execute(CreateTable(staging))
+    columns = ", ".join(f'"{column.name}"' for column in table.columns)
+    conn.execute(text(
+        f"INSERT INTO _new_server_change_log ({columns}) "
+        f"SELECT {columns} FROM _server_change_log ORDER BY sequence"
+    ))
+    conn.execute(text("DROP TABLE _server_change_log"))
+    conn.execute(text(
+        "ALTER TABLE _new_server_change_log RENAME TO _server_change_log"
+    ))
+    # A rebuild puts its own indexes back: the table it dropped took them
+    # with it, and the pass that would otherwise add them has already run.
+    _add_missing_indexes(conn, table)
+
+
 def migrate():
     """Retire obsolete tables and columns, and add columns an existing table
     lacks.
@@ -1068,9 +1143,13 @@ def migrate():
                     conn.execute(text(
                         f"ALTER TABLE {table.name} ADD COLUMN {_add_column_ddl(column)}"
                     ))
+            _add_missing_indexes(conn, table)
         # Last: the rebuild copies whatever the model declares, so every
         # column it declares has to be there to copy.
         _require_a_file(conn)
+        # Before anything is dropped from the log, so that what the rebuild
+        # carries over is what sets the high-water mark.
+        _make_the_cursor_only_grow(conn)
         # Later still: the log is judged against the shape every table
         # above has finished arriving at.
         _forget_changes_no_replica_could_read(conn)

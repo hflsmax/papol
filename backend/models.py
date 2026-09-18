@@ -113,8 +113,20 @@ class AppliedMutation(Base):
 class ServerChange(Base):
     """One committed synchronized row version, ordered for cursor pulls.
 
-    `sequence` is the pull cursor, not an identity: it only has to grow."""
+    `sequence` is the pull cursor, not an identity: it only has to grow.
+
+    Growing is the whole of what it has to do, and an ordinary SQLite
+    integer key does not do it. A key that is the row id takes max(id) + 1
+    of the rows that are *there*, so a log with entries removed from the end
+    — an account closed, a merge dropping what it invalidated, a replica
+    caught up and the entries it has taken let go of — hands the next change
+    a number that has been used. Every replica past that number then never
+    sees another change, because its cursor is already beyond them, and
+    nothing anywhere reports a problem. AUTOINCREMENT is what makes SQLite
+    remember the high-water mark instead.
+    """
     __tablename__ = "_server_change_log"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     sequence = Column(Integer, primary_key=True, autoincrement=True)
     user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=False, index=True)
@@ -544,7 +556,15 @@ class Sharable(Base):
 
 
 class Room(Base):
-    """A seminar cohort for a paper (keyed like the paper)."""
+    """A seminar cohort for a paper.
+
+    Keyed by the *work* rather than by the paper: a preprint and the
+    published version are two papers, each with its own copies and
+    annotations, and there is still only one conversation to be had about
+    them. So `paper_key` is the DOI, or the title when there is no DOI —
+    read off metadata any user may correct, which is why `cohorts.rekey_rooms`
+    exists to carry a seminar over when one of them does.
+    """
     __tablename__ = "rooms"
 
     uuid = uuid_key()

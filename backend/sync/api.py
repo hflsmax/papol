@@ -27,8 +27,9 @@ from services.client_requirements import (
     INCOMPATIBLE, client_version, requirements, verdict,
 )
 from sync.changes import prepare_sync_changes, row_snapshot
+from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
-from schemas import AnnotationCreate
+from schemas import AnnotationCreate, PaperMetadata
 from services.annotations import KINDS, NOTE
 from app_limits import limit, mebibytes
 
@@ -307,6 +308,21 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
     )
 
 
+def _check_paper_metadata(paper: Paper) -> None:
+    """Hold a paper to the one shape its record may take.
+
+    The same check the edit form makes, asked of the paper after the change
+    rather than of the change — a push may name one field, and what has to
+    be true is true of the row."""
+    try:
+        PaperMetadata.of(paper)
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error.errors(include_context=False, include_url=False),
+        )
+
+
 def _assign_values(db: Session, record, values: dict, user: User):
     if isinstance(record, Paper):
         # The PDF is the paper's identity: metadata may be corrected, but
@@ -317,8 +333,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key not in {"deleted_at", "sha256", "file_path"}:
                 setattr(record, key, value)
         record.title = (record.title or "").strip()
-        if not record.title or len(record.title) > limit("text", "source_label"):
-            raise HTTPException(status_code=422, detail="Paper title must be 1–500 characters")
+        _check_paper_metadata(record)
         return
     if isinstance(record, Board):
         if "shelf_uuid" in values:
@@ -518,7 +533,16 @@ def _apply_change(db: Session, change: RowChange, user: User):
             for item in record.items:
                 item.group = None
         elif isinstance(record, Shelf):
-            if record.is_default or any(copy.deleted_at is None for copy in record.copies):
+            # Its contents, all of them. A shelf holds boards as well as
+            # papers, and only the papers were counted — so a shelf could
+            # be deleted out from under its boards, which then named a
+            # shelf that was not there. The website moves both onto another
+            # shelf; here the answer is the message's own: move them first.
+            emptied = (
+                all(copy.deleted_at is not None for copy in record.copies)
+                and all(board.deleted_at is not None for board in record.boards)
+            )
+            if record.is_default or not emptied:
                 raise HTTPException(status_code=409, detail="Move shelf contents before deleting it")
     else:
         _assign_values(db, record, change.values, user)
@@ -793,6 +817,14 @@ def pull(
         client.app_version = (
             client_version(request.headers.get("user-agent")) or client.app_version
         )
+        db.flush()
+        # A replica moving its cursor forward is the only moment anything
+        # learns that a change has been taken everywhere it was going. It
+        # is where the log stops being needed, so it is where the log is
+        # let go of, and the reply this client can no longer be retrying
+        # goes with it.
+        forget_acknowledged_changes(db, user.uuid)
+        forget_old_replays(db, user.uuid)
         db.commit()
     records = db.query(ServerChange).filter(
         ServerChange.user_uuid == user.uuid,

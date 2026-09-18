@@ -1,10 +1,13 @@
+import copy
 import sqlite3
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from sqlalchemy.sql.sqltypes import Boolean, DateTime, Float, Integer
 
-from sync.registry import MODELS, registry, validate_registry
+from models import Board, BoardItem, Copy
+from sync.registry import MODELS, owner_uuid, registry, validate_registry
 
 
 def sqlite_type(column):
@@ -49,6 +52,85 @@ class SharedSyncSchemaTests(unittest.TestCase):
                 )
         finally:
             connection.close()
+
+
+class EveryColumnIsPlacedTests(unittest.TestCase):
+    """A column the registry does not describe is the drift this catches.
+
+    It is the quiet kind: nothing fails, the push path simply refuses a
+    field it was never told about, and the desktop loses an edit the website
+    has. Each of these breaks the registry in one way and checks that
+    startup says so.
+    """
+
+    def rule_with(self, table_name, **changes):
+        altered = copy.deepcopy(registry())
+        altered["tables"][table_name].update(changes)
+        return mock.patch("sync.registry.registry", return_value=altered)
+
+    def test_a_column_placed_nowhere_is_refused(self):
+        with self.rule_with("copies", server_owned=[]):
+            with self.assertRaises(RuntimeError) as caught:
+                validate_registry()
+        self.assertIn("thought", str(caught.exception))
+
+    def test_a_key_nothing_reads_is_refused(self):
+        with self.rule_with("copies", conflict="last-write-wins"):
+            with self.assertRaises(RuntimeError) as caught:
+                validate_registry()
+        self.assertIn("conflict", str(caught.exception))
+
+    def test_a_table_must_say_whose_its_rows_are(self):
+        altered = copy.deepcopy(registry())
+        del altered["tables"]["tags"]["owner"]
+        with mock.patch("sync.registry.registry", return_value=altered):
+            with self.assertRaises(RuntimeError) as caught:
+                validate_registry()
+        self.assertIn("tags", str(caught.exception))
+
+    def test_an_owner_path_that_does_not_resolve_is_refused(self):
+        with self.rule_with("board_items", owner="shelf.user_uuid"):
+            with self.assertRaises(RuntimeError) as caught:
+                validate_registry()
+        self.assertIn("shelf", str(caught.exception))
+
+    def test_a_client_cannot_be_given_the_column_that_says_whose_a_row_is(self):
+        with self.rule_with(
+            "copies",
+            client_writable=[*registry()["tables"]["copies"]["client_writable"], "user_uuid"],
+        ):
+            with self.assertRaises(RuntimeError) as caught:
+                validate_registry()
+        self.assertIn("user_uuid", str(caught.exception))
+
+    def test_a_column_cannot_be_both_the_clients_and_the_services(self):
+        with self.rule_with("copies", server_owned=["thought", "is_author", "summary"]):
+            with self.assertRaises(RuntimeError) as caught:
+                validate_registry()
+        self.assertIn("summary", str(caught.exception))
+
+
+class OwnerPathTests(unittest.TestCase):
+    """The registry's owner path is what files a change under a user."""
+
+    def test_a_row_that_holds_its_owner_answers_directly(self):
+        self.assertEqual(owner_uuid(None, Copy(user_uuid="u1")), "u1")
+
+    def test_a_row_reaches_its_owner_through_its_parent(self):
+        item = BoardItem(board=Board(user_uuid="u2"))
+        self.assertEqual(owner_uuid(None, item), "u2")
+
+    def test_a_paper_belongs_to_nobody(self):
+        self.assertIsNone(registry()["tables"]["papers"]["owner"])
+
+    def test_a_row_with_no_parent_to_reach_says_so(self):
+        with self.assertRaises(RuntimeError):
+            owner_uuid(_NoSession(), BoardItem(board_uuid=None))
+
+
+class _NoSession:
+    def get(self, model, key):
+        return None
 
 
 if __name__ == "__main__":

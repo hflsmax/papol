@@ -42,11 +42,12 @@
         "width",
         "deleted_at"
       ],
-      "blob_columns": [
-        "sha256"
+      "server_owned": [
+        "file_path"
       ]
     },
     "papers": {
+      "owner": null,
       "create_only": true,
       "client_writable": [
         "doi",
@@ -55,9 +56,6 @@
         "journal",
         "year",
         "file_path",
-        "sha256"
-      ],
-      "blob_columns": [
         "sha256"
       ],
       "server_columns": [
@@ -87,6 +85,10 @@
         "color",
         "position",
         "deleted_at"
+      ],
+      "server_owned": [
+        "is_public",
+        "is_default"
       ]
     },
     "tags": {
@@ -106,6 +108,10 @@
         "rating_reading",
         "rating_liking",
         "deleted_at"
+      ],
+      "server_owned": [
+        "thought",
+        "is_author"
       ]
     },
     "copy_tags": {

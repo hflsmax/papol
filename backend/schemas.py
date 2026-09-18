@@ -406,7 +406,8 @@ class RoomDetail(RoomSummary):
     viewer_can_lead: bool = False
     viewer_is_participant: bool = False
     viewer_has_copy: bool = False
-    viewer_hidden_entry_sha256: Optional[str] = None  # paper UUID, if viewer's copy is hidden
+    # The paper's digest, when the viewer keeps it but does not display it.
+    viewer_hidden_entry_sha256: Optional[str] = None
 
 
 class RoomMessageCreate(BaseModel):
@@ -523,13 +524,51 @@ class PaperCreate(PaperBase):
     shelf_uuid: Optional[str] = None
 
 
+class PaperMetadata(BaseModel):
+    """What a paper's own record may say.
+
+    One shape whoever is writing it. The edit form on the website and a
+    replica's push both arrive here, so a title the website accepts is one
+    the Mac can push back — before this, the website took a title of any
+    length and the push path refused anything over 500 characters, which
+    read as an edit that saved and then would not synchronize.
+
+    A paper's title is the one thing it must have: a paper with no title is
+    a row nobody can find again."""
+    doi: Optional[str] = Field(default=None, max_length=limit("text", "paper_doi"))
+    title: str = Field(min_length=1, max_length=limit("text", "paper_title"))
+    authors: Optional[str] = Field(default=None, max_length=limit("text", "paper_authors"))
+    journal: Optional[str] = Field(default=None, max_length=limit("text", "paper_journal"))
+    year: Optional[int] = Field(
+        default=None,
+        ge=limit("publication_year", "min"),
+        le=limit("publication_year", "max"),
+    )
+
+    @classmethod
+    def of(cls, paper) -> "PaperMetadata":
+        """The metadata a stored paper is carrying, for checking it."""
+        return cls(
+            doi=paper.doi, title=paper.title, authors=paper.authors,
+            journal=paper.journal, year=paper.year,
+        )
+
+
 class PaperUpdate(BaseModel):
-    # Shared metadata (any user; applies to the one canonical paper)
-    doi: Optional[str] = None
-    title: Optional[str] = None
-    authors: Optional[str] = None
-    journal: Optional[str] = None
-    year: Optional[int] = None
+    # Shared metadata (any user; applies to the one canonical paper). Held
+    # to the same limits as PaperMetadata, which is what the paper ends up
+    # being checked against whichever way the edit arrived.
+    doi: Optional[str] = Field(default=None, max_length=limit("text", "paper_doi"))
+    title: Optional[str] = Field(
+        default=None, min_length=1, max_length=limit("text", "paper_title"),
+    )
+    authors: Optional[str] = Field(default=None, max_length=limit("text", "paper_authors"))
+    journal: Optional[str] = Field(default=None, max_length=limit("text", "paper_journal"))
+    year: Optional[int] = Field(
+        default=None,
+        ge=limit("publication_year", "min"),
+        le=limit("publication_year", "max"),
+    )
     # Personal fields (the viewer's own copy)
     summary: Optional[str] = None
     thought: Optional[str] = Field(default=None, max_length=limit("text", "paper_thought"))

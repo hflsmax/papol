@@ -55,7 +55,7 @@ from schemas import (
     ProfileUpdate, PasswordChange, AccountDeletion, UserEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
-    PaperCreate, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
+    PaperCreate, PaperMetadata, PaperUpdate, Paper as PaperSchema, PaperList, UserSpace,
     ExtractedMetadata, ReextractedMetadata, NookStats,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     AnnotationCreate, AnnotationUpdate, AnnotationOut,
@@ -78,7 +78,14 @@ from pdf_parser import (
 import grobid
 import biblio
 import metadata_lookup
-from cohorts import in_active_cohort as _in_active_cohort, paper_key_for as _paper_key_for
+from cohorts import (
+    cohort_user_uuids as _paper_user_uuids,
+    in_active_cohort as _in_active_cohort,
+    key_of as _key_of,
+    paper_key_for as _paper_key_for,
+    papers_with_key as _papers_for_key,
+    rekey_rooms as _rekey_rooms,
+)
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
 )
@@ -370,8 +377,14 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 # Serve uploaded files
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
-# Serve frontend assets
-app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
+# Serve frontend assets. Mounted only when the build is there, like the
+# viewer and the board below it. An unguarded mount raises at import, so a
+# backend started or a test run against a checkout that has not been built
+# yet died with "Directory 'frontend/dist/assets' does not exist" — a
+# missing frontend reported as a broken service. Without the build the API
+# still answers; what is gone is the website, and `serve_frontend` says so.
+if (FRONTEND_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
 # The PDF viewer is its own app with its own build; Papol serves it at
 # /viewer so it shares this origin — and therefore the user's session —
@@ -1509,7 +1522,7 @@ async def list_users(
             display_name=u.display_name,
             affiliation=u.affiliation,
             avatar_path=u.avatar_path,
-            paper_count=sum(1 for r in u.copies if r.is_public),
+            paper_count=sum(1 for r in _live(u.copies) if r.is_public),
         )
         for u in users
     ]
@@ -1523,11 +1536,23 @@ def _room_status_map(db: Session) -> dict:
     return status_map
 
 
+def _live(rows) -> list:
+    """The rows that are still there.
+
+    A removed row is kept as a tombstone so every replica hears about the
+    removal, and a relationship hands those back along with the rest. Every
+    path that asks the database filters them; the paths that walk a loaded
+    row's relationships have to do it themselves, and a count that forgets
+    is a shelf saying it holds seven papers above a list of five."""
+    return [row for row in rows if row.deleted_at is None]
+
+
 def _shelf_out(shelf: Shelf) -> ShelfOut:
     return ShelfOut(
         uuid=shelf.uuid, name=shelf.name, color=shelf.color,
         is_public=bool(shelf.is_public), is_default=bool(shelf.is_default),
-        position=shelf.position, paper_count=len(shelf.copies), board_count=len(shelf.boards),
+        position=shelf.position,
+        paper_count=len(_live(shelf.copies)), board_count=len(_live(shelf.boards)),
     )
 
 
@@ -1704,7 +1729,8 @@ async def get_user_space(
         boards=[_board_out(board, can_edit=not hide_private) for board in boards],
         stats=stats,
         tags=(
-            [TagOut.model_validate(t) for t in sorted(user.tags, key=lambda t: t.name.lower())]
+            [TagOut.model_validate(t)
+             for t in sorted(_live(user.tags), key=lambda t: t.name.lower())]
             if not hide_private else []
         ),
         shelves=[
@@ -1829,19 +1855,6 @@ async def extract_paper_metadata(
     return ExtractedMetadata(**metadata)
 
 
-
-
-def _papers_for_key(db: Session, key: str) -> list[Paper]:
-    return [p for p in db.query(Paper).all() if _paper_key_for(p) == key]
-
-
-def _paper_user_uuids(db: Session, key: str, public_only: bool = True) -> set[str]:
-    return {
-        r.user_uuid
-        for p in _papers_for_key(db, key)
-        for r in p.copies
-        if r.is_public or not public_only
-    }
 
 
 def _notify(db: Session, user_uuids, room: Room, content: str):
@@ -2289,8 +2302,26 @@ async def update_paper(
             raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
 
+    # A seminar remembers the key it was called under, and that key is read
+    # off the very metadata being edited here. Noted before the edit so the
+    # seminars standing on it can be carried over rather than stranded.
+    was = _paper_key_for(paper)
     for key, value in metadata.items():
         setattr(paper, key, value)
+    if metadata:
+        if paper.title is not None:
+            paper.title = paper.title.strip()
+        # The same shape a replica's push is held to, asked of the paper
+        # after the edit rather than of the edit: one field may arrive, and
+        # what has to be true is true of the row.
+        try:
+            PaperMetadata.of(paper)
+        except ValidationError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=error.errors(include_context=False, include_url=False),
+            )
+        _rekey_rooms(db, paper, was)
 
     commit_sync(db)
     db.refresh(paper)
@@ -2399,7 +2430,8 @@ async def update_shelf(
     if "is_public" in changes and bool(changes["is_public"]) != bool(shelf.is_public):
         becoming_public = bool(changes["is_public"])
         if not becoming_public:
-            blocked = [c for c in shelf.copies if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
+            blocked = [c for c in _live(shelf.copies)
+                       if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
             if blocked:
                 raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
         # Every copy on the shelf moves with it, because none of them was
@@ -2429,7 +2461,7 @@ async def delete_shelf(
     destination = next((item for item in remaining if item.is_default), remaining[0])
     if not destination.is_public:
         blocked = [
-            copy for copy in shelf.copies
+            copy for copy in _live(shelf.copies)
             if copy.is_public and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
         ]
         if blocked:
@@ -2938,9 +2970,13 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
     has read: the user can open it rather than leave. Matched on the same
     key papers are deduplicated by, so this agrees with Papol's own idea of
     when two papers are the same paper."""
+    # The two columns a key is made of, not the papers themselves: this runs
+    # once per reference list a viewer opens, and loading every paper in the
+    # Library as a row — with its copies waiting to be fetched behind it —
+    # was most of the cost of showing a bibliography.
     by_key = {}
-    for paper in db.query(Paper).all():
-        by_key.setdefault(_paper_key_for(paper), paper.sha256)
+    for sha256, doi, title in db.query(Paper.sha256, Paper.doi, Paper.title):
+        by_key.setdefault(_key_of(doi, title), sha256)
 
     found = {}
     for reference in references:
@@ -3115,7 +3151,8 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     users_displaying = _paper_user_uuids(db, room.paper_key, public_only=True)
 
     # The canonical paper this room is about, and the viewer's copy of it
-    paper = next(iter(_papers_for_key(db, room.paper_key)), None)
+    digest = next(iter(_papers_for_key(db, room.paper_key)), None)
+    paper = db.get(Paper, digest) if digest else None
     own = _copy_of(paper, viewer) if paper else None
     # Every paper has a page and this viewer is signed in, so the cohort
     # always names the paper it is about. Whether the viewer keeps a copy,
@@ -3139,7 +3176,11 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
         and any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_is_participant=any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_has_copy=viewer.uuid in users_displaying,
-        viewer_hidden_entry_sha256=hidden_entry.uuid if hidden_entry else None,
+        # The paper's own name, which is its file's digest. It read
+        # `.uuid` here, from when a paper had one beside the digest; a
+        # paper has not carried a UUID since it became its file, so every
+        # cohort a viewer held a hidden copy in answered with a 500.
+        viewer_hidden_entry_sha256=hidden_entry.sha256 if hidden_entry else None,
     )
 
 
@@ -3471,10 +3512,26 @@ async def finish_room(
 _REVALIDATE = {"Cache-Control": "public, max-age=0, must-revalidate"}
 
 
+def _frontend_document() -> FileResponse:
+    """The SPA document, or a plain answer when there is no build to serve.
+
+    A checkout that has not been built has no index.html, and reading one
+    that is not there is an unhandled error the admin sees as a 500 with a
+    traceback. The API is fine in that state; it is the website that is
+    missing, so say that instead."""
+    index = FRONTEND_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="The Papol website has not been built; run deploy.sh to build it.",
+        )
+    return FileResponse(index, headers=_REVALIDATE)
+
+
 @app.get("/")
 async def serve_frontend():
     """Serve the frontend index.html."""
-    return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)
+    return _frontend_document()
 
 
 @app.get("/{frontend_path:path}")
@@ -3488,4 +3545,4 @@ async def serve_frontend_path(frontend_path: str):
     candidate = (FRONTEND_DIR / frontend_path).resolve()
     if candidate.parent == FRONTEND_DIR.resolve() and candidate.is_file():
         return FileResponse(candidate, headers=_REVALIDATE)
-    return FileResponse(FRONTEND_DIR / "index.html", headers=_REVALIDATE)
+    return _frontend_document()

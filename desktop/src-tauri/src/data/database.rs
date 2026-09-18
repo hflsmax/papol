@@ -124,9 +124,12 @@ impl LocalStore {
             let rule = registry["tables"]
                 .get(&change.table)
                 .ok_or_else(|| format!("{} is not synchronized", change.table))?;
-            if rule["read_only"].as_bool() == Some(true) {
-                return Err(format!("{} is read-only on this device", change.table));
-            }
+            // What a replica may write is `client_writable` and nothing
+            // else. There used to be a whole-table `read_only` switch read
+            // here, which no table ever set — a guard that looked like it
+            // was in force and was not. A table nothing may write is one
+            // with an empty `client_writable`, which this already refuses,
+            // one column at a time and saying which.
             let writable: HashSet<&str> = rule["client_writable"]
                 .as_array()
                 .ok_or("Invalid embedded sync registry")?
