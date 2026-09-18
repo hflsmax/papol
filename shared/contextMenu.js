@@ -63,7 +63,7 @@ const STYLE = `
 
 let current = null;
 
-export function closeContextMenu() {
+function closeContextMenu() {
   current?.close();
 }
 
@@ -285,9 +285,7 @@ export function contextMenuHandler(build) {
 // nothing, as in a native app — the web view's menu offers Reload and Inspect
 // Element. Text fields, links and selected text keep the system's menu (Cut,
 // Copy, Paste, Look Up), and ⌥ brings the web view's back anywhere.
-let quietInstalled = false;
-if (DESKTOP && typeof document !== 'undefined' && !quietInstalled) {
-  quietInstalled = true;
+if (DESKTOP) {
   document.addEventListener('contextmenu', (event) => {
     if (event.defaultPrevented) return;
     closeContextMenu();

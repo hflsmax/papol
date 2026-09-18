@@ -5,35 +5,27 @@ function entryName(name) {
 }
 
 export function markViewerPerformance(name, detail) {
-  if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return;
   const fullName = entryName(name);
-  if (performance.getEntriesByName?.(fullName, 'mark').length) return;
-  try {
-    performance.mark(fullName, detail === undefined ? undefined : { detail });
-  } catch {
-    // Older embedded WebKit versions support marks but not mark details.
-    performance.mark(fullName);
-  }
+  if (performance.getEntriesByName(fullName, 'mark').length) return;
+  performance.mark(fullName, detail === undefined ? undefined : { detail });
 }
 
 export function measureViewerPerformance(name, start, end) {
-  if (typeof performance === 'undefined' || typeof performance.measure !== 'function') return;
   const fullName = entryName(name);
-  if (performance.getEntriesByName?.(fullName, 'measure').length) return;
+  if (performance.getEntriesByName(fullName, 'measure').length) return;
   const startName = entryName(start);
   const endName = entryName(end);
-  if (!performance.getEntriesByName?.(startName, 'mark').length ||
-      !performance.getEntriesByName?.(endName, 'mark').length) return;
+  if (!performance.getEntriesByName(startName, 'mark').length ||
+      !performance.getEntriesByName(endName, 'mark').length) return;
   performance.measure(fullName, startName, endName);
 }
 
 function markTime(name) {
-  return performance.getEntriesByName?.(entryName(name), 'mark')[0]?.startTime ?? null;
+  return performance.getEntriesByName(entryName(name), 'mark')[0]?.startTime ?? null;
 }
 
 /** Durations that explain what was visible before the first PDF page arrived. */
 export function viewerOpeningTimings(native = {}) {
-  if (typeof performance === 'undefined') return [];
   const bootstrap = markTime('bootstrap');
   const shell = markTime('shell-committed');
   const requested = markTime('pdf-bytes-requested');
@@ -44,7 +36,7 @@ export function viewerOpeningTimings(native = {}) {
   const renderStarted = markTime('first-page-render-started');
   const canvasStarted = markTime('first-page-canvas-started');
   const painted = markTime('first-page-painted');
-  const browserPaints = performance.getEntriesByType?.('paint') || [];
+  const browserPaints = performance.getEntriesByType('paint');
   const firstPaint = browserPaints.find((entry) => entry.name === 'first-paint')?.startTime ?? null;
   const firstContentfulPaint = browserPaints
     .find((entry) => entry.name === 'first-contentful-paint')?.startTime ?? null;
@@ -93,20 +85,15 @@ export function viewerOpeningTimings(native = {}) {
 /** Run once when a named milestone is marked, including older WebKit. */
 export function observeViewerPerformanceMark(name, callback) {
   const fullName = entryName(name);
-  if (performance.getEntriesByName?.(fullName, 'mark').length) {
+  if (performance.getEntriesByName(fullName, 'mark').length) {
     queueMicrotask(callback);
     return () => {};
   }
-  if (typeof PerformanceObserver !== 'function') return () => {};
   const observer = new PerformanceObserver((list) => {
     if (!list.getEntries().some((entry) => entry.name === fullName)) return;
     observer.disconnect();
     callback();
   });
-  try {
-    observer.observe({ type: 'mark', buffered: true });
-  } catch {
-    observer.observe({ entryTypes: ['mark'] });
-  }
+  observer.observe({ type: 'mark', buffered: true });
   return () => observer.disconnect();
 }

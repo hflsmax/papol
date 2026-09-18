@@ -82,13 +82,13 @@ export function createPinchScheduler({
 }
 
 /** Cache stable page/inner pairs so a pinch frame does no selector work. */
-export function createZoomPageCache({ enabled = true } = {}) {
+export function createZoomPageCache() {
   let root = null;
   let pages = [];
 
   return {
     get(nextRoot) {
-      if (!enabled || root !== nextRoot) {
+      if (root !== nextRoot) {
         root = nextRoot;
         pages = nextRoot
           ? [...nextRoot.querySelectorAll('.pdf-page')].map((page) => ({

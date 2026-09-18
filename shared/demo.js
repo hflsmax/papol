@@ -7,19 +7,10 @@
 import {
   demoPapers, demoNotes, demoPaperSha256, noteAsComment,
 } from './demoWorld.js';
-import { inDemo } from './appUrls.js';
 import { PAPER_NAME_PATTERN, paperName } from './paperName.js';
 import appLimits from './appLimits.js';
 
-export function demoActive() {
-  return inDemo();
-}
-
-export function enterDemo() {
-  db = null;
-}
-
-export function exitDemo() {
+export function resetDemo() {
   db = null;
 }
 
@@ -128,8 +119,7 @@ function seed() {
   // The hint has done its work; a copy carries no visibility of its own.
   for (const item of copies) delete item.onDisplay;
 
-  // SpongeBob's notes, as the API would return them. Bare anchors and his
-  // Bare anchors are comments too, exactly as they are on the server.
+  // SpongeBob's notes, as the API would return them.
   const comments = demoNotes.map((n) => noteAsComment(n, ME, daysAgo));
 
 
@@ -190,10 +180,7 @@ if (navigation?.type === 'reload') {
 
 function storedWorld() {
   try {
-    const value = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
-    return value && Array.isArray(value.papers) && Array.isArray(value.copies)
-      ? value
-      : null;
+    return JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
   } catch {
     return null;
   }
@@ -240,7 +227,7 @@ const copyOf = (p, uid) => paperCopies(p).find((c) => c.user_uuid === uid) || nu
 const roomParts = (r) => ensure().participants.filter((x) => x.room_uuid === r.uuid);
 
 const userEntry = (c) => ({
-  paper_sha256: c.paper_sha256, user: publicUser(userByUuid(c.user_uuid)),
+  user: publicUser(userByUuid(c.user_uuid)),
   is_author: !!c.is_author,
   thought: c.thought,
   rating_expertise: c.rating_expertise, rating_reading: c.rating_reading,
@@ -253,7 +240,6 @@ const roomSummary = (r) => ({
   created_at: r.created_at,
   creator: publicUser(userByUuid(r.created_by)),
   leader: r.leader_uuid ? publicUser(userByUuid(r.leader_uuid)) : null,
-  participant_count: roomParts(r).length,
   participants: roomParts(r).map((x) => publicUser(userByUuid(x.user_uuid))),
 });
 
@@ -282,8 +268,6 @@ function paperDetail(p) {
       : [],
     also_read_by: displayedCopies(p).map(userEntry),
     rooms: paperRooms(p).map(roomSummary),
-    viewer_has_copy: onDisplay(mine),
-    viewer_has_entry: !!mine,
   };
 }
 
@@ -327,12 +311,7 @@ function roomDetail(r) {
       .map((m) => ({ uuid: m.uuid, content: m.content, created_at: m.created_at, user: publicUser(userByUuid(m.user_uuid)) })),
     availabilities: d.availabilities.filter((a) => a.room_uuid === r.uuid)
       .map((a) => ({ uuid: a.uuid, availability: a.availability, created_at: a.created_at, user: publicUser(userByUuid(a.user_uuid)) })),
-    viewer_can_lead:
-      r.status === 'open' && hasCopy &&
-      roomParts(r).some((x) => x.user_uuid === ME),
-    viewer_is_participant: roomParts(r).some((x) => x.user_uuid === ME),
-    viewer_has_copy: hasCopy,
-    viewer_hidden_entry_sha256: mine && !onDisplay(mine) && paper ? paper.sha256 : null,
+    viewer_copy_is_public: hasCopy,
   };
 }
 
@@ -411,8 +390,8 @@ async function routeDemoRequest(path, options = {}) {
     }));
   }
   if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
-  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length }));
-  if ((m = path.match(/^\/users\/([0-9a-f-]{36})\/space$/))) {
+  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length, board_count: 0 }));
+  if ((m = path.match(/^\/users\/([0-9a-f-]{36})\/nook$/))) {
     const u = userByUuid(m[1]);
     if (!u) throw demoError('User not found', 404);
     const own = u.uuid === ME;
@@ -429,7 +408,7 @@ async function routeDemoRequest(path, options = {}) {
           seminars: d.participants.filter((x) => x.user_uuid === u.uuid).length,
         }
       : null;
-    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === u.uuid && copy.shelf_uuid === shelf.uuid).length })) };
+    return { user: publicUser(u), papers: list, boards: [], stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === u.uuid && copy.shelf_uuid === shelf.uuid).length, board_count: 0 })) };
   }
 
   if (path === '/shelves' && method === 'POST') {
@@ -438,14 +417,14 @@ async function routeDemoRequest(path, options = {}) {
     }
     const shelf = { uuid: newUuid(), name: body.name, color: body.color, is_public: !!body.is_public, is_default: false, position: d.shelves.length };
     d.shelves.push(shelf);
-    return { ...shelf, paper_count: 0 };
+    return { ...shelf, paper_count: 0, board_count: 0 };
   }
   if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const shelf = d.shelves.find((item) => item.uuid === m[1]);
     if (!shelf) throw demoError('Shelf not found', 404);
     if (body.is_default) for (const item of d.shelves) item.is_default = item === shelf;
     Object.assign(shelf, body);
-    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length };
+    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length, board_count: 0 };
   }
   if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
     const shelf = d.shelves.find((item) => item.uuid === m[1]);
@@ -533,7 +512,7 @@ async function routeDemoRequest(path, options = {}) {
     const paper = findPaper(m[1]);
     return ensure().comments
       .filter((c) => c.paper_sha256 === paper.sha256 && c.user_uuid === ME)
-      .map((c) => ({ ...c, kind: c.kind || 'note', body: c.body || {} }));
+;
   }
   if ((m = path.match(/^\/annotations\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const c = d.comments.find((x) => x.uuid === m[1] && x.user_uuid === ME);
@@ -542,7 +521,7 @@ async function routeDemoRequest(path, options = {}) {
     if (body.name !== undefined) c.name = body.name;
     if (body.page !== undefined) c.page = body.page;
     if (body.body !== undefined) c.body = { ...(c.body || {}), ...body.body };
-    return { ...c, kind: c.kind || 'note', body: c.body || {} };
+    return c;
   }
   if ((m = path.match(/^\/annotations\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
     const i = d.comments.findIndex((c) => c.uuid === m[1] && c.user_uuid === ME);
@@ -721,7 +700,6 @@ async function routeDemoRequest(path, options = {}) {
     const mine = d.notifications.filter((n) => n.user_uuid === ME)
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     return {
-      unread_count: mine.filter((n) => !n.read).length,
       notifications: mine.map(({ user_uuid, ...n }) => n),
     };
   }

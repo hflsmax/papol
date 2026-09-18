@@ -118,7 +118,6 @@ jobs:
           xcrun notarytool submit "$dmg" --wait \
             --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
           xcrun stapler staple "$dmg"
-          xcrun stapler validate "$dmg"
           mkdir -p release
           mv "$dmg" "release/Papol_${VERSION}_macOS_${{ matrix.label }}.dmg"
 

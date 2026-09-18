@@ -5,5 +5,5 @@ import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { configureNetworkFetch } from '../../shared/connectivity.js';
 import { configureNativeBridge } from '../../shared/nativeData.js';
 
-configureNetworkFetch(IS_DESKTOP ? tauriHttpFetch : (...args) => window.fetch(...args));
+if (IS_DESKTOP) configureNetworkFetch(tauriHttpFetch);
 configureNativeBridge({ invoke, listen });

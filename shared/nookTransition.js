@@ -1,6 +1,5 @@
 export function planOfflineNookAddition(paper, shelves, createUuid) {
-  const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
-    || shelves[0];
+  const shelf = shelves.find((row) => row.is_default) || shelves[0];
   const copyUuid = createUuid();
   return {
     copyUuid,

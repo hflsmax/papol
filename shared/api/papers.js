@@ -47,7 +47,7 @@ export async function listPapers() {
 }
 
 export async function lookupPaperMetadata(file, filename = file?.name) {
-  if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
+  if (inOfflineMode()) return null;
   const formData = new FormData();
   if (filename) formData.append('file', file, filename);
   else formData.append('file', file);
@@ -102,18 +102,16 @@ export async function createPaper(paperData) {
     const localShelves = await nativeRepository.shelves();
     let shelfUuid = paperData.shelf_uuid;
     const selectedShelf = localShelves.find((shelf) => shelf.uuid === shelfUuid);
-    if (selectedShelf && (selectedShelf.is_public === true || selectedShelf.is_public === 1)) {
-      shelfUuid = localShelves.find((shelf) => !(shelf.is_public === true || shelf.is_public === 1))?.uuid
-        ?? shelfUuid;
+    if (selectedShelf?.is_public) {
+      shelfUuid = localShelves.find((shelf) => !shelf.is_public)?.uuid ?? shelfUuid;
     }
     // The paper is the file: its name is read off the bytes, not invented.
     // Minting one here is what the service would have had to undo, and it
     // would refuse a paper named any other way.
-    const paperSha256 = sha256;
     const copyUuid = newUuid();
     const changes = [
       {
-        table: 'papers', uuid: paperSha256, operation: 'upsert',
+        table: 'papers', uuid: sha256, operation: 'upsert',
         values: {
           doi: paperData.doi, title: paperData.title, authors: paperData.authors,
           journal: paperData.journal, year: paperData.year,
@@ -123,7 +121,7 @@ export async function createPaper(paperData) {
       {
         table: 'copies', uuid: copyUuid, operation: 'upsert',
         values: {
-          paper_sha256: paperSha256, shelf_uuid: shelfUuid,
+          paper_sha256: sha256, shelf_uuid: shelfUuid,
           summary: paperData.summary,
         },
       },
@@ -137,14 +135,14 @@ export async function createPaper(paperData) {
       // about the paper, placed on no page.
       table: 'annotations', uuid: newUuid(), operation: 'upsert',
       values: {
-        kind: 'note', paper_sha256: paperSha256, page: null, group_uuid: null,
+        kind: 'note', paper_sha256: sha256, page: null, group_uuid: null,
         content: paperData.initial_comment.trim(), name: null, body: '{}',
       },
     });
     await nativeRepository.transact(changes);
     forgetPendingPaperBlob(sha256);
-    setPaperCopyUuid(paperSha256, copyUuid);
-    return paperView(await nativeRepository.paper(paperName(paperSha256)));
+    setPaperCopyUuid(sha256, copyUuid);
+    return paperView(await nativeRepository.paper(paperName(sha256)));
   }
   return jsonRequest('/papers', 'POST', paperData);
 }
@@ -154,7 +152,7 @@ export async function createPaper(paperData) {
 // stopping one and making one both happen on the service — so not being able
 // to ask is no reason to fail to open the paper.
 async function liveLinkOn(uuid) {
-  if (inOfflineMode() || globalThis.navigator?.onLine === false) return null;
+  if (inOfflineMode()) return null;
   try {
     return (await mySharable(uuid))?.uuid ?? null;
   } catch {
@@ -169,7 +167,7 @@ export async function getPaper(name) {
     // A nook paper is read from the replica: the server may not have it yet,
     // or may be out of reach.
     try {
-      localComments = nativeRepository.annotations(uuid, null, 'note');
+      localComments = nativeRepository.annotations(uuid, 'note');
       // A link out is a state of the paper, but the replica has no sharables
       // to answer with, so it is asked for beside the paper rather than after
       // it: one round trip alongside the local reads costs the page nothing.
@@ -189,7 +187,7 @@ export async function getPaper(name) {
   }
   const localState = nativeDataActive()
     ? Promise.all([
-      localComments || nativeRepository.annotations(uuid, null, 'note'),
+      localComments || nativeRepository.annotations(uuid, 'note'),
       nativeRepository.nook(),
     ])
     : null;
@@ -208,13 +206,12 @@ export async function getPaper(name) {
         thought: copy.thought,
         // On display is the shelf's answer, so the shelf is where it is
         // read from; a copy on no shelf has nothing standing behind it.
-        is_public: (nook.shelves || []).some((shelf) => shelf.uuid === copy.shelf_uuid
-          && (shelf.is_public === true || shelf.is_public === 1)),
-        is_author: copy.is_author === true || copy.is_author === 1,
+        is_public: nook.shelves.some((shelf) => shelf.uuid === copy.shelf_uuid && shelf.is_public),
+        is_author: Boolean(copy.is_author),
         rating_expertise: copy.rating_expertise,
         rating_reading: copy.rating_reading,
         rating_liking: copy.rating_liking,
-        tags: (nook.copy_tags || []).filter((link) => link.copy_uuid === copy.uuid)
+        tags: nook.copy_tags.filter((link) => link.copy_uuid === copy.uuid)
           .map((link) => nook.tags.find((tag) => tag.uuid === link.tag_uuid)).filter(Boolean),
       });
       setPaperCopyUuid(paper.sha256, copy.uuid);
@@ -223,18 +220,11 @@ export async function getPaper(name) {
   return paper;
 }
 
-async function downloadNativePaperPdf(paper, expectedSha256) {
-  const filePath = paper.file_path;
-  if (!filePath) {
-    const failure = new Error('This Library paper does not have a downloadable PDF.');
-    failure.reportable = false;
-    throw failure;
-  }
+async function downloadNativePaperPdf(paper) {
   let response;
   try {
-    // Library PDFs are public. Do not attach the Papol bearer token: a
-    // paper may point at an external open-access URL.
-    response = await runtimeFetch(pdfHref({ ...paper, file_path: filePath }));
+    // Library PDFs are public. Do not attach the Papol bearer token.
+    response = await runtimeFetch(pdfHref(paper));
   } catch (cause) {
     const failure = new Error(
       'The paper could not be downloaded. Check your connection and try again.',
@@ -251,7 +241,7 @@ async function downloadNativePaperPdf(paper, expectedSha256) {
     throw failure;
   }
   const stored = await nativeBlobImport(await response.blob());
-  if (stored.sha256 !== expectedSha256) {
+  if (stored.sha256 !== paper.sha256) {
     await discardNativeBlob(stored.sha256).catch(() => {});
     throw new Error('The downloaded PDF did not match the Library paper.');
   }
@@ -266,9 +256,7 @@ export async function addToNook(paper) {
 
   const shelves = await nativeRepository.shelves();
   const { copyUuid, change } = planOfflineNookAddition(paper, shelves, newUuid);
-  if (paper.sha256) {
-    await downloadNativePaperPdf(paper, paper.sha256);
-  }
+  await downloadNativePaperPdf(paper);
   await importNativeSharedPaper(paper);
   await nativeRepository.transact([change]);
   setPaperCopyUuid(paperSha256, copyUuid);
@@ -301,7 +289,7 @@ export async function updatePaper(uuid, data) {
     const desiredTags = values.tag_uuids;
     delete values.tag_uuids;
     const changes = Object.keys(values).length ? [{
-      table: 'copies', uuid: copyUuid, operation: 'patch', values,
+      table: 'copies', uuid: copyUuid, operation: 'upsert', values,
     }] : [];
     if (desiredTags) {
       const nook = await nativeRepository.nook();
@@ -377,7 +365,7 @@ export function createShelf(data) {
 export function updateShelf(uuid, data) {
   if (nativeDataActive() && !('is_public' in data) && !('is_default' in data)) {
     return nativeRepository.transact([{
-      table: 'shelves', uuid, operation: 'patch', values: data,
+      table: 'shelves', uuid, operation: 'upsert', values: data,
     }]).then((receipt) => shelfView(receipt.rows[0]));
   }
   return onServer(() => jsonRequest(`/shelves/${uuid}`, 'PUT', data));
@@ -409,7 +397,7 @@ export function addComment(paperSha256, content) {
 export function updateComment(commentUuid, content) {
   if (nativeDataActive() && typeof commentUuid === 'string') {
     return nativeRepository.transact([{
-      table: 'annotations', uuid: commentUuid, operation: 'patch', values: { content },
+      table: 'annotations', uuid: commentUuid, operation: 'upsert', values: { content },
     }]).then((receipt) => annotationView(receipt.rows[0]));
   }
   return jsonRequest(`/annotations/${commentUuid}`, 'PUT', { content });

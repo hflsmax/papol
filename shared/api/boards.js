@@ -33,7 +33,7 @@ export function getBoard(uuid) {
 
 export function updateBoard(uuid, data) {
   if (nativeDataActive()) {
-    return nativeRepository.transact([{ table: 'boards', uuid, operation: 'patch', values: data }])
+    return nativeRepository.transact([{ table: 'boards', uuid, operation: 'upsert', values: data }])
       .then((receipt) => nativeRepository.board(uuid).then((row) => boardView(row, true)));
   }
   return jsonRequest(`/boards/${uuid}`, 'PUT', data);
@@ -56,7 +56,7 @@ export async function createBoardGroup(uuid, data) {
         title: data.title, header: data.header, auto_arrange: data.auto_arrange,
       },
     }, ...data.item_uuids.map((itemUuid) => ({
-      table: 'board_items', uuid: itemUuid, operation: 'patch', values: { group_uuid: groupUuid },
+      table: 'board_items', uuid: itemUuid, operation: 'upsert', values: { group_uuid: groupUuid },
     }))];
     const receipt = await nativeRepository.transact(changes);
     return { ...receipt.rows[0], item_uuids: data.item_uuids };
@@ -68,7 +68,7 @@ export async function moveBoardGroup(uuid, dx, dy) {
   if (nativeDataActive()) {
     const context = await nativeRepository.boardGroup(uuid);
     const receipt = await nativeRepository.transact(context.items.map((item) => ({
-      table: 'board_items', uuid: item.uuid, operation: 'patch',
+      table: 'board_items', uuid: item.uuid, operation: 'upsert',
       values: { x: item.x + dx, y: item.y + dy },
     })));
     return receipt.rows;
@@ -78,7 +78,7 @@ export async function moveBoardGroup(uuid, dx, dy) {
 
 export async function updateBoardGroup(uuid, data) {
   if (nativeDataActive()) {
-    await nativeRepository.transact([{ table: 'board_groups', uuid, operation: 'patch', values: data }]);
+    await nativeRepository.transact([{ table: 'board_groups', uuid, operation: 'upsert', values: data }]);
     const context = await nativeRepository.boardGroup(uuid);
     return { ...context.group, item_uuids: context.items.map((item) => item.uuid) };
   }
@@ -90,7 +90,7 @@ export function ungroupBoardGroup(uuid, items) {
     return nativeRepository.transact([
       { table: 'board_groups', uuid, operation: 'delete', values: {} },
       ...items.map((item) => ({
-        table: 'board_items', uuid: item.uuid, operation: 'patch',
+        table: 'board_items', uuid: item.uuid, operation: 'upsert',
         values: { group_uuid: item.group_uuid, x: item.x, y: item.y },
       })),
     ]).then(() => null);
@@ -101,7 +101,7 @@ export function ungroupBoardGroup(uuid, items) {
 export function layoutBoardGroup(uuid, items) {
   if (nativeDataActive()) {
     return nativeRepository.transact(items.map((item) => ({
-      table: 'board_items', uuid: item.uuid, operation: 'patch',
+      table: 'board_items', uuid: item.uuid, operation: 'upsert',
       values: { x: item.x, y: item.y },
     }))).then((receipt) => receipt.rows);
   }
@@ -161,7 +161,7 @@ export function deleteBoardItem(uuid) {
 
 export function restoreBoardItem(uuid) {
   if (nativeDataActive()) {
-    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'patch', values: {} }])
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values: {} }])
       .then((receipt) => receipt.rows[0]);
   }
   return request(`/board-items/${uuid}/restore`, { method: 'POST' });
@@ -169,7 +169,7 @@ export function restoreBoardItem(uuid) {
 
 export function moveBoardItem(uuid, x, y) {
   if (nativeDataActive()) {
-    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'patch', values: { x, y } }])
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values: { x, y } }])
       .then((receipt) => receipt.rows[0]);
   }
   return jsonRequest(`/board-items/${uuid}`, 'PUT', { x, y });
@@ -177,7 +177,7 @@ export function moveBoardItem(uuid, x, y) {
 
 export function updateBoardItem(uuid, data) {
   if (nativeDataActive()) {
-    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'patch', values: data }])
+    return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values: data }])
       .then((receipt) => receipt.rows[0]);
   }
   return jsonRequest(`/board-items/${uuid}`, 'PUT', data);
@@ -211,7 +211,7 @@ export function addBoardWebpage(uuid, url, x, y) {
 export function placeStagedBoardItem(uuid, x, y) {
   if (nativeDataActive()) {
     return nativeRepository.transact([{
-      table: 'board_items', uuid, operation: 'patch', values: { x, y, staged: false },
+      table: 'board_items', uuid, operation: 'upsert', values: { x, y, staged: false },
     }]).then((receipt) => receipt.rows[0]);
   }
   return jsonRequest(`/board-items/${uuid}/place`, 'POST', { x, y });

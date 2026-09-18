@@ -29,12 +29,9 @@ def reference_uuid(namespace: str, key: str) -> str:
 
 
 def reference_out(reference) -> ReferenceOut:
-    resolution = None
-    if reference.resolution:
-        try:
-            resolution = ResolvedWork(**json.loads(reference.resolution))
-        except Exception:
-            pass
+    resolution = (
+        ResolvedWork(**json.loads(reference.resolution)) if reference.resolution else None
+    )
     return ReferenceOut(
         uuid=reference.uuid,
         key=reference.key,
@@ -255,6 +252,5 @@ class EphemeralReferenceEngine:
             resolved_at=None,
         )
         answer = await resolve(row)
-        if answer.resolved_status != "error":
-            self._previews[cache_key] = answer
+        self._previews[cache_key] = answer
         return answer

@@ -1,20 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
-import { PAPER_DRAG_TYPE, isBrowsing, sourcePath } from '../desktopSources';
+import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
-import {
-  getSyncStatus, OFFLINE_MODE_MESSAGE, refreshSyncStatus,
-} from '../../../shared/connectivity.js';
+import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../../../shared/connectivity.js';
 import {
   nativeDataActive, nativeRepository, nativeSyncInProgress, subscribeNativeData,
   syncAllNow, recordDiagnosticEvent,
 } from '../../../shared/nativeData.js';
-import {
-  unexpectedDesktopErrorReport, unrecoverableSyncReport,
-} from '../syncDiagnostics.js';
+import { unexpectedDesktopErrorReport } from '../../../shared/errorReport.js';
+import { unrecoverableSyncReport } from '../syncDiagnostics.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol macOS (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -24,7 +21,7 @@ const MOD = MAC ? '⌘' : 'Ctrl+';
 
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
 // are also reachable with ⌘1…⌘4.
-export function desktopNavigation({ user, route, unreadCount, space, source }) {
+export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
   const page = route.page;
   if (!user) {
     return [
@@ -44,27 +41,27 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
     ];
   }
   const browsing = isBrowsing(route, user);
-  const at = (key) => browsing && source === key;
+  const at = (key) => browsing && listing === key;
   // One shelf is the whole nook, so it only earns rows once there are two.
-  const shelves = space?.shelves?.length > 1 ? space.shelves : [];
-  const tags = space?.tags || [];
+  const shelves = nook?.shelves.length > 1 ? nook.shelves : [];
+  const tags = nook?.tags || [];
   return [
     {
       label: 'My nook',
       manage: true,
       items: [
-        { key: 'all', label: 'All papers', path: sourcePath('all'), glyph: 'papers', shortcut: '1', active: at('all'), count: space?.papers.length },
+        { key: 'all', label: 'All papers', path: listingPath('all'), glyph: 'papers', shortcut: '1', active: at('all'), count: nook?.papers.length },
         ...shelves.map((shelf) => ({
           key: `shelf:${shelf.uuid}`,
           label: shelf.name,
           title: `${shelf.name} · ${shelf.is_public ? 'Public' : 'Private'}`,
-          path: sourcePath(`shelf:${shelf.uuid}`),
+          path: listingPath(`shelf:${shelf.uuid}`),
           shelfUuid: shelf.uuid,
           swatch: shelf.color,
           active: at(`shelf:${shelf.uuid}`),
           count: shelf.paper_count,
         })),
-        { key: 'boards', label: 'Boards', path: sourcePath('boards'), glyph: 'boards', active: at('boards'), count: space?.boards?.length },
+        { key: 'boards', label: 'Boards', path: listingPath('boards'), glyph: 'boards', active: at('boards'), count: nook?.boards.length },
       ],
     },
     ...(tags.length > 0 ? [{
@@ -72,7 +69,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
       items: tags.map((tag) => ({
         key: `tag:${tag.uuid}`,
         label: tag.name,
-        path: sourcePath(`tag:${tag.uuid}`),
+        path: listingPath(`tag:${tag.uuid}`),
         hash: true,
         active: at(`tag:${tag.uuid}`),
       })),
@@ -92,7 +89,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
 }
 
 const TITLES = {
-  space: 'Nook',
+  nook: 'Nook',
   paper: 'Paper',
   papers: 'Desk',
   room: 'Seminar',
@@ -156,10 +153,9 @@ function SyncControl({ onReportableError, onSynced }) {
         setStatus({
           ...web,
           syncing: syncRunning(web, local),
-          pending: web.pending + local.pending,
+          pending: local.pending,
           error: web.error || local.error || local.outbox_error || null,
-          conflicts: local.conflicts || 0,
-          lastSynced: local.last_synced_at || web.lastSynced,
+          conflicts: local.conflicts,
         });
       } catch (error) {
         setStatus({ ...web, syncing: syncRunning(web) });
@@ -174,8 +170,7 @@ function SyncControl({ onReportableError, onSynced }) {
       if (typeof nativeStatus?.syncing === 'boolean') processSyncing.current = nativeStatus.syncing;
       update();
     });
-    refreshSyncStatus().then(update).catch(() => {});
-    document.getElementById('papol-offline-status')?.remove();
+    update();
     return () => {
       unsubscribeNative();
       window.removeEventListener('papol-offline-status', update);
@@ -188,16 +183,15 @@ function SyncControl({ onReportableError, onSynced }) {
     // Another sync may still be running (one scheduled behind this one, or
     // started from another window), so ask rather than assume it is over.
     const web = getSyncStatus();
-    const latest = { ...web, syncing: syncRunning(web) };
+    const latest = { ...web, syncing: syncRunning(web), pending: 0 };
     if (failure) latest.error = failure;
     if (nativeDataActive()) {
       try {
         const local = await nativeRepository.syncStatus();
         latest.syncing = syncRunning(web, local);
-        latest.pending += local.pending;
+        latest.pending = local.pending;
         latest.error ||= local.error || local.outbox_error;
-        latest.conflicts = local.conflicts || 0;
-        latest.lastSynced = local.last_synced_at || latest.lastSynced;
+        latest.conflicts = local.conflicts;
       } catch { /* retain the last known native status */ }
     }
     setStatus(latest);
@@ -233,7 +227,7 @@ function SyncControl({ onReportableError, onSynced }) {
 
 export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onReportableError, onSync, notice }) {
   const [dropKey, setDropKey] = useState(null);
-  const openPath = (path) => onNavigate ? onNavigate(path) : window.location.assign(appPath(path));
+  const openPath = (path) => onNavigate(path);
 
   // Shelves accept a paper dragged from the list, the way a Finder sidebar
   // accepts files: the shelf lights up under the pointer and takes the paper

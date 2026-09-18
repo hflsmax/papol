@@ -21,7 +21,7 @@ from sqlalchemy.pool import StaticPool
 
 import main
 from database import Base, PapolSession, get_db
-from models import Board, Copy, Paper, Shelf, Tag
+from models import Copy, Paper, Shelf
 from services.papers import paper_name
 
 
@@ -98,9 +98,9 @@ class RemovedRowsAreNotCountedTests(unittest.TestCase):
         self.request("DELETE", f"/api/papers/{paper_name(self.dropped_sha256)}")
         self.assertEqual(self.shelf()["paper_count"], 1)
 
-        space = self.request("GET", f"/api/users/{self.user_uuid}/space")
-        self.assertEqual(len(space["papers"]), 1)
-        self.assertEqual(space["shelves"][0]["paper_count"], 1)
+        nook = self.request("GET", f"/api/users/{self.user_uuid}/nook")
+        self.assertEqual(len(nook["papers"]), 1)
+        self.assertEqual(nook["shelves"][0]["paper_count"], 1)
 
     def test_a_shelf_stops_counting_a_deleted_board(self):
         board = self.request("POST", "/api/boards", json={"name": "Thinking"})
@@ -110,15 +110,15 @@ class RemovedRowsAreNotCountedTests(unittest.TestCase):
 
     def test_a_nook_stops_listing_a_deleted_tag(self):
         tag = self.request("POST", "/api/tags", json={"name": "to-read"})
-        space = self.request("GET", f"/api/users/{self.user_uuid}/space")
-        self.assertIn("to-read", [row["name"] for row in space["tags"]])
+        nook = self.request("GET", f"/api/users/{self.user_uuid}/nook")
+        self.assertIn("to-read", [row["name"] for row in nook["tags"]])
 
         self.request("DELETE", f"/api/tags/{tag['uuid']}")
-        space = self.request("GET", f"/api/users/{self.user_uuid}/space")
-        self.assertNotIn("to-read", [row["name"] for row in space["tags"]])
+        nook = self.request("GET", f"/api/users/{self.user_uuid}/nook")
+        self.assertNotIn("to-read", [row["name"] for row in nook["tags"]])
         # And it agrees with the list the tag picker is filled from.
         self.assertEqual(
-            [row["name"] for row in space["tags"]],
+            [row["name"] for row in nook["tags"]],
             [row["name"] for row in self.request("GET", "/api/tags")],
         )
 
@@ -137,7 +137,6 @@ class RemovedRowsAreNotCountedTests(unittest.TestCase):
         })
         refused = self.client.post(
             "/api/sync/push", headers=self.headers, json={
-                "protocol_version": 1,
                 "client_uuid": str(uuid.uuid4()),
                 "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": 1,

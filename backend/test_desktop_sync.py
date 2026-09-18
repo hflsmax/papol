@@ -268,7 +268,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         item_uuid = str(uuid.uuid4())
         mutation_uuid = str(uuid.uuid4())
         create = {
-            "protocol_version": 1,
             "client_uuid": client_uuid,
             "mutation_uuid": mutation_uuid,
             "local_sequence": 1,
@@ -304,7 +303,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         cursor = pulled["cursor"]
 
         delete = {
-            "protocol_version": 1,
             "client_uuid": client_uuid,
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
@@ -343,7 +341,6 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_deleting_a_row_missing_after_server_restore_is_idempotent(self):
         payload = {
-            "protocol_version": 1,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -729,7 +726,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "local_sequence": 2,
             "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"name": "First edit"},
+                "operation": "upsert", "values": {"name": "First edit"},
             }],
         }
         self.request("POST", "/api/sync/push", json=winning)
@@ -739,7 +736,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "local_sequence": 1,
             "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"name": "Later edit"},
+                "operation": "upsert", "values": {"name": "Later edit"},
             }],
         }
         result = self.request("POST", "/api/sync/push", json=stale).json()
@@ -769,7 +766,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"name": "Unsynced edit"},
+                "operation": "upsert", "values": {"name": "Unsynced edit"},
             }],
         }).json()
         self.assertIsNotNone(stale["rows"][0]["deleted_at"])
@@ -798,14 +795,14 @@ class DesktopSyncContractTests(unittest.TestCase):
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
                 "table": "board_groups", "uuid": group_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"title": "Device one"},
+                "operation": "upsert", "values": {"title": "Device one"},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "board_groups", "uuid": group_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"title": "Device two"},
+                "operation": "upsert", "values": {"title": "Device two"},
             }],
         }).json()
         self.assertEqual(stale["rows"][0]["title"], "Device two")
@@ -842,7 +839,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
                 "table": "annotations", "uuid": ink_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"body": json.dumps({
+                "operation": "upsert", "values": {"body": json.dumps({
                     "points": [{"x": 0.1, "y": 0.2}], "color": "#222222",
                     "width": 0.004, "opacity": 1, "shape": "flat",
                 })},
@@ -852,7 +849,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "annotations", "uuid": ink_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"body": json.dumps({
+                "operation": "upsert", "values": {"body": json.dumps({
                     "points": [{"x": 0.1, "y": 0.2}], "color": "#333333",
                     "width": 0.004, "opacity": 1, "shape": "flat",
                 })},
@@ -1070,7 +1067,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                     "values": {"name": "distributed"},
                 },
                 {
-                    "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                    "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                     "base_revision": 1,
                     "values": {
                         "shelf_uuid": shelf_uuid, "summary": "Saved without a network",
@@ -1105,7 +1102,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{
-                "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                 "base_revision": 2,
                 "values": {"rating_liking": 6},
             }],
@@ -1114,7 +1111,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_desktop_board_deletion_disappears_from_the_web_nook(self):
         board = self.request("POST", "/api/boards", json={"name": "Delete offline"}).json()
-        before = self.request("GET", f"/api/users/{self.user_uuid}/space").json()
+        before = self.request("GET", f"/api/users/{self.user_uuid}/nook").json()
         self.assertEqual([row["uuid"] for row in before["boards"]], [board["uuid"]])
 
         self.request("POST", "/api/sync/push", json={
@@ -1130,7 +1127,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         })
 
-        after = self.request("GET", f"/api/users/{self.user_uuid}/space").json()
+        after = self.request("GET", f"/api/users/{self.user_uuid}/nook").json()
         self.assertEqual(after["boards"], [])
 
     def test_desktop_shelf_moves_publish_and_hide_like_online_moves(self):
@@ -1157,7 +1154,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                 "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": sequence,
                 "changes": [{
-                    "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                    "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                     "base_revision": revision, "values": {"shelf_uuid": shelf_uuid},
                 }],
             })
@@ -1194,13 +1191,13 @@ class DesktopSyncContractTests(unittest.TestCase):
     def test_every_identity_is_a_uuid(self):
         me = self.request("GET", "/api/auth/me").json()
         uuid.UUID(me["uuid"])
-        space = self.request("GET", f"/api/users/{me['uuid']}/space").json()
-        self.assertEqual(space["user"]["uuid"], me["uuid"])
-        for shelf in space["shelves"]:
+        nook = self.request("GET", f"/api/users/{me['uuid']}/nook").json()
+        self.assertEqual(nook["user"]["uuid"], me["uuid"])
+        for shelf in nook["shelves"]:
             uuid.UUID(shelf["uuid"])
         for tag in self.request("GET", "/api/tags").json():
             uuid.UUID(tag["uuid"])
-        self.assert_no_id_fields(space)
+        self.assert_no_id_fields(nook)
 
         welcome = self.request("GET", "/api/notifications").json()["notifications"][0]
         uuid.UUID(welcome["uuid"])
@@ -1269,7 +1266,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         )
         self.assertEqual(missing.status_code, 404, missing.text)
         paper = self.request("GET", f"/api/papers/{paper_name(paper_sha256)}").json()
-        self.assertEqual(paper["uuid"], paper_sha256)
+        self.assertEqual(paper["sha256"], paper_sha256)
         self.assert_no_id_fields(paper)
 
     # --- what synchronization stops remembering ----------------------------
@@ -1277,7 +1274,6 @@ class DesktopSyncContractTests(unittest.TestCase):
     def board(self, name: str, client_uuid: str, sequence: int) -> str:
         board_uuid = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
-            "protocol_version": 1,
             "client_uuid": client_uuid,
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": sequence,
@@ -1380,7 +1376,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         client_uuid = str(uuid.uuid4())
         mutation_uuid = str(uuid.uuid4())
         payload = {
-            "protocol_version": 1,
             "client_uuid": client_uuid,
             "mutation_uuid": mutation_uuid,
             "local_sequence": 1,

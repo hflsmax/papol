@@ -6,6 +6,8 @@ import {
 } from '../../../shared/api/notifications.js';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 
+const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
+
 export default function InboxPage({ onOpenRoom, onUnread }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -32,9 +34,8 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
     const notifications = data.notifications.map((x) =>
       ids.includes(x.uuid) ? { ...x, read: true } : x
     );
-    const unread_count = notifications.filter((x) => !x.read).length;
-    setData({ unread_count, notifications });
-    if (onUnread) onUnread(unread_count);
+    setData({ notifications });
+    onUnread(unreadIn(notifications));
   };
 
   const handleClick = (n) => {
@@ -54,9 +55,9 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
     <div className="panel">
       <div className="panel-head-row">
         <h2 className="panel-title">Inbox</h2>
-        {data.unread_count > 0 && (
+        {unreadIn(data.notifications) > 0 && (
           <button className="link-btn" onClick={handleMarkAll}>
-            Annotation all as read
+            Mark all as read
           </button>
         )}
       </div>

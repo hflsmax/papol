@@ -7,6 +7,15 @@ export function diagnosticText(value) {
     .slice(0, 2400);
 }
 
+// Where the report came from, the same three lines in every report.
+export function environmentLines(environment = {}) {
+  return [
+    `Backend: ${BACKEND_BASE || 'not configured'}`,
+    `Surface: ${environment.surface || 'desk'}`,
+    `Platform: ${environment.platform || 'unknown'}`,
+  ];
+}
+
 export function unexpectedDesktopErrorReport(error, area, environment = {}) {
   const message = diagnosticText(error?.message || error);
   const stack = typeof error?.stack === 'string'
@@ -18,9 +27,7 @@ export function unexpectedDesktopErrorReport(error, area, environment = {}) {
     `Area: ${area || 'application runtime'}`,
     `Error type: ${error?.name || typeof error}`,
     `Error: ${message}`,
-    `Backend: ${environment.backend || BACKEND_BASE || 'not configured'}`,
-    `Surface: ${environment.surface || 'desk'}`,
-    `Platform: ${environment.platform || 'unknown'}`,
+    ...environmentLines(environment),
     ...(stack ? ['', 'Stack:', stack] : []),
   ];
   return {

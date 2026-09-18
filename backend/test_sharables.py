@@ -555,7 +555,7 @@ class TakingASharedPaperIntoYourNook(SharableTests):
         self.as_stranger()
         added = self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
         self.assertEqual(added.status_code, 200, added.text)
-        self.assertEqual(added.json()["paper_sha256"], self.paper_sha256)
+        self.assertEqual(added.json()["sha256"], self.paper_sha256)
 
         with self.Session() as db:
             copy = db.query(Copy).filter(
@@ -628,8 +628,7 @@ class TakingASharedPaperIntoYourNook(SharableTests):
         self.client.post(f"/api/shared/{link['uuid']}/add-to-nook")
         after = self.client.get(f"/api/shared/{link['uuid']}/nook")
         self.assertEqual(after.status_code, 200)
-        self.assertEqual(after.json()["paper_sha256"], self.paper_sha256)
-        self.assertEqual(after.json()["sha256"], SHARED_HASH)
+        self.assertEqual(after.json()["sha256"], self.paper_sha256)
 
     def test_its_own_maker_is_told_they_have_it_already(self):
         """The sharer follows their own link: it is their paper, and the
@@ -637,4 +636,4 @@ class TakingASharedPaperIntoYourNook(SharableTests):
         link = self.share()
         mine = self.client.get(f"/api/shared/{link['uuid']}/nook")
         self.assertEqual(mine.status_code, 200)
-        self.assertEqual(mine.json()["paper_sha256"], self.paper_sha256)
+        self.assertEqual(mine.json()["sha256"], self.paper_sha256)

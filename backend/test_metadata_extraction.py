@@ -142,7 +142,6 @@ class MetadataExtractionTests(unittest.TestCase):
         self.assertEqual(header.authors, ["Arthur Amorim", "Benjamin C. Pierce"])
         self.assertEqual(header.journal, "LNCS")
         self.assertEqual(header.year, 2018)
-        self.assertEqual(header.arxiv_id, "arXiv:1705.07354v3")
 
     def test_crossref_metadata_decodes_journal_entities(self):
         summary = crossref.summarize_crossref({
@@ -391,31 +390,6 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(metadata.title, "Some Paper Name")
         self.assertIsNone(metadata.authors)
-
-    async def test_the_doi_is_never_taken_from_the_page(self):
-        """GROBID reports a PNAS supplement or an unparsed arXiv id as the
-        paper's own DOI, and finds none the printed-text scan misses."""
-        misread = grobid.HeaderMetadata(
-            title="Exotic mechanical properties",
-            authors=["Paul Ducarme"],
-            doi="10.1073/pnas.2423301122/-/DCSupplemental",
-        )
-        with TemporaryDirectory() as directory:
-            path = _identifierless_pdf(directory, "ducarme-et-al-2025.pdf")
-            with (
-                patch.object(main, "UPLOADS_DIR", Path(directory)),
-                patch.object(metadata_lookup, "by_doi", AsyncMock()),
-                patch.object(grobid, "configured", return_value=True),
-                patch.object(
-                    grobid, "extract_header", AsyncMock(return_value=misread)
-                ),
-            ):
-                metadata = await main.extract_paper_metadata(
-                    file=_Upload(path), current_user=None
-                )
-
-        self.assertIsNone(metadata.doi)
-        self.assertEqual(metadata.title, "Exotic mechanical properties")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -23,14 +22,14 @@ from models import (
     Annotation, AppliedMutation, Board, BoardGroup, BoardItem, Copy, CopyTagLink,
     Paper, ServerChange, Shelf, SyncClient, Tag, User,
 )
-from services.client_requirements import (
-    INCOMPATIBLE, client_version, requirements, verdict,
-)
+from services.client_requirements import INCOMPATIBLE, refusal, verdict
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
-from schemas import AnnotationCreate, PaperMetadata
-from services.annotations import KINDS, NOTE
+from schemas import (
+    AnnotationCreate, BoardGroupUpdate, BoardItemUpdate, PaperMetadata, PaperUpdate,
+    ShelfCreate, TagCreate,
+)
 from app_limits import limit, mebibytes
 
 
@@ -43,10 +42,9 @@ PDF_FILES_DIR = Path(os.environ.get(
     "PAPOL_UPLOADS_DIR", Path(__file__).parents[2] / "uploads",
 ))
 BLOB_LIMIT = mebibytes("files", "offline_blob_mb")
-PROTOCOL_VERSION = 1
 
 
-def _require_supported_client(request: Request, db: Session) -> None:
+def _require_supported_client(request: Request) -> None:
     """Refuse a build this server can no longer speak to.
 
     426 rather than one more 400: the request was well formed and the
@@ -60,35 +58,41 @@ def _require_supported_client(request: Request, db: Session) -> None:
     that is going to be lost. It covers its windows, says so, and offers to
     save whatever it never managed to send.
     """
-    if verdict(db, request.headers.get("user-agent")) != INCOMPATIBLE:
-        return
-    asked = requirements(db)
-    raise HTTPException(
-        status_code=426,
-        detail={
-            "error": "client_incompatible",
-            "minimum_version": asked["minimum_version"],
-            "download_url": asked["download_url"],
-        },
-    )
+    if verdict(request) == INCOMPATIBLE:
+        raise HTTPException(status_code=426, detail=refusal())
+
+
+# The client announces itself as "Papol macOS/0.3.0"; the version is kept on
+# its sync row so that who runs what can be read off the table. Anything else
+# is some other caller and records nothing.
+_AGENT_PREFIX = "Papol macOS/"
+
+
+def _app_version(user_agent: str | None) -> str | None:
+    if not user_agent:
+        return None
+    start = user_agent.find(_AGENT_PREFIX)
+    if start < 0:
+        return None
+    rest = user_agent[start + len(_AGENT_PREFIX):].split()
+    return rest[0] if rest else None
 
 
 class RowChange(BaseModel):
-    table: Literal[
-        "boards", "board_groups", "board_items", "papers",
-        "annotations", "shelves", "tags", "copies", "copy_tags",
-    ]
+    table: str
     # The row's own name. A UUID for everything a client makes up, and for
     # a paper the digest of its PDF — which is not made up at all: both ends
     # read it off the same bytes and arrive at the same answer, which is
     # what lets an offline import name its paper without asking first.
     uuid: str
     base_revision: int | None = Field(default=None, ge=0)
-    operation: Literal["upsert", "patch", "delete"]
+    operation: Literal["upsert", "delete"]
     values: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _id_suits_the_table(self):
+        if self.table not in MODELS:
+            raise ValueError(f"{self.table} is not a table a client writes")
         if self.table == "papers":
             if not re.fullmatch(r"[0-9a-f]{64}", self.uuid):
                 raise ValueError("a paper is named by the sha256 of its PDF")
@@ -101,7 +105,6 @@ class RowChange(BaseModel):
 
 
 class PushRequest(BaseModel):
-    protocol_version: Literal[1] = PROTOCOL_VERSION
     client_uuid: UUID
     mutation_uuid: UUID
     local_sequence: int = Field(ge=0)
@@ -244,6 +247,17 @@ def _owned_group(db: Session, group_uuid: str | None, board: Board) -> BoardGrou
     return group
 
 
+def _held_to(model, **fields):
+    """Refuse values the website's own form for this row would refuse."""
+    try:
+        model(**fields)
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error.errors(include_context=False, include_url=False),
+        )
+
+
 def _new_record(db: Session, change: RowChange, user: User, values: dict):
     row_uuid = str(change.uuid)
     if change.table == "papers":
@@ -266,11 +280,8 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
                 status_code=422, detail="annotations.paper_sha256 is required",
             )
         paper = _owned_paper(db, paper_sha256, user.uuid)
-        kind = values.get("kind")
-        if kind not in KINDS:
-            raise HTTPException(status_code=422, detail="Unknown annotation kind")
         return Annotation(
-            uuid=row_uuid, kind=kind, paper=paper,
+            uuid=row_uuid, kind=values.get("kind"), paper=paper,
             user_uuid=user.uuid, content="", body="{}",
         )
     if change.table == "shelves":
@@ -358,8 +369,6 @@ def _assign_values(db: Session, record, values: dict, user: User):
         # The client decides which kind of annotation it made; every kind is then
         # held to its own shape, so a replica cannot write a stroke with no
         # points or an anchor off the page.
-        if record.kind not in KINDS:
-            raise HTTPException(status_code=422, detail="Unknown annotation kind")
         try:
             AnnotationCreate(
                 kind=record.kind,
@@ -381,19 +390,14 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key != "deleted_at":
                 setattr(record, key, value)
         record.name = (record.name or "").strip()
-        if not record.name or len(record.name) > limit("text", "shelf_name"):
-            raise HTTPException(status_code=422, detail="Shelf name must be 1–40 characters")
-        if (not isinstance(record.color, str) or len(record.color) != 7
-                or not record.color.startswith("#")):
-            raise HTTPException(status_code=422, detail="Invalid shelf color")
+        _held_to(ShelfCreate, name=record.name, color=record.color, is_public=bool(record.is_public))
         return
     if isinstance(record, Tag):
         for key, value in values.items():
             if key != "deleted_at":
                 setattr(record, key, value)
         record.name = (record.name or "").strip()
-        if not record.name or len(record.name) > limit("text", "tag_name"):
-            raise HTTPException(status_code=422, detail="Tag name must be 1–60 characters")
+        _held_to(TagCreate, name=record.name)
         return
     if isinstance(record, Copy):
         if "paper_sha256" in values:
@@ -413,19 +417,11 @@ def _assign_values(db: Session, record, values: dict, user: User):
         for key, value in values.items():
             if key not in {"paper_sha256", "shelf_uuid", "deleted_at"}:
                 setattr(record, key, value)
-        # The same limits PaperUpdate enforces for the online edit form.
-        for key in ("rating_expertise", "rating_reading", "rating_liking"):
-            rating = values.get(key)
-            if rating is not None and (
-                isinstance(rating, bool)
-                or not isinstance(rating, int)
-                or not limit("ratings", "min") <= rating <= limit("ratings", "max")
-            ):
-                raise HTTPException(
-                    status_code=422,
-                    detail=(f'Ratings must be whole numbers from {limit("ratings", "min")} '
-                            f'to {limit("ratings", "max")}'),
-                )
+        _held_to(PaperUpdate, **{
+            key: values[key]
+            for key in ("rating_expertise", "rating_reading", "rating_liking", "summary", "thought")
+            if key in values
+        })
         return
     if isinstance(record, CopyTagLink):
         if "copy_uuid" in values:
@@ -455,16 +451,14 @@ def _assign_values(db: Session, record, values: dict, user: User):
     if isinstance(record, BoardGroup):
         if record.kind not in {"booklet", "collection"}:
             raise HTTPException(status_code=422, detail="Invalid board group kind")
-        if (len(record.title or "") > limit("text", "board_group_title")
-                or len(record.header or "") > limit("text", "board_group_header")):
-            raise HTTPException(status_code=422, detail="Board group text is too long")
+        _held_to(BoardGroupUpdate, title=record.title, header=record.header)
     else:
         if record.kind not in {"comment", "excerpt", "image", "file", "youtube", "webpage"}:
             raise HTTPException(status_code=422, detail="Invalid board item kind")
-        if record.text_align not in {"left", "center", "right"}:
-            raise HTTPException(status_code=422, detail="Invalid text alignment")
-        if not limit("board", "item_width_min") <= record.width <= limit("board", "item_width_max"):
-            raise HTTPException(status_code=422, detail="Invalid board item width")
+        _held_to(
+            BoardItemUpdate, width=record.width, text_align=record.text_align,
+            position=record.position, content=record.content,
+        )
 
 
 def _apply_change(db: Session, change: RowChange, user: User):
@@ -494,8 +488,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         # makes retries idempotent without manufacturing a partial tombstone.
         if change.operation == "delete":
             return None, None
-        if change.operation == "patch":
-            raise HTTPException(status_code=409, detail="Synchronized row no longer exists")
         record = _new_record(db, change, user, change.values)
         db.add(record)
 
@@ -576,7 +568,7 @@ def push(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_supported_client(request, db)
+    _require_supported_client(request)
     client_uuid = str(payload.client_uuid)
     mutation_uuid = str(payload.mutation_uuid)
     fingerprint = hashlib.sha256(_canonical_payload(payload)).hexdigest()
@@ -649,7 +641,6 @@ def push(
             record.updated_at = datetime.utcnow()
     prepare_sync_changes(db)
     result = {
-        "protocol_version": PROTOCOL_VERSION,
         "mutation_uuid": mutation_uuid,
         "local_sequence": payload.local_sequence,
         "rows": [row_snapshot(record) | {"table": record.__table__.name} for record in touched],
@@ -699,7 +690,7 @@ def snapshot(
     the rows name a paper by the digest of its file, and a build that reads
     them expecting a UUID would not fail — it would store the wrong thing.
     """
-    _require_supported_client(request, db)
+    _require_supported_client(request)
     copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
     shelves = db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all()
     tags = db.query(Tag).filter(Tag.user_uuid == user.uuid).all()
@@ -727,7 +718,6 @@ def snapshot(
         *db.query(CopyTagLink).filter(CopyTagLink.user_uuid == user.uuid).all(),
     ]
     return {
-        "protocol_version": PROTOCOL_VERSION,
         "rows": [row_snapshot(record) | {"table": record.__table__.name}
                  for record in records],
     }
@@ -803,7 +793,7 @@ def pull(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_supported_client(request, db)
+    _require_supported_client(request)
     if client_uuid is not None:
         client = db.query(SyncClient).filter(
             SyncClient.user_uuid == user.uuid,
@@ -818,7 +808,7 @@ def pull(
         # A version that cannot be read leaves the last good one in place
         # rather than erasing what we knew about this installation.
         client.app_version = (
-            client_version(request.headers.get("user-agent")) or client.app_version
+            _app_version(request.headers.get("user-agent")) or client.app_version
         )
         db.flush()
         # A replica moving its cursor forward is the only moment anything
@@ -835,7 +825,6 @@ def pull(
     ).order_by(ServerChange.sequence).limit(limit + 1).all()
     page = records[:limit]
     return {
-        "protocol_version": PROTOCOL_VERSION,
         "cursor": page[-1].sequence if page else cursor,
         "has_more": len(records) > limit,
         "changes": [{

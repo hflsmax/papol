@@ -1,10 +1,10 @@
-// How the host intends to run the seminar. Keys mirror the backend's
+// How the leader intends to run the seminar. Keys mirror the backend's
 // SEMINAR_STYLES; labels and descriptions are what users see.
 export const SEMINAR_STYLES = [
   {
     key: 'walkthrough',
     label: 'A Presentation',
-    desc: 'The host presents the paper start to finish — no prep needed.',
+    desc: 'The leader presents the paper start to finish — no prep needed.',
   },
   {
     key: 'questions',
@@ -14,7 +14,7 @@ export const SEMINAR_STYLES = [
   {
     key: 'guided',
     label: 'Guided discussion',
-    desc: 'Skim the paper beforehand; the host steers with prepared questions.',
+    desc: 'Skim the paper beforehand; the leader steers with prepared questions.',
   },
   {
     key: 'critique',
@@ -23,7 +23,7 @@ export const SEMINAR_STYLES = [
   },
 ];
 
-// A style is either a preset key or the host's own free text.
+// A style is either a preset key or the leader's own free text.
 export function styleLabel(key) {
   return SEMINAR_STYLES.find((s) => s.key === key)?.label || key || null;
 }
@@ -32,7 +32,16 @@ export function styleDesc(key) {
   return SEMINAR_STYLES.find((s) => s.key === key)?.desc || null;
 }
 
-// Description of a room's style: preset text, or the host's own.
+// Description of a room's style: preset text, or the leader's own.
 export function roomStyleDesc(room) {
   return styleDesc(room.style) || room.style_desc || null;
+}
+
+// The caller may take back a seminar nobody else has joined, while it is
+// still being called or planned.
+export function canUncall(room, user) {
+  return user != null
+    && room.creator.uuid === user.uuid
+    && (room.status === 'open' || room.status === 'planning')
+    && room.participants.every((participant) => participant.uuid === user.uuid);
 }

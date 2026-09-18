@@ -85,15 +85,8 @@ def schema_version() -> int:
     tables some old release had goes quietly out of date the moment the next
     change lands. Whether a change is breaking is a judgement, and the person
     making the change is the one holding it.
-
-    A database or replica that records no version is at 1, which is what
-    everything written before anybody was counting is.
     """
     return registry()["schema_version"]
-
-
-def table_rule(table_name: str):
-    return registry()["tables"].get(table_name)
 
 
 def owner_uuid(db, record) -> str | None:

@@ -45,20 +45,3 @@ test('applications depend on shared modules, never on another application', asyn
 
   assert.deepEqual(violations, [], `cross-application imports:\n${violations.join('\n')}`);
 });
-
-test('application code imports the domain client it depends on', async () => {
-  const violations = [];
-  for (const application of applicationRoots) {
-    for (const file of await sourceFiles(application.path)) {
-      if (file.endsWith('.test.js')) continue;
-      const source = await readFile(file, 'utf8');
-      for (const specifier of relativeImports(source)) {
-        if (specifier.endsWith('/shared/api.js')) {
-          violations.push(path.relative(repositoryRoot, file));
-        }
-      }
-    }
-  }
-
-  assert.deepEqual(violations, [], `broad API barrel imports:\n${violations.join('\n')}`);
-});

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "test": "node --test src/*.test.js",
+    "test": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
     "benchmark:pinch": "node ../scripts/benchmark-pinch-zoom.mjs",
     "benchmark:pinch:smoothness": "node ../scripts/benchmark-pinch-smoothness.mjs",
     "build": "vite build",

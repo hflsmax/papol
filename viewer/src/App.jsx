@@ -17,7 +17,7 @@ import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
 } from './source';
-import { appPath, backendPath, stripAppBase } from './base';
+import { inDemo, appPath, backendPath, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
@@ -30,7 +30,6 @@ import { useModalDialog } from '../../shared/useModalDialog.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
-import { canOpenPrivateSource } from './viewerAccess.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { readNamedReference } from './references';
@@ -88,19 +87,7 @@ const markReturnToPapol = () => {
 };
 
 const MIN_SCALE = appLimits.viewer.zoom_min;
-// Four hundred per cent, which is as far as reading a paper ever needs to
-// go — and, not by coincidence, as far as the brush can be honest. A
-// cursor image is dropped by the browser past about 128px, so beyond this
-// the strip in your hand would stop growing while the ink went on getting
-// thicker, and the two would quietly stop agreeing. The heaviest weight on
-// the widest page anyone uploads comes to about 74px here.
-// The brush no longer limits this. It was capped at four while the brush
-// was a cursor image, which a browser refuses to draw past about 128px —
-// so past that the strip in your hand stopped growing while the ink went
-// on getting thicker. The brush is drawn on the page now, in the stroke's
-// own coordinates, and has no ceiling to reach.
 const MAX_SCALE = appLimits.viewer.zoom_max;
-const PINCH_BENCHMARK = new URLSearchParams(window.location.search).get('pinch_benchmark');
 
 const hasAnchor = (note) => note.anchor != null;
 
@@ -171,12 +158,6 @@ const INK_WIDTH = INK_WIDTHS[INK_WIDTHS.length - 1];
 const INK_OPACITY = INK_OPACITIES[INK_OPACITIES.length - 1].value;
 const INK_SHAPE = 'flat';
 
-// Bumped when those defaults change. A user who has chosen for
-// themselves keeps their choice, but one who never did was carrying the old
-// defaults around in localStorage rather than no answer at all, and would
-// have gone on carrying them for ever.
-const INK_DEFAULTS_VERSION = '2';
-
 // The size row is drawn to fill its cell rather than to scale: the heaviest
 // weight spans the button and the rest are its true fractions, so the four
 // read as a ramp instead of as four specks at the bottom of the range. What
@@ -243,12 +224,12 @@ function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
 // the help sheet — a shortcut nobody can recall is a shortcut nobody uses,
 // and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
-  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' , mnemonic: 'Zero tools' },
-  { id: 'clipper', key: 'x', badge: 'X', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper', mnemonic: 'X crops' },
-  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page. Kept with your notes' , mnemonic: 'Vivid annotations' },
-  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' , mnemonic: 'Clean' },
-  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' , mnemonic: 'Anchor' },
-  { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' , mnemonic: 'Menagerie' },
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' },
+  { id: 'clipper', key: 'x', badge: 'X', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper' },
+  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page. Kept with your notes' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' },
+  { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' },
+  { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' },
 ];
 
 // Drop tools are one-shot: they are a thing you are holding until you put
@@ -260,16 +241,6 @@ const ANNOTATION_TOOLS = new Set(['clipper', 'brush', 'eraser', 'anchor']);
 // tool and a modifier — which also means caps lock picks the capital's.
 const TOOL_KEYS = Object.fromEntries(TOOLS.map((t) => [t.key, t.id]));
 
-// One line each. Someone opening this wants to know what the thing does,
-// not to read about it.
-const HELP = {
-  arrow: 'A regular cursor.',
-  clipper: 'Draw a rectangle to make a movable, resizable view of that part of the paper.',
-  brush: 'Hold the brush mid-stroke and the line snaps straight.',
-  eraser: 'Remove paint and anchors.',
-  anchor: 'Click to drop an anchor. Anchors can optionally be named and carry a note.',
-  cow: 'An animal that wonders.',
-};
 const clampScale = (v) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
 
 // A page should not rerender merely because App produced a fresh closure.
@@ -381,19 +352,10 @@ function selectedTextWithoutPdfCitations(range, scroller) {
 }
 
 function paperAuthors(authors) {
-  if (!authors) return [];
-  try {
-    const parsed = JSON.parse(authors);
-    return Array.isArray(parsed) ? parsed : [String(parsed)];
-  } catch {
-    return [authors];
-  }
+  return authors ? JSON.parse(authors) : [];
 }
 
-function paperDoiHref(doi) {
-  const value = String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
-  return `https://doi.org/${value}`;
-}
+const paperDoiHref = (doi) => `https://doi.org/${doi}`;
 
 function savedReadingView() {
   const pdf = new URLSearchParams(window.location.search).get('pdf');
@@ -634,7 +596,6 @@ export default function App() {
   const [clips, setClips] = useState([]);
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
   const clipSaving = useRef(new Map());
-  const [helpOpen, setHelpOpen] = useState(false);
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
@@ -674,7 +635,6 @@ export default function App() {
   const [feedbackLog, setFeedbackLog] = useState('');
   const [feedbackIncludeLog, setFeedbackIncludeLog] = useState(true);
   const reportedPdfErrors = useRef(new Set());
-  const helpDialogRef = useModalDialog(helpOpen, () => setHelpOpen(false));
   const feedbackDialogRef = useModalDialog(feedbackOpen, () => closeFeedback());
   const sendDialogRef = useModalDialog(Boolean(sendSelection), () => closeSendSelection());
 
@@ -696,16 +656,6 @@ export default function App() {
   const nextAnimalId = useRef(0);
   // What the brush is loaded with. Remembered like the tool itself: someone
   // who annotations a paper up in red goes on doing it in red.
-  // Once, before any of the four are read.
-  useState(() => {
-    if (localStorage.getItem('papol_viewer_ink_defaults') === INK_DEFAULTS_VERSION) return null;
-    localStorage.setItem('papol_viewer_ink_defaults', INK_DEFAULTS_VERSION);
-    for (const key of ['ink', 'ink_width', 'ink_opacity', 'ink_shape']) {
-      localStorage.removeItem(`papol_viewer_${key}`);
-    }
-    return null;
-  });
-
   const [inkColor, setInkColor] = useState(
     () => localStorage.getItem('papol_viewer_ink') || INK_COLOR
   );
@@ -827,7 +777,7 @@ export default function App() {
         .filter((entry) => entry.isIntersecting)
         .map((entry) => Number(entry.target.dataset.page))
         .filter((page) => Number.isInteger(page) && page > 0);
-      if (PINCH_BENCHMARK !== 'legacy' && root.classList.contains('zooming')) {
+      if (root.classList.contains('zooming')) {
         for (const page of arrived) deferred.add(page);
         materializeWhenQuiet();
       } else {
@@ -861,9 +811,9 @@ export default function App() {
         // PDF.js preview rendering occupies the main thread in slices. If a
         // user scrolls and immediately pinches during initial warm-up, stop
         // that disposable work and retry it after the gesture is quiet.
-        interrupt: PINCH_BENCHMARK === 'legacy' ? undefined : () => {
+        interrupt: () => {
           if (!task) return false;
-          if (PINCH_BENCHMARK) performance.mark('papol-viewer:preview-interrupted');
+          performance.mark('papol-viewer:preview-interrupted');
           task.cancel();
           return true;
         },
@@ -931,11 +881,7 @@ export default function App() {
       setError('Open a paper from your nook.');
       return undefined;
     }
-    if (!canOpenPrivateSource({
-      requiresSignIn: source.requiresSignIn,
-      token: getToken(),
-      localAccount: nativeDataActive(),
-    })) {
+    if (source.requiresSignIn && !getToken() && !nativeDataActive()) {
       setError('Sign in to see this paper.');
       return undefined;
     }
@@ -987,9 +933,6 @@ export default function App() {
   // instead of putting those local database reads in front of PDF.js. Hosted
   // viewers still wait for the authorized paper response and its file path.
   const pdfPaper = immediatePdfPaper || paper;
-  const pdfIdentity = pdfPaper
-    ? `${pdfPaper.opened_file && !pdfPaper.uuid ? 'opened:' : 'paper:'}${pdfPaper.sha256 || ''}`
-    : null;
 
   useLayoutEffect(() => {
     if (!pdfPaper) return undefined;
@@ -1084,7 +1027,7 @@ export default function App() {
       cancelled = true;
       task?.destroy();
     };
-  }, [pdfIdentity, pdfPaper]);
+  }, [pdfPaper]);
 
   useEffect(() => {
     if (doc || source?.openedFile) {
@@ -1093,7 +1036,7 @@ export default function App() {
     }
     const timer = window.setTimeout(() => setShowPdfLoading(true), 350);
     return () => window.clearTimeout(timer);
-  }, [doc, pdfIdentity, source]);
+  }, [doc, source]);
 
   useEffect(() => {
     if (!paperInfoOpen || paperInfo) return undefined;
@@ -1156,9 +1099,6 @@ export default function App() {
 
   useEffect(() => {
     setSearchIndex([]);
-  }, [doc]);
-
-  useEffect(() => {
     setSections([]);
   }, [doc]);
 
@@ -1271,8 +1211,7 @@ export default function App() {
   // them gets the stored answer straight away.
   useEffect(() => {
     const paperSha256 = paper?.sha256;
-    const pdfHash = paper?.sha256;
-    if (!firstPageReady || !paperSha256 || !pdfHash) return undefined;
+    if (!firstPageReady || !paperSha256) return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -1284,7 +1223,7 @@ export default function App() {
     const ask = () => {
       // A shared reading reads the same bibliography on the authority of
       // its link, so the source answers when it has its own way in.
-      (source?.references?.list || getViewerReferences)(pdfHash, paperSha256)
+      (source?.references?.list || getViewerReferences)(paperSha256)
         .then((loaded) => {
           if (cancelled) return;
           setAnalysis(loaded);
@@ -1496,7 +1435,7 @@ export default function App() {
 
   useEffect(() => {
     // A file opened from disk is in no nook, so there is nothing on it.
-    if ((!paper?.sha256 && !paper?.opened_file) || !annotations?.clips) return undefined;
+    if (!annotations?.clips) return undefined;
     let cancelled = false;
     annotations.clips.list()
       .then((loaded) => { if (!cancelled) setClips(loaded); })
@@ -1766,14 +1705,6 @@ export default function App() {
   const inkByPage = usePageGroups(ink);
   const clipsByPage = usePageGroups(clips);
 
-  const selectedInkPages = useMemo(() => {
-    if (!selectedInk) return new Set();
-    return new Set(ink.filter((stroke) => (
-      selectedInk.groupUuid
-        ? stroke.group_uuid === selectedInk.groupUuid
-        : stroke.uuid === selectedInk.uuid
-    )).map((stroke) => stroke.page));
-  }, [ink, selectedInk]);
 
   // A stroke appears the instant the pointer lifts and is saved behind it.
   // Waiting for the server first would make the brush feel like it was
@@ -1963,12 +1894,15 @@ export default function App() {
     };
   }, [doc, scale, paper?.sha256, source]);
 
-  // Every stroke of the ink stroke in hand.
+  // Every stroke of the ink stroke in hand, and the pages they lie on.
   const selectedStrokes = useMemo(() => (selectedInk
     ? ink.filter((stroke) => (
       selectedInk.groupUuid ? stroke.group_uuid === selectedInk.groupUuid : stroke.uuid === selectedInk.uuid
     ))
     : []), [ink, selectedInk]);
+  const selectedInkPages = useMemo(
+    () => new Set(selectedStrokes.map((stroke) => stroke.page)), [selectedStrokes],
+  );
 
   // A selected ink stroke offers to be removed, or to send the text under it
   // to a board. The text is worked out from the annotation's shape and the text
@@ -2138,7 +2072,7 @@ export default function App() {
     // The desktop viewer itself has a tauri:// URL, which the backend rejects
     // (and which would be useless outside this Mac). Keep board backlinks on
     // the canonical hosted viewer while preserving the current paper query.
-    const viewerPath = window.location.pathname.includes('/demo/viewer')
+    const viewerPath = inDemo()
       ? '/demo/viewer/'
       : '/viewer/';
     const backlink = new URL(backendPath(viewerPath), window.location.href);
@@ -2263,12 +2197,6 @@ export default function App() {
 
   const eraseStroke = async (uuid, record = true) => {
     if (!annotations?.ink) return;
-    // The eraser asks on every movement of the pointer, several times in a
-    // frame, and `ink` is whatever it was when this render began — so the
-    // same stroke was asked for twice, the first delete succeeded, the
-    // second came back "no such stroke", and the error path put the stroke
-    // back. It looked exactly like ink that could not be rubbed out. A ref
-    // is the only thing here that is current within a frame.
     // Only while this one is in the air. The eraser asks on every movement
     // of the pointer, several times in a frame, and `ink` is whatever it
     // was when the render began — so without this the same stroke is asked
@@ -2541,7 +2469,7 @@ export default function App() {
   const focus = useRef(null);
   const zoomPages = useRef(null);
   if (zoomPages.current == null) {
-    zoomPages.current = createZoomPageCache({ enabled: PINCH_BENCHMARK !== 'legacy' });
+    zoomPages.current = createZoomPageCache();
   }
 
   const captureFocus = (at) => {
@@ -2652,7 +2580,7 @@ export default function App() {
   };
 
   const applyZoomFrame = (combinedFactor, latestAt) => {
-    const frameStarted = PINCH_BENCHMARK ? performance.now() : null;
+    const frameStarted = performance.now();
     const el = scrollerRef.current;
     if (!el) return;
     const from = liveScale.current;
@@ -2669,12 +2597,10 @@ export default function App() {
     el.classList.add('zooming');
     applyScale(next);
     keepFocus(captured);
-    if (frameStarted != null) {
-      performance.measure('papol-viewer:pinch-frame-work', {
-        start: frameStarted,
-        end: performance.now(),
-      });
-    }
+    performance.measure('papol-viewer:pinch-frame-work', {
+      start: frameStarted,
+      end: performance.now(),
+    });
   };
 
   useLayoutEffect(() => {
@@ -2793,7 +2719,6 @@ export default function App() {
     const optimistic = {
       uuid: tempUuid,
       ...spot,
-      anchor_type: spot.anchor.type,
       content: '',
       created_at: new Date().toISOString(),
       // What its card is mounted under. The uuid is about to change, and a
@@ -3055,12 +2980,12 @@ export default function App() {
   };
 
   const restoreNote = async (snapshot) => {
-    let restored = await annotations.notes.create({
+    const restored = await annotations.notes.create({
       page: snapshot.page,
       anchor: snapshot.anchor,
       content: snapshot.content || '',
+      name: snapshot.name,
     });
-    if (snapshot.name) restored = await annotations.notes.rename(restored.uuid, snapshot.name);
     setNotes((prev) => [...prev, restored]);
     return restored;
   };
@@ -3596,7 +3521,7 @@ export default function App() {
               label: 'Open Desk',
             }}
           />
-        ) : !DESKTOP ? (
+        ) : (
           // The home button: the same house the desktop toolbar wears, for
           // the same errand — out of this document and into Papol itself.
           // It names no paper, which is what makes it usable from a shared
@@ -3621,7 +3546,7 @@ export default function App() {
               <path d="M3.75 6.5v6.75h8.5V6.5M6.5 13.25V9h3v4.25" />
             </svg>
           </a>
-        ) : null}
+        )}
         {/* The paper itself, drawn to length across the middle of the bar.
             It takes the room the spacer used to hold, and falls back to
             being that spacer while there is nothing yet to draw. */}
@@ -3865,28 +3790,14 @@ export default function App() {
                               3
                             )}) translate(${-a.box.w / 2} ${-a.box.h / 2})`}
                           >
-                            {a.painted ? (
-                              /* A rigged species arrives already painted —
-                                 it has parts that are filled and not
-                                 stroked and parts that are stroked and not
-                                 filled, which two flat groups cannot say.
-                                 All it wants from the sheet is the pen. */
-                              <g
-                                strokeWidth={a.fitStroke}
-                                dangerouslySetInnerHTML={{ __html: a.painted }}
-                              />
-                            ) : (
-                              <>
-                                <g
-                                  fill="#faf7ef"
-                                  stroke="#33383f"
-                                  strokeWidth={a.fitStroke}
-                                  strokeLinejoin="round"
-                                  dangerouslySetInnerHTML={{ __html: a.pale }}
-                                />
-                                <g fill="#33383f" dangerouslySetInnerHTML={{ __html: a.dark }} />
-                              </>
-                            )}
+                            {/* A species arrives already painted — it has
+                                parts that are filled and not stroked and
+                                parts that are stroked and not filled. All
+                                it wants from the sheet is the pen. */}
+                            <g
+                              strokeWidth={a.fitStroke}
+                              dangerouslySetInnerHTML={{ __html: a.painted }}
+                            />
                           </g>
                         </svg>
                         <span className="beast-name">{a.label}</span>
@@ -4378,66 +4289,6 @@ export default function App() {
             </span>
           )}
         </div>
-
-        {helpOpen && (
-          <div
-            ref={helpDialogRef}
-            className="help-back"
-            role="dialog"
-            aria-modal="true"
-            aria-label="What the tools do"
-            tabIndex="-1"
-            onClick={() => setHelpOpen(false)}
-          >
-            {/* Stopped here so a click inside the sheet does not close it. */}
-            <div className="help-sheet" onClick={(e) => e.stopPropagation()}>
-              <h3>What the tools do</h3>
-              <dl>
-                {availableTools.map((t) => (
-                  <React.Fragment key={t.id}>
-                    {/* Four columns — key, glyph, name, mnemonic — so a
-                        wide badge like the shifted one cannot shunt its row
-                        out of line with the others. The dt is
-                        display: contents, which lets its children be the
-                        columns. */}
-                    <dt>
-                      <kbd>{t.badge}</kbd>
-                      <span className="help-glyph">
-                        <ToolGlyph id={t.id} animal={animal} />
-                      </span>
-                      {/* Beside the name, where the eye already is when it
-                          reads the key next to it, with the key's own
-                          letter picked out of the word. */}
-                      <span className="help-name">{t.label}</span>
-                      <span className="mnemonic">
-                        <b>{t.mnemonic[0]}</b>
-                        {t.mnemonic.slice(1)}
-                      </span>
-                    </dt>
-                    <dd>{HELP[t.id]}</dd>
-                  </React.Fragment>
-                ))}
-              </dl>
-              {/* Two separate facts, and each is said only when it is true.
-                  Whose the annotations on the page are is worth saying only where
-                  they are somebody's — a reading that names its user. Where
-                  a new annotation would go is worth saying wherever it has nowhere
-                  to go yet, which is a shared paper and a file opened from
-                  disk alike. The bar has just offered six tools; the sheet
-                  that explains them should not leave out the one condition
-                  on using them. */}
-              <p className="help-foot">
-                {sharedReading
-                  ? 'The paint and anchors on this paper belong to the user who shared it.'
-                  : 'Paint and anchors are stored with the paper.'}
-                {annotationsNeedANook && ' Add this paper to your nook to make annotations of your own.'}
-              </p>
-              <button type="button" className="help-done" onClick={() => setHelpOpen(false)}>
-                Done
-              </button>
-            </div>
-          </div>
-        )}
 
         <button
           type="button"

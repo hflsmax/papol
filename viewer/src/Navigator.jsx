@@ -207,7 +207,7 @@ export default function Navigator({
   const [width, setWidth] = useState(0);
   useEffect(() => {
     const root = rootRef.current;
-    if (!shown || !root || typeof ResizeObserver !== 'function') return undefined;
+    if (!shown || !root) return undefined;
     const measure = () => setWidth(Math.round(root.getBoundingClientRect().width));
     const resized = new ResizeObserver(measure);
     resized.observe(root);
@@ -302,12 +302,12 @@ export default function Navigator({
     };
     scroller.addEventListener('scroll', schedule, { passive: true });
     // A window of a different height has a different middle.
-    const resized = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
-    resized?.observe(scroller);
+    const resized = new ResizeObserver(schedule);
+    resized.observe(scroller);
     look();
     return () => {
       scroller.removeEventListener('scroll', schedule);
-      resized?.disconnect();
+      resized.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
   }, [shown, live, pages, scrollerRef, scale]);

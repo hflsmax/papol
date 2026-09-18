@@ -42,13 +42,11 @@
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
 
     # ---------------------------------------------------------------------
-    # What Papol needs, in one place.
+    # What Papol needs.
     #
-    # This is the only list. The devShell below reads it, and so does the
-    # systemd service in module.nix, which takes its interpreter through
-    # nixosModules.default rather than naming the packages a second time.
-    # The machine that serves Papol therefore runs what the shell that
-    # built it ran.
+    # The devShell below reads this list. The systemd service reads the copy
+    # in module.nix, which deploy.sh imports directly; a change to the
+    # backend's imports is made in both.
     # ---------------------------------------------------------------------
 
     # The backend's imports, and nothing more. This list is the deployed
@@ -195,12 +193,11 @@
       PLAYWRIGHT_HOST_PLATFORM_OVERRIDE = "ubuntu-24.04";
     };
   in {
-    # The service closure comes from the same backendPython above. module.nix
-    # keeps a default of its own so it can still be imported directly, but
-    # through the flake this is what wins.
+    # module.nix imported through the flake takes its interpreter from the
+    # list above; deploy.sh imports the file directly and gets module.nix's
+    # own copy.
     nixosModules.default = { pkgs, ... }@args:
       import ./module.nix (args // { papolPython = pythonFor pkgs; });
-    nixosModules.papol = self.nixosModules.default;
 
     packages = forAllSystems (system: let
       # nixpkgsFor, not nixpkgs-unstable, for the same reason the devShell

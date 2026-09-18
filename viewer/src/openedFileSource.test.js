@@ -6,7 +6,6 @@ const ACCOUNT = '77777777-7777-4777-8777-777777777777';
 const SHELF = '88888888-8888-4888-8888-888888888888';
 const OTHER_SHELF = '66666666-6666-4666-8666-666666666666';
 const values = new Map([['papol.syncPreference', 'manual']]);
-const annotations = new Map();
 const calls = [];
 let existingPaper = null;
 let shelvesReady = true;
@@ -24,28 +23,6 @@ global.window = {
     invoke: async (command, args = {}) => {
       calls.push([command, args]);
       if (command === 'local_setting_get') return 'manual';
-      if (command === 'local_annotations_list') {
-        return [...annotations.values()].filter((row) => row.sha256 === args.sha256);
-      }
-      if (command === 'local_annotation_put') {
-        const stored = { ...args.row, uuid: args.uuid, kind: args.kind, sha256: args.sha256 };
-        annotations.set(args.uuid, stored);
-        return stored;
-      }
-      if (command === 'local_annotation_delete') {
-        annotations.delete(args.uuid);
-        return null;
-      }
-      if (command === 'local_annotations_clear') {
-        let removed = 0;
-        for (const [uuid, row] of annotations) {
-          if (row.sha256 === args.sha256) {
-            annotations.delete(uuid);
-            removed += 1;
-          }
-        }
-        return removed;
-      }
       if (command === 'opened_file_read') return [...new TextEncoder().encode('%PDF-1.4\n%%EOF')];
       if (command === 'blob_import') return { sha256: HASH, size: args.bytes.length, mime_type: args.mimeType };
       if (command === 'data_query') {
@@ -114,7 +91,6 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   values.delete('papol.localAccountUuid');
   existingPaper = null;
   calls.length = 0;
-  annotations.set('legacy-annotation', { uuid: 'legacy-annotation', kind: 'note', sha256: HASH });
   const source = resolveSource();
   assert.deepEqual(source.initialPaper, {
     title: 'Local paper', sha256: HASH, opened_file: true,
@@ -133,7 +109,6 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.deepEqual(loaded.notes, []);
   assert.equal(source.annotations, undefined);
   assert.equal(calls.some(([command]) => command === 'data_query'), false);
-  assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
   await assert.rejects(source.addToNook(), /Sign in to add this paper/);
   assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
 });
@@ -217,7 +192,6 @@ test('Add to nook imports only the paper graph, with no file-viewer annotations'
   assert.equal(mutations[0][0].values.sha256, undefined);
   assert.equal(mutations[0][1].values.shelf_uuid, SHELF);
   assert.equal(mutations.length, 1);
-  assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
 });
 
 test('simultaneous post-login callbacks import an opened PDF only once', async () => {
@@ -278,9 +252,7 @@ test('first sign-in adds an open file locally without waiting for its nook snaps
   assert.match(paperSha256, /^[0-9a-f]{64}$/);
   const syncs = calls.filter(([command]) => command === 'sync_now');
   assert.ok(syncs.length > 0);
-  assert.ok(syncs.every(([, args]) => (
-    args.request.pullOnly === true && args.request.pushOnly === false
-  )));
+  assert.ok(syncs.every(([, args]) => args.request.mode === 'pull'));
   const paperGraph = calls.find(([, args]) => args.changes?.some((change) => change.table === 'copies'));
   assert.equal(paperGraph[1].changes.find((change) => change.table === 'copies').values.shelf_uuid, null);
   assert.deepEqual(
@@ -288,5 +260,4 @@ test('first sign-in adds an open file locally without waiting for its nook snaps
       .flatMap(([, args]) => args.changes.map((change) => change.table)),
     ['papers', 'copies'],
   );
-  assert.equal(calls.some(([command]) => command.startsWith('local_annotation')), false);
 });

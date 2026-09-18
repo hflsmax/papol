@@ -20,7 +20,7 @@
 //
 // The full digest is not a name and is not answered as one. A link written
 // before this is not a Papol link.
-export const PAPER_NAME_LENGTH = 32;
+const PAPER_NAME_LENGTH = 32;
 
 // The digest as it is written in a URL.
 export function paperName(sha256) {
@@ -30,7 +30,3 @@ export function paperName(sha256) {
 // One shape, and only one. A paper is named this way in a URL and on the wire,
 // so nothing has to ask which kind of name it is holding.
 export const PAPER_NAME_PATTERN = `[0-9a-f]{${PAPER_NAME_LENGTH}}`;
-
-export function isPaperName(value) {
-  return new RegExp(`^${PAPER_NAME_PATTERN}$`, 'i').test(String(value || ''));
-}

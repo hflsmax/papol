@@ -1731,12 +1731,6 @@ function PdfPage({
         animalPartsRef.current.set(id, {
           root: node,
           frame: node.querySelector('[data-cow="frame"]'),
-          bob: node.querySelectorAll('[data-cow="bob"]'),
-          head: node.querySelector('[data-cow="head"]'),
-          ear: node.querySelector('[data-cow="ear"]'),
-          tail: node.querySelector('[data-cow="tail"]'),
-          legs: node.querySelectorAll('[data-cow="leg"]'),
-          over: node.querySelectorAll('[data-cow="over"]'),
           shadow: node.querySelector('[data-cow="shadow"]'),
           prop: node.querySelector('[data-cow="prop"]'),
           ball: node.querySelector('[data-cow="ball"]'),
@@ -1896,12 +1890,7 @@ function PdfPage({
       // its own size any more, and a stroke that assumed it was would come
       // out heavier on the small animals at exactly the sizes where it
       // shows most. This lands on the same pixels whatever the clamp did.
-      (held.painted
-        ? `<g stroke-width="${((CURSOR_PEN * held.box.w) / w).toFixed(3)}">${held.painted}</g>`
-        : `<g fill="#faf7ef" stroke="#33383f" ` +
-          `stroke-width="${((CURSOR_PEN * held.box.w) / w).toFixed(3)}" ` +
-          `stroke-linejoin="round">` +
-          `${held.pale}</g><g fill="#33383f">${held.dark}</g>`) +
+      `<g stroke-width="${((CURSOR_PEN * held.box.w) / w).toFixed(3)}">${held.painted}</g>` +
       `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${(w / 2).toFixed(1)} ${(
       (h * held.ground) / held.box.h
@@ -2316,8 +2305,6 @@ function PdfPage({
               type="button"
               className={`pin${doomed.notes.includes(note.uuid) ? ' going' : ''}${
                 note.uuid === activeNoteUuid ? ' active' : ''
-              }${
-                note.drifted ? ' drifted' : ''
               }${note.content ? '' : ' bare'}${
                 drag?.uuid === note.uuid && drag.moved ? ' dragging' : ''
               }`}

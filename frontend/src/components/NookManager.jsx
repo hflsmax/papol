@@ -7,7 +7,7 @@ import { useModalDialog } from '../../../shared/useModalDialog.js';
 // The focused editor for a user's shelves and private tags ("Shelf" in
 // DESIGN.md). My nook opens it from its gear on the website, and Papol
 // macOS from its sidebar.
-export default function NookManager({ space, setSpace, onChanged, onClose, onTagDeleted }) {
+export default function NookManager({ nook, setNook, onChanged, onClose, onTagDeleted }) {
   const [error, setError] = useState(null);
   const [newTagName, setNewTagName] = useState('');
   const dialogRef = useModalDialog(true, onClose);
@@ -37,7 +37,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
         </div>
         {error && <p className="nook-manager-error" role="alert">{error}</p>}
         <div className="shelf-manager-list">
-          {space.shelves.map((shelf) => (
+          {nook.shelves.map((shelf) => (
             <div className="shelf-manager-row" key={shelf.uuid}>
               <label className="shelf-color-control" title="Shelf color">
                 <input
@@ -53,10 +53,10 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   className="shelf-name-input"
                   value={shelf.name}
                   aria-label="Shelf name"
-                  onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.uuid === shelf.uuid ? { ...item, name: e.target.value } : item) }))}
+                  onChange={(e) => setNook((current) => ({ ...current, shelves: current.shelves.map((item) => item.uuid === shelf.uuid ? { ...item, name: e.target.value } : item) }))}
                   onBlur={(e) => { if (e.target.value.trim()) attempt(() => updateShelf(shelf.uuid, { name: e.target.value.trim() })); }}
                 />
-                <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
+                <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count} {shelf.board_count === 1 ? 'board' : 'boards'}</span>
               </div>
               <button
                 className={`switch-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
@@ -85,7 +85,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                 aria-label={`Delete shelf ${shelf.name}`}
                 onClick={async () => {
                   setError(null);
-                  if (space.shelves.length === 1) {
+                  if (nook.shelves.length === 1) {
                     setError('Keep at least one shelf.');
                     return;
                   }
@@ -104,10 +104,10 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
             </div>
           ))}
         </div>
-        {space.shelves.length < 5 && (
+        {nook.shelves.length < 5 && (
           <button className="link-btn shelf-add" onClick={() => {
             const colors = ['#b3923d', '#6b3f5e', '#35606b'];
-            attempt(() => createShelf({ name: `Shelf ${space.shelves.length + 1}`, color: colors[(space.shelves.length - 2) % colors.length], is_public: false }));
+            attempt(() => createShelf({ name: `Shelf ${nook.shelves.length + 1}`, color: colors[(nook.shelves.length - 2) % colors.length], is_public: false }));
           }}>Add another shelf</button>
         )}
         <section className="nook-manager-section" aria-labelledby="manage-tags-title">
@@ -117,9 +117,9 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
               <p>Private labels you can add to any paper.</p>
             </div>
           </div>
-          {space.tags.length > 0 && (
+          {nook.tags.length > 0 && (
             <div className="manage-tag-list">
-              {space.tags.map((tag) => (
+              {nook.tags.map((tag) => (
                 <div className="manage-tag-row" key={tag.uuid}>
                   <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
                   <button

@@ -26,7 +26,6 @@ import httpx
 import fitz
 
 from pdf_parser import extract_arxiv_id
-from app_limits import limit
 
 TEI = "{http://www.tei-c.org/ns/1.0}"
 XML_ID = "{http://www.w3.org/XML/1998/namespace}id"
@@ -115,23 +114,10 @@ class HeaderMetadata:
     authors: list[str] = field(default_factory=list)
     journal: Optional[str] = None
     year: Optional[int] = None
-    doi: Optional[str] = None
-    arxiv_id: Optional[str] = None
 
 
 def configured() -> bool:
     return bool(GROBID_URL)
-
-
-async def alive() -> bool:
-    if not GROBID_URL:
-        return False
-    try:
-        async with httpx.AsyncClient(timeout=limit("timeouts_ms", "grobid_http") / 1000) as client:
-            r = await client.get(f"{GROBID_URL}/api/isalive")
-            return r.status_code == 200 and r.text.strip() == "true"
-    except Exception:
-        return False
 
 
 async def extract_header(pdf_path: str) -> HeaderMetadata:
@@ -181,18 +167,7 @@ def parse_header(xml: str) -> HeaderMetadata:
     date = bibl.find(f"{TEI}monogr/{TEI}imprint/{TEI}date")
     when = date.get("when") if date is not None else None
     year = int(when[:4]) if when and when[:4].isdigit() else None
-    identifiers = {
-        (node.get("type") or "").lower(): _text(node)
-        for node in bibl.findall(f"{TEI}idno")
-    }
-    return HeaderMetadata(
-        title=title,
-        authors=authors,
-        journal=journal,
-        year=year,
-        doi=identifiers.get("doi"),
-        arxiv_id=identifiers.get("arxiv"),
-    )
+    return HeaderMetadata(title=title, authors=authors, journal=journal, year=year)
 
 
 _TITLE_SMALL_WORDS = {
