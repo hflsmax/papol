@@ -63,7 +63,6 @@ function apiSource(
   loadPaper = () => getPaperByPdf(pdfHash),
   loadPaperNotes = (paper) => getPaperNotes(paper),
 ) {
-  let paperSha256 = null;
   let paperReady = null;
   const paper = () => {
     if (!paperReady) paperReady = loadPaper();
@@ -77,20 +76,20 @@ function apiSource(
     requiresSignIn: true,
     async load() {
       const loaded = await paper();
-      paperSha256 = loaded.sha256;
       source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
       return { doc: loaded, notes: [] };
     },
     async loadNotes() {
       const loaded = await paper();
-      paperSha256 = loaded.sha256;
       return notesIn(await loadPaperNotes(loaded));
     },
     // One interface for every kind of annotation. A caller says which kind it is
     // making and what its geometry is; nothing else differs between them.
+    // A paper is its PDF, so the digest in the URL already names the paper:
+    // nothing here waits on the metadata query for a second copy of the name.
     annotations: {
-      list: (kind) => listAnnotations(paperSha256, { kind }),
-      create: (annotation) => createAnnotation(paperSha256, annotation),
+      list: (kind) => listAnnotations(pdfHash, { kind }),
+      create: (annotation) => createAnnotation(pdfHash, annotation),
       update: (uuid, changes) => updateAnnotation(uuid, changes),
       remove: (uuid) => deleteAnnotation(uuid),
     },

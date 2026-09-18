@@ -1435,7 +1435,8 @@ export default function App() {
 
   useEffect(() => {
     // A file opened from disk is in no nook, so there is nothing on it.
-    if (!annotations?.clips) return undefined;
+    // Asked for once the paper is known, as ink is below.
+    if (!paper || !annotations?.clips) return undefined;
     let cancelled = false;
     annotations.clips.list()
       .then((loaded) => { if (!cancelled) setClips(loaded); })
