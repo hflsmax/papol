@@ -116,7 +116,7 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
   };
   return {
     // Where the home button leads. A link hands over one reading of one
-    // PDF, not a place in the Library — and the Library asks for an account
+    // PDF, not a place in the Desk — and the Desk asks for an account
     // besides — so the way out names no paper and goes to Papol itself.
     homeHref: appPath('/'),
     requiresSignIn: false,

@@ -10,7 +10,7 @@ export function isPdfFile(file) {
 // Some operating systems conceal a dragged file's MIME type until drop. An
 // unknown type remains provisionally acceptable and is validated by name once
 // the File is available; a known non-PDF can be rejected immediately.
-export function libraryFileDragState(dataTransfer) {
+export function deskFileDragState(dataTransfer) {
   const items = Array.from(dataTransfer?.items || []).filter((item) => item.kind === 'file');
   return items.some((item) => item.type && item.type.toLowerCase() !== 'application/pdf')
     ? 'reject'

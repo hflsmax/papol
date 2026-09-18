@@ -6,7 +6,7 @@
   "permissions": [
     "allow-open-document-window",
     "allow-close-document-window",
-    "allow-focus-library-window",
+    "allow-focus-desk-window",
     "allow-diagnostic-log",
     "allow-diagnostic-recent",
     "allow-data-query",

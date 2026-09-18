@@ -462,13 +462,13 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   sidebar (`components/DesktopChrome.jsx`) lists the user's sources — All
   papers, each shelf (by its swatch, once there are two), Boards, their tags —
   then Desk, Inbox, Learn, with Manage nook as the icon beside "My nook".
-  Reading is three panes (`components/DesktopLibrary.jsx`): the Desk sidebar picks
+  Reading is three panes (`components/DesktopDesk.jsx`): the Desk sidebar picks
   a source, a 320px white list pane shows it as compact rows with a search
   field, and the selected paper opens beside the list in the ordinary
   `PaperDetail`. A selected board opens a read-only overview there instead:
   identity and shelf, incoming excerpts or clips waiting to be placed, and a
   fitted canvas preview. One click selects a board; double-click, Return, or
-  the overview's Open Board button opens its document window. The library is
+  the overview's Open Board button opens its document window. The collection is
   for recognising and resuming a board, never for editing its canvas. A newly
   created board becomes the selected board in the Desk and shows this
   overview; creation never opens the document window on the user's behalf.

@@ -31,9 +31,9 @@ struct OpenedFiles {
     waiting_links: Mutex<Vec<tauri::Url>>,
 }
 
-/// The permanent library is built hidden so a file-association launch can
+/// The permanent Desk is built hidden so a file-association launch can
 /// open directly into its document. Once the first event-loop turn ends, an
-/// ordinary app launch reveals the library; later PDF opens leave its current
+/// ordinary app launch reveals the Desk; later PDF opens leave its current
 /// visibility alone.
 #[derive(Default)]
 struct WindowLaunch {
@@ -96,7 +96,7 @@ fn add_open_timings(url: &mut tauri::Url, opened_at_ms: u128, read_ms: f64, hash
 /// launch *caused by* an address, so on the first handoff after installing
 /// this runs before `setup` has built anything to show it in — and an
 /// address dropped there is a user who clicked "Open in Papol", watched
-/// Papol start, and got the library instead of their paper.
+/// Papol start, and got the Desk instead of their paper.
 #[cfg(target_os = "macos")]
 fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
     if links.is_empty() {
@@ -122,9 +122,9 @@ fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
         let Some(target) = deep_link_url(&link, &origin, &scheme) else {
             continue;
         };
-        // The user asked for this document, not for the library, so a cold
+        // The user asked for this document, not for the Desk, so a cold
         // launch opens into it — but only once a window has actually been
-        // made for it, or the library would stay hidden behind nothing.
+        // made for it, or the Desk would stay hidden behind nothing.
         if show_document_window(app, &origin, target) {
             app.state::<WindowLaunch>().note_standalone_viewer();
         }
@@ -196,7 +196,7 @@ fn opened_file_read(
     Ok(tauri::ipc::Response::new(bytes))
 }
 
-/// HTML file drops deliberately stay enabled for the library's import UI.
+/// HTML file drops deliberately stay enabled for the Desk's import UI.
 /// Before sign-in, hand their bytes back to the native shell so WebKit never
 /// falls through to its own PDF renderer and the file gets Papol's viewer.
 #[tauri::command]
@@ -1073,7 +1073,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         return true;
     }
 
-    // Build from the main WindowConfig so document windows inherit the same
+    // Build from the Desk WindowConfig so document windows inherit the same
     // native chrome, including the traffic-light position.
     let mut config = app
         .config()
@@ -1113,7 +1113,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         })
         .on_download(|_webview, _event| true);
     // The same store as the Desk window: a document window reads the
-    // user's credential from the storage the library wrote it to.
+    // user's credential from the storage the Desk wrote it to.
     #[cfg(target_os = "macos")]
     if let Some(store) = webview_data_store(&app.config().identifier) {
         builder = builder.data_store_identifier(store);
@@ -1310,7 +1310,7 @@ pub fn run() {
                 .find(|window| window.label == "desk")
                 .cloned()
                 .expect("tauri.conf.json declares the Desk window");
-            // Keep the library off screen through the initial native open-file
+            // Keep the Desk off screen through the initial native open-file
             // events. handle_run_event reveals it for an ordinary app launch.
             config.visible = false;
             let papol_origin = match &config.url {
@@ -1328,7 +1328,7 @@ pub fn run() {
                 // Publish Papol's runtime contract before application modules
                 // execute, without exposing Tauri's entire global API.
                 .initialization_script(DESKTOP_ENVIRONMENT)
-                // Papers are native document windows: the Papol library
+                // Papers are native document windows: the Papol Desk
                 // remains mounted behind them, ready exactly where it was.
                 // Other target=_blank links still belong in the browser.
                 .on_new_window(move |url, _features| {
@@ -1602,7 +1602,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_launch_opens_the_library_once() {
+    fn ordinary_launch_opens_the_desk_once() {
         let launch = WindowLaunch::default();
 
         assert_eq!(launch.finish(), Some(true));
@@ -1610,7 +1610,7 @@ mod tests {
     }
 
     #[test]
-    fn standalone_viewer_launch_keeps_the_library_hidden() {
+    fn standalone_viewer_launch_keeps_the_desk_hidden() {
         let launch = WindowLaunch::default();
 
         assert!(launch.note_standalone_viewer());
@@ -1781,7 +1781,7 @@ mod tests {
         // The first handoff after installing is a cold launch: macOS delivers
         // the address to start the application, so it arrives before `setup`
         // has set an origin. Dropping it there is the user watching Papol
-        // open on the library instead of the paper they asked for.
+        // open on the Desk instead of the paper they asked for.
         let opened = OpenedFiles::default();
         assert!(opened.origin.lock().expect("origin").is_none());
 

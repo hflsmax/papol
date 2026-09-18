@@ -19,7 +19,7 @@ const inDemoBoards = () => window.location.pathname.includes('/demo/boards/');
 
 /**
  * Where the house leads: out of this board and into where the board is kept,
- * which is its jacket in the Library. The viewer's house has always worked
+ * which is its jacket in the Desk. The viewer's house has always worked
  * this way — out of the paper and onto the paper's jacket — and it falls back
  * to Papol itself only for a reading that has no jacket to go to, a shared
  * link or a file opened from disk. A board always has one, because opening
