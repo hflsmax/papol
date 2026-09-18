@@ -47,6 +47,7 @@ const browserCandidates = () => {
   if (process.platform === 'darwin') {
     return [
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
       '/Applications/Chromium.app/Contents/MacOS/Chromium',
       '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
       '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',

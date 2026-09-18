@@ -18,7 +18,7 @@ import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
 import { inDemo } from '../../../shared/appUrls.js';
 import { authorList } from '../paperFormat';
-import { appPath } from '../base';
+import { appPath, modePath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
@@ -164,8 +164,7 @@ export default function PaperJacket({
   // a viewer URL.
   const viewerHref = () => {
     if (!paper?.sha256) return null;
-    const base = inDemo() ? '/demo/viewer/' : '/viewer/';
-    return appPath(`${base}?pdf=${paper.sha256}`);
+    return modePath(`/viewer/?pdf=${paper.sha256}`, { demo: inDemo() });
   };
 
   const noteHref = (comment) => {
@@ -222,11 +221,10 @@ export default function PaperJacket({
       setPaper(added);
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.
-      const modePrefix = inDemo() ? '/demo' : '';
       window.history.replaceState(
         window.history.state,
         '',
-        appPath(`${modePrefix}/paper/${paperName(added.sha256)}`),
+        modePath(`/paper/${paperName(added.sha256)}`, { demo: inDemo() }),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
       // the nook needs the user's shelves for its shelf menu.
@@ -486,8 +484,8 @@ export default function PaperJacket({
       link.click();
     } },
     hasEntry && { label: 'Edit Paper…', onSelect: startMetadataEdit },
-    currentUser && !inDemo() && { separator: true },
-    currentUser && !inDemo() && { label: 'Share…', onSelect: () => setShareOpen(true) },
+    currentUser && { separator: true },
+    currentUser && { label: 'Share…', onSelect: () => setShareOpen(true) },
     hasEntry && { separator: true },
     hasEntry && { label: 'Remove from My Nook…', onSelect: handleDelete },
   ]);
@@ -787,7 +785,7 @@ export default function PaperJacket({
                 {isAddingToNook ? 'Downloading PDF…' : 'Add to my nook'}
               </button>
             )}
-            {currentUser && !inDemo() && canShareThisPdf && (
+            {currentUser && canShareThisPdf && (
               <div className="share-control" ref={shareControlRef}>
                 <button
                   type="button"

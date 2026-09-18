@@ -1,5 +1,5 @@
-import { inDemo } from '../appUrls.js';
 import { IS_DESKTOP } from '../appEnvironment.js';
+import { inDemo } from '../appUrls.js';
 import {
   nativeAccountUuid, nativeDataActive, nativeRepository, prepareNativeAccount,
   removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount,
@@ -110,16 +110,20 @@ export async function pendingLocalChanges() {
 }
 
 export async function getMe() {
+  const demo = inDemo();
   let user;
   try {
     // A half-open backend must not hold the desktop shell on “Loading…”.
     user = await desktopAuthRequest((signal) => request('/auth/me', { signal }));
   } catch (error) {
-    if (!nativeDataActive() || error?.status === 401 || error?.status === 403) throw error;
+    if (demo || !nativeDataActive() || error?.status === 401 || error?.status === 403) throw error;
     // Offline, SQLite holds the signed-in user's identity.
     user = await nativeRepository.account();
   }
   if (!user) throw new Error('Account profile is unavailable');
+  // A demo response can arrive after navigation out of the demo. Its identity
+  // must never activate a durable desktop account in that later context.
+  if (demo) return user;
   if (!nativeDataActive()) {
     await prepareNativeAccount(user);
   }
@@ -144,8 +148,9 @@ export async function refreshStartupUser(localUser) {
 }
 
 export async function updateProfile(data) {
+  const demo = inDemo();
   const user = await jsonRequest('/auth/profile', 'PUT', data);
-  await prepareNativeAccount(user);
+  if (!demo) await prepareNativeAccount(user);
   return user;
 }
 
@@ -158,11 +163,6 @@ export async function updateProfile(data) {
  * downloaded file from script.
  */
 export async function downloadMyData() {
-  if (inDemo()) {
-    throw new Error(
-      'The demo has nothing of yours to export — create a real account first.'
-    );
-  }
   const response = await runtimeFetch(`${API_BASE}/auth/export`, {
     headers: authHeaders(),
   });

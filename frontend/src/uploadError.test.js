@@ -4,7 +4,7 @@ import { isReportableUploadError } from '../../shared/uploadError.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 test('upload refusals and connection failures can be corrected or retried', () => {
-  for (const status of [400, 401, 403, 409, 413, 415, 422, 429]) {
+  for (const status of [400, 401, 403, 409, 413, 415, 422, 429, 501]) {
     assert.equal(isReportableUploadError({ status, message: 'Refused' }), false);
   }
   for (const message of ['Offline files may be at most 40 MB', 'Failed to fetch',

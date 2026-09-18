@@ -19,7 +19,7 @@ identifier of its own, the notes column gives it.
 | **Nook** | One user's public reading corner: their copies, shelves, boards and tags. | `Nook.jsx`, `getNook()`, `GET /api/users/<uuid>/nook`, `route.page === 'nook'` at `/u/<uuid>`. |
 | **Shelf** | One of a user's homes for papers, each **public** or **private**. *Visibility lives on the shelf and nowhere else.* | `shelves.is_public`. A copy is public when its shelf is; the toggle in `NookManager.jsx` reads Public / Private. |
 | **Library** | Every paper there is, and every user with a copy on a public shelf. The place a paper is found rather than owned. | Papers and the people who read them are two views of one Library, not two places. `/library`, `route.page === 'papers'`. |
-| **Demo** | A fictional Papol that lives entirely in the browser. The URL is the sole authority for whether it is on. | `shared/demo.js`, `shared/demoWorld.js`. No request reaches the backend in demo. |
+| **Demo** | A fictional Papol backed by a disposable session; changes never reach permanent content. The URL determines whether it is on. | `backend/demo.py`, `shared/demo.js`; [architecture](demo-architecture.md). Supported features use real handlers; others report that they are unsupported. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
 ## 2. Works

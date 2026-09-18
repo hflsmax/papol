@@ -1,7 +1,7 @@
 import { IS_DESKTOP } from './appEnvironment.js';
 import { backendPath } from './appUrls.js';
 import { runtimeFetch } from './connectivity.js';
-import { demoPapers } from './demoWorld.js';
+import demoSeed from './demoSeed.json' with { type: 'json' };
 import { nativeBlobBytes, nativeBlobCache } from './nativeData.js';
 
 const video = (path, sha256) => Object.freeze({ path, sha256, mimeType: 'video/mp4', kind: 'video' });
@@ -17,7 +17,7 @@ export const tutorialMedia = Object.freeze({
   noteMaking: video('/assets/learn/note-making.mp4', 'e0e83823fa694c874b352e609509d064b4a2a9fc9cad2a1bc7868f51723f52be'),
 });
 
-const demoMedia = demoPapers.map((paper) => Object.freeze({
+const demoMedia = demoSeed.papers.map((paper) => Object.freeze({
   path: `/uploads/${paper.file_path}`,
   sha256: paper.sha256,
   mimeType: 'application/pdf',

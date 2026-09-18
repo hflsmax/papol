@@ -29,6 +29,18 @@ export function appPath(path = '/') {
   return `${APP_BASE}${absolute}` || '/';
 }
 
+// One spelling for the same place in an ordinary or demo visit. This keeps
+// the Desk, viewer and board from each reconstructing the /demo prefix.
+export function modeRoute(path = '/', { demo = false } = {}) {
+  const absolute = path.startsWith('/') ? path : `/${path}`;
+  if (!demo) return absolute;
+  return absolute === '/' ? '/demo' : `/demo${absolute}`;
+}
+
+export function modePath(path = '/', options = {}) {
+  return appPath(modeRoute(path, options));
+}
+
 const configuredBackend = normalizeBackendBase(viteEnvironment.VITE_PAPOL_BACKEND);
 export const BACKEND_BASE = configuredBackend || APP_BASE;
 
@@ -42,14 +54,14 @@ export function backendPath(path = '/') {
 // paper — because a home button that points back at the thing you just
 // closed is a back button wearing a house.
 export function homePath({ demo = false } = {}) {
-  return appPath(demo ? '/demo' : '/');
+  return modePath('/', { demo });
 }
 
 // A board's **jacket** — its one screen in the Library, where its name, its
 // description and the way in are kept. Singular, as a paper's is: the plural
 // `/boards/<uuid>` is the canvas, which is a different application.
 export function boardJacketPath(uuid, { demo = false } = {}) {
-  return appPath(`${demo ? '/demo' : ''}/board/${uuid}`);
+  return modePath(`/board/${uuid}`, { demo });
 }
 
 export function stripAppBase(value) {
