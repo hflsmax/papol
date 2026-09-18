@@ -117,7 +117,8 @@ def summarize_crossref(item: dict) -> dict:
     # Container titles wrap across lines and, for ACM proceedings, end in
     # the dash that preceded a dropped subtitle.
     container = (item.get("container-title") or [None])[0]
-    container = " ".join(unescape(container).split()).rstrip(" -") or None if container else None
+    if container:
+        container = " ".join(unescape(container).split()).rstrip(" -") or None
     year = None
     issued = (item.get("issued") or {}).get("date-parts") or [[]]
     if issued and issued[0]:
