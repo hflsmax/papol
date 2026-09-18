@@ -127,10 +127,33 @@ def abstract_of(work: dict) -> Optional[str]:
     return text or None
 
 
+def venue_of(work: dict) -> Optional[str]:
+    """Where the work was published, as a reader would name it.
+
+    A work has several locations — the publisher's and any repository
+    holding a copy — and the open-access one is usually the repository,
+    which names itself "arXiv (Cornell University)" where the reader wants
+    the journal or the conference. The publisher's location names that. A
+    repository is the venue only when it is all there is: a preprint's
+    venue really is arXiv."""
+    candidates = [
+        work.get("primary_location"),
+        *(work.get("locations") or []),
+        work.get("best_oa_location"),
+    ]
+    named = []
+    for location in candidates:
+        source = location.get("source") if isinstance(location, dict) else None
+        if isinstance(source, dict) and source.get("display_name"):
+            named.append((source.get("type"), source["display_name"]))
+    for kind, name in named:
+        if kind != "repository":
+            return name
+    return named[0][1] if named else None
+
+
 def summarize(work: dict) -> dict:
     """An OpenAlex work as the viewer's popup wants it."""
-    location = work.get("best_oa_location") or work.get("primary_location") or {}
-    source = (location.get("source") or {}) if isinstance(location, dict) else {}
     return {
         "title": work.get("display_name"),
         "authors": [
@@ -139,7 +162,7 @@ def summarize(work: dict) -> dict:
             if a.get("author", {}).get("display_name")
         ],
         "year": work.get("publication_year"),
-        "venue": source.get("display_name"),
+        "venue": venue_of(work),
         "abstract": abstract_of(work),
         "citations": work.get("cited_by_count"),
         "doi": (work.get("doi") or "").replace("https://doi.org/", "") or None,

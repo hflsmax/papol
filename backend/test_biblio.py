@@ -181,6 +181,46 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(answer.resolution.title, "The Llama 3 Herd of Models")
         self.assertEqual(answer.resolution.url, "https://arxiv.org/abs/2407.21783")
 
+    async def test_indexed_work_without_a_venue_takes_the_printed_one(self):
+        ref = reference(
+            raw="Ion A. Metamaterial Mechanisms. In: Proc. UIST 2016.",
+            title="Metamaterial Mechanisms",
+            year=2016,
+            resolved_status=None,
+            resolution=None,
+            resolved_at=None,
+            authors=None,
+            journal="Proc. UIST 2016",
+            uuid="reference-3",
+            key="b3",
+            index=3,
+            page=None,
+            y=None,
+        )
+        indexed = {"title": "Metamaterial Mechanisms", "year": 2016, "source": "openalex"}
+        with patch.object(
+            reference_engine.biblio, "resolve", AsyncMock(return_value=("ok", indexed))
+        ):
+            answer = await reference_engine.resolve(ref)
+        self.assertEqual(answer.resolved_status, "ok")
+        self.assertEqual(answer.resolution.venue, "Proc. UIST 2016")
+
+    async def test_indexed_venue_outranks_the_printed_one(self):
+        ref = reference(
+            resolved_status=None, resolution=None, resolved_at=None,
+            authors=None, journal="NIPS", uuid="reference-1", key="b1", index=1,
+            page=None, y=None,
+        )
+        indexed = {
+            "title": "Attention Is All You Need", "year": 2017,
+            "venue": "Neural Information Processing Systems", "source": "openalex",
+        }
+        with patch.object(
+            reference_engine.biblio, "resolve", AsyncMock(return_value=("ok", indexed))
+        ):
+            answer = await reference_engine.resolve(ref)
+        self.assertEqual(answer.resolution.venue, "Neural Information Processing Systems")
+
     async def test_exact_crossref_match_skips_search_and_is_enriched(self):
         crossref_summary = {
             "title": "Attention Is All You Need",

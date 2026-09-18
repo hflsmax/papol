@@ -64,6 +64,11 @@ async def resolve(reference) -> ReferenceOut:
             # broken popup.
             status = "bibliography"
             summary = _bibliography_summary(reference)
+        elif summary and not summary.get("venue"):
+            # An index that knows the work but not where it appeared is
+            # thinner than the bibliography, which names the journal or the
+            # conference right there on the page.
+            summary["venue"] = getattr(reference, "journal", None)
         reference.resolved_status = status
         reference.resolution = json.dumps(summary) if summary else None
         reference.resolved_at = datetime.utcnow()
