@@ -174,7 +174,15 @@ export default function Navigator({
     // Whatever comes before the first heading is the front of the paper —
     // its title, its authors, usually its abstract. Part of the document,
     // so part of the map.
-    if (marks[0].at > 0.02) {
+    //
+    // Unless the outline already names it. A paper whose first heading is
+    // Abstract has the front of itself on the bar under the author's own
+    // name for it, and adding Start beside it draws the same place twice:
+    // two boxes, the first holding nothing but the title block, and the
+    // reader has to guess which of them is the way in. The first section
+    // owns the bar from its left end anyway (see the edges below), so
+    // Abstract is where the top of the paper is reached.
+    if (marks[0].at > 0.02 && !isFrontMatter(marks[0].title)) {
       out.unshift({ id: 'front', front: true, at: 0, span: marks[0].at, title: 'Start' });
     }
     return out;
@@ -230,11 +238,11 @@ export default function Navigator({
     const spans = edges.slice(1).map((edge, index) => edge - edges[index]);
 
     // The two ends of the paper take their width outright; see the widths
-    // above. The front is a run rather than one segment, because a paper
-    // whose outline names its abstract has two of them — the stretch before
-    // the abstract and the abstract itself — and together they are the
-    // front. Only a run from the very start counts: a later section called
-    // Overview is not the paper opening again.
+    // above. The front is a run rather than one segment: a paper can open
+    // on Abstract, or on a Start that a named Summary follows, and either
+    // way the front of the paper is what stands before its first real
+    // section. Only a run from the very start counts: a later section
+    // called Overview is not the paper opening again.
     let front = true;
     const fixed = segments.map((segment) => {
       front = front && (segment.front || isFrontMatter(segment.title));
