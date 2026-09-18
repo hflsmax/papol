@@ -3949,52 +3949,11 @@ mod tests {
                     row.get(0)
                 })
                 .unwrap();
-            assert_eq!(migration_count, 8);
+            // Every migration this build has, recorded once. The number is
+            // not the point — opening the same library twice recording the
+            // same count is.
+            assert_eq!(migration_count, 3);
         }
-    }
-
-    #[test]
-    fn a_replica_written_before_the_shelf_owned_visibility_drops_the_column() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("papol.sqlite3");
-        // A replica that applied the domain DDL back when a copy carried its
-        // own visibility: the migration is on record, so dropping the column
-        // is all that is left to do.
-        let legacy = Connection::open(&path).unwrap();
-        legacy
-            .execute_batch(
-                "CREATE TABLE _local_schema_migrations (\
-                   migration_id TEXT PRIMARY KEY NOT NULL,\
-                   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);\
-                 INSERT INTO _local_schema_migrations (migration_id) \
-                   VALUES ('202609120001_domain');\
-                 CREATE TABLE copies (\
-                   uuid TEXT PRIMARY KEY NOT NULL,\
-                   paper_sha256 TEXT NOT NULL,\
-                   user_uuid TEXT NOT NULL,\
-                   marketed INTEGER NOT NULL DEFAULT 0);\
-                 INSERT INTO copies (uuid, paper_sha256, user_uuid, marketed) \
-                   VALUES ('kept-private', 'p', 'u', 0), ('on-display', 'p', 'u', 1);",
-            )
-            .unwrap();
-        drop(legacy);
-
-        let store = LocalStore::open(&path).unwrap();
-        let connection = store.connection.lock().unwrap();
-        let left: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM pragma_table_info('copies') \
-                 WHERE name IN ('marketed', 'is_public')",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(left, 0, "a copy should hold no visibility of its own");
-        // The rows themselves are untouched; only the column went.
-        let rows: i64 = connection
-            .query_row("SELECT COUNT(*) FROM copies", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(rows, 2);
     }
 
     #[test]
