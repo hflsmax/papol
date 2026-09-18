@@ -644,7 +644,7 @@ export default function App() {
   // window's sign-in) | adding.
   const [nookStep, setNookStep] = useState('idle');
   // Kept apart from the sign-in step so clicking away can hide the prompt
-  // without cancelling a sign-in already under way in the library window.
+  // without cancelling a sign-in already under way in the Desk window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
   // This user's own copy of the paper in front of them, when they keep
   // one. What turns "add to nook" into "show in nook": the offer should be
@@ -652,7 +652,7 @@ export default function App() {
   const [nookCopy, setNookCopy] = useState(null);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Asked over a file opened from disk while another app is the system's PDF
-  // viewer, until answered here or in the library window this launch.
+  // viewer, until answered here or in the Desk window this launch.
   useEffect(() => {
     if (!source?.openedFile || !firstPageReady) return undefined;
     let cancelled = false;
@@ -1415,7 +1415,7 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
-      // A viewer in Papol's main window can return to the library. Native
+      // A viewer in Papol's Desk window can return to the collection. Native
       // document windows use the standard Close Window command instead.
       if (DESKTOP && !DOCUMENT_WINDOW && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
         e.preventDefault();
@@ -3361,7 +3361,7 @@ export default function App() {
     window.location.assign(showInNookHref);
   };
   const askToSignIn = () => {
-    // On the desktop the library window does the signing in and this one
+    // On the desktop the Desk window does the signing in and this one
     // waits for it. On the web there is no other window: the visitor goes
     // to the sign-in page and is brought back to the link they were
     // reading, where the paper is still theirs to add.
@@ -3374,7 +3374,7 @@ export default function App() {
     setNookPromptOpen(true);
     requestSignIn().catch(() => setNookStep('ask'));
   };
-  // Signing in happens in the library window. This window hears of it when
+  // Signing in happens in the Desk window. This window hears of it when
   // the account is written to shared storage, or when it is focused again.
   useEffect(() => {
     if (nookStep !== 'waiting') return undefined;

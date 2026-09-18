@@ -235,7 +235,7 @@ fn opened_file_open(
     }
 }
 
-/// Document windows do not sign in themselves: the library window does, and
+/// Document windows do not sign in themselves: the Desk window does, and
 /// the viewer that asked picks the account up when it is focused again.
 #[tauri::command]
 fn request_sign_in(app: tauri::AppHandle, register: Option<bool>) {
@@ -758,7 +758,7 @@ fn document_environment(surface: &str) -> String {
 #[tauri::command]
 fn close_document_window(window: tauri::WebviewWindow) {
     // Capabilities expose this command only to document windows; retain the
-    // label check as defense in depth around the permanent library window.
+    // label check as defense in depth around the permanent Desk window.
     if window.label().starts_with("viewer-") || window.label().starts_with("board-") {
         let _ = window.close();
     }
@@ -1082,7 +1082,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         .iter()
         .find(|window| window.label == "desk")
         .cloned()
-        .expect("tauri.conf.json declares the main window");
+        .expect("tauri.conf.json declares the Desk window");
     config.label = document.label;
     config.create = true;
     config.url = tauri::WebviewUrl::External(url);
@@ -1112,7 +1112,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
             NewWindowResponse::Deny
         })
         .on_download(|_webview, _event| true);
-    // The same store as the library window: a document window reads the
+    // The same store as the Desk window: a document window reads the
     // user's credential from the storage the library wrote it to.
     #[cfg(target_os = "macos")]
     if let Some(store) = webview_data_store(&app.config().identifier) {
@@ -1309,7 +1309,7 @@ pub fn run() {
                 .iter()
                 .find(|window| window.label == "desk")
                 .cloned()
-                .expect("tauri.conf.json declares the main window");
+                .expect("tauri.conf.json declares the Desk window");
             // Keep the library off screen through the initial native open-file
             // events. handle_run_event reveals it for an ordinary app launch.
             config.visible = false;
