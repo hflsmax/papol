@@ -8,6 +8,12 @@ so with a 426 and somewhere to get the build that can. A caller that sends
 no number is not a Papol client — a browser at the website, curl, a proxy —
 and is not gated: the website ships with the server.
 
+One caller sends no number and is a Papol client all the same: a build
+from before the header existed, which still names itself in its
+User-Agent. Predating the header means predating this schema, so naming
+itself is enough to refuse it — otherwise the oldest builds of all would
+be the only ones the gate waves through.
+
 Nothing here deletes or rebuilds anything. Being too old to sync is a
 different fact from being wrong about what you hold, and they are kept
 apart deliberately.
@@ -16,6 +22,9 @@ apart deliberately.
 from sync.registry import schema_version
 
 SCHEMA_HEADER = "X-Papol-Schema"
+# How the native app names itself. The one spelling, shared with the sync
+# routes that record the version it carries.
+AGENT_PREFIX = "Papol macOS/"
 DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases"
 
 SUPPORTED = "supported"
@@ -35,9 +44,11 @@ def client_schema(request) -> int | None:
 
 def verdict(request) -> str:
     announced = client_schema(request)
-    if announced is None or announced == schema_version():
+    if announced is None:
+        if AGENT_PREFIX in (request.headers.get("user-agent") or ""):
+            return INCOMPATIBLE  # a Papol build from before the header
         return SUPPORTED
-    return INCOMPATIBLE
+    return SUPPORTED if announced == schema_version() else INCOMPATIBLE
 
 
 def requirements() -> dict:

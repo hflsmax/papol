@@ -22,7 +22,7 @@ from models import (
     Annotation, AppliedMutation, Board, BoardGroup, BoardItem, Copy, CopyTagLink,
     Paper, ServerChange, Shelf, SyncClient, Tag, User,
 )
-from services.client_requirements import INCOMPATIBLE, refusal, verdict
+from services.client_requirements import AGENT_PREFIX, INCOMPATIBLE, refusal, verdict
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
@@ -65,16 +65,13 @@ def _require_supported_client(request: Request) -> None:
 # The client announces itself as "Papol macOS/0.3.0"; the version is kept on
 # its sync row so that who runs what can be read off the table. Anything else
 # is some other caller and records nothing.
-_AGENT_PREFIX = "Papol macOS/"
-
-
 def _app_version(user_agent: str | None) -> str | None:
     if not user_agent:
         return None
-    start = user_agent.find(_AGENT_PREFIX)
+    start = user_agent.find(AGENT_PREFIX)
     if start < 0:
         return None
-    rest = user_agent[start + len(_AGENT_PREFIX):].split()
+    rest = user_agent[start + len(AGENT_PREFIX):].split()
     return rest[0] if rest else None
 
 

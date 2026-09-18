@@ -81,6 +81,21 @@ class SyncGateTests(unittest.TestCase):
         # it; curl is nobody's business to refuse.
         self.assertEqual(self.pull({"User-Agent": "curl/8.4.0"}).status_code, 200)
 
+    def test_a_papol_build_from_before_the_header_is_refused(self):
+        # 0.2.0 sends no schema header because none existed when it was
+        # compiled — which is exactly what dates it. Naming itself Papol
+        # is enough to be held to the gate.
+        refused = self.pull({"User-Agent": "Papol macOS/0.2.0"})
+        self.assertEqual(refused.status_code, 426, refused.text)
+        self.assertEqual(refused.json()["detail"]["error"], "client_incompatible")
+
+    def test_the_verdict_names_a_pre_header_build_incompatible(self):
+        main.app.dependency_overrides.pop(get_current_user, None)
+        asked = self.client.get(
+            "/api/client-requirements", headers={"User-Agent": "Papol macOS/0.2.0"},
+        ).json()
+        self.assertEqual(asked["verdict"], "incompatible")
+
     def test_the_snapshot_and_the_push_are_refused_too(self):
         refused = self.client.get("/api/sync/snapshot", headers={SCHEMA_HEADER: OLDER})
         self.assertEqual(refused.status_code, 426, refused.text)
