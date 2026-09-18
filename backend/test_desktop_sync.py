@@ -1146,6 +1146,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             db.add(copy)
             commit_sync(db)
             public_uuid, private_uuid, copy_uuid = public.uuid, private.uuid, copy.uuid
+            paper_sha256 = paper.sha256
             revision = copy.revision
 
         client_uuid = str(uuid.uuid4())
@@ -1171,7 +1172,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertTrue(is_public())
 
         with self.sessions() as db:
-            room = Room(paper_key="title:shelved offline", paper_title="Shelved offline", created_by=self.user_uuid)
+            room = Room(paper_sha256=paper_sha256, created_by=self.user_uuid)
             db.add(room)
             db.flush()
             db.add(RoomParticipant(room_uuid=room.uuid, user_uuid=self.user_uuid))

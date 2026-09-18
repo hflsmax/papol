@@ -619,6 +619,88 @@ class UpgradeFromPreviousReleaseTests(unittest.TestCase):
         self.assertEqual(after[self.shown_copy], 1)
         self.assertEqual(after[self.hidden_copy], 0)
 
+    # --- seminars ----------------------------------------------------------
+
+    def seed_seminars(self):
+        """Three seminars under the keys a seminar used to be filed by.
+
+        The shown paper carries a DOI, so its key was the DOI; the hidden
+        one has none, so its key was its title. Both spellings have to find
+        their paper. The third names nothing at all."""
+        with sqlite3.connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE rooms ("
+                "  uuid TEXT PRIMARY KEY NOT NULL, paper_key TEXT NOT NULL,"
+                "  paper_title TEXT NOT NULL, created_by TEXT NOT NULL,"
+                "  leader_uuid TEXT, status TEXT NOT NULL, scheduled_time TEXT,"
+                "  platform TEXT, style TEXT, style_desc TEXT, created_at TEXT)"
+            )
+            db.execute(
+                "CREATE TABLE room_messages ("
+                "  uuid TEXT PRIMARY KEY NOT NULL, room_uuid TEXT NOT NULL,"
+                "  user_uuid TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT)"
+            )
+            self.by_title, self.by_doi, self.stranded = _uuid(), _uuid(), _uuid()
+            for room_uuid, key in (
+                (self.by_title, "title:hidden"),
+                (self.by_doi, "doi:10.1/shown"),
+                (self.stranded, "title:a paper nobody has"),
+            ):
+                db.execute(
+                    "INSERT INTO rooms (uuid, paper_key, paper_title, created_by,"
+                    "  status, created_at) VALUES (?,?,'Whatever',?,'open',?)",
+                    (room_uuid, key, self.user, NOW),
+                )
+                db.execute(
+                    "INSERT INTO room_messages VALUES (?,?,?,'hello',?)",
+                    (_uuid(), room_uuid, self.user, NOW),
+                )
+
+    def test_a_seminar_comes_out_naming_the_paper_it_was_called_on(self):
+        """The key a seminar was filed under becomes the paper's own name.
+
+        Both spellings of that key have to find their paper: the shown
+        paper is reached by its title, and the one carrying a DOI by the
+        DOI, which is what the old key preferred."""
+        self.seed_seminars()
+        self.upgrade()
+
+        rooms = dict(self.rows("SELECT uuid, paper_sha256 FROM rooms"))
+        titles = dict(self.rows("SELECT sha256, title FROM papers"))
+        # A key spelled as a title found the paper with no DOI.
+        self.assertEqual(titles[rooms[self.by_title]], "Hidden")
+        # A key spelled as a DOI found the paper that prints it.
+        self.assertEqual(
+            self.rows("SELECT doi FROM papers WHERE sha256 = ?",
+                      rooms[self.by_doi]),
+            [("10.1/shown",)],
+        )
+        self.assertNotIn("paper_key", {
+            row[1] for row in self.rows("PRAGMA table_info(rooms)")
+        })
+        self.assertNotIn("paper_title", {
+            row[1] for row in self.rows("PRAGMA table_info(rooms)")
+        })
+
+    def test_a_seminar_naming_no_paper_goes_rather_than_naming_nothing(self):
+        """There is no digest to give it, and a seminar about no paper is
+        not a seminar. It goes, and what was said in it goes with it."""
+        self.seed_seminars()
+        self.upgrade()
+
+        self.assertEqual(
+            self.rows("SELECT uuid FROM rooms WHERE uuid = ?", self.stranded), [],
+        )
+        self.assertEqual(
+            self.rows("SELECT uuid FROM room_messages WHERE room_uuid = ?",
+                      self.stranded),
+            [],
+        )
+        # The seminars that found their paper kept theirs.
+        self.assertEqual(
+            len(self.rows("SELECT uuid FROM room_messages")), 2,
+        )
+
     # --- the pull cursor ---------------------------------------------------
 
     def test_a_change_log_written_without_a_growing_sequence_is_rebuilt(self):

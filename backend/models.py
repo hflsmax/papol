@@ -556,20 +556,26 @@ class Sharable(Base):
 
 
 class Room(Base):
-    """A seminar cohort for a paper.
+    """A seminar cohort for one paper, named the way every table names one.
 
-    Keyed by the *work* rather than by the paper: a preprint and the
-    published version are two papers, each with its own copies and
-    annotations, and there is still only one conversation to be had about
-    them. So `paper_key` is the DOI, or the title when there is no DOI —
-    read off metadata any user may correct, which is why `cohorts.rekey_rooms`
-    exists to carry a seminar over when one of them does.
+    A paper is its PDF, so the digest is the whole of what a seminar has to
+    say about which paper it is about.
+
+    It used to carry a key of its own — the paper's DOI, or its title when
+    there was no DOI — left from when a paper could have several editions
+    and a seminar had to name the thing standing above them. There is
+    nothing above a paper now: the edition is gone and the file *is* the
+    paper. What the key left behind was a name read off metadata any user
+    may correct for everyone, so correcting a title moved the paper out
+    from under its own seminars, and a snapshot of the title beside it that
+    had to be kept true by hand. A foreign key is neither.
     """
     __tablename__ = "rooms"
 
     uuid = uuid_key()
-    paper_key = Column(String, nullable=False, index=True)
-    paper_title = Column(Text, nullable=False)
+    paper_sha256 = Column(
+        String(64), ForeignKey("papers.sha256"), nullable=False, index=True,
+    )
     created_by = Column(String(36), ForeignKey("users.uuid"), nullable=False)
     leader_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True)
     status = Column(String, nullable=False, default="open")  # open | planning | scheduled | finished
@@ -579,6 +585,7 @@ class Room(Base):
     style_desc = Column(Text, nullable=True)  # custom style's description
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    paper = relationship("Paper")
     creator = relationship("User", foreign_keys=[created_by])
     leader = relationship("User", foreign_keys=[leader_uuid])
     participants = relationship(

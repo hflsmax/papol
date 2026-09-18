@@ -1046,6 +1046,118 @@ def _forget_changes_no_replica_could_read(conn):
     )
 
 
+# A seminar names its paper by the paper's own name now — the digest of its
+# PDF. It used to carry a key of its own, "doi:…" or "title:…", from when a
+# paper could have several editions and a seminar had to name the thing
+# standing above them.
+#
+# Frozen at the shape of its own moment, like the folds above it.
+_ROOM_SHAPE = (
+    """uuid VARCHAR(36) NOT NULL,
+       paper_sha256 VARCHAR(64) NOT NULL,
+       created_by VARCHAR(36) NOT NULL,
+       leader_uuid VARCHAR(36),
+       status VARCHAR NOT NULL,
+       scheduled_time TEXT,
+       platform TEXT,
+       style VARCHAR,
+       style_desc TEXT,
+       created_at DATETIME,
+       PRIMARY KEY (uuid),
+       FOREIGN KEY(paper_sha256) REFERENCES papers (sha256),
+       FOREIGN KEY(created_by) REFERENCES users (uuid),
+       FOREIGN KEY(leader_uuid) REFERENCES users (uuid)""",
+    ("uuid", "paper_sha256", "created_by", "leader_uuid", "status",
+     "scheduled_time", "platform", "style", "style_desc", "created_at"),
+    ("CREATE INDEX IF NOT EXISTS ix_rooms_paper_sha256 ON rooms (paper_sha256)",),
+)
+
+
+def _old_room_key(doi, title) -> str:
+    """The key a seminar used to be filed under.
+
+    Written out here rather than imported, because a migration has to read
+    the rows the way the code that wrote them did — and that code is gone.
+    Folded in Python, as it was: SQLite's own `lower()` leaves anything but
+    ASCII alone, and a title with an accent in it would not find its paper.
+    """
+    if doi:
+        return "doi:" + doi.strip().lower()
+    return "title:" + (title or "").strip().lower()
+
+
+def _name_the_paper_a_seminar_is_about(conn):
+    """Point each seminar at the paper it was called on.
+
+    Idempotent by construction: `paper_key` is gone at the end, and its
+    absence is what says the work is done.
+
+    A key that names no paper cannot be carried — there is no digest to
+    give the row, and a seminar about no paper is not a seminar. Those are
+    dropped with what hangs off them, and counted out loud. A key that
+    names two, which is what a preprint and its published version could
+    look like, goes to the earliest: they are two papers with two
+    conversations now, and the one that was had belongs to the paper it was
+    opened on.
+    """
+    tables = {
+        row[0] for row in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ))
+    }
+    if "rooms" not in tables or "paper_key" not in _table_columns(conn, "rooms"):
+        return
+
+    by_key: dict[str, str] = {}
+    for sha256, doi, title in conn.execute(text(
+        "SELECT sha256, doi, title FROM papers ORDER BY created_at, sha256"
+    )):
+        by_key.setdefault(_old_room_key(doi, title), sha256)
+
+    conn.execute(text("DROP TABLE IF EXISTS _room_paper"))
+    conn.execute(text(
+        "CREATE TABLE _room_paper "
+        "(room_uuid TEXT PRIMARY KEY NOT NULL, paper_sha256 TEXT NOT NULL)"
+    ))
+    stranded = []
+    for room_uuid, paper_key in conn.execute(text(
+        "SELECT uuid, paper_key FROM rooms"
+    )):
+        sha256 = by_key.get(paper_key)
+        if sha256 is None:
+            stranded.append(room_uuid)
+            continue
+        conn.execute(
+            text("INSERT INTO _room_paper VALUES (:room, :paper)"),
+            {"room": room_uuid, "paper": sha256},
+        )
+
+    if stranded:
+        logger.warning(
+            "%s seminar(s) named a paper that is not here and cannot be "
+            "carried over; they and their messages are removed.", len(stranded),
+        )
+        for table, column in (
+            ("room_messages", "room_uuid"),
+            ("room_participants", "room_uuid"),
+            ("room_availabilities", "room_uuid"),
+            ("notifications", "room_uuid"),
+        ):
+            if table not in tables:
+                continue
+            conn.execute(
+                text(f"DELETE FROM {table} WHERE {column} NOT IN "
+                     "(SELECT room_uuid FROM _room_paper)"),
+            )
+
+    _rebuild_frozen(
+        conn, {"rooms": _ROOM_SHAPE}, "rooms", "rooms", "r",
+        "JOIN _room_paper m ON m.room_uuid = r.uuid",
+        {"paper_sha256": "m.paper_sha256"},
+    )
+    conn.execute(text("DROP TABLE _room_paper"))
+
+
 def _make_the_cursor_only_grow(conn):
     """Rebuild the change log so its sequence cannot be handed out twice.
 
@@ -1124,6 +1236,10 @@ def migrate():
         _one_paper_per_file(conn)
         # Then the digest can be the key itself.
         _rekey_papers_to_the_digest(conn)
+        # And once papers are keyed by it, a seminar can name one that way
+        # too. Before the metadata pass, which would otherwise try to add
+        # `paper_sha256` as a NOT NULL column with nothing to put in it.
+        _name_the_paper_a_seminar_is_about(conn)
         for table_name, column_name in _DROPPED_COLUMNS:
             columns = {
                 row[1] for row in conn.execute(text(f"PRAGMA table_info({table_name})"))

@@ -9,7 +9,6 @@ from sqlalchemy.pool import StaticPool
 
 import main
 from database import Base, PapolSession, get_db
-from cohorts import key_of, paper_key_for
 from models import Copy, Paper, Room, Shelf
 from services.papers import paper_name
 
@@ -170,43 +169,45 @@ class SeminarTransitionTests(unittest.TestCase):
         self.assertEqual(refused.status_code, 400)
         self.assertIn("no one else", refused.json()["detail"])
 
-    # --- a seminar survives the paper being corrected ----------------------
+    # --- a seminar names its paper, and that name does not move ----------
 
-    def test_a_seminar_follows_the_paper_when_its_title_is_corrected(self):
+    def test_correcting_a_paper_leaves_its_seminar_exactly_where_it_is(self):
         """Any user may fix a paper's metadata, for everyone.
 
-        A seminar is keyed by that metadata, so a correction used to leave
-        every seminar on the paper behind at a key nothing answered to."""
+        A seminar used to be filed under a key made out of that metadata, so
+        a correction moved the paper out from under its own seminars: the
+        paper's page stopped listing them, the cohort came out empty so
+        nobody could be handed the hosting, and the paper could be called to
+        a second seminar while the first was still open. It names the
+        paper's digest now, which is not a thing anyone can edit."""
         called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
 
         self.request("PUT", f"/api/papers/{paper_name(self.paper_sha256)}", json={
             "title": "State Machines for Seminars (Corrected)",
+            "doi": "10.1234/corrected",
         })
 
         page = self.request("GET", f"/api/papers/{paper_name(self.paper_sha256)}")
         self.assertEqual([room["uuid"] for room in page["rooms"]], [called["uuid"]])
         detail = self.request("GET", f"/api/rooms/{called['uuid']}")
         self.assertEqual(detail["paper_sha256"], self.paper_sha256)
-        self.assertEqual(detail["paper_title"], "State Machines for Seminars (Corrected)")
         self.assertTrue(detail["viewer_has_copy"])
+        # The seminar is named after the paper, and reads back the paper's
+        # title rather than a copy of it taken when it was called.
+        self.assertEqual(detail["paper_title"], "State Machines for Seminars (Corrected)")
 
-    def test_a_corrected_paper_cannot_be_called_to_a_second_seminar(self):
-        """The same seminar, so the guard against a second one still holds."""
-        self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
-        self.request("PUT", f"/api/papers/{paper_name(self.paper_sha256)}", json={
-            "doi": "10.1234/corrected",
-        })
         again = self.client.post(
             f"/api/papers/{paper_name(self.paper_sha256)}/room", headers=self.headers,
         )
         self.assertEqual(again.status_code, 400, again.text)
         self.assertIn("already being organized", again.json()["detail"])
 
-    def test_a_seminar_stays_with_the_paper_that_still_answers_to_its_key(self):
-        """Two papers can be one work — a preprint and what it became.
+    def test_two_papers_printing_one_title_have_a_seminar_each(self):
+        """A paper is its PDF, so a preprint and what it became are two.
 
-        When one of them is retitled, the seminar belongs to the other, which
-        still answers to the key it was called under."""
+        They were one seminar while a seminar was keyed by title: calling
+        one answered for both, and neither could be called again. Two
+        papers, two conversations."""
         with self.sessions() as db:
             shelf = db.query(Shelf).filter(Shelf.user_uuid == self.user_uuid).first()
             twin = Paper(
@@ -219,18 +220,31 @@ class SeminarTransitionTests(unittest.TestCase):
             db.commit()
             twin_sha256 = twin.sha256
 
-        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
-        self.request("PUT", f"/api/papers/{paper_name(self.paper_sha256)}", json={
-            "title": "State Machines for Seminars (Published)",
-        })
+        published = self.request(
+            "POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
+        preprint = self.request("POST", f"/api/papers/{paper_name(twin_sha256)}/room")
+        self.assertNotEqual(published["uuid"], preprint["uuid"])
 
+        self.assertEqual(
+            [room["uuid"] for room
+             in self.request("GET", f"/api/papers/{paper_name(self.paper_sha256)}")["rooms"]],
+            [published["uuid"]],
+        )
+        self.assertEqual(
+            [room["uuid"] for room
+             in self.request("GET", f"/api/papers/{paper_name(twin_sha256)}")["rooms"]],
+            [preprint["uuid"]],
+        )
+
+    def test_a_seminar_names_its_paper_by_the_papers_own_name(self):
+        with self.sessions() as db:
+            room = db.query(Room).one_or_none()
+            self.assertIsNone(room)
+        called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
         with self.sessions() as db:
             room = db.query(Room).filter(Room.uuid == called["uuid"]).one()
-            self.assertEqual(room.paper_key, "title:state machines for seminars")
-        moved = self.request("GET", f"/api/papers/{paper_name(self.paper_sha256)}")
-        self.assertEqual(moved["rooms"], [])
-        stayed = self.request("GET", f"/api/papers/{paper_name(twin_sha256)}")
-        self.assertEqual([room["uuid"] for room in stayed["rooms"]], [called["uuid"]])
+            self.assertEqual(room.paper_sha256, self.paper_sha256)
+            self.assertEqual(room.paper.sha256, room.paper_sha256)
 
     def test_a_cohort_reads_a_hidden_copy_by_the_paper_s_own_name(self):
         """A viewer in the cohort who does not display the paper.
@@ -251,34 +265,6 @@ class SeminarTransitionTests(unittest.TestCase):
 
         detail = self.request("GET", f"/api/rooms/{called['uuid']}")
         self.assertEqual(detail["viewer_hidden_entry_sha256"], self.paper_sha256)
-
-
-class PaperKeyTests(unittest.TestCase):
-    """Two ways of reading one key, which have to agree.
-
-    `paper_key_for` takes a paper; `key_of` takes the two columns it is made
-    of, so a query can ask without loading every paper as a row. They are
-    the same rule written twice, and this is what holds them together.
-    """
-
-    CASES = (
-        ("10.1234/ABC", "A Title"),
-        ("  10.1234/abc  ", "A Title"),
-        (None, "  Mixed Case Title "),
-        ("", "Uber Kurz oder Lang"),
-        (None, "\u039c\u0388\u0393\u0391"),
-    )
-
-    def test_both_readings_of_a_key_agree(self):
-        for doi, title in self.CASES:
-            with self.subTest(doi=doi, title=title):
-                paper = Paper(doi=doi, title=title, file_path="x.pdf", sha256="0" * 64)
-                self.assertEqual(paper_key_for(paper), key_of(doi, title))
-
-    def test_a_title_keeps_the_case_folding_python_gives_it(self):
-        """SQLite's lower() would fold only the ASCII, which is why this key
-        is read in Python rather than in the query."""
-        self.assertEqual(key_of(None, "\u00dcber"), "title:\u00fcber")
 
 
 if __name__ == "__main__":

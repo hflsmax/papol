@@ -81,10 +81,6 @@ import metadata_lookup
 from cohorts import (
     cohort_user_uuids as _paper_user_uuids,
     in_active_cohort as _in_active_cohort,
-    key_of as _key_of,
-    paper_key_for as _paper_key_for,
-    papers_with_key as _papers_for_key,
-    rekey_rooms as _rekey_rooms,
 )
 from reference_engine import (
     EphemeralReferenceEngine, reference_out, resolve as resolve_reference,
@@ -661,7 +657,7 @@ async def delete_my_account(
         # Who may take over a seminar, and how the cohort hears about it,
         # are this module's rules — the same ones leave_room applies when a
         # host hands over on their way out.
-        eligible_hosts=lambda room: _paper_user_uuids(db, room.paper_key, public_only=True),
+        eligible_hosts=lambda room: _paper_user_uuids(db, room.paper_sha256, public_only=True),
         notify=lambda room, user_uuids, content: _notify(db, user_uuids, room, content),
     )
     for board_uuid in board_uuids:
@@ -1529,10 +1525,10 @@ async def list_users(
 
 
 def _room_status_map(db: Session) -> dict:
-    """paper_key -> status of its latest room."""
+    """The status of each paper's latest seminar, by the paper's digest."""
     status_map = {}
     for room in db.query(Room).order_by(Room.created_at, Room.uuid).all():
-        status_map[room.paper_key] = room.status
+        status_map[room.paper_sha256] = room.status
     return status_map
 
 
@@ -1671,7 +1667,7 @@ def _paper_list_entry(
         entry.rating_liking = user_copy.rating_liking
         if not hide_private:
             entry.tags = [TagOut.model_validate(t) for t in sorted(user_copy.tags, key=lambda t: t.name.lower())]
-    entry.room_status = room_map.get(_paper_key_for(paper))
+    entry.room_status = room_map.get(paper.sha256)
     entry.users = [_user_entry(r) for r in displayed_copies(paper)]
     return entry
 
@@ -1941,7 +1937,7 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
     detail.rooms = [
         _room_summary(r)
         for r in db.query(Room)
-        .filter(Room.paper_key == _paper_key_for(paper))
+        .filter(Room.paper_sha256 == paper.sha256)
         .order_by(Room.created_at.desc(), Room.uuid.desc())
         .all()
     ]
@@ -2265,7 +2261,7 @@ async def update_paper(
         user_copy = _require_copy(paper, current_user)
         requested_visibility = personal.pop("is_public", None)
         if requested_visibility is False and _in_active_cohort(
-            db, current_user, _paper_key_for(paper)
+            db, current_user, paper.sha256
         ):
             raise HTTPException(
                 status_code=400,
@@ -2297,15 +2293,11 @@ async def update_paper(
         if not shelf:
             raise HTTPException(status_code=400, detail="Shelf does not belong to you")
         if not shelf.is_public and user_copy.is_public and _in_active_cohort(
-            db, current_user, _paper_key_for(paper)
+            db, current_user, paper.sha256
         ):
             raise HTTPException(status_code=400, detail="Leave the seminar before moving this paper to a private shelf")
         user_copy.shelf = shelf
 
-    # A seminar remembers the key it was called under, and that key is read
-    # off the very metadata being edited here. Noted before the edit so the
-    # seminars standing on it can be carried over rather than stranded.
-    was = _paper_key_for(paper)
     for key, value in metadata.items():
         setattr(paper, key, value)
     if metadata:
@@ -2321,7 +2313,6 @@ async def update_paper(
                 status_code=422,
                 detail=error.errors(include_context=False, include_url=False),
             )
-        _rekey_rooms(db, paper, was)
 
     commit_sync(db)
     db.refresh(paper)
@@ -2431,7 +2422,7 @@ async def update_shelf(
         becoming_public = bool(changes["is_public"])
         if not becoming_public:
             blocked = [c for c in _live(shelf.copies)
-                       if _in_active_cohort(db, current_user, _paper_key_for(c.paper))]
+                       if _in_active_cohort(db, current_user, c.paper_sha256)]
             if blocked:
                 raise HTTPException(status_code=400, detail="Some papers on this shelf are in active seminar cohorts")
         # Every copy on the shelf moves with it, because none of them was
@@ -2462,7 +2453,7 @@ async def delete_shelf(
     if not destination.is_public:
         blocked = [
             copy for copy in _live(shelf.copies)
-            if copy.is_public and _in_active_cohort(db, current_user, _paper_key_for(copy.paper))
+            if copy.is_public and _in_active_cohort(db, current_user, copy.paper_sha256)
         ]
         if blocked:
             raise HTTPException(
@@ -2963,20 +2954,36 @@ def _reference_out(reference: PaperReference, papol_paper_sha256: str | None) ->
     return answer
 
 
+def _printed_as(doi, title) -> str:
+    """How a work is named in print: its DOI, or its title when it has none.
+
+    A reference is a line off a page. It has no file behind it, so it has
+    no digest — and the digest is the only thing that says two papers are
+    the same paper. Matching a reference to a paper Papol holds is
+    therefore a guess made on what is printed, and this is how that guess
+    is spelled. Nothing else keys on it: it is how a bibliography is read,
+    not how a paper is identified.
+
+    It was once how a paper was identified too, and a seminar was keyed by
+    it. That is gone — a paper is its file — and this is all that is left
+    of the shape."""
+    if doi:
+        return "doi:" + doi.strip().lower()
+    return "title:" + (title or "").strip().lower()
+
+
 def _papol_papers_for(db: Session, references) -> dict[str, str]:
     """Which of these references name a paper Papol already holds.
 
     A reference is worth more when the paper it names is one someone here
-    has read: the user can open it rather than leave. Matched on the same
-    key papers are deduplicated by, so this agrees with Papol's own idea of
-    when two papers are the same paper."""
-    # The two columns a key is made of, not the papers themselves: this runs
-    # once per reference list a viewer opens, and loading every paper in the
-    # Library as a row — with its copies waiting to be fetched behind it —
-    # was most of the cost of showing a bibliography.
+    has read: the user can open it rather than leave."""
+    # The two columns the match is made on, not the papers themselves: this
+    # runs once per reference list a viewer opens, and loading every paper
+    # in the Library as a row — with its copies waiting to be fetched behind
+    # it — was most of the cost of showing a bibliography.
     by_key = {}
     for sha256, doi, title in db.query(Paper.sha256, Paper.doi, Paper.title):
-        by_key.setdefault(_key_of(doi, title), sha256)
+        by_key.setdefault(_printed_as(doi, title), sha256)
 
     found = {}
     for reference in references:
@@ -3140,7 +3147,7 @@ def _ensure_participant(db: Session, room: Room, user: User):
 
 
 def _require_user(db: Session, room: Room, user: User):
-    if user.uuid not in _paper_user_uuids(db, room.paper_key, public_only=True):
+    if user.uuid not in _paper_user_uuids(db, room.paper_sha256, public_only=True):
         raise HTTPException(
             status_code=403,
             detail="Display this paper to join the cohort",
@@ -3148,11 +3155,11 @@ def _require_user(db: Session, room: Room, user: User):
 
 
 def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
-    users_displaying = _paper_user_uuids(db, room.paper_key, public_only=True)
+    users_displaying = _paper_user_uuids(db, room.paper_sha256, public_only=True)
 
-    # The canonical paper this room is about, and the viewer's copy of it
-    digest = next(iter(_papers_for_key(db, room.paper_key)), None)
-    paper = db.get(Paper, digest) if digest else None
+    # The paper this room is about, and the viewer's copy of it. The room
+    # names it outright, so there is nothing to look up it by.
+    paper = room.paper
     own = _copy_of(paper, viewer) if paper else None
     # Every paper has a page and this viewer is signed in, so the cohort
     # always names the paper it is about. Whether the viewer keeps a copy,
@@ -3164,7 +3171,7 @@ def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     summary = _room_summary(room)
     return RoomDetail(
         **summary.model_dump(),
-        paper_title=room.paper_title,
+        paper_title=paper.title if paper else None,
         paper_sha256=link_paper.sha256 if link_paper else None,
         messages=[
             RoomMessageOut.model_validate(m)
@@ -3194,15 +3201,14 @@ async def call_seminar(
     Notifies every user — including those who keep their copy hidden."""
     paper = _get_paper_or_404(paper_sha256, db)
 
-    key = _paper_key_for(paper)
-    if current_user.uuid not in _paper_user_uuids(db, key, public_only=True):
+    if current_user.uuid not in _paper_user_uuids(db, paper.sha256, public_only=True):
         raise HTTPException(
             status_code=403,
             detail="Display this paper to call a seminar",
         )
     active = (
         db.query(Room)
-        .filter(Room.paper_key == key, Room.status.in_(("open", "planning")))
+        .filter(Room.paper_sha256 == paper.sha256, Room.status.in_(("open", "planning")))
         .first()
     )
     if active:
@@ -3210,11 +3216,13 @@ async def call_seminar(
             status_code=400, detail="A seminar is already being organized"
         )
 
-    room = Room(paper_key=key, paper_title=paper.title, created_by=current_user.uuid)
+    room = Room(paper_sha256=paper.sha256, created_by=current_user.uuid)
     db.add(room)
     db.flush()
     _ensure_participant(db, room, current_user)
-    users_of_paper = _paper_user_uuids(db, key, public_only=False) - {current_user.uuid}
+    users_of_paper = (
+        _paper_user_uuids(db, paper.sha256, public_only=False) - {current_user.uuid}
+    )
     _notify(
         db, users_of_paper, room,
         f"{current_user.display_name} called for a seminar on “{paper.title}”. "
@@ -3245,7 +3253,7 @@ async def lead_room(
     room = _get_room_or_404(room_uuid, db)
     if room.status != "open":
         raise HTTPException(status_code=400, detail="This seminar already has a host")
-    if current_user.uuid not in _paper_user_uuids(db, room.paper_key, public_only=True):
+    if current_user.uuid not in _paper_user_uuids(db, room.paper_sha256, public_only=True):
         raise HTTPException(
             status_code=403,
             detail="Display this paper to host",
@@ -3258,12 +3266,12 @@ async def lead_room(
     room.status = "planning"
     _ensure_participant(db, room, current_user)
     others = (
-        _paper_user_uuids(db, room.paper_key, public_only=False)
+        _paper_user_uuids(db, room.paper_sha256, public_only=False)
         | {p.user_uuid for p in room.participants}
     ) - {current_user.uuid}
     _notify(
         db, others, room,
-        f"{current_user.display_name} will host the seminar on “{room.paper_title}”. "
+        f"{current_user.display_name} will host the seminar on “{room.paper.title}”. "
         "Share your availability in the cohort.",
     )
     db.commit()
@@ -3292,7 +3300,7 @@ async def unhost_room(
     _notify(
         db, others, room,
         f"{current_user.display_name} stepped back from hosting the seminar on "
-        f"“{room.paper_title}”. A user of the paper can answer to host.",
+        f"“{room.paper.title}”. A user of the paper can answer to host.",
     )
     db.commit()
     db.refresh(room)
@@ -3372,7 +3380,7 @@ async def leave_room(
             raise HTTPException(
                 status_code=400, detail="Choose another cohort member"
             )
-        if successor_uuid not in _paper_user_uuids(db, room.paper_key, public_only=True):
+        if successor_uuid not in _paper_user_uuids(db, room.paper_sha256, public_only=True):
             raise HTTPException(
                 status_code=400,
                 detail="Display this paper to host",
@@ -3381,7 +3389,7 @@ async def leave_room(
         _notify(
             db, {successor_uuid}, room,
             f"{current_user.display_name} handed you hosting of the seminar on "
-            f"“{room.paper_title}”.",
+            f"“{room.paper.title}”.",
         )
         logger.info(
             "room %s: leadership handed from %s to %s",
@@ -3470,12 +3478,12 @@ async def announce_room(
     room.style_desc = (data.style_desc or "").strip() or None
     room.status = "scheduled"
     others = (
-        _paper_user_uuids(db, room.paper_key, public_only=False)
+        _paper_user_uuids(db, room.paper_sha256, public_only=False)
         | {p.user_uuid for p in room.participants}
     ) - {current_user.uuid}
     _notify(
         db, others, room,
-        f"Seminar on “{room.paper_title}” "
+        f"Seminar on “{room.paper.title}” "
         f"{'updated' if editing else 'scheduled'}: "
         f"{data.scheduled_time} · {data.platform}.",
     )
