@@ -1,4 +1,5 @@
 import { IS_DESKTOP } from './appEnvironment.js';
+import { backendPath, inDemo } from './appUrls.js';
 
 // Connectivity is process-external state, not a data store. Papol macOS's
 // user data lives in SQLite; HTTP requests are always real network requests.
@@ -37,6 +38,23 @@ export function configureNetworkFetch(fetchImpl) {
 // HTTP(S) leaves the bundled UI through Tauri's native client. Bundled asset
 // protocols remain in the WebView. No response is cached at this boundary.
 export function runtimeFetch(input, options = {}) {
+  if (inDemo()) {
+    const base = globalThis.window?.location?.href || globalThis.location?.href;
+    const raw = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
+    const url = new URL(raw, base);
+    const api = new URL(backendPath('/api/'), base);
+    if (url.origin === api.origin && url.pathname.startsWith(api.pathname)) {
+      const path = '/' + url.pathname.slice(api.pathname.length) + url.search;
+      const requestOptions = input instanceof Request
+        ? { method: input.method, headers: input.headers, body: input.body, signal: input.signal, ...options }
+        : options;
+      return import('./demo.js').then(({ demoFetch }) => demoFetch(path, requestOptions, networkFetch));
+    }
+  }
+  return networkFetch(input, options);
+}
+
+function networkFetch(input, options = {}) {
   const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
   let protocol = '';
   try { protocol = new URL(rawUrl, globalThis.location?.href).protocol; } catch { /* fetch reports malformed URLs */ }

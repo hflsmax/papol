@@ -26,8 +26,7 @@ export function paperHref(paper) {
   return appPath(`/paper/${paperName(paper.sha256)}`);
 }
 
-// Uploaded PDFs live in uploads/. Demo papers link to each paper's
-// canonical open-access copy; demo-created papers use a bundled placeholder.
+// Uploaded and immutable demo PDFs use the same content-addressed media URLs.
 export function pdfHref(paper) {
   if (paper.file_path.startsWith('http')) return paper.file_path;
   return backendPath(`/uploads/${paper.file_path}`);

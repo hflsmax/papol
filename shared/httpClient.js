@@ -1,5 +1,5 @@
 import { CLIENT_PLATFORM } from './appEnvironment.js';
-import { backendPath, inDemo } from './appUrls.js';
+import { backendPath } from './appUrls.js';
 import { currentCredential } from './credentials.js';
 import { runtimeFetch } from './connectivity.js';
 import registry from '../schema/sync_registry.json' with { type: 'json' };
@@ -60,12 +60,6 @@ function reportUnauthenticated(path, failure) {
 }
 
 export async function request(path, options = {}) {
-  // Authentication and feedback deliberately leave the fictional demo.
-  const alwaysReal = ['/auth/login', '/auth/register', '/feedback'];
-  if (inDemo() && !alwaysReal.some((prefix) => path.startsWith(prefix))) {
-    const { demoRequest } = await import('./demo.js');
-    return demoRequest(path, options);
-  }
   const response = await runtimeFetch(`${API_BASE}${path}`, {
     ...options,
     headers: authHeaders({ [PLATFORM_HEADER]: CLIENT_PLATFORM, ...(options.headers || {}) }),

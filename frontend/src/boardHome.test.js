@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardJacketPath, homePath } from '../../shared/appUrls.js';
+import { boardJacketPath, homePath, modePath, modeRoute } from '../../shared/appUrls.js';
 
 const BOARD = '11111111-1111-4111-8111-111111111111';
 
@@ -15,4 +15,11 @@ test('the house leads out of the board and onto its jacket', () => {
 test('with no board to name, the house leads to Papol itself', () => {
   assert.equal(homePath(), '/');
   assert.equal(homePath({ demo: true }), '/demo');
+});
+
+test('all surfaces use one demo route policy', () => {
+  assert.equal(modeRoute('/viewer/?pdf=abc'), '/viewer/?pdf=abc');
+  assert.equal(modeRoute('/viewer/?pdf=abc', { demo: true }), '/demo/viewer/?pdf=abc');
+  assert.equal(modeRoute('/', { demo: true }), '/demo');
+  assert.equal(modePath('/boards/board-1', { demo: true }), '/demo/boards/board-1');
 });

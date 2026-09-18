@@ -34,7 +34,7 @@ import {
   MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
-import { appPath, stripAppBase } from './base';
+import { appPath, modePath, modeRoute, stripAppBase } from './base';
 import { parseRoute } from './routes';
 import {
   originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
@@ -56,11 +56,6 @@ import {
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 
-const demoPath = (path) => {
-  if (path === '/') return '/demo';
-  return path.startsWith('/') ? `/demo${path}` : path;
-};
-
 const SIGN_IN_PAGES = new Set([
   'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
@@ -76,12 +71,12 @@ const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DI
 
 // A path as the address bar spells it: under /demo while the demo is on,
 // and under the base the app is served from.
-const mountedPath = (path) => appPath(inDemo() ? demoPath(path) : path);
+const mountedPath = (path) => modePath(path, { demo: inDemo() });
 
 function navigate(path, { replace = false } = {}) {
   const destination = inDemo() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
-    ? demoPath(path)
+    ? modeRoute(path, { demo: true })
     : path;
   // Don't push a history entry when already there; otherwise Back appears
   // to do nothing.
@@ -117,12 +112,12 @@ function openBoard(uuid) {
 // leaves the Desk — on the desktop into a document window beside it, on
 // the web by going there.
 function openBoardCanvas(uuid) {
-  const path = inDemo() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
+  const path = modePath(`/boards/${uuid}`, { demo: inDemo() });
   if (DESKTOP) {
-    openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
+    openDesktopDocumentWindow(path, 'popup,width=1200,height=820');
     return;
   }
-  window.location.assign(appPath(path));
+  window.location.assign(path);
 }
 
 function DeskFileDropFeedback({ state, message, opensViewer = false }) {
@@ -152,6 +147,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // credential or a first desktop sign-in still needs to gate the shell.
   const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
+  const [demoError, setDemoError] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
@@ -329,14 +325,21 @@ export default function App({ startupUser = null, startupError = null }) {
   useEffect(() => {
     const onRouteChange = async () => {
       const next = parseRoute();
+      setRoute(next);
       if (next.demo && !route.demo) {
         resetDemo();
-        setUser(await getMe());
+        setDemoError(null);
+        setUser(null);
+        try {
+          const demoUser = await getMe();
+          if (inDemo()) setUser(demoUser);
+        } catch (error) {
+          if (inDemo()) setDemoError(error.message);
+        }
       } else if (!next.demo && route.demo) {
         resetDemo();
         await restoreRealUser();
       }
-      setRoute(next);
     };
     window.addEventListener('popstate', onRouteChange);
     return () => window.removeEventListener('popstate', onRouteChange);
@@ -348,7 +351,9 @@ export default function App({ startupUser = null, startupError = null }) {
     const initialRoute = parseRoute();
     if (initialRoute.demo) {
       resetDemo();
-      getMe().then(setUser).finally(() => setAuthChecked(true));
+      getMe().then((demoUser) => { if (inDemo()) setUser(demoUser); })
+        .catch((error) => { if (inDemo()) setDemoError(error.message); })
+        .finally(() => setAuthChecked(true));
       return;
     }
     resetDemo();
@@ -557,7 +562,19 @@ export default function App({ startupUser = null, startupError = null }) {
     navigate('/');
   };
 
-  if (!authChecked) {
+  if (route.demo && demoError) {
+    return (
+      <>
+        <style>{applicationStyles}</style>
+        <div className="loading" role="alert">
+          <p>{demoError}</p>
+          <a href={appPath('/')}>Back to Papol</a>
+        </div>
+      </>
+    );
+  }
+
+  if (!authChecked || (route.demo && !user)) {
     return (
       <>
         <style>{applicationStyles}</style>
@@ -623,8 +640,8 @@ export default function App({ startupUser = null, startupError = null }) {
           </p>
           <p>
             You are looking at the demo: you play as SpongeBob among
-            fictional users. Everything happens in your browser and
-            nothing is saved.
+            fictional users. Changes last only for this temporary visit.
+            Some features are not supported in the demo.
           </p>
           <p>
             Register an account to have your own nook

@@ -126,7 +126,7 @@ export function setNativeAccount(user) {
   else localStorage.removeItem(ACCOUNT_KEY);
 }
 
-// The demo's user lives in the page, never in the local replica.
+// The demo's user lives in a disposable workspace, never in the local replica.
 export async function prepareNativeAccount(user) {
   if (!IS_DESKTOP || inDemo() || user?.uuid == null) return false;
   await invoke('local_account_set', { accountUuid: user.uuid, profile: user });

@@ -5,8 +5,7 @@ import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
-import { boardJacketPath } from '../../shared/appUrls.js';
-import { homePath } from '../../shared/appUrls.js';
+import { boardJacketPath, homePath, inDemo } from '../../shared/appUrls.js';
 
 function route() {
   const match = window.location.pathname.match(/\/(?:demo\/)?boards\/([^/]+)\/?$/);
@@ -14,8 +13,6 @@ function route() {
     ? decodeURIComponent(match[1])
     : new URLSearchParams(window.location.search).get('board');
 }
-
-const inDemoBoards = () => window.location.pathname.includes('/demo/boards/');
 
 /**
  * Where the house leads: out of this board and into where the board is kept,
@@ -26,8 +23,8 @@ const inDemoBoards = () => window.location.pathname.includes('/demo/boards/');
  * its canvas already asked who you are.
  */
 const papolHome = (uuid) => (uuid
-  ? boardJacketPath(uuid, { demo: inDemoBoards() })
-  : homePath({ demo: inDemoBoards() }));
+  ? boardJacketPath(uuid, { demo: inDemo() })
+  : homePath({ demo: inDemo() }));
 
 function goHome(uuid) {
   if (closeDesktopDocumentWindow()) return;
@@ -36,8 +33,9 @@ function goHome(uuid) {
 
 export default function App() {
   const boardUuid = route();
-  const inDemo = inDemoBoards() || new URLSearchParams(window.location.search).get('demo') === '1';
-  if (!inDemo && !getToken()) {
+  const demo = inDemo() ||
+    new URLSearchParams(window.location.search).get('demo') === '1';
+  if (!demo && !getToken()) {
     const marker = '/boards/';
     const base = window.location.pathname.slice(0, window.location.pathname.indexOf(marker));
     const next = window.location.pathname.slice(base.length);

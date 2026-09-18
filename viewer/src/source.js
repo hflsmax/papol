@@ -1,9 +1,8 @@
-import { demoPapers, demoNotes } from '../../shared/demoWorld.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
 import { notesIn } from './annotationKinds.js';
-import { appPath, inDemo } from './base.js';
+import { appPath, inDemo, modePath } from './base.js';
 import { paperName } from '../../shared/paperName.js';
 import {
   getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
@@ -19,7 +18,7 @@ import {
  *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  *   ?share=<uuid>          someone's reading of a PDF, handed over by link
- * Demo PDFs use the same hash identity; only their storage is local.
+ * Demo PDFs use the same hash identity and a disposable API workspace.
  *
  * Nook and demo sources expose the same annotation interfaces. A file source
  * intentionally omits them; if its bytes already belong to a nook paper, the
@@ -32,10 +31,14 @@ export function resolveSource() {
   const share = (params.get('share') || '').toLowerCase();
   // A link is the whole permission, so it is answered before anything else
   // and without a hash: the sharable says which PDF it opens.
-  if (!demo && /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
+  if (/^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
-  if (demo) return DEMO_PAPERS[pdf] ? localSource(pdf) : null;
+  if (demo) {
+    const source = apiSource(pdf);
+    source.requiresSignIn = false;
+    return source;
+  }
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
   return apiSource(pdf);
 }
@@ -69,14 +72,14 @@ function apiSource(
     return paperReady;
   };
   const source = {
-    homeHref: appPath('/'),
+    homeHref: modePath('/', { demo: inDemo() }),
     // The desktop blob store is content-addressed, so the viewer can begin
     // reading these bytes before this source's paper metadata query returns.
     pdfHash,
     requiresSignIn: true,
     async load() {
       const loaded = await paper();
-      source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
+      source.homeHref = modePath(`/paper/${paperName(loaded.sha256)}`, { demo: inDemo() });
       return { doc: loaded, notes: [] };
     },
     async loadNotes() {
@@ -117,7 +120,7 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // Where the home button leads. A link hands over one reading of one
     // PDF, not a place in the Desk — and the Desk asks for an account
     // besides — so the way out names no paper and goes to Papol itself.
-    homeHref: appPath('/'),
+    homeHref: modePath('/', { demo: inDemo() }),
     requiresSignIn: false,
     // Their annotations are theirs: whatever is already on these pages was put
     // there by the sharer and nothing in the viewer may change it.
@@ -239,74 +242,5 @@ function openedFileSource(pdfHash, name) {
   };
   return source;
 }
-
-// The demo opens with a few anchors already in place, so a visitor meets
-// the feature rather than an empty Navigator. Fictional, like the rest of the
-// demo, and gone on reload.
-// The demo world is shared with Papol's own demo, so a note written into
-// it appears on the paper page and in the viewer alike.
-// One map, because a paper and its PDF are one thing: the digest names both.
-const DEMO_PAPERS = Object.fromEntries(demoPapers.map((p) => [p.sha256, p]));
-
-const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
-
-function seedFor(paperSha256) {
-  return demoNotes
-    .filter((n) => n.paperSha256 === paperSha256)
-    .map((n) => ({
-      uuid: n.uuid,
-      kind: 'note',
-      page: n.page,
-      body: { anchor: { type: 'point', x: n.x, y: n.y } },
-      content: n.content,
-      created_at: daysAgo(n.daysAgo),
-    }));
-}
-
-function localSource(paperSha256) {
-  const paper = DEMO_PAPERS[paperSha256];
-  // The demo's papers live in memory and reset on reload (see demo.js);
-  // its annotations do the same, so "nothing is saved" stays true.
-  let annotations = seedFor(paperSha256);
-
-  return {
-    homeHref: appPath(`/demo/paper/${paperName(paperSha256)}`),
-    // The paper's details panel shows the demo paper's own fields; there is
-    // no catalogue entry to add to them.
-    async info() {
-      return {};
-    },
-    async load() {
-      return { doc: { ...paper }, notes: notesIn(annotations) };
-    },
-    // The demo keeps its annotations the way it keeps everything else: in memory,
-    // and gone on reload. They are worth meeting even where nothing is
-    // saved — it is how a visitor finds out the features are there.
-    annotations: {
-      async list(kind) {
-        return kind ? annotations.filter((row) => row.kind === kind) : annotations;
-      },
-      async create(annotation) {
-        const made = {
-          ...annotation,
-          uuid: crypto.randomUUID(),
-          created_at: new Date().toISOString(),
-        };
-        annotations = [...annotations, made];
-        return made;
-      },
-      async update(uuid, changes) {
-        annotations = annotations.map((row) => (row.uuid === uuid
-          ? { ...row, ...changes, body: { ...row.body, ...(changes.body || {}) } }
-          : row));
-        return annotations.find((row) => row.uuid === uuid);
-      },
-      async remove(uuid) {
-        annotations = annotations.filter((row) => row.uuid !== uuid);
-      },
-    },
-  };
-}
-
 
 export { getToken };

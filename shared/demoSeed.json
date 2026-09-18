@@ -1,0 +1,879 @@
+{
+  "users": [
+    {
+      "uuid": "00000000-0000-4000-8000-a00000000001",
+      "display_name": "SpongeBob SquarePants",
+      "affiliation": "MIT CSAIL",
+      "avatar_path": "assets/demo/spongebob.png",
+      "email": "spongebob@demo.papol",
+      "is_admin": false
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-a00000000002",
+      "display_name": "Sandy Cheeks",
+      "affiliation": "Carnegie Mellon University",
+      "avatar_path": "assets/demo/sandy.png",
+      "email": "sandy@demo.papol"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-a00000000003",
+      "display_name": "Patrick Star",
+      "affiliation": "Stanford University",
+      "avatar_path": "assets/demo/patrick.png",
+      "email": "patrick@demo.papol"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-a00000000004",
+      "display_name": "Squidward Tentacles",
+      "affiliation": "UC Berkeley",
+      "avatar_path": "assets/demo/squidward.png",
+      "email": "squidward@demo.papol"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-a00000000005",
+      "display_name": "Mr. Krabs",
+      "affiliation": "Bikini Bottom University",
+      "avatar_path": "assets/demo/krabs.png",
+      "email": "krabs@demo.papol"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-a00000000006",
+      "display_name": "Plankton",
+      "affiliation": "Bikini State University",
+      "avatar_path": "assets/demo/plankton.png",
+      "email": "plankton@demo.papol",
+      "email_public": false
+    }
+  ],
+  "papers": [
+    {
+      "doi": "10.1145/357172.357176",
+      "title": "The Byzantine Generals Problem",
+      "authors": "[\"Leslie Lamport\", \"Robert Shostak\", \"Marshall Pease\"]",
+      "journal": "ACM Transactions on Programming Languages and Systems",
+      "year": 1982,
+      "file_path": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08.pdf",
+      "sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "created_at": 30
+    },
+    {
+      "doi": "10.48550/arXiv.1706.03762",
+      "title": "Attention Is All You Need",
+      "authors": "[\"Ashish Vaswani\", \"Noam Shazeer\", \"Niki Parmar\", \"Jakob Uszkoreit\", \"Llion Jones\", \"Aidan N. Gomez\", \"Łukasz Kaiser\", \"Illia Polosukhin\"]",
+      "journal": "Advances in Neural Information Processing Systems",
+      "year": 2017,
+      "file_path": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697.pdf",
+      "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "created_at": 21
+    },
+    {
+      "doi": "10.1145/3065386",
+      "title": "ImageNet Classification with Deep Convolutional Neural Networks",
+      "authors": "[\"Alex Krizhevsky\", \"Ilya Sutskever\", \"Geoffrey E. Hinton\"]",
+      "journal": "Communications of the ACM",
+      "year": 2017,
+      "file_path": "90137160c57217953d5f61857e64ca58e85f06e1b13b4f475c918b1b582b9771.pdf",
+      "sha256": "90137160c57217953d5f61857e64ca58e85f06e1b13b4f475c918b1b582b9771",
+      "created_at": 18
+    },
+    {
+      "doi": "10.1145/362384.362685",
+      "title": "A Relational Model of Data for Large Shared Data Banks",
+      "authors": "[\"E. F. Codd\"]",
+      "journal": "Communications of the ACM",
+      "year": 1970,
+      "file_path": "fa2579f427a4da68466ef159a3ae0c3c1fe4eafec60f73c9f2f40378a65d8ef9.pdf",
+      "sha256": "fa2579f427a4da68466ef159a3ae0c3c1fe4eafec60f73c9f2f40378a65d8ef9",
+      "created_at": 14
+    },
+    {
+      "doi": "10.1002/j.1538-7305.1948.tb01338.x",
+      "title": "A Mathematical Theory of Communication",
+      "authors": "[\"Claude E. Shannon\"]",
+      "journal": "Bell System Technical Journal",
+      "year": 1948,
+      "file_path": "6e4e3411984f3edf99dbfe8b941cb5e8a321379ff0cae6ae5c1f592ad8882ca8.pdf",
+      "sha256": "6e4e3411984f3edf99dbfe8b941cb5e8a321379ff0cae6ae5c1f592ad8882ca8",
+      "created_at": 12
+    },
+    {
+      "doi": "10.1109/TIT.1976.1055638",
+      "title": "New Directions in Cryptography",
+      "authors": "[\"Whitfield Diffie\", \"Martin E. Hellman\"]",
+      "journal": "IEEE Transactions on Information Theory",
+      "year": 1976,
+      "file_path": "03fa2f493a1448a309586b9cf9e5c3a4dfd14735e0786cc94674519570b890ff.pdf",
+      "sha256": "03fa2f493a1448a309586b9cf9e5c3a4dfd14735e0786cc94674519570b890ff",
+      "created_at": 9
+    },
+    {
+      "doi": "10.1016/S0169-7552(98)00110-X",
+      "title": "The Anatomy of a Large-Scale Hypertextual Web Search Engine",
+      "authors": "[\"Sergey Brin\", \"Lawrence Page\"]",
+      "journal": "Computer Networks and ISDN Systems",
+      "year": 1998,
+      "file_path": "3a155ade395c7789876a0bc08a1842f909486438c1b1739ae531fa5c797d93f0.pdf",
+      "sha256": "3a155ade395c7789876a0bc08a1842f909486438c1b1739ae531fa5c797d93f0",
+      "created_at": 6
+    },
+    {
+      "doi": "10.1145/367177.367199",
+      "title": "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I",
+      "authors": "[\"John McCarthy\"]",
+      "journal": "Communications of the ACM",
+      "year": 1960,
+      "file_path": "3d981849e59505eff3f14397a177b409f5d978d43d114bdd67c956e74320fc92.pdf",
+      "sha256": "3d981849e59505eff3f14397a177b409f5d978d43d114bdd67c956e74320fc92",
+      "created_at": 5
+    },
+    {
+      "doi": "10.1016/0304-3975(75)90017-1",
+      "title": "Call-by-name, call-by-value and the λ-calculus",
+      "authors": "[\"Gordon D. Plotkin\"]",
+      "journal": "Theoretical Computer Science",
+      "year": 1975,
+      "file_path": "73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a.pdf",
+      "sha256": "73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a",
+      "created_at": 3
+    },
+    {
+      "doi": "10.5555/krabby.2026.001",
+      "title": "Byzantine Fry Cooks: Consensus on the Krabby Patty Formula Under Adversarial Plankton",
+      "authors": "[\"SpongeBob SquarePants\", \"Sandy Cheeks\"]",
+      "journal": "Proceedings of the Bikini Bottom Symposium on Fry Cook Systems",
+      "year": 2026,
+      "file_path": "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57.pdf",
+      "sha256": "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57",
+      "created_at": 1
+    }
+  ],
+  "copies": [
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000001",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "summary": "## What it proves\n\nConsensus survives traitors only when **more than two thirds** of the generals are loyal — the `3f+1` bound.\n\n- *Oral messages* (§4): needs `3f+1` generals and `f+1` rounds\n- *Signed messages* (§6): any number of traitors, since an order cannot be forged\n\n> No solution with fewer than 3m+1 generals can cope with m traitors.\n\nReread §4 — the induction on m is the part I keep re-deriving.",
+      "thought": "Four generals, one traitor — suddenly the arithmetic makes sense.",
+      "is_author": false,
+      "rating_expertise": 3,
+      "rating_reading": 4,
+      "rating_liking": 5,
+      "tag_uuids": [
+        "00000000-0000-4000-8000-b00000000001",
+        "00000000-0000-4000-8000-b00000000003"
+      ],
+      "created_at": 28,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000003"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000002",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "summary": null,
+      "thought": "The clearest impossibility argument I know.",
+      "is_author": false,
+      "rating_expertise": 4,
+      "rating_reading": 5,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000003",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000003",
+      "summary": null,
+      "thought": null,
+      "is_author": false,
+      "rating_expertise": 1,
+      "rating_reading": 2,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000004",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "summary": "Self-attention replaces recurrence entirely: `softmax(QKᵀ/√d)·V`, eight heads in parallel.\n\n1. **Encoder** — six identical layers, attention then feed-forward\n2. **Decoder** — the same, plus masked attention over what it has already produced\n3. **Positional encodings** — sinusoids, and the part I still need to internalize\n\n*Open question*: why sinusoids rather than learned positions? They say it extrapolates to longer sequences, but the paper never shows it.",
+      "thought": "Attention weights are just soft lookups; that finally clicked.",
+      "is_author": false,
+      "rating_expertise": 2,
+      "rating_reading": 3,
+      "rating_liking": 4,
+      "tag_uuids": [
+        "00000000-0000-4000-8000-b00000000002",
+        "00000000-0000-4000-8000-b00000000003"
+      ],
+      "created_at": 20,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000005",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "summary": null,
+      "thought": "Everything since is a footnote to this architecture.",
+      "is_author": false,
+      "rating_expertise": 5,
+      "rating_reading": 5,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000006",
+      "paper_sha256": "90137160c57217953d5f61857e64ca58e85f06e1b13b4f475c918b1b582b9771",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "summary": "Working through how scale changes the few-shot regime before sharing a take.",
+      "thought": null,
+      "is_author": false,
+      "rating_expertise": null,
+      "rating_reading": null,
+      "rating_liking": null,
+      "tag_uuids": [
+        "00000000-0000-4000-8000-b00000000002"
+      ],
+      "created_at": 12,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000002"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000007",
+      "paper_sha256": "90137160c57217953d5f61857e64ca58e85f06e1b13b4f475c918b1b582b9771",
+      "user_uuid": "00000000-0000-4000-8000-a00000000003",
+      "summary": null,
+      "thought": "GPUs go brrr and suddenly vision works.",
+      "is_author": false,
+      "rating_expertise": 2,
+      "rating_reading": 3,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000008",
+      "paper_sha256": "90137160c57217953d5f61857e64ca58e85f06e1b13b4f475c918b1b582b9771",
+      "user_uuid": "00000000-0000-4000-8000-a00000000006",
+      "summary": null,
+      "thought": "Scale beats cleverness; I find that deeply unfair.",
+      "is_author": false,
+      "rating_expertise": 4,
+      "rating_reading": 4,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000009",
+      "paper_sha256": "fa2579f427a4da68466ef159a3ae0c3c1fe4eafec60f73c9f2f40378a65d8ef9",
+      "user_uuid": "00000000-0000-4000-8000-a00000000004",
+      "summary": null,
+      "thought": "Tables. It was always going to be tables.",
+      "is_author": false,
+      "rating_expertise": 3,
+      "rating_reading": 5,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000010",
+      "paper_sha256": "fa2579f427a4da68466ef159a3ae0c3c1fe4eafec60f73c9f2f40378a65d8ef9",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "summary": null,
+      "thought": null,
+      "is_author": false,
+      "rating_expertise": 2,
+      "rating_reading": 3,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000011",
+      "paper_sha256": "6e4e3411984f3edf99dbfe8b941cb5e8a321379ff0cae6ae5c1f592ad8882ca8",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "summary": null,
+      "thought": "Entropy tells you the price of certainty.",
+      "is_author": false,
+      "rating_expertise": 3,
+      "rating_reading": 4,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000012",
+      "paper_sha256": "6e4e3411984f3edf99dbfe8b941cb5e8a321379ff0cae6ae5c1f592ad8882ca8",
+      "user_uuid": "00000000-0000-4000-8000-a00000000006",
+      "summary": null,
+      "thought": "All of information theory in one paper, and we are still mining it.",
+      "is_author": false,
+      "rating_expertise": 5,
+      "rating_reading": 5,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000013",
+      "paper_sha256": "03fa2f493a1448a309586b9cf9e5c3a4dfd14735e0786cc94674519570b890ff",
+      "user_uuid": "00000000-0000-4000-8000-a00000000005",
+      "summary": null,
+      "thought": "Secrets ye can trade in public — marvelous.",
+      "is_author": false,
+      "rating_expertise": 2,
+      "rating_reading": 4,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000014",
+      "paper_sha256": "03fa2f493a1448a309586b9cf9e5c3a4dfd14735e0786cc94674519570b890ff",
+      "user_uuid": "00000000-0000-4000-8000-a00000000006",
+      "summary": null,
+      "thought": "Came for the key exchange, stayed for the paranoia.",
+      "is_author": false,
+      "rating_expertise": 5,
+      "rating_reading": 5,
+      "rating_liking": 3,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000015",
+      "paper_sha256": "3a155ade395c7789876a0bc08a1842f909486438c1b1739ae531fa5c797d93f0",
+      "user_uuid": "00000000-0000-4000-8000-a00000000004",
+      "summary": null,
+      "thought": "Eigenvectors run the internet and nobody noticed.",
+      "is_author": false,
+      "rating_expertise": 3,
+      "rating_reading": 4,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000016",
+      "paper_sha256": "3a155ade395c7789876a0bc08a1842f909486438c1b1739ae531fa5c797d93f0",
+      "user_uuid": "00000000-0000-4000-8000-a00000000005",
+      "summary": null,
+      "thought": "Turns out links are money.",
+      "is_author": false,
+      "rating_expertise": 1,
+      "rating_reading": 2,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000017",
+      "paper_sha256": "3d981849e59505eff3f14397a177b409f5d978d43d114bdd67c956e74320fc92",
+      "user_uuid": "00000000-0000-4000-8000-a00000000004",
+      "summary": null,
+      "thought": "Still the most elegant seven pages in our field.",
+      "is_author": false,
+      "rating_expertise": 4,
+      "rating_reading": 5,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000018",
+      "paper_sha256": "3d981849e59505eff3f14397a177b409f5d978d43d114bdd67c956e74320fc92",
+      "user_uuid": "00000000-0000-4000-8000-a00000000006",
+      "summary": null,
+      "thought": "Seven primitives and you get a civilization.",
+      "is_author": false,
+      "rating_expertise": 3,
+      "rating_reading": 3,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000019",
+      "paper_sha256": "73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "summary": null,
+      "thought": "Call-by-name and call-by-value finally on one clean footing.",
+      "is_author": false,
+      "rating_expertise": 4,
+      "rating_reading": 4,
+      "rating_liking": 5,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000020",
+      "paper_sha256": "73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a",
+      "user_uuid": "00000000-0000-4000-8000-a00000000005",
+      "summary": null,
+      "thought": null,
+      "is_author": false,
+      "rating_expertise": 2,
+      "rating_reading": 3,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000021",
+      "paper_sha256": "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "summary": "## Ours\n\nThe **3f+1 patty bound**: the formula survives while at most `f` of the `3f+1` cooks is a spy.\n\n- §5 — the main proof\n- §6 — the *karate chop lemma* (Sandy)\n- §7 — evaluation over one Friday dinner rush\n\n> Reviewer 2 wants a larger grill.",
+      "thought": "Our secret formula holds even when one cook is a spy.",
+      "is_author": true,
+      "rating_expertise": 5,
+      "rating_reading": 5,
+      "rating_liking": 5,
+      "tag_uuids": [
+        "00000000-0000-4000-8000-b00000000003",
+        "00000000-0000-4000-8000-b00000000004"
+      ],
+      "created_at": 1,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000003"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000022",
+      "paper_sha256": "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "summary": null,
+      "thought": "The karate chop lemma was the hard part.",
+      "is_author": true,
+      "rating_expertise": 5,
+      "rating_reading": 5,
+      "rating_liking": 4,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000023",
+      "paper_sha256": "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57",
+      "user_uuid": "00000000-0000-4000-8000-a00000000006",
+      "summary": null,
+      "thought": "I have grave concerns about the threat model.",
+      "is_author": false,
+      "rating_expertise": 4,
+      "rating_reading": 5,
+      "rating_liking": 1,
+      "tag_uuids": [],
+      "created_at": 5,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000001"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-d00000000024",
+      "paper_sha256": "73bd5299ad0dd393b23c88c40c47b21cc94b4e655280551a07809c9c8b47c96a",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "summary": null,
+      "thought": "Reading this in secret.",
+      "is_author": false,
+      "rating_expertise": null,
+      "rating_reading": null,
+      "rating_liking": null,
+      "tag_uuids": [
+        "00000000-0000-4000-8000-b00000000001"
+      ],
+      "created_at": 0,
+      "shelf_uuid": "00000000-0000-4000-8000-c00000000004"
+    }
+  ],
+  "comments": [
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3001",
+      "kind": "note",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "Wait — why can't three generals manage it? I have read this page twice and I still do not see what goes wrong.",
+      "page": 3,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.34,
+          "y": 0.455
+        }
+      },
+      "created_at": 27
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3002",
+      "kind": "note",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "They send you to another paper for the proof! I wanted to see it here.",
+      "page": 4,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.62,
+          "y": 0.185
+        }
+      },
+      "created_at": 25
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3003",
+      "kind": "note",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "Lost me completely. Why does signing a message fix everything? Ask Sandy.",
+      "page": 9,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.36,
+          "y": 0.215
+        }
+      },
+      "created_at": 22
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3004",
+      "kind": "note",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "",
+      "page": 5,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.3,
+          "y": 0.6
+        }
+      },
+      "created_at": 21
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3005",
+      "kind": "note",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "",
+      "page": 7,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.34,
+          "y": 0.52
+        }
+      },
+      "created_at": 20
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3006",
+      "kind": "note",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "Everyone warned me this paper was hard, and this part is not hard at all!",
+      "page": 4,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.28,
+          "y": 0.86
+        }
+      },
+      "created_at": 19
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3007",
+      "kind": "note",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "Why sines and cosines? They say it works and then move on. I am taking it personally.",
+      "page": 6,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.3,
+          "y": 0.62
+        }
+      },
+      "created_at": 18
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3008",
+      "kind": "note",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "",
+      "page": 7,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.32,
+          "y": 0.55
+        }
+      },
+      "created_at": 17
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3009",
+      "kind": "note",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "",
+      "page": 9,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.36,
+          "y": 0.5
+        }
+      },
+      "created_at": 16
+    },
+    {
+      "uuid": "5f0c2a1e-8b4d-4c6a-9e21-0d7b3a4c3010",
+      "kind": "note",
+      "paper_sha256": "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "content": "Sandy wrote this page. Best page in any paper, anywhere.",
+      "page": 2,
+      "body": {
+        "anchor": {
+          "type": "point",
+          "x": 0.33,
+          "y": 0.815
+        }
+      },
+      "created_at": 1
+    }
+  ],
+  "rooms": [
+    {
+      "uuid": "00000000-0000-4000-8000-e00000000001",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "created_by": "00000000-0000-4000-8000-a00000000003",
+      "leader_uuid": "00000000-0000-4000-8000-a00000000002",
+      "status": "finished",
+      "scheduled_time": "Two weeks ago, 4 pm",
+      "platform": "Zoom",
+      "style": "walkthrough",
+      "style_desc": null,
+      "created_at": 16
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-e00000000002",
+      "paper_sha256": "40807dab08eb08477d6bd1ed22b91b4dcd6633550a4a62682ecbbd00c00d8b08",
+      "created_by": "00000000-0000-4000-8000-a00000000003",
+      "leader_uuid": "00000000-0000-4000-8000-a00000000002",
+      "status": "planning",
+      "scheduled_time": null,
+      "platform": null,
+      "style": null,
+      "style_desc": null,
+      "created_at": 2
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-e00000000003",
+      "paper_sha256": "3a155ade395c7789876a0bc08a1842f909486438c1b1739ae531fa5c797d93f0",
+      "created_by": "00000000-0000-4000-8000-a00000000004",
+      "leader_uuid": "00000000-0000-4000-8000-a00000000004",
+      "status": "scheduled",
+      "scheduled_time": "Friday, 4:00 pm CET",
+      "platform": "Zoom",
+      "style": "questions",
+      "style_desc": null,
+      "created_at": 4
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-e00000000004",
+      "paper_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "created_by": "00000000-0000-4000-8000-a00000000002",
+      "leader_uuid": null,
+      "status": "open",
+      "scheduled_time": null,
+      "platform": null,
+      "style": null,
+      "style_desc": null,
+      "created_at": 1
+    }
+  ],
+  "participants": [
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000001",
+      "room_uuid": "00000000-0000-4000-8000-e00000000001",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000002",
+      "room_uuid": "00000000-0000-4000-8000-e00000000001",
+      "user_uuid": "00000000-0000-4000-8000-a00000000003",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000003",
+      "room_uuid": "00000000-0000-4000-8000-e00000000001",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000004",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000003",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000005",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000006",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000007",
+      "room_uuid": "00000000-0000-4000-8000-e00000000003",
+      "user_uuid": "00000000-0000-4000-8000-a00000000004",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000008",
+      "room_uuid": "00000000-0000-4000-8000-e00000000003",
+      "user_uuid": "00000000-0000-4000-8000-a00000000005",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-f00000000009",
+      "room_uuid": "00000000-0000-4000-8000-e00000000004",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "created_at": 1
+    }
+  ],
+  "messages": [
+    {
+      "uuid": "00000000-0000-4000-8000-100000000001",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000003",
+      "content": "I mostly followed the story but lost the proof — can we walk it slowly?",
+      "created_at": 2
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-100000000002",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "content": "Sure! I will prepare the m=1 and m=2 cases on a whiteboard.",
+      "created_at": 1
+    }
+  ],
+  "availabilities": [
+    {
+      "uuid": "00000000-0000-4000-8000-200000000001",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000002",
+      "availability": "Weekday evenings; any time Friday",
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-200000000002",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000003",
+      "availability": "After 3 pm most days",
+      "created_at": 1
+    }
+  ],
+  "notifications": [
+    {
+      "uuid": "00000000-0000-4000-8000-300000000001",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "room_uuid": "00000000-0000-4000-8000-e00000000004",
+      "content": "Sandy Cheeks called for a seminar on “Attention Is All You Need”. A user of the paper can answer to host.",
+      "read": false,
+      "created_at": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-300000000002",
+      "user_uuid": "00000000-0000-4000-8000-a00000000001",
+      "room_uuid": "00000000-0000-4000-8000-e00000000002",
+      "content": "Sandy Cheeks will host the seminar on “The Byzantine Generals Problem”. Share your availability in the cohort.",
+      "read": true,
+      "created_at": 2
+    }
+  ],
+  "tags": [
+    {
+      "uuid": "00000000-0000-4000-8000-b00000000001",
+      "name": "foundations"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-b00000000002",
+      "name": "transformers"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-b00000000003",
+      "name": "to discuss"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-b00000000004",
+      "name": "my work"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-b00000000005",
+      "name": "reread"
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-b00000000006",
+      "name": "favourite"
+    }
+  ],
+  "shelves": [
+    {
+      "uuid": "00000000-0000-4000-8000-c00000000001",
+      "name": "Display",
+      "color": "#7ba26c",
+      "is_public": true,
+      "is_default": true,
+      "position": 0
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-c00000000002",
+      "name": "Personal",
+      "color": "#2b4a6f",
+      "is_public": false,
+      "is_default": false,
+      "position": 1
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-c00000000003",
+      "name": "Seminar picks",
+      "color": "#b3923d",
+      "is_public": true,
+      "is_default": false,
+      "position": 2
+    },
+    {
+      "uuid": "00000000-0000-4000-8000-c00000000004",
+      "name": "Deep dives",
+      "color": "#6b3f5e",
+      "is_public": false,
+      "is_default": false,
+      "position": 3
+    }
+  ]
+}

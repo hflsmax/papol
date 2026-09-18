@@ -17,7 +17,7 @@ import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
 } from './source';
-import { inDemo, appPath, backendPath, stripAppBase } from './base';
+import { appPath, backendPath, inDemo, modeRoute, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
@@ -2073,9 +2073,7 @@ export default function App() {
     // The desktop viewer itself has a tauri:// URL, which the backend rejects
     // (and which would be useless outside this Mac). Keep board backlinks on
     // the canonical hosted viewer while preserving the current paper query.
-    const viewerPath = inDemo()
-      ? '/demo/viewer/'
-      : '/viewer/';
+    const viewerPath = modeRoute('/viewer/', { demo: inDemo() });
     const backlink = new URL(backendPath(viewerPath), window.location.href);
     backlink.search = window.location.search;
     backlink.hash = window.location.hash;

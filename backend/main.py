@@ -156,6 +156,11 @@ _IDEMPOTENCY_MUTATION_HEADER = "x-papol-mutation-uuid"
 _IDEMPOTENCY_RESPONSE_LIMIT = mebibytes("files", "idempotency_response_mb")
 
 
+def _is_demo_request(request: Request) -> bool:
+    path = request.url.path
+    return path == "/api/demo" or path.startswith("/api/demo/")
+
+
 def _uuid_header(value: str | None) -> str | None:
     if not value:
         return None
@@ -215,7 +220,8 @@ async def idempotent_desktop_mutations(request: Request, call_next):
     dependencies, so their current ``db.commit()`` calls flush and the final
     commit also includes the idempotency record.
     """
-    if (request.method not in {"POST", "PUT", "PATCH", "DELETE"}
+    if (_is_demo_request(request)
+            or request.method not in {"POST", "PUT", "PATCH", "DELETE"}
             or request.url.path == "/api/sync/push"):
         return await call_next(request)
     raw_client_uuid = request.headers.get(_IDEMPOTENCY_CLIENT_HEADER)
@@ -326,7 +332,8 @@ async def serialize_sqlite_writes(request: Request, call_next):
     prevents another synchronous SQLite call from blocking the event loop
     while that first request is waiting to finish its commit.
     """
-    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+    if (_is_demo_request(request)
+            or request.method not in {"POST", "PUT", "PATCH", "DELETE"}):
         return await call_next(request)
     async with request.app.state.sqlite_write_lock:
         return await call_next(request)
@@ -336,6 +343,8 @@ async def serialize_sqlite_writes(request: Request, call_next):
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error: {exc}")
     logger.error(traceback.format_exc())
+    if _is_demo_request(request):
+        return JSONResponse(status_code=500, content={"detail": "The demo request failed."})
     # Record the error in the database so the admin can inspect it later.
     # Use a fresh session: the request's own session may be mid-rollback.
     db = SessionLocal()
@@ -3402,6 +3411,17 @@ async def finish_room(
     db.commit()
     db.refresh(room)
     return _room_detail(db, room, current_user)
+
+
+from demo import DemoApplication
+
+demo_app = DemoApplication(app.routes)
+app.mount("/api/demo", demo_app)
+
+
+@app.on_event("shutdown")
+def close_demo_workspaces():
+    demo_app.close()
 
 
 # A name that never changes, for a file that does. Papol is reached both
