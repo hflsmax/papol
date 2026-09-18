@@ -1,4 +1,4 @@
-use crate::data::{LocalStore, RemoteChange};
+use crate::data::{declared_schema_version, LocalStore, RemoteChange};
 use crate::limits::value as app_limit;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
@@ -247,9 +247,18 @@ struct SnapshotResponse {
 
 impl Coordinator {
     pub fn new() -> Result<Self, String> {
+        // The schema this build was compiled for goes on every request; the
+        // server compares it with its own and answers 426 to any other. The
+        // release version is recorded beside the client's cursor, so who runs
+        // what can be read off the table.
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "X-Papol-Schema",
+            reqwest::header::HeaderValue::from_str(&declared_schema_version().to_string())
+                .map_err(|error| error.to_string())?,
+        );
         let client = Client::builder()
-            // The real version, because the server decides what it can
-            // still speak to by reading it.
+            .default_headers(headers)
             .user_agent(concat!("Papol macOS/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_millis(app_limit(
                 "timeouts_ms",

@@ -22,9 +22,7 @@ from models import (
     Annotation, AppliedMutation, Board, BoardGroup, BoardItem, Copy, CopyTagLink,
     Paper, ServerChange, Shelf, SyncClient, Tag, User,
 )
-from services.client_requirements import (
-    INCOMPATIBLE, client_version, requirements, verdict,
-)
+from services.client_requirements import INCOMPATIBLE, refusal, verdict
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
@@ -44,10 +42,9 @@ PDF_FILES_DIR = Path(os.environ.get(
     "PAPOL_UPLOADS_DIR", Path(__file__).parents[2] / "uploads",
 ))
 BLOB_LIMIT = mebibytes("files", "offline_blob_mb")
-PROTOCOL_VERSION = registry()["protocol_version"]
 
 
-def _require_supported_client(request: Request, db: Session) -> None:
+def _require_supported_client(request: Request) -> None:
     """Refuse a build this server can no longer speak to.
 
     426 rather than one more 400: the request was well formed and the
@@ -61,17 +58,24 @@ def _require_supported_client(request: Request, db: Session) -> None:
     that is going to be lost. It covers its windows, says so, and offers to
     save whatever it never managed to send.
     """
-    if verdict(db, request.headers.get("user-agent")) != INCOMPATIBLE:
-        return
-    asked = requirements(db)
-    raise HTTPException(
-        status_code=426,
-        detail={
-            "error": "client_incompatible",
-            "minimum_version": asked["minimum_version"],
-            "download_url": asked["download_url"],
-        },
-    )
+    if verdict(request) == INCOMPATIBLE:
+        raise HTTPException(status_code=426, detail=refusal())
+
+
+# The client announces itself as "Papol macOS/0.3.0"; the version is kept on
+# its sync row so that who runs what can be read off the table. Anything else
+# is some other caller and records nothing.
+_AGENT_PREFIX = "Papol macOS/"
+
+
+def _app_version(user_agent: str | None) -> str | None:
+    if not user_agent:
+        return None
+    start = user_agent.find(_AGENT_PREFIX)
+    if start < 0:
+        return None
+    rest = user_agent[start + len(_AGENT_PREFIX):].split()
+    return rest[0] if rest else None
 
 
 class RowChange(BaseModel):
@@ -101,7 +105,6 @@ class RowChange(BaseModel):
 
 
 class PushRequest(BaseModel):
-    protocol_version: int
     client_uuid: UUID
     mutation_uuid: UUID
     local_sequence: int = Field(ge=0)
@@ -565,19 +568,7 @@ def push(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_supported_client(request, db)
-    if payload.protocol_version != PROTOCOL_VERSION:
-        # The wire is compared, not negotiated. A build the version floor let
-        # through speaks the one wire the registry declares, so anything else
-        # is a build that should not be here — the same answer as above.
-        raise HTTPException(
-            status_code=426,
-            detail={
-                "error": "client_incompatible",
-                "minimum_version": requirements(db)["minimum_version"],
-                "download_url": requirements(db)["download_url"],
-            },
-        )
+    _require_supported_client(request)
     client_uuid = str(payload.client_uuid)
     mutation_uuid = str(payload.mutation_uuid)
     fingerprint = hashlib.sha256(_canonical_payload(payload)).hexdigest()
@@ -650,7 +641,6 @@ def push(
             record.updated_at = datetime.utcnow()
     prepare_sync_changes(db)
     result = {
-        "protocol_version": PROTOCOL_VERSION,
         "mutation_uuid": mutation_uuid,
         "local_sequence": payload.local_sequence,
         "rows": [row_snapshot(record) | {"table": record.__table__.name} for record in touched],
@@ -700,7 +690,7 @@ def snapshot(
     the rows name a paper by the digest of its file, and a build that reads
     them expecting a UUID would not fail — it would store the wrong thing.
     """
-    _require_supported_client(request, db)
+    _require_supported_client(request)
     copies = db.query(Copy).filter(Copy.user_uuid == user.uuid).all()
     shelves = db.query(Shelf).filter(Shelf.user_uuid == user.uuid).all()
     tags = db.query(Tag).filter(Tag.user_uuid == user.uuid).all()
@@ -728,7 +718,6 @@ def snapshot(
         *db.query(CopyTagLink).filter(CopyTagLink.user_uuid == user.uuid).all(),
     ]
     return {
-        "protocol_version": PROTOCOL_VERSION,
         "rows": [row_snapshot(record) | {"table": record.__table__.name}
                  for record in records],
     }
@@ -804,7 +793,7 @@ def pull(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_supported_client(request, db)
+    _require_supported_client(request)
     if client_uuid is not None:
         client = db.query(SyncClient).filter(
             SyncClient.user_uuid == user.uuid,
@@ -819,7 +808,7 @@ def pull(
         # A version that cannot be read leaves the last good one in place
         # rather than erasing what we knew about this installation.
         client.app_version = (
-            client_version(request.headers.get("user-agent")) or client.app_version
+            _app_version(request.headers.get("user-agent")) or client.app_version
         )
         db.flush()
         # A replica moving its cursor forward is the only moment anything
@@ -836,7 +825,6 @@ def pull(
     ).order_by(ServerChange.sequence).limit(limit + 1).all()
     page = records[:limit]
     return {
-        "protocol_version": PROTOCOL_VERSION,
         "cursor": page[-1].sequence if page else cursor,
         "has_more": len(records) > limit,
         "changes": [{

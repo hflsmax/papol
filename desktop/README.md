@@ -286,9 +286,9 @@ change is breaking is your judgement, and both ends act on having been told.
 The desktop discards a replica at any other version and pulls the account
 again; the service refuses to start on a database at any other version,
 naming the statement that records the new one once you have brought it
-there. Ship a breaking change with a floor under it (`PROTOCOL_MINIMUM_VERSION`)
-too, so the older build stops being used at all rather than making work into
-a replica the next build will throw away. Every change to a table's shape is
+there. The same number is what every request carries, so an older build is
+refused with a 426 and stops being used, rather than making work into a
+replica the next build will throw away. Every change to a table's shape is
 such a change: the service does not alter a table it already has. A normal
 new private table follows the same pattern plus its ownership rule. Shared, public, security, and
 irreversible actions must stay outside the registry unless their delayed

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DESKTOP } from '../desktopShell.js';
 import {
-  COMPATIBILITY_EVENT, DEPRECATED, INCOMPATIBLE,
+  COMPATIBILITY_EVENT, INCOMPATIBLE,
   getClientCompatibility, hydrateClientCompatibility,
 } from '../clientCompatibility.js';
 import { exportNativeRecovery } from '../nativeData.js';
@@ -12,8 +12,7 @@ const DEFAULT_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 // told this in the library must not find the viewer carrying on as though
 // nothing had happened.
 //
-// A newer version merely existing is a bar above the application. A version
-// the service will no longer speak to is the end of the session: the window
+// A version the service will no longer speak to is the end of the session: the window
 // is covered and Papol stops being usable until it is updated. Anything
 // short of that is an invitation to keep working in a build whose replica
 // the next one will discard — the work would be made, and then lost, and
@@ -35,21 +34,12 @@ export default function CompatibilityGate() {
   }, []);
 
   if (!DESKTOP) return null;
-  if (state.verdict !== INCOMPATIBLE && state.verdict !== DEPRECATED) return null;
+  if (state.verdict !== INCOMPATIBLE) return null;
   const download = (
     <a href={state.downloadUrl || DEFAULT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
       Download Papol
     </a>
   );
-
-  if (state.verdict === DEPRECATED) {
-    return (
-      <div className="compatibility-bar" role="alert">
-        <span>A newer version of Papol is available.</span>
-        {download}
-      </div>
-    );
-  }
 
   const saveWork = async () => {
     setSaving(true);

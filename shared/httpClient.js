@@ -2,16 +2,21 @@ import { CLIENT_PLATFORM } from './appEnvironment.js';
 import { backendPath, inDemo } from './appUrls.js';
 import { currentCredential } from './credentials.js';
 import { runtimeFetch } from './connectivity.js';
+import registry from '../schema/sync_registry.json' with { type: 'json' };
 
 export const API_BASE = backendPath('/api');
 
 // Every call says which Papol made it. Signing in is the one that is kept:
 // the server stamps the platform on the new session.
 export const PLATFORM_HEADER = 'X-Papol-Platform';
+// And which schema it was built for. The server compares it with its own
+// and answers 426 to any other, which is the whole of the compatibility gate.
+export const SCHEMA_HEADER = 'X-Papol-Schema';
 
 export function authHeaders(extra = {}) {
   const token = currentCredential();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+  const headers = { [SCHEMA_HEADER]: String(registry.schema_version), ...extra };
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
 }
 
 export async function handleResponse(response) {

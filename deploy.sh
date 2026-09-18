@@ -317,12 +317,9 @@ macos_release() {
   esac
   [ "$version" != "$current" ] || die "desktop is already version $version"
 
-  # A release only ever moves forwards, and never below the wire's floor.
-  local floor
-  floor=$(sed -n 's/^PROTOCOL_MINIMUM_VERSION = "\(.*\)"$/\1/p' \
-    "$DEV_DIR/backend/services/client_requirements.py")
-  node - "$version" "$current" "${floor:-0.0.0}" <<'NODE' || die "release version refused"
-const [version, current, floor] = process.argv.slice(2);
+  # A release only ever moves forwards.
+  node - "$version" "$current" <<'NODE' || die "release version refused"
+const [version, current] = process.argv.slice(2);
 const parts = (text) => text.split('.').map(Number);
 const compare = (left, right) => {
   const [a, b] = [parts(left), parts(right)];
@@ -331,14 +328,6 @@ const compare = (left, right) => {
 };
 if (compare(version, current) < 0) {
   console.error(`deploy: ${version} is older than the current ${current}; a release moves forwards`);
-  process.exit(1);
-}
-if (compare(version, floor) < 0) {
-  console.error(
-    `deploy: ${version} is below the service's minimum of ${floor}, so it would be `
-    + 'refused the moment it was installed. Move PROTOCOL_MINIMUM_VERSION or the '
-    + 'release, but do not publish a build the service will not speak to.',
-  );
   process.exit(1);
 }
 NODE

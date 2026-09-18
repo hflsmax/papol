@@ -54,7 +54,6 @@ pub struct RecoveryExport {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OutboxMutation {
-    pub protocol_version: i64,
     pub client_uuid: String,
     pub mutation_uuid: String,
     pub local_sequence: i64,
@@ -408,9 +407,6 @@ impl LocalStore {
                         )
                     })?;
                     Ok(OutboxMutation {
-                        protocol_version: REGISTRY["protocol_version"]
-                            .as_i64()
-                            .expect("the sync registry declares an integer protocol_version"),
                         local_sequence: row.get(0)?,
                         client_uuid: row.get(1)?,
                         mutation_uuid: row.get(2)?,
