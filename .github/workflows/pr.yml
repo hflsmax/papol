@@ -1,0 +1,57 @@
+name: Papol PR
+
+# Every pull request answers two questions: do the suites pass, and does a
+# user driving the real pages see them work. The browser half exists because
+# a passing suite is not a working link — the SPA answers dead URLs with the
+# page itself, status 200, and only a browser watching the wire notices.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
+
+      # Ubuntu 24 confines unprivileged user namespaces, which is how
+      # Chromium builds its sandbox; the nix chromium has no setuid fallback.
+      - name: Let Chromium sandbox itself
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Unit tests, all four surfaces
+        run: |
+          nix develop --command bash -c 'cd viewer   && npm ci && npm test'
+          nix develop --command bash -c 'cd board    && npm ci && npm test'
+          nix develop --command bash -c 'cd frontend && npm ci && npm test'
+          nix develop --command bash -c 'cd backend  && pytest -q'
+
+      - name: Start a development server
+        run: |
+          PAPOL_DEV_PORT=8010 nohup ./deploy.sh dev --no-watch > server.log 2>&1 &
+          for _ in $(seq 90); do
+            curl -fsS http://127.0.0.1:8010/openapi.json > /dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo 'the server never came up'; cat server.log; exit 1
+
+      - name: Browser suite over the real pages
+        env:
+          PAPOL_BASE: http://127.0.0.1:8010
+        run: |
+          nix develop --command bash -c '
+            set -e
+            export PAPOL_E2E_FIXTURE="$PWD/e2e-fixture.json"
+            export CHROME="$(command -v chromium)"
+            python3 scripts/share-e2e/seed.py
+            node scripts/share-e2e/run.mjs'
+
+      - name: Server log
+        if: failure()
+        run: cat server.log || true

@@ -26,7 +26,13 @@ What it covers:
   paper, it carries none of the sharer's marks, and the link stops offering
   what they now have;
 - the sharer's own **Share menu** opens and shows the live link with a way to
-  copy it.
+  copy it;
+- the sharer opens **their own paper** in the viewer: no error bar, and the
+  clip on it is drawn;
+- **the wire**: no request under `/api/` was ever answered with HTML. The SPA
+  answers a path it does not know with the page itself, status 200, so a badly
+  built request dies later in a JSON parser with the URL nowhere in the
+  message; this names it.
 
 ## Two things to know before changing it
 

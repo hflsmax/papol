@@ -8,6 +8,7 @@ not do twice against the same one.
 
 PAPOL_BASE     where the development server is (default http://127.0.0.1:8010)
 PAPOL_E2E_PDF  an upload already in the backend's uploads directory
+               (default: a fresh page is written for this run)
 PAPOL_E2E_FIXTURE  where to write the fixture (default: a file in the temp dir)
 """
 import json
@@ -18,10 +19,9 @@ import urllib.request
 
 BASE = os.environ.get("PAPOL_BASE", "http://127.0.0.1:8010")
 PASSWORD = "papol-test-pw"
-PDF = os.environ.get(
-    "PAPOL_E2E_PDF",
-    "6e4e3411984f3edf99dbfe8b941cb5e8a321379ff0cae6ae5c1f592ad8882ca8.pdf",
-)
+suffix = os.urandom(3).hex()
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+UPLOADS = os.environ.get("PAPOL_UPLOADS_DIR", os.path.join(ROOT, "uploads"))
 FIXTURE = os.environ.get(
     "PAPOL_E2E_FIXTURE", os.path.join(tempfile.gettempdir(), "papol-share-e2e.json"))
 
@@ -58,44 +58,68 @@ def account(email, name):
     return out["token"], out["user"]["uuid"], out["user"]["display_name"]
 
 
-suffix = os.urandom(3).hex()
+def fresh_pdf():
+    """One page with this run's suffix printed on it. New words are new
+    bytes, and the digest of the bytes is the paper's identity — which is
+    what makes the paper genuinely new each run rather than a reused one."""
+    import fitz
+    name = f"e2e-{suffix}.pdf"
+    os.makedirs(UPLOADS, exist_ok=True)
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), f"A reading worth handing over {suffix}")
+    doc.save(os.path.join(UPLOADS, name))
+    doc.close()
+    return name
+
+
+PDF = os.environ.get("PAPOL_E2E_PDF") or fresh_pdf()
+
 sharer_token, sharer_uuid, sharer_name = account("sharer@papol.test", "Alice Sharer")
 user_token, user_uuid, user_name = account(f"user-{suffix}@papol.test", "Bob User")
 
 title = f"A Reading Worth Handing Over {suffix}"
 status, paper = call("POST", "/api/papers", token=sharer_token, body={
-    "title": title, "file_path": PDF, "authors": "A. Sharer", "year": 2026})
+    "title": title, "file_path": PDF, "authors": json.dumps(["A. Sharer"]), "year": 2026})
 if status != 200:
     raise SystemExit(
         f"could not make a paper from {PDF}: {paper}\n"
         "Name an upload this server already holds with PAPOL_E2E_PDF.")
 paper_sha256 = paper["sha256"]
+# The service answers to a paper's name, which is half its digest.
+paper_name = paper_sha256[:32]
 
 # A note and a stroke, so the suite can tell a rich link from a lean one by
 # what reaches the page rather than by what the API says.
 note = f"Alice's note {suffix} — this should reach whoever follows the link"
-assert call("POST", f"/api/papers/{paper_sha256}/annotations", token=sharer_token, body={
+assert call("POST", f"/api/papers/{paper_name}/annotations", token=sharer_token, body={
     "kind": "note", "page": 1, "content": note,
     "body": {"anchor": {"type": "point", "x": 0.3, "y": 0.4}}})[0] == 200
-assert call("POST", f"/api/papers/{paper_sha256}/annotations", token=sharer_token, body={
+assert call("POST", f"/api/papers/{paper_name}/annotations", token=sharer_token, body={
     "kind": "ink", "page": 1,
     "body": {"points": [{"x": 0.15, "y": 0.25}, {"x": 0.55, "y": 0.28}],
              "color": "#b3923d", "width": 0.006, "opacity": 0.9, "shape": "round"}})[0] == 200
+# And a clip, so the sharer's own reading of the paper has one to draw.
+assert call("POST", f"/api/papers/{paper_name}/annotations", token=sharer_token, body={
+    "kind": "clip", "page": 1,
+    "body": {"source": {"x": 0.1, "y": 0.1, "w": 0.25, "h": 0.15},
+             "frame": {"x": 0.5, "y": 0.45, "w": 0.25, "h": 0.15},
+             "floating": False}})[0] == 200
 
-_, rich = call("POST", f"/api/papers/{paper_sha256}/sharable", token=sharer_token,
-               body={"include_marks": True})
-_, lean = call("POST", f"/api/papers/{paper_sha256}/sharable", token=sharer_token,
-               body={"include_marks": False})
+_, rich = call("POST", f"/api/papers/{paper_name}/sharable", token=sharer_token,
+               body={"include_annotations": True})
+_, lean = call("POST", f"/api/papers/{paper_name}/sharable", token=sharer_token,
+               body={"include_annotations": False})
 
 with open(FIXTURE, "w") as written:
     json.dump({
         "base": BASE, "title": title, "note": note,
         "sharer": {"token": sharer_token, "uuid": sharer_uuid, "name": sharer_name},
         "user": {"token": user_token, "uuid": user_uuid, "name": user_name},
-        "paper_sha256": paper_sha256,
+        "paper_sha256": paper_sha256, "paper_name": paper_name,
         "rich": rich["uuid"], "lean": lean["uuid"],
         "rich_url": f"{BASE}/viewer/?share={rich['uuid']}",
         "lean_url": f"{BASE}/viewer/?share={lean['uuid']}",
+        "nook_url": f"{BASE}/viewer/?pdf={paper_sha256}",
     }, written, indent=1)
 
 print(f"seeded {title}")

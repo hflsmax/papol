@@ -52,6 +52,8 @@ const snapshot = () => browser.evaluate(`
     attribution: document.querySelector('.shared-reading')?.textContent?.trim() ?? null,
     annotationsInDom: document.documentElement.innerHTML.includes(note),
     bar: !!document.querySelector('.viewer-bar'),
+    tools: !!(document.querySelector('[aria-label="Clipper"]')
+      && document.querySelector('[aria-label="Brush"]')),
     buttons: [...document.querySelectorAll('button')].map(b => b.textContent.trim()).filter(Boolean),
     signInWall: /sign in to papol|please sign in/i.test(document.body.innerText),
   };`);
@@ -62,8 +64,21 @@ const clickText = (text) => browser.evaluate(`
   hit.click();
   return true;`);
 
+// The SPA answers any path it does not recognize with the page itself,
+// status 200 — so a request built badly (an empty name, a route that moved)
+// comes back as HTML and dies later, in a JSON parser, with the URL nowhere
+// in the message. Watch the wire instead: nothing under /api/ ever answers
+// with HTML, and one that does names the request that was wrong.
+const htmlFromApi = [];
+
 try {
   await browser.start();
+  await browser.send('Network.enable');
+  browser.listeners.push((message) => {
+    if (message.method !== 'Network.responseReceived') return;
+    const { url, mimeType } = message.params.response;
+    if (url.includes('/api/') && mimeType === 'text/html') htmlFromApi.push(url);
+  });
 
   console.log('\n== A visitor with no account follows a rich link ==');
   await browser.navigate(fx.rich_url);
@@ -74,7 +89,7 @@ try {
   check('it says whose reading this is', (s.attribution || '').includes(fx.sharer.name),
     String(s.attribution));
   check("the sharer's annotations came across", s.annotationsInDom);
-  check('the whole tool bar is there', s.bar && s.buttons.some((b) => b.includes('Search')));
+  check('the whole tool bar is there', s.bar && s.tools);
   check('the paper is offered', s.buttons.includes('Add to nook'),
     JSON.stringify(s.buttons.slice(0, 12)));
 
@@ -101,8 +116,8 @@ try {
   }
   check('the paper lands in their nook', !!added, 'no copy within 20s');
   if (added) {
-    check('it is the same paper', added.paper_sha256 === fx.paper_sha256);
-    const annotations = await (await api(`/papers/${added.paper_sha256}/annotations`, fx.user.token)).json();
+    check('it is the same paper', added.sha256 === fx.paper_sha256);
+    const annotations = await (await api(`/papers/${fx.paper_name}/annotations`, fx.user.token)).json();
     check("their copy carries none of the sharer's annotations",
       Array.isArray(annotations) && annotations.length === 0, `${annotations?.length} came across`);
     await browser.navigate(fx.rich_url);
@@ -112,9 +127,20 @@ try {
       JSON.stringify(s.buttons.slice(0, 12)));
   }
 
+  console.log("\n== The sharer reads their own paper ==");
+  await browser.signIn({ token: fx.sharer.token, accountUuid: fx.sharer.uuid, origin: fx.base });
+  await browser.navigate(fx.nook_url);
+  await viewerReady();
+  const nook = await browser.evaluate(`return {
+    errorBar: document.querySelector('.error-bar, .error')?.textContent?.trim() ?? null,
+    clip: !!document.querySelector('.paper-clip'),
+  };`);
+  check('nothing is wrong on the page', nook.errorBar === null, String(nook.errorBar));
+  check('the clip on it is drawn', nook.clip);
+
   console.log("\n== The sharer's own Share menu ==");
   await browser.signIn({ token: fx.sharer.token, accountUuid: fx.sharer.uuid, origin: fx.base });
-  await browser.navigate(`${fx.base}/paper/${fx.paper_sha256}`);
+  await browser.navigate(`${fx.base}/paper/${fx.paper_name}`);
   await browser.waitFor("document.body.innerText.includes('Share')",
     { timeout: 25_000, what: 'the paper page' });
   const opened = await browser.evaluate(`
@@ -134,6 +160,10 @@ try {
     check('it shows the live link', (menu.link || '').includes(fx.rich), String(menu.link));
     check('with a way to copy it', menu.copy.some((b) => /copy/i.test(b)), JSON.stringify(menu.copy));
   }
+
+  console.log('\n== The wire ==');
+  check('no /api request was answered with HTML', htmlFromApi.length === 0,
+    htmlFromApi.slice(0, 3).join('  '));
 } catch (error) {
   console.log('\nHARNESS ERROR:', error.message);
   failures += 1;
