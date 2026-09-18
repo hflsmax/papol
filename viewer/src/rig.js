@@ -383,4 +383,3 @@ export function joints(J, out) {
   return k / 2;
 }
 
-export const round1 = f;

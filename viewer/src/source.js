@@ -3,7 +3,7 @@ import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
 import { notesIn } from './annotationKinds.js';
-import { appPath } from './base.js';
+import { appPath, inDemo } from './base.js';
 import { paperName } from '../../shared/paperName.js';
 import {
   getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
@@ -28,14 +28,14 @@ import {
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
-  const inDemo = window.location.pathname.includes('/demo/viewer');
+  const demo = inDemo();
   const share = (params.get('share') || '').toLowerCase();
   // A link is the whole permission, so it is answered before anything else
   // and without a hash: the sharable says which PDF it opens.
-  if (!inDemo && /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
+  if (!demo && /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
-  if (inDemo) return DEMO_PAPERS[pdf] ? localSource(pdf) : null;
+  if (demo) return DEMO_PAPERS[pdf] ? localSource(pdf) : null;
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
   return apiSource(pdf);
 }

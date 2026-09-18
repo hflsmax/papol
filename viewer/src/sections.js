@@ -220,22 +220,18 @@ export function destinationY(dest, view = [0, 0, 0, 0]) {
   const bottom = view?.[1] ?? 0;
   const top = view?.[3] ?? 0;
   const height = top - bottom;
-  const kind = Array.isArray(dest) ? (dest[1]?.name ?? dest[1]) : null;
-  let y = null;
-  if (kind === 'XYZ') y = dest[3];
-  else if (kind === 'FitH' || kind === 'FitBH') y = dest[2];
-  else if (kind === 'FitR') y = dest[5];
-  if (typeof y !== 'number' || !Number.isFinite(y) || !(height > 0)) return 1;
+  const y = destinationHeight(dest);
+  if (y == null || !(height > 0)) return 1;
   return Math.max(0, Math.min(1, (y - bottom) / height));
 }
 
-/** Whether a destination says how far down its page it lands. */
-export function namesHeight(dest) {
+/** The height a destination names on its page, in PDF units, or null. */
+export function destinationHeight(dest) {
   const kind = Array.isArray(dest) ? (dest[1]?.name ?? dest[1]) : null;
   const y = kind === 'XYZ' ? dest[3]
     : kind === 'FitH' || kind === 'FitBH' ? dest[2]
       : kind === 'FitR' ? dest[5] : null;
-  return typeof y === 'number' && Number.isFinite(y);
+  return typeof y === 'number' && Number.isFinite(y) ? y : null;
 }
 
 // Letters and digits only, ligatures undone and case dropped: a heading is
@@ -344,7 +340,7 @@ async function placeOutline(doc, flat, cancelled) {
     }
     const parts = headingParts(entry.title);
     let y = destinationY(dest, views.get(page));
-    if (!namesHeight(dest)) {
+    if (destinationHeight(dest) == null) {
       // The outline gave a page and no more. Its text is read once, however
       // many headings the page holds.
       if (!texts.has(page)) {

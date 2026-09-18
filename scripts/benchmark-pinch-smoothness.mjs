@@ -202,7 +202,7 @@ function summarize(samples) {
   };
 }
 
-async function runPage(baseUrl, legacy) {
+async function runPage(baseUrl) {
   const debugPort = new URL(await chromeEndpointPromise).port;
   const target = await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`, {
     method: 'PUT',
@@ -226,9 +226,8 @@ async function runPage(baseUrl, legacy) {
         }
       };
     ` });
-    const query = legacy ? '&pinch_benchmark=legacy' : '&pinch_benchmark=optimized';
     await cdp.send('Page.navigate', {
-      url: `${baseUrl}viewer/?pdf=${hash}&file=1&name=Attention.pdf${query}`,
+      url: `${baseUrl}viewer/?pdf=${hash}&file=1&name=Attention.pdf`,
     });
     const result = await cdp.send('Runtime.evaluate', {
       expression: benchmarkSource,
@@ -257,20 +256,12 @@ try {
   chromeEndpointPromise = chromeEndpoint(chrome);
   await chromeEndpointPromise;
 
-  const legacy = [];
-  const optimized = [];
-  for (let run = 0; run < runs; run += 1) {
-    // Alternate order to avoid consistently favouring the second warm run.
-    const order = run % 2 ? [false, true] : [true, false];
-    for (const baseline of order) {
-      (baseline ? legacy : optimized).push(await runPage(baseUrl, baseline));
-    }
-  }
+  const samples = [];
+  for (let run = 0; run < runs; run += 1) samples.push(await runPage(baseUrl));
   console.log(JSON.stringify({
     scenario: 'scroll then immediately pinch while lazy pages and previews are still warming',
     cpuThrottle,
-    legacy: summarize(legacy),
-    optimized: summarize(optimized),
+    runs: summarize(samples),
   }, null, 2));
 } finally {
   if (chrome) {

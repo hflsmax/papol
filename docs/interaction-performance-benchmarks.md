@@ -38,10 +38,9 @@ Each sample then:
 4. Alternates zoom-in and zoom-out sessions to avoid hitting scale limits.
 5. Allows 300 ms for the gesture to settle before moving to the next position.
 
-The legacy and optimized paths each get three fresh loads by default. Their
-order alternates so the second implementation does not consistently benefit
-from warm caches or CPU frequency changes. Every completed Chrome target is
-closed so its PDF rendering cannot contaminate later samples.
+The viewer gets three fresh loads by default; compare two builds by running
+the benchmark against each. Every completed Chrome target is closed so its
+PDF rendering cannot contaminate later samples.
 
 The benchmark reports:
 
@@ -93,9 +92,10 @@ runtime, especially when changing Safari `gesturestart`/`gesturechange`/
 Keep the same structure:
 
 1. Reproduce the user's timing and application state, not only the final UI.
-2. Define an in-product legacy switch that changes only the behavior under
-   comparison and is activated solely by the benchmark URL.
-3. Use fresh browser targets, alternate run order, and close every target.
+2. Compare builds, not switches: the shipped viewer has one code path, and a
+   benchmark that needs a second one would be measuring something no user
+   runs.
+3. Use fresh browser targets and close every target.
 4. Measure response latency, frame intervals, synchronous work, long tasks, and
    correctness in the same run.
 5. Separate intentional waits from active-interaction frames.

@@ -29,8 +29,8 @@ export function annotationKinds(annotations) {
   return {
     notes: list && {
       list: async () => notesIn(await list('note')),
-      create: create && (({ page, anchor, content }) => made('note')({
-        page: page ?? null, content: content ?? '', body: { anchor: anchor ?? null },
+      create: create && (({ page, anchor, content, name }) => made('note')({
+        page: page ?? null, content: content ?? '', name: name ?? null, body: { anchor: anchor ?? null },
       })),
       update: update && ((uuid, content) => changed(uuid, { content })),
       // A note is moved by its anchor; its words are not part of the move.
