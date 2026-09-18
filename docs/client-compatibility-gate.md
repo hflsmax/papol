@@ -56,13 +56,14 @@ Otherwise the gate does nothing but retry forever.
 **Incompatible never means "will not start."** A rejected credential already
 removes network access without removing the user's identity or their local
 work; a version floor has no business being harsher. Unsynchronized work
-lives only in `_local_outbox`, `_local_annotations` and `unsynced` blobs, so
-an app that refuses to open strands all three.
+lives only in `_local_outbox` and `unsynced` blobs, so an app that refuses to
+open strands both.
 
 Only a real HTTP answer sets the state. A network error, or offline mode,
 leaves it exactly as it was — being unreachable is not being obsolete. The
-verdict is cached in `_local_settings` against the version that observed it,
-so it survives a relaunch while offline and lapses after a reinstall.
+verdict is cached in `_local_settings` (`client_compatibility`), so it
+survives a relaunch while offline; the next answer from the server, at
+startup or from a sync that went through, replaces it.
 
 ## The surface
 

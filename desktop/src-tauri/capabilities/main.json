@@ -16,7 +16,6 @@
     "allow-blob-import",
     "allow-blob-cache",
     "allow-blob-read",
-    "allow-blob-ensure",
     "allow-local-clear-data",
     "allow-blob-discard",
     "allow-local-setting-get",

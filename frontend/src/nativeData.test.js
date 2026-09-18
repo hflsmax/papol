@@ -45,10 +45,6 @@ global.window = {
       if (command === 'blob_import') {
         return { sha256: 'a'.repeat(64), size: arguments_.bytes.length, mime_type: arguments_.mimeType };
       }
-      if (command === 'blob_ensure') {
-        remoteBlobReady = true;
-        return null;
-      }
       if (command === 'blob_read') {
         if (!remoteBlobReady) throw new Error('Blob is not available offline');
         return [37, 80, 68, 70];
@@ -189,15 +185,14 @@ test('manual mode automatically pulls without uploading local changes', async ()
   values.set('papol.syncPreference', 'manual');
   await scheduleAutomaticNativeSync();
   const call = calls.findLast(([command]) => command === 'sync_now');
-  assert.equal(call[1].request.pullOnly, true);
-  assert.equal(call[1].request.pushOnly, false);
+  assert.equal(call[1].request.mode, 'pull');
 });
 
 test('automatic mode permits uploads during background reconciliation', async () => {
   values.set('papol.syncPreference', 'automatic');
   await scheduleAutomaticNativeSync();
   const call = calls.findLast(([command]) => command === 'sync_now');
-  assert.equal(call[1].request.pullOnly, false);
+  assert.equal(call[1].request.mode, 'full');
   values.set('papol.syncPreference', 'manual');
 });
 
@@ -239,9 +234,9 @@ test('a successful native sync clears the offline latch', async () => {
 });
 
 test('a server prerequisite uses push-only sync', async () => {
-  await nativeSyncNow({ manual: true, pushOnly: true });
+  await nativeSyncNow({ manual: true, mode: 'push' });
   const call = calls.findLast(([command]) => command === 'sync_now');
-  assert.equal(call[1].request.pushOnly, true);
+  assert.equal(call[1].request.mode, 'push');
   assert.equal(call[1].request.retryBlocked, true);
 });
 
@@ -279,16 +274,10 @@ test('every seminar mutation syncs desktop prerequisites up and reconciles down'
   }
 
   const syncs = calls.filter(([command]) => command === 'sync_now');
-  const syncDirections = syncs.map(([, args]) => ({
-    pushOnly: args.request.pushOnly,
-    pullOnly: args.request.pullOnly,
-  }));
+  const syncDirections = syncs.map(([, args]) => args.request.mode);
   assert.equal(syncDirections.length, actions.length * 2);
   for (let index = 0; index < syncDirections.length; index += 2) {
-    assert.deepEqual(syncDirections.slice(index, index + 2), [
-      { pushOnly: true, pullOnly: false },
-      { pushOnly: false, pullOnly: false },
-    ]);
+    assert.deepEqual(syncDirections.slice(index, index + 2), ['push', 'full']);
   }
   assert.deepEqual(
     calls.filter(([command]) => command === 'network_fetch')
@@ -319,7 +308,7 @@ test('paper edits resolve their local copy without automatically uploading it', 
   assert.equal(mutations.length, 2);
   assert.ok(mutations.every(([, args]) => args.changes[0].uuid === copyUuid));
   const syncs = calls.filter(([command]) => command === 'sync_now');
-  assert.ok(syncs.every(([, args]) => args.request.pullOnly === true));
+  assert.ok(syncs.every(([, args]) => args.request.mode === 'pull'));
   queryPaper = null;
 });
 
@@ -352,11 +341,12 @@ test('a shared paper and its file can seed an offline nook copy', async () => {
   });
   const call = calls.find(([command]) => command === 'import_shared_paper');
   assert.equal(call[1].accountUuid, ACCOUNT);
-  assert.deepEqual(call[1].rows.map((row) => row.table), ['papers']);
-  // The cached row is named by the file, which is the paper's only name.
-  assert.equal(call[1].rows[0].uuid, undefined);
-  assert.equal(call[1].rows[0].sha256, 'b'.repeat(64));
-  assert.equal(call[1].rows[0].file_path, 'shared.pdf');
+  // The cached row is named by the file, which is the paper's only name,
+  // and makes no revision claim of its own.
+  assert.equal(call[1].row.uuid, undefined);
+  assert.equal(call[1].row.revision, undefined);
+  assert.equal(call[1].row.sha256, 'b'.repeat(64));
+  assert.equal(call[1].row.file_path, 'shared.pdf');
 });
 
 test('native blob import transfers exact bytes and metadata', async () => {
@@ -382,9 +372,8 @@ test('adding a Library paper directly downloads it without running manual sync',
   });
 
   const commands = calls.map(([command]) => command);
-  assert.equal(commands.includes('blob_ensure'), false);
   const syncs = calls.filter(([command]) => command === 'sync_now');
-  assert.ok(syncs.every(([, args]) => args.request.pullOnly === true));
+  assert.ok(syncs.every(([, args]) => args.request.mode === 'pull'));
   assert.ok(commands.indexOf('network_fetch') < commands.indexOf('blob_import'));
   assert.ok(commands.indexOf('blob_import') < commands.indexOf('data_mutate'));
   const download = calls.find(([command]) => command === 'network_fetch')[1];
@@ -413,9 +402,7 @@ test('opening local storage asks the desktop shell to show it in Finder', async 
 test('native blob reads are local-only and never trigger a download', async () => {
   remoteBlobReady = false;
   const digest = 'b'.repeat(64);
-  const ensuresBefore = calls.filter(([command]) => command === 'blob_ensure').length;
   await assert.rejects(nativeBlobUrl(digest, 'application/pdf'), /not available offline/);
-  assert.equal(calls.filter(([command]) => command === 'blob_ensure').length, ensuresBefore);
 
   remoteBlobReady = true;
   const url = await nativeBlobUrl(digest, 'application/pdf');

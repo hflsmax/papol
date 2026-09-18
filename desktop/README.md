@@ -68,11 +68,9 @@ file's SHA-256. A viewer may read only files the system handed to this process.
 
 Opening a file needs no account and makes no network request. If the user's
 nook already holds those exact bytes, the window works on that paper. Otherwise
-notes, ink, and clips are kept in `_local_annotations` by the file's hash (a
-notice, shown on each such file until "Don't show again" is ticked, says they
-are not in the PDF and suggests an account to back them up), and
-**Add to nook** copies the file into the replica with those annotations; without an
-account it first asks the library window to sign in. The library banner and
+the file is read only — a note, a stroke or a clip needs a nook to go into —
+and **Add to nook** copies the file into the replica; without an account it
+first asks the library window to sign in. The library banner and
 Settings can make Papol the default PDF viewer (macOS only).
 
 ## Opening a reading handed over from a browser

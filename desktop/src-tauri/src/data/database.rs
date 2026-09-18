@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use uuid::Uuid;
 
-const REGISTRY: &str = include_str!("../../../../schema/sync_registry.json");
+use super::REGISTRY;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DataChange {
@@ -64,9 +64,6 @@ pub struct OutboxMutation {
 #[derive(Debug, Clone, Deserialize)]
 pub struct RemoteChange {
     pub table: String,
-    pub uuid: String,
-    pub revision: i64,
-    pub operation: String,
     pub row: Map<String, Value>,
 }
 
@@ -88,7 +85,9 @@ impl LocalStore {
         // service, which still has them, so the file is discarded and the
         // next synchronization brings the whole account back at today's
         // shape. Nothing here reads it first — the point of not recognizing
-        // a schema is having no idea what its rows mean.
+        // a schema is having no idea what its rows mean. A first launch
+        // takes the same path with nothing to remove: the schema is written
+        // into the empty file that follows, and never again into that file.
         //
         // The user was told this was coming. A build below the service's
         // floor refuses to be used and says so, offering to save whatever it
@@ -98,9 +97,8 @@ impl LocalStore {
             drop(connection);
             discard_replica(path, &blob_directory)?;
             connection = open_connection(path)?;
+            super::schema::apply(&mut connection)?;
         }
-        super::schema::apply(&mut connection)?;
-        recover_staged_blob_removals(&connection, &blob_directory)?;
         Ok(Self {
             connection: Mutex::new(connection),
             blob_directory,
@@ -116,7 +114,6 @@ impl LocalStore {
             return Err("A mutation needs at least one row change".into());
         }
         validate_import_batch(&changes)?;
-        let registry: Value = serde_json::from_str(REGISTRY).map_err(|error| error.to_string())?;
         let mut connection = self
             .connection
             .lock()
@@ -134,15 +131,10 @@ impl LocalStore {
             if !valid_row_id(&change.table, &change.uuid) {
                 return Err(format!("A {} row is not named that way", change.table,));
             }
-            let rule = registry["tables"]
+            let rule = REGISTRY["tables"]
                 .get(&change.table)
                 .ok_or_else(|| format!("{} is not synchronized", change.table))?;
-            // What a replica may write is `client_writable` and nothing
-            // else. There used to be a whole-table `read_only` switch read
-            // here, which no table ever set — a guard that looked like it
-            // was in force and was not. A table nothing may write is one
-            // with an empty `client_writable`, which this already refuses,
-            // one column at a time and saying which.
+            // What a replica may write is `client_writable` and nothing else.
             let writable: HashSet<&str> = rule["client_writable"]
                 .as_array()
                 .ok_or("Invalid embedded sync registry")?
@@ -277,12 +269,6 @@ impl LocalStore {
                 query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid")
             }
             "tags" => query_owned_rows(&connection, account_uuid, "tags", "name,uuid"),
-            "copies" => {
-                query_owned_rows(&connection, account_uuid, "copies", "updated_at DESC,uuid")
-            }
-            "copy_tags" => {
-                query_owned_rows(&connection, account_uuid, "copy_tags", "created_at,uuid")
-            }
             "nook" => query_nook(&connection, account_uuid),
             "papers" => query_papers(&connection, account_uuid),
             "paper" => {
@@ -295,7 +281,7 @@ impl LocalStore {
                 let sha256 = parameters["sha256"]
                     .as_str()
                     .ok_or("paper query requires sha256")?;
-                query_paper_by_pdf(&connection, account_uuid, sha256)
+                paper_view(&connection, account_uuid, sha256)
             }
             "sync_status" => query_sync_status(&connection, account_uuid),
             "storage_status" => query_storage_status(&connection),
@@ -304,11 +290,23 @@ impl LocalStore {
         }
     }
 
+    /// Cache the paper a shared link or a Library listing described, so a
+    /// copy of it can be made here before the service has been asked. Not a
+    /// revision claim: the next push or pull replaces it with the service's
+    /// own row.
     pub fn import_shared_paper(
         &self,
         account_uuid: &str,
-        rows: Vec<Map<String, Value>>,
-    ) -> Result<usize, String> {
+        mut row: Map<String, Value>,
+    ) -> Result<(), String> {
+        let sha256 = row
+            .get("sha256")
+            .and_then(Value::as_str)
+            .ok_or("Cached paper row is missing its digest")?
+            .to_owned();
+        if !valid_sha256(&sha256) {
+            return Err("Cached paper row has an invalid digest".into());
+        }
         let mut connection = self
             .connection
             .lock()
@@ -327,49 +325,10 @@ impl LocalStore {
         if account_exists.is_none() {
             return Err("Local data requires a signed-in account".into());
         }
-        transaction
-            .execute_batch("PRAGMA defer_foreign_keys=ON;")
-            .map_err(|error| error.to_string())?;
-        let count = rows.len();
-        for mut row in rows {
-            let table = row
-                .remove("table")
-                .and_then(|value| value.as_str().map(str::to_owned))
-                .ok_or("Cached paper row is missing its table")?;
-            if table.as_str() != "papers" {
-                return Err("Only shared paper rows may enter the local cache".into());
-            }
-            let uuid = row
-                .get("sha256")
-                .and_then(Value::as_str)
-                .ok_or("Cached paper row is missing its digest")?
-                .to_owned();
-            if !valid_sha256(&uuid) {
-                return Err("Cached paper row has an invalid digest".into());
-            }
-            if row.get("deleted_at").is_some_and(|value| !value.is_null()) {
-                return Err("A deleted paper cannot be added to a nook".into());
-            }
-            let already_cached: Option<i64> = transaction
-                .query_row(
-                    &format!("SELECT 1 FROM {table} WHERE {}=?1", row_key(&table)),
-                    [&uuid],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|error| error.to_string())?;
-            if already_cached.is_some() {
-                continue;
-            }
-            // This is a dependency cache, not a server revision claim. A
-            // subsequent push/pull replaces it with the authoritative row.
-            row.insert("revision".into(), json!(0));
-            validate_remote_ownership(&transaction, account_uuid, &table, &row)?;
-            apply_remote_row(&transaction, &table, row, false)?;
-            refresh_blob_reference(&transaction, &table, &uuid)?;
-        }
-        transaction.commit().map_err(|error| error.to_string())?;
-        Ok(count)
+        row.insert("revision".into(), json!(0));
+        apply_remote_row(&transaction, "papers", row, false)?;
+        refresh_blob_reference(&transaction, "papers", &sha256)?;
+        transaction.commit().map_err(|error| error.to_string())
     }
 
     pub fn local_setting(&self, key: &str) -> Result<Option<String>, String> {
@@ -387,12 +346,18 @@ impl LocalStore {
             .map_err(|error| error.to_string())
     }
 
+    /// The two settings a window may set: how it wants to sync, and what the
+    /// server last said about this build. Everything else in
+    /// `_local_settings` is the store's own.
     pub fn set_local_setting(&self, key: &str, value: &str) -> Result<(), String> {
-        if key != "sync_mode" {
-            return Err("Unknown local setting".into());
-        }
-        if !matches!(value, "automatic" | "manual") {
-            return Err("Sync mode must be automatic or manual".into());
+        match (key, value) {
+            ("sync_mode", "automatic" | "manual") => {}
+            ("sync_mode", _) => return Err("Sync mode must be automatic or manual".into()),
+            ("client_compatibility", "incompatible" | "supported") => {}
+            ("client_compatibility", _) => {
+                return Err("A compatibility verdict is incompatible or supported".into())
+            }
+            _ => return Err("Unknown local setting".into()),
         }
         let connection = self
             .connection
@@ -423,111 +388,6 @@ impl LocalStore {
         Ok(())
     }
 
-    /// This device's notes, ink and clips on a file opened from the file
-    /// system, named by the file's SHA-256.
-    pub fn local_annotations(&self, sha256: &str) -> Result<Vec<Value>, String> {
-        if !valid_sha256(sha256) {
-            return Err("Invalid file digest".into());
-        }
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| "Local database lock failed")?;
-        let mut statement = connection
-            .prepare(
-                "SELECT uuid,kind,row_json FROM _local_annotations WHERE sha256=?1 \
-                 ORDER BY created_at,uuid",
-            )
-            .map_err(|error| error.to_string())?;
-        let rows = statement
-            .query_map([sha256], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?;
-        rows.into_iter()
-            .map(|(uuid, kind, encoded)| {
-                let mut row: Map<String, Value> =
-                    serde_json::from_str(&encoded).map_err(|_| "Invalid local annotation")?;
-                row.insert("uuid".into(), json!(uuid));
-                row.insert("kind".into(), json!(kind));
-                Ok(Value::Object(row))
-            })
-            .collect()
-    }
-
-    pub fn put_local_annotation(
-        &self,
-        sha256: &str,
-        kind: &str,
-        uuid: &str,
-        row: Value,
-    ) -> Result<Value, String> {
-        if !valid_sha256(sha256) {
-            return Err("Invalid file digest".into());
-        }
-        if !matches!(kind, "note" | "ink" | "clip") {
-            return Err("Unknown annotation kind".into());
-        }
-        Uuid::parse_str(uuid).map_err(|_| "Annotations are named by UUID")?;
-        let mut row = row
-            .as_object()
-            .cloned()
-            .ok_or("An annotation must be an object")?;
-        row.remove("uuid");
-        row.remove("kind");
-        let encoded = serde_json::to_string(&row).map_err(|error| error.to_string())?;
-        if encoded.len() > mebibytes("files", "local_annotation_mb") {
-            return Err("Annotation is too large".into());
-        }
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| "Local database lock failed")?;
-        let written = connection
-            .execute(
-                "INSERT INTO _local_annotations(uuid,sha256,kind,row_json,updated_at) \
-                 VALUES (?1,?2,?3,?4,?5) ON CONFLICT(uuid) DO UPDATE SET \
-                 row_json=excluded.row_json,updated_at=excluded.updated_at \
-                 WHERE _local_annotations.sha256=excluded.sha256 \
-                 AND _local_annotations.kind=excluded.kind",
-                params![uuid, sha256, kind, encoded, chrono_text()],
-            )
-            .map_err(|error| error.to_string())?;
-        if written == 0 {
-            return Err("That annotation belongs to another file".into());
-        }
-        row.insert("uuid".into(), json!(uuid));
-        row.insert("kind".into(), json!(kind));
-        Ok(Value::Object(row))
-    }
-
-    pub fn delete_local_annotation(&self, uuid: &str) -> Result<(), String> {
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| "Local database lock failed")?;
-        connection
-            .execute("DELETE FROM _local_annotations WHERE uuid=?1", [uuid])
-            .map_err(|error| error.to_string())?;
-        Ok(())
-    }
-
-    pub fn clear_local_annotations(&self, sha256: &str) -> Result<usize, String> {
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| "Local database lock failed")?;
-        connection
-            .execute("DELETE FROM _local_annotations WHERE sha256=?1", [sha256])
-            .map_err(|error| error.to_string())
-    }
-
     pub fn next_outbox(&self, account_uuid: &str) -> Result<Option<OutboxMutation>, String> {
         let connection = self
             .connection
@@ -548,7 +408,9 @@ impl LocalStore {
                         )
                     })?;
                     Ok(OutboxMutation {
-                        protocol_version: 1,
+                        protocol_version: REGISTRY["protocol_version"]
+                            .as_i64()
+                            .expect("the sync registry declares an integer protocol_version"),
                         local_sequence: row.get(0)?,
                         client_uuid: row.get(1)?,
                         mutation_uuid: row.get(2)?,
@@ -557,6 +419,23 @@ impl LocalStore {
                 },
             )
             .optional()
+            .map_err(|error| error.to_string())
+    }
+
+    /// How many mutations this account still has to send, blocked ones
+    /// included.
+    pub fn pending_count(&self, account_uuid: &str) -> Result<usize, String> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid=?1",
+                [account_uuid],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count as usize)
             .map_err(|error| error.to_string())
     }
 
@@ -686,25 +565,15 @@ impl LocalStore {
             .transaction()
             .map_err(|error| error.to_string())?;
         for change in changes {
-            if change
+            let uuid = change
                 .row
                 .get(row_key(&change.table))
                 .and_then(Value::as_str)
-                != Some(change.uuid.as_str())
-            {
-                return Err("Pulled row identity does not match its envelope".into());
-            }
-            if change.row.get("revision").and_then(Value::as_i64) != Some(change.revision) {
-                return Err("Pulled row revision does not match its envelope".into());
-            }
-            if change.operation != "upsert" && change.operation != "delete" {
-                return Err("Unknown pulled operation".into());
-            }
+                .ok_or("Pulled row is missing its name")?
+                .to_owned();
             validate_remote_ownership(&transaction, account_uuid, &change.table, &change.row)?;
-            let table = change.table;
-            let uuid = change.uuid;
-            apply_remote_row(&transaction, &table, change.row, false)?;
-            refresh_blob_reference(&transaction, &table, &uuid)?;
+            apply_remote_row(&transaction, &change.table, change.row, false)?;
+            refresh_blob_reference(&transaction, &change.table, &uuid)?;
         }
         transaction.execute(
             "INSERT INTO _local_sync_state(account_uuid,pull_cursor,last_synced_at,last_error) VALUES (?1,?2,?3,NULL) ON CONFLICT(account_uuid) DO UPDATE SET pull_cursor=excluded.pull_cursor,last_synced_at=excluded.last_synced_at,last_error=NULL",
@@ -843,8 +712,7 @@ impl LocalStore {
         if actual_sha256 != expected_sha256 {
             return Err("Downloaded blob failed SHA-256 verification".into());
         }
-        let stored = self.store_blob(bytes, mime_type, "cache")?;
-        debug_assert_eq!(stored.sha256, expected_sha256);
+        self.store_blob(bytes, mime_type, "cache")?;
         let connection = self
             .connection
             .lock()
@@ -897,11 +765,7 @@ impl LocalStore {
     }
 
     pub fn read_blob(&self, sha256: &str) -> Result<Vec<u8>, String> {
-        if sha256.len() != 64
-            || !sha256
-                .chars()
-                .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character))
-        {
+        if !valid_sha256(sha256) {
             return Err("Invalid blob identifier".into());
         }
         let bytes = std::fs::read(self.blob_directory.join(sha256))
@@ -923,9 +787,10 @@ impl LocalStore {
         self.blob_directory.join(sha256).is_file()
     }
 
-    /// Return every active file referenced by this account that is not yet
-    /// present in the local blob store. PDFs are owned indirectly through the
-    /// account's copies; board files are owned by their board.
+    /// Every active file this account refers to that is not held here — not
+    /// in the index, or not on disk. PDFs are owned indirectly through the
+    /// account's copies; board files are owned by their board. A file on
+    /// disk that the index does not know is fetched again, which indexes it.
     pub fn missing_blob_digests(&self, account_uuid: &str) -> Result<Vec<String>, String> {
         let connection = self
             .connection
@@ -933,73 +798,42 @@ impl LocalStore {
             .map_err(|_| "Local database lock failed")?;
         let mut statement = connection
             .prepare(
-                r#"SELECT DISTINCT digest FROM (
+                r#"SELECT DISTINCT referenced.digest, _local_blobs.sha256 IS NOT NULL
+                 FROM (
                    SELECT p.sha256 AS digest
                    FROM papers p
                    JOIN copies c ON c.paper_sha256=p.sha256
-                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL
-                     AND p.deleted_at IS NULL AND p.sha256 IS NOT NULL
+                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL AND p.deleted_at IS NULL
                    UNION ALL
                    SELECT bi.sha256 AS digest
                    FROM board_items bi
                    JOIN boards b ON b.uuid=bi.board_uuid
                    WHERE b.user_uuid=?1 AND b.deleted_at IS NULL
                      AND bi.deleted_at IS NULL AND bi.sha256 IS NOT NULL
-                 )
-                 ORDER BY digest"#,
+                 ) referenced
+                 LEFT JOIN _local_blobs ON _local_blobs.sha256=referenced.digest
+                 ORDER BY referenced.digest"#,
             )
             .map_err(|error| error.to_string())?;
-        let digests = statement
-            .query_map([account_uuid], |row| row.get::<_, String>(0))
+        let referenced = statement
+            .query_map([account_uuid], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
+            })
             .map_err(|error| error.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?;
-        drop(statement);
-        let recorded = connection
-            .prepare("SELECT sha256 FROM _local_blobs")
-            .map_err(|error| error.to_string())?
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|error| error.to_string())?
-            .collect::<Result<HashSet<_>, _>>()
-            .map_err(|error| error.to_string())?;
-        drop(connection);
-        let mut missing = Vec::new();
-        for sha256 in digests {
-            let present = self.has_blob(&sha256)
-                && (recorded.contains(&sha256) || self.adopt_blob_file(&sha256)?);
-            if !present {
-                missing.push(sha256);
-            }
-        }
-        Ok(missing)
+        Ok(referenced
+            .into_iter()
+            .filter(|(digest, indexed)| !indexed || !self.has_blob(digest))
+            .map(|(digest, _)| digest)
+            .collect())
     }
 
-    /// Record a file already in the blob directory but not in its index —
-    /// one kept from an earlier replica — as cache, so it is counted,
-    /// evictable and referenced like a download. A file whose bytes do not
-    /// match its name is removed and reported as not adopted.
-    fn adopt_blob_file(&self, sha256: &str) -> Result<bool, String> {
-        use sha2::{Digest, Sha256};
-
-        let path = self.blob_directory.join(sha256);
-        let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
-        if hex::encode(Sha256::digest(&bytes)) != sha256 {
-            std::fs::remove_file(&path).map_err(|error| error.to_string())?;
-            return Ok(false);
-        }
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| "Local database lock failed")?;
-        connection
-            .execute(
-                "INSERT INTO _local_blobs(sha256,relative_path,size,mime_type,durability,last_accessed_at) \
-                 VALUES (?1,?1,?2,NULL,'cache',?3) ON CONFLICT(sha256) DO NOTHING",
-                params![sha256, bytes.len() as i64, chrono_text()],
-            )
-            .map_err(|error| error.to_string())?;
-        refresh_blob_references_for_digest(&connection, sha256)?;
-        Ok(true)
+    /// Unlink a cached file whose index row is already gone. One that will
+    /// not go is a harmless orphan: nothing names it, and a digest asked
+    /// for again is fetched again.
+    fn remove_blob_file(&self, sha256: &str) {
+        let _ = std::fs::remove_file(self.blob_directory.join(sha256));
     }
 
     pub fn clear_data(&self) -> Result<usize, String> {
@@ -1007,8 +841,11 @@ impl LocalStore {
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
+        let transaction = connection
+            .transaction()
+            .map_err(|error| error.to_string())?;
         let blobs = {
-            let mut statement = connection
+            let mut statement = transaction
                 .prepare("SELECT sha256 FROM _local_blobs ORDER BY sha256")
                 .map_err(|error| error.to_string())?;
             let rows = statement
@@ -1018,49 +855,28 @@ impl LocalStore {
                 .map_err(|error| error.to_string())?;
             rows
         };
-        let mut staged = Vec::new();
-        for sha256 in &blobs {
-            match stage_blob_removal(&self.blob_directory, sha256) {
-                Ok(Some(path)) => staged.push((sha256.clone(), path)),
-                Ok(None) => {}
-                Err(error) => {
-                    restore_staged_blobs(&self.blob_directory, &staged);
-                    return Err(error);
-                }
-            }
-        }
-        let result = (|| {
-            let transaction = connection
-                .transaction()
-                .map_err(|error| error.to_string())?;
-            transaction
-                .execute_batch(
-                    "DELETE FROM copy_tags;
-                     DELETE FROM board_items;
-                     DELETE FROM board_groups;
-                     DELETE FROM annotations;
-                     DELETE FROM copies;
-                     DELETE FROM boards;
-                     DELETE FROM tags;
-                     DELETE FROM shelves;
-                     DELETE FROM papers;
-                     DELETE FROM _local_blob_refs;
-                     DELETE FROM _local_blobs;
-                     DELETE FROM _local_outbox;
-                     DELETE FROM _local_conflicts;
-                     DELETE FROM _local_sync_state;
-                     DELETE FROM _local_annotations;",
-                )
-                .map_err(|error| error.to_string())?;
-            transaction.commit().map_err(|error| error.to_string())
-        })();
-        if let Err(error) = result {
-            restore_staged_blobs(&self.blob_directory, &staged);
-            return Err(error);
-        }
+        transaction
+            .execute_batch(
+                "DELETE FROM copy_tags;
+                 DELETE FROM board_items;
+                 DELETE FROM board_groups;
+                 DELETE FROM annotations;
+                 DELETE FROM copies;
+                 DELETE FROM boards;
+                 DELETE FROM tags;
+                 DELETE FROM shelves;
+                 DELETE FROM papers;
+                 DELETE FROM _local_blob_refs;
+                 DELETE FROM _local_blobs;
+                 DELETE FROM _local_outbox;
+                 DELETE FROM _local_conflicts;
+                 DELETE FROM _local_sync_state;",
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
         drop(connection);
-        for (_, path) in staged {
-            let _ = std::fs::remove_file(path);
+        for sha256 in &blobs {
+            self.remove_blob_file(sha256);
         }
         Ok(blobs.len())
     }
@@ -1070,25 +886,21 @@ impl LocalStore {
             .connection
             .lock()
             .map_err(|_| "Local database lock failed")?;
-        let mut staged = Vec::new();
-        let result = (|| {
-            let transaction = connection
-                .transaction()
-                .map_err(|error| error.to_string())?;
-
-            // Account-owned rows are hard-deleted on sign-out. Children must
-            // go first because the canonical schema deliberately has no
-            // cascading deletes: sync normally uses tombstones instead.
-            transaction
-                .execute(
-                    "DELETE FROM _local_blob_refs WHERE table_name='board_items' AND row_uuid IN (\
-                       SELECT board_items.uuid FROM board_items JOIN boards ON boards.uuid=board_items.board_uuid \
-                       WHERE boards.user_uuid=?1\
-                     )",
-                    [account_uuid],
-                )
-                .map_err(|error| error.to_string())?;
-            for statement in [
+        let transaction = connection
+            .transaction()
+            .map_err(|error| error.to_string())?;
+        // Account-owned rows are hard-deleted on sign-out, children first:
+        // the schema has no cascading deletes.
+        transaction
+            .execute(
+                "DELETE FROM _local_blob_refs WHERE table_name='board_items' AND row_uuid IN (\
+                   SELECT board_items.uuid FROM board_items JOIN boards ON boards.uuid=board_items.board_uuid \
+                   WHERE boards.user_uuid=?1\
+                 )",
+                [account_uuid],
+            )
+            .map_err(|error| error.to_string())?;
+        for statement in [
                 "DELETE FROM copy_tags WHERE user_uuid=?1",
                 "DELETE FROM board_items WHERE board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?1)",
                 "DELETE FROM board_groups WHERE board_uuid IN (SELECT uuid FROM boards WHERE user_uuid=?1)",
@@ -1100,72 +912,58 @@ impl LocalStore {
                 "DELETE FROM _local_outbox WHERE account_uuid=?1",
                 "DELETE FROM _local_conflicts WHERE account_uuid=?1",
                 "DELETE FROM _local_sync_state WHERE account_uuid=?1",
-                "DELETE FROM _local_accounts WHERE account_uuid=?1",
-            ] {
-                transaction
-                    .execute(statement, [account_uuid])
-                    .map_err(|error| error.to_string())?;
-            }
-
-            // Papers are shared cache rows. Remove them only when no other
-            // local account still owns a copy or annotation.
+            "DELETE FROM _local_accounts WHERE account_uuid=?1",
+        ] {
             transaction
-                .execute_batch(
-                    "DELETE FROM _local_blob_refs
-                       WHERE table_name='papers' AND row_uuid IN (
-                         SELECT papers.sha256 FROM papers
-                         WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_sha256=papers.sha256)
-                           AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_sha256=papers.sha256)
-                       );
-                     DELETE FROM papers
-                       WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_sha256=papers.sha256)
-                         AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_sha256=papers.sha256);",
+                .execute(statement, [account_uuid])
+                .map_err(|error| error.to_string())?;
+        }
+
+        // Papers are shared cache rows. Remove them only when no other
+        // local account still owns a copy or annotation.
+        transaction
+            .execute_batch(
+                "DELETE FROM _local_blob_refs
+                   WHERE table_name='papers' AND row_uuid IN (
+                     SELECT papers.sha256 FROM papers
+                     WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_sha256=papers.sha256)
+                       AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_sha256=papers.sha256)
+                   );
+                 DELETE FROM papers
+                   WHERE NOT EXISTS (SELECT 1 FROM copies WHERE copies.paper_sha256=papers.sha256)
+                     AND NOT EXISTS (SELECT 1 FROM annotations WHERE annotations.paper_sha256=papers.sha256);",
+            )
+            .map_err(|error| error.to_string())?;
+
+        let queued_digests = queued_blob_digests(&transaction)?;
+        let blobs = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT sha256 FROM _local_blobs WHERE NOT EXISTS (\
+                       SELECT 1 FROM _local_blob_refs WHERE _local_blob_refs.sha256=_local_blobs.sha256\
+                     ) ORDER BY sha256",
                 )
                 .map_err(|error| error.to_string())?;
-
-            let queued_digests = queued_blob_digests(&transaction)?;
-            let blobs = {
-                let mut statement = transaction
-                    .prepare(
-                        "SELECT sha256 FROM _local_blobs WHERE NOT EXISTS (\
-                           SELECT 1 FROM _local_blob_refs WHERE _local_blob_refs.sha256=_local_blobs.sha256\
-                         ) ORDER BY sha256",
-                    )
-                    .map_err(|error| error.to_string())?;
-                let rows = statement
-                    .query_map([], |row| row.get::<_, String>(0))
-                    .map_err(|error| error.to_string())?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| error.to_string())?;
-                rows.into_iter()
-                    .filter(|sha256| !queued_digests.contains(sha256))
-                    .collect::<Vec<_>>()
-            };
-            for sha256 in &blobs {
-                match stage_blob_removal(&self.blob_directory, sha256) {
-                    Ok(Some(path)) => staged.push((sha256.clone(), path)),
-                    Ok(None) => {}
-                    Err(error) => return Err(error),
-                }
-                transaction
-                    .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
-                    .map_err(|error| error.to_string())?;
-            }
-            transaction.commit().map_err(|error| error.to_string())?;
-            Ok(blobs.len())
-        })();
-        let removed = match result {
-            Ok(removed) => removed,
-            Err(error) => {
-                restore_staged_blobs(&self.blob_directory, &staged);
-                return Err(error);
-            }
+            let rows = statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            rows.into_iter()
+                .filter(|sha256| !queued_digests.contains(sha256))
+                .collect::<Vec<_>>()
         };
-        drop(connection);
-        for (_, path) in staged {
-            let _ = std::fs::remove_file(path);
+        for sha256 in &blobs {
+            transaction
+                .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
+                .map_err(|error| error.to_string())?;
         }
-        Ok(removed)
+        transaction.commit().map_err(|error| error.to_string())?;
+        drop(connection);
+        for sha256 in &blobs {
+            self.remove_blob_file(sha256);
+        }
+        Ok(blobs.len())
     }
 
     pub fn discard_unreferenced_blob(&self, sha256: &str) -> Result<bool, String> {
@@ -1191,41 +989,14 @@ impl LocalStore {
                 |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
-        let queued = {
-            let mut statement = connection
-                .prepare("SELECT changes_json FROM _local_outbox")
-                .map_err(|error| error.to_string())?;
-            let encoded = statement
-                .query_map([], |row| row.get::<_, String>(0))
-                .map_err(|error| error.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| error.to_string())?;
-            encoded.iter().any(|value| {
-                serde_json::from_str::<Vec<QueuedChange>>(value).is_ok_and(|changes| {
-                    changes.iter().any(|change| {
-                        change
-                            .values
-                            .values()
-                            .any(|value| value.as_str() == Some(sha256))
-                    })
-                })
-            })
-        };
-        if referenced > 0 || queued {
+        if referenced > 0 || queued_blob_digests(&connection)?.contains(sha256) {
             return Ok(false);
         }
-        let staged = stage_blob_removal(&self.blob_directory, sha256)?;
-        if let Err(error) = connection.execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
-        {
-            if let Some(path) = staged.as_ref() {
-                restore_staged_blobs(&self.blob_directory, &[(sha256.to_owned(), path.clone())]);
-            }
-            return Err(error.to_string());
-        }
+        connection
+            .execute("DELETE FROM _local_blobs WHERE sha256=?1", [sha256])
+            .map_err(|error| error.to_string())?;
         drop(connection);
-        if let Some(path) = staged {
-            let _ = std::fs::remove_file(path);
-        }
+        self.remove_blob_file(sha256);
         Ok(true)
     }
 
@@ -1573,8 +1344,9 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .trim();
-        if title.is_empty() || title.chars().count() > 500 {
-            return Err("Paper title must be 1–500 characters".into());
+        let longest = app_limit("text", "paper_title") as usize;
+        if title.is_empty() || title.chars().count() > longest {
+            return Err(format!("Paper title must be 1–{longest} characters"));
         }
         // A paper is its PDF, so a new one names the file it is.
         if let Some(digest) = change.values.get("sha256").and_then(Value::as_str) {
@@ -1595,8 +1367,9 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
         }
     } else if change.table == "shelves" {
         if let Some(name) = change.values.get("name").and_then(Value::as_str) {
-            if name.trim().is_empty() || name.chars().count() > 40 {
-                return Err("Shelf name must be 1–40 characters".into());
+            let longest = app_limit("text", "shelf_name") as usize;
+            if name.trim().is_empty() || name.chars().count() > longest {
+                return Err(format!("Shelf name must be 1–{longest} characters"));
             }
         }
         if let Some(color) = change.values.get("color").and_then(Value::as_str) {
@@ -1609,8 +1382,9 @@ fn validate_domain_values(change: &DataChange) -> Result<(), String> {
         }
     } else if change.table == "tags" {
         if let Some(name) = change.values.get("name").and_then(Value::as_str) {
-            if name.trim().is_empty() || name.chars().count() > 60 {
-                return Err("Tag name must be 1–60 characters".into());
+            let longest = app_limit("text", "tag_name") as usize;
+            if name.trim().is_empty() || name.chars().count() > longest {
+                return Err(format!("Tag name must be 1–{longest} characters"));
             }
         }
     } else if change.table == "copies" {
@@ -1959,114 +1733,46 @@ fn apply_identity_aliases(
             })
             .optional()
             .map_err(|error| error.to_string())?;
-        if old_paper.is_some() {
-            let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM papers WHERE sha256=?1", [new_uuid], |row| {
-                    row.get(0)
-                })
-                .optional()
-                .map_err(|error| error.to_string())?;
-            if canonical_exists.is_none() {
-                transaction
-                    .execute(
-                        "UPDATE papers SET sha256=?1 WHERE sha256=?2",
-                        params![new_uuid, old_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
-            for (table, column) in [("copies", "paper_sha256"), ("annotations", "paper_sha256")] {
-                transaction
-                    .execute(
-                        &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
-                        params![new_uuid, old_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
-            // The canonical paper can already have a blob reference when a
-            // snapshot introduced it before this offline import was pushed.
-            // Rebuild the reference under the canonical identity instead of
-            // renaming the temporary row into the same primary key.
-            transaction
-                .execute(
-                    "DELETE FROM _local_blob_refs WHERE table_name='papers' AND row_uuid=?1",
-                    [old_uuid],
-                )
-                .map_err(|error| error.to_string())?;
-            refresh_blob_reference(transaction, "papers", new_uuid)?;
-            if canonical_exists.is_some() {
-                transaction
-                    .execute("DELETE FROM papers WHERE sha256=?1", [old_uuid])
-                    .map_err(|error| error.to_string())?;
-            }
+        if old_paper.is_none() {
             continue;
         }
-        let old_copy: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copies WHERE uuid=?1", [old_uuid], |row| {
+        let canonical_exists: Option<i64> = transaction
+            .query_row("SELECT 1 FROM papers WHERE sha256=?1", [new_uuid], |row| {
                 row.get(0)
             })
             .optional()
             .map_err(|error| error.to_string())?;
-        if old_copy.is_some() {
-            let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM copies WHERE uuid=?1", [new_uuid], |row| {
-                    row.get(0)
-                })
-                .optional()
-                .map_err(|error| error.to_string())?;
-            if canonical_exists.is_some() {
-                transaction
-                    .execute(
-                        "DELETE FROM copy_tags WHERE copy_uuid=?1 AND tag_uuid IN \
-                     (SELECT tag_uuid FROM copy_tags WHERE copy_uuid=?2)",
-                        params![old_uuid, new_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
+        if canonical_exists.is_none() {
             transaction
                 .execute(
-                    "UPDATE copy_tags SET copy_uuid=?1 WHERE copy_uuid=?2",
+                    "UPDATE papers SET sha256=?1 WHERE sha256=?2",
                     params![new_uuid, old_uuid],
                 )
                 .map_err(|error| error.to_string())?;
-            if canonical_exists.is_some() {
-                transaction
-                    .execute("DELETE FROM copies WHERE uuid=?1", [old_uuid])
-                    .map_err(|error| error.to_string())?;
-            } else {
-                transaction
-                    .execute(
-                        "UPDATE copies SET uuid=?1 WHERE uuid=?2",
-                        params![new_uuid, old_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
-            continue;
         }
-        let old_copy_tag: Option<i64> = transaction
-            .query_row("SELECT 1 FROM copy_tags WHERE uuid=?1", [old_uuid], |row| {
-                row.get(0)
-            })
-            .optional()
-            .map_err(|error| error.to_string())?;
-        if old_copy_tag.is_some() {
-            let canonical_exists: Option<i64> = transaction
-                .query_row("SELECT 1 FROM copy_tags WHERE uuid=?1", [new_uuid], |row| {
-                    row.get(0)
-                })
-                .optional()
+        for (table, column) in [("copies", "paper_sha256"), ("annotations", "paper_sha256")] {
+            transaction
+                .execute(
+                    &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
+                    params![new_uuid, old_uuid],
+                )
                 .map_err(|error| error.to_string())?;
-            if canonical_exists.is_some() {
-                transaction
-                    .execute("DELETE FROM copy_tags WHERE uuid=?1", [old_uuid])
-                    .map_err(|error| error.to_string())?;
-            } else {
-                transaction
-                    .execute(
-                        "UPDATE copy_tags SET uuid=?1 WHERE uuid=?2",
-                        params![new_uuid, old_uuid],
-                    )
-                    .map_err(|error| error.to_string())?;
-            }
+        }
+        // The canonical paper can already have a blob reference when a
+        // snapshot introduced it before this offline import was pushed.
+        // Rebuild the reference under the canonical identity instead of
+        // renaming the temporary row into the same primary key.
+        transaction
+            .execute(
+                "DELETE FROM _local_blob_refs WHERE table_name='papers' AND row_uuid=?1",
+                [old_uuid],
+            )
+            .map_err(|error| error.to_string())?;
+        refresh_blob_reference(transaction, "papers", new_uuid)?;
+        if canonical_exists.is_some() {
+            transaction
+                .execute("DELETE FROM papers WHERE sha256=?1", [old_uuid])
+                .map_err(|error| error.to_string())?;
         }
     }
     let mut statement = transaction
@@ -2208,25 +1914,8 @@ fn apply_remote_row(
     row: Map<String, Value>,
     authoritative: bool,
 ) -> Result<(), String> {
-    let registry: Value = serde_json::from_str(REGISTRY).map_err(|error| error.to_string())?;
-    if registry["tables"].get(table).is_none() {
-        return Err(format!("Server sent an unregistered table: {table}"));
-    }
-    let columns: HashSet<String> = transaction
-        .prepare(&format!("PRAGMA table_info({table})"))
-        .map_err(|error| error.to_string())?
-        .query_map([], |row| row.get(1))
-        .map_err(|error| error.to_string())?
-        .collect::<Result<_, _>>()
-        .map_err(|error| error.to_string())?;
-    if let Some(field) = row.keys().find(|field| !columns.contains(*field)) {
-        return Err(format!("Server sent unknown {table}.{field}"));
-    }
-    if !row.contains_key(row_key(table)) || !row.contains_key("revision") {
-        return Err(format!(
-            "Server {table} row is missing its name or revision"
-        ));
-    }
+    // A column the table does not have, or a row without its name or
+    // revision, is refused by the INSERT itself.
     let mut fields: BTreeMap<String, SqlValue> = row
         .iter()
         .map(|(key, value)| Ok((key.clone(), json_to_sql(value)?)))
@@ -2456,7 +2145,6 @@ fn query_board(connection: &Connection, account_uuid: &str, uuid: &str) -> Resul
     }
     let mut board = read_row(connection, "boards", uuid)?;
     let object = board.as_object_mut().ok_or("Invalid local board")?;
-    object.insert("can_edit".into(), Value::Bool(true));
     object.insert("items".into(), query_items(connection, uuid, false)?);
     object.insert("staged_items".into(), query_items(connection, uuid, true)?);
     object.insert("groups".into(), query_groups(connection, uuid)?);
@@ -2613,9 +2301,6 @@ fn query_owned_rows(
     table: &str,
     order: &str,
 ) -> Result<Value, String> {
-    if !matches!(table, "shelves" | "tags" | "copies" | "copy_tags") {
-        return Err("Unsupported owned-row query".into());
-    }
     let mut statement = connection
         .prepare(&format!(
             "SELECT uuid FROM {table} WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY {order}"
@@ -2693,10 +2378,10 @@ fn paper_view(
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     );
-    object.insert("viewer_has_entry".into(), Value::Bool(true));
-    let on_display = copy_is_public(connection, copy)?;
-    object.insert("is_public".into(), Value::Bool(on_display));
-    object.insert("viewer_has_copy".into(), Value::Bool(on_display));
+    object.insert(
+        "is_public".into(),
+        Value::Bool(copy_is_public(connection, copy)?),
+    );
     Ok(paper)
 }
 
@@ -2779,57 +2464,30 @@ fn query_paper(connection: &Connection, account_uuid: &str, uuid: &str) -> Resul
     paper_view(connection, account_uuid, &paper_sha256)
 }
 
-fn query_paper_by_pdf(
-    connection: &Connection,
-    account_uuid: &str,
-    sha256: &str,
-) -> Result<Value, String> {
-    let paper_sha256: String = connection
-        .query_row(
-            "SELECT papers.sha256 FROM papers JOIN copies \
-         ON copies.paper_sha256=papers.sha256 WHERE copies.user_uuid=?1 \
-         AND copies.deleted_at IS NULL AND papers.sha256=?2 LIMIT 1",
-            params![account_uuid, sha256],
-            |row| row.get(0),
-        )
-        .map_err(|_| "Paper PDF not found".to_string())?;
-    paper_view(connection, account_uuid, &paper_sha256)
-}
-
 fn query_sync_status(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
-    let pending: i64 = connection
+    let (cursor, last_synced_at, error): (i64, Option<String>, Option<String>) = connection
         .query_row(
-            "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid=?1",
+            "SELECT pull_cursor,last_synced_at,last_error FROM _local_sync_state \
+             WHERE account_uuid=?1",
             [account_uuid],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    let cursor: i64 = connection
-        .query_row(
-            "SELECT pull_cursor FROM _local_sync_state WHERE account_uuid=?1",
-            [account_uuid],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?
-        .unwrap_or(0);
-    let details: Option<(Option<String>, Option<String>)> = connection
+        .unwrap_or((0, None, None));
+    // The outbox in one pass: how much is waiting, how much of that is
+    // blocked, and what the first mutation that failed had to say.
+    let (pending, blocked, attempts, outbox_error): (i64, i64, i64, Option<String>) = connection
         .query_row(
-            "SELECT last_synced_at,last_error FROM _local_sync_state WHERE account_uuid=?1",
+            "SELECT COUNT(*),COALESCE(SUM(state='blocked'),0),\
+             COALESCE((SELECT attempts FROM _local_outbox WHERE account_uuid=?1 \
+               AND last_error IS NOT NULL ORDER BY local_sequence LIMIT 1),0),\
+             (SELECT last_error FROM _local_outbox WHERE account_uuid=?1 \
+               AND last_error IS NOT NULL ORDER BY local_sequence LIMIT 1) \
+             FROM _local_outbox WHERE account_uuid=?1",
             [account_uuid],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
-        .optional()
-        .map_err(|error| error.to_string())?;
-    let (last_synced_at, error) = details.unwrap_or((None, None));
-    let blocked: Option<(i64, Option<String>)> = connection
-        .query_row(
-            "SELECT attempts,last_error FROM _local_outbox WHERE account_uuid=?1 \
-             AND last_error IS NOT NULL ORDER BY local_sequence LIMIT 1",
-            [account_uuid],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()
         .map_err(|error| error.to_string())?;
     let conflicts: i64 = connection
         .query_row(
@@ -2844,12 +2502,9 @@ fn query_sync_status(connection: &Connection, account_uuid: &str) -> Result<Valu
         "last_synced_at": last_synced_at,
         "error": error,
         "conflicts": conflicts,
-        "attempts": blocked.as_ref().map_or(0, |value| value.0),
-        "outbox_error": blocked.and_then(|value| value.1),
-        "blocked": connection.query_row(
-            "SELECT COUNT(*) FROM _local_outbox WHERE account_uuid=?1 AND state='blocked'",
-            [account_uuid], |row| row.get::<_, i64>(0),
-        ).map_err(|error| error.to_string())?,
+        "attempts": attempts,
+        "outbox_error": outbox_error,
+        "blocked": blocked,
     }))
 }
 
@@ -2894,22 +2549,6 @@ fn query_local_account(connection: &Connection, account_uuid: &str) -> Result<Va
     serde_json::from_str(&encoded).map_err(|_| "Local account profile is invalid".into())
 }
 
-fn stage_blob_removal(directory: &Path, sha256: &str) -> Result<Option<PathBuf>, String> {
-    let source = directory.join(sha256);
-    let staged = directory.join(format!(".{sha256}.{}.delete", Uuid::new_v4()));
-    match std::fs::rename(source, &staged) {
-        Ok(()) => Ok(Some(staged)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.to_string()),
-    }
-}
-
-fn restore_staged_blobs(directory: &Path, staged: &[(String, PathBuf)]) {
-    for (sha256, path) in staged {
-        let _ = std::fs::rename(path, directory.join(sha256));
-    }
-}
-
 /// A replica opened the way Papol reads one.
 fn open_connection(path: &Path) -> Result<Connection, String> {
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
@@ -2952,48 +2591,7 @@ fn discard_replica(path: &Path, blob_directory: &Path) -> Result<(), String> {
     std::fs::create_dir_all(blob_directory).map_err(cannot)
 }
 
-fn recover_staged_blob_removals(connection: &Connection, directory: &Path) -> Result<(), String> {
-    for entry in std::fs::read_dir(directory).map_err(|error| error.to_string())? {
-        let path = entry.map_err(|error| error.to_string())?.path();
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
-        };
-        let Some(body) = name
-            .strip_prefix('.')
-            .and_then(|name| name.strip_suffix(".delete"))
-        else {
-            continue;
-        };
-        let Some((sha256, _nonce)) = body.split_once('.') else {
-            continue;
-        };
-        if sha256.len() != 64
-            || !sha256
-                .chars()
-                .all(|character| character.is_ascii_hexdigit() && !character.is_ascii_uppercase())
-        {
-            continue;
-        }
-        let recorded = connection
-            .query_row(
-                "SELECT 1 FROM _local_blobs WHERE sha256=?1",
-                [sha256],
-                |_| Ok(true),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?
-            .unwrap_or(false);
-        let destination = directory.join(sha256);
-        if recorded && !destination.exists() {
-            std::fs::rename(path, destination).map_err(|error| error.to_string())?;
-        } else {
-            std::fs::remove_file(path).map_err(|error| error.to_string())?;
-        }
-    }
-    Ok(())
-}
-
-fn valid_sha256(value: &str) -> bool {
+pub(crate) fn valid_sha256(value: &str) -> bool {
     value.len() == 64
         && value
             .chars()
@@ -3485,9 +3083,6 @@ mod tests {
                 "7",
                 vec![RemoteChange {
                     table: "boards".into(),
-                    uuid: uuid.clone(),
-                    revision: 1,
-                    operation: "upsert".into(),
                     row: remote_board(&uuid, 1, "Remote"),
                 }],
                 19,
@@ -3507,9 +3102,6 @@ mod tests {
                 "7",
                 vec![RemoteChange {
                     table: "boards".into(),
-                    uuid: bad_uuid.clone(),
-                    revision: 1,
-                    operation: "upsert".into(),
                     row: invalid,
                 }],
                 20
@@ -3528,9 +3120,6 @@ mod tests {
                 "7",
                 vec![RemoteChange {
                     table: "boards".into(),
-                    uuid: foreign_uuid,
-                    revision: 1,
-                    operation: "upsert".into(),
                     row: foreign,
                 }],
                 20,
@@ -3676,49 +3265,38 @@ mod tests {
     }
 
     #[test]
-    fn files_already_on_disk_are_recorded_instead_of_downloaded() {
+    fn a_file_the_index_does_not_know_is_fetched_again() {
         use sha2::Digest;
 
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let bytes = b"kept from an earlier replica";
-        let kept = hex::encode(sha2::Sha256::digest(bytes));
-        let corrupt = "d".repeat(64);
-        std::fs::write(store.blob_directory.join(&kept), bytes).unwrap();
-        std::fs::write(store.blob_directory.join(&corrupt), b"not these bytes").unwrap();
-        let kept_paper = kept.clone();
-        let corrupt_paper = corrupt.clone();
+        let bytes = b"on disk, in no index";
+        let orphan = hex::encode(sha2::Sha256::digest(bytes));
+        std::fs::write(store.blob_directory.join(&orphan), bytes).unwrap();
         let now = "2026-09-12T00:00:00Z";
         {
             let connection = store.connection.lock().unwrap();
-            for paper in [&kept_paper, &corrupt_paper] {
-                connection.execute(
-                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
-                    params![paper, now],
-                ).unwrap();
-                connection.execute(
-                    "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
-                    params![Uuid::new_v4().to_string(), paper, now],
-                ).unwrap();
-            }
+            connection.execute(
+                "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
+                params![orphan, now],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                params![Uuid::new_v4().to_string(), orphan, now],
+            ).unwrap();
         }
 
         assert_eq!(
             store.missing_blob_digests("7").unwrap(),
-            vec![corrupt.clone()]
+            vec![orphan.clone()]
         );
-        assert!(!store.blob_directory.join(&corrupt).exists());
+        // Fetching it again is what indexes it.
+        store
+            .import_remote_blob(&orphan, bytes, Some("application/pdf".into()))
+            .unwrap();
+        assert!(store.missing_blob_digests("7").unwrap().is_empty());
         let status = store.query("7", "storage_status", json!({})).unwrap();
         assert_eq!(status["classes"]["cache"]["bytes"], bytes.len());
-        let connection = store.connection.lock().unwrap();
-        let references: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM _local_blob_refs WHERE row_uuid=?1 AND sha256=?2",
-                params![kept_paper, kept],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(references, 1);
     }
 
     #[test]
@@ -3902,27 +3480,6 @@ mod tests {
     }
 
     #[test]
-    fn startup_restores_a_blob_staged_before_an_interrupted_eviction() {
-        use sha2::Digest;
-
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("papol.sqlite3");
-        let bytes = b"interrupted cache eviction";
-        let sha256 = hex::encode(sha2::Sha256::digest(bytes));
-        let store = LocalStore::open(&path).unwrap();
-        store
-            .import_remote_blob(&sha256, bytes, Some("application/pdf".into()))
-            .unwrap();
-        let staged = store.blob_directory.join(format!(".{sha256}.crash.delete"));
-        std::fs::rename(store.blob_directory.join(&sha256), &staged).unwrap();
-        drop(store);
-
-        let reopened = LocalStore::open(&path).unwrap();
-        assert_eq!(reopened.read_blob(&sha256).unwrap(), bytes);
-        assert!(!staged.exists());
-    }
-
-    #[test]
     fn failed_blob_storage_never_creates_metadata_or_an_outbox_reference() {
         let directory = tempfile::tempdir().unwrap();
         let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
@@ -4101,52 +3658,38 @@ mod tests {
     }
 
     #[test]
-    fn opened_file_annotations_are_kept_by_content_hash() {
+    fn a_compatibility_verdict_written_is_read_back_after_reopening() {
         let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let digest = "e".repeat(64);
-        let note = Uuid::new_v4().to_string();
+        let path = directory.path().join("papol.sqlite3");
+        let store = LocalStore::open(&path).unwrap();
+        assert_eq!(store.local_setting("client_compatibility").unwrap(), None);
         store
-            .put_local_annotation(
-                &digest,
-                "note",
-                &note,
-                json!({"page": 2, "content": "First"}),
-            )
+            .set_local_setting("client_compatibility", "incompatible")
             .unwrap();
-        store
-            .put_local_annotation(
-                &digest,
-                "note",
-                &note,
-                json!({"page": 2, "content": "Edited"}),
-            )
-            .unwrap();
-        store
-            .put_local_annotation(
-                &digest,
-                "ink",
-                &Uuid::new_v4().to_string(),
-                json!({"page": 1, "points": [{"x": 0.1, "y": 0.2}]}),
-            )
-            .unwrap();
-        assert!(store
-            .put_local_annotation(&digest, "board", &Uuid::new_v4().to_string(), json!({}))
-            .is_err());
-        assert!(store
-            .put_local_annotation(&"f".repeat(64), "note", &note, json!({"page": 1}))
-            .is_err());
+        drop(store);
 
-        let rows = store.local_annotations(&digest).unwrap();
-        assert_eq!(rows.len(), 2);
-        let saved = rows.iter().find(|row| row["uuid"] == note).unwrap();
-        assert_eq!(saved["content"], "Edited");
-        assert_eq!(saved["kind"], "note");
-        assert!(store.local_annotations(&"f".repeat(64)).unwrap().is_empty());
-
-        store.delete_local_annotation(&note).unwrap();
-        assert_eq!(store.clear_local_annotations(&digest).unwrap(), 1);
-        assert!(store.local_annotations(&digest).unwrap().is_empty());
+        let reopened = LocalStore::open(&path).unwrap();
+        assert_eq!(
+            reopened
+                .local_setting("client_compatibility")
+                .unwrap()
+                .as_deref(),
+            Some("incompatible"),
+        );
+        reopened
+            .set_local_setting("client_compatibility", "supported")
+            .unwrap();
+        assert_eq!(
+            reopened
+                .local_setting("client_compatibility")
+                .unwrap()
+                .as_deref(),
+            Some("supported"),
+        );
+        assert!(reopened
+            .set_local_setting("client_compatibility", "maybe")
+            .is_err());
+        assert!(reopened.set_local_setting("schema_version", "1").is_err());
     }
 
     #[test]
@@ -4180,11 +3723,10 @@ mod tests {
                 ])],
             )
             .unwrap();
-        let cached = store
+        store
             .import_shared_paper(
                 &account_uuid,
-                vec![Map::from_iter([
-                    ("table".into(), json!("papers")),
+                Map::from_iter([
                     ("doi".into(), Value::Null),
                     ("title".into(), json!("Shared paper")),
                     ("authors".into(), Value::Null),
@@ -4196,10 +3738,9 @@ mod tests {
                     ("updated_at".into(), json!(now)),
                     ("revision".into(), json!(1)),
                     ("deleted_at".into(), Value::Null),
-                ])],
+                ]),
             )
             .unwrap();
-        assert_eq!(cached, 1);
         assert_eq!(store.outbox_count(), 0);
 
         store

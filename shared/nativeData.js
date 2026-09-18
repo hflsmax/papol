@@ -211,14 +211,15 @@ export async function importNativeSharedPaper(paper) {
   const accountUuid = nativeAccountUuid();
   if (accountUuid == null) throw new Error('Local data requires a signed-in account');
   const createdAt = paper?.created_at || new Date().toISOString();
-  const rows = [{
-    table: 'papers', doi: paper.doi ?? null,
+  // The replica sets the revision: a cached row makes no claim about the
+  // service's, and the next sync replaces it with the real one.
+  const row = {
+    doi: paper.doi ?? null,
     title: paper.title, authors: paper.authors ?? null, journal: paper.journal ?? null,
     year: paper.year ?? null, file_path: paper.file_path ?? null,
-    sha256: paper.sha256, created_at: createdAt, updated_at: createdAt,
-    revision: Number.isInteger(paper.revision) ? paper.revision : 0, deleted_at: null,
-  }];
-  return invoke('import_shared_paper', { accountUuid, rows });
+    sha256: paper.sha256, created_at: createdAt, updated_at: createdAt, deleted_at: null,
+  };
+  return invoke('import_shared_paper', { accountUuid, row });
 }
 
 export async function nativeBlobImport(blob) {
@@ -295,7 +296,9 @@ export function discardNativeBlob(sha256) {
   return invoke('blob_discard', { sha256 });
 }
 
-export async function nativeSyncNow({ manual = false, pushOnly = false, pullOnly = false } = {}) {
+// `mode` is 'full', 'push' (publish what a server action is about to refer
+// to) or 'pull' (reconcile without sending anything).
+export async function nativeSyncNow({ manual = false, mode = 'full' } = {}) {
   const accountUuid = nativeAccountUuid();
   const token = currentCredential();
   if (!IS_DESKTOP || accountUuid == null || !token) return null;
@@ -309,8 +312,7 @@ export async function nativeSyncNow({ manual = false, pushOnly = false, pullOnly
           accountUuid,
           backendUrl: nativeBackendUrl(),
           token,
-          pushOnly,
-          pullOnly,
+          mode,
           retryBlocked: manual,
         },
       });
@@ -345,30 +347,30 @@ export async function syncAllNow() {
   return null;
 }
 
-export function scheduleNativeSync({ pullOnly = false } = {}) {
+export function scheduleNativeSync({ mode = 'full' } = {}) {
   if (scheduledSync) {
     // An automatic-upload request arriving during a pull-only pass must run
     // after it; otherwise that local change could wait for another trigger.
-    if (!pullOnly && scheduledSync.pullOnly) {
+    if (mode === 'full' && scheduledSync.mode === 'pull') {
       return scheduledSync.then(() => scheduleNativeSync());
     }
     return scheduledSync;
   }
   scheduledSync = Promise.resolve()
-    .then(() => nativeSyncNow({ pullOnly }))
+    .then(() => nativeSyncNow({ mode }))
     .catch(() => null)
     .finally(() => {
       scheduledSync = null;
       announceNativeSyncState();
     });
   announceNativeSyncState();
-  scheduledSync.pullOnly = pullOnly;
+  scheduledSync.mode = mode;
   return scheduledSync;
 }
 
 export function scheduleAutomaticNativeSync() {
   return scheduleNativeSync({
-    pullOnly: getLocalSyncPreference() !== 'automatic',
+    mode: getLocalSyncPreference() === 'automatic' ? 'full' : 'pull',
   });
 }
 

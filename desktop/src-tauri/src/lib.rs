@@ -169,7 +169,6 @@ fn pdf_paths(arguments: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
-                && path.is_file()
         })
         .collect()
 }
@@ -233,50 +232,15 @@ fn opened_file_open(
 /// Document windows do not sign in themselves: the library window does, and
 /// the viewer that asked picks the account up when it is focused again.
 #[tauri::command]
-fn request_sign_in(app: tauri::AppHandle, register: Option<bool>) {
+fn request_sign_in(app: tauri::AppHandle, register: bool) {
     use tauri::Emitter;
 
     focus_library_window(app.clone(), None);
     let _ = app.emit_to(
         "main",
         "papol://sign-in-requested",
-        serde_json::json!({"register": register.unwrap_or(false)}),
+        serde_json::json!({"register": register}),
     );
-}
-
-#[tauri::command]
-fn local_annotations_list(
-    store: tauri::State<'_, data::LocalStore>,
-    sha256: String,
-) -> Result<Vec<serde_json::Value>, String> {
-    store.local_annotations(&sha256)
-}
-
-#[tauri::command]
-fn local_annotation_put(
-    store: tauri::State<'_, data::LocalStore>,
-    sha256: String,
-    kind: String,
-    uuid: String,
-    row: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    store.put_local_annotation(&sha256, &kind, &uuid, row)
-}
-
-#[tauri::command]
-fn local_annotation_delete(
-    store: tauri::State<'_, data::LocalStore>,
-    uuid: String,
-) -> Result<(), String> {
-    store.delete_local_annotation(&uuid)
-}
-
-#[tauri::command]
-fn local_annotations_clear(
-    store: tauri::State<'_, data::LocalStore>,
-    sha256: String,
-) -> Result<usize, String> {
-    store.clear_local_annotations(&sha256)
 }
 
 #[cfg(target_os = "macos")]
@@ -384,16 +348,10 @@ fn pdf_viewer_make_default(app: tauri::AppHandle) -> Result<serde_json::Value, S
 #[serde(rename_all = "snake_case")]
 enum LocalDataQuery {
     Account,
-    /// Notes, ink and clips are one table and one query. The three names this
-    /// replaced were still listed here after the store had stopped answering
-    /// them, so the frontend's `annotations` was refused at this boundary and
-    /// the store's own arm for it could never be reached.
     Annotations,
     Board,
     BoardGroup,
     Boards,
-    Copies,
-    CopyTags,
     Nook,
     Paper,
     PaperByPdf,
@@ -412,8 +370,6 @@ impl LocalDataQuery {
             Self::Board => "board",
             Self::BoardGroup => "board_group",
             Self::Boards => "boards",
-            Self::Copies => "copies",
-            Self::CopyTags => "copy_tags",
             Self::Nook => "nook",
             Self::Paper => "paper",
             Self::PaperByPdf => "paper_by_pdf",
@@ -465,9 +421,9 @@ fn data_mutate(
 fn import_shared_paper(
     store: tauri::State<'_, data::LocalStore>,
     account_uuid: String,
-    rows: Vec<serde_json::Map<String, serde_json::Value>>,
-) -> Result<usize, String> {
-    store.import_shared_paper(&account_uuid, rows)
+    row: serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    store.import_shared_paper(&account_uuid, row)
 }
 
 #[tauri::command]
@@ -492,19 +448,6 @@ fn blob_cache(
 #[tauri::command]
 fn blob_read(store: tauri::State<'_, data::LocalStore>, sha256: String) -> Result<Vec<u8>, String> {
     store.read_blob(&sha256)
-}
-
-#[tauri::command]
-async fn blob_ensure(
-    store: tauri::State<'_, data::LocalStore>,
-    coordinator: tauri::State<'_, sync::Coordinator>,
-    backend_url: String,
-    token: String,
-    sha256: String,
-) -> Result<(), String> {
-    coordinator
-        .ensure_blob(&store, &backend_url, &token, &sha256)
-        .await
 }
 
 #[tauri::command]
@@ -602,8 +545,7 @@ struct SyncRequest {
     account_uuid: String,
     backend_url: String,
     token: String,
-    push_only: Option<bool>,
-    pull_only: Option<bool>,
+    mode: sync::SyncMode,
     retry_blocked: Option<bool>,
 }
 
@@ -626,37 +568,19 @@ async fn sync_now(
     let report = move |progress: sync::SyncProgress| {
         let _ = progress_app.emit("papol://sync-progress", progress);
     };
-    let retry_blocked = request.retry_blocked.unwrap_or(false);
-    let push_only = request.push_only.unwrap_or(false);
-    let pull_only = request.pull_only.unwrap_or(false);
-    let result = if push_only && pull_only {
-        Err("A sync cannot be both push-only and pull-only".into())
-    } else if push_only {
-        coordinator
-            .push_with_progress(
-                &store,
-                &request.account_uuid,
-                &request.backend_url,
-                &request.token,
-                retry_blocked,
-                &report,
-            )
-            .await
-    } else {
-        coordinator
-            .synchronize_with_progress(
-                &store,
-                &request.account_uuid,
-                &request.backend_url,
-                &request.token,
-                sync::ReconcileOptions {
-                    retry_blocked,
-                    pull_only,
-                },
-                &report,
-            )
-            .await
-    };
+    let result = coordinator
+        .synchronize_with_progress(
+            &store,
+            &request.account_uuid,
+            &request.backend_url,
+            &request.token,
+            sync::ReconcileOptions {
+                retry_blocked: request.retry_blocked.unwrap_or(false),
+                mode: request.mode,
+            },
+            &report,
+        )
+        .await;
     if ACTIVE_SYNCS.fetch_sub(1, Ordering::SeqCst) == 1 {
         let _ = app.emit("papol://sync-status", serde_json::json!({"syncing": false}));
     }
@@ -722,13 +646,10 @@ fn document_environment(surface: &str) -> String {
     )
 }
 
+/// Offered to document windows only, by `capabilities/documents.json`.
 #[tauri::command]
 fn close_document_window(window: tauri::WebviewWindow) {
-    // Capabilities expose this command only to document windows; retain the
-    // label check as defense in depth around the permanent library window.
-    if window.label().starts_with("viewer-") || window.label().starts_with("board-") {
-        let _ = window.close();
-    }
+    let _ = window.close();
 }
 
 #[tauri::command]
@@ -1177,11 +1098,9 @@ pub fn run() {
                 }
             } else if matches!(event, tauri::WindowEvent::Destroyed) {
                 if let Some(hash) = window.label().strip_prefix("viewer-") {
-                    if hash.len() == 64 {
-                        if let Some(opened) = window.app_handle().try_state::<OpenedFiles>() {
-                            if let Ok(mut files) = opened.files.lock() {
-                                files.remove(hash);
-                            }
+                    if let Some(opened) = window.app_handle().try_state::<OpenedFiles>() {
+                        if let Ok(mut files) = opened.files.lock() {
+                            files.remove(hash);
                         }
                     }
                 }
@@ -1201,7 +1120,6 @@ pub fn run() {
             blob_import,
             blob_cache,
             blob_read,
-            blob_ensure,
             local_clear_data,
             blob_discard,
             local_setting_get,
@@ -1213,10 +1131,6 @@ pub fn run() {
             opened_file_read,
             opened_file_open,
             request_sign_in,
-            local_annotations_list,
-            local_annotation_put,
-            local_annotation_delete,
-            local_annotations_clear,
             pdf_viewer_status,
             pdf_viewer_make_default,
             pdf_viewer_prompt_dismiss
@@ -1374,8 +1288,6 @@ mod tests {
         LocalDataQuery::Board,
         LocalDataQuery::BoardGroup,
         LocalDataQuery::Boards,
-        LocalDataQuery::Copies,
-        LocalDataQuery::CopyTags,
         LocalDataQuery::Nook,
         LocalDataQuery::Paper,
         LocalDataQuery::PaperByPdf,
@@ -1549,23 +1461,16 @@ mod tests {
     }
 
     #[test]
-    fn only_existing_pdf_paths_are_opened() {
-        let directory = tempfile::tempdir().unwrap();
-        let pdf = directory.path().join("paper.PDF");
-        std::fs::write(&pdf, b"%PDF-1.7").unwrap();
-        let text = directory.path().join("notes.txt");
-        std::fs::write(&text, b"notes").unwrap();
+    fn only_pdf_paths_are_opened() {
         let arguments = [
             "-psn_0_12345".to_string(),
-            pdf.to_string_lossy().into_owned(),
-            text.to_string_lossy().into_owned(),
-            directory
-                .path()
-                .join("gone.pdf")
-                .to_string_lossy()
-                .into_owned(),
+            "/Users/user/Downloads/paper.PDF".to_string(),
+            "/Users/user/Downloads/notes.txt".to_string(),
         ];
-        assert_eq!(pdf_paths(arguments), vec![pdf]);
+        assert_eq!(
+            pdf_paths(arguments),
+            vec![PathBuf::from("/Users/user/Downloads/paper.PDF")]
+        );
     }
 
     #[test]

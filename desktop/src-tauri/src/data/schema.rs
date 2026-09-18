@@ -71,19 +71,6 @@ CREATE TABLE IF NOT EXISTS _local_blob_refs (
   PRIMARY KEY(table_name, row_uuid)
 );
 CREATE INDEX IF NOT EXISTS ix_local_blob_refs_sha256 ON _local_blob_refs(sha256);
-
--- Notes, ink and clips on a PDF opened from the file system, kept on this
--- device by the file's content hash until the paper is added to a nook.
-CREATE TABLE IF NOT EXISTS _local_annotations (
-  uuid TEXT PRIMARY KEY NOT NULL,
-  sha256 TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  row_json TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS ix_local_annotations_sha256
-  ON _local_annotations(sha256, created_at);
 "#;
 
 // Which schema this build is written for, and where a replica records
@@ -96,23 +83,17 @@ CREATE INDEX IF NOT EXISTS ix_local_annotations_sha256
 // a list of the tables some old release had goes quietly out of date the
 // moment the next change lands. Whether a change is breaking is a
 // judgement, and the person making the change is the one holding it.
-const REGISTRY: &str = include_str!("../../../../schema/sync_registry.json");
 const SCHEMA_VERSION_KEY: &str = "schema_version";
 
 /// The schema version this build is written for, as the registry declares it.
 pub fn declared_schema_version() -> i64 {
-    let registry: serde_json::Value =
-        serde_json::from_str(REGISTRY).expect("the sync registry is compiled in and is JSON");
-    registry[SCHEMA_VERSION_KEY]
+    super::REGISTRY[SCHEMA_VERSION_KEY]
         .as_i64()
         .expect("the sync registry declares an integer schema_version")
 }
 
-/// Which schema this replica says it is at.
-///
-/// Everything written before anybody was counting is 1: a replica with no
-/// `_local_settings` table and a replica with no row in it both mean that.
-fn recorded_schema_version(connection: &Connection) -> i64 {
+/// Which schema this replica says it is at, when it says.
+fn recorded_schema_version(connection: &Connection) -> Option<i64> {
     connection
         .query_row(
             "SELECT value FROM _local_settings WHERE key=?1",
@@ -123,33 +104,19 @@ fn recorded_schema_version(connection: &Connection) -> i64 {
         .ok()
         .flatten()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(1)
 }
 
-/// Whether this replica is one this build can read.
-///
-/// A file with nothing in it is about to become a replica of this schema,
-/// so it is recognized. A file at the version this build declares is one,
-/// so it is too. Anything else is not, and the caller throws it away rather
+/// Whether this replica is one this build wrote: it records the version
+/// this build declares. Anything else — a file an older Papol wrote, or an
+/// empty one — is not, and the caller replaces it with one that is rather
 /// than reading rows under a schema the developer has said it cannot.
 pub fn recognizes(connection: &Connection) -> bool {
-    let empty = connection
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map(|count| count == 0)
-        .unwrap_or(false);
-    empty || recorded_schema_version(connection) == declared_schema_version()
+    recorded_schema_version(connection) == Some(declared_schema_version())
 }
 
-/// Write the schema, and the record of which version it is.
-///
-/// Every statement is `IF NOT EXISTS`, so this runs against a replica that
-/// already has the shape as readily as against an empty file. What it will
-/// not do is reshape anything: by the time it is called, the replica is
-/// either new or already at this version, because `recognizes` said so.
+/// Write the schema into an empty file, and the record of which version it
+/// is. Nothing is reshaped: a replica that already has the shape is
+/// recognized and never comes here.
 pub fn apply(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection.transaction().map_err(|e| e.to_string())?;
     transaction

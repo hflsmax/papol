@@ -9,7 +9,7 @@ export async function onServer(send, { pull = true } = {}) {
   try {
     // Publish only the dependencies this server action may refer to. Snapshot,
     // pull, and unrelated downloads belong to the background reconciliation.
-    await nativeSyncNow({ pushOnly: true });
+    await nativeSyncNow({ mode: 'push' });
   } catch {
     throw new OnlineRequiredError();
   }

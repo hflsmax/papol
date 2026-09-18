@@ -96,10 +96,6 @@ impl DiagnosticLog {
         fields: Option<&Map<String, Value>>,
     ) -> Result<(), String> {
         let _guard = self.gate.lock().map_err(|_| "Diagnostic log lock failed")?;
-        let level = match level {
-            "debug" | "info" | "warn" | "error" => level,
-            _ => "info",
-        };
         let mut entry = Map::from_iter([
             ("timestamp".into(), Value::String(Utc::now().to_rfc3339())),
             ("level".into(), Value::String(level.into())),
@@ -145,8 +141,8 @@ impl DiagnosticLog {
 
     pub fn recent(&self, limit: usize) -> Result<Vec<Value>, String> {
         let _guard = self.gate.lock().map_err(|_| "Diagnostic log lock failed")?;
-        let mut events = VecDeque::with_capacity(limit.min(MAX_RECENT));
         let limit = limit.clamp(1, MAX_RECENT);
+        let mut events = VecDeque::with_capacity(limit);
         for generation in (0..self.file_count).rev() {
             let Ok(contents) = std::fs::read_to_string(self.path(generation)) else {
                 continue;
