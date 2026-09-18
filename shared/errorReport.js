@@ -13,7 +13,7 @@ export function unexpectedDesktopErrorReport(error, area, environment = {}) {
     ? diagnosticText(error.stack.split('\n').slice(0, 8).join('\n'))
     : null;
   const lines = [
-    'Automatic Papol macOS error report',
+    `Automatic Papol ${environment.runtime === 'web' ? 'web' : 'macOS'} error report`,
     '',
     `Area: ${area || 'application runtime'}`,
     `Error type: ${error?.name || typeof error}`,

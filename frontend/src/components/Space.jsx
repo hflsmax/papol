@@ -7,7 +7,7 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
 
-export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
+export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError }) {
   const [space, setSpace] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -113,6 +113,7 @@ export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBo
                 <span>New board</span>
               </button>
               <PaperUpload
+                onReportableError={onReportableError}
                 compact
                 onPaperCreated={(paper) => {
                   if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
