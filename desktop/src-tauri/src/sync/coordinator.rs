@@ -547,11 +547,16 @@ impl Coordinator {
         backend_url: &str,
         token: &str,
         sha256: &str,
+        report: &(dyn Fn(SyncProgress) + Send + Sync),
     ) -> Result<(), String> {
         let _guard = self.gate.lock().await;
-        let ignore = |_: SyncProgress| {};
-        self.download_blob(store, backend_url, token, sha256, &mut Meter::new(&ignore))
-            .await
+        let mut meter = Meter::new(report);
+        meter.begin(SyncPhase::Downloading, Some(1));
+        self.download_blob(store, backend_url, token, sha256, &mut meter)
+            .await?;
+        meter.item_done();
+        meter.finish();
+        Ok(())
     }
 
     async fn download_blob(

@@ -46,11 +46,11 @@ export function closeDesktopDocumentWindow() {
   return true;
 }
 
-export function focusDesktopLibraryWindow(paperSha256) {
-  if (!DESKTOP || typeof window.__PAPOL_FOCUS_LIBRARY_WINDOW__ !== 'function') return false;
+export function focusDesktopDeskWindow(paperSha256) {
+  if (!DESKTOP || typeof window.__PAPOL_FOCUS_DESK_WINDOW__ !== 'function') return false;
   // This function is also used directly as a click handler by generic
-  // Library buttons, so only an explicit UUID string is a selection request.
-  window.__PAPOL_FOCUS_LIBRARY_WINDOW__(typeof paperSha256 === 'string' ? paperSha256 : undefined);
+  // Desk buttons, so only an explicit UUID string is a selection request.
+  window.__PAPOL_FOCUS_DESK_WINDOW__(typeof paperSha256 === 'string' ? paperSha256 : undefined);
   return true;
 }
 

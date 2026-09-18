@@ -6,7 +6,7 @@ import { applyMembershipLayout, boardPointFromClient, cardCenter, collectionMaso
 import { cardsIntersectingRect, mergeSelection, nearestCardWithin, selectionMode } from './selection.js';
 import { confirmAction } from '../../shared/confirmAction.js';
 import { appPath } from '../../shared/appUrls.js';
-import { DESKTOP, DOCUMENT_WINDOW, focusDesktopLibraryWindow, openDesktopDocumentWindow } from '../../shared/desktopShell.js';
+import { DESKTOP, DOCUMENT_WINDOW, focusDesktopDeskWindow, openDesktopDocumentWindow } from '../../shared/desktopShell.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
@@ -1897,7 +1897,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     >
       {/* In Papol macOS the toolbar leads with the native Back chevron. */}
       {DESKTOP
-        ? <DesktopNav library={{ onClick: focusDesktopLibraryWindow, label: 'Open Library' }} />
+        ? <DesktopNav desk={{ onClick: focusDesktopDeskWindow, label: 'Open Desk' }} />
         : !DESKTOP
           ? <BackLink
               className="board-home"

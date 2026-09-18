@@ -113,6 +113,11 @@ fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
         return;
     };
     let scheme = handoff_scheme(&app.config().identifier);
+    use tauri::Emitter;
+    let _ = app.emit(
+        "papol://handoff-received",
+        serde_json::json!({"count": links.len()}),
+    );
     for link in links {
         let Some(target) = deep_link_url(&link, &origin, &scheme) else {
             continue;
@@ -236,9 +241,9 @@ fn opened_file_open(
 fn request_sign_in(app: tauri::AppHandle, register: Option<bool>) {
     use tauri::Emitter;
 
-    focus_library_window(app.clone(), None);
+    focus_desk_window(app.clone(), None);
     let _ = app.emit_to(
-        "main",
+        "desk",
         "papol://sign-in-requested",
         serde_json::json!({"register": register.unwrap_or(false)}),
     );
@@ -496,14 +501,34 @@ fn blob_read(store: tauri::State<'_, data::LocalStore>, sha256: String) -> Resul
 
 #[tauri::command]
 async fn blob_ensure(
+    app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     coordinator: tauri::State<'_, sync::Coordinator>,
     backend_url: String,
     token: String,
     sha256: String,
 ) -> Result<(), String> {
+    use tauri::Emitter;
+
+    let progress_app = app.clone();
+    let progress_sha256 = sha256.clone();
+    let report = move |progress: sync::SyncProgress| {
+        // A one-file ensure uses the downloading quarter of the general sync
+        // meter. Send a file-relative fraction so its viewer can draw a bar
+        // from zero to completion without pretending the other phases ran.
+        let fraction = ((progress.fraction - 0.75) * 4.0).clamp(0.0, 1.0);
+        let _ = progress_app.emit(
+            "papol://blob-progress",
+            serde_json::json!({
+                "sha256": progress_sha256,
+                "fraction": fraction,
+                "bytes": progress.bytes,
+                "bytes_per_second": progress.bytes_per_second,
+            }),
+        );
+    };
     coordinator
-        .ensure_blob(&store, &backend_url, &token, &sha256)
+        .ensure_blob(&store, &backend_url, &token, &sha256, &report)
         .await
 }
 
@@ -544,11 +569,19 @@ fn local_setting_set(
 
 #[tauri::command]
 fn local_account_set(
+    app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     account_uuid: String,
     profile: serde_json::Value,
 ) -> Result<(), String> {
-    store.set_local_account(&account_uuid, profile)
+    use tauri::Emitter;
+
+    store.set_local_account(&account_uuid, profile.clone())?;
+    let _ = app.emit(
+        "papol://account-changed",
+        serde_json::json!({"accountUuid": account_uuid, "profile": profile}),
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -701,12 +734,12 @@ async fn sync_now(
 }
 
 const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
-      runtime: 'desktop', surface: 'main', documentWindow: false \
+      runtime: 'desktop', surface: 'desk', documentWindow: false \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
-    window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperSha256) => \
-      window.__TAURI_INTERNALS__.invoke('focus_library_window', { paperSha256 });";
+    window.__PAPOL_FOCUS_DESK_WINDOW__ = (paperSha256) => \
+      window.__TAURI_INTERNALS__.invoke('focus_desk_window', { paperSha256 });";
 
 fn document_environment(surface: &str) -> String {
     format!(
@@ -717,8 +750,8 @@ fn document_environment(surface: &str) -> String {
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
            window.__TAURI_INTERNALS__.invoke('close_document_window'); \
-         window.__PAPOL_FOCUS_LIBRARY_WINDOW__ = (paperSha256) => \
-           window.__TAURI_INTERNALS__.invoke('focus_library_window', {{ paperSha256 }});"
+         window.__PAPOL_FOCUS_DESK_WINDOW__ = (paperSha256) => \
+           window.__TAURI_INTERNALS__.invoke('focus_desk_window', {{ paperSha256 }});"
     )
 }
 
@@ -732,16 +765,16 @@ fn close_document_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-fn focus_library_window(app: tauri::AppHandle, paper_sha256: Option<String>) {
+fn focus_desk_window(app: tauri::AppHandle, paper_sha256: Option<String>) {
     use tauri::Emitter;
 
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = app.get_webview_window("desk") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
         if let Some(paper_sha256) = paper_sha256 {
             let _ = app.emit_to(
-                "main",
+                "desk",
                 "papol://show-paper-requested",
                 serde_json::json!({"paper_sha256": paper_sha256}),
             );
@@ -1047,7 +1080,7 @@ fn show_document_window(app: &tauri::AppHandle, papol_origin: &str, url: tauri::
         .app
         .windows
         .iter()
-        .find(|window| window.label == "main")
+        .find(|window| window.label == "desk")
         .cloned()
         .expect("tauri.conf.json declares the main window");
     config.label = document.label;
@@ -1110,7 +1143,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::MainEventsCleared) {
         let launch = app.state::<WindowLaunch>();
         if matches!(launch.finish(), Some(true)) {
-            focus_library_window(app.clone(), None);
+            focus_desk_window(app.clone(), None);
         }
     }
 
@@ -1142,7 +1175,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             return;
         }
         if matches!(event, tauri::RunEvent::Reopen { .. }) {
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("desk") {
                 if !matches!(window.is_visible(), Ok(true)) {
                     let _ = window.unminimize();
                     let _ = window.show();
@@ -1170,7 +1203,7 @@ pub fn run() {
             Ok(menu)
         })
         .on_window_event(|window, event| {
-            if window.label() == "main" {
+            if window.label() == "desk" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
@@ -1189,7 +1222,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             close_document_window,
-            focus_library_window,
+            focus_desk_window,
             open_storage_in_finder,
             diagnostic_log,
             diagnostic_recent,
@@ -1232,7 +1265,7 @@ pub fn run() {
                 None,
                 Some(&serde_json::Map::from_iter([
                     ("operation".into(), serde_json::json!("startup")),
-                    ("surface".into(), serde_json::json!("main")),
+                    ("surface".into(), serde_json::json!("desk")),
                     (
                         "version".into(),
                         serde_json::json!(env!("CARGO_PKG_VERSION")),
@@ -1274,7 +1307,7 @@ pub fn run() {
                 .app
                 .windows
                 .iter()
-                .find(|window| window.label == "main")
+                .find(|window| window.label == "desk")
                 .cloned()
                 .expect("tauri.conf.json declares the main window");
             // Keep the library off screen through the initial native open-file

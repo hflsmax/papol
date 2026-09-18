@@ -18,6 +18,8 @@
     "allow-blob-discard",
     "allow-local-setting-get",
     "allow-local-setting-set",
+    "allow-local-account-set",
+    "allow-local-account-remove",
     "allow-sync-now",
     "allow-opened-file-read",
     "allow-request-sign-in",

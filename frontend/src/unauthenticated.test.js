@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 global.location = new URL('https://papol.test/paper/abc');
 global.window = {
   location: global.location,
-  __PAPOL_ENV__: { runtime: 'web', surface: 'main', documentWindow: false },
+  __PAPOL_ENV__: { runtime: 'web', surface: 'desk', documentWindow: false },
 };
 
 let status = 200;

@@ -20,7 +20,7 @@ test('only permanent blocked sync failures produce a diagnostic report', () => {
     outbox_error: 'Sync server returned 413 Payload Too Large',
   }, {
     backend: 'https://example.test/papol/',
-    surface: 'main',
+    surface: 'desk',
     platform: 'MacIntel',
   });
 

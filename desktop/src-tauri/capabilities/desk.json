@@ -1,11 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "main",
+  "identifier": "desk",
   "description": "Least-privilege native access for Papol's permanent library window.",
-  "windows": ["main"],
+  "windows": ["desk"],
   "permissions": [
     "allow-open-document-window",
-    "allow-focus-library-window",
+    "allow-focus-desk-window",
     "allow-open-storage-in-finder",
     "allow-diagnostic-log",
     "allow-diagnostic-recent",

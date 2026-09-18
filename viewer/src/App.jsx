@@ -54,7 +54,7 @@ import {
   markViewerPerformance, observeViewerPerformanceMark, viewerOpeningTimings,
 } from './performance.js';
 import {
-  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopLibraryWindow,
+  DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopDeskWindow,
 } from '../../shared/desktopShell';
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
@@ -527,6 +527,7 @@ export default function App() {
   // first progress event, since a bar at 0% before the request has even
   // answered reads as stalled rather than as "not yet known".
   const [pdfProgress, setPdfProgress] = useState(null);
+  const [pdfSyncing, setPdfSyncing] = useState(false);
   // A quick open should feel immediate, not flash a modal-looking card for a
   // fraction of a second. Local files keep the stable page-shaped skeleton;
   // detailed progress is reserved for slower downloads.
@@ -935,7 +936,7 @@ export default function App() {
       token: getToken(),
       localAccount: nativeDataActive(),
     })) {
-      setError('Sign in to view your notes.');
+      setError('Sign in to see this paper.');
       return undefined;
     }
     const loaded = source.load();
@@ -994,9 +995,22 @@ export default function App() {
     if (!pdfPaper) return undefined;
     let cancelled = false;
     let task = null;
+    let syncingPdf = false;
     setPdfProgress(null);
+    setPdfSyncing(false);
     markViewerPerformance('pdf-bytes-requested');
-    const inputReady = pdfLoadInput(pdfPaper).then((input) => {
+    const inputReady = pdfLoadInput(pdfPaper, {
+      onSyncProgress: (progress) => {
+        if (cancelled) return;
+        syncingPdf = true;
+        setPdfSyncing(true);
+        setPdfProgress({ loaded: progress.fraction, total: 1 });
+      },
+    }).then((input) => {
+      if (!cancelled) {
+        if (syncingPdf) setPdfProgress({ loaded: 1, total: 1 });
+        setPdfSyncing(false);
+      }
       markViewerPerformance('pdf-bytes-ready', {
         bytes: input?.data?.byteLength ?? null,
       });
@@ -3341,7 +3355,7 @@ export default function App() {
     // The desktop keeps the library in its own window, so showing a paper
     // means raising that window rather than leaving this one.
     if (source?.openedFile) {
-      focusDesktopLibraryWindow(paper.sha256);
+      focusDesktopDeskWindow(paper.sha256);
       return;
     }
     window.location.assign(showInNookHref);
@@ -3454,11 +3468,23 @@ export default function App() {
   const pageMoveAnimal = useEvent(moveAnimal);
   const pageEraseAnimal = useEvent(eraseAnimal);
 
+  const signInForPaper = () => {
+    const current = `${stripAppBase(window.location.pathname || '/viewer/')}${window.location.search}${window.location.hash}`;
+    window.location.assign(appPath(`/signin?next=${encodeURIComponent(current)}`));
+  };
+
   if (error && !doc) {
     return (
       <>
         <div className="shell">
           <div className="error" role="alert">{error}</div>
+          {/sign in to see this paper|sign in to view this paper/i.test(error) && (
+            <div className="error-actions">
+              <button type="button" className="primary" onClick={signInForPaper}>
+                Sign in
+              </button>
+            </div>
+          )}
           {!DOCUMENT_WINDOW && <p className="hint">
             <a
               href={source?.homeHref || appPath('/')}
@@ -3559,15 +3585,15 @@ export default function App() {
             to bring the library back to the front. */}
         {DESKTOP ? (
           <DesktopNav
-            library={{
+            desk={{
               // The same errand the web glyph runs: the library, showing
               // this paper. A paper only passing through — shared, or
               // opened from disk — has no page in this user's Papol, so
               // the library is simply brought forward as it was.
-              onClick: () => focusDesktopLibraryWindow(
+          onClick: () => focusDesktopDeskWindow(
                 readOnly ? undefined : paper?.sha256,
               ),
-              label: 'Open Library',
+              label: 'Open Desk',
             }}
           />
         ) : !DESKTOP ? (
@@ -4049,7 +4075,7 @@ export default function App() {
                       className="ref-link here"
                       href={appPath(`/paper/${paperName(paper.sha256)}`)}
                       onClick={(event) => {
-                        if (focusDesktopLibraryWindow(paper.sha256)) event.preventDefault();
+                        if (focusDesktopDeskWindow(paper.sha256)) event.preventDefault();
                       }}
                     >Show in Papol</a>
                   )}
@@ -4144,7 +4170,7 @@ export default function App() {
           {!doc && showPdfLoading && (
             <div className="pdf-loading" role="status" aria-live="polite">
               <div className="pdf-loading-card">
-                <p>Loading the paper…</p>
+                <p>{pdfSyncing ? 'Syncing the paper…' : 'Loading the paper…'}</p>
                 <div className={`pdf-progress-track${pdfPct == null ? ' indeterminate' : ''}`}>
                   <div
                     className="pdf-progress-fill"

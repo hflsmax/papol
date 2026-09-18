@@ -78,10 +78,10 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
   }
 }
 
-// back/library: { onClick, label }. Without onClick a control is disabled.
-export default function DesktopNav({ back = {}, library = {} }) {
+// back/desk: { onClick, label }. Without onClick a control is disabled.
+export default function DesktopNav({ back = {}, desk = {} }) {
   const { onClick, label = 'Back', disabled } = back;
-  const { onClick: onLibraryClick, label: libraryLabel = 'Open Library', disabled: libraryDisabled } = library;
+  const { onClick: onDeskClick, label: deskLabel = 'Open Desk', disabled: deskDisabled } = desk;
   return (
     <div className="desktop-nav">
       {Object.keys(back).length > 0 && <button
@@ -99,10 +99,10 @@ export default function DesktopNav({ back = {}, library = {} }) {
       <button
         type="button"
         className="desktop-nav-button"
-        onClick={onLibraryClick}
-        disabled={libraryDisabled || !onLibraryClick}
-        aria-label={libraryLabel}
-        title={libraryLabel}
+        onClick={onDeskClick}
+        disabled={deskDisabled || !onDeskClick}
+        aria-label={deskLabel}
+        title={deskLabel}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="m2.25 7.25 5.75-4.5 5.75 4.5" />
