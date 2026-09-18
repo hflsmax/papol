@@ -501,7 +501,7 @@ export const localAnnotations = {
   clear: (sha256) => invoke('local_annotations_clear', { sha256 }),
 };
 
-// A document window cannot sign in itself; the library window does.
+// A document window cannot sign in itself; the Desk window does.
 export function requestSignIn({ register = false } = {}) {
   return IS_DESKTOP ? invoke('request_sign_in', { register }) : Promise.resolve();
 }

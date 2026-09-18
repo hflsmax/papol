@@ -423,7 +423,7 @@ export default function App({ startupUser = null, startupError = null }) {
   }), []);
 
   // A document window asked for an account: a PDF opened from disk is being
-  // added to a nook. Signing in happens here, in the library window.
+  // added to a nook. Signing in happens here, in the Desk window.
   const signedInUser = useRef(user);
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
@@ -445,7 +445,7 @@ export default function App({ startupUser = null, startupError = null }) {
     void scheduleAutomaticNativeSync();
   }), []);
 
-  // A document user can reveal its paper in the permanent library window.
+  // A document user can reveal its paper in the permanent Desk window.
   // Use the complete nook rather than whichever shelf or tag happened to be
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperSha256) => {
