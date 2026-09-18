@@ -77,15 +77,17 @@ def _settle_venue(summary: dict, reference) -> None:
 
     The index first, when it names a real venue. Then the bibliography as
     printed: an index that knows the work but not where it appeared is
-    thinner than the page in front of the reader. Last, wherever the index
+    thinner than the page in front of the reader, and an index that only
+    names a series — "Lecture Notes in Computer Science" — is thinner than
+    a bibliography that names the conference. Last, wherever the index
     found a copy — arXiv for a bare preprint — which is honest but is not
     a venue, so it only speaks when nothing else does."""
     host = summary.pop("host", None)
-    summary["venue"] = (
-        _tidy(summary.get("venue"))
-        or _tidy(getattr(reference, "journal", None))
-        or _tidy(host)
-    )
+    indexed = _tidy(summary.get("venue"))
+    printed = _tidy(getattr(reference, "journal", None))
+    if printed and biblio.generic_series(indexed):
+        indexed = None
+    summary["venue"] = indexed or printed or _tidy(host)
 
 
 def _tidy(venue) -> str | None:

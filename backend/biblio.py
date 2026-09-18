@@ -324,7 +324,38 @@ def _merge(primary: dict, secondary: dict, printed_year: Optional[int]) -> dict:
         key=lambda title: len(_content_words(title)),
         default=merged.get("title"),
     )
+    # OpenAlex files a Springer or Dagstuhl paper under its series; CrossRef
+    # may name the conference volume. The conference is what the reader
+    # wants.
+    if generic_series(merged.get("venue")) and secondary.get("venue") and not generic_series(secondary["venue"]):
+        merged["venue"] = secondary["venue"]
     return merged
+
+
+# Containers an index reports as the venue that name a series, not the
+# journal or conference a reader would look for. Declared rather than
+# detected: a name is on this list because a bibliography printed
+# something better beside it — "CONCUR 2014" where the index said only
+# "Lecture Notes in Computer Science".
+_GENERIC_SERIES = {
+    "lecture notes in computer science",
+    "lecture notes in artificial intelligence",
+    "lecture notes in mathematics",
+    "lecture notes in electrical engineering",
+    "leibniz international proceedings in informatics",
+    "lipics",
+    "acm sigplan notices",
+    "electronic notes in theoretical computer science",
+    "electronic proceedings in theoretical computer science",
+    "communications in computer and information science",
+    "advances in intelligent systems and computing",
+    "ifip advances in information and communication technology",
+}
+
+
+def generic_series(venue: Optional[str]) -> bool:
+    """True when the venue names a series any conference could be in."""
+    return bool(venue) and " ".join(venue.lower().split()) in _GENERIC_SERIES
 
 
 def _present(value) -> bool:

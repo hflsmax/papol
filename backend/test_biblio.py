@@ -246,6 +246,39 @@ class BibliographyResolutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("host", preprint_row.resolution)
         self.assertNotIn("host", printed_row.resolution)
 
+    async def test_printed_conference_outranks_an_indexed_series(self):
+        def ref(journal):
+            return reference(
+                resolved_status=None, resolution=None, resolved_at=None,
+                authors=None, journal=journal, uuid="reference-9", key="b9",
+                index=9, page=None, y=None,
+            )
+        indexed = {
+            "title": "Reversible Communicating Systems", "year": 2004,
+            "venue": "Lecture notes in computer science", "source": "openalex",
+        }
+        with patch.object(
+            reference_engine.biblio,
+            "resolve",
+            AsyncMock(side_effect=lambda _: ("ok", dict(indexed))),
+        ):
+            named = await reference_engine.resolve(ref("CONCUR 2004 -Concurrency Theory"))
+            bare = await reference_engine.resolve(ref(None))
+        self.assertEqual(named.resolution.venue, "CONCUR 2004 -Concurrency Theory")
+        # A series is still better than nothing.
+        self.assertEqual(bare.resolution.venue, "Lecture notes in computer science")
+
+    def test_crossref_volume_outranks_an_openalex_series(self):
+        merged = biblio._merge(
+            {"title": "Reversible Communicating Systems", "venue": "Lecture Notes in Computer Science"},
+            {"title": "Reversible Communicating Systems", "venue": "CONCUR 2004 - Concurrency Theory"},
+            2004,
+        )
+        self.assertEqual(merged["venue"], "CONCUR 2004 - Concurrency Theory")
+        self.assertTrue(biblio.generic_series("Leibniz  International Proceedings in Informatics"))
+        self.assertFalse(biblio.generic_series("Neural Information Processing Systems"))
+        self.assertFalse(biblio.generic_series(None))
+
     def test_crossref_container_outranks_an_openalex_host(self):
         merged = biblio._merge(
             {"title": "Deep residual learning", "venue": None, "host": "HAL"},
