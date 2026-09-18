@@ -1261,7 +1261,7 @@ pub fn run() {
                 None,
                 Some(&serde_json::Map::from_iter([(
                     "operation".into(),
-                    serde_json::json!("migrations_complete"),
+                    serde_json::json!("schema_applied"),
                 )])),
             );
             app.manage(store);

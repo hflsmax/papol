@@ -1,7 +1,7 @@
 import React from 'react';
 import BoardPage from './BoardPage.jsx';
 import { applicationStyles } from '../../shared/applicationStyles.js';
-import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
+import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
@@ -47,7 +47,7 @@ export default function App() {
   }
   return <>
     <style>{applicationStyles}</style>
-    <CompatibilityBar />
+    <CompatibilityGate />
     <MacHandoffBar />
     {boardUuid
       ? <BoardPage

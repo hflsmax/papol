@@ -60,7 +60,7 @@ backend/
 desktop/src-tauri/src/
   data/
     database.rs
-    migrations.rs
+    schema.rs
     mutations.rs
     queries.rs
     blobs.rs
@@ -73,9 +73,9 @@ desktop/src-tauri/src/
 
 The exact filenames may change, but the boundaries should not.
 
-### Canonical domain migrations
+### The canonical domain schema
 
-`schema/domain` is the canonical physical definition of synchronized tables. Migrations are append-only, ordered, SQLite-compatible SQL. Both the Python backend migration runner and the Rust desktop migration runner execute the same files.
+`schema/domain/domain.sql` is the canonical physical definition of synchronized tables: one file, SQLite-compatible SQL, describing the shape Papol has now. It is edited in place rather than appended to, and nothing records the shapes it used to have. The desktop applies it directly; the backend's `create_all` and `migrate()` arrive at the same shape from the models.
 
 The backend's SQLAlchemy models remain runtime mappings, not an independent migration authority. CI creates a clean database from the shared migrations and compares each synchronized table against SQLAlchemy metadata:
 
@@ -116,9 +116,7 @@ These are private and user-owned:
 
 - `copies`
 - `copy_tags`
-- `comments` (private notes)
-- `ink_strokes`
-- `paper_clips`
+- `annotations` (notes, ink and clips, distinguished by `kind`)
 - `shelves`, excluding delayed publication changes
 - `tags`
 - `boards`
@@ -174,7 +172,7 @@ The local database is introduced only with the final UUID shape. It never persis
 ### Migration groups
 
 1. Boards: `boards`, `board_items`, `board_groups`.
-2. User annotations: `comments`, `ink_strokes`, `paper_clips`.
+2. User annotations: `annotations`.
 3. Nook organization: `copies`, `shelves`, `tags`, `copy_tags`.
 4. Paper dependencies: `papers` and their reference rows.
 
@@ -438,7 +436,7 @@ Exit criterion: synchronized feature work follows the four- or five-step extensi
 
 ## Test gates before default rollout
 
-- schema migration forward from every released desktop schema;
+- a replica written under any other schema is discarded rather than read;
 - SQLAlchemy/shared-DDL conformance;
 - registry/schema conformance;
 - account isolation for every registered table;

@@ -51,11 +51,14 @@ def _require_supported_client(request: Request, db: Session) -> None:
 
     426 rather than one more 400: the request was well formed and the
     credential was good, and what is wrong is the program that sent it. The
-    client recognizes this status specifically — it stops synchronizing and
-    tells its user — so it must never be folded in with ordinary refusals.
+    client recognizes this status specifically — it stops and tells its
+    user — so it must never be folded in with ordinary refusals.
 
-    Synchronization is the only thing refused. Everything the user already
-    holds on their computer stays theirs to read and mark up.
+    What the server refuses is synchronization. What the client does about
+    it is refuse to be used: a build below this floor writes a replica the
+    next one will throw away, so letting it carry on would be inviting work
+    that is going to be lost. It covers its windows, says so, and offers to
+    save whatever it never managed to send.
     """
     if verdict(db, request.headers.get("user-agent")) != INCOMPATIBLE:
         return

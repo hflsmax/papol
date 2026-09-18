@@ -82,11 +82,24 @@ impl LocalStore {
             .unwrap_or_else(|| Path::new("."))
             .join("blobs");
         std::fs::create_dir_all(&blob_directory).map_err(|error| error.to_string())?;
-        let mut connection = Connection::open(path).map_err(|error| error.to_string())?;
-        connection
-            .execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;")
-            .map_err(|error| error.to_string())?;
-        super::migrations::run(&mut connection)?;
+        let mut connection = open_connection(path)?;
+        // A replica this build does not recognize is one an older Papol
+        // wrote. It is not carried forward: every row in it belongs to the
+        // service, which still has them, so the file is discarded and the
+        // next synchronization brings the whole account back at today's
+        // shape. Nothing here reads it first — the point of not recognizing
+        // a schema is having no idea what its rows mean.
+        //
+        // The user was told this was coming. A build below the service's
+        // floor refuses to be used and says so, offering to save whatever it
+        // had not managed to send; by the time this build is the one
+        // running, that offer has been made and answered.
+        if !super::schema::recognizes(&connection) {
+            drop(connection);
+            discard_replica(path, &blob_directory)?;
+            connection = open_connection(path)?;
+        }
+        super::schema::apply(&mut connection)?;
         recover_staged_blob_removals(&connection, &blob_directory)?;
         Ok(Self {
             connection: Mutex::new(connection),
@@ -2897,6 +2910,48 @@ fn restore_staged_blobs(directory: &Path, staged: &[(String, PathBuf)]) {
     }
 }
 
+/// A replica opened the way Papol reads one.
+fn open_connection(path: &Path) -> Result<Connection, String> {
+    let connection = Connection::open(path).map_err(|error| error.to_string())?;
+    connection
+        .execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;")
+        .map_err(|error| error.to_string())?;
+    Ok(connection)
+}
+
+/// Throw away a replica written under a schema this build has never had.
+///
+/// The write-ahead log and its shared-memory file go with it. Left behind,
+/// SQLite would replay them into the empty file that follows and put back
+/// part of the shape just discarded — a replica half of one schema and half
+/// of another, which is worse than either.
+///
+/// The cached files go too. What named them was the table that has just
+/// gone, so keeping them would leave bytes on this computer that nothing
+/// can account for. Every one of them is named by its own digest and can be
+/// fetched again.
+fn discard_replica(path: &Path, blob_directory: &Path) -> Result<(), String> {
+    let cannot = |error: std::io::Error| {
+        format!("A replica from an older Papol could not be discarded: {error}")
+    };
+    for suffix in ["", "-wal", "-shm"] {
+        let mut name = path.as_os_str().to_owned();
+        name.push(suffix);
+        let file = PathBuf::from(name);
+        match std::fs::remove_file(&file) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(cannot(error)),
+        }
+    }
+    match std::fs::remove_dir_all(blob_directory) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(cannot(error)),
+    }
+    std::fs::create_dir_all(blob_directory).map_err(cannot)
+}
+
 fn recover_staged_blob_removals(connection: &Connection, directory: &Path) -> Result<(), String> {
     for entry in std::fs::read_dir(directory).map_err(|error| error.to_string())? {
         let path = entry.map_err(|error| error.to_string())?.path();
@@ -2952,6 +3007,81 @@ fn chrono_text() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A replica as some older Papol left it: tables with the right names
+    /// and the wrong shape, and nothing saying which schema wrote them.
+    fn replica_from_an_older_papol(path: &Path) {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE papers (uuid TEXT PRIMARY KEY NOT NULL, title TEXT);\
+                 CREATE TABLE paper_editions (uuid TEXT PRIMARY KEY NOT NULL);\
+                 CREATE TABLE comments (uuid TEXT PRIMARY KEY NOT NULL);\
+                 INSERT INTO papers VALUES ('an-old-name', 'Named by a UUID');",
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn a_replica_from_an_older_papol_is_discarded_rather_than_read() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        replica_from_an_older_papol(&path);
+        let stale_blob = directory.path().join("blobs");
+        std::fs::create_dir_all(&stale_blob).unwrap();
+        std::fs::write(stale_blob.join("deadbeef"), b"cached under the old schema").unwrap();
+
+        let store = LocalStore::open(&path).unwrap();
+
+        let connection = store.connection.lock().unwrap();
+        // The shape is today's: a paper is named by the digest of its PDF.
+        let keys: Vec<String> = connection
+            .prepare("SELECT name FROM pragma_table_info('papers') WHERE pk=1")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(keys, vec!["sha256".to_string()]);
+        // Nothing of the old replica is carried across — not its rows, not
+        // the tables it had that Papol no longer has, not its cached files.
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM papers", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0,
+        );
+        assert!(connection
+            .query_row(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_editions'",
+                [],
+                |_| Ok(true),
+            )
+            .optional()
+            .unwrap()
+            .is_none());
+        assert!(!stale_blob.join("deadbeef").exists());
+    }
+
+    #[test]
+    fn a_replica_this_build_wrote_is_opened_rather_than_discarded() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        let uuid = Uuid::new_v4().to_string();
+        let store = LocalStore::open(&path).unwrap();
+        store
+            .mutate("7", vec![board_change(&uuid, "Kept")])
+            .unwrap();
+        drop(store);
+
+        let store = LocalStore::open(&path).unwrap();
+
+        assert_eq!(
+            store.query("7", "board", json!({"uuid": uuid})).unwrap()["name"],
+            json!("Kept"),
+        );
+    }
 
     fn board_change(uuid: &str, name: &str) -> DataChange {
         DataChange {
@@ -3938,63 +4068,21 @@ mod tests {
     }
 
     #[test]
-    fn startup_creates_the_schema_once() {
+    fn opening_a_replica_again_leaves_the_schema_where_it_is() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
         for _ in 0..2 {
             let store = LocalStore::open(&path).unwrap();
             let connection = store.connection.lock().unwrap();
-            let migration_count: i64 = connection
-                .query_row("SELECT COUNT(*) FROM _local_schema_migrations", [], |row| {
-                    row.get(0)
-                })
+            let recorded: String = connection
+                .query_row(
+                    "SELECT value FROM _local_settings WHERE key='schema_fingerprint'",
+                    [],
+                    |row| row.get(0),
+                )
                 .unwrap();
-            assert_eq!(migration_count, 8);
+            assert_eq!(recorded, super::super::schema::fingerprint());
         }
-    }
-
-    #[test]
-    fn a_replica_written_before_the_shelf_owned_visibility_drops_the_column() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("papol.sqlite3");
-        // A replica that applied the domain DDL back when a copy carried its
-        // own visibility: the migration is on record, so dropping the column
-        // is all that is left to do.
-        let legacy = Connection::open(&path).unwrap();
-        legacy
-            .execute_batch(
-                "CREATE TABLE _local_schema_migrations (\
-                   migration_id TEXT PRIMARY KEY NOT NULL,\
-                   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);\
-                 INSERT INTO _local_schema_migrations (migration_id) \
-                   VALUES ('202609120001_domain');\
-                 CREATE TABLE copies (\
-                   uuid TEXT PRIMARY KEY NOT NULL,\
-                   paper_sha256 TEXT NOT NULL,\
-                   user_uuid TEXT NOT NULL,\
-                   marketed INTEGER NOT NULL DEFAULT 0);\
-                 INSERT INTO copies (uuid, paper_sha256, user_uuid, marketed) \
-                   VALUES ('kept-private', 'p', 'u', 0), ('on-display', 'p', 'u', 1);",
-            )
-            .unwrap();
-        drop(legacy);
-
-        let store = LocalStore::open(&path).unwrap();
-        let connection = store.connection.lock().unwrap();
-        let left: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM pragma_table_info('copies') \
-                 WHERE name IN ('marketed', 'is_public')",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(left, 0, "a copy should hold no visibility of its own");
-        // The rows themselves are untouched; only the column went.
-        let rows: i64 = connection
-            .query_row("SELECT COUNT(*) FROM copies", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(rows, 2);
     }
 
     #[test]

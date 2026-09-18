@@ -61,7 +61,7 @@ import {
 } from '../../shared/featureStates';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
-import CompatibilityBar from '../../shared/ui/CompatibilityBar.jsx';
+import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
@@ -3537,7 +3537,7 @@ export default function App() {
 
   return (
     <>
-      <CompatibilityBar />
+      <CompatibilityGate />
       <MacHandoffBar />
       <header
         className="viewer-bar"
