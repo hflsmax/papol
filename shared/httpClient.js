@@ -32,6 +32,33 @@ export async function handleResponse(response) {
   return response.json();
 }
 
+// A 401 from these is the server checking a password the user just typed,
+// not a verdict on their session. From anywhere else it says this Papol has
+// no session the server accepts: none was sent, or the one sent has expired,
+// been revoked, or belongs to a closed account.
+const CREDENTIAL_CHECKS = ['/auth/login', '/auth/logout', '/auth/password'];
+
+const unauthenticatedListeners = new Set();
+
+// Told once per request the server refuses for want of a session. The
+// application that owns the window decides what that means there: the
+// library takes the user to sign in, and back afterwards.
+export function subscribeUnauthenticated(listener) {
+  unauthenticatedListeners.add(listener);
+  return () => unauthenticatedListeners.delete(listener);
+}
+
+function reportUnauthenticated(path, failure) {
+  if (CREDENTIAL_CHECKS.some((prefix) => path.startsWith(prefix))) return;
+  for (const listener of unauthenticatedListeners) {
+    try {
+      listener({ path, message: failure.message });
+    } catch {
+      // A listener's failure must not change what the caller is told.
+    }
+  }
+}
+
 export async function request(path, options = {}) {
   // Authentication and feedback deliberately leave the fictional demo.
   const alwaysReal = ['/auth/login', '/auth/register', '/feedback'];
@@ -43,7 +70,12 @@ export async function request(path, options = {}) {
     ...options,
     headers: authHeaders({ [PLATFORM_HEADER]: CLIENT_PLATFORM, ...(options.headers || {}) }),
   });
-  return handleResponse(response);
+  try {
+    return await handleResponse(response);
+  } catch (failure) {
+    if (failure?.status === 401) reportUnauthenticated(path, failure);
+    throw failure;
+  }
 }
 
 export function jsonRequest(path, method, body) {
