@@ -307,7 +307,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   Desk, where what is known about it is kept and from which it is opened.
   A paper has had one all along; a board's is new, and it is why the board's
   `description` column finally has somewhere to be read. Both sit inside the
-  Desk's own chrome with a Back to the nook or collection they were opened
+  Desk's own chrome with a Back to the nook or Library they were opened
   from (`jacketOrigin.js`, one remembered place per tab serving both kinds).
   The board's two writable fields — its name and its description — are kept
   the way an anchor's card keeps its own: when the field is left, not when a
@@ -468,7 +468,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `PaperDetail`. A selected board opens a read-only overview there instead:
   identity and shelf, incoming excerpts or clips waiting to be placed, and a
   fitted canvas preview. One click selects a board; double-click, Return, or
-  the overview's Open Board button opens its document window. The collection is
+  the overview's Open Board button opens its document window. The Library is
   for recognising and resuming a board, never for editing its canvas. A newly
   created board becomes the selected board in the Desk and shows this
   overview; creation never opens the document window on the user's behalf.

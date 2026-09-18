@@ -410,7 +410,7 @@ export function DesktopBrowser({
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
 }) {
   const { space, setSpace, reload, syncing } = nook;
-  const [collection, setCollection] = useState(null);
+  const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
   const [draggingSha256, setDraggingSha256] = useState(null);
@@ -447,8 +447,8 @@ export function DesktopBrowser({
     if (source !== 'library') return undefined;
     let active = true;
     listPapers()
-      .then((papers) => { if (active) setCollection(papers); })
-      .catch(() => { if (active) setCollection([]); });
+      .then((papers) => { if (active) setLibrary(papers); })
+      .catch(() => { if (active) setLibrary([]); });
     return () => { active = false; };
   }, [source, route, onSyncRefresh]);
 
@@ -465,10 +465,10 @@ export function DesktopBrowser({
   const shelf = shelfOf(source, space);
   const tag = tagOf(source, space);
   const boardsView = source === 'boards';
-  const collectionView = source === 'library';
-  const loading = collectionView ? collection == null : space == null;
+  const libraryView = source === 'library';
+  const loading = libraryView ? library == null : space == null;
 
-  const shownPapers = papersInSource(source, { space, library: collection })
+  const shownPapers = papersInSource(source, { space, library })
     .filter((paper) => matchesSearch(search, [paper.title, paper.authors, paper.journal]));
   const shownBoards = boardsView
     ? (space?.boards || [])
@@ -502,7 +502,7 @@ export function DesktopBrowser({
     }
   }, [space, selectedBoard, selectedBoardUuid]);
 
-  const title = collectionView ? 'Collection' : boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
+  const title = libraryView ? 'Library' : boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
   const total = boardsView ? shownBoards.length : shownPapers.length;
   const noun = boardsView ? (total === 1 ? 'board' : 'boards') : (total === 1 ? 'paper' : 'papers');
   const subtitle = loading ? 'Loading…' : [
@@ -511,7 +511,7 @@ export function DesktopBrowser({
     shelf ? (shelf.is_public ? 'Public' : 'Private') : null,
   ].filter(Boolean).join(' · ');
 
-  const canCompose = Boolean(space) && !collectionView;
+  const canCompose = Boolean(space) && !libraryView;
   const sourceHome = () => onNavigate(sourcePath(source));
   const movePaper = async (paper, shelfUuid) => {
     setActionError(null);
@@ -576,13 +576,13 @@ export function DesktopBrowser({
   let emptyList = null;
   if (loading) emptyList = 'Loading…';
   else if (total === 0 && search.trim()) emptyList = 'Nothing matches your search.';
-  else if (total === 0 && syncing && !collectionView) {
+  else if (total === 0 && syncing && !libraryView) {
     emptyList = boardsView
       ? 'Syncing your nook… Boards will appear here as they arrive.'
       : 'Syncing your nook… Papers will appear here as they arrive.';
   }
   else if (total === 0) {
-    emptyList = collectionView ? 'No one has shared a paper yet.'
+    emptyList = libraryView ? 'No one has shared a paper yet.'
       : boardsView ? 'You have no boards yet.'
         : shelf ? 'Nothing is on this shelf yet.'
           : tag ? 'None of your papers carry this tag.'
@@ -793,7 +793,7 @@ export function DesktopBrowser({
           ) : (
             shownPapers.map((paper) => {
               const selected = isSelected(paper);
-              const shelfColor = collectionView ? null : shelves.find((item) => item.uuid === paper.shelf_uuid)?.color;
+              const shelfColor = libraryView ? null : shelves.find((item) => item.uuid === paper.shelf_uuid)?.color;
               const users = paper.users?.length || 0;
               return (
                 <a
@@ -803,8 +803,8 @@ export function DesktopBrowser({
                   aria-current={selected ? 'true' : undefined}
                   // A paper in the user's own nook can be dropped on one of
                   // the sidebar's shelves to move it there.
-                  draggable={collectionView ? 'false' : 'true'}
-                  onDragStart={collectionView ? undefined : (event) => {
+                  draggable={libraryView ? 'false' : 'true'}
+                  onDragStart={libraryView ? undefined : (event) => {
                     event.dataTransfer.effectAllowed = 'move';
                     event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ sha256: paper.sha256, shelfUuid: paper.shelf_uuid }));
                     event.dataTransfer.setData('text/plain', paper.title);
@@ -813,8 +813,8 @@ export function DesktopBrowser({
                   onDragEnd={() => setDraggingSha256(null)}
                   onContextMenu={contextMenuHandler(() => [
                     { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperName(paper.sha256)}`) },
-                    !collectionView && shelves.length > 0 && { separator: true },
-                    !collectionView && shelves.length > 0 && {
+                    !libraryView && shelves.length > 0 && { separator: true },
+                    !libraryView && shelves.length > 0 && {
                       label: 'Move to Shelf',
                       submenu: shelves.map((item) => ({
                         label: item.name,
@@ -822,8 +822,8 @@ export function DesktopBrowser({
                         onSelect: () => item.uuid !== paper.shelf_uuid && movePaper(paper, item.uuid),
                       })),
                     },
-                    !collectionView && { separator: true },
-                    !collectionView && { label: 'Remove from My Nook…', onSelect: () => removePaper(paper) },
+                    !libraryView && { separator: true },
+                    !libraryView && { label: 'Remove from My Nook…', onSelect: () => removePaper(paper) },
                   ])}
                 >
                   {shelfColor && (
@@ -837,7 +837,7 @@ export function DesktopBrowser({
                     {paper.journal && (
                       <span className="desktop-row-sub">{paper.journal}</span>
                     )}
-                    {collectionView && users > 0 && (
+                    {libraryView && users > 0 && (
                       <span className="desktop-row-sub">
                         {users} {users === 1 ? 'user' : 'users'}
                       </span>

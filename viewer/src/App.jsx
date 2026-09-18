@@ -1415,7 +1415,7 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
-      // A viewer in Papol's Desk window can return to the collection. Native
+      // A viewer in Papol's Desk window can return to the Library. Native
       // document windows use the standard Close Window command instead.
       if (DESKTOP && !DOCUMENT_WINDOW && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
         e.preventDefault();

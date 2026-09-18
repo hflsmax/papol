@@ -323,7 +323,7 @@ Object embedding and frames are disabled, and `Object.prototype` is frozen in
 the custom-protocol webview.
 
 The desktop pages swap the website masthead for a native reference-manager
-layout: a source-list sidebar of shelves, tags, boards and the collection, a list
+layout: a source-list sidebar of shelves, tags, boards and the Library, a list
 of papers, and the selected paper beside it. See "Desktop shell" in
 `frontend/DESIGN.md`. On macOS the window uses an overlay title bar, so those
 toolbars sit where the title bar would be and the traffic lights float over
