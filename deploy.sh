@@ -1115,6 +1115,20 @@ run_dev() {
 
 # --- production -------------------------------------------------------------
 
+# Where deploy_prod builds the system, and what removes it afterwards.
+#
+# Both live out here rather than inside that function because the EXIT trap
+# that calls this runs once the function has already returned, when a `local`
+# is out of scope — and under `set -u` an EXIT trap that reaches for one turns
+# a finished deployment's last words into `staging: unbound variable`.
+PROD_STAGING=
+
+clean_prod_staging() {
+  [ -n "$PROD_STAGING" ] || return 0
+  rm -rf "$PROD_STAGING"
+  PROD_STAGING=
+}
+
 # The port the running unit was actually given, rather than a copy of it
 # kept here that could drift from module.nix.
 prod_port() {
@@ -1262,16 +1276,16 @@ deploy_prod() {
   # Building first, and as an ordinary user, is worth as much again: a
   # module.nix that does not evaluate now fails here, while production is
   # still up and serving, rather than after it has been stopped.
-  local rebuild=no built staging
-  staging=$(mktemp -d)
-  trap 'rm -rf "$staging"' EXIT
+  local rebuild=no built
+  PROD_STAGING=$(mktemp -d)
+  trap clean_prod_staging EXIT
   say "Building the system this checkout describes"
-  (cd "$staging" && nixos-rebuild build) \
+  (cd "$PROD_STAGING" && nixos-rebuild build) \
     || die "this checkout does not describe a system that builds. Production is
     untouched and still serving; fix module.nix or flake.nix and deploy again."
   # Read through the symlink but leave it there: while it exists it is the
   # garbage collector's only reason to spare what was just built.
-  built=$(readlink -f "$staging/result")
+  built=$(readlink -f "$PROD_STAGING/result")
   if [ "$built" = "$(readlink -f /run/current-system)" ]; then
     note "the running system is already the one this checkout describes"
   else
