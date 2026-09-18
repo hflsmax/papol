@@ -3008,10 +3008,10 @@ fn chrono_text() -> String {
 mod tests {
     use super::*;
 
-    /// A library written before a paper became its file: a paper named by a
-    /// UUID, notes and ink in tables of their own, and the migration ids
-    /// that carried it recorded as applied — that last part being what used
-    /// to stop the domain DDL from ever reaching it.
+    /// A library from before anybody was counting schema versions — which
+    /// is to say at version 1 — as an older Papol left it: a paper named by
+    /// a UUID, notes and ink in tables of their own, and the migration ids
+    /// that carried it recorded as applied.
     fn replica_from_an_older_papol(path: &Path) {
         let connection = Connection::open(path).unwrap();
         connection
@@ -4088,12 +4088,15 @@ mod tests {
             let connection = store.connection.lock().unwrap();
             let recorded: String = connection
                 .query_row(
-                    "SELECT value FROM _local_settings WHERE key='schema_fingerprint'",
+                    "SELECT value FROM _local_settings WHERE key='schema_version'",
                     [],
                     |row| row.get(0),
                 )
                 .unwrap();
-            assert_eq!(recorded, super::super::schema::fingerprint());
+            assert_eq!(
+                recorded,
+                super::super::schema::declared_schema_version().to_string()
+            );
         }
     }
 

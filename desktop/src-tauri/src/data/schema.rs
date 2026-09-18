@@ -1,11 +1,11 @@
 use rusqlite::{Connection, OptionalExtension};
-use sha2::{Digest, Sha256};
 
 // The synchronized schema, shared with the service.
 //
 // One file, describing the shape Papol has now. There is deliberately no
-// second file describing a shape it used to have: a replica written under an
-// earlier schema is not carried forward, it is thrown away and pulled again.
+// second file describing a shape it used to have: a replica written under a
+// schema the developer has declared a break from (below) is not carried
+// forward, it is thrown away and pulled again.
 // The service holds every synchronized row, so nothing is lost by that — and
 // what it buys is a schema that reads as the shape of the thing, rather than
 // as the history of how it got here.
@@ -86,35 +86,52 @@ CREATE INDEX IF NOT EXISTS ix_local_annotations_sha256
   ON _local_annotations(sha256, created_at);
 "#;
 
-// Where a replica records which schema wrote it.
-const FINGERPRINT_KEY: &str = "schema_fingerprint";
+// Which schema this build is written for, and where a replica records
+// which one wrote it.
+//
+// The number is declared in `schema/sync_registry.json` and moved by hand:
+// when a change lands that a replica cannot be read under, the person
+// making it says so there. Nothing here tries to work out what shape it is
+// looking at. A digest of the DDL would call a new nullable column a break;
+// a list of the tables some old release had goes quietly out of date the
+// moment the next change lands. Whether a change is breaking is a
+// judgement, and the person making the change is the one holding it.
+const REGISTRY: &str = include_str!("../../../../schema/sync_registry.json");
+const SCHEMA_VERSION_KEY: &str = "schema_version";
 
-/// The name of the schema this build writes.
+/// The schema version this build is written for, as the registry declares it.
+pub fn declared_schema_version() -> i64 {
+    let registry: serde_json::Value =
+        serde_json::from_str(REGISTRY).expect("the sync registry is compiled in and is JSON");
+    registry[SCHEMA_VERSION_KEY]
+        .as_i64()
+        .expect("the sync registry declares an integer schema_version")
+}
+
+/// Which schema this replica says it is at.
 ///
-/// A digest of the DDL rather than a number somebody maintains. The schema
-/// changing is the one thing this has to notice, and reading the name off
-/// the text means there is nothing to remember to bump: edit the SQL and
-/// every replica written under the old text stops being recognized, which
-/// is the whole mechanism.
-pub fn fingerprint() -> String {
-    let mut digest = Sha256::new();
-    digest.update(DOMAIN.as_bytes());
-    digest.update(LOCAL.as_bytes());
-    hex::encode(digest.finalize())
+/// Everything written before anybody was counting is 1: a replica with no
+/// `_local_settings` table and a replica with no row in it both mean that.
+fn recorded_schema_version(connection: &Connection) -> i64 {
+    connection
+        .query_row(
+            "SELECT value FROM _local_settings WHERE key=?1",
+            [SCHEMA_VERSION_KEY],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .ok()
+        .flatten()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(1)
 }
 
 /// Whether this replica is one this build can read.
 ///
-/// Three answers collapse into two. A file with nothing in it is about to
-/// become a replica of this schema, so it is recognized. A file recording
-/// this build's fingerprint is one, so it is too. Anything else — an older
-/// schema, or a replica from before replicas recorded what wrote them — is
-/// not, and the caller throws it away rather than guessing which of the
-/// shapes Papol has had over the years this one is.
-///
-/// Fails closed: a file that cannot be read well enough to answer is not
-/// recognized. Discarding a replica costs a re-synchronization; opening the
-/// wrong one costs whatever the mismatch quietly does to the rows.
+/// A file with nothing in it is about to become a replica of this schema,
+/// so it is recognized. A file at the version this build declares is one,
+/// so it is too. Anything else is not, and the caller throws it away rather
+/// than reading rows under a schema the developer has said it cannot.
 pub fn recognizes(connection: &Connection) -> bool {
     let empty = connection
         .query_row(
@@ -124,27 +141,15 @@ pub fn recognizes(connection: &Connection) -> bool {
         )
         .map(|count| count == 0)
         .unwrap_or(false);
-    if empty {
-        return true;
-    }
-    connection
-        .query_row(
-            "SELECT value FROM _local_settings WHERE key=?1",
-            [FINGERPRINT_KEY],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .ok()
-        .flatten()
-        .is_some_and(|recorded| recorded == fingerprint())
+    empty || recorded_schema_version(connection) == declared_schema_version()
 }
 
-/// Write the schema, and the record of which schema it is.
+/// Write the schema, and the record of which version it is.
 ///
 /// Every statement is `IF NOT EXISTS`, so this runs against a replica that
 /// already has the shape as readily as against an empty file. What it will
 /// not do is reshape anything: by the time it is called, the replica is
-/// either new or already this schema's, because `recognizes` said so.
+/// either new or already at this version, because `recognizes` said so.
 pub fn apply(connection: &mut Connection) -> Result<(), String> {
     let transaction = connection.transaction().map_err(|e| e.to_string())?;
     transaction
@@ -157,7 +162,7 @@ pub fn apply(connection: &mut Connection) -> Result<(), String> {
         .execute(
             "INSERT INTO _local_settings(key,value) VALUES (?1,?2) \
              ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (FINGERPRINT_KEY, fingerprint()),
+            (SCHEMA_VERSION_KEY, declared_schema_version().to_string()),
         )
         .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())

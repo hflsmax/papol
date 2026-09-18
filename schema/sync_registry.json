@@ -1,5 +1,6 @@
 {
   "protocol_version": 1,
+  "schema_version": 2,
   "tables": {
     "boards": {
       "owner": "user_uuid",

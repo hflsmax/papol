@@ -69,6 +69,29 @@ def registry():
     return json.loads(path.read_text())
 
 
+def schema_version() -> int:
+    """Which schema this build is written for.
+
+    A number the developer moves, not one anything works out. When a change
+    lands that an existing database or replica cannot be read under, the
+    person making it says so here, and both ends act on having been told:
+    the service refuses to start, and a replica is thrown away and pulled
+    again. Neither of them tries to recognize the shape it is looking at.
+
+    That is the whole point of declaring it. A program comparing schemas can
+    see that something differs; it cannot see whether the difference matters,
+    and every rule it could use is wrong in one direction or the other — a
+    digest of the DDL calls a new nullable column a break, and a list of the
+    tables some old release had goes quietly out of date the moment the next
+    change lands. Whether a change is breaking is a judgement, and the person
+    making the change is the one holding it.
+
+    A database or replica that records no version is at 1, which is what
+    everything written before anybody was counting is.
+    """
+    return registry()["schema_version"]
+
+
 def table_rule(table_name: str):
     return registry()["tables"].get(table_name)
 
