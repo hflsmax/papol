@@ -38,6 +38,7 @@ import {
   originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
 } from './jacketOrigin';
 import { paperName } from '../../shared/paperName.js';
+import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
@@ -403,6 +404,22 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.uuid, mode]);
+
+  // The server refused a request for want of a session: a visitor opened a
+  // link to something that needs one, or a session this Papol still held
+  // has ended. Either way the answer is the sign-in page, not an error where
+  // the page should be, and it leads back here once they have signed in.
+  useEffect(() => subscribeUnauthenticated(() => {
+    if (demoActive()) return;
+    void setToken(null);
+    // The desktop keeps the owner's local identity and work through a
+    // rejected credential; only network access is gone until they sign in.
+    if (!DESKTOP) setUser(null);
+    const { page } = parseRoute();
+    if (page === 'signin' || page === 'join') return;
+    const here = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+    navigate(here === '/' ? '/signin' : `/signin?next=${encodeURIComponent(here)}`);
+  }), []);
 
   // A document window asked for an account: a PDF opened from disk is being
   // added to a nook. Signing in happens here, in the library window.
