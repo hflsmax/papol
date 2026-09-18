@@ -4,10 +4,10 @@ mod schema;
 use serde_json::Value;
 use std::sync::LazyLock;
 
-pub use schema::declared_schema_version;
 pub use database::{
     BlobRecord, DataChange, LocalStore, MutationReceipt, RecoveryExport, RemoteChange,
 };
+pub use schema::declared_schema_version;
 
 /// `schema/sync_registry.json`, compiled in and parsed once: which tables
 /// travel, which of their columns a replica may write, and the schema
