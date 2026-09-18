@@ -44,53 +44,22 @@
     # ---------------------------------------------------------------------
     # What Papol needs.
     #
-    # The devShell below reads this list. The systemd service reads the copy
-    # in module.nix, which deploy.sh imports directly; a change to the
-    # backend's imports is made in both.
+    # The backend's own runtime — the package list and the overrides — lives
+    # in backend-python.nix, which the systemd service reads too. It is one
+    # file rather than a copy on each side because the shell, the suite and
+    # the service have to be running the same libraries for a green suite to
+    # mean anything about a deploy.
     # ---------------------------------------------------------------------
-
-    # The backend's imports, and nothing more. This list is the deployed
-    # closure, so convenience does not belong in it — a server has no use
-    # for a linter and no business carrying a browser.
-    backendPython = ps: with ps; [
-      fastapi
-      uvicorn
-      sqlalchemy
-      pydantic
-      pymupdf          # imported as `fitz`
-      httpx
-      python-multipart
-      yt-dlp
-    ];
+    backend = import ./backend-python.nix;
+    inherit (backend) skipUpstreamTests;
 
     # Only for working on Papol. Playwright drives a real browser over the
     # viewer, which is how a layout is checked at a screen size nobody
     # here has — reading the CSS is not the same as laying it out.
-    devPython = ps: backendPython ps ++ (with ps; [
+    devPython = ps: backend.packages ps ++ (with ps; [
       playwright
       pytest
     ]);
-
-    pythonFor = pkgs: pkgs.python312.withPackages backendPython;
-
-    # nixpkgs runs fastapi's own test suite when it builds it, and that suite
-    # wants scipy, pint and a linter — an hours-long source build, none of it
-    # cached, for a library Papol merely imports. Upstream's tests are
-    # upstream's business. Skipping them is the difference between a shell
-    # that takes a minute to enter and one that takes an afternoon.
-    #
-    # Development only. The deployed service in module.nix builds against
-    # its own machine's nixpkgs and is untouched by this.
-    skipUpstreamTests = final: prev: {
-      python312 = prev.python312.override {
-        packageOverrides = pyFinal: pyPrev: {
-          fastapi = pyPrev.fastapi.overridePythonAttrs (_: { doCheck = false; });
-          # Pulled in by yt-dlp. Its suite starts local servers and hangs
-          # indefinitely inside the macOS build sandbox.
-          curl-cffi = pyPrev.curl-cffi.overridePythonAttrs (_: { doCheck = false; });
-        };
-      };
-    };
 
     # Which nixpkgs a system builds from. Every system takes the rolling
     # channel; x86_64-darwin is the one exception, for the reason given
@@ -145,7 +114,7 @@
     # small backend runtime as a deployed server; keep the tutorial recorder
     # and Linux-only Playwright browser bundle out of this shell.
     macosDevPackages = pkgs: [
-      (pkgs.python312.withPackages backendPython)
+      (pkgs.python312.withPackages backend.packages)
       pkgs.nodejs_22
       pkgs.gh              # pull requests and releases on GitHub
     ];
@@ -193,11 +162,12 @@
       PLAYWRIGHT_HOST_PLATFORM_OVERRIDE = "ubuntu-24.04";
     };
   in {
-    # module.nix imported through the flake takes its interpreter from the
-    # list above; deploy.sh imports the file directly and gets module.nix's
-    # own copy.
-    nixosModules.default = { pkgs, ... }@args:
-      import ./module.nix (args // { papolPython = pythonFor pkgs; });
+    # Plain, and it matters that there is nothing to say about it. This module
+    # used to be handed an interpreter built from the importing system's pkgs,
+    # which meant the service ran a different FastAPI depending on how it had
+    # been imported and how current the host's channel was. module.nix pins
+    # its own interpreter now, so both ways in produce the same service.
+    nixosModules.default = import ./module.nix;
 
     packages = forAllSystems (system: let
       # nixpkgsFor, not nixpkgs-unstable, for the same reason the devShell
@@ -227,11 +197,15 @@
         '';
       };
 
-      # The interpreter the deployed service runs under, exposed so it can
-      # be inspected without evaluating a whole NixOS system. Built as a
-      # server would build it — no overlay — so it is a faithful preview
-      # rather than the shell's faster copy.
-      python = pythonFor pkgs;
+      # The interpreter the deployed service runs under, exposed so it can be
+      # inspected without evaluating a whole NixOS system: `nix build .#python`
+      # and read what is in its site-packages. Built the way module.nix builds
+      # it — the locked nixpkgs, the same overlay — so this is the server's
+      # interpreter itself and not a lookalike that could answer differently.
+      python = (import backend.lockedNixpkgs {
+        inherit system;
+        overlays = [ skipUpstreamTests ];
+      }).python312.withPackages backend.packages;
 
       default = self.packages.${system}.frontend;
     });

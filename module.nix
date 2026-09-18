@@ -1,28 +1,25 @@
-{ config, lib, pkgs, ... }@args:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.services.papol;
   appLimits = builtins.fromJSON (builtins.readFile ./config/app_limits.json);
 
-  # Imported through the flake as nixosModules.default, `papolPython` is
-  # handed in, built from the one dependency list in flake.nix. Imported on
-  # its own — by a system that does not use the flake — the list below
-  # stands in. flake.nix is where the list is maintained; this copy exists
-  # so that importing this file directly still produces a working service.
+  # The interpreter the service runs, built from the nixpkgs this checkout is
+  # locked to rather than from `pkgs` — deliberately, and it is the only thing
+  # here that leaves the host's channel behind.
   #
-  # Read out of `args` rather than declared as a function argument on
-  # purpose: a declared argument is one the NixOS module system insists on
-  # supplying from `_module.args`, default or no default.
-  pythonEnv = args.papolPython or (pkgs.python312.withPackages (ps: with ps; [
-    fastapi
-    uvicorn
-    sqlalchemy
-    pydantic
-    pymupdf
-    httpx
-    python-multipart
-    yt-dlp
-  ]));
+  # `pkgs` is the machine's nixpkgs, which has nothing to do with the one the
+  # suite ran against, and the backend is the one part of this module whose
+  # libraries the application's own source depends on version by version. A
+  # host a few months behind hands uvicorn a FastAPI that cannot import
+  # main.py, and the first anyone hears of it is production restarting in a
+  # loop. Everything else below — nginx, the backup script's tools — is
+  # infrastructure, and takes the host's copy as it should.
+  backend = import ./backend-python.nix;
+  pythonEnv = (import backend.lockedNixpkgs {
+    inherit (pkgs) system;
+    overlays = [ backend.skipUpstreamTests ];
+  }).python312.withPackages backend.packages;
 
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";
