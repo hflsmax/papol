@@ -12,6 +12,8 @@ viewer/dist/
 viewer/node_modules/
 board/dist/
 board/node_modules/
+desktop/dist/
+desktop/node_modules/
 __pycache__/
 *.pyc
 
