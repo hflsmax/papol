@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -135,11 +135,24 @@ class DemoApplication:
         self.workspaces = {}
         self.app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         router = APIRouter()
+        # Every route the application really serves, asked for the way FastAPI
+        # asks itself. `include_router` does not copy a router's routes into
+        # the list any more — it leaves a marker there and resolves it while
+        # matching — so walking the list looking for APIRoute finds only the
+        # handlers declared on the application directly, and a demo built from
+        # those answers "unsupported" to everything that was moved into a
+        # domain router. This is the whole reason supported() below is checked
+        # against the names that arrived rather than the names that were asked
+        # for: an empty demo must not be able to pass for a working one.
         router.routes.extend(
-            route for route in routes
-            if isinstance(route, APIRoute) and route.name in SUPPORTED_HANDLERS
+            context.route for context in iter_route_contexts(routes)
+            if isinstance(context.route, APIRoute)
+            and context.route.name in SUPPORTED_HANDLERS
         )
         self.app.include_router(router)
+        self.exposed = frozenset(
+            route.name for route in router.routes if isinstance(route, APIRoute)
+        )
         # A missing request context must never fall back to the permanent DB.
         def demo_db():
             from database import current_request_session

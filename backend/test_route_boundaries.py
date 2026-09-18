@@ -2,6 +2,8 @@ import ast
 from collections import Counter
 from pathlib import Path
 
+from fastapi.routing import iter_route_contexts
+
 from main import app
 from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
@@ -53,15 +55,18 @@ def test_domain_routers_are_registered_once():
     Asked of the routes the app actually serves, because that is the thing
     that can go wrong: a router included twice, or a path a domain router
     owns also declared on `main`, shadows one handler with another and the
-    request goes somewhere nobody meant. FastAPI copies a router's routes
-    into the app on include, so the router object itself is not on the far
-    side to be counted — an earlier version of this test looked for it
-    there, found nothing at all, and had been asserting 0 == 1 ever since.
+    request goes somewhere nobody meant.
+
+    Asked the way FastAPI asks itself, too. `include_router` leaves a marker
+    in the route list and resolves it while matching, rather than copying the
+    routes in, so walking the list plainly sees none of the extracted routes
+    and this counted every one of them zero. `iter_route_contexts` is what
+    FastAPI's own schema generation walks.
     """
     served = Counter(
-        (method, route.path)
-        for route in app.routes
-        for method in getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}
+        (method, context.path)
+        for context in iter_route_contexts(app.routes)
+        for method in (context.methods or set()) - {"HEAD", "OPTIONS"}
     )
     duplicated = sorted(
         contract for contract in EXPECTED_ROUTES if served[contract] != 1

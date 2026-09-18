@@ -128,8 +128,20 @@ class DemoTests(unittest.TestCase):
         self.assertGreaterEqual(response.status_code, 400)
 
     def test_supported_handlers_all_exist(self):
-        names = {route.name for route in main.demo_app.app.routes}
-        self.assertFalse(SUPPORTED_HANDLERS - names)
+        # What the demo actually exposes, not what it meant to: FastAPI's
+        # include_router leaves a marker in the route list rather than the
+        # routes, so reading names off that list says nothing about whether
+        # a handler arrived.
+        self.assertFalse(SUPPORTED_HANDLERS - main.demo_app.exposed)
+
+    def test_a_handler_moved_into_a_domain_router_still_reaches_the_demo(self):
+        # The demo is built by reading the application's routes, and a route
+        # that lives in an included router is not in that list to be read —
+        # it is resolved while matching. A demo that collects nothing answers
+        # 501 to every path and looks, from the outside, like a demo whose
+        # handlers are all merely unsupported.
+        self.assertIn('pending_admin_messages', main.demo_app.exposed)
+        self.assertIn('list_notifications', main.demo_app.exposed)
 
     def test_every_seeded_surface_uses_valid_real_models(self):
         people = self.call('GET', '/users')
