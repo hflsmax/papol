@@ -6,7 +6,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { normalizeBackendBase } from '../../shared/backendUrl.js';
+import { normalizeBackendBase } from '../../shared/appUrls.js';
 
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = resolve(desktopDir, '..');
