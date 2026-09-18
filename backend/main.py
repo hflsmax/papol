@@ -50,7 +50,7 @@ from models import (
 )
 import account
 from schemas import (
-    UserRegister, UserLogin, UserBase, UserPublic, UserPrivate, UserListEntry,
+    UserRegister, UserLogin, UserPublic, UserPrivate, UserListEntry,
     AuthResponse,
     ProfileUpdate, PasswordChange, AccountDeletion, UserEntry,
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
@@ -1888,10 +1888,6 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
         year=paper.year,
         file_path=paper.file_path,
         sha256=paper.sha256,
-        uploader=(
-            UserBase.model_validate(paper.uploader)
-            if paper.uploader is not None else None
-        ),
         created_at=paper.created_at,
     )
     if user_copy:

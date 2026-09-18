@@ -755,7 +755,6 @@ class Paper(PaperBase):
     file_path: str
     # The content hash of that file, which names the paper.
     sha256: str
-    uploader: Optional[UserBase] = None
     created_at: datetime
     summary: Optional[str] = None
     thought: Optional[str] = None
