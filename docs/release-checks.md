@@ -50,8 +50,9 @@ belongs in it, and in `frontend/src/routes.test.js`.
 
 ## After a release
 
-`./deploy.sh prod` runs both of these itself; they are listed so they can be
-run by hand.
+`./deploy.sh prod` waits for the page to answer and then runs the link check
+itself; `check.sh` is the probe module.nix's timer runs every minute. Both
+can be run by hand.
 
     health/check.sh https://mc-pony.com/papol    # the service is answering
     health/links.sh https://mc-pony.com/papol <digest-of-a-real-paper>
@@ -87,7 +88,8 @@ second shape in every test, and a second thing to hold in the head, and it is
 being paid for nobody.
 
 Concretely, prefer to: change a URL rather than answer both; rename a field
-rather than accept either name; migrate a column rather than read around it;
+rather than accept either name; bump the schema version rather than read
+around a column;
 delete a route rather than deprecate it. The first version of the shortened
 paper name answered both 32 and 64 characters so old links would survive. There
 were no old links worth surviving — only two shapes in three resolvers, two in

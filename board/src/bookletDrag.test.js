@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyMembershipLayout, boardPointFromClient, cardCenter, bookletDropTarget, bookletInsertionIndex, collectionMasonryLayout, collectionReorderLayout, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
+import { applyMembershipLayout, boardPointFromClient, cardCenter, bookletInsertionIndex, collectionMasonryLayout, collectionReorderLayout, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
 
 const booklet = { uuid: 7, x: 66, y: 14, width: 334, height: 500 };
 const members = [
@@ -25,17 +25,6 @@ test('client coordinates convert through viewport offset, pan, zoom, and card of
     { x: 100, y: 50, zoom: 2 },
     { x: 150, y: 40 },
   ), { x: 50, y: 110 });
-});
-
-test('external cards must be inside both booklet axes', () => {
-  assert.equal(bookletDropTarget([booklet], { x: 200, y: 200 })?.uuid, 7);
-  assert.equal(bookletDropTarget([booklet], { x: 200, y: 600 }), null);
-  assert.equal(bookletDropTarget([booklet], { x: 500, y: 200 }), null);
-});
-
-test('attached cards stay attached vertically but leave horizontally', () => {
-  assert.equal(bookletDropTarget([booklet], { x: 200, y: -500 }, 7)?.uuid, 7);
-  assert.equal(bookletDropTarget([booklet], { x: 401, y: 200 }, 7), null);
 });
 
 test('insertion opens first, middle, and last slots with mixed heights', () => {

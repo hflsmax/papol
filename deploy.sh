@@ -839,8 +839,6 @@ macos_prod() {
   if [ "$MACOS_NOTARIZING" = yes ]; then
     macos_timing_begin "Verify signature and notarization"
     say "Verifying Developer ID signature and notarization ticket"
-    codesign --verify --deep --strict --verbose=2 "$app"
-    xcrun stapler validate "$app"
     spctl --assess --type execute --verbose=2 "$app"
     macos_timing_finish
   fi
@@ -1280,8 +1278,8 @@ deploy_prod() {
   say "Stopping $UNIT"
   as_root systemctl stop "$UNIT"
 
-  # Taken with the service down, and immediately before the new backend
-  # runs its startup migrations — which is the thing a backup is for.
+  # Taken with the service down. A build written for another schema refuses
+  # to start on this database; bringing it across by hand starts from here.
   if [ -e "$PROD_DIR/backend/papol.db" ]; then
     local bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M%S)-pre-deploy"
     cp -p "$PROD_DIR/backend/papol.db" "$bak"

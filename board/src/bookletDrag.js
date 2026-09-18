@@ -1,9 +1,9 @@
-export const BOOKLET_GAP = 18;
-export const BOOKLET_MIN_HEIGHT = 74;
-export const DRAG_THRESHOLD_PX = 4;
+const BOOKLET_GAP = 18;
+const BOOKLET_MIN_HEIGHT = 74;
+const DRAG_THRESHOLD_PX = 4;
 export const DEFAULT_CARD_WIDTH = 300;
-export const COLLECTION_TIDY_GAP = 80;
-export const COLLECTION_MASONRY_GAP = 18;
+const COLLECTION_TIDY_GAP = 80;
+const COLLECTION_MASONRY_GAP = 18;
 
 export function exceedsDragThreshold(startX, startY, clientX, clientY) {
   return Math.hypot(clientX - startX, clientY - startY) > DRAG_THRESHOLD_PX;
@@ -11,14 +11,6 @@ export function exceedsDragThreshold(startX, startY, clientX, clientY) {
 
 export function cardCenter(position, width, height) {
   return { x: position.x + width / 2, y: position.y + height / 2 };
-}
-
-export function bookletDropTarget(booklets, center, originGroupUuid = null) {
-  return booklets.find((booklet) => {
-    const horizontal = center.x >= booklet.x && center.x <= booklet.x + booklet.width;
-    if (originGroupUuid != null) return booklet.uuid === originGroupUuid && horizontal;
-    return horizontal && center.y >= booklet.y && center.y <= booklet.y + booklet.height;
-  }) || null;
 }
 
 export function bookletInsertionIndex(members, draggedCenterY) {

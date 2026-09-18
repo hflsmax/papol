@@ -36,8 +36,7 @@ function goHome(uuid) {
 
 export default function App() {
   const boardUuid = route();
-  const inDemo = window.location.pathname.includes('/demo/boards/') ||
-    new URLSearchParams(window.location.search).get('demo') === '1';
+  const inDemo = inDemoBoards() || new URLSearchParams(window.location.search).get('demo') === '1';
   if (!inDemo && !getToken()) {
     const marker = '/boards/';
     const base = window.location.pathname.slice(0, window.location.pathname.indexOf(marker));
