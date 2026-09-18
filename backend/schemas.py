@@ -86,16 +86,13 @@ class AuthResponse(BaseModel):
 
 # ---------- Annotations (a user's annotations on a paper) ----------
 
-class PointAnchor(BaseModel):
+class Anchor(BaseModel):
     """A place on a page, as fractions of its width and height in PDF user
-    space. Later anchor kinds (rect, polygon, quote) join this as a union
-    discriminated on `type`."""
+    space."""
     type: Literal["point"] = "point"
     x: float = Field(ge=0, le=1)
     y: float = Field(ge=0, le=1)
 
-
-Anchor = PointAnchor
 
 
 class InkPoint(BaseModel):
@@ -307,14 +304,10 @@ class BoardGroupOut(BaseModel):
         from_attributes = True
 
 
-class BoardYouTubeCreate(BaseModel):
+class BoardLinkCreate(BaseModel):
     url: str = Field(min_length=1, max_length=limit("text", "external_url"))
     x: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
     y: float = Field(ge=-limit("board", "coordinate_abs_max"), le=limit("board", "coordinate_abs_max"))
-
-
-class BoardWebpageCreate(BoardYouTubeCreate):
-    pass
 
 
 class BoardItemOut(BaseModel):
@@ -374,7 +367,6 @@ class RoomSummary(BaseModel):
     created_at: datetime
     creator: UserPublic
     leader: Optional[UserPublic] = None
-    participant_count: int = 0
     participants: List[UserPublic] = []
 
 
@@ -400,14 +392,11 @@ class RoomAvailabilityOut(BaseModel):
 
 class RoomDetail(RoomSummary):
     paper_title: str
-    paper_sha256: Optional[str] = None
+    paper_sha256: str
     messages: List[RoomMessageOut] = []
     availabilities: List[RoomAvailabilityOut] = []
-    viewer_can_lead: bool = False
     viewer_is_participant: bool = False
     viewer_has_copy: bool = False
-    # The paper's digest, when the viewer keeps it but does not display it.
-    viewer_hidden_entry_sha256: Optional[str] = None
 
 
 class RoomMessageCreate(BaseModel):
@@ -529,9 +518,7 @@ class PaperMetadata(BaseModel):
 
     One shape whoever is writing it. The edit form on the website and a
     replica's push both arrive here, so a title the website accepts is one
-    the Mac can push back — before this, the website took a title of any
-    length and the push path refused anything over 500 characters, which
-    read as an edit that saved and then would not synchronize.
+    the Mac can push back.
 
     A paper's title is the one thing it must have: a paper with no title is
     a row nobody can find again."""
@@ -660,7 +647,7 @@ class ReferenceOut(BaseModel):
     # at a place rather than at an entry.
     page: Optional[int] = None
     y: Optional[float] = None
-    # none | ok | bibliography | error — filled in when it is opened.
+    # ok | bibliography — filled in when it is opened.
     resolved_status: Optional[str] = None
     resolution: Optional[ResolvedWork] = None
     # A paper already in Papol that this reference names, when there is
@@ -715,10 +702,9 @@ class PaperReferences(BaseModel):
 
 
 class PaperList(PaperBase):
-    uuid: str
     file_path: str
-    # The content hash of that file, which is what names it in a viewer URL.
-    sha256: Optional[str] = None
+    # The content hash of that file, which names the paper.
+    sha256: str
     created_at: datetime
     # Personal fields of the nook being viewed (None in the global list)
     summary: Optional[str] = None
@@ -740,10 +726,9 @@ class PaperList(PaperBase):
 
 class Paper(PaperBase):
     """Paper detail, merged with the viewer's own copy when they have one."""
-    uuid: str
     file_path: str
-    # The content hash of that file, which is what names it in a viewer URL.
-    sha256: Optional[str] = None
+    # The content hash of that file, which names the paper.
+    sha256: str
     uploader: Optional[UserBase] = None
     created_at: datetime
     summary: Optional[str] = None
@@ -829,8 +814,7 @@ class SharedInNook(BaseModel):
 
     Enough to walk them over to their own copy and no more: the link opened
     a PDF, and what they want next is that PDF as theirs."""
-    paper_sha256: str
-    sha256: Optional[str] = None
+    sha256: str
 
 
 class NookStats(BaseModel):

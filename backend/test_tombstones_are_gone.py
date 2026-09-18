@@ -21,7 +21,7 @@ from sqlalchemy.pool import StaticPool
 
 import main
 from database import Base, PapolSession, get_db
-from models import Board, Copy, Paper, Shelf, Tag
+from models import Copy, Paper, Shelf
 from services.papers import paper_name
 
 

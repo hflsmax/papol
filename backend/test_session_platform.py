@@ -69,12 +69,6 @@ class SigningInRecordsThePlatform(unittest.TestCase):
         token = self.sign_in({PLATFORM_HEADER: "toaster"})
         self.assertEqual(self.platform_of(token), WEB)
 
-    def test_the_application_is_recognised_by_its_agent_alone(self):
-        # An older build sends no platform header; it still announces itself
-        # in the User-Agent, and that is enough to know which Papol it is.
-        token = self.sign_in({"User-Agent": "Papol macOS/0.2.0"})
-        self.assertEqual(self.platform_of(token), MACOS)
-
     def test_registering_records_the_platform_too(self):
         answer = self.client.post(
             "/api/auth/register",

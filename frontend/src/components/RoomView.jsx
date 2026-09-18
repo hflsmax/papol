@@ -12,7 +12,6 @@ import {
   finishRoom,
 } from '../../../shared/api/rooms.js';
 import appLimits from '../../../shared/appLimits.js';
-import { updatePaper } from '../../../shared/api/papers.js';
 import Avatar from './Avatar';
 import HintPop from './HintPop';
 import { SEMINAR_STYLES, styleLabel, roomStyleDesc } from '../seminarStyles';
@@ -332,31 +331,6 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               <strong>{styleLabel(room.style)}</strong>
             </p>
           )}
-        </div>
-      )}
-
-      {room.viewer_hidden_entry_uuid && (
-        <div className="room-hidden-note">
-          Your entry is hidden.{' '}
-          <button
-            className="link-btn"
-            disabled={isBusy}
-            onClick={async () => {
-              setActionError(null);
-              setIsBusy(true);
-              try {
-                await updatePaper(room.viewer_hidden_entry_uuid, { is_public: true });
-                onReload();
-              } catch (e) {
-                setActionError(e.message);
-              } finally {
-                setIsBusy(false);
-              }
-            }}
-          >
-            Put it on display
-          </button>{' '}
-          to take part.
         </div>
       )}
 

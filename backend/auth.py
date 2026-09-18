@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import AuthToken, User
-from services.client_requirements import client_version
 
 _PBKDF2_ITERATIONS = 200_000
 
@@ -42,11 +41,8 @@ def verify_password(password: str, stored: str) -> bool:
 WEB = "web"
 MACOS = "macos"
 
-# The client names itself in this header when it signs in. The stored value is
-# one of Papol's own platforms rather than the caller's words: a header from
-# the network decides which known client this is, and nothing more.
+# The client names itself in this header when it signs in.
 PLATFORM_HEADER = "X-Papol-Platform"
-_ANNOUNCED = {WEB: WEB, MACOS: MACOS, "mac": MACOS, "desktop": MACOS}
 
 
 def login_platform(request) -> str:
@@ -58,11 +54,7 @@ def login_platform(request) -> str:
     not know.
     """
     announced = (request.headers.get(PLATFORM_HEADER) or "").strip().lower()
-    if announced in _ANNOUNCED:
-        return _ANNOUNCED[announced]
-    if client_version(request.headers.get("user-agent")):
-        return MACOS
-    return WEB
+    return MACOS if announced == MACOS else WEB
 
 
 def create_token(db: Session, user: User, platform: str = WEB) -> str:
@@ -89,11 +81,7 @@ def _live_session(db: Session, credentials) -> AuthToken | None:
     now = datetime.utcnow()
     if auth.last_used_at is None or now - auth.last_used_at >= _LAST_USED_RESOLUTION:
         auth.last_used_at = now
-        try:
-            db.commit()
-        except Exception:
-            # Losing a last-seen stamp must never cost the user the request.
-            db.rollback()
+        db.commit()
     return auth
 
 
@@ -106,11 +94,6 @@ def get_current_user(
     auth = _live_session(db, credentials)
     if not auth:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
-    # Closing an account deletes its sessions, so this should be
-    # unreachable. It is here because "should be" is not a guarantee, and
-    # the cost of being wrong is a closed account still being usable.
-    if auth.user is None or auth.user.is_deleted:
-        raise HTTPException(status_code=401, detail="This account has been closed")
     return auth.user
 
 

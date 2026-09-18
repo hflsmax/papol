@@ -91,7 +91,7 @@ class ReferencePreviewTests(unittest.TestCase):
             main, "resolve_reference", AsyncMock(side_effect=lambda ref: main.reference_out(ref)),
         ):
             return self.client.post(
-                f"/api/papers/{paper_name(self.paper_sha256)}/references/preview",
+                f"/api/viewer-references/{self.paper_sha256}/preview",
                 json={"key": key, "raw": raw},
             )
 

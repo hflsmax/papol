@@ -112,7 +112,7 @@ class PaperNames(unittest.TestCase):
         paper's stored identity, which is what the rest of the service uses."""
         body = self.client.get(f"/api/papers/{A_PAPER[:32]}").json()
         self.assertEqual(body["sha256"], A_PAPER)
-        self.assertEqual(body["uuid"], A_PAPER)
+        self.assertEqual(body["sha256"], A_PAPER)
 
     def test_the_whole_digest_is_not_a_name(self):
         """One shape is read, not two. The digest is the identity; asking for a

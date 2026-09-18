@@ -81,8 +81,8 @@ def minimum_version(db) -> str:
     asked for. A setting below the protocol's own floor is not a way to let
     an unspeakable build back in; it simply has nothing left to say."""
     asked = setting_value(db, MINIMUM_KEY)
-    requested, wire = parse_version(asked), parse_version(PROTOCOL_MINIMUM_VERSION)
-    if requested is not None and (wire is None or requested > wire):
+    requested = parse_version(asked)
+    if requested is not None and requested > parse_version(PROTOCOL_MINIMUM_VERSION):
         return asked
     return PROTOCOL_MINIMUM_VERSION
 

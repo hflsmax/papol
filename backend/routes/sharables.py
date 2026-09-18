@@ -1,9 +1,9 @@
 from auth import get_current_user
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from models import Paper, Sharable, User
+from models import Sharable, User
 from schemas import SharableCreate, SharableOut, SharedInNook, SharedReading
-from services.papers import AmbiguousPaperName, paper_by_name
+from services.papers import paper_or_404
 from services.sharables import (
     LEAN, RICH, copy_in_nook, live_sharable_for, make_lean, open_sharable,
     revoke, share_reading, shared_reading, take_into_nook,
@@ -12,20 +12,6 @@ from sqlalchemy.orm import Session
 
 router = APIRouter()
 
-
-# A link names its paper by the first half of the digest, and an older one by
-# all of it. A deleted paper is not a paper anyone can be handed a link to.
-def _paper_or_404(paper_sha256: str, db: Session) -> Paper:
-    try:
-        paper = paper_by_name(paper_sha256, db)
-    except AmbiguousPaperName:
-        raise HTTPException(
-            status_code=409,
-            detail="That name means more than one paper; use the paper's full digest",
-        ) from None
-    if paper is None or paper.deleted_at is not None:
-        raise HTTPException(status_code=404, detail="Paper not found")
-    return paper
 
 # ---------------- Sharables ----------------
 
@@ -44,7 +30,7 @@ async def create_sharable(
     pass on, not a thing that happens to the paper. Either ask may be made
     while the other link is out: they are different links to different
     things, and neither is in the other's way."""
-    paper = _paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     copy = next(
         (row for row in paper.copies
          if row.user_uuid == current_user.uuid and row.deleted_at is None),
@@ -84,7 +70,7 @@ async def my_sharable(
     them. Nothing to report is an answer rather than a refusal — a paper
     this user does not keep, or one with no readable PDF, simply has no
     link of theirs on it."""
-    paper = _paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     copy = next(
         (row for row in paper.copies
          if row.user_uuid == current_user.uuid and row.deleted_at is None),
@@ -164,9 +150,7 @@ async def shared_in_nook(
     copy = copy_in_nook(db, current_user, sharable)
     if copy is None:
         return None
-    return SharedInNook(
-        paper_sha256=copy.paper_sha256, sha256=copy.paper.sha256,
-    )
+    return SharedInNook(sha256=copy.paper_sha256)
 
 
 @router.post("/api/shared/{sharable_uuid}/add-to-nook", response_model=SharedInNook)
@@ -196,6 +180,4 @@ async def add_shared_to_nook(
             status_code=400, detail="This paper is already in your nook",
         )
     copy = take_into_nook(db, current_user, sharable)
-    return SharedInNook(
-        paper_sha256=copy.paper_sha256, sha256=copy.paper.sha256,
-    )
+    return SharedInNook(sha256=copy.paper_sha256)

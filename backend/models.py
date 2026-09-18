@@ -238,7 +238,7 @@ class PaperReference(Base):
     page = Column(Integer, nullable=True)
     y = Column(Float, nullable=True)
 
-    # The lookup: none | ok | miss | error.
+    # The lookup: ok | bibliography.
     resolved_status = Column(String, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
     resolution = Column(Text, nullable=True)  # JSON blob, see biblio.resolve
@@ -550,25 +550,12 @@ class Sharable(Base):
     user = relationship("User")
     paper = relationship("Paper")
 
-    @property
-    def is_revoked(self) -> bool:
-        return self.revoked_at is not None
-
 
 class Room(Base):
     """A seminar cohort for one paper, named the way every table names one.
 
     A paper is its PDF, so the digest is the whole of what a seminar has to
     say about which paper it is about.
-
-    It used to carry a key of its own — the paper's DOI, or its title when
-    there was no DOI — left from when a paper could have several editions
-    and a seminar had to name the thing standing above them. There is
-    nothing above a paper now: the edition is gone and the file *is* the
-    paper. What the key left behind was a name read off metadata any user
-    may correct for everyone, so correcting a title moved the paper out
-    from under its own seminars, and a snapshot of the title beside it that
-    had to be kept true by hand. A foreign key is neither.
     """
     __tablename__ = "rooms"
 

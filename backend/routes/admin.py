@@ -14,7 +14,6 @@ from schemas import (
     FeedbackUpdate,
 )
 from services.feedback import feedback_out
-from services.notifications import send_daily_digest, smtp_config
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app_limits import limit
@@ -131,22 +130,6 @@ async def admin_message_recipients(
         )
         for user in users
     ]
-
-
-@router.post("/api/admin/send-digest")
-async def admin_send_digest(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Run the daily email digest immediately (admin only)."""
-    if smtp_config(db) is None:
-        raise HTTPException(
-            status_code=400,
-            detail="SMTP is not configured — fill the settings table "
-            "(smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from) "
-            "or set SMTP_* environment variables",
-        )
-    return send_daily_digest(db)
 
 
 @router.get("/api/admin/db-metrics")

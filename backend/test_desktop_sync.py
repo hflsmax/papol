@@ -1269,7 +1269,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         )
         self.assertEqual(missing.status_code, 404, missing.text)
         paper = self.request("GET", f"/api/papers/{paper_name(paper_sha256)}").json()
-        self.assertEqual(paper["uuid"], paper_sha256)
+        self.assertEqual(paper["sha256"], paper_sha256)
         self.assert_no_id_fields(paper)
 
     # --- what synchronization stops remembering ----------------------------

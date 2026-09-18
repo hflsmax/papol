@@ -253,7 +253,6 @@ const roomSummary = (r) => ({
   created_at: r.created_at,
   creator: publicUser(userByUuid(r.created_by)),
   leader: r.leader_uuid ? publicUser(userByUuid(r.leader_uuid)) : null,
-  participant_count: roomParts(r).length,
   participants: roomParts(r).map((x) => publicUser(userByUuid(x.user_uuid))),
 });
 
@@ -327,12 +326,8 @@ function roomDetail(r) {
       .map((m) => ({ uuid: m.uuid, content: m.content, created_at: m.created_at, user: publicUser(userByUuid(m.user_uuid)) })),
     availabilities: d.availabilities.filter((a) => a.room_uuid === r.uuid)
       .map((a) => ({ uuid: a.uuid, availability: a.availability, created_at: a.created_at, user: publicUser(userByUuid(a.user_uuid)) })),
-    viewer_can_lead:
-      r.status === 'open' && hasCopy &&
-      roomParts(r).some((x) => x.user_uuid === ME),
     viewer_is_participant: roomParts(r).some((x) => x.user_uuid === ME),
     viewer_has_copy: hasCopy,
-    viewer_hidden_entry_sha256: mine && !onDisplay(mine) && paper ? paper.sha256 : null,
   };
 }
 

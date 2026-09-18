@@ -64,7 +64,7 @@ from schemas import (
     TagOut, TagCreate,
     ShelfOut, ShelfCreate, ShelfUpdate, BoardCreate, BoardUpdate,
     BoardItemCreate, BoardItemUpdate, BoardStagingCreate, BoardStagingPlace,
-    BoardYouTubeCreate, BoardWebpageCreate,
+    BoardLinkCreate,
     BoardItemOut, BoardOut, BoardGroupCreate, BoardGroupUpdate, BoardGroupMove,
     BoardGroupUngroup, BoardGroupLayout, BoardGroupOut,
 )
@@ -97,7 +97,7 @@ from services.annotations import (
     KINDS, NOTE, annotation_out, annotations_of, body_text,
 )
 from services.notifications import setting_value
-from services.papers import AmbiguousPaperName, displayed_copies, paper_by_name
+from services.papers import displayed_copies, paper_or_404
 from services.sharables import live_sharable_for, open_sharable
 
 # Uploads directory
@@ -161,7 +161,7 @@ def _uuid_header(value: str | None) -> str | None:
         return None
     try:
         return str(uuid.UUID(value))
-    except (ValueError, AttributeError):
+    except ValueError:
         return None
 
 
@@ -514,7 +514,7 @@ async def update_profile(
         affiliation = (update["affiliation"] or "").strip()
         current_user.affiliation = affiliation or None
     if update.get("email_public") is not None:
-        current_user.email_public = bool(update["email_public"])
+        current_user.email_public = update["email_public"]
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -1166,7 +1166,7 @@ def _capture_webpage(url: str) -> bytes:
 @app.post("/api/boards/{board_uuid}/youtube", response_model=BoardItemOut)
 async def add_youtube_to_board(
     board_uuid: str,
-    data: BoardYouTubeCreate,
+    data: BoardLinkCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1215,7 +1215,7 @@ async def add_youtube_to_board(
 @app.post("/api/boards/{board_uuid}/webpage", response_model=BoardItemOut)
 async def add_webpage_to_board(
     board_uuid: str,
-    data: BoardWebpageCreate,
+    data: BoardLinkCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1546,7 +1546,7 @@ def _live(rows) -> list:
 def _shelf_out(shelf: Shelf) -> ShelfOut:
     return ShelfOut(
         uuid=shelf.uuid, name=shelf.name, color=shelf.color,
-        is_public=bool(shelf.is_public), is_default=bool(shelf.is_default),
+        is_public=shelf.is_public, is_default=shelf.is_default,
         position=shelf.position,
         paper_count=len(_live(shelf.copies)), board_count=len(_live(shelf.boards)),
     )
@@ -1562,7 +1562,7 @@ def _user_entry(user_copy: Copy) -> UserEntry:
     return UserEntry(
         paper_sha256=user_copy.paper.sha256,
         user=UserPublic.model_validate(user_copy.user),
-        is_author=bool(user_copy.is_author),
+        is_author=user_copy.is_author,
         thought=user_copy.thought,
         rating_expertise=user_copy.rating_expertise,
         rating_reading=user_copy.rating_reading,
@@ -1645,13 +1645,12 @@ def _paper_list_entry(
     """One list row: the canonical paper, plus the personal fields of the
     given user_copy (a nook's own entry), plus every displayed copy."""
     entry = PaperList(
-        uuid=paper.sha256,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
         journal=paper.journal,
         year=paper.year,
-        file_path=paper.file_path or "",
+        file_path=paper.file_path,
         sha256=paper.sha256,
         created_at=user_copy.created_at if user_copy else paper.created_at,
     )
@@ -1661,7 +1660,7 @@ def _paper_list_entry(
         entry.summary = None if hide_private else user_copy.summary
         entry.thought = user_copy.thought
         entry.is_public = user_copy.is_public
-        entry.is_author = bool(user_copy.is_author)
+        entry.is_author = user_copy.is_author
         entry.rating_expertise = user_copy.rating_expertise
         entry.rating_reading = user_copy.rating_reading
         entry.rating_liking = user_copy.rating_liking
@@ -1686,7 +1685,7 @@ async def get_user_space(
     # is better than showing an empty shelf under "A former user".
     if user.is_deleted:
         raise HTTPException(status_code=404, detail="This user has left Papol")
-    hide_private = current_user is None or current_user.uuid != user.uuid
+    hide_private = current_user.uuid != user.uuid
     query = db.query(Copy).filter(Copy.user_uuid == user.uuid, Copy.deleted_at.is_(None))
     if hide_private:
         # On display means sitting on a public shelf, so the shelf is what
@@ -1869,38 +1868,26 @@ def _room_summary(room: Room) -> RoomSummary:
         created_at=room.created_at,
         creator=UserPublic.model_validate(room.creator),
         leader=UserPublic.model_validate(room.leader) if room.leader else None,
-        participant_count=len(room.participants),
         participants=[UserPublic.model_validate(p.user) for p in room.participants],
     )
 
 
-def _copy_of(paper: Paper, viewer: User | None) -> Copy | None:
-    if viewer is None:
-        return None
+def _copy_of(paper: Paper, viewer: User) -> Copy | None:
     return next((r for r in paper.copies
                  if r.user_uuid == viewer.uuid and r.deleted_at is None), None)
 
 
 def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
     """The canonical paper, merged with the viewer's own copy (summary,
-    ratings, display, private notes) when they have one.
-
-    There is always a viewer. Every route that reaches here takes a
-    signed-in user, and this asserts it rather than quietly building a
-    page for nobody: a None here would mean a caller had opened the
-    Library to someone outside it, which is a bug and not a permission
-    to be decided this far in.
-    """
-    assert viewer is not None, "a paper page is only ever built for a signed-in user"
+    ratings, display, private notes) when they have one."""
     user_copy = _copy_of(paper, viewer)
     detail = PaperSchema(
-        uuid=paper.sha256,
         doi=paper.doi,
         title=paper.title,
         authors=paper.authors,
         journal=paper.journal,
         year=paper.year,
-        file_path=paper.file_path or "",
+        file_path=paper.file_path,
         sha256=paper.sha256,
         uploader=(
             UserBase.model_validate(paper.uploader)
@@ -1914,7 +1901,7 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
         detail.summary = user_copy.summary
         detail.thought = user_copy.thought
         detail.is_public = user_copy.is_public
-        detail.is_author = bool(user_copy.is_author)
+        detail.is_author = user_copy.is_author
         detail.rating_expertise = user_copy.rating_expertise
         detail.rating_reading = user_copy.rating_reading
         detail.rating_liking = user_copy.rating_liking
@@ -1944,20 +1931,6 @@ def _paper_detail(db: Session, paper: Paper, viewer: User) -> PaperSchema:
     detail.viewer_has_copy = user_copy is not None and user_copy.is_public
     detail.viewer_has_entry = user_copy is not None
     return detail
-
-
-# Every row is named, in the database and on the wire, by its UUID.
-def _get_paper_or_404(paper_sha256: str, db: Session) -> Paper:
-    try:
-        paper = paper_by_name(paper_sha256, db)
-    except AmbiguousPaperName:
-        raise HTTPException(
-            status_code=409,
-            detail="That name means more than one paper; use the paper's full digest",
-        ) from None
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found")
-    return paper
 
 
 def _own_shelf_or_404(shelf_uuid: str, user: User, db: Session) -> Shelf:
@@ -2086,7 +2059,7 @@ async def get_paper(
     and whose nook it sits in is nobody's business but theirs. The
     Library is for people with accounts (US-1.4), so there is no visitor
     case here — a paper page is not a thing Papol shows to nobody."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     return _paper_detail(db, paper, current_user)
 
 
@@ -2100,7 +2073,7 @@ async def reextract_paper_metadata(
     db: Session = Depends(get_db),
 ):
     """Re-read a paper's PDF metadata for the edit form."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     path = _paper_pdf_path(paper)
     if path is None:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
@@ -2131,9 +2104,7 @@ async def reextract_paper_metadata(
             journal=api_metadata.get("venue"),
             year=api_metadata.get("year"),
         )
-    # A paper with no identifier used to end here, which left the user
-    # holding a filename with no way to ask again. The page itself still
-    # carries a title and an author list.
+    # The page itself still carries a title and an author list.
     header = await _printed_header(str(path))
     if header and (header.title or header.authors):
         return ReextractedMetadata(
@@ -2220,14 +2191,10 @@ def _viewer_paper_or_404(
         return sharable.paper
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    papers = db.query(Paper).filter(Paper.sha256 == digest).all()
-    if not papers:
-        raise HTTPException(status_code=404, detail="PDF not found")
-    paper = next(
-        (candidate for candidate in papers if _copy_of(candidate, current_user)),
-        None,
-    )
+    paper = db.get(Paper, digest)
     if paper is None:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    if _copy_of(paper, current_user) is None:
         raise HTTPException(status_code=403, detail="Add this paper to your nook first")
     return paper
 
@@ -2249,7 +2216,7 @@ async def update_paper(
     user_copy. Metadata (title/authors/journal/year/DOI) lives on the one
     canonical paper: any signed-in user may edit it, for everyone.
     """
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
 
     update_data = paper_update.model_dump(exclude_unset=True)
     tag_uuids = update_data.pop("tag_uuids", None)
@@ -2482,7 +2449,7 @@ async def delete_paper(
     user leaving destroys nothing shared, and the Library holds every paper
     whoever happens to keep one. What leaving takes away is this user's
     name from the row of readers shown against it."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     user_copy = _require_copy(paper, current_user)
 
     user_copy.deleted_at = datetime.utcnow()
@@ -2506,7 +2473,7 @@ async def add_to_nook(
 ):
     """Add the paper to the viewer's nook: a new copy of the one
     canonical paper. The PDF and metadata are shared."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     if _copy_of(paper, current_user) is not None:
         raise HTTPException(status_code=400, detail="This paper is already in your nook")
 
@@ -2660,12 +2627,9 @@ async def _analyze_paper(paper_sha256: str):
         # "pending" forever: a user would poll a job that is not running.
         logger.error(f"Reference analysis of paper {paper_sha256} failed: {e}")
         db.rollback()
-        try:
-            paper = db.get(Paper, paper_sha256)
-            if paper is not None:
-                _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
-        except Exception:
-            db.rollback()
+        paper = db.get(Paper, paper_sha256)
+        if paper is not None:
+            _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
     finally:
         db.close()
         _analyzing.discard(paper_sha256)
@@ -2712,29 +2676,10 @@ async def _bundled_paper_references(
     return _bundled_references.response(digest, paper_sha256)
 
 
-@app.get("/api/papers/{paper_sha256}/references", response_model=PaperReferences)
-async def paper_references(
-    paper_sha256: str,
-    background: BackgroundTasks,
-    refresh: bool = False,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """The references of one paper, and where they are cited in it.
-
-    Upload starts the analysis and the viewer observes `pending` until it is
-    `ready`. Older unanalyzed papers are started on first access. Pass
-    `refresh=true` to read a PDF again — the way to retry one GROBID could
-    not handle."""
-    paper = _get_paper_or_404(paper_sha256, db)
-    return await _paper_references(paper, background, db, refresh)
-
-
 async def _paper_references(
     paper: Paper,
     background: BackgroundTasks,
     db: Session,
-    refresh: bool = False,
 ) -> PaperReferences:
     """The bibliography of one paper, once someone is allowed to read it.
 
@@ -2755,8 +2700,6 @@ async def _paper_references(
         )
 
     if grobid.configured():
-        if refresh and paper.sha256 not in _analyzing:
-            paper.references_status = None
         if _may_start_analysis(paper):
             _analyzing.add(paper.sha256)
             _finish_analysis(db, paper, "pending", None)
@@ -2781,7 +2724,7 @@ async def _paper_references(
                 label=c.label,
                 page=c.page,
                 x=c.x, y=c.y, w=c.w, h=c.h,
-                inferred=bool(c.inferred),
+                inferred=c.inferred,
             )
             for c in paper.citations
             if c.reference_uuid is not None
@@ -2800,12 +2743,7 @@ async def _paper_references(
     )
 
 
-@app.get("/api/references/{reference_uuid}", response_model=ReferenceOut)
-async def open_reference(
-    reference_uuid: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+async def _reference_by_uuid(reference_uuid: str, db: Session) -> ReferenceOut:
     """One reference, looked up if it has not been looked up before.
 
     Lazy on purpose: a paper cites forty works and a user opens three of
@@ -2820,22 +2758,16 @@ async def open_reference(
 
 
 async def _open_reference(reference: PaperReference, db: Session) -> ReferenceOut:
-    answer = await resolve_reference(reference)
-    if answer.resolved_status == "error":
-        return answer
+    await resolve_reference(reference)
     db.commit()
 
     known = _papol_papers_for(db, [reference])
     return _reference_out(reference, known.get(reference.uuid))
 
 
-@app.post("/api/papers/{paper_sha256}/references/preview", response_model=ReferenceOut)
-async def preview_pdf_reference(
-    paper_sha256: str,
-    data: ReferencePreviewIn,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+async def _preview_reference(
+    paper: Paper, data: ReferencePreviewIn, db: Session,
+) -> ReferenceOut:
     """Resolve a citation recovered directly from a PDF's link layer.
 
     Some PDFs identify every citation with a hyperref ``cite.*`` target even
@@ -2843,8 +2775,6 @@ async def preview_pdf_reference(
     printed bibliography entry itself; registering it here gives that entry
     the same cached Crossref/OpenAlex enrichment as analyzed references.
     """
-    paper = _get_paper_or_404(paper_sha256, db)
-
     key = data.key.strip()
     raw = " ".join(data.raw.split())
     reference = db.query(PaperReference).filter(
@@ -2877,10 +2807,7 @@ async def preview_pdf_reference(
     elif not reference.raw:
         reference.raw = raw
 
-    answer = await resolve_reference(reference)
-    if answer.resolved_status == "error":
-        db.rollback()
-        return answer
+    await resolve_reference(reference)
     db.commit()
     db.refresh(reference)
     known = _papol_papers_for(db, [reference])
@@ -2931,7 +2858,7 @@ async def viewer_reference(
         return await _open_reference(reference, db)
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return await open_reference(reference_uuid, current_user, db)
+    return await _reference_by_uuid(reference_uuid, db)
 
 
 @app.post("/api/viewer-references/{pdf_sha256}/preview", response_model=ReferenceOut)
@@ -2945,7 +2872,7 @@ async def preview_viewer_reference(
     if _public_pdf_path(digest) is not None:
         return await _bundled_references.preview(data.key.strip(), data.raw)
     paper = _viewer_paper_or_404(digest, current_user, db)
-    return await preview_pdf_reference(paper.sha256, data, current_user, db)
+    return await _preview_reference(paper, data, db)
 
 
 def _reference_out(reference: PaperReference, papol_paper_sha256: str | None) -> ReferenceOut:
@@ -2962,11 +2889,7 @@ def _printed_as(doi, title) -> str:
     the same paper. Matching a reference to a paper Papol holds is
     therefore a guess made on what is printed, and this is how that guess
     is spelled. Nothing else keys on it: it is how a bibliography is read,
-    not how a paper is identified.
-
-    It was once how a paper was identified too, and a seminar was keyed by
-    it. That is gone — a paper is its file — and this is all that is left
-    of the shape."""
+    not how a paper is identified."""
     if doi:
         return "doi:" + doi.strip().lower()
     return "title:" + (title or "").strip().lower()
@@ -2991,16 +2914,13 @@ def _papol_papers_for(db: Session, references) -> dict[str, str]:
         doi = reference.doi
         title = reference.title
         if reference.resolution:
-            try:
-                resolved = json.loads(reference.resolution)
-                doi = resolved.get("doi") or doi
-                title = resolved.get("title") or title
-            except Exception:
-                pass
+            resolved = json.loads(reference.resolution)
+            doi = resolved.get("doi") or doi
+            title = resolved.get("title") or title
         if doi:
-            keys.append("doi:" + doi.strip().lower())
+            keys.append(_printed_as(doi, None))
         if title:
-            keys.append("title:" + title.strip().lower())
+            keys.append(_printed_as(None, title))
         for key in keys:
             if key in by_key:
                 found[reference.uuid] = by_key[key]
@@ -3042,7 +2962,7 @@ async def list_annotations(
     Narrow to one kind with `kind`. A note written about the paper and never
     placed on a page comes back with the rest: it is still a mark on this
     paper, just not on a page of it."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     _require_copy(paper, current_user)
     if kind is not None and kind not in KINDS:
         raise HTTPException(status_code=422, detail="Unknown annotation kind")
@@ -3063,7 +2983,7 @@ async def create_annotation(
     db: Session = Depends(get_db),
 ):
     """Leave an annotation on a paper: a note, a stroke of ink, or a clipped view."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
     _require_copy(paper, current_user)
     annotation = Annotation(
         kind=data.kind,
@@ -3157,37 +3077,19 @@ def _require_user(db: Session, room: Room, user: User):
 def _room_detail(db: Session, room: Room, viewer: User) -> RoomDetail:
     users_displaying = _paper_user_uuids(db, room.paper_sha256, public_only=True)
 
-    # The paper this room is about, and the viewer's copy of it. The room
-    # names it outright, so there is nothing to look up it by.
     paper = room.paper
-    own = _copy_of(paper, viewer) if paper else None
-    # Every paper has a page and this viewer is signed in, so the cohort
-    # always names the paper it is about. Whether the viewer keeps a copy,
-    # and whether they display it, decides what they may do in the cohort
-    # below — never whether they may look at the paper.
-    link_paper = paper
-    hidden_entry = paper if own is not None and not own.is_public else None
-
     summary = _room_summary(room)
     return RoomDetail(
         **summary.model_dump(),
-        paper_title=paper.title if paper else None,
-        paper_sha256=link_paper.sha256 if link_paper else None,
+        paper_title=paper.title,
+        paper_sha256=paper.sha256,
         messages=[
             RoomMessageOut.model_validate(m)
             for m in sorted(room.messages, key=lambda m: (m.created_at, m.uuid))
         ],
         availabilities=[RoomAvailabilityOut.model_validate(a) for a in room.availabilities],
-        viewer_can_lead=room.status == "open"
-        and viewer.uuid in users_displaying
-        and any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_is_participant=any(p.user_uuid == viewer.uuid for p in room.participants),
         viewer_has_copy=viewer.uuid in users_displaying,
-        # The paper's own name, which is its file's digest. It read
-        # `.uuid` here, from when a paper had one beside the digest; a
-        # paper has not carried a UUID since it became its file, so every
-        # cohort a viewer held a hidden copy in answered with a 500.
-        viewer_hidden_entry_sha256=hidden_entry.sha256 if hidden_entry else None,
     )
 
 
@@ -3199,7 +3101,7 @@ async def call_seminar(
 ):
     """Call for a seminar on this paper. Only users of it may call.
     Notifies every user — including those who keep their copy hidden."""
-    paper = _get_paper_or_404(paper_sha256, db)
+    paper = paper_or_404(paper_sha256, db)
 
     if current_user.uuid not in _paper_user_uuids(db, paper.sha256, public_only=True):
         raise HTTPException(

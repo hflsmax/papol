@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -30,7 +29,6 @@ from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
 from schemas import AnnotationCreate, PaperMetadata
-from services.annotations import KINDS, NOTE
 from app_limits import limit, mebibytes
 
 
@@ -43,7 +41,7 @@ PDF_FILES_DIR = Path(os.environ.get(
     "PAPOL_UPLOADS_DIR", Path(__file__).parents[2] / "uploads",
 ))
 BLOB_LIMIT = mebibytes("files", "offline_blob_mb")
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = registry()["protocol_version"]
 
 
 def _require_supported_client(request: Request, db: Session) -> None:
@@ -74,10 +72,7 @@ def _require_supported_client(request: Request, db: Session) -> None:
 
 
 class RowChange(BaseModel):
-    table: Literal[
-        "boards", "board_groups", "board_items", "papers",
-        "annotations", "shelves", "tags", "copies", "copy_tags",
-    ]
+    table: str
     # The row's own name. A UUID for everything a client makes up, and for
     # a paper the digest of its PDF — which is not made up at all: both ends
     # read it off the same bytes and arrive at the same answer, which is
@@ -89,6 +84,8 @@ class RowChange(BaseModel):
 
     @model_validator(mode="after")
     def _id_suits_the_table(self):
+        if self.table not in MODELS:
+            raise ValueError(f"{self.table} is not a table a client writes")
         if self.table == "papers":
             if not re.fullmatch(r"[0-9a-f]{64}", self.uuid):
                 raise ValueError("a paper is named by the sha256 of its PDF")
@@ -101,7 +98,7 @@ class RowChange(BaseModel):
 
 
 class PushRequest(BaseModel):
-    protocol_version: Literal[1] = PROTOCOL_VERSION
+    protocol_version: int = PROTOCOL_VERSION
     client_uuid: UUID
     mutation_uuid: UUID
     local_sequence: int = Field(ge=0)
@@ -266,11 +263,8 @@ def _new_record(db: Session, change: RowChange, user: User, values: dict):
                 status_code=422, detail="annotations.paper_sha256 is required",
             )
         paper = _owned_paper(db, paper_sha256, user.uuid)
-        kind = values.get("kind")
-        if kind not in KINDS:
-            raise HTTPException(status_code=422, detail="Unknown annotation kind")
         return Annotation(
-            uuid=row_uuid, kind=kind, paper=paper,
+            uuid=row_uuid, kind=values.get("kind"), paper=paper,
             user_uuid=user.uuid, content="", body="{}",
         )
     if change.table == "shelves":
@@ -358,8 +352,6 @@ def _assign_values(db: Session, record, values: dict, user: User):
         # The client decides which kind of annotation it made; every kind is then
         # held to its own shape, so a replica cannot write a stroke with no
         # points or an anchor off the page.
-        if record.kind not in KINDS:
-            raise HTTPException(status_code=422, detail="Unknown annotation kind")
         try:
             AnnotationCreate(
                 kind=record.kind,
