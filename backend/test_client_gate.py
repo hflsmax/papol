@@ -62,16 +62,16 @@ class VerdictTests(unittest.TestCase):
             return verdict(db, agent)
 
     def test_a_build_below_the_floor_is_incompatible(self):
-        self.floor(minimum="0.2.0")
+        self.floor(minimum="0.3.0")
         self.assertEqual(self.verdict_for(AGENT("0.1.9")), INCOMPATIBLE)
 
     def test_the_floor_itself_is_supported(self):
-        self.floor(minimum="0.2.0")
-        self.assertEqual(self.verdict_for(AGENT("0.2.0")), SUPPORTED)
+        self.floor(minimum="0.3.0")
+        self.assertEqual(self.verdict_for(AGENT("0.3.0")), SUPPORTED)
 
     def test_below_the_recommended_version_is_only_deprecated(self):
-        self.floor(minimum="0.1.0", recommended="0.3.0")
-        self.assertEqual(self.verdict_for(AGENT("0.2.0")), DEPRECATED)
+        self.floor(minimum="0.2.0", recommended="0.4.0")
+        self.assertEqual(self.verdict_for(AGENT("0.3.0")), DEPRECATED)
 
     def test_the_wire_has_a_floor_of_its_own(self):
         """Nobody has to remember to set one. A build that cannot be talked
@@ -102,7 +102,7 @@ class VerdictTests(unittest.TestCase):
             self.assertEqual(self.verdict_for(agent), SUPPORTED, agent)
 
     def test_a_version_nobody_can_read_is_not_treated_as_old(self):
-        self.floor(minimum="0.2.0")
+        self.floor(minimum="0.3.0")
         self.assertEqual(self.verdict_for(AGENT("nightly")), SUPPORTED)
 
 
@@ -121,7 +121,7 @@ class SyncGateTests(unittest.TestCase):
                 display_name="User", password_hash="x",
             )
             db.add(user)
-            db.add(Setting(key="desktop_minimum_version", value="0.2.0"))
+            db.add(Setting(key="desktop_minimum_version", value="0.3.0"))
             db.commit()
             self.user_uuid = user.uuid
 
@@ -148,16 +148,16 @@ class SyncGateTests(unittest.TestCase):
         )
 
     def test_an_old_build_is_refused_with_426(self):
-        refused = self.pull(AGENT("0.1.0"))
+        refused = self.pull(AGENT("0.2.0"))
         self.assertEqual(refused.status_code, 426, refused.text)
         detail = refused.json()["detail"]
         self.assertEqual(detail["error"], "client_incompatible")
-        self.assertEqual(detail["minimum_version"], "0.2.0")
+        self.assertEqual(detail["minimum_version"], "0.3.0")
         # Somewhere to go, not just a refusal.
         self.assertTrue(detail["download_url"])
 
     def test_a_current_build_pulls_normally(self):
-        allowed = self.pull(AGENT("0.2.0"))
+        allowed = self.pull(AGENT("0.3.0"))
         self.assertEqual(allowed.status_code, 200, allowed.text)
 
     def test_the_snapshot_is_refused_too(self):
@@ -165,13 +165,13 @@ class SyncGateTests(unittest.TestCase):
         the digest of its file, and an older build reading that expecting a
         UUID would not fail — it would store the wrong thing."""
         refused = self.client.get(
-            "/api/sync/snapshot", headers={"User-Agent": AGENT("0.1.0")},
+            "/api/sync/snapshot", headers={"User-Agent": AGENT("0.2.0")},
         )
         self.assertEqual(refused.status_code, 426, refused.text)
         self.assertEqual(refused.json()["detail"]["error"], "client_incompatible")
 
         allowed = self.client.get(
-            "/api/sync/snapshot", headers={"User-Agent": AGENT("0.2.0")},
+            "/api/sync/snapshot", headers={"User-Agent": AGENT("0.3.0")},
         )
         self.assertEqual(allowed.status_code, 200, allowed.text)
 
@@ -192,28 +192,28 @@ class SyncGateTests(unittest.TestCase):
                     "values": {"name": "Reading", "color": "#b3923d"},
                 }],
             },
-            headers={"User-Agent": AGENT("0.1.0")},
+            headers={"User-Agent": AGENT("0.2.0")},
         )
         self.assertEqual(refused.status_code, 426, refused.text)
 
     def test_pulling_records_the_version_this_installation_runs(self):
         client_uuid = str(uuid.uuid4())
-        self.assertEqual(self.pull(AGENT("0.2.1"), client_uuid).status_code, 200)
+        self.assertEqual(self.pull(AGENT("0.3.1"), client_uuid).status_code, 200)
         with self.Session() as db:
             row = db.query(SyncClient).filter(
                 SyncClient.client_uuid == client_uuid,
             ).one()
-            self.assertEqual(row.app_version, "0.2.1")
+            self.assertEqual(row.app_version, "0.3.1")
 
     def test_an_unreadable_version_leaves_the_last_known_one_alone(self):
         client_uuid = str(uuid.uuid4())
-        self.assertEqual(self.pull(AGENT("0.2.1"), client_uuid).status_code, 200)
+        self.assertEqual(self.pull(AGENT("0.3.1"), client_uuid).status_code, 200)
         self.assertEqual(self.pull("curl/8.4.0", client_uuid).status_code, 200)
         with self.Session() as db:
             row = db.query(SyncClient).filter(
                 SyncClient.client_uuid == client_uuid,
             ).one()
-            self.assertEqual(row.app_version, "0.2.1")
+            self.assertEqual(row.app_version, "0.3.1")
 
 
 if __name__ == "__main__":

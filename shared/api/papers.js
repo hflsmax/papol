@@ -289,7 +289,7 @@ export async function updatePaper(uuid, data) {
     const desiredTags = values.tag_uuids;
     delete values.tag_uuids;
     const changes = Object.keys(values).length ? [{
-      table: 'copies', uuid: copyUuid, operation: 'patch', values,
+      table: 'copies', uuid: copyUuid, operation: 'upsert', values,
     }] : [];
     if (desiredTags) {
       const nook = await nativeRepository.nook();
@@ -365,7 +365,7 @@ export function createShelf(data) {
 export function updateShelf(uuid, data) {
   if (nativeDataActive() && !('is_public' in data) && !('is_default' in data)) {
     return nativeRepository.transact([{
-      table: 'shelves', uuid, operation: 'patch', values: data,
+      table: 'shelves', uuid, operation: 'upsert', values: data,
     }]).then((receipt) => shelfView(receipt.rows[0]));
   }
   return onServer(() => jsonRequest(`/shelves/${uuid}`, 'PUT', data));
@@ -397,7 +397,7 @@ export function addComment(paperSha256, content) {
 export function updateComment(commentUuid, content) {
   if (nativeDataActive() && typeof commentUuid === 'string') {
     return nativeRepository.transact([{
-      table: 'annotations', uuid: commentUuid, operation: 'patch', values: { content },
+      table: 'annotations', uuid: commentUuid, operation: 'upsert', values: { content },
     }]).then((receipt) => annotationView(receipt.rows[0]));
   }
   return jsonRequest(`/annotations/${commentUuid}`, 'PUT', { content });

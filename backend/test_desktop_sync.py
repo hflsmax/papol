@@ -268,7 +268,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         item_uuid = str(uuid.uuid4())
         mutation_uuid = str(uuid.uuid4())
         create = {
-            "protocol_version": 1,
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client_uuid,
             "mutation_uuid": mutation_uuid,
             "local_sequence": 1,
@@ -304,7 +304,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         cursor = pulled["cursor"]
 
         delete = {
-            "protocol_version": 1,
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client_uuid,
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
@@ -343,7 +343,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
     def test_deleting_a_row_missing_after_server_restore_is_idempotent(self):
         payload = {
-            "protocol_version": 1,
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -380,6 +380,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         board_uuid = str(uuid.uuid4())
         client_uuid = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client_uuid, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 0,
@@ -409,6 +410,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             "/api/boards", headers=foreign_headers, json={"name": "Foreign"},
         ).json()
         payload = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -445,6 +447,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         board_uuid = str(uuid.uuid4())
         item_uuid = str(uuid.uuid4())
         payload = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -489,6 +492,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         # imported. So would the service. There is nothing to reconcile.
         copy_uuid = str(uuid.uuid4())
         payload = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
@@ -520,6 +524,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
         duplicate_copy = str(uuid.uuid4())
         duplicate = self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [
@@ -576,6 +581,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
         copy_uuid = str(uuid.uuid4())
         result = self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -607,6 +613,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         client = str(uuid.uuid4())
         copy_uuid = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [
@@ -618,6 +625,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             ],
         })
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{"table": "copies", "uuid": copy_uuid, "base_revision": 1,
@@ -626,6 +634,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
         again_copy = str(uuid.uuid4())
         revived = self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 3,
             "changes": [
@@ -689,6 +698,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         board_uuid = str(uuid.uuid4())
         for source_url in ("javascript:alert(1)", "https://user:secret@example.test/page"):
             payload = {
+                "protocol_version": sync_api.PROTOCOL_VERSION,
                 "client_uuid": str(uuid.uuid4()),
                 "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": 1,
@@ -714,6 +724,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         board_uuid = str(uuid.uuid4())
         first_client = str(uuid.uuid4())
         create = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": first_client,
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -724,22 +735,24 @@ class DesktopSyncContractTests(unittest.TestCase):
         }
         self.request("POST", "/api/sync/push", json=create)
         winning = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": first_client,
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"name": "First edit"},
+                "operation": "upsert", "values": {"name": "First edit"},
             }],
         }
         self.request("POST", "/api/sync/push", json=winning)
         stale = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
             "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"name": "Later edit"},
+                "operation": "upsert", "values": {"name": "Later edit"},
             }],
         }
         result = self.request("POST", "/api/sync/push", json=stale).json()
@@ -752,6 +765,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         board_uuid = str(uuid.uuid4())
         client = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 0,
@@ -759,6 +773,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         })
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2, "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
@@ -766,10 +781,11 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "boards", "uuid": board_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"name": "Unsynced edit"},
+                "operation": "upsert", "values": {"name": "Unsynced edit"},
             }],
         }).json()
         self.assertIsNotNone(stale["rows"][0]["deleted_at"])
@@ -784,6 +800,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         board_uuid, group_uuid = str(uuid.uuid4()), str(uuid.uuid4())
         client = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 1,
             "changes": [
                 {"table": "boards", "uuid": board_uuid, "base_revision": 0,
@@ -795,17 +812,19 @@ class DesktopSyncContractTests(unittest.TestCase):
             ],
         })
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
                 "table": "board_groups", "uuid": group_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"title": "Device one"},
+                "operation": "upsert", "values": {"title": "Device one"},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "board_groups", "uuid": group_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"title": "Device two"},
+                "operation": "upsert", "values": {"title": "Device two"},
             }],
         }).json()
         self.assertEqual(stale["rows"][0]["title"], "Device two")
@@ -826,6 +845,7 @@ class DesktopSyncContractTests(unittest.TestCase):
             paper_sha256 = paper.sha256
         ink_uuid, client = str(uuid.uuid4()), str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 1,
             "changes": [{
                 "table": "annotations", "uuid": ink_uuid, "base_revision": 0,
@@ -839,20 +859,22 @@ class DesktopSyncContractTests(unittest.TestCase):
             }],
         })
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client, "mutation_uuid": str(uuid.uuid4()), "local_sequence": 2,
             "changes": [{
                 "table": "annotations", "uuid": ink_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"body": json.dumps({
+                "operation": "upsert", "values": {"body": json.dumps({
                     "points": [{"x": 0.1, "y": 0.2}], "color": "#222222",
                     "width": 0.004, "opacity": 1, "shape": "flat",
                 })},
             }],
         })
         stale = self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()), "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1, "changes": [{
                 "table": "annotations", "uuid": ink_uuid, "base_revision": 1,
-                "operation": "patch", "values": {"body": json.dumps({
+                "operation": "upsert", "values": {"body": json.dumps({
                     "points": [{"x": 0.1, "y": 0.2}], "color": "#333333",
                     "width": 0.004, "opacity": 1, "shape": "flat",
                 })},
@@ -887,6 +909,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertTrue(any(table == "shelves" for table, _ in identities))
         ids = [str(uuid.uuid4()) for _ in range(3)]
         payload = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -1057,6 +1080,7 @@ class DesktopSyncContractTests(unittest.TestCase):
 
         shelf_uuid, tag_uuid, link_uuid = (str(uuid.uuid4()) for _ in range(3))
         payload = {
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -1070,7 +1094,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                     "values": {"name": "distributed"},
                 },
                 {
-                    "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                    "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                     "base_revision": 1,
                     "values": {
                         "shelf_uuid": shelf_uuid, "summary": "Saved without a network",
@@ -1101,11 +1125,12 @@ class DesktopSyncContractTests(unittest.TestCase):
             )
 
         rejected = self.client.request("POST", "/api/sync/push", headers=self.headers, json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": payload["client_uuid"],
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 2,
             "changes": [{
-                "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                 "base_revision": 2,
                 "values": {"rating_liking": 6},
             }],
@@ -1118,6 +1143,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         self.assertEqual([row["uuid"] for row in before["boards"]], [board["uuid"]])
 
         self.request("POST", "/api/sync/push", json={
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": str(uuid.uuid4()),
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": 1,
@@ -1153,11 +1179,12 @@ class DesktopSyncContractTests(unittest.TestCase):
 
         def move(shelf_uuid, sequence):
             return self.client.request("POST", "/api/sync/push", headers=self.headers, json={
+                "protocol_version": sync_api.PROTOCOL_VERSION,
                 "client_uuid": client_uuid,
                 "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": sequence,
                 "changes": [{
-                    "table": "copies", "uuid": copy_uuid, "operation": "patch",
+                    "table": "copies", "uuid": copy_uuid, "operation": "upsert",
                     "base_revision": revision, "values": {"shelf_uuid": shelf_uuid},
                 }],
             })
@@ -1277,7 +1304,7 @@ class DesktopSyncContractTests(unittest.TestCase):
     def board(self, name: str, client_uuid: str, sequence: int) -> str:
         board_uuid = str(uuid.uuid4())
         self.request("POST", "/api/sync/push", json={
-            "protocol_version": 1,
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client_uuid,
             "mutation_uuid": str(uuid.uuid4()),
             "local_sequence": sequence,
@@ -1380,7 +1407,7 @@ class DesktopSyncContractTests(unittest.TestCase):
         client_uuid = str(uuid.uuid4())
         mutation_uuid = str(uuid.uuid4())
         payload = {
-            "protocol_version": 1,
+            "protocol_version": sync_api.PROTOCOL_VERSION,
             "client_uuid": client_uuid,
             "mutation_uuid": mutation_uuid,
             "local_sequence": 1,

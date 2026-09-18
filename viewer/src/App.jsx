@@ -355,10 +355,7 @@ function paperAuthors(authors) {
   return authors ? JSON.parse(authors) : [];
 }
 
-function paperDoiHref(doi) {
-  const value = String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
-  return `https://doi.org/${value}`;
-}
+const paperDoiHref = (doi) => `https://doi.org/${doi}`;
 
 function savedReadingView() {
   const pdf = new URLSearchParams(window.location.search).get('pdf');

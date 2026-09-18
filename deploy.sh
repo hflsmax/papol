@@ -318,10 +318,6 @@ macos_release() {
   [ "$version" != "$current" ] || die "desktop is already version $version"
 
   # A release only ever moves forwards, and never below the wire's floor.
-  # v0.1.4 went out at 0.1.4 after the re-key had already taken the app to
-  # 0.2.0, which put the published build under the minimum the service asks
-  # for: every reader who downloaded it was told their Papol was too old.
-  # Nothing in the release path noticed, so these two now do.
   local floor
   floor=$(sed -n 's/^PROTOCOL_MINIMUM_VERSION = "\(.*\)"$/\1/p' \
     "$DEV_DIR/backend/services/client_requirements.py")

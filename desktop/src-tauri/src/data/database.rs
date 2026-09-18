@@ -1976,11 +1976,8 @@ fn apply_local_change(
         touch_parent_board(transaction, change, &now)?;
         return Ok(());
     }
-    if !matches!(change.operation.as_str(), "upsert" | "patch") {
-        return Err("Operation must be upsert, patch, or delete".into());
-    }
-    if inserting && change.operation == "patch" {
-        return Err("Cannot patch a row that is not in the local database".into());
+    if change.operation != "upsert" {
+        return Err("Operation must be upsert or delete".into());
     }
 
     let mut fields: BTreeMap<String, SqlValue> = change
@@ -2841,7 +2838,7 @@ mod tests {
                 vec![DataChange {
                     table: "annotations".into(),
                     uuid: stroke_uuid,
-                    operation: "patch".into(),
+                    operation: "upsert".into(),
                     values: Map::from_iter([(
                         "body".into(),
                         json!(json!({
@@ -2897,7 +2894,7 @@ mod tests {
                 vec![DataChange {
                     table: "boards".into(),
                     uuid: board_uuid,
-                    operation: "patch".into(),
+                    operation: "upsert".into(),
                     values: Map::from_iter([("name".into(), json!("Renamed"))]),
                 }],
             )
@@ -2940,7 +2937,7 @@ mod tests {
         let update = DataChange {
             table: "boards".into(),
             uuid,
-            operation: "patch".into(),
+            operation: "upsert".into(),
             values: Map::from_iter([("name".into(), Value::String("Not mine".into()))]),
         };
         assert!(store.mutate("8", vec![update]).is_err());
@@ -2998,7 +2995,7 @@ mod tests {
         let change = |values: Value| DataChange {
             table: "copies".into(),
             uuid: Uuid::new_v4().to_string(),
-            operation: "patch".into(),
+            operation: "upsert".into(),
             values: values.as_object().unwrap().clone(),
         };
         assert!(validate_domain_values(&change(json!({"rating_reading": 5}))).is_ok());
@@ -3930,7 +3927,7 @@ mod tests {
                 vec![DataChange {
                     table: "boards".into(),
                     uuid: board_uuid.clone(),
-                    operation: "patch".into(),
+                    operation: "upsert".into(),
                     values: Map::from_iter([("name".into(), json!("Offline edit"))]),
                 }],
             )
@@ -4071,7 +4068,7 @@ mod tests {
                         DataChange {
                             table: "copies".into(),
                             uuid: copy_uuid.clone(),
-                            operation: "patch".into(),
+                            operation: "upsert".into(),
                             values: Map::from_iter([("summary".into(), json!("Read locally"))]),
                         },
                         DataChange {

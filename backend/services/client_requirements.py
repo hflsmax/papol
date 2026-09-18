@@ -28,7 +28,7 @@ DEFAULT_DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases"
 #
 # The setting can hold clients to something newer than this. It cannot let
 # in a build that cannot be talked to.
-PROTOCOL_MINIMUM_VERSION = "0.2.0"
+PROTOCOL_MINIMUM_VERSION = "0.3.0"
 
 SUPPORTED = "supported"
 DEPRECATED = "deprecated"

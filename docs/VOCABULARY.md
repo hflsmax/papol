@@ -1,21 +1,12 @@
 # Papol vocabulary
 
-The words Papol uses for its own parts, where each one is spoken (product
-prose, UI label, code, database), and where two words are doing one job or one
-word two jobs.
+The words Papol uses for its own parts, and what each one means. One word
+names one thing, and it is the same word in prose, in labels and in code.
 
-Papol's source is written in prose — docstrings that explain a decision rather
-than restate a column. That style only pays if the nouns hold still. This file
-is where they are held.
-
-Three registers run through every entry below:
-
-- **Product** — the word `USER_STORIES.md` and the UI say to a user.
-- **Code** — the identifier in the source.
-- **Store** — the table or column.
-
-Where the three disagree, the entry says so, and §12 collects the ones worth
-acting on.
+Every term is spoken in three registers: **product** is the word
+`USER_STORIES.md` and the UI say to a user; **code** is the identifier in the
+source; **store** is the table or column. Where code or store carries an
+identifier of its own, the notes column gives it.
 
 ---
 
@@ -23,65 +14,63 @@ acting on.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **User** | Someone who uses Papol. | One word in all three registers: `User`, `users`, "user" on the page. Papol has exactly one kind of person, so it needs exactly one noun for them — **not "user"**, which names a role someone is currently playing rather than the account that holds their papers. |
-| **Visitor** | A user who is not signed in. | Sees the demo, a sharable, and the sign-in pages — nothing else. |
-| **Nook** | One user's public reading corner: their copies, shelves, boards, tags. | One word in all three registers: `Nook`, `getNook()`, `/users/<uuid>/nook`. |
-| **Shelf** | One of a user's five homes for papers, each **public** or **private**. | *Visibility lives here and nowhere else.* `Copy.is_public` asks the shelf each time rather than keeping a second copy of the fact. |
-| **Library** | **Every** paper there is, and every user who displays one. The place a paper is found rather than owned. | No display gates it (§2b); what display governs is the row of users shown against a paper. There is no separate word for the list of users — papers and the people who read them are two views of one Library, not two places. |
-| **Demo** | A fictional Papol that lives entirely in the browser; the URL is the sole authority for whether it is on. | `shared/demo.js`, `shared/demoWorld.js`. No request reaches the backend in demo. |
+| **User** | Someone with a Papol account. Papol has one kind of person and one noun for them. | `User`, `users`. |
+| **Visitor** | A user who is not signed in. | Sees the demo, a sharable and the sign-in pages, nothing else. |
+| **Nook** | One user's public reading corner: their copies, shelves, boards and tags. | `Nook.jsx`, `getNook()`, `GET /api/users/<uuid>/nook`, `route.page === 'nook'` at `/u/<uuid>`. |
+| **Shelf** | One of a user's homes for papers, each **public** or **private**. *Visibility lives on the shelf and nowhere else.* | `shelves.is_public`. A copy is public when its shelf is; the toggle in `NookManager.jsx` reads Public / Private. |
+| **Library** | Every paper there is, and every user with a copy on a public shelf. The place a paper is found rather than owned. | Papers and the people who read them are two views of one Library, not two places. `/library`, `route.page === 'papers'`. |
+| **Demo** | A fictional Papol that lives entirely in the browser. The URL is the sole authority for whether it is on. | `shared/demo.js`, `shared/demoWorld.js`. No request reaches the backend in demo. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
 ## 2. Works
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who has it, and **owned by none of them**. | Metadata, the seminar cohort and "also read by" hang off the paper, not off a copy. Nothing in the code asks whose a paper is (`USER_STORIES.md` §2b). Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
-| **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | Everything private in Papol hangs off a copy, never off a paper. Prefer **copy** over "entry"; see §12.2. |
-| **Jacket** | A work's one screen in the Library: what is known about it, and the way in. A paper has one; a board has one. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`. Named for the dust jacket, which is where a library keeps a work's title, its blurb and what other readers said — the same freight, and the reason it is not called a **page**: that word is a sheet of a PDF (§3), in the UI, the API and the store alike. A jacket is not the application that opens the work, either; those are **surfaces** (§9), and a jacket is a place *in* one. Every work has a jacket in every shell — on the desktop it sits in the Library window while the work itself opens in a document window of its own. |
-| **Summary** | My private prose about a paper. Mine alone, whatever the shelf says. | Belongs to the copy, so only its own user reads or writes it. |
-| **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | Labelled "My thought". Distinct from Summary in both length and audience — the labels are the only thing keeping the pair apart. |
-| **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored as `rating_expertise`, `rating_reading`, `rating_liking`. The third column's name predates its label. See §12.6. |
-| **Tag** | A user's own label, applied to their copies. | Private to the user; `copy_tags` joins them. |
+| **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who holds it, and **owned by none of them**. | `papers`, primary key `sha256`. Metadata, the seminar cohort and "also read by" hang off the paper, never off a copy. Nothing in the code asks whose a paper is. Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
+| **DOI** | A paper's DOI, stored bare: `10.1000/xyz`, without `https://doi.org/`. The server strips the resolver prefix from whatever it is given, so the link is built on the way out. | `papers.doi`; `bare_doi()` in `schemas.py`. |
+| **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | `copies`, `Copy`. A paper payload carries `copy_uuid` and `is_public` for the viewer's own copy. Everything private in Papol hangs off a copy. |
+| **Jacket** | A work's one screen in the Library: what is known about it, and the way in. A paper's is at `/paper/<name>`, a board's at `/board/<uuid>`. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`; `route.page` is `paper` or `board`. A jacket is a place in a surface (§9), not the application that opens the work. On the desktop it sits in the Library window while the work opens in a document window of its own. |
+| **Page** | One sheet of a PDF. | `annotations.page`, `data-page`, `.pdf-page`, "page 7" in the Navigator. `route.page` is the frontend router's index of screens (`home`, `signin`, `paper`, `board`, `nook`…), not a work's page. |
+| **Summary** | My private prose about a paper. Mine alone, whatever the shelf says. | `copies.summary`. Only its own user reads or writes it. |
+| **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | `copies.thought`, labelled "My thought". |
+| **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored on `copies` as `rating_expertise`, `rating_reading`, `rating_liking`; labels in `Rating.jsx`. |
+| **Tag** | A user's own label, applied to their copies. | `tags`, joined by `copy_tags`. Private to the user. |
 
-## 3. Annotations — what a user leaves on a PDF
+## 3. Annotations
 
-One table, `annotations`, three kinds. They differ in geometry, not in nature:
-each belongs to one user, sits on one paper, and is private
-until that user shares a reading.
-
-| Term | Meaning | Notes |
-| --- | --- | --- |
-| **Annotation** | The umbrella over all three. | The table's word, the API's word, and the product's word — one noun in all three registers. Prose that reaches for "mark" is reaching for a synonym Papol does not need; the source's older "a mark belongs to…" comments should say *annotation*. |
-| **Note** | Words, optionally **anchored** to a place on a page. | A located note is not a second kind of thing — it is a note with an anchor. One list, not two. |
-| **Anchor** | A note's place on a page. Typed: today `point`; `rect`, `polygon`, `quote` can join without a migration. | Drawn as a **pin** on the page and a **mark** on the Navigator; edited in its **card** (`.note-pop`, `NoteCard.jsx`), which hangs off the pin. Prose says "place" and "pin"; code says `anchor`. Prefer **anchor** for the datum, **pin** only for the thing on screen. |
-| **Ink** | A stroke drawn over the page, in one of five colours and four widths. | The kind is `'ink'`; the UI verb is **paint**. See §12.4 — the project's sharpest collision. |
-| **Clip** | A movable view of one rectangle of the page. | Its rectangle is its **frame**. |
-| **Stroke group** | Several stored strokes that are one logical annotation — text painted across lines is drawn as separate paths, picked up and erased as one. | `group_uuid`. Unrelated to a board group (§5). |
-| **Reading** | One user's annotations on one paper, taken together. | The thing a rich sharable carries. Named, not copied: reword a note and everyone holding the link sees the rewording. Worth promoting from a phrase to a term — sharing is unexplainable without it. |
-
-**Coordinates.** All annotation geometry is fractions of the page, so zoom, DPI and
-screen size never enter it. But there are *two* fraction conventions in Papol
-and both are spoken of as "fractions of the page":
-
-- **PDF-space fraction** — origin bottom-left, y up, as PDF measures. Used by
-  anchors, ink points and clip frames.
-- **Screen-space fraction** — origin top-left, y down. Used by citation boxes,
-  link boxes and backlink bands.
-
-Distinct from both: **page units**, PDF points from the top-left, used inside
-the viewer's text-layer geometry. See §12.7.
-
-## 4. Apparatus — what the PDF itself says
+Everything a user leaves on a PDF. One table, `annotations`, three kinds that
+differ in geometry, not in nature: each belongs to one user, sits on one
+paper, and is private until that user shares a reading.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Analyzer** | The optional service that reads a PDF's bibliography and links. | Optional by design: where it is not running, everything else works and citations are simply not clickable. |
-| **Reference** | One work cited by a paper, as printed. | `raw` is the line exactly as the author printed it — what a search matches, and what to show when nothing matches. |
-| **Citation** | One in-text marker — the "[12]" a user clicks — and its box. | "[3, 5]" is two citations, because each leads somewhere different. `inferred` marks one matched only by reading its number: a guess, shown as one. |
-| **Link** | An analyzed cross-reference to another position in the same PDF — "see Section 3.2", "Figure 4". | Following one offers **← Back to where you were** (the *return pill*). |
-| **Resolution** | What the bibliographic lookup added to a reference: `none`, `ok`, `miss`, `error`. | Filled the first time someone opens that reference, and kept. |
-| **Section** | One heading the paper declares, and the run of the paper under it — down to a subsection, no further. | Read from the PDF's own outline and from nowhere else — the author's answer, and the only one every other reader uses. A paper without an outline has no sections, which is what Preview shows too; inferring them from the printed text was tried over eighty papers and was wrong more often than right. Float bookmarks (`Fig. 3 …`, `Table 1 …`) are dropped: a caption names a picture. An **appendix** is a section like any other, marked as back matter: the part after the bibliography, or one that names itself. A journal's **end-of-paper notices** (Acknowledgements, Competing interests, Data availability…) are headings but not sections: they are in the outline and left off the Navigator. |
-| **Navigator** | The viewer's navigation, and the only kind it has: the paper drawn to length across the bar, its sections as segments as wide as they are long, the reader's anchors (triangles) and notes (dialog boxes) in a lane beneath at the same scale, and a marker at the middle of the window. It is pressed and drawn along like a scrubber: a press goes to exactly that place. | One word in all three registers — `Navigator.jsx`, `.navigator-*`, and the word for it in prose. Nothing opens: a section's *width* is the fact a list of names cannot state. It draws apparatus (§4) and annotations (§3) on one scale, which is what makes an anchor legible as being *in* a section. |
+| **Annotation** | The umbrella over the three kinds. | `annotations.kind` is `note`, `ink` or `clip`. One noun in all three registers. |
+| **Note** | Words, optionally **anchored** to a place on a page. A located note is a note with an anchor: one list, not two. | `kind = 'note'`; `page` is null for a note not on a page. |
+| **Anchor** | A note's place on a page, as a PDF-space fraction. Typed: `point` today; `rect`, `polygon` and `quote` can join without a migration. | `Anchor` in `backend/schemas.py`. Drawn as a **pin** on the page and a mark on the Navigator; edited in its **card** (`NoteCard.jsx`, `.note-pop`), which hangs off the pin. "Anchor" is the datum; "pin" is the thing on screen. |
+| **Ink** | A stroke drawn over the page, in one of five colours and four widths. Ink is the noun; **paint** is the verb. | `kind = 'ink'`, `InkPoint`, `INK_COLORS`, `selectionInk.js`, `paintText.js`; labels say "Paint selected text", "Remove paint". |
+| **Stroke group** | Several stored strokes that are one annotation: text painted across lines is drawn as separate paths and picked up and erased as one. | `annotations.group_uuid`. Not a board group (§5). |
+| **Clip** | A movable view of one rectangle of the page. The rectangle it shows is its **frame**. | `kind = 'clip'`; `ClipRect` is the source rectangle, `ClipFrame` where it sits. |
+| **Reading** | One user's annotations on one paper, taken together. The unit a rich sharable carries. | Named, not copied: reword a note and everyone holding the link sees the rewording. |
+| **PDF-space fraction** | A coordinate as a fraction of the page with origin bottom-left and y up, as PDF measures. The convention of anchors, ink points and clip rectangles. | `Anchor`, `InkPoint`, `ClipRect`. |
+| **Screen-space fraction** | A coordinate as a fraction of the page with origin top-left and y down. The convention of citation boxes, link boxes and backlink bands. | `CitationOut`, `DocumentLinkOut`, `references.js`. A `y` that crosses between the two conventions changes name when it changes convention. |
+| **Page units** | PDF points from the top-left, inside the viewer's text-layer geometry. Neither fraction. | `PdfPage.jsx`. |
+
+All annotation geometry is fractions of the page, so zoom, DPI and screen
+size never enter it.
+
+## 4. Apparatus
+
+What the PDF itself says.
+
+| Term | Meaning | Notes |
+| --- | --- | --- |
+| **Analyzer** | The optional service that reads a PDF's bibliography and links. | Where it is not running, everything else works and citations are not clickable. |
+| **Reference** | One work cited by a paper, as printed. | `ReferenceOut`. `raw` is the line exactly as the author printed it: what a search matches, and what is shown when nothing matches. |
+| **Citation** | One in-text marker — the "[12]" a user clicks — and its box, a screen-space fraction. | `CitationOut`. "[3, 5]" is two citations, because each leads somewhere different. `inferred` marks one matched only by reading its number: a guess, shown as one. |
+| **Link** | An analyzed cross-reference to another position in the same PDF — "see Section 3.2", "Figure 4". | `DocumentLinkOut`. Following one offers **← Back to where you were**, the **return pill** (`ReturnPill.jsx`). |
+| **Resolution** | What the bibliographic lookup added to a reference. | `resolved_status` is null until the reference is first opened, then `ok` or `bibliography` (the lookup found nothing and the printed line stands). Kept once filled. |
+| **Section** | One heading the paper declares, and the run of the paper under it — down to a subsection, no further. | Read from the PDF's own outline and from nowhere else; a paper without an outline has no sections. Float bookmarks (`Fig. 3 …`, `Table 1 …`) are dropped. An **appendix** is a section marked as back matter: the part after the bibliography, or one that names itself. A journal's **end-of-paper notices** (Acknowledgements, Competing interests, Data availability…) are headings but not sections. `sections.js`. |
+| **Navigator** | The viewer's navigation, and the only kind it has: the paper drawn to length across the bar, its sections as segments as wide as they are long, the reader's anchors (triangles) and notes (dialog boxes) in a lane beneath at the same scale, and a marker at the middle of the window. A press goes to exactly that place. | `Navigator.jsx`, `.navigator-*`. It draws apparatus and annotations on one scale, which is what makes an anchor legible as being *in* a section. |
 
 Reading a bibliography happens once per **paper** and is kept, so only the
 first user of a PDF waits.
@@ -90,23 +79,23 @@ first user of a PDF waits.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Board** | A private ideation space inside one user's nook. | Two addresses, as a paper has: its **jacket** (§2) in the Library, and the canvas it opens on, served full-screen at `/boards/<guid>`. |
-| **Card** | One item on a board. Its `kind` is `comment`, `excerpt`, `image`, `file`, `youtube` or `webpage`. | `board_items`. "Card" is the product word; "item" is the schema word. |
-| **Board group** | A visual and behavioural grouping of cards: a **booklet** or a **collection**. | `board_groups.kind`. Unrelated to a stroke group (§3). |
-| **Excerpt** | Text carried out of the viewer onto a board — a selection, a painted passage, or a clip's contents. | Unwrapped from the PDF's visual line breaks on the way out; genuine paragraph breaks kept. |
-| **Backlink** | The canonical viewer URL a *board card* keeps, so it can send the user back to the place its excerpt came from. | Stored canonical rather than machine-local so it survives leaving one computer. Only a card has one; the viewer's way out to Papol is the **home button** (§6), which is a different thing and not a backlink. |
-| **Staged** | A card that has arrived but not yet been placed — it waits in a tray until dragged onto the board. | |
+| **Board** | A private ideation space inside one user's nook. | `boards`. Two addresses, as a paper has: its **jacket** (§2) in the Library, and the canvas it opens on, served full-screen at `/boards/<uuid>`. |
+| **Card** | One item on a board. Its kind is `comment`, `excerpt`, `image`, `file`, `youtube` or `webpage`. | `board_items`, `BoardItemOut`. |
+| **Board group** | A grouping of cards: a **booklet** or a **collection**. | `board_groups.kind`. Not a stroke group (§3). |
+| **Excerpt** | Text carried out of the viewer onto a board — a selection, a painted passage, or a clip's contents. | `board_items.excerpt_text`. Unwrapped from the PDF's visual line breaks on the way out; genuine paragraph breaks kept. |
+| **Backlink** | The canonical viewer URL a card keeps, so it can send the user back to the place its excerpt came from. | `board_items.source_url`. Canonical rather than machine-local, so it survives leaving one computer. Only a card has one; the viewer's way out is the **home button** (§6). |
+| **Staged** | A card that has arrived but not yet been placed. It waits in a tray until dragged onto the board. | `board_items.staged`. |
 
 ## 6. Sharing
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The UUID in the link is the whole of the permission. | |
-| **Home button** | The house worn by the viewer, the board and the desktop toolbar alike: out of this document and into the place it is kept — its **jacket** (§2). | `source.homeHref`, `papolHome()`. It goes to Papol itself only where there is no jacket to reach: a shared reading, or a file opened from disk, neither of which has a place in the Library — and the Library asks for an account besides. What it never does is step *backwards*: it leads to where the work is kept, not to wherever this reader came from, which is why one house serves a link, a bookmark and a reload alike. Not a **backlink** (§5), which is a board card's link to where its excerpt came from; and not the library app's **Back**, which is ordinary page history. |
-| **Rich** | A sharable carrying one user's **reading** — their annotations on that paper. Belongs to them; shown on their paper's jacket; theirs to revoke. | |
-| **Lean** | A sharable carrying the PDF alone. One per paper, belongs to nobody, names no user. | Never shown on a paper's jacket and never counted against its maker: nothing of theirs is in it. |
-| **Demote** | To turn a rich link lean, permanently, when the user takes the paper out of their nook or drops their annotations. | Permanent by design — putting the paper back must not quietly re-expose annotations to everyone still holding the link. |
-| **Revoke** | To stop a link opening at all. Final; sharing again mints a new one. | One word, matching `revokeSharable()` and `revoked_at`. Do **not** say "close": it borrows a window's word for something with no reopening. The row survives revocation, so a revoked link is answered with "no longer shared" rather than a 404 that reads as a typo. |
+| **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The UUID in the link is the whole of the permission. | `sharables`, `shared/api/sharables.js`. |
+| **Rich** | A sharable carrying one user's **reading**. Belongs to them, shown on their paper's jacket, theirs to revoke. | `Paper.sharable_uuid` is the viewer's own rich link. |
+| **Lean** | A sharable carrying the PDF alone. One per paper, belongs to nobody, names no user. | Never shown on a paper's jacket and never counted against its maker. |
+| **Demote** | To turn a rich link lean, permanently, when the user takes the paper out of their nook or drops their annotations. Putting the paper back never re-exposes annotations to anyone still holding the link. | `POST /api/sharables/<uuid>/lean`. |
+| **Revoke** | To stop a link opening at all. Final; sharing again mints a new one. | `revokeSharable()`, `DELETE /api/sharables/<uuid>`, `revoked_at`. The row survives revocation, so a revoked link answers "no longer shared" rather than 404. |
+| **Home button** | The house worn by the viewer, the board and the desktop toolbar alike: out of this document and into the place it is kept, its **jacket** (§2). | `source.homeHref`, `papolHome()`. It leads to Papol itself only where there is no jacket to reach: a shared reading, or a file opened from disk. It never steps *backwards*: it leads to where the work is kept, not to wherever this reader came from, so one house serves a link, a bookmark and a reload alike. Not a **backlink** (§5), and not the library app's **Back**, which is page history. |
 
 **Sharing is not displaying.** A shelf says who can *find* the paper; a link
 says who may *read this PDF*. Neither moves the other.
@@ -115,42 +104,44 @@ says who may *read this PDF*. Neither moves the other.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Call** | Requesting a spontaneous seminar on a paper. Notifies every user of that paper, including users whose own copy is private. | |
-| **Cohort** | The group where a called seminar is planned: leader, availability, platform, discussion. | Code and store call it a **Room** (`rooms`, `RoomPage.jsx`, `shared/api/rooms.js`). See §12.5. |
-| **Leader** | The user who answers a call and takes charge. | `seminarStyles.js` calls this user the *host*; see §12.9. |
-| **Participant** | The caller, the leader, and users who join or contribute. | |
+| **Call** | Requesting a spontaneous seminar on a paper. Notifies every user of that paper, including users whose copy is on a private shelf. | |
+| **Cohort** | The group where a called seminar is planned: leader, availability, platform, discussion. | `rooms`, `Room`, `RoomPage.jsx`, `shared/api/rooms.js`, `/room/<uuid>`. |
+| **Leader** | The user who answers a call and takes charge. | `rooms.leader_uuid`. Stepping down is `POST /api/rooms/<uuid>/unhost`. |
+| **Participant** | The caller, the leader, and users who join or contribute. | `room_participants`. |
 | **Availability** | Free-form text, editable until the seminar is scheduled, visible to the cohort. | |
-| **Style** | How the leader intends to run it: *A Presentation*, *Bring your questions*, *Guided discussion*, *Deep critique*, or their own free text. | Present in the product but absent from `USER_STORIES.md` §5 entirely. |
-| **States** | **called** → **planning** → **scheduled**. | Stored as `open`, `planning`, `scheduled`, `finished`. The first and last do not match the product's names; see §12.5. |
+| **Style** | How the leader intends to run it: *A Presentation*, *Bring your questions*, *Guided discussion*, *Deep critique*, or their own free text. | `seminarStyles.js`: keys `walkthrough`, `questions`, `guided`, `critique`; free text in `style_desc`. |
+| **States** | **called** → **planning** → **scheduled** → **finished**. Called is waiting for a leader; planning is a leader in charge; scheduled is a time and platform announced; finished is the leader marking it held. | `rooms.status` is `open`, `planning`, `scheduled`, `finished`. `/announce` schedules, `/finish` finishes. |
 
 ## 8. Handoff to Papol for Mac
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Papol for Mac** | The native macOS app. Same three surfaces, same account: a paper open in a browser and in the app is one paper, not a copy. | |
-| **Handoff** | Moving the document in front of the user *right now* from the browser into the app — same document, same place. | Distinct from the **download banner**, which advertises the app in general. A handoff names the thing; an advertisement names the software. |
-| **Handoff address** | The web address the user is already at, re-addressed to the app: `https://host/papol/viewer/?pdf=…` becomes `papol://host/papol/viewer/?pdf=…`. | One vocabulary, not two. Only the keys naming a document and a place in it cross over, because anyone at all can send the app one of these. |
-| **Document** | What the offer names: *this paper* or *this board*. Never "the app". | `handoffDocument()`. The demo has no document — nothing of the visitor's own to open. |
+| **Papol for Mac** | The native macOS app. Same three surfaces, same account: a paper open in a browser and in the app is one paper, not a copy. | `desktop/`. |
+| **Handoff** | Moving the document in front of the user *right now* from the browser into the app: same document, same place. | `shared/macHandoff.js`, `MacHandoffBar.jsx`. Distinct from the **download banner**, which advertises the app in general. |
+| **Handoff address** | The web address the user is already at, re-addressed to the app: `https://host/papol/viewer/?pdf=…` becomes `papol://host/papol/viewer/?pdf=…`. | Only the keys naming a document and a place in it cross over, because anyone at all can send the app one of these. |
+| **Document** | What the offer names: *this paper* or *this board*. Never "the app". | `handoffDocument()`. The demo has no document. |
 | **Not now / Don't ask again** | The two answers: this document, or this browser. Papol never opens the app without being asked. | `DEFERRED_KEY`, `RETIRED_KEY`. |
 
-Papol **cannot tell whether the app is installed** and does not pretend to. The
-only signal is whether the tab loses attention shortly after asking, which is a
-guess. The bar therefore never announces a verdict about the user's computer.
+Papol **cannot tell whether the app is installed** and does not pretend to.
+The only signal is whether the tab loses attention shortly after asking, which
+is a guess, so the bar never announces a verdict about the user's computer.
 
 ## 9. Surfaces and platform
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Surface** | One of Papol's three browser entry points: **library** (`frontend`), **viewer**, **board**. Separate applications that may share `shared/` but never import one another. | Enforced by the dependency-boundary test. |
-| **Adapter** | Per-application platform wiring, in `configurePlatform.js` — the only layer that imports Tauri. | |
-| **Native repository** | The finite set of desktop queries and atomic transactions exposed to the bundled UI, mirrored by a closed enum in Rust. | |
-| **Revision / tombstone / outbox** | The sync primitives: a server-side counter per row; a `deleted_at` that stands in for the row; the durable local record committed in the same transaction as the edit it describes. | |
-| **Client gate** | The compatibility check that refuses a client too old for the server's schema. | |
-| **Feature state** | Something Papol has shown a user, or been told by them, remembered in this browser. | One list in `featureStates.js`, so Admin can list and reset them without changes. |
+| **Surface** | One of Papol's three browser entry points: **library** (`frontend`), **viewer**, **board**. Separate applications that share `shared/` and never import one another. | Enforced by the dependency-boundary test; `docs/application-boundaries.md`. |
+| **Adapter** | Per-application platform wiring, in each surface's `configurePlatform.js`: the only layer that imports Tauri. | |
+| **Native repository** | The finite set of desktop queries and atomic transactions exposed to the bundled UI, mirrored by a closed enum in Rust. | `shared/nativeData.js`. |
+| **Listing** | What the macOS paper browser's sidebar is showing: `all`, `shelf:<uuid>`, `tag:<uuid>`, `boards` or `library`. | `desktopListings.js`, `?listing=`. |
+| **Sync change** | One row's movement between a replica and the server: the operation is `upsert` or `delete`. | `backend/sync/`. A **revision** is the server-side counter per row; a **tombstone** is a `deleted_at` that stands in for the row; the **outbox** is the durable local record committed in the same transaction as the edit it describes. |
+| **Schema version** | The number the developer bumps when a change lands that an existing database cannot be read under. | `schema_version` in `schema/sync_registry.json`. The server refuses to start on a database at another version; the desktop discards a replica at another version and synchronizes the account back. Nothing detects shape. |
+| **Client gate** | The compatibility check that refuses a client below the wire's floor. | `PROTOCOL_MINIMUM_VERSION` in `backend/services/client_requirements.py`, bumped when the wire changes; `shared/clientCompatibility.js`. |
+| **Feature state** | Something Papol has shown a user, or been told by them, remembered in this browser. | One list in `shared/featureStates.js`, so Admin can list and reset them. |
 
 ## 10. Voice
 
-From `frontend/DESIGN.md`, repeated here because it governs every label above:
+From `frontend/DESIGN.md` §Voice, which governs every label above:
 
 - Labels that **name the user's own content** say *my*: "My nook", "My
   thought", "My expertise".
@@ -163,179 +154,21 @@ From `frontend/DESIGN.md`, repeated here because it governs every label above:
 
 ## 11. Words to prefer
 
-For new prose and new identifiers.
+For all prose and all new identifiers.
 
 | Say | Not | Because |
 | --- | --- | --- |
-| user | user | One noun for the person, in all three registers. |
 | copy | entry, my paper | One noun for the per-user row. |
-| annotation | mark, marks | One noun for the umbrella, in all three registers. |
-| public shelf, private shelf | on display, displayed | Visibility is a property of a shelf. |
+| annotation | mark | One noun for the umbrella, in all three registers. |
+| public shelf, private shelf | on display, displayed, hidden | Visibility is a property of the shelf. |
 | paint *(verb)* | paint *(noun)* | The noun is **ink**. |
-| leader | host | "Host" means three things; see §12.9. |
-| cohort | room | Room is the table name only. |
+| ink | paint *(noun)* | Ink is the substance, the kind and the stored stroke. |
+| leader | host | `host` is a hostname. |
+| cohort | room | Room is the code and store identifier only. |
 | reading | "my notes and annotations" | The reading is the unit a rich link carries. |
 | revoke | close | A revoked link does not reopen. |
-| library | directory | Papers and the people who read them are two views of one library. |
+| library | directory | Papers and the people who read them are two views of one Library. |
 | the copy's user | the paper's owner | A copy is owned; a paper is not. |
-
----
-
-## 12. Drift and collisions
-
-Each of these is one word doing two jobs, or two words doing one. Entries
-marked **settled** have been acted on and are kept as the record of what was
-decided; the rest carry a recommendation and nothing more.
-
-### 12.1 Nook / Space — settled
-
-The code called the payload a **Space** (`getUserSpace`, `Space.jsx`, a
-`space` prop) beside files that said *nook*. It says **nook** now, in the
-component, the client, the route and the stylesheet; `route.page` for a
-user's nook is `nook`.
-
-### 12.2 Copy / entry
-
-`USER_STORIES.md` uses **entry** ("the user in whose nook the entry lives",
-"a displayed entry"), **copy** ("my copy is pinned to one of them"), and "my
-paper" for the same row. The code says `Copy` throughout.
-
-*Recommend* **copy** everywhere, and retire "entry".
-
-### 12.3 On display / public — settled
-
-Was the largest drift in the project: `USER_STORIES.md` defined **on display**
-as a per-paper switch and built §§3–5 on "a **displayed** entry", while the
-product had already moved visibility onto the **shelf**.
-
-Settled twice over. Visibility belongs to the shelf, and the toggle in
-`NookManager.jsx` reads **Public / Private**; and display was narrowed to what
-it actually governs — *a copy*, never the paper (§2b, US-2.11). Say **a copy
-on a public shelf**; of the paper there is nothing to say.
-
-### 12.4 Ink / paint
-
-One substance, two names, and each name has a second job.
-
-- The stored kind is `'ink'`; the offline architecture doc says "notes, ink and
-  clips"; `selectionInk.js`, `INK_COLORS`, `selectedInk`.
-- Every label a user reads says **paint**: "Paint selected text", "Remove
-  paint", "Send painted text to a board"; `paintText.js`.
-- **paint** is also the renderer: `const paint = async () => …` in `PdfPage`,
-  `first-contentful-paint` in `performance.js`, `board-card-paint-state`.
-- **ink** is also one of the five colours (`{ hex: '#14161a', name: 'Ink' }`)
-  *and* the design system's text-colour tokens (`--ink`, `--ink-soft`,
-  `--ink-faint`).
-
-So "the selected ink" could be a stroke or a swatch, and "paint the page" could
-be a user's act or a frame being drawn.
-
-*Recommend*: **ink** is the noun — the substance, the kind, the stored stroke.
-**paint** is the verb and only the verb; never "a paint", "the paint",
-"paints". Rename the fifth colour from *Ink* to *Black*, which is what it is.
-Leave `--ink-*` alone (it is CSS, and unambiguous there) but keep "ink" out of
-prose about text colour.
-
-### 12.5 Cohort / Room, and the state names
-
-Product says **cohort**; store and code say **room** (`rooms`,
-`room_participants`, `RoomPage.jsx`, `roomsApi.test.js`,
-`shared/api/rooms.js`). Separately, the product's three states are **called →
-planning → scheduled**, while `Room.status` holds `open`, `planning`,
-`scheduled`, `finished`: the first name differs and the fourth has no product
-meaning at all.
-
-*Recommend* renaming `Room` → `Cohort` in code, `open` → `called`, and either
-documenting `finished` or dropping it.
-
-### 12.6 Merit / liking
-
-The rating labelled **Merit** is stored as `rating_liking`. The column says
-something the label deliberately does not — merit is a judgement about the
-paper, liking is a fact about the user.
-
-*Recommend* renaming the column to `rating_merit`.
-
-### 12.7 Two kinds of "fractions of the page"
-
-`Annotation` says coordinates are "fractions of the page in PDF user space …
-y from the bottom". `PaperCitation` says the box is "fractions of the page
-from its top-left corner". Both are true; both are called the same thing; and a
-value of one kind passed where the other is expected is wrong by exactly the
-page height, which looks plausible near the middle of a page.
-
-*Recommend* naming them in comments and identifiers: **PDF-space fraction**
-(bottom-left) for annotation geometry, **screen-space fraction** (top-left) for
-citations, links and backlinks. A `y` that crosses between them should change
-name when it changes convention.
-
-### 12.8 Frame
-
-A **clip**'s rectangle is its `frame`; a **YouTube card**'s captured still is
-also called a frame; and `viewport` / `frame` sit together in `PdfPage`.
-
-*Recommend* keeping `frame` for the clip rectangle and calling the YouTube
-still a **still** or a **thumbnail** (`'thumbnail'` is already a kind used
-nearby).
-
-### 12.9 Host — settled
-
-`USER_STORIES.md` used to define **Host** as "the owner of a paper entry",
-while `seminarStyles.js` used *host* for the user running a seminar and the
-source used `host` overwhelmingly for a hostname — `url.host`, `SMTP_HOST`,
-the DOM element a layer is drawn into.
-
-Settled by removing the idea rather than the word: a paper has no owner, so
-there is nobody for "host" to name. The vocabulary entry is gone. In a seminar
-say **leader**; of a copy say **its user**; and `host` now means a hostname
-everywhere it appears.
-
-### 12.10 Source — settled
-
-Three unrelated meanings were live. Two remain, and they no longer share a
-word: `viewer/src/source.js` is *where this document and its notes come
-from*, and `board_items.source_url` is *where a card came from on the web*.
-The macOS paper browser's third — which listing it is showing (`all`,
-`shelf:<uuid>`, `library`) — is a **listing** (`desktopListings.js`,
-`?listing=`).
-
-### 12.11 Group
-
-An annotation's `group_uuid` (strokes erased as one) and a board's `board_groups`
-(booklets and collections) are unrelated. Both are correct in isolation and
-confusing in any sentence that mentions boards and annotations together.
-
-*Recommend* **stroke group** and **board group** whenever both are in scope.
-
----
-
-## 13. Terms proposed here
-
-New words this document introduces, all of them naming something the product
-already does but had no noun for:
-
-- **Reading** (§3) — one user's annotations on one paper, as a unit. What a rich
-  sharable carries and a lean one does not.
-- **PDF-space fraction** / **screen-space fraction** (§3) — the two coordinate
-  conventions, told apart.
-- **Demote** (§6) — a rich link becoming lean, permanently.
-- **Surface** (§9) — one of the three browser applications.
-- **Handoff address** (§8) — the web address re-addressed to the app.
-- **Stroke group** / **board group** (§§3, 5) — the two groups, told apart.
-
-### 12.12 Page — settled
-
-**Page** named two things. In the Library it was a work's own screen ("the
-paper page", US-2.2, US-2.13, US-3.4); in the viewer it is one sheet of a PDF
-— `note.page`, `data-page`, `.pdf-page`, "page 7" in the Navigator's tooltip.
-
-The sheet kept the word, because it owns it in all three registers at once: a
-reader says "page 7", the API answers `page`, and `comments.page` is a
-persisted column, so renaming it would be a wire and schema break for a word
-nobody misreads. The Library's sense gave it up and became the **jacket**
-(§2), which says more about that screen than "page" ever did.
-
-What is left of the word outside the viewer is `route.page` in the frontend's
-router, meaning *which screen* — `home`, `signin`, `paper`, `board`. That is
-the router's own index and not a work's anything; the two jacket routes are
-`paper` and `board`.
+| jacket | paper page, board page | A page is a sheet of a PDF. |
+| listing | source | Source is where a document or a card came from. |
+| stroke group, board group | group | Two unrelated groupings; say which. |

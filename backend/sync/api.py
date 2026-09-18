@@ -28,7 +28,10 @@ from services.client_requirements import (
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
-from schemas import AnnotationCreate, PaperMetadata
+from schemas import (
+    AnnotationCreate, BoardGroupUpdate, BoardItemUpdate, PaperMetadata, PaperUpdate,
+    ShelfCreate, TagCreate,
+)
 from app_limits import limit, mebibytes
 
 
@@ -79,7 +82,7 @@ class RowChange(BaseModel):
     # what lets an offline import name its paper without asking first.
     uuid: str
     base_revision: int | None = Field(default=None, ge=0)
-    operation: Literal["upsert", "patch", "delete"]
+    operation: Literal["upsert", "delete"]
     values: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -98,7 +101,7 @@ class RowChange(BaseModel):
 
 
 class PushRequest(BaseModel):
-    protocol_version: int = PROTOCOL_VERSION
+    protocol_version: int
     client_uuid: UUID
     mutation_uuid: UUID
     local_sequence: int = Field(ge=0)
@@ -241,6 +244,17 @@ def _owned_group(db: Session, group_uuid: str | None, board: Board) -> BoardGrou
     return group
 
 
+def _held_to(model, **fields):
+    """Refuse values the website's own form for this row would refuse."""
+    try:
+        model(**fields)
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error.errors(include_context=False, include_url=False),
+        )
+
+
 def _new_record(db: Session, change: RowChange, user: User, values: dict):
     row_uuid = str(change.uuid)
     if change.table == "papers":
@@ -373,19 +387,14 @@ def _assign_values(db: Session, record, values: dict, user: User):
             if key != "deleted_at":
                 setattr(record, key, value)
         record.name = (record.name or "").strip()
-        if not record.name or len(record.name) > limit("text", "shelf_name"):
-            raise HTTPException(status_code=422, detail="Shelf name must be 1–40 characters")
-        if (not isinstance(record.color, str) or len(record.color) != 7
-                or not record.color.startswith("#")):
-            raise HTTPException(status_code=422, detail="Invalid shelf color")
+        _held_to(ShelfCreate, name=record.name, color=record.color, is_public=bool(record.is_public))
         return
     if isinstance(record, Tag):
         for key, value in values.items():
             if key != "deleted_at":
                 setattr(record, key, value)
         record.name = (record.name or "").strip()
-        if not record.name or len(record.name) > limit("text", "tag_name"):
-            raise HTTPException(status_code=422, detail="Tag name must be 1–60 characters")
+        _held_to(TagCreate, name=record.name)
         return
     if isinstance(record, Copy):
         if "paper_sha256" in values:
@@ -405,19 +414,11 @@ def _assign_values(db: Session, record, values: dict, user: User):
         for key, value in values.items():
             if key not in {"paper_sha256", "shelf_uuid", "deleted_at"}:
                 setattr(record, key, value)
-        # The same limits PaperUpdate enforces for the online edit form.
-        for key in ("rating_expertise", "rating_reading", "rating_liking"):
-            rating = values.get(key)
-            if rating is not None and (
-                isinstance(rating, bool)
-                or not isinstance(rating, int)
-                or not limit("ratings", "min") <= rating <= limit("ratings", "max")
-            ):
-                raise HTTPException(
-                    status_code=422,
-                    detail=(f'Ratings must be whole numbers from {limit("ratings", "min")} '
-                            f'to {limit("ratings", "max")}'),
-                )
+        _held_to(PaperUpdate, **{
+            key: values[key]
+            for key in ("rating_expertise", "rating_reading", "rating_liking", "summary", "thought")
+            if key in values
+        })
         return
     if isinstance(record, CopyTagLink):
         if "copy_uuid" in values:
@@ -447,16 +448,14 @@ def _assign_values(db: Session, record, values: dict, user: User):
     if isinstance(record, BoardGroup):
         if record.kind not in {"booklet", "collection"}:
             raise HTTPException(status_code=422, detail="Invalid board group kind")
-        if (len(record.title or "") > limit("text", "board_group_title")
-                or len(record.header or "") > limit("text", "board_group_header")):
-            raise HTTPException(status_code=422, detail="Board group text is too long")
+        _held_to(BoardGroupUpdate, title=record.title, header=record.header)
     else:
         if record.kind not in {"comment", "excerpt", "image", "file", "youtube", "webpage"}:
             raise HTTPException(status_code=422, detail="Invalid board item kind")
-        if record.text_align not in {"left", "center", "right"}:
-            raise HTTPException(status_code=422, detail="Invalid text alignment")
-        if not limit("board", "item_width_min") <= record.width <= limit("board", "item_width_max"):
-            raise HTTPException(status_code=422, detail="Invalid board item width")
+        _held_to(
+            BoardItemUpdate, width=record.width, text_align=record.text_align,
+            position=record.position, content=record.content,
+        )
 
 
 def _apply_change(db: Session, change: RowChange, user: User):
@@ -486,8 +485,6 @@ def _apply_change(db: Session, change: RowChange, user: User):
         # makes retries idempotent without manufacturing a partial tombstone.
         if change.operation == "delete":
             return None, None
-        if change.operation == "patch":
-            raise HTTPException(status_code=409, detail="Synchronized row no longer exists")
         record = _new_record(db, change, user, change.values)
         db.add(record)
 
@@ -569,6 +566,18 @@ def push(
     db: Session = Depends(get_db),
 ):
     _require_supported_client(request, db)
+    if payload.protocol_version != PROTOCOL_VERSION:
+        # The wire is compared, not negotiated. A build the version floor let
+        # through speaks the one wire the registry declares, so anything else
+        # is a build that should not be here — the same answer as above.
+        raise HTTPException(
+            status_code=426,
+            detail={
+                "error": "client_incompatible",
+                "minimum_version": requirements(db)["minimum_version"],
+                "download_url": requirements(db)["download_url"],
+            },
+        )
     client_uuid = str(payload.client_uuid)
     mutation_uuid = str(payload.mutation_uuid)
     fingerprint = hashlib.sha256(_canonical_payload(payload)).hexdigest()

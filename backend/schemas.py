@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field, model_validator
+import re
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 from typing import Optional, List, Literal
 from app_limits import limit
@@ -490,9 +492,24 @@ class FeedbackUpdate(BaseModel):
 
 # ---------- Papers ----------
 
+_DOI_URL = re.compile(r"^\s*(?:https?://)?(?:dx\.)?doi\.org/", re.IGNORECASE)
+
+
+def bare_doi(value):
+    """A DOI as it is stored: the identifier alone, never the resolver's URL."""
+    if value is None:
+        return None
+    return _DOI_URL.sub("", value).strip() or None
+
+
 class PaperBase(BaseModel):
-    """Shared, DOI-keyed metadata."""
+    """Shared metadata."""
     doi: Optional[str] = None
+
+    @field_validator("doi", mode="before")
+    @classmethod
+    def _bare_doi(cls, value):
+        return bare_doi(value)
     title: str
     authors: Optional[str] = None  # JSON array as string
     journal: Optional[str] = None
@@ -524,6 +541,11 @@ class PaperMetadata(BaseModel):
     a row nobody can find again."""
     doi: Optional[str] = Field(default=None, max_length=limit("text", "paper_doi"))
     title: str = Field(min_length=1, max_length=limit("text", "paper_title"))
+
+    @field_validator("doi", mode="before")
+    @classmethod
+    def _bare_doi(cls, value):
+        return bare_doi(value)
     authors: Optional[str] = Field(default=None, max_length=limit("text", "paper_authors"))
     journal: Optional[str] = Field(default=None, max_length=limit("text", "paper_journal"))
     year: Optional[int] = Field(
@@ -549,6 +571,11 @@ class PaperUpdate(BaseModel):
     title: Optional[str] = Field(
         default=None, min_length=1, max_length=limit("text", "paper_title"),
     )
+
+    @field_validator("doi", mode="before")
+    @classmethod
+    def _bare_doi(cls, value):
+        return bare_doi(value)
     authors: Optional[str] = Field(default=None, max_length=limit("text", "paper_authors"))
     journal: Optional[str] = Field(default=None, max_length=limit("text", "paper_journal"))
     year: Optional[int] = Field(

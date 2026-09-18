@@ -20,6 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import main
+from sync.registry import registry
 from database import Base, PapolSession, get_db
 from models import Copy, Paper, Shelf
 from services.papers import paper_name
@@ -137,7 +138,7 @@ class RemovedRowsAreNotCountedTests(unittest.TestCase):
         })
         refused = self.client.post(
             "/api/sync/push", headers=self.headers, json={
-                "protocol_version": 1,
+                "protocol_version": registry()["protocol_version"],
                 "client_uuid": str(uuid.uuid4()),
                 "mutation_uuid": str(uuid.uuid4()),
                 "local_sequence": 1,

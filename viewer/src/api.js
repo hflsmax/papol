@@ -259,7 +259,7 @@ export function updateAnnotation(uuid, changes) {
     }
     if (changes.body !== undefined) values.body = JSON.stringify(changes.body);
     return nativeRepository
-      .transact([{ table: 'annotations', uuid, operation: 'patch', values }])
+      .transact([{ table: 'annotations', uuid, operation: 'upsert', values }])
       .then((receipt) => annotationView(receipt.rows[0]));
   }
   return jsonRequest(`/annotations/${uuid}`, 'PUT', changes);
