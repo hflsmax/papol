@@ -237,13 +237,18 @@ class MetadataExtractionTests(unittest.TestCase):
             ],
         })
         self.assertEqual(summary["venue"], "Neural Information Processing Systems")
+        self.assertEqual(summary["host"], "arXiv (Cornell University)")
         self.assertEqual(summary["pdf_url"], "https://arxiv.org/pdf/1706.03762")
 
-    def test_openalex_venue_of_a_preprint_is_the_repository(self):
+    def test_openalex_hosts_are_not_venues(self):
         arxiv = {"source": {"display_name": "arXiv (Cornell University)", "type": "repository"}}
         work = {"primary_location": arxiv, "locations": [arxiv], "best_oa_location": arxiv}
-        self.assertEqual(openalex.venue_of(work), "arXiv (Cornell University)")
-        self.assertIsNone(openalex.venue_of({"primary_location": None, "locations": []}))
+        self.assertEqual(openalex.venue_of(work), (None, "arXiv (Cornell University)"))
+        ebook = {"source": {"display_name": "Elsevier eBooks", "type": "ebook platform"}}
+        self.assertEqual(openalex.venue_of({"primary_location": ebook}), (None, "Elsevier eBooks"))
+        self.assertEqual(
+            openalex.venue_of({"primary_location": None, "locations": []}), (None, None)
+        )
 
     def test_normalizes_display_only_all_caps_title(self):
         self.assertEqual(

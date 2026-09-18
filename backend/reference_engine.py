@@ -64,15 +64,37 @@ async def resolve(reference) -> ReferenceOut:
             # broken popup.
             status = "bibliography"
             summary = _bibliography_summary(reference)
-        elif summary and not summary.get("venue"):
-            # An index that knows the work but not where it appeared is
-            # thinner than the bibliography, which names the journal or the
-            # conference right there on the page.
-            summary["venue"] = getattr(reference, "journal", None)
+        elif summary:
+            _settle_venue(summary, reference)
         reference.resolved_status = status
         reference.resolution = json.dumps(summary) if summary else None
         reference.resolved_at = datetime.utcnow()
     return reference_out(reference)
+
+
+def _settle_venue(summary: dict, reference) -> None:
+    """Name the journal or conference, from whoever names it best.
+
+    The index first, when it names a real venue. Then the bibliography as
+    printed: an index that knows the work but not where it appeared is
+    thinner than the page in front of the reader. Last, wherever the index
+    found a copy — arXiv for a bare preprint — which is honest but is not
+    a venue, so it only speaks when nothing else does."""
+    host = summary.pop("host", None)
+    summary["venue"] = (
+        _tidy(summary.get("venue"))
+        or _tidy(getattr(reference, "journal", None))
+        or _tidy(host)
+    )
+
+
+def _tidy(venue) -> str | None:
+    """CrossRef container titles wrap across lines and, for ACM
+    proceedings, end in the dash that preceded a dropped subtitle."""
+    if not venue:
+        return None
+    text = " ".join(str(venue).split()).rstrip(" -")
+    return text or None
 
 
 def _bibliography_summary(reference) -> dict:
