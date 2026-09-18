@@ -30,9 +30,9 @@ test('desktop startup hydrates the token from web storage', async () => {
 });
 
 test('desktop credentials are stored in and removed from web storage', async () => {
-  await storeCredential('replacement', 7);
+  await storeCredential('replacement');
   assert.equal(values.get('papol_token'), 'replacement');
-  await storeCredential(null, 7);
+  await storeCredential(null);
   assert.equal(currentCredential(), null);
   assert.equal(values.has('papol_token'), false);
 });

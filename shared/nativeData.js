@@ -196,8 +196,6 @@ export const nativeRepository = Object.freeze({
   annotations: (paperSha256, kind = null) => nativeQuery(
     'annotations', { paper_sha256: paperSha256, kind },
   ),
-  copies: () => nativeQuery('copies'),
-  copyTags: () => nativeQuery('copy_tags'),
   nook: () => nativeQuery('nook'),
   paper: (uuid) => nativeQuery('paper', { uuid }),
   paperByPdf: (sha256) => nativeQuery('paper_by_pdf', { sha256 }),
@@ -252,10 +250,6 @@ export async function nativeBlobBytes(sha256) {
 
 export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream') {
   return URL.createObjectURL(new Blob([await nativeBlobBytes(sha256)], { type: mimeType }));
-}
-
-export function nativeStorageStatus() {
-  return nativeRepository.storageStatus();
 }
 
 export function openNativeStorageInFinder() {
@@ -338,13 +332,13 @@ export async function nativeSyncNow({ manual = false, pushOnly = false, pullOnly
 // Resolves to a failure message, or null.
 export async function syncAllNow() {
   exitOfflineMode();
-  const native = await Promise.allSettled([
-    nativeDataActive() ? nativeSyncNow({ manual: true }) : Promise.resolve(),
-  ]);
-  const failure = native.find((result) => result.status === 'rejected');
-  if (failure) {
-    const detail = failure.reason?.message || String(failure.reason || 'Sync failed');
-    return `${OFFLINE_MODE_MESSAGE} (${detail})`;
+  if (nativeDataActive()) {
+    try {
+      await nativeSyncNow({ manual: true });
+    } catch (failure) {
+      const detail = failure?.message || String(failure || 'Sync failed');
+      return `${OFFLINE_MODE_MESSAGE} (${detail})`;
+    }
   }
   if (inOfflineMode()) return OFFLINE_MODE_MESSAGE;
   try { sessionStorage.setItem('papol.syncPullUntil', String(Date.now() + 15_000)); } catch { /* best effort */ }
@@ -466,14 +460,6 @@ export async function openDroppedPdf(file) {
   await invoke('opened_file_open', { bytes, name: file.name || 'PDF document.pdf' });
 }
 
-// This device's notes, ink and clips on an opened file, by its SHA-256.
-export const localAnnotations = {
-  list: (sha256) => invoke('local_annotations_list', { sha256 }),
-  put: (sha256, kind, uuid, row) => invoke('local_annotation_put', { sha256, kind, uuid, row }),
-  remove: (uuid) => invoke('local_annotation_delete', { uuid }),
-  clear: (sha256) => invoke('local_annotations_clear', { sha256 }),
-};
-
 // A document window cannot sign in itself; the library window does.
 export function requestSignIn({ register = false } = {}) {
   return IS_DESKTOP ? invoke('request_sign_in', { register }) : Promise.resolve();
@@ -507,11 +493,12 @@ export function newUuid() {
   return globalThis.crypto.randomUUID();
 }
 
+// SQLite keeps a boolean as 0 or 1, and the replica answers with what it
+// keeps, so a flag is coerced once, here, on its way to the page.
 export function boardView(row, detail = false) {
-  const bool = (value) => value === true || value === 1;
   const item = (value) => ({
     ...value,
-    staged: bool(value.staged),
+    staged: Boolean(value.staged),
   });
   const items = (row.items || []).map(item);
   const stagedItems = (row.staged_items || []).map(item);
@@ -523,7 +510,7 @@ export function boardView(row, detail = false) {
     staged_items: detail ? stagedItems : [],
     groups: detail ? (row.groups || []).map((group) => ({
       ...group,
-      auto_arrange: bool(group.auto_arrange),
+      auto_arrange: Boolean(group.auto_arrange),
       header: group.header || '',
     })) : [],
   };
@@ -542,39 +529,35 @@ export function annotationView(row) {
 }
 
 export function shelfView(row) {
-  const bool = (value) => value === true || value === 1;
   return {
     ...row,
-    is_public: bool(row.is_public),
-    is_default: bool(row.is_default),
+    is_public: Boolean(row.is_public),
+    is_default: Boolean(row.is_default),
     paper_count: row.paper_count || 0,
     board_count: row.board_count || 0,
   };
 }
 
 export function paperView(row) {
-  const bool = (value) => value === true || value === 1;
   return {
     ...row,
-    is_public: bool(row.is_public),
-    is_author: bool(row.is_author),
+    is_public: Boolean(row.is_public),
+    is_author: Boolean(row.is_author),
     viewer_has_entry: true,
-    viewer_has_copy: bool(row.is_public),
+    viewer_has_copy: Boolean(row.is_public),
   };
 }
 
-if (typeof window !== 'undefined' && IS_DESKTOP) {
+if (IS_DESKTOP) {
   hydrateNativeSyncPreference().catch(() => {});
   window.addEventListener('online', () => {
     exitOfflineMode();
     scheduleAutomaticNativeSync();
   });
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && globalThis.navigator?.onLine !== false) {
-        exitOfflineMode();
-        scheduleAutomaticNativeSync();
-      }
-    });
-  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && navigator.onLine !== false) {
+      exitOfflineMode();
+      scheduleAutomaticNativeSync();
+    }
+  });
 }

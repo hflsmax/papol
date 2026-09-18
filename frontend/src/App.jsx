@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
-  getMe, getStartupUser, getToken, setToken, logout, pendingLocalChanges,
+  getMe, getStartupUser, getToken, logout, pendingLocalChanges,
   refreshStartupUser,
 } from '../../shared/api/account.js';
 import { getNotifications, getPendingAdminMessages } from '../../shared/api/notifications.js';
@@ -9,7 +9,9 @@ import AuthPage from './components/AuthPage';
 import Space from './components/Space';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
-import { demoActive, enterDemo, exitDemo } from '../../shared/demo.js';
+import { resetDemo } from '../../shared/demo.js';
+import { inDemo } from '../../shared/appUrls.js';
+import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
 import PapersPage from './components/PapersPage';
 import RoomPage from './components/RoomPage';
@@ -49,7 +51,7 @@ import {
 import {
   checkClientCompatibility, setClientCompatibility,
 } from '../../shared/clientCompatibility.js';
-import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
+import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 
 const demoPath = (path) => {
@@ -72,10 +74,10 @@ const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DI
 
 // A path as the address bar spells it: under /demo while the demo is on,
 // and under the base the app is served from.
-const mountedPath = (path) => appPath(demoActive() ? demoPath(path) : path);
+const mountedPath = (path) => appPath(inDemo() ? demoPath(path) : path);
 
 function navigate(path, { replace = false } = {}) {
-  const destination = demoActive() && !['/signin', '/join'].includes(path)
+  const destination = inDemo() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
     ? demoPath(path)
     : path;
@@ -113,7 +115,7 @@ function openBoard(uuid) {
 // leaves the Library — on the desktop into a document window beside it, on
 // the web by going there.
 function openBoardCanvas(uuid) {
-  const path = demoActive() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
+  const path = inDemo() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
   if (DESKTOP) {
     openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
     return;
@@ -240,7 +242,7 @@ export default function App({ startupUser = null, startupError = null }) {
     try {
       setUser(await getMe());
     } catch {
-      await setToken(null);
+      await storeCredential(null);
       setUser(null);
     }
   };
@@ -326,10 +328,10 @@ export default function App({ startupUser = null, startupError = null }) {
     const onRouteChange = async () => {
       const next = parseRoute();
       if (next.demo && !route.demo) {
-        enterDemo();
+        resetDemo();
         setUser(await getMe());
       } else if (!next.demo && route.demo) {
-        exitDemo();
+        resetDemo();
         await restoreRealUser();
       }
       setRoute(next);
@@ -343,11 +345,11 @@ export default function App({ startupUser = null, startupError = null }) {
     // recipient into the fictional demo before that paper is opened.
     const initialRoute = parseRoute();
     if (initialRoute.demo) {
-      enterDemo();
+      resetDemo();
       getMe().then(setUser).finally(() => setAuthChecked(true));
       return;
     }
-    exitDemo();
+    resetDemo();
     if (startupUser) {
       // The local desktop identity is already on screen. Server auth now
       // refreshes network capability and profile data in the background.
@@ -358,7 +360,7 @@ export default function App({ startupUser = null, startupError = null }) {
     }
     if (initialRoute.page === 'paper') {
       if (getToken()) {
-        getMe().then(setUser).catch(() => setToken(null)).finally(() => setAuthChecked(true));
+        getMe().then(setUser).catch(() => storeCredential(null)).finally(() => setAuthChecked(true));
       } else {
         setAuthChecked(true);
       }
@@ -374,7 +376,7 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(async () => {
         // A stale session becomes an ordinary guest session. Demo is only
         // entered by a URL that explicitly contains /demo.
-        await setToken(null);
+        await storeCredential(null);
         setUser(null);
       })
       .finally(() => setAuthChecked(true));
@@ -409,7 +411,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const signedInUser = useRef(user);
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
-    if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
+    if (!signedInUser.current || inDemo()) navigate(request?.register ? '/join' : '/signin');
   }), []);
 
   // A document user can reveal its paper in the permanent library window.
@@ -454,7 +456,7 @@ export default function App({ startupUser = null, startupError = null }) {
       || candidate.startsWith('/viewer/')
       ? candidate
       : '/';
-    exitDemo();
+    resetDemo();
     // login/register already persisted the credential for this account.
     setUser(user);
     // Surfaces of their own, built and served separately from this one:
@@ -469,7 +471,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const handleBackToAccount = async () => {
     window.history.replaceState(null, '', appPath('/'));
     setRoute(parseRoute());
-    exitDemo();
+    resetDemo();
     await restoreRealUser();
   };
 
@@ -478,7 +480,7 @@ export default function App({ startupUser = null, startupError = null }) {
   };
 
   const handleLogout = async () => {
-    if (demoActive()) {
+    if (inDemo()) {
       // Leaving the demo is a navigation, not a state teardown — the demo
       // stays alive underneath so Back returns into it. Signing in for
       // real (handleAuth) is what actually ends the demo.
@@ -517,7 +519,7 @@ export default function App({ startupUser = null, startupError = null }) {
       }
       return;
     }
-    exitDemo();
+    resetDemo();
     setUser(null);
     navigate('/');
   };
@@ -620,7 +622,7 @@ export default function App({ startupUser = null, startupError = null }) {
     </div>
   );
 
-  const demoBanner = user && demoActive() && (
+  const demoBanner = user && inDemo() && (
     <div className="demo-banner">
       <span>
         Demo mode — everything here is fictional and happens in your
@@ -720,7 +722,7 @@ export default function App({ startupUser = null, startupError = null }) {
         ) : (
           <HomePage
             currentUser={user}
-            onDemo={demoActive() ? undefined : handleDemo}
+            onDemo={inDemo() ? undefined : handleDemo}
           />
         ))}
       {route.page === 'space' && (
@@ -785,7 +787,7 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'about' && (
         <HomePage
           currentUser={user}
-          onDemo={demoActive() ? undefined : handleDemo}
+          onDemo={inDemo() ? undefined : handleDemo}
         />
       )}
       {route.page === 'learn' && <LearnPage />}

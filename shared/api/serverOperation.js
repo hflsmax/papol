@@ -5,9 +5,7 @@ import { inOfflineMode, OnlineRequiredError } from '../connectivity.js';
 // their authoritative result is reconciled into SQLite in the background.
 export async function onServer(send, { pull = true } = {}) {
   if (!nativeDataActive()) return send();
-  if (inOfflineMode() || globalThis.navigator?.onLine === false) {
-    throw new OnlineRequiredError();
-  }
+  if (inOfflineMode()) throw new OnlineRequiredError();
   try {
     // Publish only the dependencies this server action may refer to. Snapshot,
     // pull, and unrelated downloads belong to the background reconciliation.

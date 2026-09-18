@@ -7,19 +7,10 @@
 import {
   demoPapers, demoNotes, demoPaperSha256, noteAsComment,
 } from './demoWorld.js';
-import { inDemo } from './appUrls.js';
 import { PAPER_NAME_PATTERN, paperName } from './paperName.js';
 import appLimits from './appLimits.js';
 
-export function demoActive() {
-  return inDemo();
-}
-
-export function enterDemo() {
-  db = null;
-}
-
-export function exitDemo() {
+export function resetDemo() {
   db = null;
 }
 
@@ -128,8 +119,7 @@ function seed() {
   // The hint has done its work; a copy carries no visibility of its own.
   for (const item of copies) delete item.onDisplay;
 
-  // SpongeBob's notes, as the API would return them. Bare anchors and his
-  // Bare anchors are comments too, exactly as they are on the server.
+  // SpongeBob's notes, as the API would return them.
   const comments = demoNotes.map((n) => noteAsComment(n, ME, daysAgo));
 
 
@@ -190,10 +180,7 @@ if (navigation?.type === 'reload') {
 
 function storedWorld() {
   try {
-    const value = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
-    return value && Array.isArray(value.papers) && Array.isArray(value.copies)
-      ? value
-      : null;
+    return JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
   } catch {
     return null;
   }
@@ -528,7 +515,7 @@ async function routeDemoRequest(path, options = {}) {
     const paper = findPaper(m[1]);
     return ensure().comments
       .filter((c) => c.paper_sha256 === paper.sha256 && c.user_uuid === ME)
-      .map((c) => ({ ...c, kind: c.kind || 'note', body: c.body || {} }));
+;
   }
   if ((m = path.match(/^\/annotations\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const c = d.comments.find((x) => x.uuid === m[1] && x.user_uuid === ME);
@@ -537,7 +524,7 @@ async function routeDemoRequest(path, options = {}) {
     if (body.name !== undefined) c.name = body.name;
     if (body.page !== undefined) c.page = body.page;
     if (body.body !== undefined) c.body = { ...(c.body || {}), ...body.body };
-    return { ...c, kind: c.kind || 'note', body: c.body || {} };
+    return c;
   }
   if ((m = path.match(/^\/annotations\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
     const i = d.comments.findIndex((c) => c.uuid === m[1] && c.user_uuid === ME);

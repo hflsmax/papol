@@ -735,11 +735,6 @@ export const desktopStyles = `
   font: var(--fs-xs) var(--font-ui);
 }
 
-.desktop-board-edit-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .desktop-board-title-meta {
   display: flex;
   flex: none;

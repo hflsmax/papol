@@ -1,11 +1,11 @@
-import { demoActive } from '../demo.js';
+import { inDemo } from '../appUrls.js';
 import { IS_DESKTOP } from '../appEnvironment.js';
 import {
   nativeAccountUuid, nativeDataActive, nativeRepository, prepareNativeAccount,
   removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount,
 } from '../nativeData.js';
 import { runtimeFetch } from '../connectivity.js';
-import { API_BASE, authHeaders, jsonRequest, request } from '../httpClient.js';
+import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
 import { currentCredential, storeCredential } from '../credentials.js';
 import { withAbortTimeout } from '../requestTimeout.js';
 import { activateDesktopSession } from '../authTransition.js';
@@ -16,10 +16,6 @@ const DESKTOP_AUTH_TIMEOUT_MS = appLimits.timeouts_ms.desktop_auth;
 
 export function getToken() {
   return currentCredential();
-}
-
-export function setToken(token, accountUuid = null) {
-  return storeCredential(token, accountUuid);
 }
 
 // Papol macOS treats the local replica as the startup identity. Reading it
@@ -59,7 +55,7 @@ export async function register(email, displayName, affiliation, password) {
     signal,
   }));
   await activateDesktopSession(result, {
-    storeToken: setToken,
+    storeToken: storeCredential,
     prepareAccount: prepareNativeAccount,
   });
   void scheduleAutomaticNativeSync().catch(() => {});
@@ -74,7 +70,7 @@ export async function login(email, password) {
     signal,
   }));
   await activateDesktopSession(result, {
-    storeToken: setToken,
+    storeToken: storeCredential,
     prepareAccount: prepareNativeAccount,
   });
   void scheduleAutomaticNativeSync().catch(() => {});
@@ -90,7 +86,7 @@ export async function logout(accountUuid = nativeAccountUuid()) {
     // Local sign-out must remain available while the backend is offline.
   } finally {
     try {
-      await storeCredential(null, accountUuid);
+      await storeCredential(null);
     } finally {
       setNativeAccount(null);
     }
@@ -132,7 +128,7 @@ export async function refreshStartupUser(localUser) {
     // A rejected server credential removes network access, not the identity
     // and local work stored on this computer. Reauthentication can restore
     // remote operations without tearing down the local shell.
-    await setToken(null);
+    await storeCredential(null);
     return localUser || nativeRepository.account();
   }
 }
@@ -152,7 +148,7 @@ export async function updateProfile(data) {
  * downloaded file from script.
  */
 export async function downloadMyData() {
-  if (demoActive()) {
+  if (inDemo()) {
     throw new Error(
       'The demo has nothing of yours to export — create a real account first.'
     );
@@ -160,15 +156,7 @@ export async function downloadMyData() {
   const response = await runtimeFetch(`${API_BASE}/auth/export`, {
     headers: authHeaders(),
   });
-  if (!response.ok) {
-    let message = `Error ${response.status}`;
-    try {
-      message = (await response.json()).detail || message;
-    } catch {
-      /* a failed export may not answer in JSON */
-    }
-    throw new Error(message);
-  }
+  if (!response.ok) await handleResponse(response);
   // The server names the file; fall back to the same shape if the header
   // is missing (a proxy may strip it).
   const disposition = response.headers.get('Content-Disposition') || '';
@@ -194,10 +182,6 @@ export function uploadAvatar(file) {
   const formData = new FormData();
   formData.append('file', file);
   return request('/auth/avatar', { method: 'POST', body: formData });
-}
-
-export function deleteAvatar() {
-  return request('/auth/avatar', { method: 'DELETE' });
 }
 
 export function changePassword(currentPassword, newPassword) {

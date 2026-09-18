@@ -10,9 +10,9 @@
     "dev": "vite",
     "build": "vite build",
     "test": "npm run test:unit && VITE_BASE=/papol/ npm run build && npm run smoke:browser",
-    "test:unit": "node --test --test-concurrency=1 src/*.test.js",
+    "test:unit": "node --test --test-concurrency=1 --import ./src/browserGlobals.mjs src/*.test.js",
     "smoke:browser": "node scripts/browser-smoke.mjs",
-    "test:sync": "node --test --test-concurrency=1 src/connectivity.test.js src/nativeData.test.js",
+    "test:sync": "node --test --test-concurrency=1 --import ./src/browserGlobals.mjs src/connectivity.test.js src/nativeData.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

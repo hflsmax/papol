@@ -27,7 +27,7 @@ const demoMediaBySha = new Map(demoMedia.map((asset) => [asset.sha256, asset]));
 const allMedia = [...Object.values(tutorialMedia), ...demoMedia];
 const inFlightBySha = new Map();
 
-export class DesktopMediaUnavailableError extends Error {
+class DesktopMediaUnavailableError extends Error {
   constructor(kind, cause) {
     super(`This ${kind} requires a network connection.`);
     this.name = 'DesktopMediaUnavailableError';
@@ -41,7 +41,6 @@ export function demoPaperMedia(sha256) {
 
 export function hydrateDesktopMedia(asset) {
   if (!IS_DESKTOP) throw new Error('Desktop media hydration is only available in Papol macOS');
-  if (!asset?.sha256 || !asset?.path) throw new TypeError('A valid media asset is required');
 
   let hydration = inFlightBySha.get(asset.sha256);
   if (hydration) return hydration;
@@ -51,9 +50,9 @@ export function hydrateDesktopMedia(asset) {
       const response = await runtimeFetch(backendPath(asset.path));
       if (!response.ok) throw new Error(`Media request failed with status ${response.status}`);
       const blob = await response.blob();
-      return await nativeBlobCache(asset.sha256, blob, asset.mimeType || blob.type || null);
+      return await nativeBlobCache(asset.sha256, blob, asset.mimeType);
     } catch (error) {
-      throw new DesktopMediaUnavailableError(asset.kind || 'file', error);
+      throw new DesktopMediaUnavailableError(asset.kind, error);
     }
   });
   inFlightBySha.set(asset.sha256, hydration);
@@ -65,7 +64,7 @@ export function hydrateDesktopMedia(asset) {
 }
 
 // Start immediately, but keep launch interactive and cap network/disk pressure.
-export async function startDesktopMediaHydration(concurrency = 2) {
+export async function startDesktopMediaHydration() {
   if (!IS_DESKTOP) return [];
   let next = 0;
   const results = [];
@@ -81,6 +80,6 @@ export async function startDesktopMediaHydration(concurrency = 2) {
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
+  await Promise.all([worker(), worker()]);
   return results;
 }

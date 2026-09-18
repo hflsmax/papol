@@ -5,16 +5,13 @@ import { PAPER_DRAG_TYPE, isBrowsing, sourcePath } from '../desktopSources';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { contextMenuHandler } from '../../../shared/contextMenu';
-import {
-  getSyncStatus, OFFLINE_MODE_MESSAGE, refreshSyncStatus,
-} from '../../../shared/connectivity.js';
+import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../../../shared/connectivity.js';
 import {
   nativeDataActive, nativeRepository, subscribeNativeData, syncAllNow,
   recordDiagnosticEvent,
 } from '../../../shared/nativeData.js';
-import {
-  unexpectedDesktopErrorReport, unrecoverableSyncReport,
-} from '../syncDiagnostics.js';
+import { unexpectedDesktopErrorReport } from '../../../shared/errorReport.js';
+import { unrecoverableSyncReport } from '../syncDiagnostics.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol macOS (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -143,14 +140,13 @@ function SyncControl({ onReportableError, onSynced }) {
         offer(report);
         setStatus({
           ...web,
-          syncing: web.syncing || nativeSyncing,
-          pending: web.pending + local.pending,
+          syncing: nativeSyncing,
+          pending: local.pending,
           error: web.error || local.error || local.outbox_error || null,
-          conflicts: local.conflicts || 0,
-          lastSynced: local.last_synced_at || web.lastSynced,
+          conflicts: local.conflicts,
         });
       } catch (error) {
-        setStatus({ ...web, syncing: web.syncing || nativeSyncing });
+        setStatus({ ...web, syncing: nativeSyncing });
         offer(unexpectedDesktopErrorReport(error, 'reading native sync status', {
           surface: window.__PAPOL_ENV__?.surface,
           platform: navigator.platform,
@@ -162,8 +158,7 @@ function SyncControl({ onReportableError, onSynced }) {
       if (typeof nativeStatus?.syncing === 'boolean') nativeSyncing = nativeStatus.syncing;
       update();
     });
-    refreshSyncStatus().then(update).catch(() => {});
-    document.getElementById('papol-offline-status')?.remove();
+    update();
     return () => {
       unsubscribeNative();
       window.removeEventListener('papol-offline-status', update);
@@ -173,15 +168,14 @@ function SyncControl({ onReportableError, onSynced }) {
   const syncNow = async () => {
     setStatus((current) => ({ ...current, syncing: true, error: null }));
     const failure = await syncAllNow();
-    const latest = { ...getSyncStatus(), syncing: false };
+    const latest = { ...getSyncStatus(), syncing: false, pending: 0 };
     if (failure) latest.error = failure;
     if (nativeDataActive()) {
       try {
         const local = await nativeRepository.syncStatus();
-        latest.pending += local.pending;
+        latest.pending = local.pending;
         latest.error ||= local.error || local.outbox_error;
-        latest.conflicts = local.conflicts || 0;
-        latest.lastSynced = local.last_synced_at || latest.lastSynced;
+        latest.conflicts = local.conflicts;
       } catch { /* retain the last known native status */ }
     }
     setStatus(latest);

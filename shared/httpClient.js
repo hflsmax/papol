@@ -1,6 +1,5 @@
 import { CLIENT_PLATFORM } from './appEnvironment.js';
-import { backendPath } from './appUrls.js';
-import { inDemo } from './appUrls.js';
+import { backendPath, inDemo } from './appUrls.js';
 import { currentCredential } from './credentials.js';
 import { runtimeFetch } from './connectivity.js';
 
@@ -17,14 +16,10 @@ export function authHeaders(extra = {}) {
 
 export async function handleResponse(response) {
   if (!response.ok) {
-    let message = `Error ${response.status}`;
-    try {
-      const error = await response.json();
-      message = error.detail || message;
-    } catch {
-      message = await response.text() || message;
-    }
-    const failure = new Error(typeof message === 'string' ? message : JSON.stringify(message));
+    const detail = (await response.json().catch(() => null))?.detail;
+    const message = detail == null ? `Error ${response.status}`
+      : typeof detail === 'string' ? detail : JSON.stringify(detail);
+    const failure = new Error(message);
     failure.status = response.status;
     throw failure;
   }

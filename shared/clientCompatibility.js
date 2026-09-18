@@ -13,7 +13,7 @@
 
 import { getClientRequirements } from './api/clientRequirements.js';
 
-export const SUPPORTED = 'supported';
+const SUPPORTED = 'supported';
 export const DEPRECATED = 'deprecated';
 export const INCOMPATIBLE = 'incompatible';
 
@@ -74,9 +74,9 @@ export async function checkClientCompatibility() {
   try {
     const asked = await getClientRequirements();
     return setClientCompatibility({
-      verdict: asked?.verdict || SUPPORTED,
-      downloadUrl: asked?.download_url || null,
-      minimumVersion: asked?.minimum_version || null,
+      verdict: asked.verdict,
+      downloadUrl: asked.download_url,
+      minimumVersion: asked.minimum_version,
     });
   } catch {
     return state;

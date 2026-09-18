@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const {
-  unexpectedDesktopErrorReport, unrecoverableSyncReport,
-} = await import('./syncDiagnostics.js');
+const { unrecoverableSyncReport } = await import('./syncDiagnostics.js');
+const { unexpectedDesktopErrorReport } = await import('../../shared/errorReport.js');
 const {
   diagnosticLogExcerpt, feedbackWithDiagnosticLog,
 } = await import('../../shared/diagnosticLog.js');
@@ -18,16 +17,12 @@ test('only permanent blocked sync failures produce a diagnostic report', () => {
     conflicts: 2,
     last_synced_at: '2026-09-14T07:03:27Z',
     outbox_error: 'Sync server returned 413 Payload Too Large',
-  }, {
-    backend: 'https://example.test/papol/',
-    surface: 'main',
-    platform: 'MacIntel',
-  });
+  }, { surface: 'main', platform: 'MacIntel' });
 
   assert.match(report.content, /413 Payload Too Large/);
   assert.match(report.content, /Blocked changes: 1/);
   assert.match(report.content, /Conflicts: 2/);
-  assert.match(report.content, /Backend: https:\/\/example\.test\/papol\//);
+  assert.match(report.content, /Backend: /);
   assert.doesNotMatch(report.content, /account|token|mutation|filename/i);
 });
 

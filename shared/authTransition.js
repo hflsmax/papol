@@ -1,11 +1,11 @@
 export async function activateDesktopSession(result, {
   storeToken, prepareAccount,
 }) {
-  await storeToken(result.token, result.user.uuid);
+  await storeToken(result.token);
   try {
     await prepareAccount(result.user);
   } catch (error) {
-    await storeToken(null, result.user.uuid);
+    await storeToken(null);
     throw error;
   }
 }

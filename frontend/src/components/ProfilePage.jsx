@@ -15,7 +15,7 @@ import {
   setLocalSyncPreference,
 } from '../../../shared/connectivity.js';
 import {
-  clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
+  clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault,
   nativeRepository, nativeSyncInProgress, openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
   persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress, syncAllNow,
 } from '../../../shared/nativeData.js';
@@ -98,7 +98,7 @@ function LocalDeviceSettings({ onSynced }) {
 
   useEffect(() => {
     hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
-    nativeStorageStatus().then(setStorage).catch(() => {});
+    nativeRepository.storageStatus().then(setStorage).catch(() => {});
     const stopProgress = subscribeNativeSyncProgress((progress) => {
       setSync((current) => ({ ...current, running: true, error: null, progress }));
     });
@@ -113,7 +113,7 @@ function LocalDeviceSettings({ onSynced }) {
           progress: null,
           lastBytes: current.progress?.bytes ?? current.lastBytes,
         }));
-        nativeStorageStatus().then(setStorage).catch(() => {});
+        nativeRepository.storageStatus().then(setStorage).catch(() => {});
       } else if (typeof payload?.error === 'string') {
         setSync((current) => ({ ...current, error: payload.error }));
       }
@@ -172,7 +172,7 @@ function LocalDeviceSettings({ onSynced }) {
     setClearingData(true);
     try {
       await clearNativeData();
-      setStorage(await nativeStorageStatus());
+      setStorage(await nativeRepository.storageStatus());
     } finally {
       setClearingData(false);
     }

@@ -16,7 +16,7 @@ import { RatingInput, RatingSummary } from './Rating';
 import Markdown, { MarkdownHint } from './Markdown';
 import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
-import { demoActive } from '../../../shared/demo.js';
+import { inDemo } from '../../../shared/appUrls.js';
 import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
@@ -164,7 +164,7 @@ export default function PaperJacket({
   // a viewer URL.
   const viewerHref = () => {
     if (!paper?.sha256) return null;
-    const base = demoActive() ? '/demo/viewer/' : '/viewer/';
+    const base = inDemo() ? '/demo/viewer/' : '/viewer/';
     return appPath(`${base}?pdf=${paper.sha256}`);
   };
 
@@ -231,7 +231,7 @@ export default function PaperJacket({
       setPaper(added);
       // Swap the address to the canonical form without pushing a history
       // entry — it is the same page, and Back should leave it, not repeat it.
-      const modePrefix = demoActive() ? '/demo' : '';
+      const modePrefix = inDemo() ? '/demo' : '';
       window.history.replaceState(
         window.history.state,
         '',
@@ -509,8 +509,8 @@ export default function PaperJacket({
       link.click();
     } },
     hasEntry && { label: 'Edit Paper…', onSelect: startMetadataEdit },
-    currentUser && !demoActive() && { separator: true },
-    currentUser && !demoActive() && { label: 'Share…', onSelect: () => setShareOpen(true) },
+    currentUser && !inDemo() && { separator: true },
+    currentUser && !inDemo() && { label: 'Share…', onSelect: () => setShareOpen(true) },
     hasEntry && { separator: true },
     hasEntry && { label: 'Remove from My Nook…', onSelect: handleDelete },
   ]);
@@ -810,7 +810,7 @@ export default function PaperJacket({
                 {isAddingToNook ? 'Downloading PDF…' : 'Add to my nook'}
               </button>
             )}
-            {currentUser && !demoActive() && canShareThisPdf && (
+            {currentUser && !inDemo() && canShareThisPdf && (
               <div className="share-control" ref={shareControlRef}>
                 <button
                   type="button"

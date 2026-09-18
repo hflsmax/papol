@@ -1,17 +1,12 @@
 import React from 'react';
-import { MAC } from '../desktopShell.js';
 
-// Papol macOS's Back: a lone chevron at the leading edge of a toolbar,
-// before its title, as the App Store and System Settings have it. Only the
-// viewer and boards need one — they replace Papol's sidebar, and Back returns
-// to it — and nothing ever lies ahead of them, so there is no Forward beside
-// it. They are separate pages that each draw their own toolbar, so both use
-// this one control (DESIGN.md, "Desktop shell").
+// The one control Papol macOS's document windows share: the house that
+// leads to the Library. The viewer and boards each draw their own toolbar,
+// so both use this (DESIGN.md, "Desktop shell").
 //
 // It keeps no React state, so the viewer and boards can import it from here
 // even though they bundle their own copy of React.
 
-const MOD = MAC ? '⌘' : 'Ctrl+';
 const STYLE_ID = 'papol-desktop-nav-style';
 
 // The styles travel with the control because the viewer does not load
@@ -66,43 +61,23 @@ const STYLE = `
 `;
 
 if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
-  if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in document) {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(STYLE);
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-  } else {
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = STYLE;
-    document.head.appendChild(style);
-  }
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(STYLE);
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 
-// back/library: { onClick, label }. Without onClick a control is disabled.
-export default function DesktopNav({ back = {}, library = {} }) {
-  const { onClick, label = 'Back', disabled } = back;
-  const { onClick: onLibraryClick, label: libraryLabel = 'Open Library', disabled: libraryDisabled } = library;
+// library: { onClick, label }. Without onClick the control is disabled.
+export default function DesktopNav({ library = {} }) {
+  const { onClick, label = 'Open Library', disabled } = library;
   return (
     <div className="desktop-nav">
-      {Object.keys(back).length > 0 && <button
+      <button
         type="button"
         className="desktop-nav-button"
         onClick={onClick}
         disabled={disabled || !onClick}
         aria-label={label}
-        title={`${label} (${MOD}[)`}
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M10 3.25 5.25 8 10 12.75" />
-        </svg>
-      </button>}
-      <button
-        type="button"
-        className="desktop-nav-button"
-        onClick={onLibraryClick}
-        disabled={libraryDisabled || !onLibraryClick}
-        aria-label={libraryLabel}
-        title={libraryLabel}
+        title={label}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="m2.25 7.25 5.75-4.5 5.75 4.5" />
