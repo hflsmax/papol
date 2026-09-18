@@ -99,7 +99,7 @@ printf '    ok    / → home\n'
 check "/learn" learn
 check "/signin" signin
 check "/library" papers
-check "/u/$NOBODY" space
+check "/u/$NOBODY" nook
 check "/room/$NOBODY" room
 # A paper is not a guest's to read: every page of the real community needs a
 # session (US-1.4), and the service says so with a 401 the moment the page
