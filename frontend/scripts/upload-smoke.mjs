@@ -10,7 +10,7 @@ function uploadFixture(server) {
     const native = req.url.includes('native');
     const html = `<!doctype html><div id="test-root"></div>
       <script>
-        window.__PAPOL_ENV__ = {runtime: '${native ? 'desktop' : 'web'}', surface: 'main'};
+        window.__PAPOL_ENV__ = {runtime: '${native ? 'desktop' : 'web'}', surface: 'desk'};
         localStorage.setItem('papol.localAccountUuid', '77777777-7777-4777-8777-777777777777');
         window.failImport = false;
         window.__TAURI_INTERNALS__ = {invoke: async (command) => {

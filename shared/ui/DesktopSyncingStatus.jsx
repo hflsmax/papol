@@ -60,7 +60,7 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
   document.head.appendChild(style);
 }
 
-// Native synchronization is process-wide, while the Library, Viewer and
+// Native synchronization is process-wide, while the Desk, Viewer and
 // Board each run in their own WebView. Listen to the native event as well as
 // this window's lifecycle event so every toolbar reflects the same work.
 export default function DesktopSyncingStatus({ retry = true }) {

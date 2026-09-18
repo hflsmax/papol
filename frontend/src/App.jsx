@@ -25,7 +25,7 @@ import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
-import { DesktopBrowser, useNookSpace } from './components/DesktopLibrary';
+import { DesktopBrowser, useNookSpace } from './components/DesktopDesk';
 import { isBrowsing, lastShownSource, rememberSource, resolveSource } from './desktopSources';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
@@ -41,7 +41,7 @@ import { paperName } from '../../shared/paperName.js';
 import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
-import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
+import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
 import {
   nativeCompatibilityVerdict, openDroppedPdf, recordDiagnosticEvent,
   setNativeAccount, subscribeNativeData, subscribeShowPaperRequests, subscribeSignInRequests,
@@ -85,7 +85,7 @@ function navigate(path, { replace = false } = {}) {
   // to do nothing.
   const mountedDestination = appPath(destination);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
-  // A jacket's Back leads to the nook or library it was opened from,
+  // A jacket's Back leads to the nook or Desk it was opened from,
   // and this is the one door every in-app move goes through.
   writeJacketOrigin(originAfterMove(readJacketOrigin(), window.location.pathname, mountedDestination));
   if (replace) {
@@ -106,13 +106,13 @@ function navigate(path, { replace = false } = {}) {
 }
 
 // A board row opens the board's jacket, as a paper row opens a paper's: the
-// Library shows what it holds, and opening the work itself is the next step.
+// The Desk shows what it holds, and opening the work itself is the next step.
 function openBoard(uuid) {
   navigate(`/board/${uuid}`);
 }
 
 // The way in, from the jacket. The canvas is a separate application, so this
-// leaves the Library — on the desktop into a document window beside it, on
+// leaves the Desk — on the desktop into a document window beside it, on
 // the web by going there.
 function openBoardCanvas(uuid) {
   const path = demoActive() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
@@ -123,23 +123,23 @@ function openBoardCanvas(uuid) {
   window.location.assign(appPath(path));
 }
 
-function LibraryFileDropFeedback({ state, message, opensViewer = false }) {
+function DeskFileDropFeedback({ state, message, opensViewer = false }) {
   return <>
     {state && (
-      <div className={`library-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
-        <div className="library-file-drop-card">
+      <div className={`desk-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
+        <div className="desk-file-drop-card">
           <strong>{state === 'reject'
             ? 'PDF files only'
             : opensViewer ? 'Drop PDF to open' : 'Drop PDF to import'}</strong>
           <span>{state === 'reject'
-            ? 'Papol’s library only supports PDF files.'
+            ? 'Papol’s Desk only supports PDF files.'
             : opensViewer
               ? 'The paper will open in Papol’s PDF viewer.'
               : 'The paper will open for metadata review.'}</span>
         </div>
       </div>
     )}
-    {message && <div className="library-file-drop-notice" role="alert">{message}</div>}
+    {message && <div className="desk-file-drop-notice" role="alert">{message}</div>}
   </>;
 }
 
@@ -153,11 +153,11 @@ export default function App({ startupUser = null, startupError = null }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
-  const [libraryFileDrag, setLibraryFileDrag] = useState(null);
-  const [libraryDropNotice, setLibraryDropNotice] = useState(null);
+  const [deskFileDrag, setDeskFileDrag] = useState(null);
+  const [deskDropNotice, setDeskDropNotice] = useState(null);
   const [incomingPaperFile, setIncomingPaperFile] = useState(null);
-  const libraryDragDepth = useRef(0);
-  const libraryDropNoticeTimer = useRef(null);
+  const deskDragDepth = useRef(0);
+  const deskDropNoticeTimer = useRef(null);
   const offeredErrorReports = useRef(new Set());
   // The welcome modal greets every fresh demo visit. Returning from its
   // viewer is still the same visit, so consume the viewer's one-shot marker
@@ -248,37 +248,37 @@ export default function App({ startupUser = null, startupError = null }) {
   };
 
   useEffect(() => {
-    const importIntoLibrary = mode === 'signed-in';
+    const importIntoDesk = mode === 'signed-in';
     const openInViewer = DESKTOP && mode === 'guest';
-    if (!importIntoLibrary && !openInViewer) return undefined;
+    if (!importIntoDesk && !openInViewer) return undefined;
     const resetDrag = () => {
-      libraryDragDepth.current = 0;
-      setLibraryFileDrag(null);
+      deskDragDepth.current = 0;
+      setDeskFileDrag(null);
     };
     const showNotice = (message) => {
-      setLibraryDropNotice(message);
-      window.clearTimeout(libraryDropNoticeTimer.current);
-      libraryDropNoticeTimer.current = window.setTimeout(
-        () => setLibraryDropNotice(null), 4000,
+      setDeskDropNotice(message);
+      window.clearTimeout(deskDropNoticeTimer.current);
+      deskDropNoticeTimer.current = window.setTimeout(
+        () => setDeskDropNotice(null), 4000,
       );
     };
     const dragEnter = (event) => {
       if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
       event.preventDefault();
-      libraryDragDepth.current += 1;
-      setLibraryFileDrag(libraryFileDragState(event.dataTransfer));
+      deskDragDepth.current += 1;
+      setDeskFileDrag(deskFileDragState(event.dataTransfer));
     };
     const dragOver = (event) => {
       if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
       event.preventDefault();
-      const state = libraryFileDragState(event.dataTransfer);
+      const state = deskFileDragState(event.dataTransfer);
       event.dataTransfer.dropEffect = state === 'reject' ? 'none' : 'copy';
-      setLibraryFileDrag(state);
+      setDeskFileDrag(state);
     };
     const dragLeave = (event) => {
       if (!carriesFiles(event.dataTransfer)) return;
-      libraryDragDepth.current = Math.max(0, libraryDragDepth.current - 1);
-      if (libraryDragDepth.current === 0) setLibraryFileDrag(null);
+      deskDragDepth.current = Math.max(0, deskDragDepth.current - 1);
+      if (deskDragDepth.current === 0) setDeskFileDrag(null);
     };
     const drop = async (event) => {
       if (!carriesFiles(event.dataTransfer)) return;
@@ -291,10 +291,10 @@ export default function App({ startupUser = null, startupError = null }) {
         return;
       }
       if (!isPdfFile(files[0])) {
-        showNotice('Papol’s library only supports PDF files.');
+        showNotice('Papol’s Desk only supports PDF files.');
         return;
       }
-      setLibraryDropNotice(null);
+      setDeskDropNotice(null);
       if (openInViewer) {
         try {
           await openDroppedPdf(files[0]);
@@ -315,7 +315,7 @@ export default function App({ startupUser = null, startupError = null }) {
       window.removeEventListener('dragover', dragOver);
       window.removeEventListener('dragleave', dragLeave);
       window.removeEventListener('drop', drop);
-      window.clearTimeout(libraryDropNoticeTimer.current);
+      window.clearTimeout(deskDropNoticeTimer.current);
     };
   }, [mode]);
 
@@ -431,7 +431,7 @@ export default function App({ startupUser = null, startupError = null }) {
   }), []);
 
   // Viewer and board windows have separate WebKit storage. Adopt an account
-  // signed in there so the permanent library reflects it immediately.
+  // signed in there so the permanent Desk reflects it immediately.
   useEffect(() => subscribeNativeData((payload) => {
     if (demoActive() || !payload?.accountUuid || !payload.profile) return;
     setNativeAccount(payload.accountUuid);
@@ -574,9 +574,9 @@ export default function App({ startupUser = null, startupError = null }) {
   const backHref = window.history.state?.papolBackHref || appPath('/');
 
   // A jacket always has a Back, and it always leads to a place works
-  // are kept: the nook or library this one was opened from, or — for a link
+  // are kept: the nook or Desk this one was opened from, or — for a link
   // someone was sent, with no such place behind it — the user's own nook,
-  // and the library for a visitor. It used to be hidden whenever the page
+  // and the Desk for a visitor. It used to be hidden whenever the page
   // was not reached by an in-app click, which includes every return from
   // the viewer: the most travelled road onto this page had no way off it.
   const jacketBack = jacketBackTarget({ origin: readJacketOrigin(), userUuid: user?.uuid });
@@ -863,9 +863,9 @@ export default function App({ startupUser = null, startupError = null }) {
     return (
       <>
         <style>{applicationStyles}</style>
-        <LibraryFileDropFeedback
-          state={libraryFileDrag}
-          message={libraryDropNotice}
+        <DeskFileDropFeedback
+          state={deskFileDrag}
+          message={deskDropNotice}
           opensViewer={mode === 'guest'}
         />
         {demoIntro}
@@ -933,7 +933,7 @@ export default function App({ startupUser = null, startupError = null }) {
   return (
     <>
       <style>{applicationStyles}</style>
-      <LibraryFileDropFeedback state={libraryFileDrag} message={libraryDropNotice} />
+      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} />
       {demoIntro}
       {adminMessageDialog}
       {macosDownloadBanner}
@@ -972,7 +972,7 @@ export default function App({ startupUser = null, startupError = null }) {
               </a>
             )}
             <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
-              Library
+              Desk
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

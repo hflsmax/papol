@@ -1415,7 +1415,7 @@ export default function App() {
         runHistory(e.shiftKey ? 'redo' : 'undo');
         return;
       }
-      // A viewer in Papol's Desk window can return to the collection. Native
+      // A viewer in Papol's Desk window can return to the Library. Native
       // document windows use the standard Close Window command instead.
       if (DESKTOP && !DOCUMENT_WINDOW && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '[') {
         e.preventDefault();
@@ -3582,14 +3582,14 @@ export default function App() {
         }}
       >
         {/* The bar is the window's navigation: back to Papol and a quick way
-            to bring the library back to the front. */}
+            to bring the Desk back to the front. */}
         {DESKTOP ? (
           <DesktopNav
             desk={{
-              // The same errand the web glyph runs: the library, showing
+              // The same errand the web glyph runs: the Desk, showing
               // this paper. A paper only passing through — shared, or
               // opened from disk — has no page in this user's Papol, so
-              // the library is simply brought forward as it was.
+              // the Desk is simply brought forward as it was.
           onClick: () => focusDesktopDeskWindow(
                 readOnly ? undefined : paper?.sha256,
               ),
@@ -3636,7 +3636,7 @@ export default function App() {
           onTop={goToTop}
         />
         {/* A failed sync is reported, not offered again: the viewer is for
-            reading, and the library is where sync is driven from. */}
+            reading, and the Desk is where sync is driven from. */}
         <DesktopSyncingStatus retry={false} />
         {/* No button of its own: search is opened with Ctrl/Command+F, and
             the box that opens is anchored here. */}
