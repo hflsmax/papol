@@ -7,70 +7,49 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
 
+const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
+const storedSection = (userUuid) => {
+  try { return sessionStorage.getItem(sectionKey(userUuid)) || 'papers'; }
+  catch { return 'papers'; }
+};
+
 export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null }) {
   const [space, setSpace] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
   const [managingShelves, setManagingShelves] = useState(false);
   const [creatingBoard, setCreatingBoard] = useState(false);
-  const [section, setSection] = useState(() => {
-    if (initialSection) return initialSection;
-    try { return sessionStorage.getItem(`papol_nook_section_${userUuid}`) || 'papers'; }
-    catch { return 'papers'; }
-  });
+  const [section, setSection] = useState(() => initialSection || storedSection(userUuid));
 
   const isOwn = currentUser != null && currentUser.uuid === userUuid;
   const selectSection = (next) => {
     setSection(next);
-    try { sessionStorage.setItem(`papol_nook_section_${userUuid}`, next); }
+    try { sessionStorage.setItem(sectionKey(userUuid), next); }
     catch { /* session storage may be disabled */ }
   };
 
   useEffect(() => {
-    const next = initialSection || (() => {
-      try { return sessionStorage.getItem(`papol_nook_section_${userUuid}`); }
-      catch { return null; }
-    })() || 'papers';
-    setSection(next);
-    if (initialSection) {
-      try { sessionStorage.setItem(`papol_nook_section_${userUuid}`, initialSection); }
-      catch { /* session storage may be disabled */ }
-    }
+    if (initialSection) selectSection(initialSection);
+    else setSection(storedSection(userUuid));
   }, [userUuid, initialSection]);
 
   const loadSpace = useCallback(() => {
+    let active = true;
     setError(null);
     getUserSpace(userUuid)
-      .then(setSpace)
-      .catch((err) => setError(err.message))
-      .finally(() => setIsLoading(false));
+      .then((data) => { if (active) setSpace(data); })
+      .catch((err) => { if (active) setError(err.message); });
+    return () => { active = false; };
   }, [userUuid]);
 
   useEffect(() => {
-    let active = true;
-    setIsLoading(true);
     setSpace(null);
-    setError(null);
-    getUserSpace(userUuid)
-      .then((data) => {
-        if (active) setSpace(data);
-      })
-      .catch((err) => {
-        if (active) setError(err.message);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [userUuid]);
+    return loadSpace();
+  }, [loadSpace]);
 
-  if (isLoading) return <div className="loading" role="status" aria-live="polite">Loading nook…</div>;
   if (error) return <div className="error" role="alert">{error}</div>;
-  if (!space) return null;
+  if (!space) return <div className="loading" role="status" aria-live="polite">Loading nook…</div>;
 
   return (
     <div className={reviewingUpload ? 'space upload-review-mode' : 'space'}>
@@ -146,10 +125,10 @@ export default function Space({ userUuid, currentUser, onSelectPaper, onSelectBo
 
       <PaperList
           papers={space.papers}
-          boards={space.boards || []}
+          boards={space.boards}
           isOwn={isOwn}
           tags={isOwn ? space.tags : []}
-          shelves={space.shelves || []}
+          shelves={space.shelves}
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
           onSelectPaper={onSelectPaper}

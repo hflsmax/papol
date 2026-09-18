@@ -19,10 +19,6 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   // file, a board by `board:` and its UUID.
   const [toggleWarning, setToggleWarning] = useState(null);
   const [openShelfPicker, setOpenShelfPicker] = useState(null);
-  // The row this nook was asked to reveal, while it is being shown. Coming
-  // back from a board lands here, and the row it came from should be the
-  // one the eye finds.
-
   useEffect(() => {
     window.sessionStorage.setItem('papol.paperBrowserOpen', String(browserOpen));
   }, [browserOpen]);
@@ -51,7 +47,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
   const filteredPapers = papers.filter((paper) => {
     const searchLower = search.toLowerCase();
     return (selectedShelf == null || paper.shelf_uuid === selectedShelf) &&
-      (selectedTag == null || (paper.tags || []).some((tag) => tag.uuid === selectedTag)) && (
+      (selectedTag == null || paper.tags.some((tag) => tag.uuid === selectedTag)) && (
       paper.title.toLowerCase().includes(searchLower) ||
       (paper.authors && paper.authors.toLowerCase().includes(searchLower)) ||
       (paper.journal && paper.journal.toLowerCase().includes(searchLower))
@@ -66,9 +62,6 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
 
   // Your own nook reads as a journal: newest first, grouped by month.
   // Other nooks rank active seminars to the top.
-  filteredPapers.sort((a, b) =>
-    isOwn ? newestFirst(a, b) : seminarRank(a) - seminarRank(b) || newestFirst(a, b)
-  );
   const entries = [
     ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: seminarRank(paper) })),
     ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
@@ -130,7 +123,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   <span className="shelf-filter-copy">
                     <span className="shelf-filter-name">{shelf.name}</span>
                     <span className="shelf-filter-meta">
-                      {shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}, {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}
+                      {shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'}, {shelf.board_count} {shelf.board_count === 1 ? 'board' : 'boards'}
                       <span aria-hidden="true">·</span>
                       <span className="shelf-filter-visibility">
                         {shelf.is_public ? (
@@ -221,9 +214,9 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
               </li>;
             }
             const paper = entry.value;
-            return <React.Fragment key={`paper-${paper.sha256}`}>
-            <li
-              className={isOwn && paper.is_public === false ? 'paper-private' : ''}
+            return <li
+              key={`paper-${paper.sha256}`}
+              className={isOwn && !paper.is_public ? 'paper-private' : ''}
               onContextMenu={contextMenuHandler(() => [
                 { label: 'Open Paper', onSelect: () => onSelectPaper(paper.sha256) },
                 isOwn && shelves.length > 0 && { separator: true },
@@ -341,8 +334,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                     ))}
                   </div>
                 )}
-            </li>
-            </React.Fragment>;
+            </li>;
           })}
         </ul>
       )}

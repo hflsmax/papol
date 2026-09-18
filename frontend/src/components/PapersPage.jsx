@@ -9,7 +9,7 @@ import { appPath } from '../base';
 import { formatAuthors, newestFirst as newest, seminarRank } from '../paperFormat';
 
 const avgMerit = (p) => {
-  const rated = (p.users || [])
+  const rated = p.users
     .map((r) => r.rating_liking)
     .filter((v) => v != null);
   return rated.length
@@ -71,11 +71,11 @@ export default function PapersPage({
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>
-    (selectedUser == null || (p.users || []).some((r) => r.user.uuid === selectedUser)) &&
+    (selectedUser == null || p.users.some((r) => r.user.uuid === selectedUser)) &&
     (p.title.toLowerCase().includes(searchLower) ||
       (p.authors && p.authors.toLowerCase().includes(searchLower)) ||
       (p.journal && p.journal.toLowerCase().includes(searchLower)) ||
-      (p.users || []).some((r) =>
+      p.users.some((r) =>
         r.user.display_name.toLowerCase().includes(searchLower)
       ));
 
@@ -187,7 +187,7 @@ export default function PapersPage({
                   </p>
                 </div>
                 <div className="entry-chips">
-                  {(paper.users || []).map((entry) => (
+                  {paper.users.map((entry) => (
                     <a
                       key={entry.user.uuid}
                       className={

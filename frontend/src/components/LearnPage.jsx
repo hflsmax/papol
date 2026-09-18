@@ -11,7 +11,6 @@ const lessons = [
     section: 'Library',
     title: 'Upload and organize a PDF',
     video: tutorialMedia.uploadingPdf,
-    poster: '/assets/learn/uploading-a-pdf.jpg',
   },
   {
     id: 'clipping-figures',

@@ -1,17 +1,16 @@
 // Formatting and ordering rules for paper lists, shared by the website's nook
 // and library pages and Papol macOS's list pane.
 
-// "Diffie, Hellman" for two authors or fewer, "Vaswani et al." beyond. The
-// field is a JSON array; anything else is shown as it came.
+// A paper's authors are kept as a JSON list; an empty field is no authors.
+export function authorList(authorsJson) {
+  return authorsJson ? JSON.parse(authorsJson) : [];
+}
+
+// "Diffie, Hellman" for two authors or fewer, "Vaswani et al." beyond.
 export function formatAuthors(authorsJson) {
-  if (!authorsJson) return '';
-  try {
-    const authors = JSON.parse(authorsJson);
-    if (authors.length <= 2) return authors.join(', ');
-    return `${authors[0]} et al.`;
-  } catch {
-    return authorsJson;
-  }
+  const authors = authorList(authorsJson);
+  if (authors.length <= 2) return authors.join(', ');
+  return `${authors[0]} et al.`;
 }
 
 export const newestFirst = (a, b) => new Date(b.created_at) - new Date(a.created_at);

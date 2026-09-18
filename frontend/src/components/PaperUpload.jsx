@@ -8,16 +8,9 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
+import { authorList } from '../paperFormat';
 
-function editableAuthors(authors) {
-  if (!authors) return '';
-  try {
-    const parsed = JSON.parse(authors);
-    return Array.isArray(parsed) ? parsed.join(', ') : String(authors);
-  } catch {
-    return String(authors);
-  }
-}
+const editableAuthors = (authors) => authorList(authors).join(', ');
 
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
@@ -95,7 +88,7 @@ export default function PaperUpload({
         doi: data.doi || '',
         thought: '',
         summary: '',
-        shelf_uuid: (nativeDataActive()
+        shelf_uuid: (localImport
           ? shelfData.find((shelf) => !shelf.is_public)
           : shelfData.find((shelf) => shelf.is_default))?.uuid || shelfData[0]?.uuid || '',
         is_author: false,
@@ -272,7 +265,7 @@ export default function PaperUpload({
               <label htmlFor="upload-paper-authors">Authors (comma-separated)</label>
               {!localImport && <label
                 className="checkbox-row inline"
-                title="Annotations your chip on this paper as an author"
+                title="Marks your chip on this paper as an author"
               >
                 <input
                   type="checkbox"

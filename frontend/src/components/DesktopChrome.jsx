@@ -43,7 +43,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
   const browsing = isBrowsing(route, user);
   const at = (key) => browsing && source === key;
   // One shelf is the whole nook, so it only earns rows once there are two.
-  const shelves = space?.shelves?.length > 1 ? space.shelves : [];
+  const shelves = space?.shelves.length > 1 ? space.shelves : [];
   const tags = space?.tags || [];
   return [
     {
@@ -61,7 +61,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
           active: at(`shelf:${shelf.uuid}`),
           count: shelf.paper_count,
         })),
-        { key: 'boards', label: 'Boards', path: sourcePath('boards'), glyph: 'boards', active: at('boards'), count: space?.boards?.length },
+        { key: 'boards', label: 'Boards', path: sourcePath('boards'), glyph: 'boards', active: at('boards'), count: space?.boards.length },
       ],
     },
     ...(tags.length > 0 ? [{
@@ -211,7 +211,7 @@ function SyncControl({ onReportableError, onSynced }) {
 
 export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onReportableError, onSync, notice }) {
   const [dropKey, setDropKey] = useState(null);
-  const openPath = (path) => onNavigate ? onNavigate(path) : window.location.assign(appPath(path));
+  const openPath = (path) => onNavigate(path);
 
   // Shelves accept a paper dragged from the list, the way a Finder sidebar
   // accepts files: the shelf lights up under the pointer and takes the paper

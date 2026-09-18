@@ -5,8 +5,7 @@ import { PAPER_NAME_PATTERN } from '../../shared/paperName.js';
 // their UUID. A paper is addressed by the digest of its PDF, because a paper
 // *is* its file: the bytes say which paper a link means, and a paper has no
 // other name to be addressed by. It goes by the first half of that digest,
-// which is the same size as a UUID; the full one is still answered, because
-// links handed out before the name was shortened are still those papers'.
+// which is the same size as a UUID.
 const UUID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 const PAPER = `(${PAPER_NAME_PATTERN})`;
 
@@ -35,8 +34,7 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/about') return routed({ page: 'about' });
   if (path === '/learn') return routed({ page: 'learn' });
   if (path === '/signin') return routed({ page: 'signin' });
-  if (path === '/library' || path === '/papers') return routed({ page: 'papers' });
-  if (path === '/village' || path === '/users') return routed({ page: 'papers' });
+  if (path === '/library') return routed({ page: 'papers' });
   if (path === '/inbox') return routed({ page: 'inbox' });
   if (path === '/admin') return routed({ page: 'admin' });
   return routed({ page: 'home' });

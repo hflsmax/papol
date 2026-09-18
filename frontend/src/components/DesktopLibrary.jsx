@@ -248,14 +248,13 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
   };
   const cancelInline = () => { setEditingField(null); setDraftValue(''); setEditError(null); };
 
-  const staged = board?.staged_items || [];
+  const staged = board?.staged_items ?? [];
   const cardCount = board?.item_count ?? summary.item_count;
   return (
     <div className="desktop-scroll">
       <article className="desktop-board-overview">
         <header className="desktop-board-overview-head">
           <div>
-            <>
               <div className="desktop-board-title-row">
                 {editingField === 'name' ? (
                   <input
@@ -317,16 +316,13 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
                 </p>
               )}
               {editError && <p className="desktop-board-edit-error" role="alert">{editError}</p>}
-            </>
             <button type="button" className="primary desktop-board-open" onClick={onOpen}>Open Board</button>
           </div>
         </header>
 
         {loading && <div className="desktop-board-loading" role="status">Loading board preview…</div>}
         {error && <div className="desktop-board-loading error" role="alert">{error}</div>}
-        {board && (
-          <>
-            {staged.length > 0 && (
+        {board && staged.length > 0 && (
               <section className="desktop-board-staging" aria-labelledby="desktop-board-staging-title">
                 <div className="desktop-board-section-head">
                   <div><h2 id="desktop-board-staging-title">Waiting to place</h2><p>{staged.length} {staged.length === 1 ? 'item is' : 'items are'} ready on this board.</p></div>
@@ -343,8 +339,6 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
                   {staged.length > 4 && <div className="desktop-board-staged-more">+{staged.length - 4} more</div>}
                 </div>
               </section>
-            )}
-          </>
         )}
         <section className="desktop-board-canvas-section" aria-labelledby="desktop-board-canvas-title">
           <div className="desktop-board-section-head"><div><h2 id="desktop-board-canvas-title">Board preview</h2><p className="desktop-board-title-meta" aria-label="Board information"><span>{cardCount} {cardCount === 1 ? 'card' : 'cards'}</span><time dateTime={summary.updated_at}>Edited {formatBoardDate(summary.updated_at)}</time></p></div></div>
@@ -401,7 +395,7 @@ export function useNookSpace(userUuid, refreshKey) {
 
   return {
     space, setSpace, reload,
-    syncing: Boolean(userUuid) && (nativeSyncing || nativeSyncInProgress()),
+    syncing: Boolean(userUuid) && nativeSyncing,
   };
 }
 
@@ -461,7 +455,7 @@ export function DesktopBrowser({
     if (listRef.current.contains(document.activeElement)) row.focus({ preventScroll: true });
   }, [selectedKey]);
 
-  const shelves = space?.shelves || [];
+  const shelves = space?.shelves ?? [];
   const shelf = shelfOf(source, space);
   const tag = tagOf(source, space);
   const boardsView = source === 'boards';

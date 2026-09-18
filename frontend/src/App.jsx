@@ -394,7 +394,7 @@ export default function App({ startupUser = null, startupError = null }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!user || mode !== 'signed-in' || !getToken()) {
+    if (mode !== 'signed-in' || !getToken()) {
       setAdminMessages([]);
       return undefined;
     }

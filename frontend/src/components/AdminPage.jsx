@@ -319,7 +319,7 @@ function FeedbackPanel() {
               </p>
               <p className="feedback-content">{fb.content}</p>
               <button className="link-btn" onClick={() => toggle(fb)}>
-                {fb.resolved ? 'Reopen' : 'Annotation done'}
+                {fb.resolved ? 'Reopen' : 'Mark done'}
               </button>
             </li>
           ))}

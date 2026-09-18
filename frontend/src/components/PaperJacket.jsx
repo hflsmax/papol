@@ -17,6 +17,7 @@ import Markdown, { MarkdownHint } from './Markdown';
 import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
 import { inDemo } from '../../../shared/appUrls.js';
+import { authorList } from '../paperFormat';
 import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
@@ -147,7 +148,6 @@ export default function PaperJacket({
     try {
       const data = await getPaper(paperSha256);
       setPaper(overlay ? { ...data, ...overlay } : data);
-      setIsLoading(false);
       if (currentUser && data.viewer_has_entry) {
         listShelves().then(setShelves).catch((err) => setError(err.message));
       }
@@ -171,15 +171,6 @@ export default function PaperJacket({
   const noteHref = (comment) => {
     const href = viewerHref();
     return href ? `${href}&note=${comment.uuid}` : null;
-  };
-
-  const parseAuthors = (authorsJson) => {
-    if (!authorsJson) return [];
-    try {
-      return JSON.parse(authorsJson);
-    } catch {
-      return [authorsJson];
-    }
   };
 
   const startMetadataEdit = () => {
@@ -250,26 +241,12 @@ export default function PaperJacket({
     }
   };
 
-  const copyLink = async (link, target, field) => {
-    let copied = false;
+  const copyLink = async (link, target) => {
+    let copied = true;
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(link);
-        copied = true;
-      }
+      await navigator.clipboard.writeText(link);
     } catch {
-      // Permissions policies and older browsers may block the async API;
-      // selecting the visible URL gives them the established copy path.
-    }
-    if (!copied && field.current) {
-      field.current.focus();
-      field.current.select();
-      field.current.setSelectionRange(0, link.length);
-      try {
-        copied = document.execCommand('copy');
-      } catch {
-        copied = false;
-      }
+      copied = false;
     }
     setShareCopied({ target, status: copied ? 'copied' : 'failed' });
     window.setTimeout(() => setShareCopied({ target: null, status: 'idle' }), 1800);
@@ -305,7 +282,7 @@ export default function PaperJacket({
       } else {
         setPaperLink(href);
       }
-      copyLink(href, 'menu-reading', menuReadingUrlRef);
+      copyLink(href, 'menu-reading');
     } catch (err) {
       setError(err?.message || String(err));
       if (err?.reportable !== false) {
@@ -448,12 +425,12 @@ export default function PaperJacket({
     return <div>Paper not found</div>;
   }
 
-  const authors = parseAuthors(paper.authors);
+  const authors = authorList(paper.authors);
   const hasEntry = currentUser != null && paper.viewer_has_entry;
   // A link hands over a PDF, so there has to be one to hand over: a paper
   // with no readable file has nothing for the viewer to open.
   const canShareThisPdf = hasEntry && Boolean(paper.file_path);
-  const assignedTagUuids = new Set((paper.tags || []).map((tag) => tag.uuid));
+  const assignedTagUuids = new Set(paper.tags.map((tag) => tag.uuid));
   const tagQuery = tagDraft.trim().toLowerCase();
   const tagSuggestions = availableTags.filter(
     (tag) => !assignedTagUuids.has(tag.uuid) && (!tagQuery || tag.name.toLowerCase().includes(tagQuery))
@@ -685,7 +662,7 @@ export default function PaperJacket({
               {hasEntry && (
                 <label
                   className="checkbox-row inline"
-                  title="Annotations your chip on this paper as an author"
+                  title="Marks your chip on this paper as an author"
                 >
                   <input
                     type="checkbox"
@@ -769,7 +746,7 @@ export default function PaperJacket({
                 happen first — and only that. The reason a paper is read
                 from your own copy is not what someone wants at the moment
                 they are told they cannot read it yet. */}
-            {currentUser && !paper.viewer_has_entry && (
+            {currentUser && !hasEntry && (
               <span className="hint-anchor">
                 <button onClick={() => setReadHint(true)}>Read</button>
                 {readHint && (
@@ -804,7 +781,7 @@ export default function PaperJacket({
             {hasEntry && (
               <button onClick={startMetadataEdit}>Edit</button>
             )}
-            {currentUser && !paper.viewer_has_entry && (
+            {currentUser && !hasEntry && (
               /* The actual next step, so it carries the weight. */
               <button className="primary" onClick={handleAddToNook} disabled={isAddingToNook}>
                 {isAddingToNook ? 'Downloading PDF…' : 'Add to my nook'}
@@ -848,11 +825,7 @@ export default function PaperJacket({
                             />
                             <button
                               type="button"
-                              onClick={() => copyLink(
-                                sharableHref(paper.sharable_uuid),
-                                'menu-reading',
-                                menuReadingUrlRef,
-                              )}
+                              onClick={() => copyLink(sharableHref(paper.sharable_uuid), 'menu-reading')}
                             >
                               {copyLabel('menu-reading')}
                             </button>
@@ -935,9 +908,7 @@ export default function PaperJacket({
                 />
                 <button
                   type="button"
-                  onClick={() => copyLink(
-                    sharableHref(paper.sharable_uuid), 'reading', readingUrlRef,
-                  )}
+                  onClick={() => copyLink(sharableHref(paper.sharable_uuid), 'reading')}
                 >
                   {copyLabel('reading')}
                 </button>
@@ -978,13 +949,13 @@ export default function PaperJacket({
             </div>
           )}
 
-          {!currentUser && (paper.also_read_by || []).length > 0 && (
+          {!currentUser && paper.also_read_by.length > 0 && (
             <p className="signed-out-reviews">
               <a href={appPath('/signin')}>Sign in</a> to see others’ reviews of the paper.
             </p>
           )}
 
-          {currentUser && (paper.also_read_by || []).length > 0 && (
+          {currentUser && paper.also_read_by.length > 0 && (
             <div className="nooks-row">
               <span className="nooks-label">
                 In {paper.also_read_by.length}{' '}
@@ -1166,7 +1137,7 @@ export default function PaperJacket({
             <div className="tag-editor-card">
               <div className="tag-picker">
                 <div className="tag-editor">
-                  {(paper.tags || []).map((tag) => (
+                  {paper.tags.map((tag) => (
                     <button
                       type="button"
                       className="tag-chip selected"
@@ -1223,7 +1194,7 @@ export default function PaperJacket({
           <CommentSection
             paperSha256={paper.sha256}
             shared={Boolean(paper.sharable_uuid)}
-            comments={(paper.notes || []).filter((note) => note.content)}
+            comments={paper.notes.filter((note) => note.content)}
             noteHref={noteHref}
             onOpenNote={onRead}
             currentUser={currentUser}

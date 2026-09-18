@@ -14,7 +14,7 @@ import {
 import appLimits from '../../../shared/appLimits.js';
 import Avatar from './Avatar';
 import HintPop from './HintPop';
-import { SEMINAR_STYLES, styleLabel, roomStyleDesc } from '../seminarStyles';
+import { SEMINAR_STYLES, canUncall, roomStyleDesc, styleLabel } from '../seminarStyles';
 import { confirmAction } from '../../../shared/confirmAction';
 
 function formatWhen(dateString) {
@@ -86,10 +86,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
   const participants = [...room.participants].sort(
     (a, b) => leadsRoom(b) - leadsRoom(a)
   );
-  const canUncall =
-    room.creator.uuid === currentUser.uuid &&
-    (room.status === 'open' || room.status === 'planning') &&
-    participants.every((participant) => participant.uuid === currentUser.uuid);
+  const uncallable = canUncall(room, currentUser);
 
   const uncall = async () => {
     if (!(await confirmAction('Uncall this seminar? The empty cohort will be removed.', {
@@ -114,10 +111,10 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
       {/* ---- Stage ---- */}
       {room.status === 'open' && (
         <div className="stage-card open">
-          <h5>Seminar called — waiting for a host</h5>
+          <h5>Seminar called — waiting for a leader</h5>
           <p>Called by {room.creator.display_name}.</p>
           <p className="stage-hint">
-            The host is the seminar's benevolent dictator: they volunteer to
+            The leader is the seminar's benevolent dictator: they volunteer to
             plan its time, place, and style, and to lead the discussion.
           </p>
           {room.viewer_has_copy ? (
@@ -138,7 +135,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                   }
                 }}
               >
-                Answer to host
+                Lead this seminar
               </button>
               {leadWarning && (
                 <HintPop
@@ -149,7 +146,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             </span>
           ) : (
             <p className="stage-hint">
-              Only users with a displayed entry can host.
+              Only users with this paper on a public shelf can lead.
             </p>
           )}
         </div>
@@ -284,10 +281,10 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
           ) : (
             <button
               disabled={isBusy}
-              title="Return the seminar to waiting for a host"
+              title="Return the seminar to waiting for a leader"
               onClick={run(() => unhostRoom(room.uuid))}
             >
-              Step back from hosting
+              Step back from leading
             </button>
           )}
         </div>
@@ -316,7 +313,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                 disabled={isBusy}
                 onClick={run(() => finishRoom(room.uuid))}
               >
-                Annotation as finished
+                Mark as finished
               </button>
             </p>
           )}
@@ -410,7 +407,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                   You host this seminar and no one else is in the cohort — there
                   is no one to hand hosting to.
                 </p>
-                {canUncall && (
+                {uncallable && (
                   <button
                     type="button"
                     className="danger"

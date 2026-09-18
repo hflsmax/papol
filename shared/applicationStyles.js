@@ -1066,53 +1066,6 @@ select:disabled { cursor: default; opacity: .65; }
   text-align: center;
 }
 
-/* ---------- Library: users ---------- */
-
-.user-list {
-  list-style: none;
-}
-
-.user-list li {
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--line);
-  cursor: pointer;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  transition: background 0.15s;
-}
-
-.user-list li:last-child {
-  border-bottom: none;
-}
-
-.user-list li:hover {
-  background: var(--accent-soft);
-}
-
-.user-list li:hover .user-name {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.user-name {
-  font-size: var(--fs-lg);
-}
-
-.you-tag {
-  color: var(--ink-faint);
-  font-size: var(--fs-sm);
-  font-style: italic;
-}
-
-.user-meta {
-  color: var(--ink-faint);
-  font-size: var(--fs-sm);
-}
-
 /* ---------- Space ---------- */
 
 .space-header {
@@ -1746,12 +1699,6 @@ select:disabled { cursor: default; opacity: .65; }
 /* Tall full-figure images (demo characters): crop around the head */
 .avatar-img.head-crop {
   object-position: 50% 12%;
-}
-
-.user-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .space-header-row {
@@ -3047,12 +2994,6 @@ h4 .state-pill {
   font-size: var(--fs-sm);
   margin-top: 3px;
   color: var(--ink-soft);
-}
-
-.village-subtitle {
-  color: var(--ink-soft);
-  font-size: var(--fs-md);
-  margin: -8px 0 14px;
 }
 
 .demo-intro h3 {
@@ -4897,16 +4838,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     display: block;
     width: fit-content;
     margin: 4px 0 2px;
-  }
-
-  .user-list li {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-
-  .user-list .user-meta {
-    margin-left: 34px; /* aligned under the name, clear of the avatar */
   }
 
   .paper-title-row {

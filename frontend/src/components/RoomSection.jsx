@@ -8,7 +8,7 @@ import {
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import HintPop from './HintPop';
-import { styleLabel, roomStyleDesc } from '../seminarStyles';
+import { canUncall, roomStyleDesc, styleLabel } from '../seminarStyles';
 import { appPath } from '../base';
 import { confirmAction } from '../../../shared/confirmAction';
 
@@ -33,11 +33,7 @@ function PersonLine({ user, children }) {
 
 function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
   const [expanded, setExpanded] = useState(false);
-  const canUncall =
-    currentUser &&
-    room.creator.uuid === currentUser.uuid &&
-    (room.status === 'open' || room.status === 'planning') &&
-    room.participants.every((participant) => participant.uuid === currentUser.uuid);
+  const uncallable = canUncall(room, currentUser);
 
   if (room.status === 'finished' && !expanded) {
     return (
@@ -79,13 +75,13 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
       {room.status === 'open' && (
         <PersonLine user={room.creator}>
           {' '}
-          called this seminar — waiting for a user to step up and host
+          called this seminar — waiting for a user to step up and lead
         </PersonLine>
       )}
       {room.status === 'planning' && (
         <PersonLine user={room.leader}>
           {' '}
-          is hosting — the cohort is finding a time
+          is leading — the cohort is finding a time
         </PersonLine>
       )}
       {(room.status === 'scheduled' || room.status === 'finished') && (
@@ -99,10 +95,10 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
               </span>
             )}
           </p>
-          <PersonLine user={room.leader}> hosts</PersonLine>
+          <PersonLine user={room.leader}> leads</PersonLine>
         </>
       )}
-      {(room.participants || []).length > 0 && (
+      {room.participants.length > 0 && (
         <div className="cohort-chips">
           <span className="cohort-label">
             Cohort of {room.participants.length}:
@@ -132,7 +128,7 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
           <a className="btn" href={appPath(`/room/${room.uuid}`)}>
             Open the room
           </a>
-          {canUncall && (
+          {uncallable && (
             <button
               type="button"
               className="danger"
@@ -250,8 +246,6 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
         />
       ))}
 
-      {callWarning && activeCall && <div className="error" role="alert">{callWarning}</div>}
-
       {currentUser && !activeCall && paper.viewer_has_copy && (
         <div className="call-block">
           <span className="hint-anchor">
@@ -283,7 +277,7 @@ export default function RoomSection({ paper, currentUser, onChanged }) {
               <HintPop
                 text={
                   paper.viewer_has_entry
-                    ? 'Your copy of this paper is hidden. Put it on display before calling a seminar.'
+                    ? 'Move this paper to a public shelf before calling a seminar.'
                     : 'Add this paper to your nook before calling a seminar.'
                 }
                 onClose={() => setCallHint(false)}

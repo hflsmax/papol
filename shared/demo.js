@@ -393,7 +393,7 @@ async function routeDemoRequest(path, options = {}) {
     }));
   }
   if (path === '/tags' && method === 'GET') return [...myTags()].sort((a, b) => a.name.localeCompare(b.name));
-  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length }));
+  if (path === '/shelves' && method === 'GET') return d.shelves.map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length, board_count: 0 }));
   if ((m = path.match(/^\/users\/([0-9a-f-]{36})\/space$/))) {
     const u = userByUuid(m[1]);
     if (!u) throw demoError('User not found', 404);
@@ -411,7 +411,7 @@ async function routeDemoRequest(path, options = {}) {
           seminars: d.participants.filter((x) => x.user_uuid === u.uuid).length,
         }
       : null;
-    return { user: publicUser(u), papers: list, stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === u.uuid && copy.shelf_uuid === shelf.uuid).length })) };
+    return { user: publicUser(u), papers: list, boards: [], stats, tags: own ? myTags() : [], shelves: d.shelves.filter((shelf) => own || shelf.is_public).map((shelf) => ({ ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === u.uuid && copy.shelf_uuid === shelf.uuid).length, board_count: 0 })) };
   }
 
   if (path === '/shelves' && method === 'POST') {
@@ -420,14 +420,14 @@ async function routeDemoRequest(path, options = {}) {
     }
     const shelf = { uuid: newUuid(), name: body.name, color: body.color, is_public: !!body.is_public, is_default: false, position: d.shelves.length };
     d.shelves.push(shelf);
-    return { ...shelf, paper_count: 0 };
+    return { ...shelf, paper_count: 0, board_count: 0 };
   }
   if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'PUT') {
     const shelf = d.shelves.find((item) => item.uuid === m[1]);
     if (!shelf) throw demoError('Shelf not found', 404);
     if (body.is_default) for (const item of d.shelves) item.is_default = item === shelf;
     Object.assign(shelf, body);
-    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length };
+    return { ...shelf, paper_count: d.copies.filter((copy) => copy.user_uuid === ME && copy.shelf_uuid === shelf.uuid).length, board_count: 0 };
   }
   if ((m = path.match(/^\/shelves\/([0-9a-f-]{36})$/)) && method === 'DELETE') {
     const shelf = d.shelves.find((item) => item.uuid === m[1]);

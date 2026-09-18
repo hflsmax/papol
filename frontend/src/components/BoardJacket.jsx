@@ -43,7 +43,7 @@ export default function BoardJacket({ boardUuid, currentUser, onOpen, onBack, ba
       .then((found) => {
         if (gone) return;
         setBoard(found);
-        setName(found.name || '');
+        setName(found.name);
         setDescription(found.description || '');
       })
       .catch((err) => !gone && setError(err.message));
@@ -67,7 +67,7 @@ export default function BoardJacket({ boardUuid, currentUser, onOpen, onBack, ba
   if (!board) return <div className="loading" role="status" aria-live="polite">Loading board…</div>;
 
   const mine = board.can_edit;
-  const cards = board.item_count ?? board.items?.length ?? 0;
+  const cards = board.item_count;
 
   return (
     <div className="board-jacket">

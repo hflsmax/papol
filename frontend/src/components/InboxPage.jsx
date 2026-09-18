@@ -34,7 +34,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
     );
     const unread_count = notifications.filter((x) => !x.read).length;
     setData({ unread_count, notifications });
-    if (onUnread) onUnread(unread_count);
+    onUnread(unread_count);
   };
 
   const handleClick = (n) => {
@@ -56,7 +56,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
         <h2 className="panel-title">Inbox</h2>
         {data.unread_count > 0 && (
           <button className="link-btn" onClick={handleMarkAll}>
-            Annotation all as read
+            Mark all as read
           </button>
         )}
       </div>

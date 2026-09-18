@@ -76,7 +76,7 @@ export function papersInSource(source, { space, library }) {
   const tag = tagOf(source, space);
   return (space?.papers || [])
     .filter((paper) => (!shelf || paper.shelf_uuid === shelf.uuid)
-      && (!tag || (paper.tags || []).some((item) => item.uuid === tag.uuid)))
+      && (!tag || paper.tags.some((item) => item.uuid === tag.uuid)))
     .sort(newestFirst);
 }
 

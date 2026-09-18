@@ -56,7 +56,7 @@ export default function NookManager({ space, setSpace, onChanged, onClose, onTag
                   onChange={(e) => setSpace((current) => ({ ...current, shelves: current.shelves.map((item) => item.uuid === shelf.uuid ? { ...item, name: e.target.value } : item) }))}
                   onBlur={(e) => { if (e.target.value.trim()) attempt(() => updateShelf(shelf.uuid, { name: e.target.value.trim() })); }}
                 />
-                <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count || 0} {(shelf.board_count || 0) === 1 ? 'board' : 'boards'}</span>
+                <span className="shelf-paper-count">{shelf.paper_count} {shelf.paper_count === 1 ? 'paper' : 'papers'} · {shelf.board_count} {shelf.board_count === 1 ? 'board' : 'boards'}</span>
               </div>
               <button
                 className={`switch-toggle shelf-visibility-toggle ${shelf.is_public ? 'on' : 'off'}`}
