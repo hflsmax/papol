@@ -41,7 +41,7 @@ test('moves that do not end on a paper change nothing', () => {
 });
 
 test('back names where it goes', () => {
-  assert.deepEqual(jacketBackTarget({ origin: '/library', userUuid: U }), { path: '/library', label: 'Desk' });
+  assert.deepEqual(jacketBackTarget({ origin: '/library', userUuid: U }), { path: '/library', label: 'Library' });
   assert.deepEqual(jacketBackTarget({ origin: '/', userUuid: U }), { path: '/', label: 'My nook' });
   assert.deepEqual(jacketBackTarget({ origin: `/u/${U}`, userUuid: U }), { path: `/u/${U}`, label: 'My nook' });
   const other = '99999999-2222-3333-4444-555555555555';
@@ -50,5 +50,5 @@ test('back names where it goes', () => {
 
 test('with nothing remembered, a user goes home and a visitor to the library', () => {
   assert.deepEqual(jacketBackTarget({ userUuid: U }), { path: '/', label: 'My nook' });
-  assert.deepEqual(jacketBackTarget({}), { path: '/library', label: 'Desk' });
+  assert.deepEqual(jacketBackTarget({}), { path: '/library', label: 'Library' });
 });

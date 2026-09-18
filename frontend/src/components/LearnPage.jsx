@@ -8,7 +8,7 @@ const lessons = [
   {
     id: 'upload-pdf',
     art: 'upload',
-    section: 'Desk',
+    section: 'Library',
     title: 'Upload and organize a PDF',
     video: tutorialMedia.uploadingPdf,
   },
@@ -131,7 +131,7 @@ function LessonArt({ type }) {
 export default function LearnPage() {
   const [playing, setPlaying] = useState(null);
   const [playerMedia, setPlayerMedia] = useState(null);
-  const sections = ['Desk', 'Viewer', 'Board'];
+  const sections = ['Library', 'Viewer', 'Board'];
   const playerDialogRef = useModalDialog(Boolean(playing), () => setPlaying(null));
 
   useEffect(() => {

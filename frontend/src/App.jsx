@@ -991,7 +991,7 @@ export default function App({ startupUser = null, startupError = null }) {
               </a>
             )}
             <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
-              Desk
+              Library
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

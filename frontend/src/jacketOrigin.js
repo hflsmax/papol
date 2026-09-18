@@ -59,7 +59,7 @@ export function originAfterMove(origin, fromPathname, toPathname) {
  */
 export function jacketBackTarget({ origin = null, userUuid = null } = {}) {
   const path = origin || (userUuid ? '/' : '/library');
-  if (path === '/library') return { path, label: 'Desk' };
+  if (path === '/library') return { path, label: 'Library' };
   const mine = path === '/' || (userUuid && path === `/u/${userUuid}`);
   return { path, label: mine ? 'My nook' : 'Nook' };
 }
