@@ -9,8 +9,8 @@ import {
   getSyncStatus, OFFLINE_MODE_MESSAGE, refreshSyncStatus,
 } from '../../../shared/connectivity.js';
 import {
-  nativeDataActive, nativeRepository, subscribeNativeData, syncAllNow,
-  recordDiagnosticEvent,
+  nativeDataActive, nativeRepository, nativeSyncInProgress, subscribeNativeData,
+  syncAllNow, recordDiagnosticEvent,
 } from '../../../shared/nativeData.js';
 import {
   unexpectedDesktopErrorReport, unrecoverableSyncReport,
@@ -117,11 +117,23 @@ function ItemMark({ item }) {
 }
 
 function SyncControl({ onReportableError, onSynced }) {
-  const [status, setStatus] = useState(getSyncStatus);
+  const [status, setStatus] = useState(() => ({ ...getSyncStatus(), syncing: nativeSyncInProgress() }));
   const reportedErrors = useRef(new Set());
+  // The coordinator's process-wide latch, as last heard from a native start/stop
+  // event or read back from the sync status query.
+  const processSyncing = useRef(false);
+
+  // Whether a sync is running, from every source that knows: the last
+  // process-wide latch, the window's own lifecycle (a sync it started before
+  // the native start event arrives, or that never reaches the coordinator),
+  // and the web status. Reading the latch fresh on every status query keeps
+  // the glyph turning for a sync that started before this control mounted.
+  const syncRunning = (web, local) => {
+    if (typeof local?.syncing === 'boolean') processSyncing.current = local.syncing;
+    return Boolean(web.syncing || processSyncing.current || nativeSyncInProgress());
+  };
 
   useEffect(() => {
-    let nativeSyncing = false;
     const offer = (report) => {
       if (!report || reportedErrors.current.has(report.signature)) return;
       reportedErrors.current.add(report.signature);
@@ -133,7 +145,7 @@ function SyncControl({ onReportableError, onSynced }) {
     };
     const update = async () => {
       const web = getSyncStatus();
-      if (!nativeDataActive()) { setStatus(web); return; }
+      if (!nativeDataActive()) { setStatus({ ...web, syncing: syncRunning(web) }); return; }
       try {
         const local = await nativeRepository.syncStatus();
         const report = unrecoverableSyncReport(local, {
@@ -143,14 +155,14 @@ function SyncControl({ onReportableError, onSynced }) {
         offer(report);
         setStatus({
           ...web,
-          syncing: web.syncing || nativeSyncing,
+          syncing: syncRunning(web, local),
           pending: web.pending + local.pending,
           error: web.error || local.error || local.outbox_error || null,
           conflicts: local.conflicts || 0,
           lastSynced: local.last_synced_at || web.lastSynced,
         });
       } catch (error) {
-        setStatus({ ...web, syncing: web.syncing || nativeSyncing });
+        setStatus({ ...web, syncing: syncRunning(web) });
         offer(unexpectedDesktopErrorReport(error, 'reading native sync status', {
           surface: window.__PAPOL_ENV__?.surface,
           platform: navigator.platform,
@@ -159,7 +171,7 @@ function SyncControl({ onReportableError, onSynced }) {
     };
     window.addEventListener('papol-offline-status', update);
     const unsubscribeNative = subscribeNativeData((nativeStatus) => {
-      if (typeof nativeStatus?.syncing === 'boolean') nativeSyncing = nativeStatus.syncing;
+      if (typeof nativeStatus?.syncing === 'boolean') processSyncing.current = nativeStatus.syncing;
       update();
     });
     refreshSyncStatus().then(update).catch(() => {});
@@ -173,11 +185,15 @@ function SyncControl({ onReportableError, onSynced }) {
   const syncNow = async () => {
     setStatus((current) => ({ ...current, syncing: true, error: null }));
     const failure = await syncAllNow();
-    const latest = { ...getSyncStatus(), syncing: false };
+    // Another sync may still be running (one scheduled behind this one, or
+    // started from another window), so ask rather than assume it is over.
+    const web = getSyncStatus();
+    const latest = { ...web, syncing: syncRunning(web) };
     if (failure) latest.error = failure;
     if (nativeDataActive()) {
       try {
         const local = await nativeRepository.syncStatus();
+        latest.syncing = syncRunning(web, local);
         latest.pending += local.pending;
         latest.error ||= local.error || local.outbox_error;
         latest.conflicts = local.conflicts || 0;
