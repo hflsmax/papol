@@ -97,12 +97,13 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
   before — beside its name, how many cards it holds, when it was last
   edited, and whose it is when it is not mine.
 
-- **US-5.9** The canvas has two ways out and they mean different things: a
-  **Back** to the board's jacket, which names where it returns to, and the
-  **home button**, which leaves for Papol itself and names nothing (US-7.16).
-  On the desktop there is no Back on the canvas at all: the jacket is still
-  open in the Library window behind it, because the canvas is a document
-  window beside that window rather than instead of it.
+- **US-5.9** The canvas has one way out, the **home button**, and it leads
+  where the board is kept: its jacket. This is what the viewer's house has
+  always done — out of the paper and onto the paper's jacket — and it reaches
+  for Papol itself only where there is no jacket to go to, which is a shared
+  reading or a file opened from disk. On the desktop the canvas is a document
+  window beside the Library, so closing it is the way out and the jacket is
+  still open behind it.
 
 ## 6. Feedback
 

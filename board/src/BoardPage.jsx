@@ -75,7 +75,7 @@ const stagedSourceLabel = (item) => {
   }
 };
 
-export default function BoardPage({ boardUuid, onHome, homeHref, onBack, backHref }) {
+export default function BoardPage({ boardUuid, onHome, homeHref }) {
   const [board, setBoard] = useState(null);
   const [view, setView] = useState(() => initialBoardView(boardUuid));
   const [error, setError] = useState(null);
@@ -1915,10 +1915,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref, onBack, backHre
               </svg>
             </BackLink>
           : null}
-      {/* Beside the house, the way back to where this board is kept. The
-          two are different errands: home leaves for Papol and names
-          nothing, Back returns to the board's own jacket. */}
-      {!DESKTOP && <BackLink className="board-back" href={backHref} onBack={onBack}>&larr; Board</BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
