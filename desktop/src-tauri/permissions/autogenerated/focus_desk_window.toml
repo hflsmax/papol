@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-focus-desk-window"
+description = "Enables the focus_desk_window command without any pre-configured scope."
+commands.allow = ["focus_desk_window"]
+
+[[permission]]
+identifier = "deny-focus-desk-window"
+description = "Denies the focus_desk_window command without any pre-configured scope."
+commands.deny = ["focus_desk_window"]

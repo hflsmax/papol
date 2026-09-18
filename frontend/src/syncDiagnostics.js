@@ -20,7 +20,7 @@ export function unrecoverableSyncReport(status, environment = {}) {
     `Conflicts: ${Number(status?.conflicts) || 0}`,
     `Last successful sync: ${status?.last_synced_at || 'never'}`,
     `Backend: ${environment.backend || BACKEND_BASE || 'not configured'}`,
-    `Surface: ${environment.surface || 'main'}`,
+    `Surface: ${environment.surface || 'desk'}`,
     `Platform: ${environment.platform || 'unknown'}`,
   ];
 

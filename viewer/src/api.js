@@ -9,7 +9,7 @@ import { demoPaperMedia, hydrateDesktopMedia } from '../../shared/desktopMedia.j
 import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
   annotationView, boardView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl,
-  nativeDataActive, nativeRepository, openedFileBlob, openedFileBytes,
+  ensureNativeBlob, nativeDataActive, nativeRepository, openedFileBlob, openedFileBytes,
   openedFileUrl, paperView, newUuid,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
@@ -159,7 +159,7 @@ export async function downloadablePdfHref(paper) {
 // PDF.js treats a URL as a network request. macOS WebKit reports requests to
 // Tauri-created blob: URLs with status 0, which PDF.js rejects even though the
 // bytes are present. Native viewers therefore hand PDF.js the bytes directly.
-export async function pdfLoadInput(paper) {
+export async function pdfLoadInput(paper, { onSyncProgress } = {}) {
   if (paper?.opened_file && !paper.copy_uuid) {
     return { data: await openedFileBytes(paper.sha256) };
   }
@@ -171,7 +171,16 @@ export async function pdfLoadInput(paper) {
   }
   if (nativeDataActive()) {
     if (!paper?.sha256) throw new Error('PDF is not available in the local replica');
-    return { data: await nativeBlobBytes(paper.sha256) };
+    try {
+      return { data: await nativeBlobBytes(paper.sha256) };
+    } catch (error) {
+      const message = error?.message || String(error || '');
+      if (!/blob is not available offline|pdf is not available in the local replica/i.test(message)) {
+        throw error;
+      }
+      await ensureNativeBlob(paper.sha256, onSyncProgress);
+      return { data: await nativeBlobBytes(paper.sha256) };
+    }
   }
   return { url: pdfHref(paper) };
 }

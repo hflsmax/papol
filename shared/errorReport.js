@@ -19,7 +19,7 @@ export function unexpectedDesktopErrorReport(error, area, environment = {}) {
     `Error type: ${error?.name || typeof error}`,
     `Error: ${message}`,
     `Backend: ${environment.backend || BACKEND_BASE || 'not configured'}`,
-    `Surface: ${environment.surface || 'main'}`,
+    `Surface: ${environment.surface || 'desk'}`,
     `Platform: ${environment.platform || 'unknown'}`,
     ...(stack ? ['', 'Stack:', stack] : []),
   ];

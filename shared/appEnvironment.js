@@ -3,10 +3,10 @@
 // This describes behavior only. Tauri capabilities remain the security
 // boundary for native functionality.
 function webSurface() {
-  if (typeof window === 'undefined') return 'main';
+  if (typeof window === 'undefined') return 'desk';
   if (/\/(?:demo\/)?viewer(?:\/|$)/.test(window.location.pathname)) return 'viewer';
   if (/\/(?:demo\/)?boards(?:\/|$)/.test(window.location.pathname)) return 'board';
-  return 'main';
+  return 'desk';
 }
 
 const fallback = {

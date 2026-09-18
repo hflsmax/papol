@@ -11,7 +11,7 @@ global.localStorage = {
 global.location = new URL('tauri://localhost/');
 global.window = {
   location: global.location,
-  __PAPOL_ENV__: { runtime: 'desktop', surface: 'main', documentWindow: false },
+  __PAPOL_ENV__: { runtime: 'desktop', surface: 'desk', documentWindow: false },
   addEventListener() {},
   dispatchEvent() {},
 };

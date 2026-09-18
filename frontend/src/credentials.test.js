@@ -13,7 +13,7 @@ global.localStorage = {
 };
 global.window = {
   location: new URL('tauri://localhost/'),
-  __PAPOL_ENV__: { runtime: 'desktop', surface: 'main', documentWindow: false },
+  __PAPOL_ENV__: { runtime: 'desktop', surface: 'desk', documentWindow: false },
   __TAURI_INTERNALS__: {
     transformCallback: () => 1,
   },

@@ -1,7 +1,7 @@
 # Papol macOS
 
 Papol macOS is a standalone Tauri application. Its three web surfaces and
-their runtime dependencies (the library, PDF viewer, boards, PDF.js fonts and
+their runtime dependencies (the Desk, PDF viewer, boards, PDF.js fonts and
 WASM, tutorials, and demo assets) are compiled into the application and DMG.
 Only data and uploaded files come from the hosted FastAPI backend at
 `https://mc-pony.com/papol`, so the macOS app and browser clients share accounts
@@ -24,7 +24,9 @@ Files use content-addressed SHA-256 names in a `blobs` directory beside that
 database. A local row change and its outbox entry commit in one SQLite
 transaction; one process-wide coordinator uploads blobs, pushes mutations,
 refreshes bounded paper dependencies, then pulls the server cursor. Remote PDFs
-download lazily when opened. Unsynchronized files are durable; only the
+download lazily when opened. A browser handoff whose PDF is not present uses a
+direct one-file download, reports byte progress in the viewer, and opens as
+soon as that verified blob is stored. Unsynchronized files are durable; only the
 replaceable cache has no automatic size limit and can be removed with Clear cache.
 
 Offline writes are deliberately limited to data owned by that user: adding
@@ -72,7 +74,7 @@ notes, ink, and clips are kept in `_local_annotations` by the file's hash (a
 notice, shown on each such file until "Don't show again" is ticked, says they
 are not in the PDF and suggests an account to back them up), and
 **Add to nook** copies the file into the replica with those annotations; without an
-account it first asks the library window to sign in. The library banner and
+account it first asks the Desk window to sign in. The Desk banner and
 Settings can make Papol the default PDF viewer (macOS only).
 
 ## Opening a reading handed over from a browser
@@ -129,7 +131,7 @@ bundled applications and cannot be told about a scheme at runtime:
     cp -R src-tauri/target/release/bundle/macos/"Papol Dev.app" /Applications/
     open 'papol-dev://mc-pony.com/papol/viewer/?pdf=<sha>&page=14'
 
-A cold launch should open the reading rather than the library, a second
+A cold launch should open the reading rather than the Desk, a second
 address for the same document should move that window rather than add one,
 and `papol://` should still belong to the installed release. The browser half
 needs a real browser and is not scriptable from a shell, so it has its own
@@ -302,7 +304,7 @@ overlay, a temporary ID mapper, or raw SQL IPC for a synchronized feature.
 
 Before any UI module executes, Tauri injects one immutable
 `window.__PAPOL_ENV__` runtime object. It identifies the `desktop` runtime, the
-`main`, `viewer`, or `board` surface, and whether the surface is a document
+`desk`, `viewer`, or `board` surface, and whether the surface is a document
 window. Hosted pages derive the corresponding `web` default in
 `shared/appEnvironment.js`. Desktop chrome, document-window behavior, and
 network selection all consume that contract rather than probing private Tauri
@@ -321,7 +323,7 @@ Object embedding and frames are disabled, and `Object.prototype` is frozen in
 the custom-protocol webview.
 
 The desktop pages swap the website masthead for a native reference-manager
-layout: a source-list sidebar of shelves, tags, boards and the library, a list
+layout: a source-list sidebar of shelves, tags, boards and the collection, a list
 of papers, and the selected paper beside it. See "Desktop shell" in
 `frontend/DESIGN.md`. On macOS the window uses an overlay title bar, so those
 toolbars sit where the title bar would be and the traffic lights float over
@@ -364,7 +366,7 @@ consistent. Tagged workflow builds replace that with the configured Developer
 ID signature and notarization.
 
 Capabilities live in `src-tauri/capabilities/`, rather than being embedded in
-the main configuration. The permanent library window cannot invoke the close
+the Desk configuration. The permanent Desk window cannot invoke the close
 command; viewer and board document windows can. Each receives only window
 chrome, document navigation, and HTTP access to the Papol production or local
 development backend. No window has native filesystem access, and hosted pages

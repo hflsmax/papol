@@ -80,7 +80,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
     {
       label: 'Papol',
       items: [
-        { key: 'library', label: 'Library', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
+        { key: 'desk', label: 'Desk', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
         { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
         { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
         ...(user.is_admin
@@ -94,7 +94,7 @@ export function desktopNavigation({ user, route, unreadCount, space, source }) {
 const TITLES = {
   space: 'Nook',
   paper: 'Paper',
-  papers: 'Library',
+  papers: 'Desk',
   room: 'Seminar',
   inbox: 'Inbox',
   admin: 'Admin',

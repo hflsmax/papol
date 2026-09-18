@@ -5,7 +5,7 @@ global.location = new URL('https://example.test/index.html');
 Object.defineProperty(global, 'navigator', { configurable: true, value: { onLine: true } });
 global.window = {
   location: global.location,
-  __PAPOL_ENV__: { runtime: 'desktop', surface: 'main' },
+  __PAPOL_ENV__: { runtime: 'desktop', surface: 'desk' },
   addEventListener() {},
   dispatchEvent() {},
 };

@@ -44,7 +44,8 @@ import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, libraryFileDragState } from '../../shared/fileDrop.js';
 import {
   nativeCompatibilityVerdict, openDroppedPdf, recordDiagnosticEvent,
-  subscribeShowPaperRequests, subscribeSignInRequests,
+  setNativeAccount, subscribeNativeData, subscribeShowPaperRequests, subscribeSignInRequests,
+  subscribeNativeHandoffs, scheduleAutomaticNativeSync,
   REPORTABLE_NATIVE_ERROR_EVENT,
 } from '../../shared/nativeData.js';
 import {
@@ -199,7 +200,7 @@ export default function App({ startupUser = null, startupError = null }) {
     if (!DESKTOP) return undefined;
     if (startupError) offerErrorReport(startupError, 'desktop startup');
     void recordDiagnosticEvent({
-      component: 'frontend', event: 'mounted', fields: { surface: 'main' },
+      component: 'frontend', event: 'mounted', fields: { surface: 'desk' },
     });
     // What the synchronizer already learned comes first, so a window opened
     // without a network still carries yesterday's answer; then ask, because
@@ -427,6 +428,21 @@ export default function App({ startupUser = null, startupError = null }) {
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
     if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
+  }), []);
+
+  // Viewer and board windows have separate WebKit storage. Adopt an account
+  // signed in there so the permanent library reflects it immediately.
+  useEffect(() => subscribeNativeData((payload) => {
+    if (demoActive() || !payload?.accountUuid || !payload.profile) return;
+    setNativeAccount(payload.accountUuid);
+    setUser(payload.profile);
+    setAuthChecked(true);
+  }), []);
+
+  // A browser handoff is also a freshness boundary: reconcile account data
+  // while the handed-off PDF is being opened.
+  useEffect(() => subscribeNativeHandoffs(() => {
+    void scheduleAutomaticNativeSync();
   }), []);
 
   // A document user can reveal its paper in the permanent library window.
