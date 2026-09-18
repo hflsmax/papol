@@ -132,19 +132,18 @@ function seed() {
   // Bare anchors are comments too, exactly as they are on the server.
   const comments = demoNotes.map((n) => noteAsComment(n, ME, daysAgo));
 
-  const key = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
 
   const rooms = [
-    { uuid: demoUuid('room', 1), paper_key: key(papers[0]), paper_title: papers[0].title, created_by: demoUuid('user', 3),
+    { uuid: demoUuid('room', 1), paper_sha256: papers[0].sha256, created_by: demoUuid('user', 3),
       leader_uuid: demoUuid('user', 2), status: 'finished', scheduled_time: 'Two weeks ago, 4 pm', platform: 'Zoom',
       style: 'walkthrough', style_desc: null, created_at: daysAgo(16) },
-    { uuid: demoUuid('room', 2), paper_key: key(papers[0]), paper_title: papers[0].title, created_by: demoUuid('user', 3),
+    { uuid: demoUuid('room', 2), paper_sha256: papers[0].sha256, created_by: demoUuid('user', 3),
       leader_uuid: demoUuid('user', 2), status: 'planning', scheduled_time: null, platform: null,
       style: null, style_desc: null, created_at: daysAgo(2) },
-    { uuid: demoUuid('room', 3), paper_key: key(papers[6]), paper_title: papers[6].title, created_by: demoUuid('user', 4),
+    { uuid: demoUuid('room', 3), paper_sha256: papers[6].sha256, created_by: demoUuid('user', 4),
       leader_uuid: demoUuid('user', 4), status: 'scheduled', scheduled_time: 'Friday, 4:00 pm CET', platform: 'Zoom',
       style: 'questions', style_desc: null, created_at: daysAgo(4) },
-    { uuid: demoUuid('room', 4), paper_key: key(papers[1]), paper_title: papers[1].title, created_by: demoUuid('user', 2),
+    { uuid: demoUuid('room', 4), paper_sha256: papers[1].sha256, created_by: demoUuid('user', 2),
       leader_uuid: null, status: 'open', scheduled_time: null, platform: null,
       style: null, style_desc: null, created_at: daysAgo(1) },
   ];
@@ -232,7 +231,6 @@ const privateUser = (u) => ({
 });
 
 const userByUuid = (uuid) => ensure().users.find((u) => u.uuid === uuid);
-const paperKey = (p) => (p.doi ? 'doi:' + p.doi.trim().toLowerCase() : 'title:' + p.title.trim().toLowerCase());
 const paperCopies = (p) => ensure().copies.filter((c) => c.paper_sha256 === p.sha256);
 const shelfOf = (c) => ensure().shelves.find((shelf) => shelf.uuid === c.shelf_uuid) || null;
 // On display is the shelf's answer, and only ever the shelf's.
@@ -260,7 +258,7 @@ const roomSummary = (r) => ({
 });
 
 const paperRooms = (p) =>
-  ensure().rooms.filter((r) => r.paper_key === paperKey(p))
+  ensure().rooms.filter((r) => r.paper_sha256 === p.sha256)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
 function paperDetail(p) {
@@ -292,7 +290,7 @@ function paperDetail(p) {
 function roomStatusMap() {
   const m = {};
   for (const r of [...ensure().rooms].sort((a, b) => (a.created_at < b.created_at ? -1 : 1))) {
-    m[r.paper_key] = r.status;
+    m[r.paper_sha256] = r.status;
   }
   return m;
 }
@@ -311,19 +309,19 @@ function paperListEntry(p, c, hidePrivate, statusMap) {
     rating_liking: c ? c.rating_liking : null,
     shelf_uuid: c ? c.shelf_uuid : null,
     tags: hidePrivate ? [] : tagsOf(c),
-    room_status: statusMap[paperKey(p)] || null,
+    room_status: statusMap[p.sha256] || null,
     users: displayedCopies(p).map(userEntry),
   };
 }
 
 function roomDetail(r) {
   const d = ensure();
-  const paper = d.papers.find((p) => paperKey(p) === r.paper_key) || null;
+  const paper = d.papers.find((p) => p.sha256 === r.paper_sha256) || null;
   const mine = paper ? copyOf(paper, ME) : null;
   const hasCopy = onDisplay(mine);
   return {
     ...roomSummary(r),
-    paper_title: r.paper_title,
+    paper_title: paper ? paper.title : null,
     paper_sha256: paper ? paper.sha256 : null,
     messages: d.messages.filter((m) => m.room_uuid === r.uuid)
       .map((m) => ({ uuid: m.uuid, content: m.content, created_at: m.created_at, user: publicUser(userByUuid(m.user_uuid)) })),
@@ -349,7 +347,7 @@ function ensureParticipant(r) {
 
 function requireUserOf(room) {
   const d = ensure();
-  const paper = d.papers.find((p) => paperKey(p) === room.paper_key);
+  const paper = d.papers.find((p) => p.sha256 === room.paper_sha256);
   const mine = paper ? copyOf(paper, ME) : null;
   if (!onDisplay(mine)) {
     throw demoError('Add this paper to your nook, and keep it on display, to take part in the cohort', 403);
@@ -368,10 +366,10 @@ function findPaper(ref) {
   return p;
 }
 
-function inActiveCohort(k) {
+function inActiveCohort(sha256) {
   const d = ensure();
   return d.rooms.some(
-    (r) => r.paper_key === k && r.status !== 'finished' &&
+    (r) => r.paper_sha256 === sha256 && r.status !== 'finished' &&
       roomParts(r).some((x) => x.user_uuid === ME)
   );
 }
@@ -558,11 +556,11 @@ async function routeDemoRequest(path, options = {}) {
     if (!onDisplay(mine)) {
       throw demoError('Display this paper to call a seminar', 403);
     }
-    const k = paperKey(paper);
-    if (d.rooms.some((r) => r.paper_key === k && (r.status === 'open' || r.status === 'planning'))) {
+    if (d.rooms.some((r) => r.paper_sha256 === paper.sha256
+      && (r.status === 'open' || r.status === 'planning'))) {
       throw demoError('A seminar is already being organized for this paper');
     }
-    const room = { uuid: newUuid(), paper_key: k, paper_title: paper.title,
+    const room = { uuid: newUuid(), paper_sha256: paper.sha256,
       created_by: ME, leader_uuid: null, status: 'open', scheduled_time: null,
       platform: null, style: null, style_desc: null, created_at: now() };
     d.rooms.push(room);
@@ -579,7 +577,7 @@ async function routeDemoRequest(path, options = {}) {
     if (personal.some((k) => k in body)) {
       const mine = copyOf(paper, ME);
       if (!mine) throw demoError('Add this paper to your nook first', 403);
-      if (body.is_public === false && inActiveCohort(paperKey(paper))) {
+      if (body.is_public === false && inActiveCohort(paper.sha256)) {
         throw demoError('You are in a seminar cohort for this paper. Leave the cohort before hiding the paper.');
       }
       for (const k of stored) if (k in body) mine[k] = body[k];

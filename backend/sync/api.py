@@ -17,7 +17,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from cohorts import in_active_cohort, paper_key_for
+from cohorts import in_active_cohort
 from database import get_db
 from models import (
     Annotation, AppliedMutation, Board, BoardGroup, BoardItem, Copy, CopyTagLink,
@@ -404,7 +404,7 @@ def _assign_values(db: Session, record, values: dict, user: User):
             # it: there is nothing on the copy left to bring into line.
             if shelf is not None:
                 if (record.is_public and not shelf.is_public and record.paper is not None
-                        and in_active_cohort(db, user, paper_key_for(record.paper))):
+                        and in_active_cohort(db, user, record.paper.sha256)):
                     raise HTTPException(
                         status_code=422,
                         detail="Leave the seminar before moving this paper to a private shelf",

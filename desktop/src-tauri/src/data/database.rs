@@ -3008,13 +3008,20 @@ fn chrono_text() -> String {
 mod tests {
     use super::*;
 
-    /// A replica as some older Papol left it: tables with the right names
-    /// and the wrong shape, and nothing saying which schema wrote them.
+    /// A library written before a paper became its file: a paper named by a
+    /// UUID, notes and ink in tables of their own, and the migration ids
+    /// that carried it recorded as applied — that last part being what used
+    /// to stop the domain DDL from ever reaching it.
     fn replica_from_an_older_papol(path: &Path) {
         let connection = Connection::open(path).unwrap();
         connection
             .execute_batch(
-                "CREATE TABLE papers (uuid TEXT PRIMARY KEY NOT NULL, title TEXT);\
+                "CREATE TABLE _local_schema_migrations (\
+                   migration_id TEXT PRIMARY KEY NOT NULL,\
+                   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);\
+                 INSERT INTO _local_schema_migrations (migration_id) \
+                   VALUES ('202609120001_domain');\
+                 CREATE TABLE papers (uuid TEXT PRIMARY KEY NOT NULL, title TEXT);\
                  CREATE TABLE paper_editions (uuid TEXT PRIMARY KEY NOT NULL);\
                  CREATE TABLE comments (uuid TEXT PRIMARY KEY NOT NULL);\
                  INSERT INTO papers VALUES ('an-old-name', 'Named by a UUID');",
@@ -3052,15 +3059,20 @@ mod tests {
                 .unwrap(),
             0,
         );
-        assert!(connection
-            .query_row(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_editions'",
-                [],
-                |_| Ok(true),
-            )
-            .optional()
-            .unwrap()
-            .is_none());
+        for gone in ["paper_editions", "comments", "_local_schema_migrations"] {
+            assert!(
+                connection
+                    .query_row(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1",
+                        [gone],
+                        |_| Ok(true),
+                    )
+                    .optional()
+                    .unwrap()
+                    .is_none(),
+                "{gone} should have gone with the library that had it",
+            );
+        }
         assert!(!stale_blob.join("deadbeef").exists());
     }
 

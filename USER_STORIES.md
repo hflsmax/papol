@@ -18,7 +18,7 @@ currently doing one job.
 - **Cohort** — the group where a called seminar is planned: leader, availability, platform, discussion. A seminar moves through three named states, used consistently across the app: **called** (waiting for a leader) → **planning** (leader took charge) → **scheduled** (time and platform announced).
 - **Leader** — the user who answers a call and takes charge of the seminar.
 
-Papers are **keyed by DOI** (falling back to title): entries in different nooks with the same DOI are the same paper — they share metadata, seminar cohorts, and the "also read by" listing.
+Papers are **keyed by the content hash of the PDF**: the same file in different nooks is the same paper — one row, sharing its metadata, its seminar cohorts and its "also read by" listing. Two different files are two papers, even when they print the same DOI (§2, US-2.7).
 
 ## 1. Accounts
 

@@ -198,7 +198,7 @@ def gather(db: Session, user: User) -> dict:
         "seminars": [
             {
                 "uuid": r.uuid,
-                "paper_title": r.paper_title,
+                "paper_title": r.paper.title,
                 "status": r.status,
                 "scheduled_time": r.scheduled_time,
                 "platform": r.platform,
@@ -462,7 +462,7 @@ def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
                     room,
                     {successor},
                     "The host of the seminar on \u201c%s\u201d has closed their "
-                    "account, so it is yours to host now." % room.paper_title,
+                    "account, so it is yours to host now." % room.paper.title,
                 )
         else:
             # Back to the state a seminar is in before anyone leads it, so
@@ -475,7 +475,7 @@ def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
                     room,
                     {p.user_uuid for p in cohort},
                     "The host of the seminar on \u201c%s\u201d has closed their "
-                    "account. It is open again for someone to host." % room.paper_title,
+                    "account. It is open again for someone to host." % room.paper.title,
                 )
     return handed, reopened
 
