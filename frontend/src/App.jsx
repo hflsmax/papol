@@ -1,15 +1,17 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
-  getMe, getStartupUser, getToken, setToken, logout, pendingLocalChanges,
+  getMe, getStartupUser, getToken, logout, pendingLocalChanges,
   refreshStartupUser,
 } from '../../shared/api/account.js';
 import { getNotifications, getPendingAdminMessages } from '../../shared/api/notifications.js';
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
-import Space from './components/Space';
+import Nook from './components/Nook';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
-import { demoActive, enterDemo, exitDemo } from '../../shared/demo.js';
+import { resetDemo } from '../../shared/demo.js';
+import { inDemo } from '../../shared/appUrls.js';
+import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
 import PapersPage from './components/PapersPage';
 import RoomPage from './components/RoomPage';
@@ -25,8 +27,8 @@ import {
   DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
-import { DesktopBrowser, useNookSpace } from './components/DesktopDesk';
-import { isBrowsing, lastShownSource, rememberSource, resolveSource } from './desktopSources';
+import { DesktopBrowser, useNook } from './components/DesktopDesk';
+import { isBrowsing, lastShownListing, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
   MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
@@ -51,7 +53,7 @@ import {
 import {
   checkClientCompatibility, setClientCompatibility,
 } from '../../shared/clientCompatibility.js';
-import { unexpectedDesktopErrorReport } from './syncDiagnostics.js';
+import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 
 const demoPath = (path) => {
@@ -60,7 +62,7 @@ const demoPath = (path) => {
 };
 
 const SIGN_IN_PAGES = new Set([
-  'space', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -74,10 +76,10 @@ const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DI
 
 // A path as the address bar spells it: under /demo while the demo is on,
 // and under the base the app is served from.
-const mountedPath = (path) => appPath(demoActive() ? demoPath(path) : path);
+const mountedPath = (path) => appPath(inDemo() ? demoPath(path) : path);
 
 function navigate(path, { replace = false } = {}) {
-  const destination = demoActive() && !['/signin', '/join'].includes(path)
+  const destination = inDemo() && !['/signin', '/join'].includes(path)
     && !path.startsWith('/demo')
     ? demoPath(path)
     : path;
@@ -115,7 +117,7 @@ function openBoard(uuid) {
 // leaves the Desk — on the desktop into a document window beside it, on
 // the web by going there.
 function openBoardCanvas(uuid) {
-  const path = demoActive() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
+  const path = inDemo() ? `/demo/boards/${uuid}` : `/boards/${uuid}`;
   if (DESKTOP) {
     openDesktopDocumentWindow(appPath(path), 'popup,width=1200,height=820');
     return;
@@ -242,7 +244,7 @@ export default function App({ startupUser = null, startupError = null }) {
     try {
       setUser(await getMe());
     } catch {
-      await setToken(null);
+      await storeCredential(null);
       setUser(null);
     }
   };
@@ -328,10 +330,10 @@ export default function App({ startupUser = null, startupError = null }) {
     const onRouteChange = async () => {
       const next = parseRoute();
       if (next.demo && !route.demo) {
-        enterDemo();
+        resetDemo();
         setUser(await getMe());
       } else if (!next.demo && route.demo) {
-        exitDemo();
+        resetDemo();
         await restoreRealUser();
       }
       setRoute(next);
@@ -345,11 +347,11 @@ export default function App({ startupUser = null, startupError = null }) {
     // recipient into the fictional demo before that paper is opened.
     const initialRoute = parseRoute();
     if (initialRoute.demo) {
-      enterDemo();
+      resetDemo();
       getMe().then(setUser).finally(() => setAuthChecked(true));
       return;
     }
-    exitDemo();
+    resetDemo();
     if (startupUser) {
       // The local desktop identity is already on screen. Server auth now
       // refreshes network capability and profile data in the background.
@@ -360,7 +362,7 @@ export default function App({ startupUser = null, startupError = null }) {
     }
     if (initialRoute.page === 'paper') {
       if (getToken()) {
-        getMe().then(setUser).catch(() => setToken(null)).finally(() => setAuthChecked(true));
+        getMe().then(setUser).catch(() => storeCredential(null)).finally(() => setAuthChecked(true));
       } else {
         setAuthChecked(true);
       }
@@ -376,7 +378,7 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(async () => {
         // A stale session becomes an ordinary guest session. Demo is only
         // entered by a URL that explicitly contains /demo.
-        await setToken(null);
+        await storeCredential(null);
         setUser(null);
       })
       .finally(() => setAuthChecked(true));
@@ -388,13 +390,13 @@ export default function App({ startupUser = null, startupError = null }) {
       return;
     }
     getNotifications()
-      .then((d) => setUnreadCount(d.unread_count))
+      .then((d) => setUnreadCount(d.notifications.filter((n) => !n.read).length))
       .catch(() => {});
   }, [user, route]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!user || mode !== 'signed-in' || !getToken()) {
+    if (mode !== 'signed-in' || !getToken()) {
       setAdminMessages([]);
       return undefined;
     }
@@ -411,8 +413,8 @@ export default function App({ startupUser = null, startupError = null }) {
   // has ended. Either way the answer is the sign-in page, not an error where
   // the page should be, and it leads back here once they have signed in.
   useEffect(() => subscribeUnauthenticated(() => {
-    if (demoActive()) return;
-    void setToken(null);
+    if (inDemo()) return;
+    void storeCredential(null);
     // The desktop keeps the owner's local identity and work through a
     // rejected credential; only network access is gone until they sign in.
     if (!DESKTOP) setUser(null);
@@ -427,13 +429,13 @@ export default function App({ startupUser = null, startupError = null }) {
   const signedInUser = useRef(user);
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
-    if (!signedInUser.current || demoActive()) navigate(request?.register ? '/join' : '/signin');
+    if (!signedInUser.current || inDemo()) navigate(request?.register ? '/join' : '/signin');
   }), []);
 
   // Viewer and board windows have separate WebKit storage. Adopt an account
   // signed in there so the permanent Desk reflects it immediately.
   useEffect(() => subscribeNativeData((payload) => {
-    if (demoActive() || !payload?.accountUuid || !payload.profile) return;
+    if (inDemo() || !payload?.accountUuid || !payload.profile) return;
     setNativeAccount(payload.accountUuid);
     setUser(payload.profile);
     setAuthChecked(true);
@@ -449,7 +451,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // Use the complete nook rather than whichever shelf or tag happened to be
   // open, so the selected row is always present in the list.
   useEffect(() => subscribeShowPaperRequests((paperSha256) => {
-    rememberSource('all');
+    rememberListing('all');
     const path = `/paper/${paperName(paperSha256)}`;
     const mountedPath = appPath(path);
     if (`${window.location.pathname}${window.location.search}` === mountedPath) {
@@ -464,13 +466,13 @@ export default function App({ startupUser = null, startupError = null }) {
   const [syncRefresh, setSyncRefresh] = useState(0);
   // The desktop sidebar lists the user's shelves and tags, so the desktop
   // app keeps their nook loaded beside whatever is open.
-  const nook = useNookSpace(DESKTOP && user ? user.uuid : null, route);
-  const desktopSource = resolveSource(route, user, {
+  const nookState = useNook(DESKTOP && user ? user.uuid : null, route);
+  const desktopListing = resolveListing(route, user, {
     search: window.location.search,
-    lastShown: lastShownSource(),
+    lastShown: lastShownListing(),
   });
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, space: nook.space, source: desktopSource,
+    user, route, unreadCount, nook: nookState.nook, listing: desktopListing,
   });
   useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
 
@@ -487,7 +489,7 @@ export default function App({ startupUser = null, startupError = null }) {
       || candidate.startsWith('/viewer/')
       ? candidate
       : '/';
-    exitDemo();
+    resetDemo();
     // login/register already persisted the credential for this account.
     setUser(user);
     // Surfaces of their own, built and served separately from this one:
@@ -502,7 +504,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const handleBackToAccount = async () => {
     window.history.replaceState(null, '', appPath('/'));
     setRoute(parseRoute());
-    exitDemo();
+    resetDemo();
     await restoreRealUser();
   };
 
@@ -511,7 +513,7 @@ export default function App({ startupUser = null, startupError = null }) {
   };
 
   const handleLogout = async () => {
-    if (demoActive()) {
+    if (inDemo()) {
       // Leaving the demo is a navigation, not a state teardown — the demo
       // stays alive underneath so Back returns into it. Signing in for
       // real (handleAuth) is what actually ends the demo.
@@ -550,7 +552,7 @@ export default function App({ startupUser = null, startupError = null }) {
       }
       return;
     }
-    exitDemo();
+    resetDemo();
     setUser(null);
     navigate('/');
   };
@@ -653,7 +655,7 @@ export default function App({ startupUser = null, startupError = null }) {
     </div>
   );
 
-  const demoBanner = user && demoActive() && (
+  const demoBanner = user && inDemo() && (
     <div className="demo-banner">
       <span>
         Demo mode — everything here is fictional and happens in your
@@ -741,7 +743,7 @@ export default function App({ startupUser = null, startupError = null }) {
       <>
       {route.page === 'home' &&
         (user ? (
-          <Space
+          <Nook
             userUuid={user.uuid}
             currentUser={user}
             onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
@@ -753,11 +755,11 @@ export default function App({ startupUser = null, startupError = null }) {
         ) : (
           <HomePage
             currentUser={user}
-            onDemo={demoActive() ? undefined : handleDemo}
+            onDemo={inDemo() ? undefined : handleDemo}
           />
         ))}
-      {route.page === 'space' && (
-        <Space
+      {route.page === 'nook' && (
+        <Nook
           onReportableError={offerErrorReport}
           userUuid={route.uuid}
           currentUser={user}
@@ -820,7 +822,7 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'about' && (
         <HomePage
           currentUser={user}
-          onDemo={demoActive() ? undefined : handleDemo}
+          onDemo={inDemo() ? undefined : handleDemo}
         />
       )}
       {route.page === 'learn' && <LearnPage />}
@@ -837,7 +839,7 @@ export default function App({ startupUser = null, startupError = null }) {
             onUserUpdated={setUser}
             onLogout={handleLogout}
             onSync={() => {
-              nook.reload();
+              nookState.reload();
               setSyncRefresh((revision) => revision + 1);
             }}
           />
@@ -847,8 +849,8 @@ export default function App({ startupUser = null, startupError = null }) {
     </main>
   );
 
-  // Papol macOS: a source-list sidebar in place of the website masthead.
-  // Reading happens in a three-pane browser — source, list, paper — and every
+  // Papol macOS: a sidebar of listings in place of the website masthead.
+  // Reading happens in a three-pane browser — listing, list, paper — and every
   // other page fills the space beside the sidebar.
   if (DESKTOP) {
     const movePaperToShelf = async (paperSha256, shelfUuid) => {
@@ -858,7 +860,7 @@ export default function App({ startupUser = null, startupError = null }) {
         setDesktopNotice(err.message);
         window.setTimeout(() => setDesktopNotice(null), 5000);
       }
-      nook.reload();
+      nookState.reload();
     };
     return (
       <>
@@ -872,13 +874,13 @@ export default function App({ startupUser = null, startupError = null }) {
         <CompatibilityGate />
         {adminMessageDialog}
         {feedbackDialog}
-        {managingNook && nook.space && (
+        {managingNook && nookState.nook && (
           <NookManager
-            space={nook.space}
-            setSpace={nook.setSpace}
-            onChanged={nook.reload}
+            nook={nookState.nook}
+            setNook={nookState.setNook}
+            onChanged={nookState.reload}
             onClose={() => setManagingNook(false)}
-            onTagDeleted={(tagUuid) => { if (desktopSource === `tag:${tagUuid}`) navigate('/'); }}
+            onTagDeleted={(tagUuid) => { if (desktopListing === `tag:${tagUuid}`) navigate('/'); }}
           />
         )}
         <div className="desktop-app" onClickCapture={routeAppLinks}>
@@ -887,8 +889,8 @@ export default function App({ startupUser = null, startupError = null }) {
             user={user}
             profileActive={route.page === 'profile'}
             onFeedback={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
-            onManageNook={nook.space ? () => setManagingNook(true) : undefined}
-            onMovePaper={nook.space ? movePaperToShelf : undefined}
+            onManageNook={nookState.nook ? () => setManagingNook(true) : undefined}
+            onMovePaper={nookState.nook ? movePaperToShelf : undefined}
             onNavigate={navigate}
             onReportableError={(report) => setFeedbackRequest((current) => current || ({
               key: `error:${report.signature}`,
@@ -896,7 +898,7 @@ export default function App({ startupUser = null, startupError = null }) {
               reportError: true,
             }))}
             onSync={() => {
-              nook.reload();
+              nookState.reload();
               setSyncRefresh((revision) => revision + 1);
             }}
             notice={desktopNotice}
@@ -904,10 +906,10 @@ export default function App({ startupUser = null, startupError = null }) {
           {isBrowsing(route, user) ? (
             <DesktopBrowser
               key={`${mode}:${user.uuid}`}
-              source={desktopSource}
+              listing={desktopListing}
               route={route}
               currentUser={user}
-              nook={nook}
+              nookState={nookState}
               onNavigate={navigate}
               onOpenBoard={openBoard}
               onSyncRefresh={syncRefresh}
@@ -959,7 +961,7 @@ export default function App({ startupUser = null, startupError = null }) {
                 href={appPath('/')}
                 className={
                   route.page === 'home' || route.page === 'board' ||
-                  (route.page === 'space' && route.uuid === user.uuid)
+                  (route.page === 'nook' && route.uuid === user.uuid)
                     ? 'active'
                     : ''
                 }

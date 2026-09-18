@@ -660,8 +660,6 @@ ${macHandoffStyles}
 .pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
 .pdf-viewer-tip-actions button { padding: 4px 9px; }
 .learn-papol .pdf-viewer-tip-actions .learn-papol-close { margin-top: 0; }
-.local-notes-hide { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
-.local-notes-hide input { margin: 0; accent-color: var(--accent); }
 /* The same 32px square as the tools it stands beside, holding the same 18px
    glyph. Three classes, because two were not enough: written as
    .paper-info-button alone, its padding of nothing lost to the bar-link's
@@ -947,12 +945,6 @@ ${macHandoffStyles}
 .brush-pop .weight-strip { border-radius: 1px; display: block; }
 
 /* How long a trail stays, in seconds, because that is what it is. */
-.brush-pop .trail-time {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: 1;
-}
 .brush-pop .weight-strip.round { border-radius: 50%; }
 
 .brush-pop .brush-label {
@@ -1685,113 +1677,6 @@ ${macHandoffStyles}
 
 .pin-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 
-.help-back {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(29, 33, 41, 0.42);
-  overscroll-behavior: contain;
-}
-
-.help-sheet {
-  width: min(440px, 100%);
-  max-height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 20px 22px;
-  border-radius: var(--radius);
-  background: var(--card);
-  box-shadow: var(--shadow-overlay);
-}
-
-.help-sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
-/* Key, glyph, name, mnemonic — then the sentence under them, starting at
-   the name. Columns rather than a row of flexed items, so a wide badge
-   cannot shunt its row out of line with the rest. */
-.help-sheet dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: 34px 22px max-content 1fr;
-  column-gap: 10px;
-  align-items: center;
-}
-
-.help-sheet dt {
-  display: contents;
-}
-
-.help-sheet .help-name {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-}
-
-/* One gap between entries rather than four that have to agree: everything
-   on the row lifts together. */
-.help-sheet dt > * { margin-top: 13px; }
-
-.help-sheet dd {
-  grid-column: 3 / -1;
-  margin: 3px 0 0;
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-}
-
-.help-sheet kbd {
-  justify-self: stretch;
-  padding: 2px 0;
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  text-align: center;
-  color: var(--ink-soft);
-}
-
-.help-glyph { display: grid; place-items: center; width: 22px; color: var(--ink-soft); }
-.help-glyph svg { width: 21px; height: 21px; }
-
-/* How to remember the key, beside the name it belongs to. Quieter than
-   both, because it is a nudge rather than a fact about the viewer. */
-.help-sheet .mnemonic {
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  font-weight: 400;
-  font-style: italic;
-  color: var(--ink-faint);
-}
-
-/* The letter the key is. Darker and heavier than the rest of the word, so
-   the eye lands on it first and carries the key with it. */
-.help-sheet .mnemonic b {
-  font-weight: 700;
-  font-style: normal;
-  color: var(--ink-soft);
-}
-
-.help-foot {
-  margin: 18px 0 0;
-  font-size: var(--fs-sm);
-  color: var(--ink-faint);
-}
-
-.help-done {
-  margin-top: 16px;
-  padding: 7px 16px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: none;
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.help-done:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Same corner Papol itself puts it in, so leaving a note about the viewer
    is not a different habit from leaving one anywhere else. */
@@ -2059,8 +1944,7 @@ ${macHandoffStyles}
 
 /* Holding an anchor: the pointer is the annotation it will leave, with its point
    at the hotspot so it lands where it looks like it will. */
-.ink-surface.tool-anchor,
-.ink-surface.tool-here {
+.ink-surface.tool-anchor {
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg stroke='%23ffffff' stroke-width='3.4' fill='none'%3E%3Ccircle cx='13' cy='5.6' r='2.6'/%3E%3Cpath d='M13 8.4v13M8 12.4h10M6.6 16.4a7 7 0 0 0 12.8 0'/%3E%3C/g%3E%3Cg stroke='%232b4a6f' stroke-width='1.9' fill='none' stroke-linecap='round'%3E%3Ccircle cx='13' cy='5.6' r='2.6'/%3E%3Cpath d='M13 8.4v13M8 12.4h10M6.6 16.4a7 7 0 0 0 12.8 0'/%3E%3C/g%3E%3C/svg%3E") 13 4, copy;
 }
 

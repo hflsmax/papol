@@ -121,7 +121,7 @@ class PaperIsNotOwned(unittest.TestCase):
         """Displaying a copy is not what puts a paper in the Library."""
         listing = self.client.get("/api/papers")
         self.assertEqual(listing.status_code, 200, listing.text)
-        self.assertIn(self.paper_sha256, [p["uuid"] for p in listing.json()])
+        self.assertIn(self.paper_sha256, [p["sha256"] for p in listing.json()])
 
     def test_two_uploads_of_one_file_at_once_land_on_the_same_paper(self):
         """The digest is unique, so one of two racing uploads loses the
@@ -185,7 +185,7 @@ class PaperIsNotOwned(unittest.TestCase):
         listing = self.client.get("/api/papers")
         self.assertEqual(listing.status_code, 200, listing.text)
         row = next(
-            (p for p in listing.json() if p["uuid"] == nobodys_file), None,
+            (p for p in listing.json() if p["sha256"] == nobodys_file), None,
         )
         self.assertIsNotNone(row, "a paper nobody holds must still be listed")
         self.assertEqual(row["users"], [], "and be shown with no readers")
@@ -195,14 +195,14 @@ class PaperIsNotOwned(unittest.TestCase):
         # line they cannot follow.
         page = self.client.get(f"/api/papers/{paper_name(nobodys_file)}")
         self.assertEqual(page.status_code, 200, page.text)
-        self.assertFalse(page.json()["viewer_has_entry"])
+        self.assertIsNone(page.json()["copy_uuid"])
 
     def test_leaving_a_paper_does_not_take_it_out_of_the_library(self):
         """The last reader walking away is not a deletion."""
         self.client.post(f"/api/papers/{paper_name(self.paper_sha256)}/add-to-nook")
         self.client.delete(f"/api/papers/{paper_name(self.paper_sha256)}")
         listing = self.client.get("/api/papers")
-        self.assertIn(self.paper_sha256, [p["uuid"] for p in listing.json()])
+        self.assertIn(self.paper_sha256, [p["sha256"] for p in listing.json()])
 
     def test_any_signed_in_user_opens_it(self):
         page = self.client.get(f"/api/papers/{paper_name(self.paper_sha256)}")

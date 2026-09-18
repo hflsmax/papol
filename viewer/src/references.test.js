@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { destinationHeight } from './sections.js';
 
 import {
-  citationNumbers, columnsOnPage, consolidateCitations, destinationNumber, destinationY,
+  citationNumbers, columnsOnPage, consolidateCitations, destinationNumber,
   pageOverlays, readNamedReference, referenceAt,
 } from './references.js';
 
@@ -80,10 +81,10 @@ test('consolidates adjacent PDF annotation fragments into one citation link', as
 test('reads the vertical position from each PDF destination shape', () => {
   const page = { num: 275, gen: 0 };
 
-  assert.equal(destinationY([page, { name: 'XYZ' }, 0, 730.917, null]), 730.917);
-  assert.equal(destinationY([page, { name: 'FitH' }, 730.917]), 730.917);
-  assert.equal(destinationY([page, { name: 'FitBH' }, 730.917]), 730.917);
-  assert.equal(destinationY([page, { name: 'Fit' }]), null);
+  assert.equal(destinationHeight([page, { name: 'XYZ' }, 0, 730.917, null]), 730.917);
+  assert.equal(destinationHeight([page, { name: 'FitH' }, 730.917]), 730.917);
+  assert.equal(destinationHeight([page, { name: 'FitBH' }, 730.917]), 730.917);
+  assert.equal(destinationHeight([page, { name: 'Fit' }]), null);
 });
 
 test('distinguishes tightly spaced references using the raised-link offset', () => {

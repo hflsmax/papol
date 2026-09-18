@@ -7,7 +7,7 @@
 
 import { makeRig, ring, far, PALE, DARK, OFF, TAN, CREAM, POINT, BLUE } from './beast';
 
-export const BOX = { w: 64, h: 44 };
+const BOX = { w: 64, h: 44 };
 export const GROUND = 36;
 const FAR = 34.4;
 

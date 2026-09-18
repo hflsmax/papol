@@ -9,6 +9,7 @@ paper: which users are shown standing against it.
 
 import re
 
+from fastapi import HTTPException
 from models import Copy, Paper
 from sqlalchemy.orm import Session
 
@@ -56,6 +57,19 @@ def paper_by_name(name: str, db: Session) -> Paper | None:
     if len(matches) > 1:
         raise AmbiguousPaperName(name)
     return matches[0] if matches else None
+
+
+def paper_or_404(name: str, db: Session) -> Paper:
+    """The paper a route was asked about. A deleted one is not a paper."""
+    try:
+        paper = paper_by_name(name, db)
+    except AmbiguousPaperName:
+        raise HTTPException(
+            status_code=409, detail="That name means more than one paper",
+        ) from None
+    if paper is None or paper.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    return paper
 
 
 def displayed_copies(paper: Paper) -> list[Copy]:

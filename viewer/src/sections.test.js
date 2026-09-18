@@ -13,7 +13,7 @@ import {
   looksAppendix,
   looksLikeContents,
   markParts,
-  namesHeight,
+  destinationHeight,
   readSections,
   topLevel,
   withoutEndMatter,
@@ -196,11 +196,11 @@ test('a cancelled read resolves to nothing at all', async () => {
 });
 
 test('only a destination with a height says how far down the page it lands', () => {
-  assert.equal(namesHeight([{}, { name: 'XYZ' }, 72, 594, null]), true);
-  assert.equal(namesHeight([{}, { name: 'FitH' }, 396]), true);
-  assert.equal(namesHeight([{}, { name: 'XYZ' }, 72, null, null]), false);
-  assert.equal(namesHeight([{}, { name: 'Fit' }]), false);
-  assert.equal(namesHeight(null), false);
+  assert.equal(destinationHeight([{}, { name: 'XYZ' }, 72, 594, null]), 594);
+  assert.equal(destinationHeight([{}, { name: 'FitH' }, 396]), 396);
+  assert.equal(destinationHeight([{}, { name: 'XYZ' }, 72, null, null]), null);
+  assert.equal(destinationHeight([{}, { name: 'Fit' }]), null);
+  assert.equal(destinationHeight(null), null);
 });
 
 const piece = (str, x, y, height = 10) => ({

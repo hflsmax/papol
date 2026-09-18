@@ -10,8 +10,7 @@ The shared client layers have distinct responsibilities:
 - `httpClient.js` owns authenticated HTTP requests and response normalization.
 - `api/` contains cohesive product clients for accounts, people, boards,
   papers, rooms, sharables, notifications, feedback, and administration.
-  Applications import the domain they use; `api.js` is only a compatibility
-  barrel.
+  Applications import the domain they use.
 - `nativeData.js` exposes a finite `nativeRepository` for desktop queries and
   atomic transactions without importing Tauri. Raw IPC query names are private
   to that module and are also represented by a closed enum in Rust.

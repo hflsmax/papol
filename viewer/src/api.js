@@ -18,10 +18,6 @@ import { lookupPaperMetadata } from '../../shared/api/papers.js';
 
 const openedFileImports = new Map();
 
-export function rememberPaperIdentity(paper) {
-  return paper;
-}
-
 export function getToken() {
   return currentCredential();
 }
@@ -29,19 +25,19 @@ export function getToken() {
 export async function getPaperByPdf(hash) {
   if (nativeDataActive()) {
     try {
-      return rememberPaperIdentity(paperView(await nativeRepository.paperByPdf(hash)));
+      return paperView(await nativeRepository.paperByPdf(hash));
     } catch {
       // A public paper that has not been retained locally still comes from the service.
     }
   }
-  return rememberPaperIdentity(await request(`/viewer/${hash}`));
+  return request(`/viewer/${hash}`);
 }
 
 export async function getPaperNotes(paper) {
   if (nativeDataActive()) {
     return listAnnotations(paper.sha256, { kind: 'note' });
   }
-  return paper.notes || [];
+  return paper.notes;
 }
 
 // A share uuid stands in for a session: the same public metadata, asked for
@@ -52,7 +48,6 @@ export function getViewerPaperInfo(hash, share) {
 
 export function pdfHref(paper) {
   if (!paper?.file_path) return null;
-  if (paper.file_path.startsWith('http')) return paper.file_path;
   return backendPath(`/uploads/${paper.file_path}`);
 }
 
@@ -61,7 +56,7 @@ export function pdfHref(paper) {
 export async function getNookPaperByPdf(hash) {
   if (!nativeDataActive()) return null;
   try {
-    return rememberPaperIdentity(paperView(await nativeRepository.paperByPdf(hash)));
+    return paperView(await nativeRepository.paperByPdf(hash));
   } catch {
     return null;
   }
@@ -94,8 +89,7 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
     // starts with bibliographic metadata instead of a filename-only stub.
     const metadata = await lookupPaperMetadata(blob, name);
     const shelves = await nativeRepository.shelves();
-    const shelf = shelves.find((row) => row.is_default === true || row.is_default === 1)
-      || shelves[0];
+    const shelf = shelves.find((row) => row.is_default) || shelves[0];
     // No name is invented for it. The paper is the file, and the service
     // reads the same name off the same bytes.
     await nativeRepository.transact([
@@ -274,7 +268,7 @@ export function updateAnnotation(uuid, changes) {
     }
     if (changes.body !== undefined) values.body = JSON.stringify(changes.body);
     return nativeRepository
-      .transact([{ table: 'annotations', uuid, operation: 'patch', values }])
+      .transact([{ table: 'annotations', uuid, operation: 'upsert', values }])
       .then((receipt) => annotationView(receipt.rows[0]));
   }
   return jsonRequest(`/annotations/${uuid}`, 'PUT', changes);
@@ -294,8 +288,8 @@ export function deleteAnnotation(uuid) {
 // The bibliography of the PDF being read, and where each work is cited in
 // it. The first ask may answer `pending`: reading a PDF's references takes
 // a pass over the whole document, which happens once and is then kept.
-export function getViewerReferences(pdfHash, paperSha256) {
-  return request(`/viewer-references/${pdfHash}?paper_sha256=${paperSha256}`);
+export function getViewerReferences(paperSha256) {
+  return request(`/viewer-references/${paperSha256}?paper_sha256=${paperSha256}`);
 }
 
 // One reference, looked up the first time anyone opens it.

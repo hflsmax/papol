@@ -388,17 +388,15 @@ in {
         ++ [
           "/run/current-system/sw/bin/systemctl status papol"
           "/run/current-system/sw/bin/journalctl -u papol *"
-          "/run/current-system/sw/bin/install -d -o ${cfg.user} -g users ${dirOf cfg.srcDir}"
         ]
         ++ lib.optional cfg.deploy.passwordlessRebuild
           "/run/current-system/sw/bin/nixos-rebuild switch"
       );
     }]);
 
-    # And once this has been applied, the directory is simply there, so the
-    # one command above that makes it never has to run again. Two
-    # independent reasons can each want a rule here, so this builds one list
-    # rather than assigning the option twice.
+    # The checkout's parent directory is made here, owned by the deploying
+    # user. Two independent reasons can each want a rule, so this builds one
+    # list rather than assigning the option twice.
     systemd.tmpfiles.rules =
       lib.optionals cfg.deploy.passwordless [
         "d ${dirOf cfg.srcDir} 0755 ${cfg.user} users -"

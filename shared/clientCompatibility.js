@@ -1,10 +1,9 @@
 // Whether this build can still talk to the server it is pointed at.
 //
-// Three answers, and only the last one stops anything: `supported`,
-// `deprecated` (a new version exists and is worth having), and
-// `incompatible` (the server will no longer accept this one). Being
-// incompatible stops synchronization and nothing else — the user keeps
-// their papers, their annotations, and everything already on this computer.
+// Two answers: `supported`, and `incompatible` (this build was made for
+// another schema than the one the server serves). Being incompatible stops
+// synchronization and nothing else — the user keeps their papers, their
+// annotations, and everything already on this computer.
 //
 // Only a real answer from the server moves this. A refused connection, a
 // timeout, or offline mode leaves the last known verdict exactly where it
@@ -13,16 +12,15 @@
 
 import { getClientRequirements } from './api/clientRequirements.js';
 
-export const SUPPORTED = 'supported';
-export const DEPRECATED = 'deprecated';
+const SUPPORTED = 'supported';
 export const INCOMPATIBLE = 'incompatible';
 
 const CACHE_KEY = 'papol.clientCompatibility';
 export const COMPATIBILITY_EVENT = 'papol-client-compatibility';
 
-const VERDICTS = new Set([SUPPORTED, DEPRECATED, INCOMPATIBLE]);
+const VERDICTS = new Set([SUPPORTED, INCOMPATIBLE]);
 
-let state = { verdict: SUPPORTED, downloadUrl: null, minimumVersion: null };
+let state = { verdict: SUPPORTED, downloadUrl: null };
 
 function readCache() {
   try {
@@ -62,9 +60,9 @@ export function hydrateClientCompatibility() {
 
 // Called when the server itself has answered, from the startup check or
 // from a 426 on the synchronization path.
-export function setClientCompatibility({ verdict, downloadUrl = null, minimumVersion = null }) {
+export function setClientCompatibility({ verdict, downloadUrl = null }) {
   if (!VERDICTS.has(verdict)) return state;
-  announce({ verdict, downloadUrl, minimumVersion });
+  announce({ verdict, downloadUrl });
   return state;
 }
 
@@ -73,11 +71,7 @@ export function setClientCompatibility({ verdict, downloadUrl = null, minimumVer
 export async function checkClientCompatibility() {
   try {
     const asked = await getClientRequirements();
-    return setClientCompatibility({
-      verdict: asked?.verdict || SUPPORTED,
-      downloadUrl: asked?.download_url || null,
-      minimumVersion: asked?.minimum_version || null,
-    });
+    return setClientCompatibility({ verdict: asked.verdict, downloadUrl: asked.download_url });
   } catch {
     return state;
   }

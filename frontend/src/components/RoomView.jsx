@@ -12,10 +12,9 @@ import {
   finishRoom,
 } from '../../../shared/api/rooms.js';
 import appLimits from '../../../shared/appLimits.js';
-import { updatePaper } from '../../../shared/api/papers.js';
 import Avatar from './Avatar';
 import HintPop from './HintPop';
-import { SEMINAR_STYLES, styleLabel, roomStyleDesc } from '../seminarStyles';
+import { SEMINAR_STYLES, canUncall, roomStyleDesc, styleLabel } from '../seminarStyles';
 import { confirmAction } from '../../../shared/confirmAction';
 
 function formatWhen(dateString) {
@@ -87,10 +86,8 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
   const participants = [...room.participants].sort(
     (a, b) => leadsRoom(b) - leadsRoom(a)
   );
-  const canUncall =
-    room.creator.uuid === currentUser.uuid &&
-    (room.status === 'open' || room.status === 'planning') &&
-    participants.every((participant) => participant.uuid === currentUser.uuid);
+  const isParticipant = room.participants.some((p) => p.uuid === currentUser.uuid);
+  const uncallable = canUncall(room, currentUser);
 
   const uncall = async () => {
     if (!(await confirmAction('Uncall this seminar? The empty cohort will be removed.', {
@@ -115,13 +112,13 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
       {/* ---- Stage ---- */}
       {room.status === 'open' && (
         <div className="stage-card open">
-          <h5>Seminar called — waiting for a host</h5>
+          <h5>Seminar called — waiting for a leader</h5>
           <p>Called by {room.creator.display_name}.</p>
           <p className="stage-hint">
-            The host is the seminar's benevolent dictator: they volunteer to
+            The leader is the seminar's benevolent dictator: they volunteer to
             plan its time, place, and style, and to lead the discussion.
           </p>
-          {room.viewer_has_copy ? (
+          {room.viewer_copy_is_public ? (
             <span className="hint-anchor">
               <button
                 className="primary stage-action"
@@ -139,7 +136,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                   }
                 }}
               >
-                Answer to host
+                Lead this seminar
               </button>
               {leadWarning && (
                 <HintPop
@@ -150,7 +147,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             </span>
           ) : (
             <p className="stage-hint">
-              Only users with a displayed entry can host.
+              Only users with this paper on a public shelf can lead.
             </p>
           )}
         </div>
@@ -285,10 +282,10 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
           ) : (
             <button
               disabled={isBusy}
-              title="Return the seminar to waiting for a host"
+              title="Return the seminar to waiting for a leader"
               onClick={run(() => unhostRoom(room.uuid))}
             >
-              Step back from hosting
+              Step back from leading
             </button>
           )}
         </div>
@@ -317,7 +314,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                 disabled={isBusy}
                 onClick={run(() => finishRoom(room.uuid))}
               >
-                Annotation as finished
+                Mark as finished
               </button>
             </p>
           )}
@@ -332,31 +329,6 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               <strong>{styleLabel(room.style)}</strong>
             </p>
           )}
-        </div>
-      )}
-
-      {room.viewer_hidden_entry_uuid && (
-        <div className="room-hidden-note">
-          Your entry is hidden.{' '}
-          <button
-            className="link-btn"
-            disabled={isBusy}
-            onClick={async () => {
-              setActionError(null);
-              setIsBusy(true);
-              try {
-                await updatePaper(room.viewer_hidden_entry_uuid, { is_public: true });
-                onReload();
-              } catch (e) {
-                setActionError(e.message);
-              } finally {
-                setIsBusy(false);
-              }
-            }}
-          >
-            Put it on display
-          </button>{' '}
-          to take part.
         </div>
       )}
 
@@ -378,7 +350,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               <Avatar user={u} className="entry-avatar" />
               <span>{u.display_name}</span>
               {leadsRoom(u) && <span className="leader-star">★</span>}
-              {u.uuid === currentUser.uuid && room.viewer_is_participant && (
+              {u.uuid === currentUser.uuid && isParticipant && (
                 <button
                   className="chip-x"
                   title="Leave the cohort"
@@ -399,7 +371,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               )}
             </a>
           ))}
-          {!room.viewer_is_participant && (
+          {!isParticipant && (
             <span className="hint-anchor">
               <button
                 className="join-chip"
@@ -436,7 +408,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                   You host this seminar and no one else is in the cohort — there
                   is no one to hand hosting to.
                 </p>
-                {canUncall && (
+                {uncallable && (
                   <button
                     type="button"
                     className="danger"
@@ -495,7 +467,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
           <ul className="availability-all">
             {participants.map((u) => {
               const entry = room.availabilities.find((a) => a.user.uuid === u.uuid);
-              const isMe = u.uuid === currentUser.uuid && room.viewer_is_participant;
+              const isMe = u.uuid === currentUser.uuid && isParticipant;
               return (
                 <li key={u.uuid}>
                   <Avatar user={u} className="entry-avatar" />
@@ -566,7 +538,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             ))
           )}
         </ol>
-        {room.viewer_is_participant ? (
+        {isParticipant ? (
           <form
             className="compose-row"
             onSubmit={(event) => {
@@ -619,9 +591,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               {msgHint && (
                 <HintPop
                   text={
-                    room.viewer_has_copy
+                    room.viewer_copy_is_public
                       ? 'Join the cohort to post a message.'
-                      : 'Add this paper to your nook (on display) to take part.'
+                      : 'Move this paper to a public shelf to take part.'
                   }
                   onClose={() => setMsgHint(false)}
                 />

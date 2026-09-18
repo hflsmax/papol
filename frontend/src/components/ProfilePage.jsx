@@ -15,7 +15,7 @@ import {
   setLocalSyncPreference,
 } from '../../../shared/connectivity.js';
 import {
-  clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault, nativeStorageStatus,
+  clearNativeData, hydrateNativeSyncPreference, makePdfViewerDefault,
   nativeRepository, nativeSyncInProgress, openDiagnosticLogsInFinder, openNativeStorageInFinder, pdfViewerStatus,
   persistNativeSyncPreference, subscribeNativeData, subscribeNativeSyncProgress, syncAllNow,
 } from '../../../shared/nativeData.js';
@@ -98,7 +98,7 @@ function LocalDeviceSettings({ onSynced }) {
 
   useEffect(() => {
     hydrateNativeSyncPreference().then(setSyncPreferenceState).catch(() => {});
-    nativeStorageStatus().then(setStorage).catch(() => {});
+    nativeRepository.storageStatus().then(setStorage).catch(() => {});
     const stopProgress = subscribeNativeSyncProgress((progress) => {
       setSync((current) => ({ ...current, running: true, error: null, progress }));
     });
@@ -113,7 +113,7 @@ function LocalDeviceSettings({ onSynced }) {
           progress: null,
           lastBytes: current.progress?.bytes ?? current.lastBytes,
         }));
-        nativeStorageStatus().then(setStorage).catch(() => {});
+        nativeRepository.storageStatus().then(setStorage).catch(() => {});
       } else if (typeof payload?.error === 'string') {
         setSync((current) => ({ ...current, error: payload.error }));
       }
@@ -172,7 +172,7 @@ function LocalDeviceSettings({ onSynced }) {
     setClearingData(true);
     try {
       await clearNativeData();
-      setStorage(await nativeStorageStatus());
+      setStorage(await nativeRepository.storageStatus());
     } finally {
       setClearingData(false);
     }
@@ -281,7 +281,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   // backend and the resulting values follow the user to every device.
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
-  const [emailPublic, setEmailPublic] = useState(user.email_public !== false);
+  const [emailPublic, setEmailPublic] = useState(user.email_public);
   const [profileError, setProfileError] = useState(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -325,12 +325,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   const handleClose = async (e) => {
     e.preventDefault();
     setCloseError(null);
-    // The typed email and the password are checked on the server too; this
-    // only saves a round trip and says which one is wrong.
-    if (closeEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
-      setCloseError("Email doesn't match this account.");
-      return;
-    }
     const confirmed = await confirmAction(
       'This deletes your account, your notes and your nook, and cannot ' +
         'be undone. Papers you uploaded stay for the users who have ' +
@@ -413,11 +407,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
       <div className="panel">
         <div className="panel-head-row">
           <h2 className="panel-title">Account</h2>
-          {onLogout && (
-            <button type="button" onClick={onLogout}>
-              Sign out
-            </button>
-          )}
+          <button type="button" onClick={onLogout}>
+            Sign out
+          </button>
         </div>
         <p className="panel-note">
           These settings are saved to your account and apply wherever you sign in.

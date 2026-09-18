@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { backendUrl, normalizeBackendBase } from '../../shared/backendUrl.js';
+import { backendUrl, normalizeBackendBase } from '../../shared/appUrls.js';
 
 test('configured backend bases are directory URLs', () => {
   assert.equal(normalizeBackendBase('https://mc-pony.com/papol'), 'https://mc-pony.com/papol/');

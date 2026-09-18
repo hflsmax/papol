@@ -84,15 +84,7 @@ async def list_notifications(
         .limit(limit("counts", "notifications"))
         .all()
     )
-    unread = (
-        db.query(Notification)
-        .filter(Notification.user_uuid == current_user.uuid, Notification.read.is_(False))
-        .count()
-    )
-    return NotificationList(
-        unread_count=unread,
-        notifications=[_notification_out(n) for n in rows],
-    )
+    return NotificationList(notifications=[_notification_out(n) for n in rows])
 
 
 @router.post("/api/notifications/{notif_uuid}/read")

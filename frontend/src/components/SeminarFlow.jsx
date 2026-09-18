@@ -5,17 +5,17 @@ const STATES = [
   {
     status: 'open',
     cls: 'live',
-    desc: 'Any user calls for a spontaneous seminar on a paper. Every user of it is notified, and a cohort forms, waiting for a host.',
+    desc: 'Any user calls for a spontaneous seminar on a paper. Every user of it is notified, and a cohort forms, waiting for a leader.',
   },
   {
     status: 'planning',
     cls: 'gold',
-    desc: 'A user answers the call and hosts the seminar. Participants share availability and discuss what they want from the seminar.',
+    desc: 'A user answers the call and leads the seminar. Participants share availability and discuss what they want from the seminar.',
   },
   {
     status: 'scheduled',
     cls: 'done',
-    desc: 'The host announces the time, place, and style of the seminar, and everyone is notified.',
+    desc: 'The leader announces the time, place, and style of the seminar, and everyone is notified.',
   },
 ];
 

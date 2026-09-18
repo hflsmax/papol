@@ -76,7 +76,6 @@ CREATE TABLE IF NOT EXISTS board_items (
 );
 CREATE INDEX IF NOT EXISTS ix_board_items_board_uuid ON board_items(board_uuid);
 CREATE INDEX IF NOT EXISTS ix_board_items_group_uuid ON board_items(group_uuid);
-CREATE INDEX IF NOT EXISTS ix_board_items_sha256 ON board_items(sha256);
 
 -- A paper is one PDF and what is known about it, and the digest of that PDF
 -- is its key. Not a column beside a UUID: the only name it has. Everyone

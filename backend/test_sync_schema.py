@@ -25,11 +25,10 @@ class SharedSyncSchemaTests(unittest.TestCase):
         self.assertTrue(validate_registry())
 
     def test_shared_ddl_exposes_every_synchronized_model_column(self):
-        migrations = Path(__file__).parents[1] / "schema" / "domain"
+        domain = Path(__file__).parents[1] / "schema" / "domain" / "domain.sql"
         connection = sqlite3.connect(":memory:")
         try:
-            for ddl in sorted(migrations.glob("*.sql")):
-                connection.executescript(ddl.read_text())
+            connection.executescript(domain.read_text())
             for table_name, rule in registry()["tables"].items():
                 local_info = list(connection.execute(f"PRAGMA table_info({table_name})"))
                 local = {row[1]: row[2].upper() for row in local_info}

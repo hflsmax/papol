@@ -1,4 +1,4 @@
-use crate::data::{LocalStore, RemoteChange};
+use crate::data::{declared_schema_version, LocalStore, RemoteChange};
 use crate::limits::value as app_limit;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,6 @@ pub(crate) const COMPATIBILITY_KEY: &str = "client_compatibility";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FailureKind {
     Transient,
-    Authentication,
     Permanent,
     /// This build is older than the server will speak to. Not transient —
     /// retrying cannot help — and not permanent in the per-mutation sense
@@ -57,10 +56,22 @@ pub struct SyncResult {
     pub cursor: i64,
 }
 
+/// Which way a sync goes. A push alone publishes what a server action is
+/// about to refer to; a pull alone reconciles without sending anything,
+/// which is what a manual-mode replica does in the background.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SyncMode {
+    #[default]
+    Full,
+    Push,
+    Pull,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct ReconcileOptions {
     pub retry_blocked: bool,
-    pub pull_only: bool,
+    pub mode: SyncMode,
 }
 
 /// The four stages of a sync, in the order they run.
@@ -236,9 +247,18 @@ struct SnapshotResponse {
 
 impl Coordinator {
     pub fn new() -> Result<Self, String> {
+        // The schema this build was compiled for goes on every request; the
+        // server compares it with its own and answers 426 to any other. The
+        // release version is recorded beside the client's cursor, so who runs
+        // what can be read off the table.
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "X-Papol-Schema",
+            reqwest::header::HeaderValue::from_str(&declared_schema_version().to_string())
+                .map_err(|error| error.to_string())?,
+        );
         let client = Client::builder()
-            // The real version, because the server decides what it can
-            // still speak to by reading it.
+            .default_headers(headers)
             .user_agent(concat!("Papol macOS/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_millis(app_limit(
                 "timeouts_ms",
@@ -276,35 +296,6 @@ impl Coordinator {
         .await
     }
 
-    pub async fn push_with_progress(
-        &self,
-        store: &LocalStore,
-        account_uuid: &str,
-        backend_url: &str,
-        token: &str,
-        retry_blocked: bool,
-        report: &(dyn Fn(SyncProgress) + Send + Sync),
-    ) -> Result<SyncResult, String> {
-        let _guard = self.gate.lock().await;
-        let backend = validated_backend(backend_url)?;
-        if token.trim().is_empty() {
-            return Err("Sync requires a signed-in account".into());
-        }
-        if retry_blocked {
-            store.retry_blocked_outbox(account_uuid)?;
-        }
-        let mut meter = Meter::new(report);
-        let pushed = self
-            .push_pending(store, account_uuid, &backend, token, &mut meter)
-            .await?;
-        meter.finish();
-        Ok(SyncResult {
-            pushed,
-            pulled: 0,
-            cursor: store.pull_cursor(account_uuid)?,
-        })
-    }
-
     async fn push_pending(
         &self,
         store: &LocalStore,
@@ -313,12 +304,10 @@ impl Coordinator {
         token: &str,
         meter: &mut Meter<'_>,
     ) -> Result<usize, String> {
-        let outbox = store
-            .query(account_uuid, "sync_status", serde_json::json!({}))?
-            .get("pending")
-            .and_then(Value::as_u64)
-            .unwrap_or(0) as usize;
-        meter.begin(SyncPhase::Uploading, Some(outbox));
+        meter.begin(
+            SyncPhase::Uploading,
+            Some(store.pending_count(account_uuid)?),
+        );
         let mut pushed = 0;
         while let Some(mutation) = store.next_outbox(account_uuid)? {
             let attempted: Result<PushResponse, SyncFailure> = async {
@@ -391,7 +380,7 @@ impl Coordinator {
                     if failure.kind == FailureKind::Incompatible {
                         // The mutation is untouched: it is this program the
                         // server refused, not the user's work.
-                        let _ = store.set_local_setting(COMPATIBILITY_KEY, "incompatible");
+                        store.set_local_setting(COMPATIBILITY_KEY, "incompatible")?;
                         return Err(failure.message);
                     }
                     let blocked = failure.kind == FailureKind::Permanent;
@@ -436,16 +425,24 @@ impl Coordinator {
         if token.trim().is_empty() {
             return Err("Sync requires a signed-in account".into());
         }
-        if options.retry_blocked && !options.pull_only {
+        if options.retry_blocked && options.mode != SyncMode::Pull {
             store.retry_blocked_outbox(account_uuid)?;
         }
         let mut meter = Meter::new(report);
-        let pushed = if options.pull_only {
+        let pushed = if options.mode == SyncMode::Pull {
             0
         } else {
             self.push_pending(store, account_uuid, &backend, token, &mut meter)
                 .await?
         };
+        if options.mode == SyncMode::Push {
+            meter.finish();
+            return Ok(SyncResult {
+                pushed,
+                pulled: 0,
+                cursor: store.pull_cursor(account_uuid)?,
+            });
+        }
 
         // When uploads are enabled, push first so aliases can collapse a
         // temporary offline import before a snapshot introduces the same
@@ -500,7 +497,7 @@ impl Coordinator {
             if !response.status().is_success() {
                 let failure = http_error(response).await;
                 if failure.kind == FailureKind::Incompatible {
-                    let _ = store.set_local_setting(COMPATIBILITY_KEY, "incompatible");
+                    store.set_local_setting(COMPATIBILITY_KEY, "incompatible")?;
                 }
                 return Err(failure.message);
             }
@@ -523,7 +520,7 @@ impl Coordinator {
         // refused it accepts now. Said plainly here rather than left to
         // lapse, so a user who has installed the version that works does
         // not meet yesterday's bar on every launch.
-        let _ = store.set_local_setting(COMPATIBILITY_KEY, "supported");
+        store.set_local_setting(COMPATIBILITY_KEY, "supported")?;
         // A successful sync is a complete offline replica: hydrate every PDF
         // and board file referenced by the account before reporting success.
         let missing = store.missing_blob_digests(account_uuid)?;
@@ -567,18 +564,8 @@ impl Coordinator {
         sha256: &str,
         meter: &mut Meter<'_>,
     ) -> Result<(), String> {
-        if store.has_blob(sha256) {
-            return Ok(());
-        }
         if token.trim().is_empty() {
             return Err("Downloading a file requires a signed-in account".into());
-        }
-        if sha256.len() != 64
-            || !sha256
-                .chars()
-                .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character))
-        {
-            return Err("Invalid blob identifier".into());
         }
         let backend = validated_backend(backend_url)?;
         let url = backend
@@ -635,7 +622,6 @@ async fn http_error(response: reqwest::Response) -> SyncFailure {
 
 fn classify_status(status: u16) -> FailureKind {
     match status {
-        401 => FailureKind::Authentication,
         // A payload rejected for size will not become valid by retrying it.
         // Block that one mutation so unrelated work can continue syncing.
         400 | 403 | 404 | 409 | 413 | 422 => FailureKind::Permanent,
@@ -724,7 +710,6 @@ mod tests {
     fn retryability_uses_structured_http_status_not_rendered_text() {
         assert_eq!(FailureKind::Permanent, classify_status(422));
         assert_eq!(FailureKind::Permanent, classify_status(403));
-        assert_eq!(FailureKind::Authentication, classify_status(401));
         assert_eq!(FailureKind::Permanent, classify_status(409));
         assert_eq!(FailureKind::Permanent, classify_status(413));
         assert_eq!(FailureKind::Transient, classify_status(503));
@@ -819,7 +804,7 @@ mod tests {
                 "token",
                 ReconcileOptions {
                     retry_blocked: false,
-                    pull_only: true,
+                    mode: SyncMode::Pull,
                 },
                 &report,
             )

@@ -107,12 +107,3 @@ test('page cache performs selectors once until a mounted page is replaced', () =
   assert.equal(rootQueries, 2);
   assert.equal(innerQueries, 160);
 });
-
-test('page cache can reproduce the legacy per-frame lookup for benchmarks', () => {
-  let queries = 0;
-  const page = { querySelector() { queries += 1; return {}; } };
-  const root = { querySelectorAll() { queries += 1; return [page]; } };
-  const cache = createZoomPageCache({ enabled: false });
-  for (let frame = 0; frame < 60; frame += 1) cache.get(root);
-  assert.equal(queries, 120);
-});

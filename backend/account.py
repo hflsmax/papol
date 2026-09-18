@@ -54,16 +54,8 @@ from models import (
 
 
 def _authors(paper: Paper) -> list:
-    """Paper.authors is a JSON array kept as text, and has been written by
-    several versions of the app. A bad value must not cost the user
-    their export."""
-    if not paper.authors:
-        return []
-    try:
-        value = json.loads(paper.authors)
-    except (ValueError, TypeError):
-        return [paper.authors]
-    return value if isinstance(value, list) else [str(value)]
+    """Paper.authors is a JSON array kept as text."""
+    return json.loads(paper.authors) if paper.authors else []
 
 
 def _slug(text: str, limit: int = 60) -> str:
@@ -449,33 +441,32 @@ def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
             .order_by(RoomParticipant.created_at, RoomParticipant.uuid)
             .all()
         )
-        allowed = eligible_hosts(room) if eligible_hosts else None
+        allowed = eligible_hosts(room)
         successor = next(
-            (p.user_uuid for p in cohort if allowed is None or p.user_uuid in allowed),
+            (p.user_uuid for p in cohort if p.user_uuid in allowed),
             None,
         )
         if successor is not None:
             room.leader_uuid = successor
             handed += 1
-            if notify:
-                notify(
-                    room,
-                    {successor},
-                    "The host of the seminar on \u201c%s\u201d has closed their "
-                    "account, so it is yours to host now." % room.paper.title,
-                )
+            notify(
+                room,
+                {successor},
+                "The leader of the seminar on \u201c%s\u201d has closed their "
+                "account, so it is yours to lead now." % room.paper.title,
+            )
         else:
             # Back to the state a seminar is in before anyone leads it, so
             # it can be answered rather than sitting there unhostable.
             room.leader_uuid = None
             room.status = "open"
             reopened += 1
-            if notify and cohort:
+            if cohort:
                 notify(
                     room,
                     {p.user_uuid for p in cohort},
-                    "The host of the seminar on \u201c%s\u201d has closed their "
-                    "account. It is open again for someone to host." % room.paper.title,
+                    "The leader of the seminar on \u201c%s\u201d has closed their "
+                    "account. It is open again for someone to lead." % room.paper.title,
                 )
     return handed, reopened
 
@@ -485,8 +476,8 @@ def tombstone(
     user: User,
     uploads_dir: Path,
     *,
-    eligible_hosts=None,
-    notify=None,
+    eligible_hosts,
+    notify,
 ) -> dict:
     """Close the account, keeping the row and scrubbing the user out of it.
 
@@ -502,9 +493,8 @@ def tombstone(
     foreign key can point at.
 
     `eligible_hosts(room) -> set[str]` and `notify(room, user_uuids, message)`
-    come from main.py, which is where the rules about who may host and how
-    a user is told live. Both are optional so that this module can be
-    exercised without dragging the whole app in behind it.
+    come from main.py, which is where the rules about who may lead and how
+    a user is told live.
     """
     removed = {}
     user_uuid = user.uuid

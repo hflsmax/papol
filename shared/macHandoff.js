@@ -16,12 +16,12 @@ export const HANDOFF_SCHEME = import.meta.env?.DEV ? 'papol-dev' : 'papol';
 // A deep link arrives from whatever page cared to send one, so only the keys
 // that identify a document and a place in it survive the crossing. Anything
 // else a page might hope to smuggle into the app's own URL is dropped.
-export const HANDOFF_QUERY_KEYS = Object.freeze([
+const HANDOFF_QUERY_KEYS = Object.freeze([
   'pdf', 'board', 'share', 'page', 'note', 'y', 'mark', 'box',
 ]);
 
 export const RETIRED_KEY = 'papol.handoff.retired';
-export const DEFERRED_KEY = 'papol.handoff.deferred';
+const DEFERRED_KEY = 'papol.handoff.deferred';
 
 export const DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 
@@ -132,8 +132,7 @@ export function deferDocument(store, identity) {
   if (!identity) return;
   try {
     const raw = store?.getItem(DEFERRED_KEY);
-    const deferred = raw ? JSON.parse(raw) : [];
-    const list = Array.isArray(deferred) ? deferred : [];
+    const list = raw ? JSON.parse(raw) : [];
     if (list.includes(identity)) return;
     store?.setItem(DEFERRED_KEY, JSON.stringify([...list, identity].slice(-64)));
   } catch {
@@ -145,8 +144,7 @@ export function documentIsDeferred(store, identity) {
   if (!identity) return false;
   try {
     const raw = store?.getItem(DEFERRED_KEY);
-    const deferred = raw ? JSON.parse(raw) : [];
-    return Array.isArray(deferred) && deferred.includes(identity);
+    return raw ? JSON.parse(raw).includes(identity) : false;
   } catch {
     return false;
   }

@@ -9,16 +9,11 @@ export const OFFLINE_MODE_MESSAGE = 'Papol is offline. Your local data is still 
 let remoteNetworkFetch = (...args) => globalThis.fetch(...args);
 let offlineMode = false;
 let syncStatus = {
-  pending: 0,
-  syncing: false,
-  offline: IS_DESKTOP && typeof navigator !== 'undefined' ? navigator.onLine === false : false,
+  offline: IS_DESKTOP && navigator.onLine === false,
   error: null,
-  lastSynced: null,
 };
 
-const offlineModeChannel = IS_DESKTOP && typeof window !== 'undefined' && typeof window.BroadcastChannel === 'function'
-  ? new window.BroadcastChannel('papol-offline-mode')
-  : null;
+const offlineModeChannel = IS_DESKTOP ? new BroadcastChannel('papol-offline-mode') : null;
 
 function storedSetting(key, fallback = null) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -28,7 +23,6 @@ function notify(detail) {
   syncStatus = {
     ...syncStatus,
     ...detail,
-    pending: detail.pending ?? syncStatus.pending,
     offline: offlineMode || (detail.offline ?? syncStatus.offline),
   };
   try {
@@ -37,7 +31,6 @@ function notify(detail) {
 }
 
 export function configureNetworkFetch(fetchImpl) {
-  if (typeof fetchImpl !== 'function') throw new TypeError('Network fetch must be a function');
   remoteNetworkFetch = fetchImpl;
 }
 
@@ -69,7 +62,7 @@ export function enterOfflineMode() {
 export function exitOfflineMode() {
   if (!IS_DESKTOP) return;
   offlineMode = false;
-  notify({ offline: typeof navigator !== 'undefined' && navigator.onLine === false, error: null });
+  notify({ offline: navigator.onLine === false, error: null });
   offlineModeChannel?.postMessage({ offline: false });
 }
 
@@ -89,10 +82,6 @@ export function getSyncStatus() {
   return { ...syncStatus, preference: getLocalSyncPreference() };
 }
 
-export function refreshSyncStatus() {
-  return Promise.resolve(getSyncStatus());
-}
-
 export class OnlineRequiredError extends Error {
   constructor() {
     super(OFFLINE_MODE_MESSAGE);
@@ -109,12 +98,12 @@ if (offlineModeChannel) {
     }
     if (typeof event.data?.offline !== 'boolean') return;
     offlineMode = event.data.offline;
-    notify({ offline: offlineMode || (typeof navigator !== 'undefined' && navigator.onLine === false) });
+    notify({ offline: offlineMode || navigator.onLine === false });
   };
   offlineModeChannel.postMessage({ requestState: true });
 }
 
-if (IS_DESKTOP && typeof window !== 'undefined') {
+if (IS_DESKTOP) {
   window.addEventListener('online', () => {
     if (!offlineMode) notify({ offline: false });
   });

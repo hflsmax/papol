@@ -70,11 +70,9 @@ file's SHA-256. A viewer may read only files the system handed to this process.
 
 Opening a file needs no account and makes no network request. If the user's
 nook already holds those exact bytes, the window works on that paper. Otherwise
-notes, ink, and clips are kept in `_local_annotations` by the file's hash (a
-notice, shown on each such file until "Don't show again" is ticked, says they
-are not in the PDF and suggests an account to back them up), and
-**Add to nook** copies the file into the replica with those annotations; without an
-account it first asks the Desk window to sign in. The Desk banner and
+the file is read only — a note, a stroke or a clip needs a nook to go into —
+and **Add to nook** copies the file into the replica; without an account it
+first asks the Desk window to sign in. The Desk banner and
 Settings can make Papol the default PDF viewer (macOS only).
 
 ## Opening a reading handed over from a browser
@@ -290,12 +288,11 @@ change is breaking is your judgement, and both ends act on having been told.
 The desktop discards a replica at any other version and pulls the account
 again; the service refuses to start on a database at any other version,
 naming the statement that records the new one once you have brought it
-there. Ship a breaking change with a floor under it (`PROTOCOL_MINIMUM_VERSION`)
-too, so the older build stops being used at all rather than making work into
-a replica the next build will throw away. A compatible change — a nullable
-column, an index — needs neither: `migrate()` adds what a running database
-has not got. A normal new private table
-follows the same pattern plus its ownership rule. Shared, public, security, and
+there. The same number is what every request carries, so an older build is
+refused with a 426 and stops being used, rather than making work into a
+replica the next build will throw away. Every change to a table's shape is
+such a change: the service does not alter a table it already has. A normal
+new private table follows the same pattern plus its ownership rule. Shared, public, security, and
 irreversible actions must stay outside the registry unless their delayed
 offline semantics have been explicitly designed. Do not add a response-cache
 overlay, a temporary ID mapper, or raw SQL IPC for a synchronized feature.

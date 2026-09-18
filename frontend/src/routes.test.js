@@ -38,10 +38,10 @@ test('a paper link opens that paper in the demo', () => {
 });
 
 test('a user link opens their space', () => {
-  assert.deepEqual(parseRoute(`/u/${UUID}`), { page: 'space', uuid: UUID });
+  assert.deepEqual(parseRoute(`/u/${UUID}`), { page: 'nook', uuid: UUID });
   assert.deepEqual(
     parseRoute(`/u/${UUID}/boards`),
-    { page: 'space', uuid: UUID, section: 'boards' },
+    { page: 'nook', uuid: UUID, section: 'boards' },
   );
 });
 
@@ -58,9 +58,6 @@ test('every standing page is reachable by its path', () => {
     '/learn': 'learn',
     '/signin': 'signin',
     '/library': 'papers',
-    '/papers': 'papers',
-    '/village': 'papers',
-    '/users': 'papers',
     '/inbox': 'inbox',
     '/admin': 'admin',
     '/demo': 'home',

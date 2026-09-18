@@ -79,7 +79,7 @@ class SeminarTransitionTests(unittest.TestCase):
     def test_complete_seminar_state_transition(self):
         called = self.request("POST", f"/api/papers/{paper_name(self.paper_sha256)}/room")
         self.assertEqual(called["status"], "open")
-        self.assertEqual(called["participant_count"], 1)
+        self.assertEqual(len(called["participants"]), 1)
 
         planning = self.request("POST", f"/api/rooms/{called['uuid']}/lead")
         self.assertEqual(planning["status"], "planning")
@@ -191,7 +191,7 @@ class SeminarTransitionTests(unittest.TestCase):
         self.assertEqual([room["uuid"] for room in page["rooms"]], [called["uuid"]])
         detail = self.request("GET", f"/api/rooms/{called['uuid']}")
         self.assertEqual(detail["paper_sha256"], self.paper_sha256)
-        self.assertTrue(detail["viewer_has_copy"])
+        self.assertTrue(detail["viewer_copy_is_public"])
         # The seminar is named after the paper, and reads back the paper's
         # title rather than a copy of it taken when it was called.
         self.assertEqual(detail["paper_title"], "State Machines for Seminars (Corrected)")
@@ -264,7 +264,7 @@ class SeminarTransitionTests(unittest.TestCase):
             db.commit()
 
         detail = self.request("GET", f"/api/rooms/{called['uuid']}")
-        self.assertEqual(detail["viewer_hidden_entry_sha256"], self.paper_sha256)
+        self.assertFalse(detail["viewer_copy_is_public"])
 
 
 if __name__ == "__main__":

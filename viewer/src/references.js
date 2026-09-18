@@ -1,3 +1,4 @@
+import { destinationHeight } from './sections.js';
 /**
  * What is clickable on a page: the citations, and the PDF's own links.
  *
@@ -460,7 +461,7 @@ export async function readNamedReference(doc, dest) {
   if (!Array.isArray(target) || !target.length) return null;
   const pageIndex = await doc.getPageIndex(target[0]);
   const page = await doc.getPage(pageIndex + 1);
-  const targetY = destinationY(target);
+  const targetY = destinationHeight(target);
   if (targetY == null) return null;
 
   const number = destinationNumber(dest);
@@ -552,15 +553,6 @@ export async function readNamedReference(doc, dest) {
   return gathered.join(' ').replace(numbered ? marker : /^$/, '').trim() || null;
 }
 
-export function destinationY(target) {
-  const kind = target[1]?.name;
-  if (kind === 'XYZ') return typeof target[3] === 'number' ? target[3] : null;
-  if (kind === 'FitH' || kind === 'FitBH') {
-    return typeof target[2] === 'number' ? target[2] : null;
-  }
-  return null;
-}
-
 /**
  * A URL from a PDF is untrusted input, and a link layer is a fine place to
  * hide something nasty. Only the schemes that mean "open this elsewhere"
@@ -591,7 +583,7 @@ async function destinationSpot(doc, dest) {
   // index 3, while /FitH and /FitBH store it at index 2. A destination with
   // no y at all (/Fit) points at a page, not a line, and is no use for
   // telling references apart.
-  const y = destinationY(target);
+  const y = destinationHeight(target);
   if (y == null) return null;
   return { page: index + 1, y: (viewport.height - y) / viewport.height };
 }

@@ -8,42 +8,42 @@ import { paperName } from '../../shared/paperName.js';
 // What a paper row carries while it is dragged towards a shelf.
 export const PAPER_DRAG_TYPE = 'application/x-papol-paper';
 
-const SOURCE_KEY = 'papol.desktopSource';
+const LISTING_KEY = 'papol.desktopListing';
 
 // Sources: 'all', 'shelf:<uuid>', 'tag:<uuid>', 'boards' (the user's nook) and
 // 'library' (every public paper).
-export function sourcePath(source) {
-  if (source === 'library') return '/library';
-  if (source === 'all') return '/';
-  return `/?source=${source}`;
+export function listingPath(listing) {
+  if (listing === 'library') return '/library';
+  if (listing === 'all') return '/';
+  return `/?listing=${listing}`;
 }
 
 // An import reviewed from the public library belongs to the user's nook once
-// it is created. Select that nook source while opening the new paper itself.
-export function paperCreatedNavigation(source, paperSha256) {
+// it is created. Select that nook listing while opening the new paper itself.
+export function paperCreatedNavigation(listing, paperSha256) {
   return {
-    source: source === 'library' ? 'all' : source,
+    listing: listing === 'library' ? 'all' : listing,
     path: `/paper/${paperName(paperSha256)}`,
   };
 }
 
 // search is the page's query string. A paper's own URL does not say which
 // list it was picked from, so for a paper the list last shown stands in.
-export function resolveSource(route, user, { search = '', lastShown = null } = {}) {
+export function resolveListing(route, user, { search = '', lastShown = null } = {}) {
   if (route.page === 'papers') return 'library';
-  if (route.page === 'space' && route.section === 'boards') return 'boards';
+  if (route.page === 'nook' && route.section === 'boards') return 'boards';
   if (route.page === 'paper' && user) return lastShown || 'all';
-  return new URLSearchParams(search).get('source') || 'all';
+  return new URLSearchParams(search).get('listing') || 'all';
 }
 
 // The list last shown lasts for the window's session.
-export function rememberSource(source) {
-  try { sessionStorage.setItem(SOURCE_KEY, source); }
+export function rememberListing(listing) {
+  try { sessionStorage.setItem(LISTING_KEY, listing); }
   catch { /* session storage may be disabled */ }
 }
 
-export function lastShownSource() {
-  try { return sessionStorage.getItem(SOURCE_KEY); }
+export function lastShownListing() {
+  try { return sessionStorage.getItem(LISTING_KEY); }
   catch { return null; }
 }
 
@@ -52,31 +52,31 @@ export function lastShownSource() {
 export function isBrowsing(route, user) {
   if (!user) return false;
   return route.page === 'papers' || route.page === 'paper' || route.page === 'home'
-    || (route.page === 'space' && route.uuid === user.uuid);
+    || (route.page === 'nook' && route.uuid === user.uuid);
 }
 
-// The shelf or tag a source names, if the nook still has it.
-export function shelfOf(source, space) {
-  return (space?.shelves || []).find((shelf) => `shelf:${shelf.uuid}` === source) || null;
+// The shelf or tag a listing names, if the nook still has it.
+export function shelfOf(listing, nook) {
+  return (nook?.shelves || []).find((shelf) => `shelf:${shelf.uuid}` === listing) || null;
 }
 
-export function tagOf(source, space) {
-  return (space?.tags || []).find((tag) => `tag:${tag.uuid}` === source) || null;
+export function tagOf(listing, nook) {
+  return (nook?.tags || []).find((tag) => `tag:${tag.uuid}` === listing) || null;
 }
 
-// The papers a source lists, in its order: the nook newest first, the library
+// The papers a listing lists, in its order: the nook newest first, the library
 // with live seminars on top. A shelf or tag the nook no longer has lists the
 // whole nook rather than nothing.
-export function papersInSource(source, { space, library }) {
-  if (source === 'boards') return [];
-  if (source === 'library') {
+export function papersInListing(listing, { nook, library }) {
+  if (listing === 'boards') return [];
+  if (listing === 'library') {
     return [...(library || [])].sort((a, b) => seminarRank(a) - seminarRank(b) || newestFirst(a, b));
   }
-  const shelf = shelfOf(source, space);
-  const tag = tagOf(source, space);
-  return (space?.papers || [])
+  const shelf = shelfOf(listing, nook);
+  const tag = tagOf(listing, nook);
+  return (nook?.papers || [])
     .filter((paper) => (!shelf || paper.shelf_uuid === shelf.uuid)
-      && (!tag || (paper.tags || []).some((item) => item.uuid === tag.uuid)))
+      && (!tag || paper.tags.some((item) => item.uuid === tag.uuid)))
     .sort(newestFirst);
 }
 

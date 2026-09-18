@@ -47,15 +47,13 @@ global.window = {
 global.Event = class Event { constructor(type) { this.type = type; } };
 
 const {
-  createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes,
-  pdfLoadInput, rememberPaperIdentity,
+  createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes, pdfLoadInput,
 } = await import('./api.js');
 const { hydrateCredential } = await import('../../shared/credentials.js');
 // A paper is its file, so the digest the viewer was opened on is also the
 // name every annotation call gives it.
 const PAPER = 'a'.repeat(64);
 
-rememberPaperIdentity({ sha256: PAPER });
 
 test('every kind of annotation reaches the one native table', async () => {
   const note = await createAnnotation(PAPER, {
