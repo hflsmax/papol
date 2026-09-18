@@ -47,7 +47,7 @@ const SORTS = {
 
 export default function PapersPage({
   currentUser, onSelectPaper, onSelectBoard,
-  incomingPaperFile, onIncomingPaperFileHandled,
+  incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
 }) {
   const [papers, setPapers] = useState(null);
   const [boards, setBoards] = useState(null);
@@ -100,6 +100,7 @@ export default function PapersPage({
     <div className={reviewingUpload ? 'library-page upload-review-mode' : 'library-page'}>
       {currentUser && (
         <PaperUpload
+          onReportableError={onReportableError}
           onPaperCreated={(paper) => {
             if (paper?.sha256 != null) onSelectPaper(paper.sha256);
             else load();

@@ -599,6 +599,7 @@ export function DesktopBrowser({
             <button type="button" onClick={() => setComposer(null)}>Cancel</button>
           </div>
           <PaperUpload
+            onReportableError={onReportableError}
             onPaperCreated={(paper) => {
               setComposer(null);
               reload();

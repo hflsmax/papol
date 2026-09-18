@@ -175,9 +175,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // fallback when neither of those primary modes applies.
   const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
 
-  const offerDesktopError = useCallback((error, area) => {
-    if (!DESKTOP) return;
+  const offerErrorReport = useCallback((error, area) => {
     const report = unexpectedDesktopErrorReport(error, area, {
+      runtime: DESKTOP ? 'desktop' : 'web',
       surface: window.__PAPOL_ENV__?.surface,
       platform: navigator.platform,
     });
@@ -197,7 +197,7 @@ export default function App({ startupUser = null, startupError = null }) {
 
   useEffect(() => {
     if (!DESKTOP) return undefined;
-    if (startupError) offerDesktopError(startupError, 'desktop startup');
+    if (startupError) offerErrorReport(startupError, 'desktop startup');
     void recordDiagnosticEvent({
       component: 'frontend', event: 'mounted', fields: { surface: 'main' },
     });
@@ -209,9 +209,9 @@ export default function App({ startupUser = null, startupError = null }) {
       if (remembered) setClientCompatibility({ verdict: remembered });
       await checkClientCompatibility();
     })();
-    const onError = (event) => offerDesktopError(event.error || event.message, 'JavaScript runtime');
-    const onRejection = (event) => offerDesktopError(event.reason, 'unhandled promise');
-    const onNativeError = (event) => offerDesktopError(
+    const onError = (event) => offerErrorReport(event.error || event.message, 'JavaScript runtime');
+    const onRejection = (event) => offerErrorReport(event.reason, 'unhandled promise');
+    const onNativeError = (event) => offerErrorReport(
       event.detail?.error || 'Unknown native command error',
       event.detail?.area || 'native command',
     );
@@ -223,7 +223,7 @@ export default function App({ startupUser = null, startupError = null }) {
       window.removeEventListener('unhandledrejection', onRejection);
       window.removeEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     };
-  }, [offerDesktopError, startupError]);
+  }, [offerErrorReport, startupError]);
 
   const restoreRealUser = async () => {
     const localUser = await getStartupUser().catch(() => null);
@@ -742,6 +742,7 @@ export default function App({ startupUser = null, startupError = null }) {
         ))}
       {route.page === 'space' && (
         <Space
+          onReportableError={offerErrorReport}
           userUuid={route.uuid}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
@@ -760,7 +761,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={mountedPath(jacketBack.path)}
           backLabel={jacketBack.label}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
-          onReportableError={offerDesktopError}
+          onReportableError={offerErrorReport}
         />
       )}
       {route.page === 'board' && (
@@ -775,6 +776,7 @@ export default function App({ startupUser = null, startupError = null }) {
       )}
       {route.page === 'papers' && (
         <PapersPage
+          onReportableError={offerErrorReport}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
@@ -896,7 +898,7 @@ export default function App({ startupUser = null, startupError = null }) {
               banner={demoBanner}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
-              onReportableError={offerDesktopError}
+              onReportableError={offerErrorReport}
             />
           ) : (
             <div className="desktop-pane">

@@ -8,6 +8,7 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
+import { isReportableUploadError } from '../../../shared/uploadError.js';
 
 function editableAuthors(authors) {
   if (!authors) return '';
@@ -21,7 +22,7 @@ function editableAuthors(authors) {
 
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
-  incomingFile = null, onIncomingFileHandled = () => {},
+  incomingFile = null, onIncomingFileHandled = () => {}, onReportableError,
 }) {
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
@@ -39,6 +40,11 @@ export default function PaperUpload({
   const handledIncomingFile = useRef(null);
   const metadataRequest = useRef(0);
   const extractedDataRef = useRef(null);
+
+  const showError = (failure, area) => {
+    setError(failure?.message || String(failure));
+    if (isReportableUploadError(failure)) onReportableError?.(failure, area);
+  };
 
   extractedDataRef.current = extractedData;
   useEffect(() => () => {
@@ -69,6 +75,8 @@ export default function PaperUpload({
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
+    // Let the same file be selected again after a failed import.
+    e.target.value = '';
     if (file) {
       handleFile(file);
     }
@@ -146,7 +154,7 @@ export default function PaperUpload({
         });
       }
     } catch (err) {
-      setError(err.message);
+      showError(err, 'importing a PDF');
     } finally {
       setIsLoading(false);
     }
@@ -203,7 +211,7 @@ export default function PaperUpload({
       onReviewChange(false);
       onPaperCreated(paper);
     } catch (err) {
-      setError(err.message);
+      showError(err, 'saving an imported PDF');
     } finally {
       setIsLoading(false);
     }
@@ -374,7 +382,7 @@ export default function PaperUpload({
                     ))}
                     {query && !exactTagExists && (
                       <button type="button" className="tag-create-option" onMouseDown={(e) => e.preventDefault()} onClick={async () => {
-                        try { selectTag(await createTag(tagDraft.trim())); } catch (err) { setError(err.message); }
+                        try { selectTag(await createTag(tagDraft.trim())); } catch (err) { showError(err, 'creating a tag for an imported PDF'); }
                       }}>
                         <span className="tag-create-mark">+</span><span>Create <strong>{tagDraft.trim()}</strong></span>
                       </button>
