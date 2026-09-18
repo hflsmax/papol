@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const ACCOUNT = '77777777-7777-4777-8777-777777777777';
 const localUser = { uuid: ACCOUNT, display_name: 'Local User' };
+let localProfile = localUser;
 const values = new Map([
   ['papol.localAccountUuid', ACCOUNT],
   ['papol.syncPreference', 'manual'],
@@ -23,7 +24,7 @@ global.window = {
   __TAURI_INTERNALS__: {
     invoke: async (command, arguments_) => {
       nativeCalls.push([command, arguments_]);
-      if (command === 'data_query' && arguments_.queryName === 'account') return localUser;
+      if (command === 'data_query' && arguments_.queryName === 'account') return localProfile;
       return null;
     },
     transformCallback: () => 1,
@@ -43,7 +44,7 @@ configureNetworkFetch(async () => new Response(
   remoteStatus === 200 ? JSON.stringify(localUser) : JSON.stringify({ detail: 'Sign in again' }),
   { status: remoteStatus, headers: { 'content-type': 'application/json' } },
 ));
-const { getStartupUser, refreshStartupUser } = await import('../../shared/api/account.js');
+const { getMe, getStartupUser, refreshStartupUser } = await import('../../shared/api/account.js');
 
 test('desktop startup gets its identity from SQLite without a network request', async () => {
   let networkRequests = 0;
@@ -68,4 +69,26 @@ test('rejected background auth keeps the local identity and removes only the cre
   assert.equal(credentials.currentCredential(), null);
   assert.equal(values.get('papol.localAccountUuid'), ACCOUNT);
   assert.deepEqual(await getStartupUser(), localUser);
+});
+
+test('a replica without the profile forgets the remembered account, and signing in online writes it back', async () => {
+  // A newer build discarded the replica an older build wrote; the profile
+  // stored at sign-in went with it, but the browser's memory of the account
+  // did not.
+  localProfile = null;
+  remoteStatus = 200;
+  configureNetworkFetch(async () => new Response(
+    JSON.stringify(localUser), { status: 200, headers: { 'content-type': 'application/json' } },
+  ));
+  await credentials.storeCredential('still-valid-token');
+  nativeCalls.length = 0;
+
+  assert.equal(await getStartupUser(), null);
+  assert.equal(values.get('papol.localAccountUuid'), undefined);
+  assert.ok(!nativeCalls.some(([command]) => command === 'local_account_set'));
+
+  assert.deepEqual(await getMe(), localUser);
+  const written = nativeCalls.find(([command]) => command === 'local_account_set');
+  assert.deepEqual(written?.[1], { accountUuid: ACCOUNT, profile: localUser });
+  assert.equal(values.get('papol.localAccountUuid'), ACCOUNT);
 });
