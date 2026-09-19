@@ -1093,6 +1093,4 @@ export const desktopStyles = `
 }
 
 /* A board's toolbar is the window's title bar too. */
-[data-shell='desktop'] .board-toolbar { min-height: 52px; padding-block: 6px; user-select: none; -webkit-user-select: none; }
-[data-shell='desktop'][data-platform='mac'] .board-toolbar { padding-left: 88px; }
 `;
