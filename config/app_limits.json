@@ -108,7 +108,6 @@
     "desktop_metadata": 15000,
     "sync_connect": 5000,
     "sync_read": 20000,
-    "sync_request": 120000,
     "youtube_metadata": 8000,
     "youtube_thumbnail": 10000,
     "youtube_download": 90000,
