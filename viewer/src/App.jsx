@@ -21,14 +21,14 @@ import { appPath, backendPath, inDemo, modeRoute, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus, recentDiagnosticEvents,
+  dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus,
   recordDiagnosticEvent, requestSignIn,
 } from '../../shared/nativeData.js';
-import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../../shared/diagnosticLog.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
+import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
@@ -629,21 +629,8 @@ export default function App() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackReportError, setFeedbackReportError] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
-  const [feedbackSending, setFeedbackSending] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [feedbackError, setFeedbackError] = useState(null);
-  const [feedbackLog, setFeedbackLog] = useState('');
-  const [feedbackIncludeLog, setFeedbackIncludeLog] = useState(true);
   const reportedPdfErrors = useRef(new Set());
-  const feedbackDialogRef = useModalDialog(feedbackOpen, () => closeFeedback());
   const sendDialogRef = useModalDialog(Boolean(sendSelection), () => closeSendSelection());
-
-  useEffect(() => {
-    if (!feedbackOpen) return;
-    recentDiagnosticEvents(40)
-      .then((events) => setFeedbackLog(diagnosticLogExcerpt(events)))
-      .catch(() => {});
-  }, [feedbackOpen]);
   // Cows. Nowhere near the server and gone on reload: they are not an annotation
   // on the paper, they are company.
   const [placedAnimals, setPlacedAnimals] = useState([]);
@@ -3330,31 +3317,6 @@ export default function App() {
     setFeedbackOpen(false);
     setFeedbackReportError(false);
     setFeedbackContent('');
-    setFeedbackError(null);
-    setFeedbackSent(false);
-  };
-
-  const sendFeedback = async () => {
-    if (!feedbackContent.trim()) return;
-    setFeedbackSending(true);
-    setFeedbackError(null);
-    try {
-      await submitFeedback({
-        content: feedbackWithDiagnosticLog(
-          feedbackContent,
-          feedbackIncludeLog ? feedbackLog : '',
-          appLimits.text.feedback,
-        ),
-        // Where the reporter was standing, so an admin can retrace it.
-        page: window.location.pathname || '/viewer/',
-        contact: null,
-      });
-      setFeedbackSent(true);
-    } catch (e) {
-      setFeedbackError(e.message);
-    } finally {
-      setFeedbackSending(false);
-    }
   };
 
   const pageOpenReference = useEvent(openReference);
@@ -4302,85 +4264,14 @@ export default function App() {
         </button>
 
         {feedbackOpen && (
-          <div
-            ref={feedbackDialogRef}
-            className="sheet-back"
-            role="dialog"
-            aria-modal="true"
-            aria-label={feedbackReportError ? 'Send an error report' : 'Report a bug or ask for a feature'}
-            tabIndex="-1"
-            onClick={closeFeedback}
-          >
-            <div className="sheet feedback-sheet" onClick={(e) => e.stopPropagation()}>
-              <h3>{feedbackSent
-                ? (feedbackReportError ? 'Report sent' : 'Thank you')
-                : (feedbackReportError ? 'Send an error report?' : 'Report a bug or ask for a feature')}</h3>
-              {feedbackSent ? (
-                <>
-                  <div className="feedback-actions">
-                    <button type="button" className="primary" onClick={closeFeedback}>
-                      Close
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {feedbackReportError && (
-                    <p className="feedback-note">
-                      Papol encountered an unexpected error while opening this PDF. Review the details below and choose whether to send them to the developer.
-                    </p>
-                  )}
-                  <div className="feedback-field">
-                    <label htmlFor="viewer-feedback-content">
-                      {feedbackReportError ? 'Diagnostic details' : 'What went wrong, or what would you like the viewer to do?'}
-                    </label>
-                    <textarea
-                      id="viewer-feedback-content"
-                      rows="5"
-                      maxLength={appLimits.text.feedback}
-                      value={feedbackContent}
-                      onChange={(e) => setFeedbackContent(e.target.value)}
-                      placeholder={feedbackReportError ? undefined : 'I clicked … and the page …, or: it would help if …'}
-                      autoFocus
-                    />
-                  </div>
-
-                  {feedbackLog && (
-                    <div className="feedback-diagnostics">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={feedbackIncludeLog}
-                          onChange={(event) => setFeedbackIncludeLog(event.target.checked)}
-                        />
-                        Include recent diagnostic events
-                      </label>
-                      <details>
-                        <summary>Review diagnostic log</summary>
-                        <pre>{feedbackLog}</pre>
-                      </details>
-                    </div>
-                  )}
-
-                  {feedbackError && <p className="feedback-error">{feedbackError}</p>}
-
-                  <div className="feedback-actions">
-                    <button type="button" onClick={closeFeedback} disabled={feedbackSending}>
-                      {feedbackReportError ? 'Not now' : 'Cancel'}
-                    </button>
-                    <button
-                      type="button"
-                      className="primary"
-                      onClick={sendFeedback}
-                      disabled={feedbackSending || !feedbackContent.trim()}
-                    >
-                      {feedbackSending ? 'Sending…' : (feedbackReportError ? 'Send report' : 'Submit')}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <FeedbackDialog
+            submit={submitFeedback}
+            prompt="What went wrong, or what would you like the viewer to do?"
+            errorNote="Papol encountered an unexpected error while opening this PDF. Review the details below and choose whether to send them to the developer."
+            initialContent={feedbackContent}
+            reportError={feedbackReportError}
+            onClose={closeFeedback}
+          />
         )}
 
         {searchWrap && (

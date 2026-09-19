@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { appPath } from './base';
 import { paperName } from '../../shared/paperName.js';
-import ExperimentalBadge from './ExperimentalBadge';
+import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 
 /**
  * What a citation turns out to be, shown beside the marker that was
