@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: DeterminateSystems/nix-installer-action@v16
-      - uses: DeterminateSystems/magic-nix-cache-action@v13
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       # Ubuntu 24 confines unprivileged user namespaces, which is how
       # Chromium builds its sandbox; the nix chromium has no setuid fallback.
