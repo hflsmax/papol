@@ -1448,17 +1448,20 @@ ${macHandoffStyles}
 .send-selection-field textarea,
 .send-selection-field select {
   width: 100%;
-  padding: 8px 32px 8px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   appearance: none;
   background-color: var(--card);
+  color: var(--ink);
+  font: var(--fs-sm) var(--font-ui);
+}
+.send-selection-field select {
+  padding-right: 32px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-position: right 10px center;
   background-repeat: no-repeat;
   cursor: pointer;
-  color: var(--ink);
-  font: var(--fs-sm) var(--font-ui);
 }
 .send-selection-field textarea { resize: vertical; line-height: 1.5; }
 .send-selection-field small { color: var(--ink-faint); font-size: inherit; font-weight: 400; }
@@ -1729,9 +1732,34 @@ ${macHandoffStyles}
   transform: translateX(0);
 }
 
-.feedback-sheet { width: min(420px, 100%); }
+/* A sheet over a dimmed page: the feedback form and the send-to-board box.
+   The backdrop centres the sheet and swallows scrolling; the sheet is the
+   one card allowed to scroll if it must. */
+.sheet-back {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(29, 33, 41, 0.42);
+  overscroll-behavior: contain;
+}
 
-.feedback-sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
+.sheet {
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px 22px;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-overlay);
+}
+
+.sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
+
+.feedback-sheet { width: min(420px, 100%); }
 
 .feedback-field { margin-bottom: 12px; }
 

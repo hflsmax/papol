@@ -4304,14 +4304,14 @@ export default function App() {
         {feedbackOpen && (
           <div
             ref={feedbackDialogRef}
-            className="help-back"
+            className="sheet-back"
             role="dialog"
             aria-modal="true"
             aria-label={feedbackReportError ? 'Send an error report' : 'Report a bug or ask for a feature'}
             tabIndex="-1"
             onClick={closeFeedback}
           >
-            <div className="help-sheet feedback-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet feedback-sheet" onClick={(e) => e.stopPropagation()}>
               <h3>{feedbackSent
                 ? (feedbackReportError ? 'Report sent' : 'Thank you')
                 : (feedbackReportError ? 'Send an error report?' : 'Report a bug or ask for a feature')}</h3>
@@ -4397,14 +4397,14 @@ export default function App() {
         {sendSelection && (
           <div
             ref={sendDialogRef}
-            className="help-back"
+            className="sheet-back"
             role="dialog"
             aria-modal="true"
             aria-label={sendSelection.kind === 'clip' ? 'Send clipped area to a board' : 'Send selected text to a board'}
             tabIndex="-1"
             onClick={closeSendSelection}
           >
-            <div className="help-sheet send-selection-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="sheet send-selection-sheet" onClick={(event) => event.stopPropagation()}>
               <h3>{sendComplete ? 'Sent to staging' : 'Send to a board'}</h3>
               {sendComplete ? (
                 <>
