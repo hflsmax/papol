@@ -447,7 +447,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
             )}
           </div>
         )}
-        {canUncall && !leaveOpen && (
+        {uncallable && !leaveOpen && (
           <button
             type="button"
             className="danger"

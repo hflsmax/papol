@@ -175,7 +175,7 @@ export default function PaperJacket({
   const startMetadataEdit = () => {
     setEditData({
       title: paper.title,
-      authors: parseAuthors(paper.authors).join(', '),
+      authors: authorList(paper.authors).join(', '),
       journal: paper.journal || '',
       year: paper.year || '',
       doi: paper.doi || '',
@@ -371,7 +371,7 @@ export default function PaperJacket({
         ...current,
         ...(extracted.title != null && { title: extracted.title }),
         ...(extracted.authors != null && {
-          authors: parseAuthors(extracted.authors).join(', '),
+          authors: authorList(extracted.authors).join(', '),
         }),
         ...(extracted.journal != null && { journal: extracted.journal }),
         ...(extracted.year != null && { year: extracted.year }),
@@ -1157,9 +1157,14 @@ export default function PaperJacket({
                     onChange={(e) => { setTagDraft(e.target.value); setTagMenuOpen(true); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') setTagMenuOpen(false);
-                      if (e.key === 'Enter' && tagSuggestions.length === 1) {
-                        e.preventDefault();
+                      if (e.key !== 'Enter') return;
+                      e.preventDefault();
+                      if (tagSuggestions.length === 1) {
                         attachTag(tagSuggestions[0]).catch((err) => setError(err.message));
+                      } else if (tagQuery && !tagExists) {
+                        createTag(tagDraft.trim())
+                          .then(attachTag)
+                          .catch((err) => setError(err.message));
                       }
                     }}
                   />
