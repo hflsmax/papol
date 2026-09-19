@@ -1,3 +1,4 @@
+import { commonStyles } from './commonStyles.js';
 import { desktopStyles } from './desktopStyles.js';
 import { designTokens } from './designTokens.js';
 import { itemActionsStyles } from './itemActionsStyles.js';
@@ -28,30 +29,7 @@ export const applicationStyles = `
 
 ${itemActionsStyles}
 
-body {
-  font-family: var(--font-serif);
-  background: var(--paper);
-  color: var(--ink);
-  line-height: 1.65;
-}
-
-::selection {
-  background: var(--accent-line);
-  color: var(--ink);
-}
-
-/* One dependable keyboard treatment for ordinary controls. More specific
-   component rules may adapt the shape (for example, annotations placed on a PDF),
-   but focus must never rely on hover styling alone. */
-:where(a[href], button, input, textarea, select, summary, [role='button'], [tabindex]):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-:where(input, textarea)::placeholder {
-  color: var(--ink-faint);
-  opacity: 1;
-}
+${commonStyles}
 
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
@@ -106,7 +84,8 @@ input[type='checkbox'] {
   flex-wrap: wrap;
 }
 
-.topnav nav a {
+.topnav nav a,
+.topnav .inbox-link {
   color: var(--ink-soft);
   text-decoration: none;
   font-size: var(--fs-base);
@@ -114,12 +93,14 @@ input[type='checkbox'] {
   border-bottom: 2px solid transparent;
 }
 
-.topnav nav a:hover {
+.topnav nav a:hover,
+.topnav .inbox-link:hover {
   color: var(--accent);
   border-bottom-color: var(--line);
 }
 
-.topnav nav a.active {
+.topnav nav a.active,
+.topnav .inbox-link.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
@@ -138,75 +119,6 @@ input[type='checkbox'] {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.topnav .inbox-link {
-  color: var(--ink-soft);
-  text-decoration: none;
-  font-size: var(--fs-base);
-  padding-bottom: 2px;
-  border-bottom: 2px solid transparent;
-}
-
-.topnav .inbox-link:hover {
-  color: var(--accent);
-  border-bottom-color: var(--line);
-}
-
-.topnav .inbox-link.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
-/* Always within reach, never in the way: the report door rides along in
-   the bottom-right corner of every page. */
-.feedback-fab {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 90;
-  /* A flex row, not a line of text. The × that slides in on hover is an
-     inline-block with its overflow hidden, and such a box takes its
-     baseline from its bottom edge — which swelled the line and set the
-     word five pixels low in a chip taller than its own padding. Flex
-     items have no baseline to argue about. */
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 14px;
-  line-height: 1;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  background: var(--card);
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  box-shadow: 0 3px 12px rgba(25, 35, 50, 0.16);
-}
-
-.feedback-fab::after {
-  content: '×';
-  display: inline-block;
-  width: 0;
-  margin-left: 0;
-  opacity: 0;
-  overflow: hidden;
-  transform: translateX(4px);
-  transition: width 0.15s ease, margin-left 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
-}
-
-.feedback-fab:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 4px 16px rgba(25, 35, 50, 0.22);
-}
-
-.feedback-fab:hover::after {
-  width: 0.7em;
-  margin-left: 6px;
-  opacity: 1;
-  transform: translateX(0);
 }
 
 /* ---------- Learn ---------- */
@@ -276,7 +188,7 @@ input[type='checkbox'] {
 .learn-art-board-basics { --lesson-wash: #e7edf7; --lesson-color: #4b668e; }
 .learn-lesson-art .art-paper { fill: #fff; stroke: var(--lesson-color, var(--accent)); stroke-width: 2; }
 .learn-lesson-art .art-card { fill: #fff; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; }
-.learn-lesson-art .art-line, .learn-lesson-art .art-detail, .learn-lesson-art .art-spark, .learn-lesson-art .art-arrow, .learn-lesson-art .art-bracket { fill: none; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.learn-lesson-art .art-line, .learn-lesson-art .art-detail, .learn-lesson-art .art-spark, .learn-lesson-art .art-arrow { fill: none; stroke: var(--lesson-color, var(--accent)); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .learn-lesson-art .art-image, .learn-lesson-art .art-dot { fill: var(--lesson-color, var(--accent)); }
 .learn-lesson-art .art-highlight { fill: var(--lesson-color, var(--accent)); opacity: 0.18; }
 .learn-lesson-art .art-animal { fill: #fff; stroke: var(--lesson-color); stroke-width: 2.5; stroke-linejoin: round; }
@@ -454,23 +366,6 @@ input[type='checkbox'] {
   background: color-mix(in srgb, var(--ink-inverse) 18%, transparent);
 }
 
-/* Shown in every window when this build is behind what the server accepts.
-   The stopped state is not dismissable: synchronization has halted, and a
-   bar the user can wave away would let that go unnoticed. */
-.compatibility-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  min-height: 42px;
-  padding: 7px 16px;
-  background: var(--accent);
-  color: var(--ink-inverse);
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-}
-
 /* A build the service will not speak to covers its window rather than
    banding it: what is wrong is the program, and there is nothing useful
    left to do in it. */
@@ -531,13 +426,6 @@ input[type='checkbox'] {
 
 .compatibility-stop-actions button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ink) 8%, transparent);
-}
-
-.compatibility-bar a {
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
-  text-underline-offset: 2px;
 }
 
 ${macHandoffStyles}
@@ -685,17 +573,6 @@ button:hover:not(:disabled) {
   background: var(--accent-soft);
 }
 
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--ink-inverse);
-}
-
-button.primary:hover:not(:disabled) {
-  background: var(--accent-strong);
-  color: var(--ink-inverse);
-}
-
 /* Danger action: red is the danger family, and this is a control the
    user operates, so it takes the tint/line/ink roles rather than the
    saturated fill a primary button uses. */
@@ -709,11 +586,6 @@ button.danger:hover:not(:disabled) {
   background: var(--red-soft);
   border-color: var(--red);
   color: var(--red);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 button.full-width {
@@ -737,16 +609,6 @@ button.full-width {
   border: none;
   background: none;
   text-decoration-style: solid;
-}
-
-.error {
-  background: var(--red-soft);
-  color: var(--red);
-  border: 1px solid var(--red-line);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 16px;
-  font-size: var(--fs-md);
 }
 
 .warning {
@@ -861,8 +723,6 @@ select:disabled { cursor: default; opacity: .65; }
 
 .form-group input,
 .form-group textarea,
-.note-form textarea,
-.availability-form textarea,
 .room-textarea {
   width: 100%;
   padding: 9px 11px;
@@ -876,8 +736,6 @@ select:disabled { cursor: default; opacity: .65; }
 
 .form-group input:focus,
 .form-group textarea:focus,
-.note-form textarea:focus,
-.availability-form textarea:focus,
 .room-textarea:focus {
   outline: none;
   border-color: var(--accent);
@@ -1514,81 +1372,6 @@ select:disabled { cursor: default; opacity: .65; }
   bottom: 0;
   width: 18px;
   display: flex;
-}
-
-/* A lane, which lights up under the cursor. The bar alone said "edge of a
-   row"; a lane that answers to the pointer says "press here", and --paper
-   is the token's own job — page ground and subtle hovers. */
-.display-bar {
-  width: 18px;
-  padding: 0;
-  border: none;
-  border-radius: 0 var(--radius) var(--radius) 0;
-  background: none;
-  box-shadow: none;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.12s ease, box-shadow 0.12s ease;
-}
-
-/* Three steps, so the control announces itself before it is found rather
-   than only once the cursor is already on it. Pointing anywhere at the row
-   raises the lane faintly; pointing at the lane itself fills it and grows
-   the pill; pressing sinks it. */
-.paper-list li:hover .display-bar {
-  background: var(--paper);
-  /* A line down the lane's edge, not only a change of ground. Ground is
-     the weaker half of this: a hidden row is already grey, so a tint can
-     land within a few values of what it is drawn against and say nothing.
-     A line has no such problem — it reads on white and on grey alike. */
-  box-shadow: inset -1px 0 0 var(--line);
-}
-
-/* Written through .paper-list li so these outweigh the row-hover rule
-   above it — that one carries an extra element in its selector, and would
-   otherwise win against a bare .display-bar:hover and swallow both of
-   these states. */
-.paper-list li .display-bar:hover:not(:disabled),
-.paper-list li .display-bar:focus-visible {
-  background: var(--paper-sunken);
-  /* An actual edge, not just a tint. --paper-sunken against --card is a
-     couple of values apart and reads as nothing on its own; the line is
-     what makes the lane look like a surface with a boundary, which is what
-     a button looks like. */
-  box-shadow: inset -1px 0 0 var(--line-strong);
-}
-
-/* The paint, inside the target. */
-.display-bar::before {
-  content: '';
-  position: absolute;
-  left: 6px;
-  /* Held clear of the row's edges so it reads as an object sitting in the
-     lane rather than as the row's border. A border is scenery; a pill with
-     air around it is a thing you can press. */
-  top: 9px;
-  bottom: 9px;
-  width: 5px;
-  border-radius: var(--radius-pill);
-  transition: background 0.12s ease, left 0.12s ease, width 0.12s ease,
-    top 0.12s ease, bottom 0.12s ease;
-}
-
-/* --green at its own strength. The family has four roles and no fifth: a
-   faded green is not one of them, it is a new colour. */
-.display-bar.on::before {
-  background: var(--green);
-}
-
-/* Withheld: the same bar, broken. Dashed rather than hollow — at 3px wide
-   an outline just reads as a thinner solid line, and dashed is what a
-   hidden row already used to draw along this edge. */
-.display-bar.off::before {
-  background: repeating-linear-gradient(
-    var(--line-strong) 0 5px,
-    transparent 5px 10px
-  );
-  opacity: 1;
 }
 
 /* The warning pops from the edge the bar is on. */
@@ -2929,24 +2712,11 @@ button.state-pill.none:hover:not(:disabled) {
   }
 }
 
-.feedback-diagnostics { margin: 0 0 14px; color: var(--ink-soft); font-size: var(--fs-sm); }
-.feedback-diagnostics > label { display: flex; align-items: center; gap: 7px; }
-.feedback-diagnostics input { width: auto; margin: 0; }
-.feedback-diagnostics details { margin-top: 8px; }
-.feedback-diagnostics summary { cursor: pointer; }
-.feedback-diagnostics pre {
-  max-height: 180px; overflow: auto; margin: 8px 0 0; padding: 9px;
-  border: 1px solid var(--line); border-radius: var(--chrome-radius);
-  background: var(--paper-sunken); color: var(--ink-soft);
-  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;
-}
-
 h4 .state-pill {
   margin-left: 8px;
 }
 
-.interest-status, .interest-count-note {
+.interest-count-note {
   font-size: var(--fs-md);
   color: var(--ink-soft);
   margin: 8px 0;
@@ -4493,9 +4263,6 @@ a.btn:hover {
   font-size: var(--fs-md);
 }
 
-.experimental-badge { display: inline-flex; align-items: center; gap: 4px; width: max-content; padding: 2px 7px; border: 1px solid var(--gold-line); border-radius: var(--radius-pill); background: var(--gold-soft); color: var(--gold-ink); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .03em; text-transform: uppercase; vertical-align: middle; white-space: nowrap; }
-.experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
-
 .board-create { margin-top: 12px; }
 
 body.board-workspace-open { overflow: hidden; }
@@ -4508,8 +4275,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
 /* The way home, drawn as the house the desktop toolbar and the viewer both
    wear, so one glyph means one thing everywhere in Papol. */
-.board-toolbar .board-home { display: grid; flex: none; place-items: center; width: 32px; height: 28px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--accent); text-decoration: none; }
-.board-toolbar .board-home:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 /* The way back to where the board is kept, beside the house that leaves for
    Papol. Worded, because unlike the house it names what it returns to. */
 /* ---------- A board's jacket ---------- */
@@ -4526,8 +4291,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-jacket textarea.board-jacket-note:focus { border-color: var(--accent); background: var(--card); outline: none; }
 .board-jacket-actions { display: flex; gap: 10px; align-items: center; }
 
-.board-toolbar .board-home:active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
-.board-toolbar .board-home svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
@@ -4872,12 +4635,4 @@ ${desktopStyles}
 /* Product-wide motion preference. Component media rules can remove layout
    transitions more selectively, while this guarantees that no newly added
    animation escapes the user's operating-system preference. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
 `;

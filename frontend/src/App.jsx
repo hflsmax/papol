@@ -20,7 +20,8 @@ import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
 import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
-import FeedbackDialog from './components/FeedbackDialog';
+import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
+import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import {
@@ -730,9 +731,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const feedbackDialog = feedbackRequest && (
     <FeedbackDialog
       key={feedbackRequest.key}
-      // A demo visitor with no real token is a stranger to the backend,
-      // so the dialog asks them for an address to reply to.
-      currentUser={getToken() ? user : null}
+      submit={submitFeedback}
       initialContent={feedbackRequest.content}
       reportError={feedbackRequest.reportError}
       onClose={() => setFeedbackRequest(null)}
