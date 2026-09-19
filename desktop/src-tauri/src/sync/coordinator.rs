@@ -107,6 +107,11 @@ pub struct SyncProgress {
 
 const SPEED_WINDOW: Duration = Duration::from_secs(3);
 const REPORT_INTERVAL: Duration = Duration::from_millis(100);
+/// A connection can die mid-body on a network blip or handoff. The sync
+/// routes are idempotent reads, so a fresh request is always safe; only
+/// after this many attempts does one transfer take the whole sync down.
+const TRANSFER_ATTEMPTS: usize = 3;
+const RETRY_PAUSE: Duration = Duration::from_secs(1);
 
 /// Counts transferred bytes and reports throttled progress for one sync.
 struct Meter<'a> {
@@ -264,11 +269,11 @@ impl Coordinator {
                 "timeouts_ms",
                 "sync_connect",
             )))
+            // No whole-request deadline: a first sync honestly takes as long
+            // as its papers do, and a deadline would fail the same large
+            // blob on every attempt. A transfer that keeps moving is
+            // healthy; the read timeout is what catches a stalled one.
             .read_timeout(Duration::from_millis(app_limit("timeouts_ms", "sync_read")))
-            .timeout(Duration::from_millis(app_limit(
-                "timeouts_ms",
-                "sync_request",
-            )))
             .build()
             .map_err(|error| error.to_string())?;
         Ok(Self {
@@ -452,19 +457,18 @@ impl Coordinator {
         let snapshot_url = backend
             .join("api/sync/snapshot")
             .map_err(|error| error.to_string())?;
-        let snapshot_response = self
-            .client
-            .get(snapshot_url)
-            .bearer_auth(token)
-            .send()
-            .await
-            .map_err(|error| error.to_string())?;
-        if !snapshot_response.status().is_success() {
-            return Err(http_error(snapshot_response).await.message);
-        }
-        let snapshot = read_body(snapshot_response, &mut meter)
-            .await
-            .map_err(|error| error.to_string())?;
+        let snapshot = match self.fetch(&snapshot_url, token, &mut meter).await {
+            Ok((_, body)) => body,
+            Err(failure) => {
+                // The snapshot is gated like the pull, and an empty outbox
+                // means it answers first: without this, an outdated build
+                // with nothing to push would never learn it is outdated.
+                if failure.kind == FailureKind::Incompatible {
+                    store.set_local_setting(COMPATIBILITY_KEY, "incompatible")?;
+                }
+                return Err(failure.message);
+            }
+        };
         let snapshot: SnapshotResponse =
             serde_json::from_slice(&snapshot).map_err(|error| error.to_string())?;
         store
@@ -487,23 +491,15 @@ impl Coordinator {
                     "limit",
                     &app_limit("counts", "sync_pull_default").to_string(),
                 );
-            let response = self
-                .client
-                .get(url)
-                .bearer_auth(token)
-                .send()
-                .await
-                .map_err(|error| error.to_string())?;
-            if !response.status().is_success() {
-                let failure = http_error(response).await;
-                if failure.kind == FailureKind::Incompatible {
-                    store.set_local_setting(COMPATIBILITY_KEY, "incompatible")?;
+            let page = match self.fetch(&url, token, &mut meter).await {
+                Ok((_, body)) => body,
+                Err(failure) => {
+                    if failure.kind == FailureKind::Incompatible {
+                        store.set_local_setting(COMPATIBILITY_KEY, "incompatible")?;
+                    }
+                    return Err(failure.message);
                 }
-                return Err(failure.message);
-            }
-            let page = read_body(response, &mut meter)
-                .await
-                .map_err(|error| error.to_string())?;
+            };
             let page: PullResponse =
                 serde_json::from_slice(&page).map_err(|error| error.to_string())?;
             pulled += page.changes.len();
@@ -556,6 +552,43 @@ impl Coordinator {
         Ok(())
     }
 
+    /// GETs a sync route and reads the whole body, asking again when the
+    /// connection dies mid-transfer. An HTTP status is the server's answer
+    /// and is returned as it stands; only the transport gets second chances.
+    async fn fetch(
+        &self,
+        url: &Url,
+        token: &str,
+        meter: &mut Meter<'_>,
+    ) -> Result<(Option<String>, Vec<u8>), SyncFailure> {
+        let mut failure = None;
+        for attempt in 0..TRANSFER_ATTEMPTS {
+            if attempt > 0 {
+                tokio::time::sleep(RETRY_PAUSE).await;
+            }
+            let response = match self.client.get(url.clone()).bearer_auth(token).send().await {
+                Ok(response) => response,
+                Err(error) => {
+                    failure = Some(SyncFailure::transient(error));
+                    continue;
+                }
+            };
+            if !response.status().is_success() {
+                return Err(http_error(response).await);
+            }
+            let mime = response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned);
+            match read_body(response, meter).await {
+                Ok(body) => return Ok((mime, body)),
+                Err(error) => failure = Some(SyncFailure::transient(error)),
+            }
+        }
+        Err(failure.expect("every attempt records its failure"))
+    }
+
     async fn download_blob(
         &self,
         store: &LocalStore,
@@ -571,24 +604,10 @@ impl Coordinator {
         let url = backend
             .join(&format!("api/sync/blobs/{sha256}"))
             .map_err(|error| error.to_string())?;
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(token)
-            .send()
+        let (mime, bytes) = self
+            .fetch(&url, token, meter)
             .await
-            .map_err(|error| error.to_string())?;
-        if !response.status().is_success() {
-            return Err(http_error(response).await.message);
-        }
-        let mime = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_owned);
-        let bytes = read_body(response, meter)
-            .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|failure| failure.message)?;
         store.import_remote_blob(sha256, &bytes, mime)
     }
 }
@@ -756,6 +775,99 @@ mod tests {
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             body.len(), body,
         ).unwrap();
+    }
+
+    /// Declares more bytes than it sends, then closes: the client's body
+    /// read fails the way it does when a connection drops mid-transfer.
+    fn respond_cut_short(stream: &mut TcpStream, body: &Value) {
+        let body = body.to_string();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len() + 7, body,
+        ).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_body_cut_mid_transfer_costs_one_attempt_not_the_sync() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let mut requests = Vec::new();
+            for index in 0..3 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let request = read_request(&mut stream);
+                if request.starts_with("GET /api/sync/pull?") {
+                    respond(
+                        &mut stream,
+                        &json!({"cursor": 1, "has_more": false, "changes": []}),
+                    );
+                } else if index == 0 {
+                    respond_cut_short(&mut stream, &json!({"rows": []}));
+                } else {
+                    respond(&mut stream, &json!({"rows": []}));
+                }
+                requests.push(request);
+            }
+            requests
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let coordinator = Coordinator::new().unwrap();
+        let backend = format!("http://{address}");
+        coordinator
+            .synchronize(&store, "7", &backend, "token")
+            .await
+            .unwrap();
+
+        let requests = server.join().unwrap();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.starts_with("GET /api/sync/snapshot "))
+                .count(),
+            2
+        );
+        assert!(requests
+            .iter()
+            .any(|request| request.starts_with("GET /api/sync/pull?")));
+    }
+
+    #[tokio::test]
+    async fn a_refused_snapshot_records_the_incompatible_verdict() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let request = read_request(&mut stream);
+            let body = json!({"detail": "Papol needs an update"}).to_string();
+            write!(
+                stream,
+                "HTTP/1.1 426 Upgrade Required\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(), body,
+            ).unwrap();
+            request
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let coordinator = Coordinator::new().unwrap();
+        let backend = format!("http://{address}");
+        let error = coordinator
+            .synchronize(&store, "7", &backend, "token")
+            .await
+            .unwrap_err();
+
+        assert!(error.contains("426"));
+        assert_eq!(
+            store.local_setting(COMPATIBILITY_KEY).unwrap().as_deref(),
+            Some("incompatible")
+        );
+        assert!(server
+            .join()
+            .unwrap()
+            .starts_with("GET /api/sync/snapshot "));
     }
 
     #[tokio::test]
