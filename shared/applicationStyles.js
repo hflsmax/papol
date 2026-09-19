@@ -31,13 +31,6 @@ ${itemActionsStyles}
 
 ${commonStyles}
 
-body {
-  font-family: var(--font-serif);
-  background: var(--paper);
-  color: var(--ink);
-  line-height: 1.65;
-}
-
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   line-height: 1.3;
@@ -91,7 +84,8 @@ input[type='checkbox'] {
   flex-wrap: wrap;
 }
 
-.topnav nav a {
+.topnav nav a,
+.topnav .inbox-link {
   color: var(--ink-soft);
   text-decoration: none;
   font-size: var(--fs-base);
@@ -99,12 +93,14 @@ input[type='checkbox'] {
   border-bottom: 2px solid transparent;
 }
 
-.topnav nav a:hover {
+.topnav nav a:hover,
+.topnav .inbox-link:hover {
   color: var(--accent);
   border-bottom-color: var(--line);
 }
 
-.topnav nav a.active {
+.topnav nav a.active,
+.topnav .inbox-link.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
@@ -123,24 +119,6 @@ input[type='checkbox'] {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.topnav .inbox-link {
-  color: var(--ink-soft);
-  text-decoration: none;
-  font-size: var(--fs-base);
-  padding-bottom: 2px;
-  border-bottom: 2px solid transparent;
-}
-
-.topnav .inbox-link:hover {
-  color: var(--accent);
-  border-bottom-color: var(--line);
-}
-
-.topnav .inbox-link.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
 /* ---------- Learn ---------- */
@@ -595,17 +573,6 @@ button:hover:not(:disabled) {
   background: var(--accent-soft);
 }
 
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--ink-inverse);
-}
-
-button.primary:hover:not(:disabled) {
-  background: var(--accent-strong);
-  color: var(--ink-inverse);
-}
-
 /* Danger action: red is the danger family, and this is a control the
    user operates, so it takes the tint/line/ink roles rather than the
    saturated fill a primary button uses. */
@@ -619,11 +586,6 @@ button.danger:hover:not(:disabled) {
   background: var(--red-soft);
   border-color: var(--red);
   color: var(--red);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 button.full-width {
@@ -647,16 +609,6 @@ button.full-width {
   border: none;
   background: none;
   text-decoration-style: solid;
-}
-
-.error {
-  background: var(--red-soft);
-  color: var(--red);
-  border: 1px solid var(--red-line);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 16px;
-  font-size: var(--fs-md);
 }
 
 .warning {
@@ -4323,8 +4275,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
 /* The way home, drawn as the house the desktop toolbar and the viewer both
    wear, so one glyph means one thing everywhere in Papol. */
-.board-toolbar .board-home { display: grid; flex: none; place-items: center; width: 32px; height: 28px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--accent); text-decoration: none; }
-.board-toolbar .board-home:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 /* The way back to where the board is kept, beside the house that leaves for
    Papol. Worded, because unlike the house it names what it returns to. */
 /* ---------- A board's jacket ---------- */
@@ -4341,8 +4291,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-jacket textarea.board-jacket-note:focus { border-color: var(--accent); background: var(--card); outline: none; }
 .board-jacket-actions { display: flex; gap: 10px; align-items: center; }
 
-.board-toolbar .board-home:active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
-.board-toolbar .board-home svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }

@@ -37,14 +37,6 @@ ${commonStyles}
   height: 100dvh;
 }
 
-body {
-  margin: 0;
-  font-family: var(--font-serif);
-  background: var(--paper);
-  color: var(--ink);
-  line-height: 1.65;
-}
-
 button {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
@@ -62,9 +54,6 @@ button {
 }
 
 button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--ink-inverse); }
-button.primary:hover:not(:disabled) { background: var(--accent-strong); color: var(--ink-inverse); }
 
 button.link {
   border: none;
@@ -105,14 +94,6 @@ ${macHandoffStyles}
 
 .error-bar .link { color: var(--red); }
 
-.error {
-  padding: 12px 14px;
-  border: 1px solid var(--red-line);
-  border-radius: var(--radius);
-  background: var(--red-soft);
-  color: var(--red);
-}
-
 .error-actions {
   display: flex;
   gap: var(--space-2);
@@ -145,17 +126,6 @@ ${macHandoffStyles}
 
 /* In Papol macOS the bar is the window's title bar: the same height as
    the app's toolbar, draggable, and clear of the macOS traffic lights. */
-[data-shell='desktop'] .viewer-bar {
-  min-height: 52px;
-  padding-block: 6px;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-[data-shell='desktop'][data-platform='mac'] .viewer-bar {
-  padding-left: 88px;
-}
-
 /* Every control in the bar keeps its size; only the spacer gives way. */
 [data-shell='desktop'] .viewer-bar > :not(.spacer) {
   flex-shrink: 0;
@@ -171,38 +141,6 @@ ${macHandoffStyles}
 /* Feedback lives in the app's sidebar. */
 [data-shell='desktop'] .feedback-fab {
   display: none;
-}
-
-/* The way out of a paper, drawn as the house the desktop toolbar uses so
-   the two shells read the same. It is an anchor, not a button, so a middle
-   click or Command-click still opens Papol in a new tab. */
-.viewer-bar .home {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 28px;
-  border-radius: 6px;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.viewer-bar .home:hover {
-  background: rgba(29, 33, 41, 0.07);
-}
-
-.viewer-bar .home:active {
-  background: rgba(29, 33, 41, 0.13);
-}
-
-.viewer-bar .home svg {
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 /* ---------- Navigator ---------- */
