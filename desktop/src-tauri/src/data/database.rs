@@ -94,7 +94,7 @@ impl LocalStore {
         // running, that offer has been made and answered.
         if !super::schema::recognizes(&connection) {
             drop(connection);
-            discard_replica(path, &blob_directory)?;
+            discard_replica(path)?;
             connection = open_connection(path)?;
             super::schema::apply(&mut connection)?;
         }
@@ -786,15 +786,17 @@ impl LocalStore {
     /// Every active file this account refers to that is not held here — not
     /// in the index, or not on disk. PDFs are owned indirectly through the
     /// account's copies; board files are owned by their board. A file on
-    /// disk that the index does not know is fetched again, which indexes it.
+    /// disk that the index does not know is adopted, not fetched again: its
+    /// name is the digest of its bytes, so hashing it proves what it is.
     pub fn missing_blob_digests(&self, account_uuid: &str) -> Result<Vec<String>, String> {
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| "Local database lock failed")?;
-        let mut statement = connection
-            .prepare(
-                r#"SELECT DISTINCT referenced.digest, _local_blobs.sha256 IS NOT NULL
+        let referenced = {
+            let connection = self
+                .connection
+                .lock()
+                .map_err(|_| "Local database lock failed")?;
+            let mut statement = connection
+                .prepare(
+                    r#"SELECT DISTINCT referenced.digest, _local_blobs.sha256 IS NOT NULL
                  FROM (
                    SELECT p.sha256 AS digest
                    FROM papers p
@@ -809,20 +811,58 @@ impl LocalStore {
                  ) referenced
                  LEFT JOIN _local_blobs ON _local_blobs.sha256=referenced.digest
                  ORDER BY referenced.digest"#,
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = statement
+                .query_map([account_uuid], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
+                })
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            rows
+        };
+        let mut missing = Vec::new();
+        for (digest, indexed) in referenced {
+            let held = if indexed {
+                self.has_blob(&digest)
+            } else {
+                self.adopt_orphan_blob(&digest)?
+            };
+            if !held {
+                missing.push(digest);
+            }
+        }
+        Ok(missing)
+    }
+
+    /// Index a file that is on disk under a digest nothing indexes — what a
+    /// replica discard leaves behind. The name is only a claim until the
+    /// bytes are hashed; a file that proves to be something else is removed
+    /// so the true one can be fetched over it.
+    fn adopt_orphan_blob(&self, sha256: &str) -> Result<bool, String> {
+        use sha2::{Digest, Sha256};
+
+        let Ok(bytes) = std::fs::read(self.blob_directory.join(sha256)) else {
+            return Ok(false);
+        };
+        if hex::encode(Sha256::digest(&bytes)) != sha256 {
+            self.remove_blob_file(sha256);
+            return Ok(false);
+        }
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "Local database lock failed")?;
+        connection
+            .execute(
+                "INSERT INTO _local_blobs(sha256,relative_path,size,durability,last_accessed_at) \
+                 VALUES (?1,?1,?2,'cache',?3) ON CONFLICT(sha256) DO NOTHING",
+                params![sha256, bytes.len() as i64, chrono_text()],
             )
             .map_err(|error| error.to_string())?;
-        let referenced = statement
-            .query_map([account_uuid], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
-            })
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?;
-        Ok(referenced
-            .into_iter()
-            .filter(|(digest, indexed)| !indexed || !self.has_blob(digest))
-            .map(|(digest, _)| digest)
-            .collect())
+        refresh_blob_references_for_digest(&connection, sha256)?;
+        Ok(true)
     }
 
     /// Unlink a cached file whose index row is already gone. One that will
@@ -2572,11 +2612,10 @@ fn open_connection(path: &Path) -> Result<Connection, String> {
 /// part of the shape just discarded — a replica half of one schema and half
 /// of another, which is worse than either.
 ///
-/// The cached files go too. What named them was the table that has just
-/// gone, so keeping them would leave bytes on this computer that nothing
-/// can account for. Every one of them is named by its own digest and can be
-/// fetched again.
-fn discard_replica(path: &Path, blob_directory: &Path) -> Result<(), String> {
+/// The cached files stay. Each is named by the digest of its own bytes — a
+/// name no schema can revise — so the replica that follows verifies and
+/// adopts them rather than downloading the same papers again.
+fn discard_replica(path: &Path) -> Result<(), String> {
     let cannot = |error: std::io::Error| {
         format!("A replica from an older Papol could not be discarded: {error}")
     };
@@ -2590,12 +2629,7 @@ fn discard_replica(path: &Path, blob_directory: &Path) -> Result<(), String> {
             Err(error) => return Err(cannot(error)),
         }
     }
-    match std::fs::remove_dir_all(blob_directory) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(cannot(error)),
-    }
-    std::fs::create_dir_all(blob_directory).map_err(cannot)
+    Ok(())
 }
 
 pub(crate) fn valid_sha256(value: &str) -> bool {
@@ -2661,8 +2695,10 @@ mod tests {
             .map(Result::unwrap)
             .collect();
         assert_eq!(keys, vec!["sha256".to_string()]);
-        // Nothing of the old replica is carried across — not its rows, not
-        // the tables it had that Papol no longer has, not its cached files.
+        // Nothing the old schema described is carried across — not its
+        // rows, not the tables it had that Papol no longer has. The cached
+        // files are not the schema's: each is named by the digest of its
+        // own bytes, so they stay for the next replica to adopt.
         assert_eq!(
             connection
                 .query_row("SELECT COUNT(*) FROM papers", [], |row| row
@@ -2684,7 +2720,7 @@ mod tests {
                 "{gone} should have gone with the library that had it",
             );
         }
-        assert!(!stale_blob.join("deadbeef").exists());
+        assert!(stale_blob.join("deadbeef").exists());
     }
 
     /// The profile was written at sign-in, so it went with the replica.
@@ -2706,6 +2742,26 @@ mod tests {
             store.query("7", "account", json!({})).unwrap()["display_name"],
             json!("Back"),
         );
+    }
+
+    #[test]
+    fn a_discarded_replica_keeps_its_files_for_the_next_one_to_adopt() {
+        use sha2::Digest;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("papol.sqlite3");
+        let blobs = directory.path().join("blobs");
+        std::fs::create_dir_all(&blobs).unwrap();
+        let bytes = b"a paper an older Papol had already fetched";
+        let digest = hex::encode(sha2::Sha256::digest(bytes));
+        std::fs::write(blobs.join(&digest), bytes).unwrap();
+        replica_from_an_older_papol(&path);
+
+        let store = LocalStore::open(&path).unwrap();
+
+        assert!(store.has_blob(&digest));
+        reference_paper_by_digest(&store, &digest);
+        assert!(store.missing_blob_digests("7").unwrap().is_empty());
     }
 
     #[test]
@@ -3298,8 +3354,23 @@ mod tests {
         );
     }
 
+    /// The rows a paper reference needs, written straight into the tables
+    /// the way a discarded replica's successor would first see them.
+    fn reference_paper_by_digest(store: &LocalStore, digest: &str) {
+        let now = "2026-09-12T00:00:00Z";
+        let connection = store.connection.lock().unwrap();
+        connection.execute(
+            "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
+            params![digest, now],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+            params![Uuid::new_v4().to_string(), digest, now],
+        ).unwrap();
+    }
+
     #[test]
-    fn a_file_the_index_does_not_know_is_fetched_again() {
+    fn a_file_the_index_does_not_know_is_adopted_not_fetched_again() {
         use sha2::Digest;
 
         let directory = tempfile::tempdir().unwrap();
@@ -3307,30 +3378,41 @@ mod tests {
         let bytes = b"on disk, in no index";
         let orphan = hex::encode(sha2::Sha256::digest(bytes));
         std::fs::write(store.blob_directory.join(&orphan), bytes).unwrap();
-        let now = "2026-09-12T00:00:00Z";
-        {
-            let connection = store.connection.lock().unwrap();
-            connection.execute(
-                "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
-                params![orphan, now],
-            ).unwrap();
-            connection.execute(
-                "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
-                params![Uuid::new_v4().to_string(), orphan, now],
-            ).unwrap();
-        }
+        reference_paper_by_digest(&store, &orphan);
+
+        // Asking what is missing is what adopts it.
+        assert!(store.missing_blob_digests("7").unwrap().is_empty());
+        assert!(store.has_blob(&orphan));
+        let status = store.query("7", "storage_status", json!({})).unwrap();
+        assert_eq!(status["classes"]["cache"]["bytes"], bytes.len());
+        let referenced: i64 = store
+            .connection
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM _local_blob_refs WHERE sha256=?1",
+                [&orphan],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(referenced, 1);
+    }
+
+    #[test]
+    fn a_file_that_belies_its_name_is_removed_and_fetched_again() {
+        use sha2::Digest;
+
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let claimed = hex::encode(sha2::Sha256::digest(b"what the name promises"));
+        std::fs::write(store.blob_directory.join(&claimed), b"something else").unwrap();
+        reference_paper_by_digest(&store, &claimed);
 
         assert_eq!(
             store.missing_blob_digests("7").unwrap(),
-            vec![orphan.clone()]
+            vec![claimed.clone()]
         );
-        // Fetching it again is what indexes it.
-        store
-            .import_remote_blob(&orphan, bytes, Some("application/pdf".into()))
-            .unwrap();
-        assert!(store.missing_blob_digests("7").unwrap().is_empty());
-        let status = store.query("7", "storage_status", json!({})).unwrap();
-        assert_eq!(status["classes"]["cache"]["bytes"], bytes.len());
+        assert!(!store.has_blob(&claimed));
     }
 
     #[test]
