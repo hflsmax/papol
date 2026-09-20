@@ -195,8 +195,9 @@ async fn main() {
             json!({"paper_sha256": paper_sha256, "kind": "note"}),
         )
         .expect("offline notes survive restart");
+    // Asked for by its name, the first half of its digest, as a link would.
     let offline_import = reopened
-        .query(account_uuid, "paper", json!({"uuid": pdf.sha256}))
+        .query(account_uuid, "paper", json!({"uuid": &pdf.sha256[..32]}))
         .expect("offline PDF survives restart");
     let sync = Coordinator::new()
         .expect("create restart coordinator")

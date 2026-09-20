@@ -43,51 +43,60 @@
       overlays = [ skipUpstreamTests ];
     };
 
-    linuxDevPackages = pkgs: with pkgs; [
+    # The one browser in the shell: Chrome for Testing, which nixpkgs
+    # packages as Playwright's browser bundle and builds for every system
+    # here. The browser smokes, the tutorial recorders, the share end-to-end
+    # drive and the backend's webpage capture all ask for a `chromium` on
+    # PATH, and the shim below hands each of them this binary. Firefox and
+    # WebKit are left out: nothing here opens them, and WebKit was the one
+    # that needed a host-platform override on Linux to be found at all.
+    browsers = pkgs: pkgs.playwright-driver.browsers.override {
+      withFirefox = false;
+      withWebkit = false;
+    };
+
+    # playwright-core knows where its Chromium lives on the current system
+    # and names it without launching anything; asking it keeps that
+    # knowledge out of this file.
+    chromium = pkgs: pkgs.writeShellScriptBin "chromium" ''
+      exec "$(PLAYWRIGHT_BROWSERS_PATH=${browsers pkgs} ${pkgs.nodejs_22}/bin/node -e \
+        'console.log(require("${pkgs.playwright-driver}").chromium.executablePath())')" "$@"
+    '';
+
+    # One list for every system. What is missing from it is as deliberate
+    # as what is on it: Tauri's Linux toolkit (WebKitGTK and the GTK stack
+    # around it) is not here, because Papol for Mac is compiled, tested and
+    # shipped from a Mac against WebKit.framework and the crate is never
+    # built on Linux. Xcode's Command Line Tools are the one thing a Mac
+    # brings of its own — the linker, the SDK, codesign — and nothing in
+    # nixpkgs stands in for them.
+    devPackages = pkgs: with pkgs; [
       (python312.withPackages backend.packages)
       (tutorialNodeModules pkgs)
-      nodejs_22            # frontend/, viewer/, and board/ are Vite apps
+      nodejs_22            # frontend/, viewer/, board/ and desktop/ are npm projects
       (backend.postgresql pkgs)  # the database, the major production runs
       sqlite               # reads old papol.db copies and the demo seed work
       ripgrep              # fast repository-wide source search
       gh                   # pull requests and releases on GitHub
       ruff
       ffmpeg
+      (chromium pkgs)
       # Native libraries used by the optional Kokoro tutorial voice generator.
       # The Python package itself lives in a disposable venv, while its binary
       # wheels resolve their runtime libraries from this reproducible shell.
       stdenv.cc.cc.lib
       zlib
       libsndfile
-      # The browser smokes, the tutorial recorders, and the backend's
-      # webpage capture all drive this one chromium.
-      chromium
-      # The desktop crate. macOS builds and ships it; Linux cannot produce a
-      # release, but `cargo test`, `cargo fmt` and `cargo clippy` all run
-      # here, and the local replica's storage and sync logic are exactly the
-      # parts worth checking away from a Mac. The libraries Tauri's crates
-      # link against ride in the shell's buildInputs below, where pkg-config
-      # finds them.
+      # The desktop crate: the local replica's storage and sync logic, and
+      # the Tauri shell around it. A Mac is not assumed to carry a rustup
+      # toolchain of its own; this is the Rust that `cargo tauri build`
+      # compiles a local DMG with, and that `npm run test:e2e:native-sync`
+      # runs without installing anything.
       cargo
       rustc
       rustfmt
       clippy
     ];
-
-    # The native app uses local Rust and Xcode toolchains. The ordinary
-    # `./deploy.sh dev` command also starts FastAPI, so macOS needs the same
-    # small backend runtime as a deployed server; keep the tutorial recorder
-    # and Linux-only Playwright browser bundle out of this shell.
-    macosDevPackages = pkgs: [
-      (pkgs.python312.withPackages backend.packages)
-      pkgs.nodejs_22
-      (backend.postgresql pkgs)  # `./deploy.sh dev` runs the backend, so it needs the database
-      pkgs.gh              # pull requests and releases on GitHub
-    ];
-
-    # Rust is deliberately absent from the macOS shell: a Mac is assumed to
-    # carry its own rustup toolchain, and putting one on PATH here would
-    # quietly shadow it and change what `cargo tauri build` produces.
 
     # Tutorial recorders share one pinned browser driver. Build its npm closure
     # once through Nix and expose it to every recorder through NODE_PATH; the
@@ -128,37 +137,33 @@
 
     devShells = forAllSystems (system: let
       pkgs = devPkgsFor system;
-      mkShell = if pkgs.stdenv.isDarwin
-        then pkgs.mkShell.override { stdenv = pkgs.stdenvNoCC; }
-        else pkgs.mkShell;
+      # No C compiler of nixpkgs' own, on any system. Nothing in this shell
+      # compiles C on Linux, and on a Mac the app has to link with Xcode's
+      # clang and SDK. nixpkgs' SDK propagates libiconv, libresolv and
+      # libsbuf as store packages (manual, "How to use libiconv on Darwin"),
+      # so with its cc in front Rust's `-liconv` bound to
+      # /nix/store/…-libiconv/lib/libiconv.2.dylib: a path no other Mac has,
+      # and one the hardened runtime refuses even here. That is right for a
+      # package nix installs and wrong for a DMG anyone downloads.
+      mkShell = pkgs.mkShell.override { stdenv = pkgs.stdenvNoCC; };
     in {
-      default = mkShell ({
-        packages = if pkgs.stdenv.isDarwin
-          then macosDevPackages pkgs
-          else linuxDevPackages pkgs;
+      default = mkShell {
+        packages = devPackages pkgs;
 
-        # Tauri's build scripts find their system libraries through
-        # pkg-config, which mkShell only populates for what it is told about.
-        nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
-          dbus glib gtk3 libsoup_3 openssl webkitgtk_4_1
-        ]);
-
-        shellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+        shellHook = ''
+          # Kokoro's wheels find their libraries through the loader's path.
           export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.libsndfile ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           export NODE_PATH="${tutorialNodeModules pkgs}/lib/node_modules''${NODE_PATH:+:$NODE_PATH}"
-        '' + pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
-          # Match desktop/src-tauri/tauri.conf.json so plain Cargo commands and
-          # Tauri builds share native dependency fingerprints.
-          export MACOSX_DEPLOYMENT_TARGET=11.0
-        '' + ''
+          # The minimum macOS that tauri.conf.json declares, read from there
+          # rather than copied here, so plain Cargo commands and Tauri builds
+          # share native dependency fingerprints and cannot drift apart.
+          export MACOSX_DEPLOYMENT_TARGET=${(builtins.fromJSON (builtins.readFile ./desktop/src-tauri/tauri.conf.json)).bundle.macOS.minimumSystemVersion}
           echo "Papol development environment"
-          echo "  Backend:  cd backend && uvicorn main:app --reload"
-          echo "  Frontend: cd frontend && npm install && npm run dev"
-          echo "  Viewer:   cd viewer   && npm install && npm run dev"
-          echo "  Board:    cd board    && npm install && npm run dev"
+          echo "  ./deploy.sh dev         the whole application, rebuilding as you save"
+          echo "  ./deploy.sh macos dev   the native app, on a Mac"
+          echo "  deploy.sh's header lists the rest"
         '';
-      });
+      };
     });
   };
 }
