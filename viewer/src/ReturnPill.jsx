@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
+import { useDismiss } from '../../shared/useDismiss.js';
 
 const pageName = (view) => (view.page ? `Page ${view.page}` : 'Previous place');
 
@@ -18,21 +19,9 @@ export default function ReturnPill({
 }) {
   const noticeRef = useRef(null);
 
-  useEffect(() => {
-    if (!notice) return undefined;
-    const closeAway = (event) => {
-      if (!noticeRef.current?.contains(event.target)) onDismiss();
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') onDismiss();
-    };
-    document.addEventListener('pointerdown', closeAway, true);
-    window.addEventListener('keydown', closeOnEscape, true);
-    return () => {
-      document.removeEventListener('pointerdown', closeAway, true);
-      window.removeEventListener('keydown', closeOnEscape, true);
-    };
-  }, [notice, onDismiss]);
+  // Escape stays with the viewer's central keyboard handler, which already
+  // puts this notice away in its dismissal order.
+  useDismiss(notice, noticeRef, onDismiss, { escape: false });
 
   return (
     <>

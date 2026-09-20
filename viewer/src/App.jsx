@@ -26,6 +26,7 @@ import {
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
+import { useDismiss } from '../../shared/useDismiss.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
@@ -549,16 +550,15 @@ export default function App() {
   // the bar, the gutter. Pins are left out: they open and close cards
   // themselves, and closing here first would turn every second click on a
   // pin into a reopening.
-  useEffect(() => {
-    if (activeNoteUuid == null) return undefined;
-    const leave = (event) => {
-      if (event.target.closest?.('.note-pop, .pin, .context-menu')) return;
+  useDismiss(
+    activeNoteUuid != null,
+    (event) => Boolean(event.target.closest?.('.note-pop, .pin, .context-menu')),
+    () => {
       setActiveNoteUuid(null);
       setNoteCardFocus(null);
-    };
-    document.addEventListener('pointerdown', leave, true);
-    return () => document.removeEventListener('pointerdown', leave, true);
-  }, [activeNoteUuid]);
+    },
+    { escape: false },
+  );
   // The paper's bibliography, and where it is cited in the PDF. Null until
   // it has been asked for; `status` says whether it is worth waiting on.
   // What the user is holding. Remembered: someone marking
@@ -1063,26 +1063,14 @@ export default function App() {
   // window, even though the contents differ. A click beyond the menu puts
   // whichever one is showing away; Escape is handled with the viewer's
   // other keyboard dismissals below.
-  useEffect(() => {
-    if (!paperPopupOpen) return undefined;
-    const closeAway = (event) => {
-      if (paperMenuRef.current?.contains(event.target)) return;
-      setPaperInfoOpen(false);
-      setNookPromptOpen(false);
-      setPdfViewerTip(false);
-    };
-    document.addEventListener('pointerdown', closeAway, true);
-    return () => document.removeEventListener('pointerdown', closeAway, true);
-  }, [paperPopupOpen]);
+  useDismiss(paperPopupOpen, paperMenuRef, () => {
+    setPaperInfoOpen(false);
+    setNookPromptOpen(false);
+    setPdfViewerTip(false);
+  }, { escape: false });
 
-  useEffect(() => {
-    if (!learnLinkNavigation) return undefined;
-    const closeAway = (event) => {
-      if (!learnLinkTipRef.current?.contains(event.target)) setLearnLinkNavigation(false);
-    };
-    document.addEventListener('pointerdown', closeAway, true);
-    return () => document.removeEventListener('pointerdown', closeAway, true);
-  }, [learnLinkNavigation]);
+  useDismiss(learnLinkNavigation, learnLinkTipRef,
+    () => setLearnLinkNavigation(false), { escape: false });
 
   useEffect(() => {
     setSearchIndex([]);
