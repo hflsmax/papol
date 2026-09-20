@@ -37,23 +37,11 @@ ${commonStyles}
   height: 100dvh;
 }
 
+/* The viewer's density: the shared button, one step smaller. */
 button {
-  font-family: var(--font-ui);
   font-size: var(--fs-xs);
   padding: 6px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  line-height: 1.5;
-  transition: color var(--motion-fast) var(--ease-out),
-    background-color var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    box-shadow var(--motion-fast) var(--ease-out);
 }
-
-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 
 ${macHandoffStyles}
 
@@ -93,22 +81,14 @@ ${macHandoffStyles}
 
 /* ---------- Bar ---------- */
 
+/* The dress and the stacking number are .app-bar's; here only how the bar
+   rides the page. Its 38 sits above everything that lies over the pages
+   (the return pill, 36) and still under the error bar and the sheets,
+   which are the things that should cover it. */
 .viewer-bar {
   position: sticky;
   top: 0;
-  /* Above everything that lies over the pages (the return pill, 36). The
-     bar makes a stacking context, so a sheet hanging off a button in it can
-     never rise past this number, whatever the sheet's own z-index says.
-     Still under the error bar and the help sheet, which are the two things
-     that should cover it. */
-  z-index: 38;
   flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 18px;
-  background: var(--card);
-  border-bottom: 1px solid var(--line);
 }
 
 /* In Papol macOS the bar is the window's title bar: the same height as
@@ -1322,19 +1302,8 @@ ${macHandoffStyles}
   font-size: var(--fs-xs);
   font-weight: 600;
 }
-.send-selection-field textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  color: var(--ink);
-  font: var(--fs-sm) var(--font-ui);
-  resize: vertical;
-  line-height: 1.5;
-}
 .send-selection-field select { width: 100%; font-size: var(--fs-sm); }
 .send-selection-field small { color: var(--ink-faint); font-size: inherit; font-weight: 400; }
-.send-selection-field textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .send-selection-source {
   margin: 0 0 14px;
   color: var(--ink-faint);
@@ -1382,7 +1351,7 @@ ${macHandoffStyles}
    drawn over the page, so an opaque wash — however light — would hide the
    very "[12]" the user is pointing at. */
 .cite.hovered,
-.cite:focus-visible {
+.cite:focus-visible, .cite:hover:not(:disabled) {
   background: rgba(43, 74, 111, 0.14);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
   outline: none;
