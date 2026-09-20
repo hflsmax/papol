@@ -16,10 +16,11 @@ let
   # loop. Everything else below — nginx, the backup script's tools — is
   # infrastructure, and takes the host's copy as it should.
   backend = import ./backend-python.nix;
-  pythonEnv = (import backend.lockedNixpkgs {
+  lockedPkgs = import backend.lockedNixpkgs {
     inherit (pkgs) system;
     overlays = [ backend.skipUpstreamTests ];
-  }).python312.withPackages backend.packages;
+  };
+  pythonEnv = lockedPkgs.python312.withPackages backend.packages;
 
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";
@@ -278,6 +279,11 @@ in {
     # peer authentication, with no password to keep anywhere.
     services.postgresql = {
       enable = true;
+      # The pinned major from backend-python.nix — the same PostgreSQL the
+      # development shell and the suite run, not the host channel's
+      # stateVersion default. The suite's verdict is only about production
+      # while these two are one.
+      package = backend.postgresql lockedPkgs;
       ensureDatabases = [ "papol" ];
       ensureUsers = [ { name = "papol"; ensureDBOwnership = true; } ];
       identMap = ''

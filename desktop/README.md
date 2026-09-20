@@ -171,8 +171,7 @@ Build the production-backed application bundle and DMG with:
 ```
 
 `macos build` is an alias. Production builds run all tests and native lints by
-default; use `--no-check` only when iterating locally. `--universal` installs
-both Rust macOS targets and produces one Apple Silicon/Intel application.
+default; use `--no-check` only when iterating locally.
 Local builds are ad-hoc signed unless the repository root contains an ignored,
 owner-only `.env.macos-notarization` file. With that file, `deploy.sh` signs,
 notarizes, and validates the app in one build pass. Its contents are shell
@@ -343,8 +342,8 @@ and built in `src-tauri/src/lib.rs`, so handlers can be attached to it:
 ## macOS release
 
 The final macOS build must run on macOS. The repository release workflow builds
-a universal Apple Silicon/Intel binary, signs and notarizes it, and attaches its
-DMG to a GitHub release when a tag matching `macos-v*` is pushed.
+an Apple Silicon binary, signs and notarizes it, and attaches its DMG to a
+GitHub release when a tag matching `macos-v*` is pushed.
 
 Configure these GitHub Actions secrets first:
 

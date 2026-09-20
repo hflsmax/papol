@@ -9,7 +9,7 @@
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8000)
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
-#                  [--backend URL] [--universal] [--no-check] [--skip-notarize]
+#                  [--backend URL] [--no-check] [--skip-notarize]
 #                  loads .env.macos-notarization when present
 #   ./deploy.sh macos credentials
 #                  print the local signing/notarization values for GitHub
@@ -752,7 +752,7 @@ macos_app_fingerprint() {
 }
 
 macos_prod() {
-  local backend="https://mc-pony.com/papol" universal=no checks=yes skip_notarize=no
+  local backend="https://mc-pony.com/papol" checks=yes skip_notarize=no
   local arg marker app dmg
   local app_hash cached_app_hash cached_dmg_hash dmg_hash dmg_marker bundle_root
   MACOS_TIMING_LABELS=()
@@ -769,10 +769,9 @@ macos_prod() {
         backend=$2
         shift
         ;;
-      --universal) universal=yes ;;
       --no-check) checks=no ;;
       --skip-notarize) skip_notarize=yes ;;
-      *) die "unknown macos prod option: $arg (--backend URL, --universal, --no-check, --skip-notarize)" ;;
+      *) die "unknown macos prod option: $arg (--backend URL, --no-check, --skip-notarize)" ;;
     esac
     shift
   done
@@ -801,17 +800,7 @@ macos_prod() {
   else
     args=(--bundles app)
   fi
-  if [ "$universal" = yes ]; then
-    macos_timing_begin "Prepare universal targets"
-    require_command rustup
-    say "Preparing universal macOS targets"
-    rustup target add aarch64-apple-darwin x86_64-apple-darwin
-    args+=(--target universal-apple-darwin)
-    bundle_root="$DEV_DIR/desktop/src-tauri/target/universal-apple-darwin/release/bundle"
-    macos_timing_finish
-  else
-    bundle_root="$DEV_DIR/desktop/src-tauri/target/release/bundle"
-  fi
+  bundle_root="$DEV_DIR/desktop/src-tauri/target/release/bundle"
   app="$bundle_root/macos/Papol.app"
 
   macos_timing_begin "Clean up mounted build images"
@@ -823,7 +812,6 @@ macos_prod() {
   macos_timing_begin "Build application bundles"
   say "Building Papol macOS"
   note "backend: $backend"
-  [ "$universal" = yes ] && note "architecture: universal (Apple Silicon and Intel)"
   [ "$MACOS_NOTARIZING" = no ] || note "distribution: Developer ID signed and notarized"
   if [ "$skip_notarize" = yes ] && [ "${APPLE_SIGNING_IDENTITY:-}" != - ]; then
     note "distribution: Developer ID signed; notarization skipped"
@@ -869,7 +857,6 @@ macos_prod() {
     say "Building Papol disk image"
     local -a bundle_args
     bundle_args=(--bundles app,dmg)
-    [ "$universal" = no ] || bundle_args+=(--target universal-apple-darwin)
     if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
       (cd "$DEV_DIR/desktop" \
         && APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" \
@@ -931,16 +918,16 @@ run_macos() {
       cat <<'MSG'
 Usage:
   ./deploy.sh macos dev [--backend URL]
-  ./deploy.sh macos prod [--backend URL] [--universal] [--no-check] [--skip-notarize]
+  ./deploy.sh macos prod [--backend URL] [--no-check] [--skip-notarize]
   ./deploy.sh macos credentials
   ./deploy.sh macos release [patch|minor|major|VERSION]
 
 `prod` and its `build` alias create an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
 .env.macos-notarization file supplies Developer ID and notarization credentials.
-Tagged GitHub releases also sign and notarize. Add --universal to build one
-binary for Apple Silicon and Intel. Add --skip-notarize to retain the configured
-signing mode without submitting the build to Apple's notarization service.
+Tagged GitHub releases also sign and notarize. Add --skip-notarize to retain
+the configured signing mode without submitting the build to Apple's
+notarization service.
 `credentials` lists the GitHub Actions secrets needed for a signed and
 notarized release, checks for a local Developer ID identity, and prints the
 values in the local credential file for copying to GitHub.

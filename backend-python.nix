@@ -48,6 +48,16 @@
     };
   };
 
+  # The database, pinned by major version for the same reason the Python
+  # is pinned at all: the suite runs against the development cluster, and a
+  # green suite only says something about production if production is the
+  # same PostgreSQL. Without this, the dev shell took the rolling channel's
+  # default (18) while services.postgresql took the host channel's
+  # stateVersion default (15), and nothing compared them. Moving to a new
+  # major is a deliberate edit here, paired with a dump/restore of
+  # production's data directory — never a side effect of a channel bump.
+  postgresql = pkgs: pkgs.postgresql_18;
+
   # The nixpkgs this checkout is locked to — the rolling channel, which is
   # what every system Papol deploys to builds against.
   #
@@ -56,7 +66,7 @@
   # copy of it, and no download when the flake has been evaluated here at all.
   lockedNixpkgs =
     let pin = (builtins.fromJSON (builtins.readFile ./flake.lock))
-                .nodes.nixpkgs-unstable.locked;
+                .nodes.nixpkgs.locked;
     in builtins.fetchTree {
       type = "github";
       inherit (pin) owner repo rev narHash;

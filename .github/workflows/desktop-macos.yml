@@ -75,13 +75,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/macos-v')
     runs-on: macos-26
     timeout-minutes: 45
-    strategy:
-      matrix:
-        include:
-          - target: aarch64-apple-darwin
-            label: AppleSilicon
-          - target: x86_64-apple-darwin
-            label: Intel
     steps:
       - uses: actions/checkout@v7
 
@@ -97,7 +90,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin
 
       - name: Install desktop dependencies
         working-directory: desktop
@@ -119,7 +112,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
-          args: --target ${{ matrix.target }}
+          args: --target aarch64-apple-darwin
 
       # Tauri notarizes and staples the app, but only signs the DMG around it.
       # Notarize the disk image as well so the download itself carries a ticket.
@@ -138,16 +131,16 @@ jobs:
             --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
           xcrun stapler staple "$dmg"
           mkdir -p release
-          mv "$dmg" "release/Papol_${VERSION}_macOS_${{ matrix.label }}.dmg"
+          mv "$dmg" "release/Papol_${VERSION}_macOS.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: dmg-${{ matrix.label }}
+          name: dmg
           path: release/*.dmg
           if-no-files-found: error
 
-  # Publish only once every architecture's DMG is notarized, so a failed build
-  # never leaves a partial release behind. The pushed tag already pins the
+  # Publish only once the DMG is notarized, so a failed build never leaves a
+  # partial release behind. The pushed tag already pins the
   # release commit; gh omits target_commitish, which would otherwise make
   # GitHub demand workflows permission (which GITHUB_TOKEN cannot have).
   release:
@@ -159,9 +152,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: dmg-*
+          name: dmg
           path: release
-          merge-multiple: true
 
       - name: Publish release
         env:
@@ -171,4 +163,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" release/*.dmg \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "Papol macOS v${GITHUB_REF_NAME#macos-v}" \
-            --notes "Download the signed and notarized Papol DMG for your Mac: Apple Silicon or Intel."
+            --notes "Download the signed and notarized Papol DMG for your Mac (Apple Silicon)."

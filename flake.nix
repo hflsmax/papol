@@ -2,41 +2,22 @@
   description = "Papol - Paper Documentation Webapp";
 
   inputs = {
-    # Two nixpkgs, and which of them carries the name `nixpkgs` matters for
-    # more than this file reads.
-    #
-    # `nix develop` resolves its own shell by looking up bashInteractive
-    # under the input *literally named* `nixpkgs`, whatever the flake goes
-    # on to do with its inputs — a lookup no output here asks for and none
-    # can redirect. nixpkgs 26.11 dropped x86_64-darwin and throws on sight
-    # there, so while that name belonged to the rolling channel, every
-    # `nix develop` on an Intel Mac opened with
-    #
-    #   error (ignored): cached failure of attribute 'legacyPackages.x86_64-darwin'
-    #
-    # and then fell back to whatever bash it could find on PATH. Nix ignores
-    # the failure, so nothing broke; it simply said so, alarmingly, every
-    # single time.
-    #
-    # The name therefore goes to the branch that still evaluates on every
-    # system Papol is developed on. 26.05 is the last release to support
-    # x86_64-darwin and is maintained until the end of 2026.
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
-
-    # The rolling channel, named for what it is. This is what Papol deploys
-    # from and what every system except x86_64-darwin builds against —
-    # `nixpkgsFor` below is where that is decided, and the decision has not
-    # changed. Only the names have.
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # One nixpkgs: the rolling channel, which is what Papol deploys from.
+    # Everything reads it — the dev shells, `.#python`, and module.nix
+    # through backend-python.nix's lockedNixpkgs — so what the suite ran
+    # against and what production serves can never be two different
+    # answers. There used to be a second, x86_64-darwin-pinned input so an
+    # Intel Mac could still open a shell; supporting that retired platform
+    # was the only thing two channels bought, and it went with it.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable }: let
+  outputs = { self, nixpkgs }: let
     # Keep the Linux outputs for deployment, but expose the development
     # environment on the macOS hosts used to work on the project as well.
     supportedSystems = [
       "x86_64-linux"
       "aarch64-linux"
-      "x86_64-darwin"
       "aarch64-darwin"
     ];
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
@@ -60,13 +41,7 @@
       playwright
     ]);
 
-    # Which nixpkgs a system builds from. Every system takes the rolling
-    # channel; x86_64-darwin is the one exception, for the reason given
-    # beside the inputs.
-    nixpkgsFor = system:
-      if system == "x86_64-darwin" then nixpkgs else nixpkgs-unstable;
-
-    devPkgsFor = system: import (nixpkgsFor system) {
+    devPkgsFor = system: import nixpkgs {
       inherit system;
       overlays = [ skipUpstreamTests ];
     };
@@ -75,7 +50,7 @@
       (python312.withPackages devPython)
       (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
-      postgresql           # the database, and the psql/pg_dump that tend it
+      (backend.postgresql pkgs)  # the database, the major production runs
       sqlite               # reads old papol.db copies and the demo seed work
       ripgrep              # fast repository-wide source search
       gh                   # pull requests and releases on GitHub
@@ -116,24 +91,13 @@
     macosDevPackages = pkgs: [
       (pkgs.python312.withPackages backend.packages)
       pkgs.nodejs_22
-      pkgs.postgresql      # `./deploy.sh dev` runs the backend, so it needs the database
+      (backend.postgresql pkgs)  # `./deploy.sh dev` runs the backend, so it needs the database
       pkgs.gh              # pull requests and releases on GitHub
     ];
 
-    # Rust is deliberately absent above: a Mac is assumed to carry its own
-    # rustup toolchain, and putting one on PATH here would quietly shadow it
-    # and change what `cargo tauri build` produces. That assumption is worth
-    # keeping where it holds, but x86_64-darwin is already pinned to its own
-    # frozen nixpkgs, so it may as well take Rust from there too rather than
-    # make a retired platform carry a separate rustup install to get past
-    # `require_command cargo` in deploy.sh. An Apple Silicon shell is
-    # untouched and still uses the host toolchain.
-    x86DarwinRustPackages = pkgs: with pkgs; [
-      cargo
-      rustc
-      rustfmt
-      clippy
-    ];
+    # Rust is deliberately absent from the macOS shell: a Mac is assumed to
+    # carry its own rustup toolchain, and putting one on PATH here would
+    # quietly shadow it and change what `cargo tauri build` produces.
 
     # Tutorial recorders share one pinned browser driver. Build its npm closure
     # once through Nix and expose it to every recorder through NODE_PATH; the
@@ -171,13 +135,7 @@
     nixosModules.default = import ./module.nix;
 
     packages = forAllSystems (system: let
-      # nixpkgsFor, not nixpkgs-unstable, for the same reason the devShell
-      # uses it: `nixpkgs-unstable.legacyPackages.x86_64-darwin` throws
-      # outright on 26.11, and that throw would escape into every evaluation
-      # of this flake on an Intel Mac — including `nix develop`, which has no
-      # interest in these packages at all. Every other system still resolves
-      # to the rolling channel.
-      pkgs = (nixpkgsFor system).legacyPackages.${system};
+      pkgs = nixpkgs.legacyPackages.${system};
     in {
       # The frontend imports ../shared, which reads ../config/app_limits.json,
       # so the build gets those folders too and runs from frontend/.
@@ -218,11 +176,9 @@
         else pkgs.mkShell;
     in {
       default = mkShell ({
-        packages = (if pkgs.stdenv.isDarwin
+        packages = if pkgs.stdenv.isDarwin
           then macosDevPackages pkgs
-          else linuxDevPackages pkgs)
-          ++ nixpkgs.lib.optionals (system == "x86_64-darwin")
-               (x86DarwinRustPackages pkgs);
+          else linuxDevPackages pkgs;
 
         # Tauri's build scripts find their system libraries through
         # pkg-config, which mkShell only populates for what it is told about.
