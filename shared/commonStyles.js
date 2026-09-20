@@ -30,6 +30,35 @@ body {
   opacity: 1;
 }
 
+/* Every control inherits its context's type rather than falling back to
+   a browser default — a bare <textarea> would otherwise render in
+   monospace. Inheriting means a field picks up prose serif in a panel,
+   mono inside an admin data table, and UI sans in the announce form. */
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: var(--fs-base);
+  color: var(--ink);
+}
+
+select {
+  min-height: 36px;
+  padding: 8px 34px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  appearance: none;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 10px center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+select:hover:not(:disabled) { border-color: var(--line-strong); background-color: var(--paper); }
+select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+select:disabled { cursor: default; opacity: .65; }
+
 /* Each app sets its own resting voice for a button — size, weight, shadow —
    but what "primary" and "disabled" mean is not a matter of voice. */
 button.primary {
@@ -219,6 +248,7 @@ button:disabled {
 .chip, .nook-chip, .participant-chip, .tag-chip, .join-chip,
 .user-filter, .style-tag, .author-tag {
   display: inline-flex;
+  box-shadow: none;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -278,6 +308,29 @@ button:disabled {
   letter-spacing: 0.04em;
   color: var(--ink-soft);
   margin-bottom: 8px;
+}
+
+/* Bare: a control with no costume of its own — what it looks like is its
+   content. The word the switch and the pin already used, now the word for
+   every stripped control; hover repainting stays each member's business. */
+.bare,
+.switch-toggle, .paper-browser-toggle, .tag-input, .rating-clear,
+.back-button, .icon-button, .collapse-button, .chip-x,
+.notification-toggle, .delete-comment-button, .board-booklet-spine,
+.shelf-name-input, .demo-banner-link, .admin-sort,
+.tag-dropdown button, .shelf-palette button,
+.share-menu > button, .share-menu > a,
+.board-actions-popover button, .board-new-hint button,
+.board-staging-card button, .board-inline-format button,
+.manage-tag-row .tag-chip,
+.navigator-sub, .navigator-anchor, .swatch, .shade, .shape, .weight,
+.beast, .link-return-button, .link-return-hide, .pdf-link, .cite, .pin,
+.note-pop-delete,
+.desktop-sidebar-label-action, .desktop-sidebar-item,
+.desktop-sync-button, .desktop-toolbar-button {
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 /* The small way out of a transient surface: an unadorned ×, centered,
