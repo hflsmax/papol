@@ -58,8 +58,8 @@
   # production's data directory — never a side effect of a channel bump.
   postgresql = pkgs: pkgs.postgresql_18;
 
-  # The nixpkgs this checkout is locked to — the rolling channel, which is
-  # what every system Papol deploys to builds against.
+  # The nixpkgs this checkout is locked to — the stable release channel,
+  # which is what every system Papol deploys to builds against.
   #
   # fetchTree, given the lock's own rev and narHash, resolves to the very
   # store path the flake input already has: the same source, not a second

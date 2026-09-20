@@ -2,14 +2,18 @@
   description = "Papol - Paper Documentation Webapp";
 
   inputs = {
-    # One nixpkgs: the rolling channel, which is what Papol deploys from.
-    # Everything reads it — the dev shells, `.#python`, and module.nix
+    # One nixpkgs: the current stable release, which is what Papol deploys
+    # from. Everything reads it — the dev shells, `.#python`, and module.nix
     # through backend-python.nix's lockedNixpkgs — so what the suite ran
-    # against and what production serves can never be two different
-    # answers. There used to be a second, x86_64-darwin-pinned input so an
-    # Intel Mac could still open a shell; supporting that retired platform
-    # was the only thing two channels bought, and it went with it.
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # against and what production serves can never be two different answers.
+    # A release branch only takes fixes, so `nix flake update` is news about
+    # security patches, not a surprise toolchain; moving to the next release
+    # (26.11 and onward) is a deliberate edit here, made while this branch
+    # is still maintained. There used to be a second, x86_64-darwin-pinned
+    # input so an Intel Mac could still open a shell; supporting that
+    # retired platform was the only thing two channels bought, and it went
+    # with it.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   };
 
   outputs = { self, nixpkgs }: let

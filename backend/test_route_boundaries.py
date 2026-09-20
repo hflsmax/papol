@@ -2,7 +2,6 @@ import ast
 from collections import Counter
 from pathlib import Path
 
-from fastapi.routing import iter_route_contexts
 
 from main import app
 from routes.admin import router as admin_router
@@ -57,16 +56,17 @@ def test_domain_routers_are_registered_once():
     owns also declared on `main`, shadows one handler with another and the
     request goes somewhere nobody meant.
 
-    Asked the way FastAPI asks itself, too. `include_router` leaves a marker
-    in the route list and resolves it while matching, rather than copying the
-    routes in, so walking the list plainly sees none of the extracted routes
-    and this counted every one of them zero. `iter_route_contexts` is what
-    FastAPI's own schema generation walks.
+    Under the pinned FastAPI, `include_router` copies a router's routes
+    into the application's list, so walking `app.routes` sees every handler
+    — the extracted domain routers' included. (A newer FastAPI leaves a
+    marker in the list and resolves it while matching; there, this walk
+    counts every extracted route zero, and the assertion below says so
+    loudly rather than passing on an empty count.)
     """
     served = Counter(
-        (method, context.path)
-        for context in iter_route_contexts(app.routes)
-        for method in (context.methods or set()) - {"HEAD", "OPTIONS"}
+        (method, route.path)
+        for route in app.routes
+        for method in (getattr(route, "methods", None) or set()) - {"HEAD", "OPTIONS"}
     )
     duplicated = sorted(
         contract for contract in EXPECTED_ROUTES if served[contract] != 1

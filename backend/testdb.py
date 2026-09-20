@@ -20,7 +20,6 @@ import atexit
 from sqlalchemy import text
 
 import database
-from database import Base
 
 # Pooled connections left to the garbage collector at interpreter exit make
 # psycopg complain; close them while closing is still orderly.
@@ -43,7 +42,14 @@ def reset():
 
 
 def fresh_engine():
-    """The suite's engine, its schema just built and holding nothing."""
+    """The suite's engine, its schema just built and holding nothing.
+
+    Built by migrate(), not bare create_all, so the schema version is
+    stamped the way a real server start stamps it: anything that runs
+    migrate() later in the process — importing main, most likely — must
+    find a database this build recognizes, not one that looks like a
+    stranger's.
+    """
     engine = reset()
-    Base.metadata.create_all(engine)
+    database.migrate()
     return engine
