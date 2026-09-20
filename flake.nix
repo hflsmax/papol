@@ -38,20 +38,16 @@
     backend = import ./backend-python.nix;
     inherit (backend) skipUpstreamTests;
 
-    # Only for working on Papol. Playwright drives a real browser over the
-    # viewer, which is how a layout is checked at a screen size nobody
-    # here has — reading the CSS is not the same as laying it out.
-    devPython = ps: backend.packages ps ++ (with ps; [
-      playwright
-    ]);
-
     devPkgsFor = system: import nixpkgs {
       inherit system;
       overlays = [ skipUpstreamTests ];
     };
 
     linuxDevPackages = pkgs: with pkgs; [
-      (python312.withPackages devPython)
+      # The service's Python plus playwright, which drives a real browser
+      # over the viewer — how a layout is checked at a screen size nobody
+      # here has; reading the CSS is not the same as laying it out.
+      (python312.withPackages (ps: backend.packages ps ++ [ ps.playwright ]))
       (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       (backend.postgresql pkgs)  # the database, the major production runs
@@ -73,19 +69,13 @@
       # The desktop crate. macOS builds and ships it; Linux cannot produce a
       # release, but `cargo test`, `cargo fmt` and `cargo clippy` all run
       # here, and the local replica's storage and sync logic are exactly the
-      # parts worth checking away from a Mac. The GTK and WebKit libraries
-      # are what Tauri's own crates link against while compiling.
+      # parts worth checking away from a Mac. The libraries Tauri's crates
+      # link against ride in the shell's buildInputs below, where pkg-config
+      # finds them.
       cargo
       rustc
       rustfmt
       clippy
-      pkg-config
-      dbus
-      glib
-      gtk3
-      libsoup_3
-      openssl
-      webkitgtk_4_1
     ];
 
     # The native app uses local Rust and Xcode toolchains. The ordinary
@@ -138,39 +128,16 @@
     # its own interpreter now, so both ways in produce the same service.
     nixosModules.default = import ./module.nix;
 
-    packages = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
-    in {
-      # The frontend imports ../shared, which reads ../config/app_limits.json,
-      # so the build gets those folders too and runs from frontend/.
-      frontend = pkgs.buildNpmPackage {
-        pname = "papol-frontend";
-        version = "0.0.1";
-        src = pkgs.lib.fileset.toSource {
-          root = ./.;
-          fileset = pkgs.lib.fileset.unions [ ./frontend ./shared ./config ];
-        };
-        sourceRoot = "source/frontend";
-        npmDepsHash = "sha256-2BNW5WEI0OoPNgmFI+JKfIKjjYURnWvu7Gh9V6/z+L0=";
-        installPhase = ''
-          runHook preInstall
-          mkdir -p $out
-          cp -r dist/* $out/
-          runHook postInstall
-        '';
-      };
-
+    packages = forAllSystems (system: {
       # The interpreter the deployed service runs under, exposed so it can be
       # inspected without evaluating a whole NixOS system: `nix build .#python`
-      # and read what is in its site-packages. Built the way module.nix builds
-      # it — the locked nixpkgs, the same overlay — so this is the server's
+      # and read what is in its site-packages. The flake's one input is the
+      # same source module.nix reaches through backend-python.nix's
+      # lockedNixpkgs, and the overlay is the same, so this is the server's
       # interpreter itself and not a lookalike that could answer differently.
-      python = (import backend.lockedNixpkgs {
-        inherit system;
-        overlays = [ skipUpstreamTests ];
-      }).python312.withPackages backend.packages;
+      python = (devPkgsFor system).python312.withPackages backend.packages;
 
-      default = self.packages.${system}.frontend;
+      default = self.packages.${system}.python;
     });
 
     devShells = forAllSystems (system: let

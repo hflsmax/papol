@@ -96,12 +96,6 @@ in {
       '';
     };
 
-    lanInterface = lib.mkOption {
-      type = lib.types.str;
-      default = "enp4s0";
-      description = "Interface whose IPv4 address the papol.local mDNS alias points at";
-    };
-
     user = lib.mkOption {
       type = lib.types.str;
       default = "congm";
@@ -316,14 +310,15 @@ in {
         User = cfg.user;
         Group = "users";
         WorkingDirectory = "${cfg.srcDir}/backend";
+        # The unit's `path` below covers Exec* commands, this one included.
         ExecStartPre = pkgs.writeShellScript "wait-for-papol-grobid" ''
-          for attempt in $(${pkgs.coreutils}/bin/seq 1 60); do
-            if ${pkgs.curl}/bin/curl --fail --silent --max-time 2 \
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --max-time 2 \
                 "http://127.0.0.1:${toString cfg.grobid.port}/api/isalive" \
-                | ${pkgs.gnugrep}/bin/grep --quiet '^true$'; then
+                | grep --quiet '^true$'; then
               exit 0
             fi
-            ${pkgs.coreutils}/bin/sleep 2
+            sleep 2
           done
           echo "Required GROBID service did not become healthy" >&2
           exit 1
@@ -342,7 +337,7 @@ in {
         Restart = "on-failure";
         RestartSec = 5;
       };
-      path = [ pkgs.ffmpeg pkgs.yt-dlp pkgs.chromium ];
+      path = [ pkgs.ffmpeg pkgs.yt-dlp pkgs.chromium pkgs.curl pkgs.gnugrep pkgs.coreutils ];
     };
 
     systemd.services.papol-health-check = lib.mkIf cfg.health.enable {
@@ -515,8 +510,11 @@ in {
         Restart = "always";
         RestartSec = 5;
       };
+      # The address the host would use to reach out is the address the LAN
+      # reaches it at — asked of the routing table, so no interface name is
+      # hard-coded here and the module moves between machines unedited.
       script = ''
-        IP=$(ip -4 -o addr show ${cfg.lanInterface} | awk '{print $4}' | cut -d/ -f1 | head -1)
+        IP=$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1); exit}')
         exec avahi-publish -a papol.local -R "$IP"
       '';
     };
