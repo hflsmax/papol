@@ -1946,7 +1946,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
                   : item.kind === 'image' && imageErrors[item.uuid]
                     ? <div className="board-image-error" role="status">Image unavailable</div>
                   : item.kind === 'image'
-                    ? <div className="board-staging-image-loading"><span className="board-loading-spinner" /></div>
+                    ? <div className="board-staging-image-loading"><span className="spinner" /></div>
                     : <blockquote>{item.excerpt_text}</blockquote>}
                 {item.content && <p className="board-staging-comment">{item.content}</p>}
                 <footer>
@@ -1974,7 +1974,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           </div>
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
-        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="board-loading-spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
+        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
         {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
@@ -2010,7 +2010,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
           {hasCardPreview(item) && !imageUrls[item.uuid] && (imageErrors[item.uuid]
             ? <div className="board-image-error" role="status">Image unavailable</div>
-            : <div className="board-image-loading" role="status" aria-label="Loading image"><span className="board-loading-spinner" aria-hidden="true" /></div>)}
+            : <div className="board-image-loading" role="status" aria-label="Loading image"><span className="spinner" aria-hidden="true" /></div>)}
           {hasCardPreview(item) && imageUrls[item.uuid] && <img src={imageUrls[item.uuid]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {!hasCardPreview(item) && ['youtube', 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{item.kind === 'youtube' ? '▶' : '↗'}</span><span>{item.kind === 'youtube' ? 'Video saved offline' : 'Page saved offline'}</span></div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}

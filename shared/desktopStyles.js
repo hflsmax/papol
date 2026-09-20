@@ -248,10 +248,8 @@ export const desktopStyles = `
 }
 
 .desktop-sync-mark.spinning {
-  animation: desktop-sync-spin .8s linear infinite;
+  animation: spin .8s linear infinite;
 }
-
-@keyframes desktop-sync-spin { to { transform: rotate(360deg); } }
 
 .desktop-sync-control.has-error .desktop-sync-mark {
   color: var(--red);

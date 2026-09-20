@@ -559,7 +559,7 @@ button {
   cursor: pointer;
   font-size: var(--fs-md);
   font-family: var(--font-ui);
-  box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
   transition: color var(--motion-fast) var(--ease-out),
     background-color var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
@@ -627,7 +627,7 @@ button.full-width {
   color: var(--gold-ink);
   border: 1px solid var(--gold-line);
   border-radius: var(--radius);
-  box-shadow: 0 3px 10px rgba(25, 35, 50, 0.15);
+  box-shadow: 0 3px 10px rgba(29, 33, 41, 0.15);
   padding: 8px 12px;
   font-size: var(--fs-sm);
   line-height: 1.5;
@@ -846,7 +846,7 @@ select:disabled { cursor: default; opacity: .65; }
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--ink-inverse);
-  box-shadow: 0 1px 2px rgba(25, 35, 50, 0.3);
+  box-shadow: 0 1px 2px rgba(29, 33, 41, 0.3);
 }
 
 /* Text-less variant: fixed track, knob slides between the ends */
@@ -1004,18 +1004,10 @@ select:disabled { cursor: default; opacity: .65; }
 }
 
 .metadata-spinner {
-  display: inline-block;
-  vertical-align: -2px;
-  flex: 0 0 auto;
   width: 14px;
   height: 14px;
-  border: 2px solid var(--line);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: metadata-spin .8s linear infinite;
+  vertical-align: -2px;
 }
-
-@keyframes metadata-spin { to { transform: rotate(360deg); } }
 
 .upload-review-form .form-group {
   margin-bottom: 12px;
@@ -2118,7 +2110,7 @@ select:disabled { cursor: default; opacity: .65; }
   border: 1px solid var(--line-strong);
   background: var(--card);
   color: var(--ink);
-  box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
@@ -2130,7 +2122,7 @@ select:disabled { cursor: default; opacity: .65; }
   border-radius: var(--radius);
   border-color: var(--gold);
   background: var(--gold-soft);
-  box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
 }
 
 /* Square the avatar inside to match the chip; the hover popup is the
@@ -2213,7 +2205,7 @@ select:disabled { cursor: default; opacity: .65; }
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 3px 10px rgba(25, 35, 50, 0.15);
+  box-shadow: 0 3px 10px rgba(29, 33, 41, 0.15);
   padding: 10px 14px;
   width: max-content;
   max-width: 280px;
@@ -2286,7 +2278,7 @@ select:disabled { cursor: default; opacity: .65; }
   color: var(--ink);
   font-size: var(--fs-xs);
   line-height: 1.5;
-  box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
 }
 
 /* Small buttons: these open the paper, they do not compete with the
@@ -2525,7 +2517,9 @@ button.state-pill.none:hover:not(:disabled) {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(25, 35, 50, 0.45);
+  /* The same dusk the sheet's backdrop uses, so no two dialogs darken the
+     page by different amounts. */
+  background: rgba(29, 33, 41, 0.42);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3150,7 +3144,7 @@ a.button {
   color: var(--ink);
   text-decoration: none;
   font-size: var(--fs-md);
-  box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
+  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
 }
 
 a.button:hover {
@@ -3260,7 +3254,7 @@ a.button:hover {
   font-weight: 600;
   color: var(--ink-inverse);
   background: var(--accent);
-  box-shadow: 0 1px 3px rgba(25, 35, 50, 0.25);
+  box-shadow: 0 1px 3px rgba(29, 33, 41, 0.25);
 }
 
 .join-chip:hover:not(:disabled) {
@@ -4400,8 +4394,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-inline-format button.active { background: var(--accent-soft); color: var(--accent); }
 .board-align-glyph { display: block; width: 18px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .board-youtube-loading { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; gap: 10px; width: 300px; min-height: 170px; border: 1px solid var(--line); border-radius: 2px; background: var(--card); color: var(--ink-soft); box-shadow: 0 1px 6px rgba(25,35,50,.18); user-select: none; touch-action: none; font: var(--fs-sm) var(--font-ui); will-change: transform; }
-.board-loading-spinner { width: 17px; height: 17px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: board-spin .8s linear infinite; }
-@keyframes board-spin { to { transform: rotate(360deg); } }
 .board-canvas-error { position: fixed; z-index: 120; top: 68px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
 
 @media (prefers-reduced-motion: reduce) {
