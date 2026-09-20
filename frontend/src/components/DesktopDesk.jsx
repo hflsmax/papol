@@ -10,6 +10,7 @@ import {
 } from '../desktopListings';
 import { formatAuthors } from '../paperFormat';
 import PaperJacket from './PaperJacket';
+import ErrorBoundary from '../../../shared/ui/ErrorBoundary.jsx';
 import PaperUpload from './PaperUpload';
 import appLimits from '../../../shared/appLimits.js';
 import BoardCreateForm from './BoardCreateForm';
@@ -852,7 +853,14 @@ export function DesktopBrowser({
         <div className="desktop-toolbar" data-tauri-drag-region="deep" />
         {banner}
         <DefaultViewerPrompt />
-        {detail}
+        {/* Keyed by what the pane shows, so a crash stays in this pane and
+            choosing anything else starts it clean. */}
+        <ErrorBoundary
+          key={paperSha256 ?? selectedBoardUuid ?? listing}
+          area="the desk's detail pane"
+        >
+          {detail}
+        </ErrorBoundary>
       </section>
     </div>
   );

@@ -266,6 +266,13 @@ button:disabled {
 .experimental-badge { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
 .experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 
+/* Where a surface crashed and the boundary is standing in for it. Sized
+   like a page's own notice, not a full-screen event: the crash is the
+   surface's, and everything around it is still Papol. */
+.render-error { max-width: 520px; margin: 48px auto; }
+.render-error h2 { margin-top: 0; }
+.render-error-actions { display: flex; gap: 10px; margin-top: 14px; }
+
 /* A sheet over a dimmed page: the feedback form everywhere, and the
    viewer's send-to-board box. The backdrop centres the sheet and swallows
    scrolling; the sheet is the one card allowed to scroll if it must. */

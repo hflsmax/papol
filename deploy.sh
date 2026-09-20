@@ -371,7 +371,12 @@ NODE
   git -C "$DEV_DIR" push origin main
   git -C "$DEV_DIR" tag -a "$tag" -m "Papol macOS v$version"
   git -C "$DEV_DIR" push origin "$tag"
-  say "Published Papol macOS v$version"
+  say "Tagged Papol macOS v$version"
+  # The gate is CI's, not this script's: the tag runs the suites, the
+  # browser smokes and the native lints on a macOS runner, and the DMG
+  # is built, notarized and published only if they pass.
+  note "CI is now testing the tag; the release publishes only if the gate passes:"
+  note "https://github.com/hflsmax/papol/actions/workflows/desktop-macos.yml"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -473,7 +478,7 @@ check_macos() {
   local -a pids labels
   logs=$(mktemp -d -t papol-macos-checks.XXXXXX)
 
-  (cd "$DEV_DIR/frontend" && npm run test:unit) >"$logs/frontend" 2>&1 &
+  (cd "$DEV_DIR/frontend" && npm run test) >"$logs/frontend" 2>&1 &
   pids+=("$!"); labels+=(frontend)
   (cd "$DEV_DIR/viewer" && npm test) >"$logs/viewer" 2>&1 &
   pids+=("$!"); labels+=(viewer)

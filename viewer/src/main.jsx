@@ -4,6 +4,7 @@ import './configurePlatform.js';
 import '../../shared/desktopShell';
 import './readableStreamIteration';
 import App, { preloadPdfPage } from './App';
+import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { markViewerPerformance } from './performance.js';
 import { styles } from './styles.js';
@@ -25,7 +26,9 @@ void hydrateCredential().catch(() => {});
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary area="the viewer">
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
 

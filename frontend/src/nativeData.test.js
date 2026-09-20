@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import apiShapes from '../../schema/api_shapes.json' with { type: 'json' };
 Object.defineProperty(globalThis, 'navigator', {
   value: { onLine: true }, configurable: true, writable: true,
 });
@@ -117,6 +118,26 @@ test('paper and comment reads start together', async () => {
   await loading;
   queryPaperGate = null;
   queryPaper = null;
+});
+
+test('a replica paper carries every list the API declares', async () => {
+  // The library app trusts the shape the API declares (schema/api_shapes.json),
+  // so a paper read from the replica must say what the replica cannot know —
+  // nobody else's nook is stored here — as an empty list, not a missing field.
+  const paperSha256 = '11111111-1111-4111-8111-111111111111';
+  queryPaper = { uuid: paperSha256, copy_uuid: '22222222-2222-4222-8222-222222222222' };
+  const paper = await getPaper(paperSha256);
+  queryPaper = null;
+  for (const field of [...apiShapes.views.paper, ...apiShapes.views.paper_list]) {
+    assert.ok(Array.isArray(paper[field]), `paper.${field} is a list`);
+  }
+});
+
+test('a replica board carries every list the API declares', () => {
+  const board = boardView({ uuid: '33333333-3333-4333-8333-333333333333' }, true);
+  for (const field of apiShapes.views.board) {
+    assert.ok(Array.isArray(board[field]), `board.${field} is a list`);
+  }
 });
 
 test('a PDF added offline is named by its file, and its first thought is a note', async () => {

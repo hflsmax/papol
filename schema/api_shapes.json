@@ -1,0 +1,8 @@
+{
+  "views": {
+    "board": ["groups", "items", "staged_items"],
+    "nook": ["boards", "papers", "shelves", "tags"],
+    "paper": ["also_read_by", "notes", "rooms", "tags"],
+    "paper_list": ["tags", "users"]
+  }
+}

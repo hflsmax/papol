@@ -6,6 +6,7 @@ import {
 import { getNotifications, getPendingAdminMessages } from '../../shared/api/notifications.js';
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
+import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import Nook from './components/Nook';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
@@ -195,6 +196,19 @@ export default function App({ startupUser = null, startupError = null }) {
     }));
   }, []);
 
+  // Every runtime offers to report an unexpected error: an error nobody
+  // hears about is an error that stays.
+  useEffect(() => {
+    const onError = (event) => offerErrorReport(event.error || event.message, 'JavaScript runtime');
+    const onRejection = (event) => offerErrorReport(event.reason, 'unhandled promise');
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, [offerErrorReport]);
+
   useEffect(() => {
     if (!DESKTOP) return undefined;
     if (startupError) offerErrorReport(startupError, 'desktop startup');
@@ -209,18 +223,12 @@ export default function App({ startupUser = null, startupError = null }) {
       if (remembered) setClientCompatibility({ verdict: remembered });
       await checkClientCompatibility();
     })();
-    const onError = (event) => offerErrorReport(event.error || event.message, 'JavaScript runtime');
-    const onRejection = (event) => offerErrorReport(event.reason, 'unhandled promise');
     const onNativeError = (event) => offerErrorReport(
       event.detail?.error || 'Unknown native command error',
       event.detail?.area || 'native command',
     );
-    window.addEventListener('error', onError);
-    window.addEventListener('unhandledrejection', onRejection);
     window.addEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     return () => {
-      window.removeEventListener('error', onError);
-      window.removeEventListener('unhandledrejection', onRejection);
       window.removeEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     };
   }, [offerErrorReport, startupError]);
@@ -751,7 +759,13 @@ export default function App({ startupUser = null, startupError = null }) {
   // Keyed by world and identity: leaving or entering the demo, or changing
   // real accounts, remounts every page so no nook or private paper state can
   // survive an identity boundary.
+  // The boundary is keyed by the route, so a crash stays on the page that
+  // raised it and leaving that page starts clean.
   const pages = (
+    <ErrorBoundary
+      key={`${route.page}:${route.uuid ?? ''}`}
+      area={`the ${route.page} page`}
+    >
     <main className="main-content" key={`${mode}:${user?.uuid ?? 'none'}`}>
       {guestNeedsSignIn ? (
         <AuthPage onAuth={handleAuth} initialMode="login" />
@@ -863,6 +877,7 @@ export default function App({ startupUser = null, startupError = null }) {
       </>
       )}
     </main>
+    </ErrorBoundary>
   );
 
   // Papol macOS: a sidebar of listings in place of the website masthead.

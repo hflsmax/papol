@@ -8,7 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "test": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
+    "test": "npm run test:unit && npm run build && npm run smoke:browser",
+    "test:unit": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
+    "smoke:browser": "node scripts/browser-smoke.mjs",
     "benchmark:pinch": "node ../scripts/benchmark-pinch-zoom.mjs",
     "benchmark:pinch:smoothness": "node ../scripts/benchmark-pinch-smoothness.mjs",
     "build": "vite build",

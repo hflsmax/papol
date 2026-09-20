@@ -5,6 +5,7 @@ import {
 } from './connectivity.js';
 import { BACKEND_BASE, inDemo } from './appUrls.js';
 import { currentCredential } from './credentials.js';
+import apiShapes from '../schema/api_shapes.json' with { type: 'json' };
 
 const ACCOUNT_KEY = 'papol.localAccountUuid';
 // Accounts are named by UUID; anything else in storage is not an account.
@@ -567,12 +568,21 @@ export function shelfView(row) {
   };
 }
 
+// Every list the API's paper answers declare, detail and listing both,
+// because the replica serves one row either way. The library app trusts
+// the declared shape (no guards), so a locally-served paper must carry
+// every list — what the replica cannot know starts empty, and a caller
+// that knows better (getPaper reads the notes beside the row) fills it in.
+const PAPER_LISTS = [...new Set([...apiShapes.views.paper, ...apiShapes.views.paper_list])];
+
 export function paperView(row) {
-  return {
+  const paper = {
     ...row,
     is_public: Boolean(row.is_public),
     is_author: Boolean(row.is_author),
   };
+  for (const field of PAPER_LISTS) paper[field] ??= [];
+  return paper;
 }
 
 if (IS_DESKTOP) {

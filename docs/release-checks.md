@@ -48,6 +48,59 @@ library, and the standing pages — and fails unless each renders the page it
 names. That list lives in `frontend/scripts/browser-smoke.mjs`; a new URL shape
 belongs in it, and in `frontend/src/routes.test.js`.
 
+## The desktop renders the same pages from different rows
+
+On 2026-09-20 the macOS app blanked on every paper jacket. The web API always
+sends `also_read_by`, so a cleanup removed the guard around it; the desktop
+replica never stores it, so the jacket dereferenced a field that was not
+there, and one throw unmounted the whole window. Every suite passed, because
+nothing rendered a desktop surface against a replica-served row.
+
+Three things now stand where that gap was:
+
+- **`schema/api_shapes.json`** declares the list fields each API view always
+  carries. `backend/test_api_shapes.py` pins it to the response models, and
+  `shared/nativeData.js` completes replica-served rows against it — a list
+  the replica cannot know starts empty instead of missing. A response model
+  gaining or losing a list moves the declaration, and the test says so.
+- **The browser smoke's desktop pass** opens the built bundle as Papol macOS
+  runs it — a mocked Tauri bridge answering with replica-shaped rows — and
+  fails if a surface crashes or renders the wrong thing.
+- **Error boundaries** (`shared/ui/ErrorBoundary.jsx`) keep a render crash to
+  the surface that raised it. The panel that stands in offers to report the
+  error; the rest of the window keeps working. A blank window means the
+  boundary itself is missing from that surface.
+
+## Before a macOS tag
+
+The click-through is automated and lives in CI. Each surface's `npm test`
+now ends in a browser smoke that does what the checklist used to ask of a
+human: the frontend's opens every link shape and the desk against
+replica-shaped rows; the viewer's opens a shared reading of a generated PDF,
+clicks a citation marker, and requires the reference card to fill; the
+board's opens a canvas and requires its cards drawn. They run hermetically —
+each smoke serves its own API from the declared shapes — so they pass or
+fail the same on a laptop and on a runner.
+
+The gate is CI's, and only CI's. `./deploy.sh macos release` bumps the
+version and pushes the tag; it checks nothing, because a gate a script can
+skip on the machine that wants to ship is not a gate. What stands behind it:
+
+- **every pull request and every push to main** runs all of it twice: on
+  ubuntu (`pr.yml`, which also carries the backend suite and the share
+  end-to-end drive) and on the macOS runner (`desktop-macos.yml`'s test
+  job), so a commit that would fail the release gate is known the moment
+  it exists, on the machine family the app ships to;
+- **the tag** runs the macOS gate once more, and the DMG is built,
+  notarized and published only if it passes. A failed gate leaves a tag
+  and no release — nothing shipped; fix main and cut the next version.
+
+`./deploy.sh macos prod` additionally smoke-tests the web payload Tauri
+actually bundled (`PAPOL_SMOKE_DIST=desktop/dist`), which is the closest a
+check gets to the shipped bytes. What no smoke covers is the native shell
+itself — a window that opens, a real replica underneath — which is what
+opening the installed app once before publishing is still for.
+
 ## After a release
 
 `./deploy.sh prod` waits for the page to answer and then runs the link check
