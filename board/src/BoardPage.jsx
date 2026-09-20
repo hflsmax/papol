@@ -1871,9 +1871,12 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       if (board.can_edit) setDraggingFiles(true);
     }}
     onDragOver={(event) => {
-      if (!carriesFiles(event.dataTransfer) && !event.dataTransfer.types.includes('application/x-papol-staged-item')) return;
+      const stagedDrag = event.dataTransfer.types.includes('application/x-papol-staged-item');
+      if (!carriesFiles(event.dataTransfer) && !stagedDrag) return;
       event.preventDefault();
-      event.dataTransfer.dropEffect = board.can_edit ? 'copy' : 'none';
+      // The staging card starts its drag with effectAllowed 'move'; naming a
+      // dropEffect outside that set makes the browser cancel the drop itself.
+      event.dataTransfer.dropEffect = !board.can_edit ? 'none' : stagedDrag ? 'move' : 'copy';
     }}
     onDragLeave={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget)) setDraggingFiles(false);
