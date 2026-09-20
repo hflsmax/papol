@@ -3,6 +3,7 @@ import {
   getPaper, updatePaper, deletePaper, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
 } from '../../../shared/api/papers.js';
+import { useDismiss } from '../../../shared/useDismiss.js';
 import {
   createSharable, leanSharable, revokeSharable, sharableHref,
 } from '../../../shared/api/sharables.js';
@@ -69,43 +70,12 @@ export default function PaperJacket({
   const readingUrlRef = useRef(null);
   const menuReadingUrlRef = useRef(null);
 
-  useEffect(() => {
-    if (!readMenuOpen) return undefined;
-    const dismiss = (event) => {
-      if (!readControlRef.current?.contains(event.target)) setReadMenuOpen(false);
-    };
-    const dismissWithKey = (event) => {
-      if (event.key === 'Escape') setReadMenuOpen(false);
-    };
-    document.addEventListener('pointerdown', dismiss);
-    window.addEventListener('keydown', dismissWithKey);
-    return () => {
-      document.removeEventListener('pointerdown', dismiss);
-      window.removeEventListener('keydown', dismissWithKey);
-    };
-  }, [readMenuOpen]);
+  useDismiss(readMenuOpen, readControlRef, () => setReadMenuOpen(false));
 
-  useEffect(() => {
-    if (!shareOpen) return undefined;
-    const dismiss = (event) => {
-      if (!shareControlRef.current?.contains(event.target)) {
-        setPaperLink(null);
-        setShareOpen(false);
-      }
-    };
-    const dismissWithKey = (event) => {
-      if (event.key === 'Escape') {
-        setPaperLink(null);
-        setShareOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', dismiss);
-    window.addEventListener('keydown', dismissWithKey);
-    return () => {
-      document.removeEventListener('pointerdown', dismiss);
-      window.removeEventListener('keydown', dismissWithKey);
-    };
-  }, [shareOpen]);
+  useDismiss(shareOpen, shareControlRef, () => {
+    setPaperLink(null);
+    setShareOpen(false);
+  });
 
   useEffect(() => {
     loadPaper();

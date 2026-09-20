@@ -1,28 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { useDismiss } from '../../../shared/useDismiss.js';
 
 // A small popup bubble anchored to its parent (.hint-anchor).
-// Closes on any click elsewhere, Escape, or after a few seconds.
+// Closes on any press elsewhere, Escape, or after a few seconds.
 export default function HintPop({ text, onClose }) {
+  const popRef = useRef(null);
+  useDismiss(true, popRef, onClose);
   useEffect(() => {
     const timer = setTimeout(onClose, 4500);
-    const dismiss = () => onClose();
-    const dismissWithKey = (event) => {
-      if (event.key === 'Escape') onClose();
-    };
-    // Attach on the next task: the click that opened this popup may still
-    // be bubbling toward document and must not immediately dismiss it.
-    const attach = setTimeout(() => document.addEventListener('click', dismiss), 0);
-    window.addEventListener('keydown', dismissWithKey);
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(attach);
-      document.removeEventListener('click', dismiss);
-      window.removeEventListener('keydown', dismissWithKey);
-    };
+    return () => clearTimeout(timer);
   }, [onClose]);
 
   return (
-    <span className="hint-pop" onClick={(e) => e.stopPropagation()}>
+    <span ref={popRef} className="hint-pop">
       {text}
     </span>
   );

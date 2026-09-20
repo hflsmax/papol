@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { appPath } from './base';
+import { useDismiss } from '../../shared/useDismiss.js';
 import { paperName } from '../../shared/paperName.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 
@@ -84,15 +85,9 @@ export default function ReferenceCard({
     };
   }, [anchor, reference, error, requiresNook, showAll]);
 
-  // A click anywhere else puts the card away. Registered on the window in
-  // a capture phase so it fires before anything else takes the click.
-  useLayoutEffect(() => {
-    const onDown = (e) => {
-      if (!cardRef.current?.contains(e.target)) onClose();
-    };
-    window.addEventListener('pointerdown', onDown, true);
-    return () => window.removeEventListener('pointerdown', onDown, true);
-  }, [onClose]);
+  // A press anywhere else puts the card away; Escape is the viewer's
+  // central keyboard business.
+  useDismiss(true, cardRef, onClose, { escape: false });
 
   const work = reference?.resolution;
   const raw = reference?.raw;

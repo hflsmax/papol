@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
+import { useDismiss } from '../../shared/useDismiss.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
 import { applyMembershipLayout, boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
@@ -192,14 +193,12 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     Promise.all(ordered.map((item) => updateBoardItem(item.uuid, { position: positions.get(item.uuid) }))).catch((err) => { setError(err.message); load(); });
   };
 
-  useEffect(() => {
-    const closeBoardActions = (event) => {
-      const menu = boardActionsRef.current;
-      if (menu?.open && !menu.contains(event.target)) menu.removeAttribute('open');
-    };
-    document.addEventListener('pointerdown', closeBoardActions, true);
-    return () => document.removeEventListener('pointerdown', closeBoardActions, true);
-  }, []);
+  useDismiss(
+    true,
+    (event) => !boardActionsRef.current?.open || boardActionsRef.current.contains(event.target),
+    () => boardActionsRef.current?.removeAttribute('open'),
+    { escape: false },
+  );
 
   useEffect(() => {
     let isNewBoard = false;
