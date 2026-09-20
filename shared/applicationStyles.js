@@ -31,27 +31,6 @@ ${itemActionsStyles}
 
 ${commonStyles}
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-/* Links take their colour from the app, never from the browser's
-   blue/purple/red link states — a chip flashing red on click is the
-   browser's :active default leaking through. Anything that should look
-   like a link says so with its own colour. */
-:where(a, a:visited, a:active) {
-  color: inherit;
-}
-
-/* No grey flash box when tapping a control on a touch screen. */
-a,
-button,
-label,
-input[type='checkbox'] {
-  -webkit-tap-highlight-color: transparent;
-}
-
 .app {
   max-width: 760px;
   margin: 0 auto;
@@ -527,44 +506,6 @@ ${macHandoffStyles}
   gap: 20px;
 }
 
-button {
-  padding: 8px 18px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  font-size: var(--fs-md);
-  font-family: var(--font-ui);
-  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
-  transition: color var(--motion-fast) var(--ease-out),
-    background-color var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    box-shadow var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
-}
-
-button:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-/* Danger action: red is the danger family, and this is a control the
-   user operates, so it takes the tint/line/ink roles rather than the
-   saturated fill a primary button uses. */
-button.danger {
-  background: var(--red-soft);
-  border-color: var(--red-line);
-  color: var(--red);
-}
-
-button.danger:hover:not(:disabled) {
-  background: var(--red-soft);
-  border-color: var(--red);
-  color: var(--red);
-}
-
 button.full-width {
   width: 100%;
 }
@@ -639,43 +580,13 @@ button.full-width {
   letter-spacing: 0.04em;
 }
 
-.form-group input,
-.form-group textarea,
-.room-textarea {
-  width: 100%;
-  padding: 9px 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font-size: var(--fs-base);
-  font-family: inherit;
-  background: var(--card);
-  color: var(--ink);
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.room-textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--focus-soft);
-}
-
-.form-group textarea {
-  resize: vertical;
-}
-
 .form-row {
   display: grid;
   grid-template-columns: 1fr 120px;
   gap: 16px;
 }
 
-.form-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
+.form-actions { margin-top: 16px; }
 
 .pdf-row {
   display: flex;
@@ -4006,7 +3917,7 @@ body.board-workspace-open .app > .topnav,
 body.board-workspace-open .feedback-button { display: none; }
 body.board-workspace-open .main-content { display: block; padding: 0; }
 .infinite-board { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: var(--paper-sunken); font-family: var(--font-serif); }
-.board-toolbar { position: absolute; z-index: 38; inset: 0 0 auto; min-height: 55px; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--card); font-family: var(--font-ui); }
+.board-toolbar { position: absolute; inset: 0 0 auto; min-height: 55px; }
 .board-toolbar button { padding: 6px 12px; border-radius: var(--radius); box-shadow: none; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; }
 /* The way home, drawn as the house the desktop toolbar and the viewer both
    wear, so one glyph means one thing everywhere in Papol. */

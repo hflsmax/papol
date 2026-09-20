@@ -30,6 +30,27 @@ body {
   opacity: 1;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Links take their colour from the app, never from the browser's
+   blue/purple/red link states — a chip flashing red on click is the
+   browser's :active default leaking through. Anything that should look
+   like a link says so with its own colour. */
+:where(a, a:visited, a:active) {
+  color: inherit;
+}
+
+/* No grey flash box when tapping a control on a touch screen. */
+a,
+button,
+label,
+input[type='checkbox'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Every control inherits its context's type rather than falling back to
    a browser default — a bare <textarea> would otherwise render in
    monospace. Inheriting means a field picks up prose serif in a panel,
@@ -59,8 +80,46 @@ select:hover:not(:disabled) { border-color: var(--line-strong); background-color
 select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 select:disabled { cursor: default; opacity: .65; }
 
-/* Each app sets its own resting voice for a button — size, weight, shadow —
-   but what "primary" and "disabled" mean is not a matter of voice. */
+/* One button across the Desk, the board, and the viewer: the same dress,
+   the same hover, the same meanings of primary, danger and disabled. Only
+   the density is the surface's business — the viewer sets a smaller size
+   for its chrome, and nothing else. */
+button {
+  padding: 8px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
+  transition: color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+button.danger {
+  background: var(--red-soft);
+  border-color: var(--red-line);
+  color: var(--red);
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--red-soft);
+  border-color: var(--red);
+  color: var(--red);
+}
+
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -171,6 +230,22 @@ button:disabled {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* The bar over a document, in the board and the viewer alike. It sits
+   above everything that lies over the pages and makes a stacking context,
+   so nothing hanging off a button in it can rise past this number. Each
+   app states only how its bar rides the page: the viewer's sticks, the
+   board's is pinned. */
+.app-bar, .viewer-bar, .board-toolbar {
+  z-index: 38;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  font-family: var(--font-ui);
 }
 
 /* A desktop window's bar is chrome, so its text is furniture, not copy —
@@ -411,14 +486,31 @@ button:disabled {
   color: var(--ink-soft);
 }
 
-.feedback-field textarea,
-.feedback-field input {
+/* One writing field, wherever writing happens: a Desk form, the feedback
+   sheet, the send-to-board box. */
+.form-group input, .form-group textarea, .room-textarea,
+.feedback-field input, .feedback-field textarea,
+.send-selection-field textarea {
   width: 100%;
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
-  padding: 8px;
-  border: 1px solid var(--line-strong);
+  padding: 9px 11px;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-base);
+  font-family: inherit;
+}
+
+.form-group input:focus, .form-group textarea:focus, .room-textarea:focus,
+.feedback-field input:focus, .feedback-field textarea:focus,
+.send-selection-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-soft);
+}
+
+.form-group textarea, .room-textarea,
+.feedback-field textarea, .send-selection-field textarea {
   resize: vertical;
 }
 
@@ -459,12 +551,14 @@ button:disabled {
   user-select: text;
 }
 
-.feedback-actions {
+/* The row of ways out at the foot of a form or a sheet. */
+.form-actions, .feedback-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 4px;
 }
+
+.feedback-actions { margin-top: 4px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
