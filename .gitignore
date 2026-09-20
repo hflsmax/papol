@@ -1,4 +1,6 @@
 # Runtime data — lives next to the code but is not source
+.postgres/
+backend/backups/
 backend/papol.db
 backend/papol.db.bak-*
 papol.db

@@ -21,15 +21,14 @@ import unittest
 
 from fastapi import Depends, HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 from auth import get_current_user
-from database import Base, get_db
+from database import get_db
 from models import Copy, Paper, Shelf, User
 from services.papers import AmbiguousPaperName, paper_by_name
+import testdb
 
 A_PAPER = "a1b2c3d4" + "0" * 24 + "f" * 32
 # Agrees with A_PAPER for the whole of its short name and differs after it.
@@ -42,13 +41,8 @@ class PaperNames(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.Session = sessionmaker(bind=cls.engine)
-        Base.metadata.create_all(cls.engine)
 
         def test_db():
             with cls.Session() as db:
@@ -70,8 +64,7 @@ class PaperNames(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        testdb.fresh_engine()
         with self.Session() as db:
             reader = User(
                 email="reader@example.com", display_name="Ada", password_hash="unused",

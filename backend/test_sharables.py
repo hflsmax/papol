@@ -3,16 +3,15 @@ import unittest
 from datetime import datetime
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 from fastapi import Depends, HTTPException
 from auth import get_current_user, get_optional_user
-from database import Base, get_db
+from database import get_db
 from models import Annotation, Copy, Paper, Sharable, Shelf, User
 from services.papers import paper_name
+import testdb
 
 SHARED_HASH = "a" * 64
 OTHER_HASH = "b" * 64
@@ -55,13 +54,8 @@ class SharableTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.Session = sessionmaker(bind=cls.engine)
-        Base.metadata.create_all(cls.engine)
 
         def test_db():
             with cls.Session() as db:
@@ -95,8 +89,7 @@ class SharableTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        testdb.fresh_engine()
         with self.Session() as db:
             user = User(
                 email="user@example.com", display_name="Ada", password_hash="unused",

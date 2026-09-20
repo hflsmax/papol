@@ -39,7 +39,8 @@ otherwise, per surface:
     (cd frontend && npm run test)    # units, production build, browser smoke
     (cd viewer   && npm test)
     (cd board    && npm test)
-    pytest backend                   # the service
+    ./deploy.sh db                   # the suite's PostgreSQL, and the exact
+                                     # `python -m unittest` line to run next
     (cd desktop  && cargo test --manifest-path src-tauri/Cargo.toml)
 
 `npm run test` in `frontend` includes the browser smoke test, which now opens

@@ -12,27 +12,20 @@ import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import account
-from database import Base
 from models import Annotation, Copy, Paper, Shelf, User
 from services.papers import paper_name
+import testdb
 
 PDF_HASH = "c" * 64
 
 
 class AccountDataTests(unittest.TestCase):
     def setUp(self):
-        self.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        self.engine = testdb.fresh_engine()
         self.Session = sessionmaker(bind=self.engine)
-        Base.metadata.create_all(self.engine)
         with self.Session() as db:
             user = User(
                 email="leaver@example.com", display_name="Ada", password_hash="unused",
@@ -176,13 +169,8 @@ class AnnotationChangeTests(unittest.TestCase):
         from database import get_db
         import main
 
-        self.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        self.engine = testdb.fresh_engine()
         self.Session = sessionmaker(bind=self.engine)
-        Base.metadata.create_all(self.engine)
         with self.Session() as db:
             user = User(email="a@b.c", display_name="Ada", password_hash="unused")
             db.add(user)

@@ -1,14 +1,30 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 from contextvars import ContextVar
 import os
 from pathlib import Path
 
-# Use absolute path for database in backend directory
-DB_PATH = Path(__file__).parent / "papol.db"
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
+# The server's database is PostgreSQL. The default is the development
+# cluster `./deploy.sh dev` runs in the checkout — a socket directory, no
+# TCP, no password — so a bare `uvicorn main:app` in the shell still finds
+# it. Production is named its database by module.nix. SQLite remains only
+# where a database is built and thrown away in one process: the demo's
+# in-memory worlds, and reading an old papol.db copy.
+_DEV_SOCKET_DIR = Path(__file__).parent.parent / ".postgres"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL", f"postgresql+psycopg://papol@/papol?host={_DEV_SOCKET_DIR}"
+)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    DATABASE_URL,
+    # SQLite's connections are bound to their opening thread unless told
+    # otherwise; the demo and the tests reuse this module's session plumbing
+    # over such engines, and a file URL here still has to work for reading
+    # an old papol.db copy.
+    connect_args=(
+        {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    ),
+)
 
 
 class PapolSession(Session):
@@ -83,12 +99,7 @@ SCHEMA_VERSION_KEY = "schema_version"
 
 def _recorded_schema_version(conn) -> int | None:
     """Which schema this database says it is at, or None if it does not say."""
-    present = {
-        row[0] for row in conn.execute(text(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ))
-    }
-    if "settings" not in present:
+    if "settings" not in inspect(conn).get_table_names():
         return None
     recorded = conn.execute(
         text("SELECT value FROM settings WHERE key = :key"),
@@ -104,9 +115,7 @@ def _refuse_a_database_this_build_cannot_read(conn):
     recorded = _recorded_schema_version(conn)
     if recorded == declared:
         return
-    empty = not conn.execute(text(
-        "SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1"
-    )).first()
+    empty = not inspect(conn).get_table_names()
     if empty:
         return  # nothing written yet; `_stamp_the_schema_version` names it
     at = "records no schema version" if recorded is None else f"is at schema {recorded}"

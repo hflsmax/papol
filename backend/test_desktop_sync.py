@@ -4,7 +4,6 @@ Run in the repository's development environment with:
     cd backend && python -m unittest test_desktop_sync.py
 """
 
-import asyncio
 import hashlib
 import json
 import shutil
@@ -15,34 +14,27 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-import httpx
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 import sync.api as sync_api
 from sync.changes import commit_sync
 from sync.forgetting import replay_window
-from database import Base, PapolSession, current_request_session, get_db
+from database import PapolSession, current_request_session, get_db
 from models import (
     Annotation, AppliedMutation, Board, BoardItem, Copy, CopyTagLink, Paper,
     Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
     User,
 )
 from services.papers import paper_name
+import testdb
 
 
 class DesktopSyncContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.sessions = sessionmaker(
             bind=cls.engine, autoflush=False, autocommit=False, class_=PapolSession
         )
@@ -90,8 +82,7 @@ class DesktopSyncContractTests(unittest.TestCase):
                 shutil.rmtree(path)
             else:
                 path.unlink()
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        testdb.fresh_engine()
         response = self.client.post("/api/auth/register", json={
             "email": "desktop@example.test",
             "display_name": "Desktop Test",
@@ -106,36 +97,6 @@ class DesktopSyncContractTests(unittest.TestCase):
         response = self.client.request(method, path, headers=self.headers, **kwargs)
         self.assertLess(response.status_code, 400, response.text)
         return response
-
-    def test_mutating_requests_share_one_cooperative_sqlite_writer(self):
-        async def exercise_gate():
-            test_app = FastAPI()
-            test_app.state.sqlite_write_lock = asyncio.Lock()
-            test_app.middleware("http")(main.serialize_sqlite_writes)
-            active = 0
-            maximum_active = 0
-
-            @test_app.put("/write")
-            async def write():
-                nonlocal active, maximum_active
-                active += 1
-                maximum_active = max(maximum_active, active)
-                await asyncio.sleep(0.02)
-                active -= 1
-                return {"ok": True}
-
-            transport = httpx.ASGITransport(app=test_app)
-            async with httpx.AsyncClient(
-                transport=transport, base_url="http://testserver"
-            ) as client:
-                responses = await asyncio.gather(
-                    client.put("/write"), client.put("/write")
-                )
-            return maximum_active, responses
-
-        maximum_active, responses = asyncio.run(exercise_gate())
-        self.assertEqual(maximum_active, 1)
-        self.assertTrue(all(response.status_code == 200 for response in responses))
 
     def test_dependent_board_replay_contract(self):
         """Every ID-bearing response supports the client's ordered remapping."""

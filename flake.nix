@@ -58,7 +58,6 @@
     # here has — reading the CSS is not the same as laying it out.
     devPython = ps: backend.packages ps ++ (with ps; [
       playwright
-      pytest
     ]);
 
     # Which nixpkgs a system builds from. Every system takes the rolling
@@ -76,7 +75,8 @@
       (python312.withPackages devPython)
       (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
-      sqlite               # papol.db is read and edited by hand often enough
+      postgresql           # the database, and the psql/pg_dump that tend it
+      sqlite               # reads old papol.db copies and the demo seed work
       ripgrep              # fast repository-wide source search
       gh                   # pull requests and releases on GitHub
       ruff
@@ -116,6 +116,7 @@
     macosDevPackages = pkgs: [
       (pkgs.python312.withPackages backend.packages)
       pkgs.nodejs_22
+      pkgs.postgresql      # `./deploy.sh dev` runs the backend, so it needs the database
       pkgs.gh              # pull requests and releases on GitHub
     ];
 

@@ -20,6 +20,7 @@
     fastapi
     uvicorn
     sqlalchemy
+    psycopg          # PostgreSQL driver: DATABASE_URL is postgresql+psycopg://
     pydantic
     pymupdf          # imported as `fitz`
     httpx

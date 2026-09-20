@@ -7,22 +7,18 @@ Run in the repository's development environment with:
 import unittest
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 from auth import MACOS, PLATFORM_HEADER, WEB, hash_password
-from database import Base, get_db
+from database import get_db
 from models import AuthToken, User
+import testdb
 
 
 class SigningInRecordsThePlatform(unittest.TestCase):
     def setUp(self):
-        self.engine = create_engine(
-            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool,
-        )
-        Base.metadata.create_all(bind=self.engine)
+        self.engine = testdb.fresh_engine()
         self.Session = sessionmaker(bind=self.engine)
         self.addCleanup(self.engine.dispose)
 

@@ -19,10 +19,19 @@ trap cleanup EXIT INT TERM
 
 test -d "$PAPOL_DIR"
 
+# The database lives in the system PostgreSQL, not in the tree: dump it
+# first, and let the dump ride in the archive beside the tree it belongs to.
+# pg_dump takes a consistent snapshot without interrupting the service.
+pg_dump -h /run/postgresql -U papol -Fc -f "$tmp_dir/papol.dump" papol
+
 # Archive the live production tree without interrupting the service.
 (
   cd "$PAPOL_PARENT"
   zip -1 -q -r "$archive" prod
+)
+(
+  cd "$tmp_dir"
+  zip -1 -q "$archive" papol.dump
 )
 
 # Wrangler's object command accepts at most 300 MiB. Keep one ordinary ZIP,

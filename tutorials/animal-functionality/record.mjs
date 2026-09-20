@@ -13,8 +13,8 @@ const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const FRAMES = path.join(ROOT, 'frames');
 const VIEWER_URL = 'http://127.0.0.1:8000/viewer/?pdf=2d9bd40224ea9ee99616426943e04062d64caeb4bd8d645c99f834f5c54f0205';
 const token = process.env.PAPOL_TOKEN || execFileSync(
-  'sqlite3',
-  ['backend/papol.db', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
+  'psql',
+  ['-h', path.join(ROOT, '..', '..', '.postgres'), '-U', 'papol', '-d', 'papol', '-tAc', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
   { encoding: 'utf8' },
 ).trim();
 const chromiumPath = process.env.CHROMIUM_PATH || execFileSync('which', ['chromium'], { encoding: 'utf8' }).trim();

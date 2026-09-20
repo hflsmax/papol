@@ -3,14 +3,12 @@ from unittest.mock import AsyncMock, patch
 
 import main
 from auth import get_current_user, get_optional_user
-from database import Base, get_db
+from database import get_db
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from models import Copy, Paper, PaperReference, Shelf, User
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-from services.papers import paper_name
+import testdb
 
 HASH = "c" * 64
 
@@ -21,13 +19,8 @@ class ReferencePreviewTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.Session = sessionmaker(bind=cls.engine)
-        Base.metadata.create_all(cls.engine)
 
         def test_db():
             with cls.Session() as db:
@@ -52,8 +45,7 @@ class ReferencePreviewTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        testdb.fresh_engine()
         with self.Session() as db:
             user = User(
                 email="user@example.com", display_name="Ada", password_hash="unused",

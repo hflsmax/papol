@@ -14,15 +14,14 @@ import unittest
 
 from fastapi import Depends, HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 from auth import get_current_user, get_optional_user
-from database import Base, get_db
+from database import get_db
 from models import Copy, Paper, Shelf, User
 from services.papers import paper_name
+import testdb
 
 NOBODYS_HASH = "d" * 64
 
@@ -36,13 +35,8 @@ class PaperIsNotOwned(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.Session = sessionmaker(bind=cls.engine)
-        Base.metadata.create_all(cls.engine)
 
         def test_db():
             with cls.Session() as db:
@@ -71,8 +65,7 @@ class PaperIsNotOwned(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        testdb.fresh_engine()
         with self.Session() as db:
             keeper = User(
                 email="keeper@example.com", display_name="Ada", password_hash="unused",

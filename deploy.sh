@@ -4,6 +4,7 @@
 #   ./deploy.sh dev            run development here, rebuilding as you save
 #   ./deploy.sh prod [ref]     promote a ref (default: main)
 #   ./deploy.sh pull           overwrite development data from production
+#   ./deploy.sh db [stop]      the development PostgreSQL, up (or down)
 #   ./deploy.sh status         what is running where
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8000)
@@ -58,7 +59,7 @@ confirm_deploy() {
 }
 
 usage() {
-  sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -91,6 +92,73 @@ as_root() {
         sudo $*
     Run it from a terminal, or add it to services.papol.deploy.passwordless."
   fi
+}
+
+# --- the development database -------------------------------------------------
+#
+# Development owns a PostgreSQL cluster of its own, in the checkout: a
+# socket directory, no TCP, no password. It exists so that a laptop and the
+# NixOS host develop the same way, and so that the test suite always has a
+# database it is allowed to level. Production's cluster is the system one,
+# provisioned by module.nix, and the two share nothing.
+
+PGDIR="$DEV_DIR/.postgres"
+
+# The dev shell carries the PostgreSQL binaries; a shell that skipped
+# direnv does not.
+pg() {
+  local tool=$1; shift
+  if command -v "$tool" >/dev/null 2>&1; then
+    "$tool" "$@"
+  else
+    (cd "$DEV_DIR" && nix develop --command "$tool" "$@")
+  fi
+}
+
+dev_db_up() {
+  pg pg_isready -q -h "$PGDIR" -U papol 2>/dev/null
+}
+
+# Make the development cluster exist, run, and hold its two databases:
+# `papol` for the server, `papol_test` for the suite to level at will.
+ensure_dev_db() {
+  if [ ! -d "$PGDIR/data" ]; then
+    say "Creating the development database cluster in .postgres/"
+    pg initdb -D "$PGDIR/data" -U papol --auth=trust -E UTF8 >/dev/null
+  fi
+  if ! dev_db_up; then
+    say "Starting the development database"
+    pg pg_ctl -D "$PGDIR/data" -l "$PGDIR/log" \
+      -o "-k $PGDIR -c listen_addresses=''" start >/dev/null
+  fi
+  local db
+  for db in papol papol_test; do
+    pg psql -h "$PGDIR" -U papol -d postgres -tAc \
+      "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
+      || pg createdb -h "$PGDIR" -U papol "$db"
+  done
+}
+
+# `./deploy.sh db` — the cluster, up, and how to talk to it. Also what to
+# run before `python -m unittest` in backend/.
+dev_db() {
+  case "${1:-start}" in
+    start)
+      ensure_dev_db
+      say "Development database is up"
+      note "psql:  psql -h $PGDIR -U papol papol"
+      note "tests: (cd backend && DATABASE_URL='$(dev_db_url papol_test)' python -m unittest)"
+      ;;
+    stop)
+      dev_db_up && pg pg_ctl -D "$PGDIR/data" stop >/dev/null
+      note "development database stopped"
+      ;;
+    *) die "unknown db command: $1 (try start, stop)" ;;
+  esac
+}
+
+dev_db_url() {
+  echo "postgresql+psycopg://papol@/${1:-papol}?host=$PGDIR"
 }
 
 # --- building ---------------------------------------------------------------
@@ -1064,6 +1132,11 @@ run_dev() {
   # the code you are working on.
   [ "$build" = yes ] && build_tree "$DEV_DIR"
 
+  # The database, before the server that answers from it. It stays up when
+  # this command ends: the suite and a second `dev` reuse it, and stopping
+  # is `./deploy.sh db stop`.
+  ensure_dev_db
+
   # .env carries development's mail sink, and nothing here guarantees direnv
   # loaded it. Papol reads the environment before the settings table, so a
   # shell without this file mails real users through the credentials in a
@@ -1303,12 +1376,17 @@ deploy_prod() {
 
   # Taken with the service down. A build written for another schema refuses
   # to start on this database; bringing it across by hand starts from here.
-  if [ -e "$PROD_DIR/backend/papol.db" ]; then
-    local bak="$PROD_DIR/backend/papol.db.bak-$(date +%F-%H%M%S)-pre-deploy"
-    cp -p "$PROD_DIR/backend/papol.db" "$bak"
-    note "database backed up to $(basename "$bak")"
-    ls -1t "$PROD_DIR"/backend/papol.db.bak-*-pre-deploy 2>/dev/null \
+  # On the deploy that first brings PostgreSQL to this host, the system
+  # cluster is not up yet — then there is nothing to back up.
+  if pg pg_isready -q -h /run/postgresql 2>/dev/null; then
+    local bak="$PROD_DIR/backend/backups/papol-$(date +%F-%H%M%S)-pre-deploy.dump"
+    mkdir -p "$PROD_DIR/backend/backups"
+    pg pg_dump -h /run/postgresql -U papol -Fc -f "$bak" papol
+    note "database backed up to backups/$(basename "$bak")"
+    ls -1t "$PROD_DIR"/backend/backups/papol-*-pre-deploy.dump 2>/dev/null \
       | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -- || true
+  else
+    note "no system PostgreSQL answering yet — nothing to back up"
   fi
 
   # From here production is down, so nothing may exit without either
@@ -1377,8 +1455,8 @@ link_check() {
 
   # A paper production really has, so the link under test is one a reader
   # could be holding. Newest first: it is the most likely to exist tomorrow.
-  digest=$(sqlite "$PROD_DIR/backend/papol.db" \
-    "select sha256 from papers where deleted_at is null order by created_at desc limit 1;" \
+  digest=$(pg psql -h /run/postgresql -U papol -d papol -tAc \
+    "select sha256 from papers where deleted_at is null order by created_at desc limit 1" \
     2>/dev/null) || digest=""
 
   say "Opening production's links"
@@ -1397,15 +1475,6 @@ link_check() {
 
 dev_is_up() {
   curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
-}
-
-# The dev shell carries sqlite3; a shell that skipped direnv does not.
-sqlite() {
-  if command -v sqlite3 >/dev/null 2>&1; then
-    sqlite3 "$@"
-  else
-    (cd "$DEV_DIR" && nix develop --command sqlite3 "$@")
-  fi
 }
 
 # The files a pulled database names. Every file Papol stores is written once
@@ -1436,22 +1505,37 @@ pull_files() {
 }
 
 # Pulling is deliberately one-way and explicit. Production is read through
-# SQLite's backup API and is never modified.
+# pg_dump, which takes a consistent snapshot while it continues serving,
+# and is never modified.
 pull_data() {
   [ "$#" -eq 0 ] || die "pull takes no options"
   [ "$DEV_DIR" = "$PROD_DIR" ] && die "development and production are the same tree"
-  [ -e "$PROD_DIR/backend/papol.db" ] \
-    || die "no production database at $PROD_DIR/backend/papol.db"
+  pg pg_isready -q -h /run/postgresql 2>/dev/null \
+    || die "no system PostgreSQL answering on /run/postgresql — is production on this host?"
 
-  # Replacing a database beneath a running server can leave it using a mixture
-  # of the old and new files.
+  # Replacing a database beneath a running server can leave it answering
+  # from a mixture of the old and new data.
   dev_is_up && die "the development server is answering on $DEV_PORT — stop it first"
 
-  local dev_bak=""
-  if [ -e "$DEV_DIR/backend/papol.db" ]; then
-    dev_bak="$DEV_DIR/backend/papol.db.bak-$(date +%F-%H%M)-pre-pull"
-    cp -p "$DEV_DIR/backend/papol.db" "$dev_bak"
-    say "Kept development's database as $(basename "$dev_bak")"
+  ensure_dev_db
+
+  # Development's live sessions, kept aside so signing in again is not part
+  # of every pull. Only where the account identity still matches the pulled
+  # data do they come back. The column list is auth_tokens' shape spelled
+  # out; a schema change that moves it shows up here as a failed pull, not
+  # as sessions quietly gone.
+  local sessions="$PGDIR/pull-sessions-$$.csv" pulled="$PGDIR/pull-$$.dump"
+  trap 'rm -f "$sessions" "$pulled"' RETURN
+  pg psql -h "$PGDIR" -U papol -d papol -qc "\\copy (SELECT s.token, s.user_uuid, s.created_at, s.last_used_at, s.platform, s.revoked_at, u.email FROM auth_tokens s JOIN users u ON u.uuid = s.user_uuid WHERE s.revoked_at IS NULL) TO '$sessions' CSV" 2>/dev/null \
+    || sessions=""
+
+  # And the rest of what development held, in case this pull is regretted.
+  local dev_bak="$PGDIR/backups/papol-$(date +%F-%H%M)-pre-pull.dump"
+  mkdir -p "$PGDIR/backups"
+  if pg pg_dump -h "$PGDIR" -U papol -Fc -f "$dev_bak" papol 2>/dev/null; then
+    say "Kept development's database as .postgres/backups/$(basename "$dev_bak")"
+    ls -1t "$PGDIR"/backups/papol-*-pre-pull.dump 2>/dev/null \
+      | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -- || true
   fi
 
   # Before the database, not after. A row names a file on disk, and a pull
@@ -1463,43 +1547,35 @@ pull_data() {
   pull_files "$PROD_DIR/uploads" "$DEV_DIR/uploads"
   pull_files "$PROD_DIR/board_uploads" "$DEV_DIR/board_uploads"
 
-  # .backup takes a consistent snapshot while production continues serving.
-  local pulled="$DEV_DIR/backend/papol.db.pull-$$"
-  trap 'rm -f "$pulled"' RETURN
+  # pg_dump takes a consistent snapshot while production continues serving.
   say "Pulling production database into development"
-  sqlite "$PROD_DIR/backend/papol.db" ".backup '$pulled'"
+  pg pg_dump -h /run/postgresql -U papol -Fc -f "$pulled" papol
   note "$(du -h "$pulled" | cut -f1)"
+  pg dropdb -h "$PGDIR" -U papol --if-exists papol
+  pg createdb -h "$PGDIR" -U papol papol
+  pg pg_restore -h "$PGDIR" -U papol -d papol --no-owner --no-privileges "$pulled"
 
-  # Production sessions must not work in development. Preserve development
-  # sessions only where the account identity still matches the pulled data.
-  if [ -n "$dev_bak" ]; then
-    sqlite "$pulled" <<SQL
-ATTACH DATABASE '$dev_bak' AS olddev;
-BEGIN IMMEDIATE;
-DELETE FROM auth_tokens;
-INSERT INTO auth_tokens
-  SELECT sessions.* FROM olddev.auth_tokens sessions
-  JOIN olddev.users old_user ON old_user.uuid = sessions.user_uuid
-  JOIN users current_user
-    ON current_user.uuid = old_user.uuid AND current_user.email = old_user.email;
-COMMIT;
-DETACH DATABASE olddev;
-SQL
-    note "development sessions preserved"
-  else
-    sqlite "$pulled" "DELETE FROM auth_tokens"
-  fi
-
-  # Production credentials and URLs must not become active in development.
+  # Production sessions must not work in development; development's own
+  # come back where the account they named still exists unchanged. And
+  # production's credentials and URLs must not become active here.
   say "Scrubbing production's reach out of the copy"
-  sqlite "$pulled" <<SQL
+  pg psql -h "$PGDIR" -U papol -d papol -q <<SQL
+BEGIN;
+DELETE FROM auth_tokens;
+CREATE TEMP TABLE old_sessions
+  (token TEXT, user_uuid TEXT, created_at TIMESTAMP, last_used_at TIMESTAMP,
+   platform TEXT, revoked_at TIMESTAMP, email TEXT);
+${sessions:+\\copy old_sessions FROM '$sessions' CSV}
+INSERT INTO auth_tokens (token, user_uuid, created_at, last_used_at, platform, revoked_at)
+  SELECT o.token, o.user_uuid, o.created_at, o.last_used_at, o.platform, o.revoked_at
+  FROM old_sessions o
+  JOIN users c ON c.uuid = o.user_uuid AND c.email = o.email;
 DELETE FROM settings WHERE key LIKE 'smtp_%';
 INSERT INTO settings (key, value) VALUES ('site_url', 'http://papol.local/')
   ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+COMMIT;
 SQL
-  mv -f "$pulled" "$DEV_DIR/backend/papol.db"
   note "production sessions and SMTP credentials dropped; site_url now points at development"
-  trap - RETURN
   say "Done. Development now contains a sanitized copy of production's database."
 }
 
@@ -1530,8 +1606,9 @@ case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
   prod)   shift; deploy_prod "$@" ;;
   pull)   shift; pull_data "$@" ;;
+  db)     shift; dev_db "$@" ;;
   status) status ;;
   macos)  shift; run_macos "$@" ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, pull, status, macos)" ;;
+  *)      die "unknown target: $1 (try dev, prod, pull, db, status, macos)" ;;
 esac

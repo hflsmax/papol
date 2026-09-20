@@ -1,26 +1,20 @@
 import unittest
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 from auth import get_current_user
-from database import Base, get_db
+from database import get_db
 from models import User
+import testdb
 
 
 class AdminMessageTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.Session = sessionmaker(bind=cls.engine)
-        Base.metadata.create_all(cls.engine)
 
         with cls.Session() as db:
             cls.admin = User(

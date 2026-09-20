@@ -23,7 +23,7 @@ let
 
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";
-    runtimeInputs = [ pkgs.coreutils pkgs.zip pkgs.wrangler ];
+    runtimeInputs = [ pkgs.coreutils pkgs.zip pkgs.wrangler config.services.postgresql.package ];
     text = builtins.readFile ./tools/backup-r2.sh;
   };
 
@@ -269,14 +269,38 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    # The production database. The system cluster rather than a private one:
+    # systemd owns starting it, NixOS owns upgrading it, and the socket in
+    # /run/postgresql is where every PostgreSQL tool on the host already
+    # looks. The `papol` role owns the `papol` database, and the ident map
+    # is what lets the humans and units that tend the service — the deploy
+    # user running pg_dump, the service itself — connect as that role over
+    # peer authentication, with no password to keep anywhere.
+    services.postgresql = {
+      enable = true;
+      ensureDatabases = [ "papol" ];
+      ensureUsers = [ { name = "papol"; ensureDBOwnership = true; } ];
+      identMap = ''
+        papol-map ${cfg.user} papol
+        papol-map papol      papol
+        papol-map root       papol
+      '';
+      # Before the distribution's `local all all peer`, which would
+      # otherwise match first and refuse the mapped identity.
+      authentication = lib.mkBefore ''
+        local papol papol peer map=papol-map
+      '';
+    };
+
     systemd.services.papol = {
       description = "Papol Paper Documentation Service";
-      after = [ "network.target" "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
-      requires = [ "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
+      after = [ "network.target" "postgresql.service" "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
+      requires = [ "postgresql.service" "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
       wantedBy = [ "multi-user.target" ];
 
       environment = {
         GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
+        DATABASE_URL = "postgresql+psycopg://papol@/papol?host=/run/postgresql";
       } // (lib.optionalAttrs (cfg.contactEmail != null) {
           PAPOL_CONTACT_EMAIL = cfg.contactEmail;
         });

@@ -8,16 +8,15 @@ import unittest
 import uuid
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 from auth import get_current_user
-from database import Base, get_db
+from database import get_db
 from models import SyncClient, User
 from services.client_requirements import SCHEMA_HEADER
 from sync.registry import schema_version
+import testdb
 
 CURRENT = str(schema_version())
 OLDER = str(schema_version() - 1)
@@ -25,10 +24,7 @@ OLDER = str(schema_version() - 1)
 
 class SyncGateTests(unittest.TestCase):
     def setUp(self):
-        self.engine = create_engine(
-            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool,
-        )
-        Base.metadata.create_all(bind=self.engine)
+        self.engine = testdb.fresh_engine()
         self.Session = sessionmaker(bind=self.engine)
         self.addCleanup(self.engine.dispose)
 

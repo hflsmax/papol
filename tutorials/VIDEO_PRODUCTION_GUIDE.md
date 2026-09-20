@@ -14,6 +14,10 @@ Keep each tutorial self-contained:
 | `captions.srt` | Narration text with measured speech boundaries |
 | `generate_voice.py` | Voice selection, speed, line starts, and audio mix |
 | `record.mjs` | Browser setup, cursor choreography, actions, and frame capture |
+
+A lesson without a `record.mjs` (pdf-navigation, uploading-a-pdf) keeps its
+finished video but lost its recorder to a schema it was written against;
+re-recording one starts from a current lesson's recorder, not from history.
 | `narration.wav` | Generated narration track |
 | Final MP4 | Encoded source video |
 
@@ -39,7 +43,7 @@ Before recording:
    `nix develop --command node tutorials/<lesson>/record.mjs`.
 
 Running from the tutorial directory can break scripts that intentionally use
-repository-relative paths such as `backend/papol.db` or `uploads/`. Do not rely
+repository-relative paths such as `.postgres/` or `uploads/`. Do not rely
 on globally installed Node or Python packages: a successful run must be
 reproducible directly from the flake and repository sources. If a required
 recorder import is missing, fix `flake.nix` rather than installing it ad hoc.

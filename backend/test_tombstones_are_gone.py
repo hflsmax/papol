@@ -15,24 +15,19 @@ import unittest
 import uuid
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
-from database import Base, PapolSession, get_db
+from database import PapolSession, get_db
 from models import Copy, Paper, Shelf
 from services.papers import paper_name
+import testdb
 
 
 class RemovedRowsAreNotCountedTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        cls.engine = testdb.fresh_engine()
         cls.sessions = sessionmaker(
             bind=cls.engine, autoflush=False, autocommit=False, class_=PapolSession
         )
@@ -54,8 +49,7 @@ class RemovedRowsAreNotCountedTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        testdb.fresh_engine()
         response = self.client.post("/api/auth/register", json={
             "email": "keeper@example.test",
             "display_name": "Keeper",
