@@ -256,14 +256,9 @@ export const desktopStyles = `
 }
 
 .desktop-sidebar-avatar {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 20px;
   height: 20px;
   margin-inline: -2px;
-  border-radius: 50%;
   font-size: var(--fs-xs);
   object-fit: cover;
 }

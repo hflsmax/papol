@@ -58,7 +58,6 @@ button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent);
 ${macHandoffStyles}
 
 .shell { max-width: 640px; margin: 80px auto; padding: 0 20px; }
-.loading, .hint { color: var(--ink-faint); }
 /* Something failed while reading: said plainly, without taking the page
    away. */
 .error-bar {
