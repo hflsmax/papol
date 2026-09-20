@@ -68,10 +68,7 @@ export const desktopStyles = `
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 0;
   border-radius: var(--chrome-radius);
-  background: transparent;
-  box-shadow: none;
   color: var(--ink-faint);
   cursor: default;
   transition: none;
@@ -115,10 +112,7 @@ export const desktopStyles = `
   width: 100%;
   min-height: 28px;
   padding: 4px 8px;
-  border: 0;
   border-radius: var(--chrome-radius);
-  background: transparent;
-  box-shadow: none;
   color: var(--ink);
   font: inherit;
   text-align: left;
@@ -215,10 +209,7 @@ export const desktopStyles = `
 .desktop-sidebar .desktop-sync-button {
   min-width: 0;
   height: 28px;
-  border: 0;
   border-radius: var(--chrome-radius);
-  background: transparent;
-  box-shadow: none;
   color: var(--ink-soft);
   font: inherit;
 }
@@ -287,10 +278,7 @@ export const desktopStyles = `
   width: 30px;
   height: 28px;
   padding: 0;
-  border: 0;
   border-radius: var(--chrome-radius);
-  background: transparent;
-  box-shadow: none;
   color: var(--ink-soft);
   cursor: default;
   transition: none;

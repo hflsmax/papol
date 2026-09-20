@@ -274,10 +274,7 @@ ${macHandoffStyles}
   width: 13px;
   margin-left: -6.5px;
   padding: 0;
-  border: 0;
   border-radius: 0;
-  background: none;
-  box-shadow: none;
   cursor: pointer;
 }
 
@@ -335,10 +332,7 @@ ${macHandoffStyles}
   /* Hard against the strip, so the point of each mark touches the place it
      is pointing at. */
   place-items: start center;
-  border: 0;
   border-radius: 0;
-  background: none;
-  box-shadow: none;
   /* The colours the pins wear on the page: an anchor, and an anchor with
      something written on it. The shapes differ too — a triangle and a
      dialog box — so the difference does not rest on colour. */
@@ -723,9 +717,7 @@ ${macHandoffStyles}
   width: 32px;
   height: 28px;
   padding: 0;
-  border: none;
   border-radius: var(--radius);
-  background: none;
   cursor: pointer;
 }
 
@@ -763,9 +755,7 @@ ${macHandoffStyles}
   justify-items: center;
   gap: 1px;
   padding: 5px 4px 4px;
-  border: none;
   border-radius: var(--radius);
-  background: none;
   cursor: pointer;
 }
 
@@ -970,10 +960,7 @@ ${macHandoffStyles}
   align-items: center;
   gap: 7px;
   padding: 5px 12px;
-  border: 0;
   border-radius: var(--radius-pill);
-  background: transparent;
-  box-shadow: none;
   color: var(--ink);
   font: inherit;
   line-height: 1.3;
@@ -1024,10 +1011,7 @@ ${macHandoffStyles}
   height: 28px;
   margin-right: 1px;
   padding: 0;
-  border: 0;
   border-radius: 50%;
-  background: transparent;
-  box-shadow: none;
   color: var(--ink-faint);
   cursor: pointer;
 }
@@ -1338,28 +1322,19 @@ ${macHandoffStyles}
   font-size: var(--fs-xs);
   font-weight: 600;
 }
-.send-selection-field textarea,
-.send-selection-field select {
+.send-selection-field textarea {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  appearance: none;
-  background-color: var(--card);
   color: var(--ink);
   font: var(--fs-sm) var(--font-ui);
+  resize: vertical;
+  line-height: 1.5;
 }
-.send-selection-field select {
-  padding-right: 32px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-position: right 10px center;
-  background-repeat: no-repeat;
-  cursor: pointer;
-}
-.send-selection-field textarea { resize: vertical; line-height: 1.5; }
+.send-selection-field select { width: 100%; font-size: var(--fs-sm); }
 .send-selection-field small { color: var(--ink-faint); font-size: inherit; font-weight: 400; }
-.send-selection-field textarea:focus,
-.send-selection-field select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.send-selection-field textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .send-selection-source {
   margin: 0 0 14px;
   color: var(--ink-faint);
@@ -1374,9 +1349,7 @@ ${macHandoffStyles}
   position: absolute;
   display: block;
   padding: 0;
-  border: 0;
   border-radius: 2px;
-  background: transparent;
   cursor: pointer;
   pointer-events: auto;
   transition: background 0.12s ease, box-shadow 0.12s ease;
@@ -1397,10 +1370,7 @@ ${macHandoffStyles}
 .cite {
   position: absolute;
   padding: 0;
-  border: 0;
   border-radius: 2px;
-  background: transparent;
-  box-shadow: none;
   /* Pointer clicks are delegated from the page by coordinates so this box
      never breaks a text selection dragged across a citation. It remains a
      real button for keyboard focus and activation. */
@@ -1729,9 +1699,6 @@ ${macHandoffStyles}
   width: 30px;
   height: 30px;
   padding: 0;
-  border: none;
-  background: none;
-  box-shadow: none;
   color: var(--accent-strong);
   cursor: grab;
   touch-action: none;
@@ -1849,10 +1816,7 @@ ${macHandoffStyles}
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 0;
   border-radius: 5px;
-  background: none;
-  box-shadow: none;
   color: var(--ink-faint);
 }
 

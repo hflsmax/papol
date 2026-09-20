@@ -335,7 +335,7 @@ export default function PaperUpload({
 
           <div className="form-group upload-private-field upload-shelf-field">
             <label htmlFor="upload-paper-shelf">Shelf</label>
-            <div className="upload-shelf-select">
+            <div className="shelf-select upload-shelf-select">
               <select id="upload-paper-shelf" name="shelf_uuid" value={formData.shelf_uuid} onChange={handleInputChange}>
                 {shelves.map((shelf) => (
                   <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
