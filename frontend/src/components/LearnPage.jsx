@@ -186,7 +186,7 @@ export default function LearnPage() {
       {playing && (
         <div ref={playerDialogRef} className="learn-player-backdrop" role="dialog" aria-modal="true" aria-label={playing.title} tabIndex="-1" onMouseDown={() => setPlaying(null)}>
           <div className="learn-player" onMouseDown={(event) => event.stopPropagation()}>
-            <button type="button" className="learn-player-close" aria-label="Close video" onClick={() => setPlaying(null)} autoFocus>×</button>
+            <button type="button" className="dismiss-button learn-player-close" aria-label="Close video" onClick={() => setPlaying(null)} autoFocus>×</button>
             {playerMedia?.status === 'ready' && (
               <video controls autoPlay preload="auto" aria-label={`${playing.title} tutorial video`}>
                 <source src={playerMedia.url} type="video/mp4" />

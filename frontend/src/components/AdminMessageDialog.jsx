@@ -33,7 +33,7 @@ export default function AdminMessageDialog({ message, onDismissed }) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="panel">
-          <p className="admin-message-kicker">From Papol</p>
+          <p className="kicker">From Papol</p>
           <p className="admin-message-content">{message.content}</p>
           {error && <div className="error" role="alert">{error}</div>}
           <div className="form-actions">

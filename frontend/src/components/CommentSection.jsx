@@ -73,8 +73,8 @@ export default function CommentSection({
         {/* Once a reading is shared these notes travel with it, so the
             badge that would say "private" has to say what is true. */}
         {shared
-          ? <span className="visibility-badge shared">shared by link</span>
-          : <span className="visibility-badge private">private</span>}
+          ? <span className="badge visibility-badge shared">shared by link</span>
+          : <span className="badge visibility-badge private">private</span>}
         {!composing && (
           <button
             className="link-button summary-edit"

@@ -888,7 +888,7 @@ export default function PaperJacket({
           {hasEntry && paper.sharable_uuid && (
             <div className="shared-reading-bar">
               <div className="shared-reading-head">
-                <span className="visibility-badge shared">reading shared</span>
+                <span className="badge visibility-badge shared">reading shared</span>
                 <p>
                   Anyone with this link can read this PDF with your notes, paint
                   and clips on it. They cannot change anything, and what they see
@@ -1002,7 +1002,7 @@ export default function PaperJacket({
             <div className="inline-ratings">
               <h4 className="kicker">
                 My ratings
-                <span className="visibility-badge public">public</span>
+                <span className="badge visibility-badge public">public</span>
               </h4>
               <RatingInput values={paper} onChange={handleInlineRating} />
             </div>
@@ -1012,7 +1012,7 @@ export default function PaperJacket({
             <div className="inline-thought">
               <h4 className="kicker">
                 My thought
-                <span className="visibility-badge public">public</span>
+                <span className="badge visibility-badge public">public</span>
                 {!editingThought && paper.thought && (
                   <button
                     className="link-button summary-edit"
@@ -1074,7 +1074,7 @@ export default function PaperJacket({
           <div className="summary-block">
             <h4>
               Summary
-              <span className="visibility-badge private">private</span>
+              <span className="badge visibility-badge private">private</span>
               {!editingSummary && paper.summary && (
                 <button
                   className="link-button summary-edit"
@@ -1130,7 +1130,7 @@ export default function PaperJacket({
           <section className="paper-tags private-tags-group" aria-labelledby="paper-tags-title">
             <h4 id="paper-tags-title">
               Tags
-              <span className="visibility-badge private">private</span>
+              <span className="badge visibility-badge private">private</span>
             </h4>
             <div className="tag-editor-card">
               <div className="tag-picker">
