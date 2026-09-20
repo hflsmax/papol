@@ -244,7 +244,7 @@ export default function PaperUpload({
           <h3>Review Paper Metadata</h3>
           {isParsingMetadata && (
             <span className="metadata-parsing" role="status">
-              <span className="metadata-spinner" aria-hidden="true" />
+              <span className="spinner metadata-spinner" aria-hidden="true" />
               Looking up metadata…
             </span>
           )}

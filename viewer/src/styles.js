@@ -77,7 +77,7 @@ ${macHandoffStyles}
   background: var(--red-soft);
   color: var(--red);
   font-size: var(--fs-sm);
-  box-shadow: 0 4px 16px rgba(25, 35, 50, 0.25);
+  box-shadow: 0 4px 16px rgba(29, 33, 41, 0.25);
 }
 
 .error-bar .link-button { color: var(--red); }
@@ -527,7 +527,7 @@ ${macHandoffStyles}
   background: rgba(30, 55, 82, 0.88);
   color: var(--ink-inverse);
   font: 74px/1 var(--font-ui);
-  box-shadow: 0 8px 30px rgba(25, 35, 50, 0.3);
+  box-shadow: 0 8px 30px rgba(29, 33, 41, 0.3);
   pointer-events: none;
   animation: search-wrap-fade 1.15s ease-out forwards;
 }
@@ -1235,7 +1235,7 @@ ${macHandoffStyles}
   background: linear-gradient(100deg, var(--card) 30%, var(--paper) 50%, var(--card) 70%);
   background-size: 300% 100%;
   animation: skeletonSweep 1.4s ease-in-out infinite;
-  box-shadow: 0 1px 6px rgba(25, 35, 50, 0.12);
+  box-shadow: 0 1px 6px rgba(29, 33, 41, 0.12);
 }
 
 @keyframes skeletonSweep {
@@ -1246,7 +1246,7 @@ ${macHandoffStyles}
 .pdf-page {
   position: relative;
   background: var(--card);
-  box-shadow: 0 1px 6px rgba(25, 35, 50, 0.18);
+  box-shadow: 0 1px 6px rgba(29, 33, 41, 0.18);
   flex: none;
 }
 
@@ -1692,7 +1692,7 @@ ${macHandoffStyles}
   background: var(--card);
   border: 1px solid var(--line-strong);
   border-radius: 5px;
-  box-shadow: 0 5px 18px rgba(25, 35, 50, 0.28);
+  box-shadow: 0 5px 18px rgba(29, 33, 41, 0.28);
   touch-action: none;
   cursor: grab;
   user-select: none;
@@ -1701,7 +1701,7 @@ ${macHandoffStyles}
 .paper-clip:active { cursor: grabbing; }
 .paper-clip.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(25, 35, 50, 0.28);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);
 }
 .clip-actions {
   position: absolute;

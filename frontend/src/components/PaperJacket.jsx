@@ -513,7 +513,7 @@ export default function PaperJacket({
               disabled={isExtractingMetadata}
             >
               {isExtractingMetadata ? (
-                <><span className="metadata-spinner" aria-hidden="true" /> Extracting…</>
+                <><span className="spinner metadata-spinner" aria-hidden="true" /> Extracting…</>
               ) : 'Extract metadata from PDF'}
             </button>
           </div>

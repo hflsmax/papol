@@ -71,6 +71,20 @@ button:disabled {
 
 .link-button.danger { color: var(--red); }
 
+/* One turning ring for every wait, sized by the line it sits in. */
+.spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .error {
   background: var(--red-soft);
   color: var(--red);
