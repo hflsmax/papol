@@ -53,7 +53,7 @@ export function RatingInput({ values, onChange }) {
               <button
                 key={i}
                 type="button"
-                className={values[d.key] === i ? 'rating-btn selected' : 'rating-btn'}
+                className={values[d.key] === i ? 'rating-button selected' : 'rating-button'}
                 onClick={() => onChange(d.key, values[d.key] === i ? null : i)}
                 aria-pressed={values[d.key] === i}
               >

@@ -156,7 +156,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
         (room.status === 'planning' ||
           (room.status === 'scheduled' && editingAnnounce)) && (
         <div className="announce-card">
-          <h6 className="mini-title">
+          <h6 className="kicker">
             {editingAnnounce ? 'Edit the seminar' : 'Announce the seminar'}
           </h6>
           <div className="announce-fields">
@@ -334,7 +334,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
 
       {/* ---- Participants ---- */}
       <div className="room-participants">
-        <h6 className="mini-title">In the cohort ({room.participants.length})</h6>
+        <h6 className="kicker">In the cohort ({room.participants.length})</h6>
         <div className="participant-chips">
           {participants.map((u) => (
             <a
@@ -462,7 +462,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
       {/* ---- Availability ---- */}
       {room.status !== 'scheduled' && room.status !== 'finished' && (
         <div className="room-block">
-          <h6 className="mini-title">Availability</h6>
+          <h6 className="kicker">Availability</h6>
 
           <ul className="availability-all">
             {participants.map((u) => {
@@ -471,13 +471,13 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
               return (
                 <li key={u.uuid}>
                   <Avatar user={u} className="entry-avatar" />
-                  <div className="avail-body">
+                  <div className="availability-body">
                     <strong>
                       {u.display_name}
                       {isMe ? ' (you)' : ''}
                     </strong>
                     {isMe ? (
-                      <div className="avail-edit">
+                      <div className="availability-edit">
                         <input
                           type="text"
                           value={availability}
@@ -499,9 +499,9 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
                         </button>
                       </div>
                     ) : entry ? (
-                      <span className="avail-text">{entry.availability}</span>
+                      <span className="availability-text">{entry.availability}</span>
                     ) : (
-                      <span className="avail-none">
+                      <span className="availability-none">
                         hasn't entered availability yet
                       </span>
                     )}
@@ -515,7 +515,7 @@ export default function RoomView({ room, currentUser, onRoomChange, onReload, on
 
       {/* ---- Discussion ---- */}
       <div className="room-block">
-        <h6 className="mini-title">
+        <h6 className="kicker">
           Discussion{room.messages.length > 0 ? ` (${room.messages.length})` : ''}
         </h6>
         <ol className="room-messages" aria-label="Discussion messages">

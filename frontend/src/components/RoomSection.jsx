@@ -62,7 +62,7 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
           {formatDay(room.created_at)}
           {room.status === 'finished' && (
             <button
-              className="collapse-btn"
+              className="collapse-button"
               onClick={() => setExpanded(false)}
               title="Collapse this seminar"
               aria-label="Collapse this seminar"
@@ -125,7 +125,7 @@ function RoomCard({ room, paper, currentUser, isBusy, onUncall }) {
       )}
       {currentUser ? (
         <p className="room-enter">
-          <a className="btn" href={appPath(`/room/${room.uuid}`)}>
+          <a className="button" href={appPath(`/room/${room.uuid}`)}>
             Open the room
           </a>
           {uncallable && (

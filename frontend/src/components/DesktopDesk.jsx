@@ -60,7 +60,7 @@ function DefaultViewerPrompt() {
     <div className="demo-banner pdf-viewer-prompt" role="status">
       <span>{error || 'Use Papol as your default PDF viewer?'}</span>
       <span className="demo-banner-actions">
-        <button type="button" className="demo-banner-btn" onClick={makeDefault}>Use Papol</button>
+        <button type="button" className="demo-banner-button" onClick={makeDefault}>Use Papol</button>
         <button type="button" className="demo-banner-link" onClick={dismiss}>Not now</button>
       </span>
     </div>
@@ -279,7 +279,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
                         </select>
                       </span>
                     )}
-                    <button type="button" className="icon-btn danger-icon" onClick={onDelete} title="Delete this board" aria-label="Delete this board">
+                    <button type="button" className="icon-button danger-icon" onClick={onDelete} title="Delete this board" aria-label="Delete this board">
                       <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M2.6 4h10.8" />
                         <path d="M6.2 4V2.7h3.6V4" />
@@ -709,7 +709,7 @@ export function DesktopBrowser({
           {canCompose && (
             <button
               type="button"
-              className="desktop-toolbar-btn"
+              className="desktop-toolbar-button"
               onClick={() => setComposer(boardsView ? 'board' : 'paper')}
               title={boardsView ? 'New board' : 'Add a paper'}
               aria-label={boardsView ? 'New board' : 'Add a paper'}

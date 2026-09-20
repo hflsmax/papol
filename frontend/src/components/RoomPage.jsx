@@ -52,7 +52,7 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
 
   return (
     <div className="room-page">
-      <BackLink className="back-btn" href={backHref} onBack={onBack} />
+      <BackLink className="back-button" href={backHref} onBack={onBack} />
 
       <div className="panel">
         <div className="room-kicker-row">

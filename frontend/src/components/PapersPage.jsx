@@ -146,7 +146,7 @@ export default function PapersPage({
         {shown.length === 0 && shownBoards.length === 0 ? (
           <div className="no-papers">
             <p>{papers.length === 0 && boards.length === 0 ? 'The library is empty.' : 'Nothing matches your filters.'}</p>
-            {hasActiveFilters && <button type="button" className="link-btn" onClick={() => { setSelectedUser(null); setSearch(''); }}>Clear filters</button>}
+            {hasActiveFilters && <button type="button" className="link-button" onClick={() => { setSelectedUser(null); setSearch(''); }}>Clear filters</button>}
           </div>
         ) : (
           <ul className="grouped-papers">

@@ -680,7 +680,7 @@ export default function App({ startupUser = null, startupError = null }) {
         browser. Nothing is saved.
       </span>
       {getToken() ? (
-        <a className="demo-banner-btn" href={appPath('/')} onClick={(event) => {
+        <a className="demo-banner-button" href={appPath('/')} onClick={(event) => {
           if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
           event.preventDefault();
           handleBackToAccount();
@@ -690,13 +690,13 @@ export default function App({ startupUser = null, startupError = null }) {
       ) : (
         <span className="demo-banner-actions">
           <button
-            className="demo-banner-btn"
+            className="demo-banner-button"
             onClick={() => navigate('/join')}
           >
             Create a real account
           </button>
           <button
-            className="link-btn demo-banner-link"
+            className="link-button demo-banner-link"
             onClick={() => navigate('/signin')}
           >
             Sign in
@@ -958,7 +958,7 @@ export default function App({ startupUser = null, startupError = null }) {
       {demoBanner}
       <button
         type="button"
-        className="feedback-fab"
+        className="feedback-button"
         onClick={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
         title="Report a bug or ask for a feature"
       >

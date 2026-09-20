@@ -155,7 +155,7 @@ export const desktopStyles = `
 }
 
 .desktop-sidebar .desktop-sidebar-item:focus-visible,
-.desktop-toolbar .desktop-toolbar-btn:focus-visible {
+.desktop-toolbar .desktop-toolbar-button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -288,7 +288,7 @@ export const desktopStyles = `
   background: var(--paper);
 }
 
-.desktop-toolbar .desktop-toolbar-btn {
+.desktop-toolbar .desktop-toolbar-button {
   display: grid;
   place-items: center;
   width: 30px;
@@ -303,17 +303,17 @@ export const desktopStyles = `
   transition: none;
 }
 
-.desktop-toolbar .desktop-toolbar-btn:hover:not(:disabled) {
+.desktop-toolbar .desktop-toolbar-button:hover:not(:disabled) {
   background: var(--chrome-hover);
   color: var(--ink);
 }
 
-.desktop-toolbar .desktop-toolbar-btn:disabled {
+.desktop-toolbar .desktop-toolbar-button:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.desktop-toolbar-btn svg {
+.desktop-toolbar-button svg {
   width: 18px;
   height: 18px;
   fill: none;
@@ -957,8 +957,8 @@ export const desktopStyles = `
 /* Inbox reads as a mail list: an unread notification is marked by a dot
    beside it, the way Mail annotations one, rather than a tinted row and a badge.
    The word "new" stays for screen users. */
-[data-shell='desktop'] .notif-item,
-[data-shell='desktop'] .notif-item.unread {
+[data-shell='desktop'] .notification-item,
+[data-shell='desktop'] .notification-item.unread {
   position: relative;
   padding: 10px 12px 10px 28px;
   border-left: 0;
@@ -966,11 +966,11 @@ export const desktopStyles = `
   background: none;
 }
 
-[data-shell='desktop'] .notif-item:hover {
+[data-shell='desktop'] .notification-item:hover {
   background: var(--chrome-hover);
 }
 
-[data-shell='desktop'] .notif-item.unread::before {
+[data-shell='desktop'] .notification-item.unread::before {
   content: '';
   position: absolute;
   top: 18px;
@@ -981,7 +981,7 @@ export const desktopStyles = `
   background: var(--accent);
 }
 
-[data-shell='desktop'] .notif-new {
+[data-shell='desktop'] .notification-new {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1025,7 +1025,7 @@ export const desktopStyles = `
   white-space: nowrap;
 }
 
-[data-shell='desktop'] .demo-banner-btn {
+[data-shell='desktop'] .demo-banner-button {
   flex: none;
   padding: 1px 10px;
   font-size: var(--fs-xs);
@@ -1088,7 +1088,7 @@ export const desktopStyles = `
   }
 }
 
-[data-shell='desktop'] .back-btn:not(.upload-review-back) {
+[data-shell='desktop'] .back-button:not(.upload-review-back) {
   display: none;
 }
 

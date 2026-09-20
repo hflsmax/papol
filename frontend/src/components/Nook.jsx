@@ -54,7 +54,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   return (
     <div className={reviewingUpload ? 'nook upload-review-mode' : 'nook'}>
       {onBack && (
-        <BackLink className="back-btn" href={backHref} onBack={onBack} />
+        <BackLink className="back-button" href={backHref} onBack={onBack} />
       )}
       <div className="nook-header">
         <div className="nook-header-row">
@@ -87,7 +87,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           </div>
           {isOwn && (
             <div className="nook-header-actions">
-              <button className="new-board-btn" type="button" onClick={() => setCreatingBoard(true)}>
+              <button className="new-board-button" type="button" onClick={() => setCreatingBoard(true)}>
                 <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
                 <span>New board</span>
               </button>

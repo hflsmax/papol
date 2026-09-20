@@ -71,7 +71,7 @@ export default function BoardJacket({ boardUuid, currentUser, onOpen, onBack, ba
 
   return (
     <div className="board-jacket">
-      <BackLink className="back-btn" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
+      <BackLink className="back-button" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
       <div className="panel">
         <div className="board-jacket-head">
           {mine ? (

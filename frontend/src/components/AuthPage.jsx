@@ -104,14 +104,14 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           {mode === 'login' ? (
             <>
               New here?{' '}
-              <button className="link-btn" onClick={() => { setMode('register'); setError(null); }}>
+              <button className="link-button" onClick={() => { setMode('register'); setError(null); }}>
                 Create an account
               </button>
             </>
           ) : (
             <>
               Already a member?{' '}
-              <button className="link-btn" onClick={() => { setMode('login'); setError(null); }}>
+              <button className="link-button" onClick={() => { setMode('login'); setError(null); }}>
                 Sign in
               </button>
             </>

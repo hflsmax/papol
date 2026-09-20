@@ -437,7 +437,7 @@ ${macHandoffStyles}
   white-space: nowrap;
 }
 
-.demo-banner-btn {
+.demo-banner-button {
   border: 1px solid var(--gold-ink);
   border-radius: var(--radius-pill);
   background: transparent;
@@ -449,7 +449,7 @@ ${macHandoffStyles}
   cursor: pointer;
 }
 
-.demo-banner-btn:hover {
+.demo-banner-button:hover {
   background: var(--gold-ink);
   color: var(--ink-inverse);
 }
@@ -590,25 +590,6 @@ button.danger:hover:not(:disabled) {
 
 button.full-width {
   width: 100%;
-}
-
-.link-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-  font-size: inherit;
-  cursor: pointer;
-  box-shadow: none;
-}
-
-.link-btn:hover {
-  border: none;
-  background: none;
-  text-decoration-style: solid;
 }
 
 .warning {
@@ -770,7 +751,7 @@ select:disabled { cursor: default; opacity: .65; }
    width for both, and an explicit line-height so the anchor and the button
    do not render at two different heights. Secondary controls in a form,
    so they take the small-button step of the scale rather than body size. */
-.pdf-row .btn,
+.pdf-row .button,
 .pdf-row button {
   flex: 0 0 auto;
   width: 7.5rem;
@@ -978,7 +959,7 @@ select:disabled { cursor: default; opacity: .65; }
 
 /* ---------- Upload ---------- */
 
-.upload-review-mode > .back-btn:not(.upload-review-back),
+.upload-review-mode > .back-button:not(.upload-review-back),
 .upload-review-mode > .shelf-manager,
 .upload-review-mode > .paper-list {
   display: none;
@@ -987,7 +968,7 @@ select:disabled { cursor: default; opacity: .65; }
 .upload-review-mode .nook-header-row { display: block; }
 .upload-review-mode .nook-header-row > .nook-avatar,
 .upload-review-mode .nook-header-row > .nook-profile-copy,
-.upload-review-mode .nook-header-actions > .new-board-btn { display: none; }
+.upload-review-mode .nook-header-actions > .new-board-button { display: none; }
 .upload-review-mode .nook-header-actions { display: block; width: 100%; margin: 0; }
 
 .upload-review-mode .paper-form {
@@ -1248,7 +1229,7 @@ select:disabled { cursor: default; opacity: .65; }
 .nook-manager-error { margin-bottom: 8px; padding: 6px 8px; border: 1px solid var(--red); border-radius: var(--radius); background: var(--red-soft); color: var(--red); font-size: var(--fs-xs); }
 .shelf-paper-count { color: var(--ink-faint); font-size: var(--fs-xs); }
 .shelf-manager-close { flex: 0 0 auto; }
-.shelf-manager .icon-btn svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.shelf-manager .icon-button svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .shelf-manager-list { display: grid; gap: 5px; }
 .shelf-manager-row { position: relative; display: grid; grid-template-columns: 26px minmax(8rem, 1fr) minmax(7rem, auto) minmax(5.5rem, auto); align-items: center; gap: 7px; padding: 6px 34px 6px 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
 .shelf-color-control { display: grid; place-items: center; }
@@ -1260,7 +1241,7 @@ select:disabled { cursor: default; opacity: .65; }
 .shelf-visibility-toggle { justify-self: start; }
 .shelf-default { display: inline-flex; justify-self: end; align-items: center; gap: 5px; color: var(--ink-soft); font-size: var(--fs-xs); white-space: nowrap; cursor: pointer; }
 .shelf-default input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
-.shelf-delete-btn { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); color: var(--ink); }
+.shelf-delete-button { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); color: var(--ink); }
 .shelf-add { margin-top: 9px; font-size: var(--fs-xs); }
 .nook-manager-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .nook-manager-section-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 7px; }
@@ -1269,8 +1250,8 @@ select:disabled { cursor: default; opacity: .65; }
 .manage-tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
 .manage-tag-row { display: inline-flex; align-items: center; gap: 1px; padding-right: 2px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--paper); }
 .manage-tag-row .tag-chip { border: 0; background: transparent; color: var(--ink-soft); font-size: var(--fs-xs); }
-.manage-tag-row .icon-btn { width: 24px; height: 24px; }
-.manage-tag-row .tag-delete-btn { color: var(--ink); }
+.manage-tag-row .icon-button { width: 24px; height: 24px; }
+.manage-tag-row .tag-delete-button { color: var(--ink); }
 .manage-tag-add { display: flex; gap: 6px; margin-top: 8px; }
 .manage-tag-add input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); font-family: var(--font-ui); font-size: var(--fs-sm); }
 .manage-tag-add input:focus { outline: 0; border-color: var(--accent); }
@@ -1492,7 +1473,7 @@ select:disabled { cursor: default; opacity: .65; }
 
 .nook-profile-copy { min-width: 0; }
 .nook-header-actions { display: flex; flex: 1 1 320px; align-items: flex-start; gap: 8px; min-width: 0; margin-left: auto; }
-.new-board-btn { display: inline-grid; grid-template-columns: 22px auto; align-items: center; gap: 10px; min-height: 48px; padding: 7px 16px 7px 9px; font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 400; text-align: left; white-space: nowrap; }
+.new-board-button { display: inline-grid; grid-template-columns: 22px auto; align-items: center; gap: 10px; min-height: 48px; padding: 7px 16px 7px 9px; font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 400; text-align: left; white-space: nowrap; }
 .new-board-mark { display: grid; grid-template-columns: repeat(2, 3px); place-content: center; gap: 3px; width: 22px; height: 22px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--paper); }
 .new-board-mark i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
 
@@ -1542,26 +1523,6 @@ select:disabled { cursor: default; opacity: .65; }
   margin-top: 4px;
 }
 
-.danger-link {
-  border: none;
-  background: none;
-  box-shadow: none;
-  padding: 0;
-  color: var(--red);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-  font-size: var(--fs-md);
-  margin-right: auto;
-}
-
-.danger-link:hover {
-  border: none;
-  background: none;
-  color: var(--red);
-  text-decoration-style: solid;
-}
-
 .summary-edit {
   margin-left: 10px;
   font-size: var(--fs-xs);
@@ -1574,7 +1535,7 @@ select:disabled { cursor: default; opacity: .65; }
   font-style: italic;
 }
 
-.no-papers .link-btn {
+.no-papers .link-button {
   margin-top: var(--space-2);
   font-style: normal;
 }
@@ -1671,7 +1632,7 @@ select:disabled { cursor: default; opacity: .65; }
   gap: 4px;
 }
 
-.rating-btn {
+.rating-button {
   width: 34px;
   height: 34px;
   padding: 0;
@@ -1679,18 +1640,18 @@ select:disabled { cursor: default; opacity: .65; }
   font-size: var(--fs-sm);
 }
 
-.rating-btn.selected {
+.rating-button.selected {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
 }
 
-.rating-btn.none {
+.rating-button.none {
   border-style: dashed;
   color: var(--ink-faint);
 }
 
-.rating-btn.none.selected {
+.rating-button.none.selected {
   background: var(--ink-soft);
   border-color: var(--ink-soft);
   border-style: solid;
@@ -1803,8 +1764,8 @@ select:disabled { cursor: default; opacity: .65; }
   padding: 5px 11px;
 }
 
-.shared-reading-ask-actions button.link {
-  padding: 0;
+/* The quiet way out of the question, in the ink the question itself uses. */
+.shared-reading-ask-actions .link-button {
   color: var(--ink-soft);
 }
 
@@ -1857,7 +1818,7 @@ select:disabled { cursor: default; opacity: .65; }
   gap: 3px;
 }
 
-.inline-ratings .rating-btn {
+.inline-ratings .rating-button {
   width: 25px;
   height: 25px;
   font-size: var(--fs-xs);
@@ -1873,17 +1834,9 @@ select:disabled { cursor: default; opacity: .65; }
   }
 }
 
-.inline-ratings-title {
-  font-size: var(--fs-sm);
-  font-variant: small-caps;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  margin-bottom: 8px;
-}
-
 /* ---------- Paper detail ---------- */
 
-.back-btn {
+.back-button {
   margin-bottom: 18px;
   border: none;
   background: none;
@@ -1894,9 +1847,9 @@ select:disabled { cursor: default; opacity: .65; }
   text-decoration: none;
   cursor: pointer;
 }
-.back-btn.disabled { pointer-events: none; opacity: .55; }
+.back-button.disabled { pointer-events: none; opacity: .55; }
 
-.back-btn:hover {
+.back-button:hover {
   text-decoration: underline;
   background: none;
   border: none;
@@ -1958,7 +1911,7 @@ select:disabled { cursor: default; opacity: .65; }
 /* Icon button: chrome-free, the glyph inherits currentColor so a state or
    danger modifier recolours it. Always carries a title and an aria-label —
    an icon has no name of its own. */
-.icon-btn {
+.icon-button {
   padding: 4px;
   border: none;
   background: none;
@@ -1968,18 +1921,18 @@ select:disabled { cursor: default; opacity: .65; }
   border-radius: var(--radius);
 }
 
-.icon-btn:hover:not(:disabled) {
+.icon-button:hover:not(:disabled) {
   border: none;
   background: var(--paper);
   color: var(--ink);
 }
 
 /* A destructive icon states itself in red at rest, not only on hover. */
-.icon-btn.danger-icon {
+.icon-button.danger-icon {
   color: var(--red);
 }
 
-.icon-btn.danger-icon:hover:not(:disabled) {
+.icon-button.danger-icon:hover:not(:disabled) {
   background: var(--red-soft);
   color: var(--red);
 }
@@ -2318,13 +2271,13 @@ select:disabled { cursor: default; opacity: .65; }
   margin: 12px 0 0;
 }
 
-.paper-actions .btn,
+.paper-actions .button,
 .paper-actions button {
   width: 7.5rem;
   text-align: center;
 }
 
-.paper-actions .btn {
+.paper-actions .button {
   padding: 6px 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
@@ -2346,19 +2299,19 @@ select:disabled { cursor: default; opacity: .65; }
 
 /* The anchor equivalent of button.primary: reading the paper is the action
    this page exists for. */
-.paper-actions .btn.primary {
+.paper-actions .button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
 }
 
-.paper-actions .btn.primary:hover {
+.paper-actions .button.primary:hover {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
   color: var(--ink-inverse);
 }
 
-.paper-actions .btn:hover {
+.paper-actions .button:hover {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
@@ -2910,7 +2863,7 @@ h4 .state-pill {
   color: var(--ink-faint);
 }
 
-.collapse-btn {
+.collapse-button {
   margin-left: 10px;
   padding: 0 8px;
   border: none;
@@ -2922,7 +2875,7 @@ h4 .state-pill {
   box-shadow: none;
 }
 
-.collapse-btn:hover:not(:disabled) {
+.collapse-button:hover:not(:disabled) {
   color: var(--accent);
   background: none;
   border: none;
@@ -3188,7 +3141,7 @@ h4 .state-pill {
 
 /* ---------- Rooms & inbox ---------- */
 
-a.btn {
+a.button {
   display: inline-block;
   padding: 8px 18px;
   border: 1px solid var(--line-strong);
@@ -3200,13 +3153,14 @@ a.btn {
   box-shadow: 0 1px 0 rgba(25, 35, 50, 0.12);
 }
 
-a.btn:hover {
+a.button:hover {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
 }
 
-.mini-title {
+/* A kicker: the quiet small-caps line that names what sits under it. */
+.kicker {
   font-size: var(--fs-sm);
   font-variant: small-caps;
   letter-spacing: 0.04em;
@@ -3434,7 +3388,7 @@ a.btn:hover {
 /* Open is an anchor and Uncall is a button. Give the paired controls an
    explicit shared leading so their boxes have the same height despite the
    body line-height inherited by the anchor. */
-.room-enter .btn,
+.room-enter .button,
 .room-enter button {
   line-height: 1.5;
 }
@@ -3484,7 +3438,7 @@ a.btn:hover {
   margin-top: 2px;
 }
 
-.avail-body {
+.availability-body {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -3492,22 +3446,22 @@ a.btn:hover {
   gap: 3px;
 }
 
-.avail-text {
+.availability-text {
   color: var(--ink);
 }
 
-.avail-none {
+.availability-none {
   color: var(--ink-faint);
   font-style: italic;
 }
 
-.avail-edit {
+.availability-edit {
   display: flex;
   gap: 8px;
   align-items: stretch;
 }
 
-.avail-edit input {
+.availability-edit input {
   flex: 1;
   padding: 7px 11px;
   border: 1px solid var(--line);
@@ -3518,12 +3472,12 @@ a.btn:hover {
   color: var(--ink);
 }
 
-.avail-edit input:focus {
+.availability-edit input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-.avail-edit button {
+.availability-edit button {
   flex-shrink: 0;
   padding: 6px 16px;
 }
@@ -3718,29 +3672,29 @@ a.btn:hover {
   vertical-align: middle;
 }
 
-.notif-list {
+.notification-list {
   list-style: none;
 }
 
-.notif-item {
+.notification-item {
   padding: 12px 8px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.notif-item:last-child {
+.notification-item:last-child {
   border-bottom: none;
 }
 
-.notif-item:hover {
+.notification-item:hover {
   background: var(--accent-soft);
 }
 
 /* The whole notification is its button: it keeps the row's look, and only
    gains the ability to be reached from the keyboard. */
-.notif-toggle,
-.notif-toggle:hover:not(:disabled) {
+.notification-toggle,
+.notification-toggle:hover:not(:disabled) {
   display: block;
   width: 100%;
   padding: 0;
@@ -3753,22 +3707,22 @@ a.btn:hover {
   cursor: pointer;
 }
 
-.notif-toggle .notif-content,
-.notif-toggle .notif-date {
+.notification-toggle .notification-content,
+.notification-toggle .notification-date {
   display: block;
 }
 
-.notif-item.unread {
+.notification-item.unread {
   background: var(--accent-soft);
   border-left: 3px solid var(--accent);
   padding-left: 9px;
 }
 
-.notif-item.unread .notif-content {
+.notification-item.unread .notification-content {
   font-weight: 600;
 }
 
-.notif-new {
+.notification-new {
   display: inline-block;
   margin-right: 8px;
   padding: 1px 8px;
@@ -3783,23 +3737,23 @@ a.btn:hover {
   vertical-align: middle;
 }
 
-.notif-content {
+.notification-content {
   font-size: var(--fs-base);
 }
 
 /* Collapsed: a single teaser line; clicking expands (and de-news) it */
-.notif-content.collapsed {
+.notification-content.collapsed {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.notif-room-link {
+.notification-room-link {
   margin-top: 4px;
   font-size: var(--fs-md);
 }
 
-.notif-date {
+.notification-date {
   font-size: var(--fs-xs);
   color: var(--ink-faint);
   margin-top: 2px;
@@ -3941,8 +3895,8 @@ a.btn:hover {
   border-color: var(--green-line);
 }
 
-.inline-thought > .link-btn,
-.summary-block > .link-btn {
+.inline-thought > .link-button,
+.summary-block > .link-button {
   display: block;
   width: 100%;
   padding: 8px 12px;
@@ -3950,7 +3904,7 @@ a.btn:hover {
   text-align: left;
 }
 
-.inline-thought > .link-btn {
+.inline-thought > .link-button {
   background: var(--green-soft);
   color: var(--green-ink);
 }
@@ -3979,7 +3933,7 @@ a.btn:hover {
   border-color: var(--accent-line);
 }
 
-.summary-block > .link-btn {
+.summary-block > .link-button {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -4117,8 +4071,7 @@ a.btn:hover {
   margin-right: 6px;
 }
 
-.admin-row-actions .danger-link {
-  margin: 0;
+.admin-row-actions .link-button {
   font-size: var(--fs-xs);
 }
 
@@ -4238,7 +4191,7 @@ a.btn:hover {
   color: var(--ink-faint);
 }
 
-.delete-comment-btn {
+.delete-comment-button {
   padding: 2px 8px;
   font-size: var(--fs-xs);
   border: none;
@@ -4247,7 +4200,7 @@ a.btn:hover {
   box-shadow: none;
 }
 
-.delete-comment-btn:hover {
+.delete-comment-button:hover {
   color: var(--accent);
   background: none;
   border: none;
@@ -4268,7 +4221,7 @@ a.btn:hover {
 body.board-workspace-open { overflow: hidden; }
 body.board-workspace-open .app { max-width: none; padding: 0; }
 body.board-workspace-open .app > .topnav,
-body.board-workspace-open .feedback-fab { display: none; }
+body.board-workspace-open .feedback-button { display: none; }
 body.board-workspace-open .main-content { display: block; padding: 0; }
 .infinite-board { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: var(--paper-sunken); font-family: var(--font-serif); }
 .board-toolbar { position: absolute; z-index: 38; inset: 0 0 auto; min-height: 55px; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--card); font-family: var(--font-ui); }
@@ -4539,7 +4492,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .nook-header { margin-bottom: 14px; }
   .nook-header-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px 14px; }
   .nook-header-actions { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: stretch; width: 100%; margin-left: 0; }
-  .nook-header-actions .new-board-btn { width: 100%; min-width: 0; justify-content: center; padding-right: 10px; }
+  .nook-header-actions .new-board-button { width: 100%; min-width: 0; justify-content: center; padding-right: 10px; }
   .nook-header-actions .upload-section.compact { width: 100%; min-width: 0; }
   .nook-header-actions .upload-section.compact .dropzone { height: 100%; }
   .board-create-fields { grid-template-columns: 1fr; }

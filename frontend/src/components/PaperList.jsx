@@ -180,7 +180,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             : selectedShelf != null || selectedTag != null
               ? 'Nothing tucked away here matches those filters.'
               : 'Nothing matches your search.'}</p>
-          {hasActiveFilters && <button type="button" className="link-btn" onClick={clearFilters}>Clear filters</button>}
+          {hasActiveFilters && <button type="button" className="link-button" onClick={clearFilters}>Clear filters</button>}
         </div>
       ) : (
         <ul>

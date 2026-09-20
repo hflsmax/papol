@@ -193,10 +193,10 @@ function DbMetricsPanel() {
         {metrics.total_queries} quer{metrics.total_queries === 1 ? 'y' : 'ies'}
         {' '}({metrics.total_ms} ms total) since{' '}
         {new Date(metrics.since + 'Z').toLocaleString()}.{' '}
-        <button className="link-btn" onClick={() => load(adminDbMetrics())}>
+        <button className="link-button" onClick={() => load(adminDbMetrics())}>
           Refresh
         </button>{' '}
-        <button className="link-btn" onClick={() => load(adminResetDbMetrics())}>
+        <button className="link-button" onClick={() => load(adminResetDbMetrics())}>
           Reset
         </button>
       </p>
@@ -232,7 +232,7 @@ function DbMetricsPanel() {
       )}
       {metrics.slowest.length > 0 && (
         <>
-          <h6 className="mini-title metrics-subtitle">Slowest queries</h6>
+          <h6 className="kicker metrics-subtitle">Slowest queries</h6>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -296,7 +296,7 @@ function FeedbackPanel() {
         {open.length} open, {done.length} done.{' '}
         {done.length > 0 && (
           <button
-            className="link-btn"
+            className="link-button"
             onClick={() => setShowResolved((v) => !v)}
           >
             {showResolved ? 'Hide the done ones' : 'Show the done ones'}
@@ -318,7 +318,7 @@ function FeedbackPanel() {
                 {new Date(fb.created_at + 'Z').toLocaleString()}
               </p>
               <p className="feedback-content">{fb.content}</p>
-              <button className="link-btn" onClick={() => toggle(fb)}>
+              <button className="link-button" onClick={() => toggle(fb)}>
                 {fb.resolved ? 'Reopen' : 'Mark done'}
               </button>
             </li>
@@ -360,7 +360,7 @@ function FeatureStatesPanel() {
         Kept in this browser only; the viewer picks up a change the next time it opens.{' '}
         {anySet && (
           <button
-            className="link-btn"
+            className="link-button"
             onClick={() => apply(FEATURE_STATES.map((state) => [state, false]))}
           >
             Reset all
@@ -582,7 +582,7 @@ export default function AdminPage() {
                         Save
                       </button>
                       <button
-                        className="danger-link"
+                        className="link-button danger"
                         onClick={() => deleteRow(row)}
                       >
                         Delete
@@ -598,7 +598,7 @@ export default function AdminPage() {
       </div>
 
       <div className="panel">
-        <h6 className="mini-title">SQL console</h6>
+        <h6 className="kicker">SQL console</h6>
         <textarea
           className="admin-sql"
           rows="3"
@@ -646,7 +646,7 @@ export default function AdminPage() {
       </div>
 
       <div className="panel">
-        <h6 className="mini-title">Database metrics</h6>
+        <h6 className="kicker">Database metrics</h6>
         <DbMetricsPanel />
       </div>
     </div>
