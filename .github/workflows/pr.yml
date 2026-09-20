@@ -30,7 +30,10 @@ jobs:
           nix develop --command bash -c 'cd viewer   && npm ci && npm test'
           nix develop --command bash -c 'cd board    && npm ci && npm test'
           nix develop --command bash -c 'cd frontend && npm ci && npm test'
-          nix develop --command bash -c 'cd backend  && pytest -q'
+          # The backend suite levels its schema, so it runs only against a
+          # database named *_test; `./deploy.sh db` brings the cluster up and
+          # this is the invocation it prints.
+          nix develop --command bash -c './deploy.sh db && cd backend && DATABASE_URL="postgresql+psycopg://papol@/papol_test?host=$PWD/../.postgres" python -m unittest'
 
       - name: Start a development server
         run: |
