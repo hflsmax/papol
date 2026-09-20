@@ -149,7 +149,7 @@ button:disabled {
   padding-left: 88px;
 }
 
-.experimental-badge { display: inline-flex; align-items: center; gap: 4px; width: max-content; padding: 2px 7px; border: 1px solid var(--gold-line); border-radius: var(--radius-pill); background: var(--gold-soft); color: var(--gold-ink); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .03em; text-transform: uppercase; vertical-align: middle; white-space: nowrap; }
+.experimental-badge { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
 .experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 
 /* A sheet over a dimmed page: the feedback form everywhere, and the
@@ -178,6 +178,62 @@ button:disabled {
 }
 
 .sheet h3 { margin: 0 0 14px; font-size: var(--fs-lg); }
+
+/* The one costume a floating card wears, whichever app it floats over. A
+   new pop joins this list — or wears .pop-surface outright — instead of
+   restating the costume; a member states only its own deviation (an accent
+   border, a pill radius) beside its geometry. */
+.pop-surface,
+.chip-pop, .share-menu, .tag-dropdown, .shelf-palette,
+.board-actions-popover, .board-selection-menu, .board-new-hint,
+.search-pop, .paper-info-pop, .brush-pop, .ref-card, .note-pop,
+.learn-papol, .link-return {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+/* A badge: one word in a small pill, uppercase so it reads as a stamp
+   rather than a sentence. Each badge states only its palette. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font: 600 var(--fs-2xs) var(--font-ui);
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* A kicker: the quiet small-caps line that names what sits under it. */
+.kicker {
+  font-size: var(--fs-sm);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+/* The small way out of a transient surface: an unadorned ×, centered,
+   quiet until pointed at. Each × states its own place and size. */
+.dismiss-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-faint);
+  line-height: 1;
+  cursor: pointer;
+}
 
 /* The same corner of every surface, so leaving a note about one of them is
    not a different habit from leaving one about another. */

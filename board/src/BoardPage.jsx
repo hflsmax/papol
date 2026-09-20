@@ -1908,7 +1908,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           </BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
-      {!board.can_edit && <span className="board-readonly-badge">Read only</span>}
+      {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
       <DesktopSyncingStatus />
       {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || !board.items.length} onClick={tidyBoard} title="Reset card sizes and bring collection cards closer"><TidyGlyph /><span>Tidy</span></button>}

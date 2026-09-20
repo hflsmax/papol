@@ -56,7 +56,7 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
 
       <div className="panel">
         <div className="room-kicker-row">
-          <p className="room-kicker">Seminar cohort</p>
+          <p className="kicker">Seminar cohort</p>
           <StatePill status={room.status} />
         </div>
         <div className="seminar-head">

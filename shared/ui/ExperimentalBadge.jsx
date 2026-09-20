@@ -4,7 +4,7 @@ import React from 'react';
 export default function ExperimentalBadge() {
   return (
     <span
-      className="experimental-badge"
+      className="badge experimental-badge"
       title="Experimental — this feature may change"
       aria-label="Experimental feature"
     >

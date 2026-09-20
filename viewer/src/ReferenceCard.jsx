@@ -122,7 +122,7 @@ export default function ReferenceCard({
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <button className="card-x" onClick={onClose} aria-label="Close" title="Close">
+      <button className="dismiss-button card-x" onClick={onClose} aria-label="Close" title="Close">
         ×
       </button>
 

@@ -714,7 +714,7 @@ export default function App({ startupUser = null, startupError = null }) {
       </a>
       <button
         type="button"
-        className="macos-download-banner-dismiss"
+        className="dismiss-button macos-download-banner-dismiss"
         aria-label="Dismiss macOS app announcement"
         onClick={() => {
           // The banner can still be dismissed for this visit when storage
@@ -1023,7 +1023,7 @@ export default function App({ startupUser = null, startupError = null }) {
               >
                 Inbox
                 {unreadCount > 0 && (
-                  <span className="inbox-badge">{unreadCount}</span>
+                  <span className="badge inbox-badge">{unreadCount}</span>
                 )}
               </a>
               <a

@@ -3430,7 +3430,7 @@ export default function App() {
 
   const learnLinkTip = learnLinkNavigation && (
     <span ref={learnLinkTipRef} className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
-      <span className="learn-papol-kicker">Learn Papol</span>
+      <span className="kicker">Learn Papol</span>
       <strong id="learn-link-title">Jump back to where you were</strong>
       <span>
         Use this pill after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>
@@ -3918,7 +3918,7 @@ export default function App() {
             )}
             {paperInfoOpen && (
               <div className="paper-info-pop" role="dialog" aria-label="Current paper information" data-tauri-drag-region="false">
-                <button type="button" className="card-x" onClick={() => setPaperInfoOpen(false)} aria-label="Close" title="Close">
+                <button type="button" className="dismiss-button card-x" onClick={() => setPaperInfoOpen(false)} aria-label="Close" title="Close">
                   ×
                 </button>
                 {/* What scrolls, apart from what closes it: the × stays in its

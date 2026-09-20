@@ -428,14 +428,11 @@ ${macHandoffStyles}
   gap: 6px;
   width: min(290px, calc(100vw - 24px));
   padding: 14px 16px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: var(--card);
+  border-color: var(--accent);
   color: var(--ink-soft);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   line-height: 1.4;
-  box-shadow: 0 8px 24px rgba(29, 33, 41, 0.2);
 }
 
 .learn-papol::before {
@@ -452,12 +449,10 @@ ${macHandoffStyles}
 }
 
 .learn-papol strong { color: var(--ink); font-size: var(--fs-md); }
-.learn-papol-kicker {
+/* The teaching card announces itself in the accent it is outlined in. */
+.learn-papol .kicker {
   color: var(--accent);
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  margin-bottom: 0;
 }
 .learn-papol kbd {
   display: inline-block;
@@ -493,10 +488,6 @@ ${macHandoffStyles}
   gap: 3px;
   width: max-content;
   padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--card);
-  box-shadow: 0 6px 18px rgba(29, 33, 41, 0.18);
 }
 .pdf-search input {
   width: 190px;
@@ -609,11 +600,7 @@ ${macHandoffStyles}
   right: 0;
   width: min(400px, calc(100vw - 24px));
   padding: 14px 16px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--card);
   color: var(--ink);
-  box-shadow: 0 8px 28px rgba(29, 33, 41, 0.18);
   text-align: left;
   font-family: var(--font-ui);
   -webkit-user-select: text;
@@ -724,10 +711,6 @@ ${macHandoffStyles}
   align-items: center;
   gap: 10px 12px;
   padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--card);
-  box-shadow: 0 10px 26px rgba(29, 33, 41, 0.2);
 }
 
 .swatches, .weights { display: flex; align-items: center; gap: 6px; }
@@ -975,10 +958,7 @@ ${macHandoffStyles}
   display: flex;
   align-items: center;
   padding: 3px;
-  border: 1px solid var(--line);
   border-radius: var(--radius-pill);
-  background: var(--card);
-  box-shadow: 0 6px 20px rgba(29, 33, 41, 0.16), 0 1px 3px rgba(29, 33, 41, 0.1);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   white-space: nowrap;
@@ -1454,10 +1434,6 @@ ${macHandoffStyles}
 .ref-card {
   position: absolute;
   z-index: 20;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 28px rgba(29, 33, 41, 0.18);
   padding: 14px 16px 12px;
   /* A starting cap, for the pass that measures the card. ReferenceCard
      then sets the real one from the room beside the marker. */
@@ -1812,10 +1788,6 @@ ${macHandoffStyles}
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
-  box-shadow: var(--shadow-md);
   font-family: var(--font-ui);
   pointer-events: auto;
   cursor: default;
@@ -1932,12 +1904,7 @@ ${macHandoffStyles}
   right: 4px;
   width: 20px;
   height: 20px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--ink-faint);
   font-size: var(--fs-lg);
-  line-height: 1;
   transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 

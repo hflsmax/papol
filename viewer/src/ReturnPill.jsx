@@ -81,7 +81,7 @@ export default function ReturnPill({
       {notice && (
         <div className="link-return-notice">
           <span ref={noticeRef} className="learn-papol" role="dialog" aria-labelledby="return-pill-hidden-title">
-            <span className="learn-papol-kicker">Learn Papol</span>
+            <span className="kicker">Learn Papol</span>
             <strong id="return-pill-hidden-title">The return pill is hidden</strong>
             <span>
               You can still press <kbd>[</kbd> and <kbd>]</kbd> to jump back and forward after
