@@ -493,7 +493,7 @@ export default function PaperJacket({
   return (
     <div className="paper-jacket">
       {!hideBack && (
-        <BackLink className="back-btn" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
+        <BackLink className="back-button" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
       )}
 
       {error && <div className="error" role="alert">{error}</div>}
@@ -580,7 +580,7 @@ export default function PaperJacket({
               <div className="form-label">PDF</div>
               <div className="pdf-row">
                 <a
-                  className="btn"
+                  className="button"
                   href={pdfHref(paper)}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -626,7 +626,7 @@ export default function PaperJacket({
                   )}
                 </span>
                 <button
-                  className="icon-btn danger-icon"
+                  className="icon-button danger-icon"
                   onClick={handleDelete}
                   title="Remove this paper from my nook — my ratings and notes go with it"
                   aria-label="Remove from my nook"
@@ -693,7 +693,7 @@ export default function PaperJacket({
           <div className="paper-actions" onContextMenu={paperContextMenu}>
             {hasEntry && viewerHref() && (
               <a
-                className="btn primary"
+                className="button primary"
                 href={viewerHref()}
                 data-document
                 onClick={(event) => {
@@ -761,7 +761,7 @@ export default function PaperJacket({
                 of taking the user away from Papol. */}
             {paper.file_path && (
               <a
-                className="btn"
+                className="button"
                 href={pdfHref(paper)}
                 download={pdfFileName(paper)}
                 onClick={(event) => {
@@ -936,7 +936,7 @@ export default function PaperJacket({
                     </button>
                     <button
                       type="button"
-                      className="link"
+                      className="link-button"
                       onClick={() => setStoppingShare(false)}
                     >
                       Cancel
@@ -1000,7 +1000,7 @@ export default function PaperJacket({
 
           {hasEntry && (
             <div className="inline-ratings">
-              <h4 className="inline-ratings-title">
+              <h4 className="kicker">
                 My ratings
                 <span className="visibility-badge public">public</span>
               </h4>
@@ -1010,12 +1010,12 @@ export default function PaperJacket({
 
           {hasEntry && (
             <div className="inline-thought">
-              <h4 className="inline-ratings-title">
+              <h4 className="kicker">
                 My thought
                 <span className="visibility-badge public">public</span>
                 {!editingThought && paper.thought && (
                   <button
-                    className="link-btn summary-edit"
+                    className="link-button summary-edit"
                     onClick={() => {
                       setThoughtDraft(paper.thought || '');
                       setEditingThought(true);
@@ -1052,7 +1052,7 @@ export default function PaperJacket({
                 <p className="inline-thought-text">{paper.thought}</p>
               ) : (
                 <button
-                  className="link-btn"
+                  className="link-button"
                   onClick={() => {
                     setThoughtDraft('');
                     setEditingThought(true);
@@ -1077,7 +1077,7 @@ export default function PaperJacket({
               <span className="visibility-badge private">private</span>
               {!editingSummary && paper.summary && (
                 <button
-                  className="link-btn summary-edit"
+                  className="link-button summary-edit"
                   onClick={() => {
                     setSummaryDraft(paper.summary || '');
                     setEditingSummary(true);
@@ -1116,7 +1116,7 @@ export default function PaperJacket({
               </div>
             ) : (
               <button
-                className="link-btn"
+                className="link-button"
                 onClick={() => {
                   setSummaryDraft('');
                   setEditingSummary(true);

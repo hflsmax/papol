@@ -238,7 +238,7 @@ export default function PaperUpload({
 
     return (
       <>
-      <BackLink className={`back-btn upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
+      <BackLink className={`back-button upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
         <div className="paper-metadata-heading">
           <h3>Review Paper Metadata</h3>

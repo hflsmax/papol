@@ -77,7 +77,7 @@ export default function CommentSection({
           : <span className="visibility-badge private">private</span>}
         {!composing && (
           <button
-            className="link-btn summary-edit"
+            className="link-button summary-edit"
             onClick={() => setComposing(true)}
           >
             Add a note
@@ -167,7 +167,7 @@ export default function CommentSection({
                     {currentUser && comment.user && comment.user.uuid === currentUser.uuid && (
                       <span className="comment-actions">
                         <button
-                          className="delete-comment-btn"
+                          className="delete-comment-button"
                           onClick={() => {
                             setDraft(comment.content);
                             setEditingUuid(comment.uuid);
@@ -177,7 +177,7 @@ export default function CommentSection({
                           Edit
                         </button>
                         <button
-                          className="delete-comment-btn"
+                          className="delete-comment-button"
                           onClick={() => handleDelete(comment.uuid)}
                           title="Delete note"
                         >

@@ -56,7 +56,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
       <div className="panel-head-row">
         <h2 className="panel-title">Inbox</h2>
         {unreadIn(data.notifications) > 0 && (
-          <button className="link-btn" onClick={handleMarkAll}>
+          <button className="link-button" onClick={handleMarkAll}>
             Mark all as read
           </button>
         )}
@@ -64,11 +64,11 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
       {data.notifications.length === 0 ? (
         <p className="no-comments">No notifications yet.</p>
       ) : (
-        <ul className="notif-list">
+        <ul className="notification-list">
           {data.notifications.map((n) => (
             <li
               key={n.uuid}
-              className={n.read ? 'notif-item' : 'notif-item unread'}
+              className={n.read ? 'notification-item' : 'notification-item unread'}
               onContextMenu={contextMenuHandler(() => [
                 { label: expanded[n.uuid] ? 'Collapse' : 'Expand', onSelect: () => handleClick(n) },
                 !n.read && { label: 'Mark as Read', onSelect: () => {
@@ -83,24 +83,24 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
                   from the keyboard, not only clicked. */}
               <button
                 type="button"
-                className="notif-toggle"
+                className="notification-toggle"
                 aria-expanded={Boolean(expanded[n.uuid])}
                 onClick={() => handleClick(n)}
               >
                 <span
                   className={
-                    expanded[n.uuid] ? 'notif-content' : 'notif-content collapsed'
+                    expanded[n.uuid] ? 'notification-content' : 'notification-content collapsed'
                   }
                 >
-                  {!n.read && <span className="notif-new">new</span>}
+                  {!n.read && <span className="notification-new">new</span>}
                   {n.content}
                 </span>
-                <span className="notif-date">{formatWhen(n.created_at)}</span>
+                <span className="notification-date">{formatWhen(n.created_at)}</span>
               </button>
               {expanded[n.uuid] && n.room_uuid && (
-                <p className="notif-room-link">
+                <p className="notification-room-link">
                   <button
-                    className="link-btn"
+                    className="link-button"
                     onClick={() => onOpenRoom(n.room_uuid)}
                   >
                     Open the seminar cohort →

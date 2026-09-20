@@ -3997,7 +3997,7 @@ export default function App() {
       {error && (
         <div className="error-bar">
           {error}
-          <button className="link" onClick={() => setError(null)}>
+          <button className="link-button" onClick={() => setError(null)}>
             dismiss
           </button>
         </div>
@@ -4253,7 +4253,7 @@ export default function App() {
 
         <button
           type="button"
-          className="feedback-fab"
+          className="feedback-button"
           onClick={() => {
             setFeedbackReportError(false);
             setFeedbackContent('');

@@ -55,18 +55,6 @@ button {
 
 button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 
-button.link {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-
-button.link.danger { color: var(--red); }
-
 ${macHandoffStyles}
 
 .shell { max-width: 640px; margin: 80px auto; padding: 0 20px; }
@@ -92,7 +80,7 @@ ${macHandoffStyles}
   box-shadow: 0 4px 16px rgba(25, 35, 50, 0.25);
 }
 
-.error-bar .link { color: var(--red); }
+.error-bar .link-button { color: var(--red); }
 
 .error-actions {
   display: flex;
@@ -139,7 +127,7 @@ ${macHandoffStyles}
 }
 
 /* Feedback lives in the app's sidebar. */
-[data-shell='desktop'] .feedback-fab {
+[data-shell='desktop'] .feedback-button {
   display: none;
 }
 

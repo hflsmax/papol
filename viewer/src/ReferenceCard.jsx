@@ -198,7 +198,7 @@ export default function ReferenceCard({
             </p>
           )}
           {work.abstract && work.abstract.length > 280 && (
-            <button className="link ref-more" onClick={() => setShowAll((v) => !v)}>
+            <button className="link-button ref-more" onClick={() => setShowAll((v) => !v)}>
               {showAll ? 'less' : 'more'}
             </button>
           )}

@@ -48,6 +48,29 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* An action written as prose: a control dressed as an inline dotted-underline
+   link, whatever element it is. Dotted at rest, solid under the pointer. */
+.link-button {
+  border: none;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  border: none;
+  background: none;
+  text-decoration-style: solid;
+}
+
+.link-button.danger { color: var(--red); }
+
 .error {
   background: var(--red-soft);
   color: var(--red);
@@ -144,7 +167,7 @@ button:disabled {
 
 /* The same corner of every surface, so leaving a note about one of them is
    not a different habit from leaving one about another. */
-.feedback-fab {
+.feedback-button {
   position: fixed;
   right: 20px;
   bottom: 20px;
@@ -169,7 +192,7 @@ button:disabled {
   box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
 }
 
-.feedback-fab::after {
+.feedback-button::after {
   content: '×';
   display: inline-block;
   width: 0;
@@ -180,13 +203,13 @@ button:disabled {
   transition: width 0.15s ease, margin-left 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
 }
 
-.feedback-fab:hover {
+.feedback-button:hover {
   color: var(--accent);
   border-color: var(--accent);
   box-shadow: 0 4px 16px rgba(29, 33, 41, 0.22);
 }
 
-.feedback-fab:hover::after {
+.feedback-button:hover::after {
   width: 0.7em;
   margin-left: 6px;
   opacity: 1;

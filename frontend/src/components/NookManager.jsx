@@ -31,7 +31,7 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
             <h3 id="shelf-manager-title">Manage nook</h3>
             <p>You can create up to five shelves.</p>
           </div>
-          <button className="icon-btn shelf-manager-close" onClick={() => onClose()} title="Close" aria-label="Close nook manager">
+          <button className="icon-button shelf-manager-close" onClick={() => onClose()} title="Close" aria-label="Close nook manager">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </div>
@@ -80,7 +80,7 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
                 <span>Default</span>
               </label>
               <button
-                className="icon-btn shelf-delete-btn"
+                className="icon-button shelf-delete-button"
                 title={`Delete ${shelf.name}`}
                 aria-label={`Delete shelf ${shelf.name}`}
                 onClick={async () => {
@@ -105,7 +105,7 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
           ))}
         </div>
         {nook.shelves.length < 5 && (
-          <button className="link-btn shelf-add" onClick={() => {
+          <button className="link-button shelf-add" onClick={() => {
             const colors = ['#b3923d', '#6b3f5e', '#35606b'];
             attempt(() => createShelf({ name: `Shelf ${nook.shelves.length + 1}`, color: colors[(nook.shelves.length - 2) % colors.length], is_public: false }));
           }}>Add another shelf</button>
@@ -123,7 +123,7 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
                 <div className="manage-tag-row" key={tag.uuid}>
                   <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
                   <button
-                    className="icon-btn tag-delete-btn"
+                    className="icon-button tag-delete-button"
                     title={`Delete ${tag.name}`}
                     aria-label={`Delete tag ${tag.name}`}
                     onClick={async () => {

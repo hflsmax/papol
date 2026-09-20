@@ -22,7 +22,7 @@ const STATES = [
 export default function SeminarFlow() {
   return (
     <div className="panel">
-      <h6 className="mini-title">How a spontaneous seminar comes together</h6>
+      <h6 className="kicker">How a spontaneous seminar comes together</h6>
       <ol className="flow-list">
         {STATES.map((state, i) => (
           <li key={state.status}>
