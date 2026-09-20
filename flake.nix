@@ -44,10 +44,7 @@
     };
 
     linuxDevPackages = pkgs: with pkgs; [
-      # The service's Python plus playwright, which drives a real browser
-      # over the viewer — how a layout is checked at a screen size nobody
-      # here has; reading the CSS is not the same as laying it out.
-      (python312.withPackages (ps: backend.packages ps ++ [ ps.playwright ]))
+      (python312.withPackages backend.packages)
       (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, and board/ are Vite apps
       (backend.postgresql pkgs)  # the database, the major production runs
@@ -62,10 +59,9 @@
       stdenv.cc.cc.lib
       zlib
       libsndfile
+      # The browser smokes, the tutorial recorders, and the backend's
+      # webpage capture all drive this one chromium.
       chromium
-      # Playwright will not download browsers here and should not try; these
-      # are the ones Nix built, wired up by PLAYWRIGHT_BROWSERS_PATH below.
-      playwright-driver.browsers
       # The desktop crate. macOS builds and ships it; Linux cannot produce a
       # release, but `cargo test`, `cargo fmt` and `cargo clippy` all run
       # here, and the local replica's storage and sync logic are exactly the
@@ -110,16 +106,6 @@
       '';
     };
 
-    # Playwright looks for browsers it fetched itself, under a path that
-    # does not exist on NixOS. Pointing it at the store copy is what makes
-    # `playwright.sync_api` work at all here.
-    playwrightEnv = pkgs: {
-      PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
-      # The browsers are built for this nixpkgs, not for whatever Ubuntu
-      # the upstream driver expects to find them under.
-      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE = "ubuntu-24.04";
-    };
   in {
     # Plain, and it matters that there is nothing to say about it. This module
     # used to be handed an interpreter built from the importing system's pkgs,
@@ -172,7 +158,7 @@
           echo "  Viewer:   cd viewer   && npm install && npm run dev"
           echo "  Board:    cd board    && npm install && npm run dev"
         '';
-      } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux (playwrightEnv pkgs));
+      });
     });
   };
 }

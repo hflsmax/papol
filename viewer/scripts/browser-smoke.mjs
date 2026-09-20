@@ -101,9 +101,11 @@ const json = (body) => ({ type: 'application/json', body: JSON.stringify(body) }
 
 // Wait for a citation marker, click it, and wait for the card to show the
 // resolved title. A boundary panel standing where the viewer should be is
-// its own answer.
+// its own answer. Inside a layout iframe (smoke=inner) the probe stays
+// quiet: the app runs untouched while the harness page measures it.
 const probe = `<script>
   (() => {
+    if (new URLSearchParams(location.search).get('smoke') === 'inner') return;
     let clicked = false;
     const ready = () => {
       if (document.querySelector('.render-error')) {
@@ -126,10 +128,62 @@ const probe = `<script>
   })();
 </script>`;
 
+// The layout page: the real viewer, rendered inside iframes at the exact
+// widths the stylesheet answers differently — the narrowest phone, the
+// 560px phone rule, both sides of the 860px rail breakpoint, and a wide
+// desktop — and measured from inside. Headless Chromium will not open a
+// window narrower than about 500px, and a hand-mirrored fixture DOM
+// drifts with every restyle; an iframe is a viewport of any width around
+// the viewer as it ships. What a stylesheet change can silently break at
+// a width nobody was looking at: the window must not be the scroller
+// (.pages is — every jump in the viewer scrolls it, so a scrolling
+// document turns anchors into no-ops), nothing may overflow sideways,
+// and the bar has to hold its contents.
+const layoutPage = (share) => `<!DOCTYPE html><html><head>
+<meta charset="utf-8"><title>viewer layout sweep</title></head><body>
+<script>
+  (async () => {
+    const sizes = [[320, 568], [560, 700], [860, 900], [861, 900], [1920, 1080]];
+    const broken = [];
+    for (const [width, height] of sizes) {
+      const frame = document.createElement('iframe');
+      frame.style.cssText = 'display:block;border:0;width:' + width + 'px;height:' + height + 'px';
+      frame.src = '/papol/viewer/?share=${share}&smoke=inner';
+      document.body.append(frame);
+      await new Promise((done) => {
+        const settled = () => frame.contentDocument?.querySelector('.pdf-page canvas')
+          ? done() : setTimeout(settled, 25);
+        settled();
+      });
+      const doc = frame.contentDocument;
+      const de = doc.documentElement;
+      const pages = doc.querySelector('.pages');
+      const bar = doc.querySelector('.viewer-bar');
+      for (const [what, bad] of [
+        ['document-scrolls', de.scrollHeight > de.clientHeight],
+        ['document-scrolls-sideways', de.scrollWidth > de.clientWidth],
+        ['pages-not-the-scroller',
+          !['auto', 'scroll'].includes(getComputedStyle(pages).overflowY)],
+        ['bar-overflows', bar.scrollWidth > bar.clientWidth],
+      ]) if (bad) broken.push(width + 'px-' + what);
+      frame.remove();
+    }
+    fetch('/__papol_smoke_ready?page=' + (broken.length
+      ? 'layout-broken.' + broken.join('.')
+      : 'viewer-layout'), { method: 'POST' });
+  })();
+</script></body></html>`;
+
 await runSmoke(
-  [{ path: `/papol/viewer/?share=${SHARE}`, page: 'viewer-citation' }],
+  [
+    { path: `/papol/viewer/?share=${SHARE}`, page: 'viewer-citation' },
+    { path: '/papol/viewer/__layout', page: 'viewer-layout' },
+  ],
   async (url) => {
     const { pathname } = url;
+    if (pathname === '/papol/viewer/__layout') {
+      return { type: 'text/html; charset=utf-8', body: layoutPage(SHARE) };
+    }
     if (pathname === `/papol/api/shared/${SHARE}`) return json(shared);
     if (pathname === `/papol/api/viewer-references/${PDF_SHA256}`) return json(analysis);
     if (pathname === `/papol/api/viewer-references/item/${REFERENCE}`) return json(resolved);
@@ -148,4 +202,7 @@ await runSmoke(
   },
 );
 
-console.log('Viewer browser smoke: a citation marker opened its reference card.');
+console.log(
+  'Viewer browser smoke: a citation marker opened its reference card, and '
+  + 'the layout held from 320px to 1920px.',
+);

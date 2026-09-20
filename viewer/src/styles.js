@@ -516,7 +516,10 @@ ${macHandoffStyles}
 }
 
 .viewer-bar .bar-link:hover { border-color: var(--accent); color: var(--accent); }
-.paper-menu { position: relative; display: flex; align-items: center; gap: 6px; }
+/* min-width: 0, so that when the bar is short of room this block can be
+   squeezed and the shared-reading chip inside it ellipsizes, instead of
+   the whole block holding its width and pushing the bar wide. */
+.paper-menu { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .viewer-bar button.bar-link { cursor: pointer; background: var(--card); }
 .viewer-bar button.bar-link:disabled { cursor: default; opacity: 0.6; }
 .viewer-bar .nook-add-button { border-color: var(--accent); color: var(--accent); }
@@ -528,6 +531,12 @@ ${macHandoffStyles}
   font-size: var(--fs-xs);
   color: var(--ink-faint);
   white-space: nowrap;
+  /* The one bar member made of somebody's name, so the one that cannot
+     promise a width. When the bar runs short it is the attribution that
+     gives way, letter by letter, not the controls beside it. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .nook-ask { display: flex; flex-direction: column; gap: 8px; width: min(300px, calc(100vw - 24px)); }
 .nook-ask strong { font-size: var(--fs-md); }
@@ -1854,11 +1863,13 @@ ${macHandoffStyles}
   .search-pop input { flex: 1; width: auto; }
 }
 
-/* A phone. The bar has to hold a way back, the file and the zoom in about
-   320 points, so the paddings tighten. The way back is already a glyph and
-   costs the same at every width. */
+/* A phone. The paddings tighten, and the bar may wrap: on a touch screen
+   the tools stand in an open row (see the hover rules below), and that
+   row plus the paper's own menu is more than 320 points can hold on one
+   line. A second line costs a little height; controls pushed out of reach
+   would cost the controls. */
 @media (max-width: 560px) {
-  .viewer-bar { gap: 8px; padding: 8px 12px; }
+  .viewer-bar { gap: 8px; padding: 8px 12px; flex-wrap: wrap; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
   /* Too little room for a name to survive being cut to three letters, and
