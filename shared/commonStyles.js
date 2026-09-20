@@ -95,6 +95,16 @@ button:disabled {
   font-size: var(--fs-md);
 }
 
+.warning {
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  border: 1px solid var(--gold-line);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: var(--fs-md);
+}
+
 /* The way out, drawn as the same house in the board toolbar and the
    viewer bar so the two shells read the same. It is an anchor where it can
    be, so a middle click or Command-click still opens Papol in a new tab. */
@@ -183,6 +193,8 @@ button:disabled {
    new pop joins this list — or wears .pop-surface outright — instead of
    restating the costume; a member states only its own deviation (an accent
    border, a pill radius) beside its geometry. */
+.card-surface, .panel, .auth-card, .seminar-card, .announce-card,
+.discussion-card, .stage-card, .learn-lesson, .board-staging-card,
 .pop-surface,
 .chip-pop, .share-menu, .tag-dropdown, .shelf-palette,
 .board-actions-popover, .board-selection-menu, .board-new-hint,
@@ -191,7 +203,55 @@ button:disabled {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+}
+
+/* Floating adds the lift; everything else about the surface is above. */
+.pop-surface,
+.chip-pop, .share-menu, .tag-dropdown, .shelf-palette,
+.board-actions-popover, .board-selection-menu, .board-new-hint,
+.search-pop, .paper-info-pop, .brush-pop, .ref-card, .note-pop,
+.learn-papol, .link-return {
   box-shadow: var(--shadow-md);
+}
+
+/* A chip: something small enough to sit in a line, rounded to a pill so
+   it reads as an object, not a word of the sentence around it. */
+.chip, .nook-chip, .participant-chip, .tag-chip, .join-chip,
+.user-filter, .style-tag, .author-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* The identity disc. Sizes come from the place it sits. */
+.avatar-initial,
+.avatar-img {
+  flex: none;
+  border-radius: 50%;
+}
+
+.avatar-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--ink-inverse);
+}
+
+/* A meta line: when or by whom, quiet under the thing it describes. */
+.meta, .comment-date, .notification-date, .room-message-time,
+.seminar-card-date {
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+}
+
+/* A hint: an aside the page can afford to whisper. */
+.hint, .loading {
+  color: var(--ink-faint);
 }
 
 /* A badge: one word in a small pill, uppercase so it reads as a stamp
