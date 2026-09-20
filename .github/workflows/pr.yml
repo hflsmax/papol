@@ -17,12 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # No GitHub-side nix cache: everything in the shell substitutes from
-      # cache.nixos.org, and re-uploading that multi-gigabyte closure into
-      # the repo's 10GB Actions cache cost sixteen minutes of teardown per
-      # run — five times the tests themselves — for downloads it never made
-      # faster. (magic-nix-cache-action is deprecated besides.)
       - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
 
       # Ubuntu 24 confines unprivileged user namespaces, which is how
       # Chromium builds its sandbox; the nix chromium has no setuid fallback.
