@@ -209,7 +209,14 @@ export default function Navigator({
     [anchors],
   );
 
-  const shown = pages > 0 && (segments.length > 0 || marks.length > 0);
+  // Any paper with pages gets the bar. A paper with no outline has no
+  // segments to draw, but the bar is not only the outline's: it is where
+  // the reader is (the marker), where their anchors and notes are (the
+  // lane), and the scrubber that moves them — none of which the paper has
+  // to bring a table of contents to deserve. The strip is then a bare
+  // trough, the same one a paper with anchors and no outline always had,
+  // and hover names the page since no section can be named.
+  const shown = pages > 0;
 
   // How wide the bar is, which is what a minimum in pixels is a fraction of.
   const [width, setWidth] = useState(0);
@@ -393,7 +400,13 @@ export default function Navigator({
     const root = rootRef.current;
     if (!tip || !root) return;
     const under = document.elementFromPoint(event.clientX, event.clientY);
-    const text = root.contains(under) ? under?.closest('[data-tip]')?.dataset.tip : null;
+    let text = root.contains(under) ? under?.closest('[data-tip]')?.dataset.tip : null;
+    // On a bare strip — a paper with no outline — there is no section to
+    // name, so the strip answers with the page instead. Where there are
+    // segments they cover the strip and speak first.
+    if (!text && root.contains(under) && under?.closest('.navigator-track')) {
+      text = `Page ${Math.max(1, Math.min(pages, Math.floor(pressedAt(event)) + 1))}`;
+    }
     if (!text) {
       tip.hidden = true;
       return;

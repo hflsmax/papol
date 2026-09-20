@@ -17,8 +17,10 @@
  * and for Shannon it returned thirty-seven display equations. A contents
  * that is wrong is worse than a contents that is absent, because only one
  * of the two can be disbelieved at a glance. So that pass is gone, and a
- * paper with no outline now has no Navigator — the same answer Preview
- * gives, arrived at honestly.
+ * paper with no outline shows no sections — the same answer Preview
+ * gives, arrived at honestly. The Navigator itself stays: its strip is
+ * bare, but the marker, the reader's anchors and notes, and the scrubber
+ * are the reader's and not the outline's.
  *
  * The printed text is still consulted for one thing, and it is not the
  * same thing. Many outlines say which *page* a heading is on and nothing
