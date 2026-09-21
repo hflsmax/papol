@@ -1,8 +1,4 @@
-# Runtime data — lives next to the code but is not source
-.postgres/
-backend/backups/
-backend/papol.db
-backend/papol.db.bak-*
+# Runtime data — old local copies, not source (the Worker's own is under cloudflare/.wrangler)
 papol.db
 uploads/
 board_uploads/
@@ -18,8 +14,8 @@ desktop/dist/
 desktop/node_modules/
 cloudflare/node_modules/
 cloudflare/.wrangler/
+cloudflare/site/
 __pycache__/
-*.pyc
 
 nohup.out
 

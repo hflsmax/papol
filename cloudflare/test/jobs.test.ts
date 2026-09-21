@@ -3,10 +3,10 @@
 import { createExecutionContext, createMessageBatch, createScheduledController, env, getQueueResult, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import worker, { HOURLY_CRON, SWEEP_CRON } from "../src/index";
+import worker from "../src/index";
 import { queueEmail } from "../src/jobs/notifications";
 import { claim, enqueue, JobError, LEASE_MS, type Job } from "../src/jobs/queue";
-import { HANDLERS, runOne, type Wakeup } from "../src/jobs/run";
+import { HANDLERS, HOURLY_CRON, runOne, SWEEP_CRON, type Wakeup } from "../src/jobs/run";
 import { call, count, exec, ok, register, row, rows, uuid } from "./helpers";
 
 // The email API, stood in for: what was posted, and what it answers.

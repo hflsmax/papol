@@ -143,7 +143,7 @@ export class Browser {
   }
 
   /// Put a user in the way the application itself does, by storing the
-  /// credential it would have stored. The token comes from the backend's own
+  /// credential it would have stored. The token comes from the Worker's own
   /// API, so no password is typed into any field.
   async signIn({ token, accountUuid, origin }) {
     await this.navigate(`${origin}/`);

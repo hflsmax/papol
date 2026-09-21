@@ -14,17 +14,12 @@
 # last check of a production deployment, and the one to run by hand whenever a
 # URL shape changes.
 #
-# BASE_URL must be the public one. The built application asks for its own
-# scripts under /papol, a prefix the proxy in front of the service strips, so
-# on the service's own loopback port those requests miss the assets, fall into
-# the single-page catch-all, and come back as HTML: the module never loads and
-# nothing renders. The app is only whole where a reader meets it.
-#
-# PAPER_DIGEST should name a paper production really has; deploy.sh reads one
-# out of the production database. Set CHROME to pick the browser.
+# BASE_URL is where a reader meets the application: production, or a
+# `wrangler dev` serving an assembled site. PAPER_DIGEST should name a paper
+# the service really has. Set CHROME to pick the browser.
 set -uo pipefail
 
-BASE="${1:-https://mc-pony.com/papol}"
+BASE="${1:-https://papol.io}"
 BASE="${BASE%/}"
 DIGEST="${2:-}"
 # A UUID that names nobody. These pages are reached as a guest and asked only

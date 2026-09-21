@@ -11,12 +11,13 @@ const WIDTH = 1280;
 const HEIGHT = 720;
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const FRAMES = path.join(ROOT, 'frames');
-const VIEWER_URL = 'http://127.0.0.1:8000/viewer/?pdf=2d9bd40224ea9ee99616426943e04062d64caeb4bd8d645c99f834f5c54f0205';
-const token = process.env.PAPOL_TOKEN || execFileSync(
-  'psql',
-  ['-h', path.join(ROOT, '..', '..', '.postgres'), '-U', 'papol', '-d', 'papol', '-tAc', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
-  { encoding: 'utf8' },
-).trim();
+const VIEWER_URL = 'http://127.0.0.1:8787/viewer/?pdf=2d9bd40224ea9ee99616426943e04062d64caeb4bd8d645c99f834f5c54f0205';
+// The newest session in the local D1 — the one `./deploy.sh dev` serves.
+const token = process.env.PAPOL_TOKEN || JSON.parse(execFileSync(
+  'npx',
+  ['wrangler', 'd1', 'execute', 'papol', '--local', '--json', '--command', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
+  { cwd: path.join(ROOT, '..', '..', 'cloudflare'), encoding: 'utf8' },
+))[0].results[0].token;
 const chromiumPath = process.env.CHROMIUM_PATH || execFileSync('which', ['chromium'], { encoding: 'utf8' }).trim();
 
 fs.rmSync(FRAMES, { recursive: true, force: true });

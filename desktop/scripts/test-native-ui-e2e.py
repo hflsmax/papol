@@ -132,9 +132,9 @@ def keep_evidence(pid, app, server, home):
         ui("shot", str(pid), str(ARTIFACTS / "window.png"))
     if app is not None and (home / "app.log").exists():
         shutil.copy(home / "app.log", ARTIFACTS / "app.log")
-    if server is not None and server.poll() is not None:
-        stdout, stderr = server.communicate()
-        (ARTIFACTS / "backend.log").write_text(stdout + stderr)
+    log = getattr(server, "papol_log", None)
+    if log is not None and log.exists():
+        shutil.copy(log, ARTIFACTS / "backend.log")
     say(f"kept the window listing, screenshot and logs in {ARTIFACTS}")
 
 

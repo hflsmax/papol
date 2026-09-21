@@ -723,14 +723,30 @@ strict, and nobody exercised the real thing before a person did. So:
   smoke test; production only from the Actions tab, by choice, after
   dev is green. Needs the `CLOUDFLARE_API_TOKEN` and
   `CLOUDFLARE_ACCOUNT_ID` repository secrets.
-- The Worker redirects plain HTTP to HTTPS, and `newUuid` no longer
-  depends on a browser API withheld outside secure contexts.
+- Plain HTTP is redirected to HTTPS at the edge, by the zone's "Always
+  Use HTTPS" setting, not by the Worker: a redirect in the Worker fired
+  under `wrangler dev` too, which serves plain HTTP on the loopback, and
+  broke every local check. `newUuid` no longer depends on a browser API
+  withheld outside secure contexts.
 
-Still to do: the desktop app rebuilt with
-`PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as `wrangler
-deploy`; `module.nix` reduced to GROBID and the tunnel; the retired
-backend's code deleted; the stray `grobid.papol.io.mc-pony.com` record
-deleted.
+### Step 7 — landed 2026-09-21: the retired backend is deleted
+
+`backend/` is gone, with its Python closure, the PostgreSQL, and every
+script and unit that existed only to run it: `scripts/pull-files.py`,
+`scripts/migrate-sqlite-to-postgres.py`, the R2 backup, the health probe,
+the LAN names. `flake.nix` is Node, the browser and the Rust; `module.nix`
+is GROBID, its tunnel and the rebuild rule, still accepting the host's
+retired keys with a warning until its configuration is trimmed;
+`deploy.sh prod` is the site assembled and `wrangler deploy`, `host` the
+NixOS rebuild over ssh, `dev` wrangler beside the Vite servers, `pull` a
+D1 export into the local one. The desktop app's default backend is
+`https://papol.io`. The two desktop end-to-end checks and the share
+end-to-end start the Worker (`wrangler dev`) where they started uvicorn.
+`scripts/migrate-postgres-to-d1.py` stays as the record of the one move.
+
+Still to do: the desktop app rebuilt and released against
+`https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
+deleted; the host's configuration.nix trimmed of the retired keys.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 

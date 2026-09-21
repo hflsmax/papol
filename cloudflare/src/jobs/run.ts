@@ -60,6 +60,11 @@ export async function consume(batchOf: MessageBatch<Wakeup>, env: Env): Promise<
   }
 }
 
+// The two cron triggers, as wrangler.toml declares them; the entry
+// module tells them apart by the expression the runtime hands it.
+export const SWEEP_CRON = "*/2 * * * *";
+export const HOURLY_CRON = "0 * * * *";
+
 // The sweep, every couple of minutes: claim what is due and was not
 // woken, and run it here — the sweep is a Worker invocation like any
 // other, and a job handed straight to it needs no second wake-up.

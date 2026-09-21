@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Papol's deployment, all of it.
 #
-#   ./deploy.sh dev            run development here, rebuilding as you save
-#   ./deploy.sh prod [ref]     promote a ref (default: main)
-#   ./deploy.sh pull           overwrite development data from production
-#   ./deploy.sh db [stop]      the development PostgreSQL, up (or down)
-#   ./deploy.sh status         what is running where
+#   ./deploy.sh dev            the Worker and the three apps here, live-reloading
+#   ./deploy.sh prod           build the apps, assemble the site, deploy the Worker
+#   ./deploy.sh host           update the NixOS host: GROBID and its tunnel
+#   ./deploy.sh pull           replace the local database with production's
 #   ./deploy.sh macos dev      run the native app with Vite live reload
-#                  [--backend URL] (default: http://127.0.0.1:8000)
+#                  [--backend URL] (default: http://127.0.0.1:8787)
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
-#                  [--backend URL] [--no-check] [--skip-notarize]
+#                  [--backend URL] (default: https://papol.io)
+#                  [--no-check] [--skip-notarize]
 #                  loads .env.macos-notarization when present
 #   ./deploy.sh macos credentials
 #                  print the local signing/notarization values for GitHub
@@ -18,63 +18,52 @@
 #   ./deploy.sh macos release resume
 #                  pick an interrupted release back up after the PR is open
 #
-# Code goes up with `prod`. Data never goes from development to production;
-# `pull` explicitly replaces development's database with production's, and
-# brings across the files that database names.
+# Production is the Cloudflare Worker in cloudflare/, at https://papol.io:
+# the API, the jobs, and the three built apps served as its static assets,
+# on D1, R2 and a Queue. `prod` is a `wrangler deploy` from a logged-in
+# wrangler. The one thing that is not on Cloudflare is GROBID, the reference
+# analyzer, which runs as a container on a NixOS host and reaches the Worker
+# through a tunnel; `host` updates that machine. Development is wrangler's
+# local runtime on this machine, with a D1 and an R2 of its own under
+# cloudflare/.wrangler, and the three Vite servers in front of it.
 #
-# Production is deployed and stays up; development is a server that runs for
-# as long as you leave this command running. Production is a checkout of its
-# own under /srv/papol/prod, served by papol.service with papol-worker.service
-# doing the queued work beside it. The two share a host and a GROBID
-# container and nothing else: separate databases, separate files (a bucket,
-# or directories in the checkout — .env says), separate .env.
+# Code goes up with `prod`. Data never goes from development to production;
+# `pull` explicitly replaces the local database with a copy of production's.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROD_DIR="${PAPOL_PROD_DIR:-/srv/papol/prod}"
-# Port 8000 is commonly occupied by local macOS tooling (including Codex),
-# while Papol's NixOS development host intentionally reserves it for this
-# server. Keep that established Linux default and make `./deploy.sh dev`
-# immediately usable on a Mac; PAPOL_DEV_PORT remains an explicit override.
-if [ "$(uname -s)" = Darwin ]; then
-  DEFAULT_DEV_PORT=8001
-else
-  DEFAULT_DEV_PORT=8000
-fi
-DEV_PORT="${PAPOL_DEV_PORT:-$DEFAULT_DEV_PORT}"
-PROD_BRANCH=production
-UNIT=papol
-WORKER_UNIT=papol-worker
-KEEP_BACKUPS=10
+# Where the Worker listens in development: wrangler's default, and what the
+# three Vite configs proxy /api and /uploads to.
+WRANGLER_PORT=8787
+# The NixOS host that runs GROBID, and Papol's checkout on it.
+HOST="${PAPOL_HOST:-congm@nixos}"
+HOST_DIR="${PAPOL_HOST_DIR:-/srv/papol/prod}"
 
 say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
 die()  { printf '\n\033[1;31mdeploy: %s\033[0m\n' "$*" >&2; exit 1; }
 
-confirm_deploy() {
-  local answer action="Deploy this revision to production"
-  [ -t 0 ] || die "production deployment requires confirmation from a terminal"
-  printf '\n%s? [y/N] ' "$action"
-  IFS= read -r answer || die "deployment confirmation was not received"
+confirm() {
+  local answer
+  [ -t 0 ] || die "$1 requires confirmation from a terminal"
+  printf '\n%s? [y/N] ' "$1"
+  IFS= read -r answer || die "confirmation was not received"
   case "$answer" in
     y|Y|yes|YES|Yes) ;;
-    *) die "deployment cancelled" ;;
+    *) die "cancelled" ;;
   esac
 }
 
 usage() {
-  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
-# Root, without hanging. A deploy run by a cron job or an agent has nobody
+# Root, without hanging. A command run by a cron job or an agent has nobody
 # to type a password at, and sudo waiting on a stdin that will never answer
-# looks exactly like a deploy that is still working.
-#
-# `sudo -l CMD` cannot be asked this: once the user has any NOPASSWD rule at
-# all it lists without a password and answers 0 for anything the wheel rule
-# permits, password or not. So try it with -n, which refuses rather than
-# prompts, and tell sudo saying no apart from the command saying no.
+# looks exactly like a command that is still working. So try it with -n,
+# which refuses rather than prompts, and tell sudo saying no apart from the
+# command saying no.
 as_root() {
   local err status
   err=$(mktemp)
@@ -93,104 +82,48 @@ as_root() {
     sudo "$@"
   else
     die "needs root, sudo wants a password, and there is no terminal to type it at:
-        sudo $*
-    Run it from a terminal, or add it to services.papol.deploy.passwordless."
+        sudo $*"
   fi
 }
 
-# --- the development database -------------------------------------------------
-#
-# Development owns a PostgreSQL cluster of its own, in the checkout: a
-# socket directory, no TCP, no password. It exists so that a laptop and the
-# NixOS host develop the same way, and so that the test suite always has a
-# database it is allowed to level. Production's cluster is the system one,
-# provisioned by module.nix, and the two share nothing.
-
-PGDIR="$DEV_DIR/.postgres"
-
-# The dev shell carries the PostgreSQL binaries; a shell that skipped
-# direnv does not.
-pg() {
-  local tool=$1; shift
-  if command -v "$tool" >/dev/null 2>&1; then
-    "$tool" "$@"
+# The tools come from flake.nix. A shell that entered through direnv has
+# them; one that did not is handed the same environment for the one command.
+with_tools() {
+  if command -v npm >/dev/null 2>&1; then
+    "$@"
   else
-    (cd "$DEV_DIR" && nix develop --command "$tool" "$@")
+    (cd "$DEV_DIR" && nix develop "$DEV_DIR" --command "$@")
   fi
-}
-
-dev_db_up() {
-  pg pg_isready -q -h "$PGDIR" -U papol 2>/dev/null
-}
-
-# Make the development cluster exist, run, and hold its two databases:
-# `papol` for the server, `papol_test` for the suite to level at will.
-ensure_dev_db() {
-  if [ ! -d "$PGDIR/data" ]; then
-    say "Creating the development database cluster in .postgres/"
-    pg initdb -D "$PGDIR/data" -U papol --auth=trust -E UTF8 >/dev/null
-  fi
-  if ! dev_db_up; then
-    say "Starting the development database"
-    pg pg_ctl -D "$PGDIR/data" -l "$PGDIR/log" \
-      -o "-k $PGDIR -c listen_addresses=''" start >/dev/null
-  fi
-  local db
-  for db in papol papol_test; do
-    pg psql -h "$PGDIR" -U papol -d postgres -tAc \
-      "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
-      || pg createdb -h "$PGDIR" -U papol "$db"
-  done
-}
-
-# `./deploy.sh db` — the cluster, up, and how to talk to it. Also what to
-# run before `python -m unittest` in backend/.
-dev_db() {
-  case "${1:-start}" in
-    start)
-      ensure_dev_db
-      say "Development database is up"
-      note "psql:  psql -h $PGDIR -U papol papol"
-      note "tests: (cd backend && DATABASE_URL='$(dev_db_url papol_test)' python -m unittest)"
-      ;;
-    stop)
-      dev_db_up && pg pg_ctl -D "$PGDIR/data" stop >/dev/null
-      note "development database stopped"
-      ;;
-    *) die "unknown db command: $1 (try start, stop)" ;;
-  esac
-}
-
-dev_db_url() {
-  echo "postgresql+psycopg://papol@/${1:-papol}?host=$PGDIR"
 }
 
 # --- building ---------------------------------------------------------------
 
-# The three Vite apps. `npm ci` only when the lockfile has moved on: a deploy
-# that changes no dependency should not spend a minute proving it.
-build_tree() {
-  local dir=$1 app
+# Every npm tree the application is built from. `install_node_tree` (below,
+# with the macOS section that first needed it) runs `npm ci` only when the
+# lockfile has moved on: a deploy that changes no dependency should not
+# spend a minute proving it.
+install_trees() {
+  local app
   for app in frontend viewer board; do
-    say "Building $app ($dir)"
-    if [ ! -d "$dir/$app/node_modules" ] \
-       || [ "$dir/$app/package-lock.json" -nt "$dir/$app/node_modules" ]; then
-      note "dependencies changed — npm ci"
-      (cd "$dir" && nix develop --command bash -c "cd $app && npm ci")
-    fi
-    if [ "$dir" = "$PROD_DIR" ] && [ "$app" = frontend ]; then
-      (cd "$dir" && nix develop --command bash -c "cd frontend && VITE_BASE=/papol/ npm run build")
-    else
-      (cd "$dir" && nix develop --command bash -c "cd $app && npm run build")
-    fi
+    install_node_tree "$DEV_DIR/$app"
   done
+  # --legacy-peer-deps because npm's peer resolver crashes on Vitest 5's
+  # optional peers while the Workers pool still wants Vitest 4.
+  install_node_tree "$DEV_DIR/cloudflare" --legacy-peer-deps
+}
 
-  # In the shell like the builds above it: npm and the browser it drives
-  # are the shell's, and a deploy run over ssh has no other PATH.
-  if [ "$dir" = "$PROD_DIR" ]; then
-    say "Browser smoke test ($dir)"
-    (cd "$dir" && nix develop --command bash -c "cd frontend && npm run smoke:browser")
-  fi
+# wrangler serves cloudflare/site as the Worker's assets and refuses to
+# start without the directory. `prod` assembles the real one; development
+# and the checks want the Worker up whether or not a site has been built,
+# and the Vite servers stand in front of it anyway.
+ensure_site() {
+  [ -e "$DEV_DIR/cloudflare/site/index.html" ] && return 0
+  mkdir -p "$DEV_DIR/cloudflare/site"
+  printf '<!doctype html><title>Papol</title>\n' > "$DEV_DIR/cloudflare/site/index.html"
+}
+
+wrangler() {
+  (cd "$DEV_DIR/cloudflare" && with_tools npx wrangler "$@")
 }
 
 # --- macOS desktop ----------------------------------------------------------
@@ -571,8 +504,10 @@ stop_existing_vite() {
 # npm keeps the lockfile used to populate node_modules here. Comparing against
 # that file avoids reinstalling on every run while still making a changed
 # package.json or package-lock.json take effect before a build starts.
+# Anything after the directory is handed to `npm ci`.
 install_node_tree() {
   local dir=$1 marker expected staging backup
+  shift
   marker="$dir/node_modules/.papol-package-input.sha256"
   expected=$(shasum -a 256 "$dir/package.json" "$dir/package-lock.json" | shasum -a 256 | cut -d' ' -f1)
   if [ -d "$dir/node_modules" ] && [ "$(cat "$marker" 2>/dev/null || true)" = "$expected" ]; then
@@ -583,7 +518,7 @@ install_node_tree() {
   # laptop that is temporarily offline, and `npm ls` still catches missing
   # or incompatible direct dependencies before a build starts.
   if [ -d "$dir/node_modules" ] && [ ! -e "$marker" ] \
-     && (cd "$dir" && npm ls --depth=0 --ignore-scripts >/dev/null 2>&1); then
+     && (cd "$dir" && with_tools npm ls --depth=0 --ignore-scripts >/dev/null 2>&1); then
     printf '%s\n' "$expected" > "$marker"
     return 0
   fi
@@ -591,7 +526,7 @@ install_node_tree() {
   say "Installing $(basename "$dir") dependencies"
   staging=$(mktemp -d "$dir/.papol-npm.XXXXXX")
   cp "$dir/package.json" "$dir/package-lock.json" "$staging/"
-  if ! (cd "$staging" && npm ci); then
+  if ! (cd "$staging" && with_tools npm ci "$@"); then
     rm -rf "$staging"
     die "dependency installation failed; the previous $(basename "$dir") node_modules was preserved"
   fi
@@ -732,7 +667,7 @@ valid_backend() {
 }
 
 macos_dev() {
-  local backend="http://127.0.0.1:$DEV_PORT"
+  local backend="http://127.0.0.1:$WRANGLER_PORT"
   while [ $# -gt 0 ]; do
     case "$1" in
       --backend)
@@ -754,7 +689,7 @@ macos_dev() {
   done
   if ! curl -fs -o /dev/null --max-time 2 "$backend/" 2>/dev/null; then
     note "backend is not answering at $backend; cached/offline work remains available"
-    note "start the backend separately when you need fresh server data"
+    note "start the Worker separately (./deploy.sh dev) when you need fresh server data"
   fi
 
   say "Papol macOS development"
@@ -845,7 +780,7 @@ macos_app_fingerprint() {
 }
 
 macos_prod() {
-  local backend="https://mc-pony.com/papol" checks=yes skip_notarize=no
+  local backend="https://papol.io" checks=yes skip_notarize=no
   local arg marker app dmg
   local app_hash cached_app_hash cached_dmg_hash dmg_hash dmg_marker bundle_root
   MACOS_TIMING_LABELS=()
@@ -1035,676 +970,197 @@ MSG
   esac
 }
 
+
 # --- development -------------------------------------------------------------
 
-# Bound, by anyone. dev_is_up asks whether papol is answering; this asks the
-# blunter question, which is the one that matters before binding it again.
+# Bound, by anyone. The blunter question is the one that matters before
+# binding a port again.
 port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
-WATCH_PIDS=()
-BACKEND_PID=
-WORKER_PID=
+DEV_PIDS=()
 
-# Killing the group is the polite way and usually enough. It is not
-# guaranteed, though: npm and nix each get a say in how the processes below
-# them are grouped, and a watcher that ends up in a group of its own
-# survives a signal aimed at its parent's. Since the thing left behind
-# rebuilds into a directory the next run is about to serve, the sweep
-# afterwards is worth the two lines.
-stop_watchers() {
-  local p
-  [ "${#WATCH_PIDS[@]}" -eq 0 ] && return 0
-  for p in "${WATCH_PIDS[@]}"; do
-    kill -TERM -"$p" 2>/dev/null || true
-  done
-  WATCH_PIDS=()
-  sleep 1
-  kill -TERM $(pgrep -f 'vite build --watch' || true) 2>/dev/null || true
+# Each server is backgrounded as a plain function call, which matters more
+# than it looks. Under `set -m` a backgrounded call leads a process group of
+# its own, so `kill -TERM -$!` takes it down whole — npm, node and whatever
+# workerd or vite spawned beneath them — instead of orphaning a runtime onto
+# init to keep answering a port the next run is about to bind. After
+# `cmd | sed &`, by contrast, `$!` is the pid of *sed*, the group is led by
+# the first command in the pipeline, and the kill names a group that does
+# not exist; so the pipe lives inside the function where it cannot confuse
+# the bookkeeping.
+labelled() {
+  local label=$1
+  shift
+  "$@" 2>&1 | sed -u "s/^/[$label] /"
 }
 
 stop_dev() {
-  if [ -n "$BACKEND_PID" ]; then
-    kill -TERM "$BACKEND_PID" 2>/dev/null || true
-    wait "$BACKEND_PID" 2>/dev/null || true
-    BACKEND_PID=
-  fi
-  if [ -n "$WORKER_PID" ]; then
-    kill -TERM "$WORKER_PID" 2>/dev/null || true
-    wait "$WORKER_PID" 2>/dev/null || true
-    WORKER_PID=
-  fi
-  stop_watchers
-}
-
-# The worker beside the server: the same code, the same environment, doing
-# what the server queues. It restarts itself when a backend file changes,
-# as uvicorn does, so an edit to a job is live at the next job.
-run_worker() {
-  (cd "$DEV_DIR/backend" && exec nix develop "$DEV_DIR" --command python worker.py --reload) &
-  WORKER_PID=$!
-}
-
-# Anything left rebuilding into dist from a run that is already over. Two
-# watchers on one directory is worse than none: they take turns writing the
-# same files and which one you are looking at is a race.
-kill_stray_watchers() {
-  local found
-  found=$(pgrep -f 'vite build --watch' || true)
-  [ -z "$found" ] && return 0
-  note "an earlier watcher is still running — stopping it first"
-  kill -TERM $found 2>/dev/null || true
-  sleep 1
-  kill -KILL $(pgrep -f 'vite build --watch' || true) 2>/dev/null || true
-}
-
-# One app's watcher, kept alive for as long as this run lasts.
-#
-# The loop is the point. A watcher is the only thing standing between a
-# saved file and what papol.local hands out, and when one dies nothing says
-# so — the server keeps serving, the page keeps loading, and every change
-# made from then on is invisible. That is a silent failure and an expensive
-# one: it costs you an afternoon of believing your own source.
-#
-# So a watcher that stops is restarted and complained about. `stop` is set
-# by the trap when this run is ending, which is the one case where a
-# watcher exiting is not news.
-watch_app() {
-  local app=$1 stop=no
-  trap 'stop=yes' TERM INT
-  while [ "$stop" = no ]; do
-    # `|| true`: under pipefail this pipeline's exit status is whatever
-    # killed the watcher, and set -e would otherwise take this whole
-    # function down right here — silently, before the restart below ever
-    # runs. That is the failure mode this loop exists to avoid.
-    # A watch process performs a full build as soon as it starts. Preserve
-    # the synchronous build already being served while that first pass runs;
-    # otherwise Vite briefly removes dist/assets and a simultaneous backend
-    # reload cannot import its StaticFiles mounts.
-    nix develop "$DEV_DIR" --command bash -c \
-      "cd '$DEV_DIR/$app' && npm run build -- --watch --emptyOutDir false" 2>&1 | sed -u "s/^/[$app] /" || true
-    [ "$stop" = yes ] && break
-    note "[$app] watcher stopped on its own — restarting"
-    sleep 2
+  local p
+  [ "${#DEV_PIDS[@]}" -eq 0 ] && return 0
+  for p in "${DEV_PIDS[@]}"; do
+    kill -TERM -"$p" 2>/dev/null || true
   done
+  DEV_PIDS=()
 }
 
-# What the server on 8000 hands out is dist, not source, so saving a file
-# changes nothing until something rebuilds it. `vite build --watch` is that
-# something: it rebuilds on save, and the next page load is the new code.
-#
-# `set -m` gives each watcher a process group of its own. Ctrl-C then does
-# not reach them — which is the point, because it means Ctrl-C reaches the
-# server first and the trap below takes the watchers down whole, nix develop
-# and npm and vite together, instead of orphaning vite to rebuild into a
-# directory nobody is serving any more.
-#
-# Each watcher is backgrounded as a plain function call and not as a
-# pipeline, which matters more than it looks. After `cmd | sed &`, `$!` is
-# the pid of *sed* — while the process group `set -m` made is led by the
-# first command in the pipeline. `kill -TERM -$!` then names a group that
-# does not exist, the trap above quietly does nothing, and the watchers are
-# left orphaned onto init to go on rebuilding into a directory nobody is
-# serving. That is what used to happen here. A function call has one pid,
-# it leads its own group, and the pipe now lives inside it where it cannot
-# confuse the bookkeeping.
-start_watchers() {
-  local app
-  kill_stray_watchers
-  set -m
-  for app in frontend viewer board; do
-    watch_app "$app" &
-    WATCH_PIDS+=($!)
-  done
-  set +m
-  trap stop_dev EXIT INT TERM
+dev_worker() {
+  cd "$DEV_DIR/cloudflare"
+  # Not interactive: its keys would read this terminal, which the Vite
+  # servers share, and Ctrl-C is the one key that is wanted.
+  with_tools npx wrangler dev --ip 127.0.0.1 --port "$WRANGLER_PORT" \
+    --show-interactive-dev-session=false
 }
 
-# Uvicorn's reload parent does not exit when a newly spawned application
-# process fails to import. Keep checking the listening socket so that such a
-# failure ends this command, instead of leaving a healthy-looking reloader and
-# three frontend watchers running forever.
-run_backend() {
-  local missed=0 backend_pid status
-
-  cd "$DEV_DIR/backend"
-  nix develop "$DEV_DIR" --command \
-    uvicorn main:app --reload --host 127.0.0.1 --port "$DEV_PORT" &
-  backend_pid=$!
-  BACKEND_PID=$backend_pid
-
-  while kill -0 "$backend_pid" 2>/dev/null; do
-    # The reload parent owns the listening socket, so probing the port cannot
-    # distinguish it from a live application. Its spawn child is the process
-    # that actually imported and serves main:app.
-    if pgrep -P "$backend_pid" -f 'multiprocessing.spawn' >/dev/null; then
-      missed=0
-    else
-      missed=$((missed + 1))
-      # Normal reloads briefly replace the worker. Ten half-second misses leave
-      # room for that while still turning a dead worker into a failed deploy.
-      if [ "$missed" -ge 10 ]; then
-        note "backend stopped answering during startup or reload"
-        kill -TERM "$backend_pid" 2>/dev/null || true
-        wait "$backend_pid" 2>/dev/null || true
-        BACKEND_PID=
-        return 1
-      fi
-    fi
-    sleep 0.5
-  done
-
-  if wait "$backend_pid"; then status=0; else status=$?; fi
-  BACKEND_PID=
-  return "$status"
+dev_app() {
+  cd "$DEV_DIR/$1"
+  with_tools npm run dev -- --host 127.0.0.1 --port "$2" --strictPort
 }
 
 # Development, in the foreground, for as long as this command runs. Nothing
 # is installed and nothing survives Ctrl-C — which is the whole difference
 # between this and production.
+#
+# The Worker answers on 8787 from a D1 and an R2 of its own under
+# cloudflare/.wrangler, reloading as its source changes. The three apps are
+# Vite's development servers: the frontend on 5173 proxies /viewer and
+# /boards to the other two and /api and /uploads to the Worker, so one
+# origin is the whole application and a saved file is on the next paint.
 run_dev() {
-  local build=yes watch=yes
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --no-build) build=no ;;
-      --no-watch) watch=no ;;
-      *) die "unknown option: $1 (--no-build, --no-watch)" ;;
-    esac
-    shift
+  [ $# -eq 0 ] || die "dev takes no options"
+  local port
+  for port in "$WRANGLER_PORT" 5173 5174 5175; do
+    port_busy "$port" && die "something already has port $port; stop it first"
   done
 
-  if port_busy "$DEV_PORT"; then
-    if [ "$(uname -s)" = Darwin ]; then
-      die "something already has port $DEV_PORT.
-    Choose an unused port with PAPOL_DEV_PORT=PORT ./deploy.sh dev."
-    else
-      die "something already has port $DEV_PORT.
-    If that is still production, it has not been moved to 8001 yet — see the
-    services.papol lines in /etc/nixos/configuration.nix."
-    fi
-  fi
+  install_trees
+  ensure_site
+  say "Preparing the local database"
+  wrangler d1 migrations apply papol --local
 
-  # papol.local reaches this server, and this server hands out whatever is
-  # in the three dist directories. Building first is what makes the name show
-  # the code you are working on.
-  [ "$build" = yes ] && build_tree "$DEV_DIR"
-
-  # The database, before the server that answers from it. It stays up when
-  # this command ends: the suite and a second `dev` reuse it, and stopping
-  # is `./deploy.sh db stop`.
-  ensure_dev_db
-
-  # .env carries development's mail sink, and nothing here guarantees direnv
-  # loaded it. Papol reads the environment before the settings table, so a
-  # shell without this file mails real users through the credentials in a
-  # database copied from production. Read it directly rather than hope.
-  if [ -e "$DEV_DIR/.env" ]; then
-    set -a; . "$DEV_DIR/.env"; set +a
-  fi
-  if [ "${SMTP_HOST:-}" = "" ]; then
-    note "warning: no SMTP_HOST in .env — this server can send real email"
-  fi
-
-  # Development and production share the host's GROBID container. The
-  # production systemd unit receives this URL from module.nix; development
-  # is a foreground process, so give it the same service automatically when
-  # the standard localhost endpoint is alive. An explicit .env value still
-  # wins for anyone running GROBID elsewhere.
-  if [ "${GROBID_URL:-}" = "" ] &&
-      [ "$(curl -fsS --max-time 2 http://127.0.0.1:8070/api/isalive 2>/dev/null || true)" = "true" ]; then
-    export GROBID_URL=http://127.0.0.1:8070
-    note "using the shared GROBID analyzer on 127.0.0.1:8070"
-  fi
-
-  # Uvicorn's reload supervisor deliberately stays alive when its worker
-  # cannot import the application. That is useful after a bad edit, but at
-  # startup it makes a failed deployment look healthy. Import once in the
-  # foreground so missing builds and every other startup error end this run
-  # before watchers or the reload supervisor are launched.
-  (cd "$DEV_DIR/backend" && nix develop "$DEV_DIR" --command python -c 'import main')
-
-  [ "$watch" = yes ] && start_watchers
-  # start_watchers installs this too, but --no-watch still needs Ctrl-C and
-  # shell exit to reap the now-supervised background server.
-  trap stop_dev EXIT INT TERM
-
-  if [ "$(uname -s)" = Darwin ]; then
-    say "Development on http://127.0.0.1:$DEV_PORT"
-  else
-    say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
-  fi
-  if [ "$watch" = yes ]; then
-    note "saving a file rebuilds it: backend and worker reload themselves; frontend,"
-    note "viewer, and board rebuild into dist — reload the page to see them"
-  else
-    note "not watching; backend and worker still reload themselves"
-  fi
-  note "For hot reload without a page refresh, npm run dev gives you 5173–5175."
+  say "Development"
+  note "http://127.0.0.1:5173             the application, live-reloading"
+  note "http://127.0.0.1:$WRANGLER_PORT             the Worker itself: /api, /uploads"
   note "Ctrl-C stops everything."
   echo
 
-  # The worker first, so a paper saved as soon as the server answers is
-  # analyzed rather than queued. This shell outlives the server so it can
-  # detect a dead reload worker and take the asset watchers and the job
-  # worker with it on the way out.
-  run_worker
-  run_backend
+  set -m
+  labelled worker dev_worker &
+  DEV_PIDS+=($!)
+  labelled frontend dev_app frontend 5173 &
+  DEV_PIDS+=($!)
+  labelled viewer dev_app viewer 5174 &
+  DEV_PIDS+=($!)
+  labelled board dev_app board 5175 &
+  DEV_PIDS+=($!)
+  set +m
+  trap stop_dev EXIT INT TERM
+  wait
 }
 
 # --- production -------------------------------------------------------------
 
-# Where deploy_prod builds the system, and what removes it afterwards.
-#
-# Both live out here rather than inside that function because the EXIT trap
-# that calls this runs once the function has already returned, when a `local`
-# is out of scope — and under `set -u` an EXIT trap that reaches for one turns
-# a finished deployment's last words into `staging: unbound variable`.
-PROD_STAGING=
-
-clean_prod_staging() {
-  [ -n "$PROD_STAGING" ] || return 0
-  rm -rf "$PROD_STAGING"
-  PROD_STAGING=
-}
-
-# The port the running unit was actually given, rather than a copy of it
-# kept here that could drift from module.nix.
-prod_port() {
-  systemctl cat "$UNIT" 2>/dev/null \
-    | sed -n 's/.*ExecStart=.*--port \([0-9]\+\).*/\1/p' | head -1
-}
-
-# First run: create the production worktree and seed only its configuration.
-# Production data starts independently and is never copied from development.
-init_prod() {
-  [ -e "$PROD_DIR/.git" ] && return 0
-
-  say "Creating $PROD_DIR"
-  if [ ! -d "$(dirname "$PROD_DIR")" ]; then
-    note "needs root once, to make the directory"
-    as_root install -d -o "$(id -un)" -g "$(id -gn)" "$(dirname "$PROD_DIR")"
-  fi
-  if git -C "$DEV_DIR" rev-parse --verify -q "$PROD_BRANCH" >/dev/null; then
-    git -C "$DEV_DIR" worktree add "$PROD_DIR" "$PROD_BRANCH"
-  else
-    git -C "$DEV_DIR" worktree add "$PROD_DIR" -b "$PROD_BRANCH" "${1:-main}"
-  fi
-
-  say "Seeding production configuration from $DEV_DIR"
-  if [ -e "$DEV_DIR/.env" ] && [ ! -e "$PROD_DIR/.env" ]; then
-    cp -p "$DEV_DIR/.env" "$PROD_DIR/.env"
-    note "copied .env"
-  fi
-
-  # Development's .env points mail at a dead port, and the environment wins
-  # over the settings table — so seeding that line into production is how
-  # you notice, weeks later, that nobody has had an email. Production keeps
-  # the rest of the file and gets its SMTP from the database, as before.
-  if [ -e "$PROD_DIR/.env" ] && grep -q '^SMTP_HOST=localhost$' "$PROD_DIR/.env"; then
-    sed -i '/^SMTP_HOST=localhost$/d; /^SMTP_PORT=1025$/d; /^SMTP_STARTTLS=0$/d' \
-      "$PROD_DIR/.env"
-    note "dropped development's mail sink from production's .env"
-  fi
-  chmod 600 "$PROD_DIR/.env" 2>/dev/null || true
-
-  cat <<MSG
-
-    Production now has its own checkout and secrets. Its database and uploads
-    start independently from development. Two things to do to development's
-    configuration, once:
-
-      - point SMTP at a sink in .env, so development cannot mail users
-        (SMTP_HOST=localhost, SMTP_PORT=1025, SMTP_STARTTLS=0)
-      - PAPOL_URL, if you want development's links to say so
-MSG
-}
-
-# Is the system still configured against the old, in-tree service?
-check_system_config() {
-  local nixos=/etc/nixos/configuration.nix
-  grep -q "$PROD_DIR" "$nixos" 2>/dev/null && return 0
-  cat <<MSG
-
-$nixos still runs papol from a source tree rather than from
-$PROD_DIR. Until it points here, a deploy moves files that
-nothing reads. Replace the papol lines with:
-
-  imports = [ $PROD_DIR/module.nix ];
-
-  services.papol = {
-    enable = true;
-    srcDir = "$PROD_DIR";
-    port = 8001;          # development keeps 8000, the one you type by hand
-    hostAliasPort = 8000; # http://papol.local reaches development
-    contactEmail = "hflsmax@gmail.com";
-    cloudflare = { enable = true; tunnelId = "9c2e5542-9cc6-407e-bd24-96890af50130"; };
-  };
-
-then run this again.
-MSG
-  exit 1
-}
-
+# The Worker, from this checkout as it stands. wrangler is assumed to be
+# logged in (`npx wrangler login` in cloudflare/); the site is assembled
+# from fresh builds of the three apps and goes up with the code as the
+# Worker's static assets, so one deploy is the whole application.
 deploy_prod() {
-  local ref=main ref_set=no arg
-  for arg in "$@"; do
-    case "$arg" in
-      -*) die "unknown prod option: $arg" ;;
-      *)
-        [ "$ref_set" = no ] || die "prod takes one ref (default: main)"
-        ref=$arg
-        ref_set=yes
-        ;;
-    esac
-  done
-  [ "$DEV_DIR" = "$PROD_DIR" ] && die "run this from your working tree, not from production"
+  [ $# -eq 0 ] || die "prod takes no options"
 
-  init_prod "$ref"
-  check_system_config
-  [ -n "$(git -C "$PROD_DIR" status --porcelain)" ] \
-    && die "$PROD_DIR has uncommitted changes; production is a checkout, not a workspace"
-
-  local rev old
-  rev=$(git -C "$DEV_DIR" rev-parse --verify "$ref^{commit}") \
-    || die "no such ref: $ref"
-  old=$(git -C "$PROD_DIR" rev-parse HEAD)
-
-  if [ "$old" = "$rev" ]; then
-    say "Production revision"
-    note "current and target: $(git -C "$DEV_DIR" log -1 --oneline "$rev")"
-  else
-    say "Commits for $ref → production"
-    note "current: $(git -C "$DEV_DIR" log -1 --oneline "$old")"
-    note "target:  $(git -C "$DEV_DIR" log -1 --oneline "$rev")"
-    git -C "$DEV_DIR" log --oneline --left-right "$old...$rev" 2>/dev/null \
-      | sed -e 's/^</    remove /' -e 's/^>/    add    /' || true
-  fi
-
+  say "Deploying to https://papol.io"
+  note "$(git -C "$DEV_DIR" log -1 --oneline)"
+  [ -z "$(git -C "$DEV_DIR" status --porcelain)" ] \
+    || note "note: the working tree has uncommitted changes — they go up too"
   # Deploying something no remote has is allowed — it is a solo project —
   # but it should be said out loud, because production is then the only
   # copy of those commits.
   if git -C "$DEV_DIR" rev-parse --verify -q origin/main >/dev/null \
-     && ! git -C "$DEV_DIR" merge-base --is-ancestor "$rev" origin/main; then
-    note "note: $ref is ahead of origin/main — these commits are not pushed anywhere"
+     && ! git -C "$DEV_DIR" merge-base --is-ancestor HEAD origin/main; then
+    note "note: HEAD is not on origin/main — these commits are not pushed anywhere"
   fi
+  confirm "Deploy this revision to production"
 
-  confirm_deploy
+  install_trees
+  say "Building the site"
+  with_tools bash "$DEV_DIR/cloudflare/scripts/assemble.sh"
 
-  git -C "$PROD_DIR" reset --hard "$rev" --quiet
-  note "production is at $(git -C "$PROD_DIR" log -1 --oneline)"
+  # The build that was just laid out, opened in a browser: a passing suite
+  # is not a working link, and this is the last look before it goes up.
+  say "Browser smoke test"
+  (cd "$DEV_DIR/frontend" && with_tools npm run smoke:browser)
 
-  build_tree "$PROD_DIR"
+  say "Deploying the Worker"
+  wrangler deploy
 
-  # module.nix and flake.nix describe the service itself, and the running
-  # system reads them from this checkout, so when they move a restart is not
-  # enough — the unit has to be rebuilt around them.
-  #
-  # Whether they moved is settled by building the system here and comparing
-  # it with the one that is running. That is the only form of the question
-  # that cannot be answered wrongly, and it is not the question this used to
-  # ask: it diffed module.nix between the outgoing and incoming revisions,
-  # which says what changed in the checkout and nothing whatever about what
-  # reached the machine. So a rebuild that failed once could never be
-  # retried. The next run found the checkout already at the target revision,
-  # concluded there was nothing to rebuild, restarted the old unit against
-  # the new code, and reported a service that would not come up — without
-  # ever mentioning the rebuild it had skipped. An hour of production went
-  # that way, and the log said `ImportError` the whole time.
-  #
-  # Building first, and as an ordinary user, is worth as much again: a
-  # module.nix that does not evaluate now fails here, while production is
-  # still up and serving, rather than after it has been stopped.
-  local rebuild=no built
-  PROD_STAGING=$(mktemp -d)
-  trap clean_prod_staging EXIT
-  # module.nix opens the checkout as a flake, which needs the feature on.
-  # The module turns it on for the host; this passes it for the rebuild
-  # that first does so, and is nothing once it has.
-  local -a flakes=(--option extra-experimental-features "nix-command flakes")
-  say "Building the system this checkout describes"
-  (cd "$PROD_STAGING" && nixos-rebuild build "${flakes[@]}") \
-    || die "this checkout does not describe a system that builds. Production is
-    untouched and still serving; fix module.nix or flake.nix and deploy again."
-  # Read through the symlink but leave it there: while it exists it is the
-  # garbage collector's only reason to spare what was just built.
-  built=$(readlink -f "$PROD_STAGING/result")
-  if [ "$built" = "$(readlink -f /run/current-system)" ]; then
-    note "the running system is already the one this checkout describes"
-  else
-    rebuild=yes
-    note "the running system is not this one — this deploy activates $(basename "$built")"
-  fi
-
-  say "Stopping $UNIT and $WORKER_UNIT"
-  # The worker first: a job in hand finishes (the unit waits for it), and
-  # nothing new is queued once the web tier is down.
-  as_root systemctl stop "$WORKER_UNIT" "$UNIT"
-
-  # Taken with the service down. A build written for another schema refuses
-  # to start on this database; bringing it across by hand starts from here.
-  # On the deploy that first brings PostgreSQL to this host, the system
-  # cluster is not up yet — then there is nothing to back up.
-  if pg pg_isready -q -h /run/postgresql 2>/dev/null; then
-    local bak="$PROD_DIR/backend/backups/papol-$(date +%F-%H%M%S)-pre-deploy.dump"
-    mkdir -p "$PROD_DIR/backend/backups"
-    pg pg_dump -h /run/postgresql -U papol -Fc -f "$bak" papol
-    note "database backed up to backups/$(basename "$bak")"
-    ls -1t "$PROD_DIR"/backend/backups/papol-*-pre-deploy.dump 2>/dev/null \
-      | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -- || true
-  else
-    note "no system PostgreSQL answering yet — nothing to back up"
-  fi
-
-  # From here production is down, so nothing may exit without either
-  # bringing it back or saying plainly that it could not. Activation is
-  # where this bites: the system is built by now, so what remains is root
-  # switching to it, and that still needs a password this script cannot
-  # supply — an unanswered sudo prompt is a failed deploy like any other.
-  if [ "$rebuild" = yes ]; then
-    say "Activating the new system"
-    if ! as_root nixos-rebuild switch "${flakes[@]}"; then
-      note "activation failed — putting the old service back"
-      as_root systemctl start "$UNIT" "$WORKER_UNIT" \
-        || die "activation failed AND $UNIT would not start. Production is down.
-    The database is untouched, backed up beside it, and the checkout is at
-    $(git -C "$PROD_DIR" rev-parse --short HEAD); putting the code back is
-    git -C $PROD_DIR reset --hard $old"
-      die "the system built but would not activate, so production is serving the
-    old unit from the new checkout — which is the combination that crash-loops.
-    Deploying again retries the activation; it no longer skips it."
-    fi
-  else
-    say "Starting $UNIT and $WORKER_UNIT"
-    as_root systemctl start "$UNIT" "$WORKER_UNIT" || die "$UNIT would not start. Production is down.
-    journalctl -u $UNIT is where it says why; the pre-deploy database backup
-    is beside the database."
-  fi
-
-  health_check
-  worker_check
-  link_check "$old"
+  link_check
 }
 
-# The web tier answering says nothing about the worker: a paper saved now
-# would say "pending" for as long as nobody noticed. Ask systemd.
-worker_check() {
-  local i
-  for i in $(seq 10); do
-    if [ "$(systemctl is-active "$WORKER_UNIT" 2>/dev/null || true)" = active ]; then
-      note "$WORKER_UNIT is running"
-      return 0
-    fi
-    sleep 1
-  done
-  printf '\n'
-  as_root journalctl -u "$WORKER_UNIT" -n 30 --no-pager
-  die "$WORKER_UNIT is not running — the log is above. The site is up, but
-    uploads, reference analysis, captures and mail wait on this unit."
-}
-
-# The service is up when it serves the page — which also says the build
-# landed, not just that uvicorn survived importing itself.
-health_check() {
-  local port; port=$(prod_port)
-  [ -z "$port" ] && { note "could not read the unit's port; skipping the health check"; return 0; }
-
-  say "Checking http://127.0.0.1:$port/"
-  local i
-  for i in $(seq 30); do
-    if curl -fs -o /dev/null --max-time 3 "http://127.0.0.1:$port/"; then
-      note "production is answering on $port"
-      return 0
-    fi
-    sleep 1
-  done
-
-  printf '\n'
-  as_root journalctl -u "$UNIT" -n 30 --no-pager
-  die "production did not come up — the log is above, and the database backup is beside it"
-}
-
-# Answering is not the same as working. The page above is the application
-# shell, which production serves for every path including the ones the browser
-# router no longer knows, so a deployment whose paper links are all dead passes
-# the check above without a murmur. Open the real links and see.
+# Deployed is not the same as working. The site answers 200 for every path
+# it has never heard of, so open the real links in a browser and see which
+# page each one rendered.
 link_check() {
-  local previous="$1" digest status=0
-
-  # The public URL, not the port above. The built application asks for its own
-  # scripts under /papol, which the proxy in front of the service strips: on
-  # the loopback port those requests fall into the single-page catch-all and
-  # come back as HTML, so nothing renders and every link looks dead. Papol is
-  # only whole where a reader meets it.
-  local public="${PAPOL_PUBLIC_URL:-https://mc-pony.com/papol}"
-
-  # A paper production really has, so the link under test is one a reader
-  # could be holding. Newest first: it is the most likely to exist tomorrow.
-  digest=$(pg psql -h /run/postgresql -U papol -d papol -tAc \
-    "select sha256 from papers where deleted_at is null order by created_at desc limit 1" \
-    2>/dev/null) || digest=""
-
+  local status=0
   say "Opening production's links"
-  "$DEV_DIR/health/links.sh" "$public" "$digest" || status=$?
+  with_tools bash "$DEV_DIR/health/links.sh" "https://papol.io" || status=$?
   [ "$status" -eq 0 ] && return 0
   # 2 is the check failing to stand up — no browser, or the application never
   # loading at all. That says nothing about this revision's routing, so it is
   # reported and stepped over rather than being blamed on the deployment.
   [ "$status" -eq 2 ] && { note "the link check could not run; open a paper link by hand"; return 0; }
   die "production is serving pages, but some of its links no longer open what
-    they name. The service is up and the previous checkout is at $previous;
-    git -C $PROD_DIR reset --hard $previous puts the code back."
+    they name. Deploy the previous revision to put it back."
+}
+
+# The NixOS host: GROBID and the tunnel that carries it to the Worker, as
+# module.nix describes them. The host's configuration imports module.nix
+# from its checkout, so updating it is fast-forwarding that checkout to
+# main and rebuilding — passwordless with services.papol.deploy.
+# passwordlessRebuild on. Plain ssh, deliberately: sudo's rule matches the
+# bare command, and the host has nothing of Papol's to build but the system.
+deploy_host() {
+  [ $# -eq 0 ] || die "host takes no options"
+  say "Updating $HOST"
+  note "$HOST_DIR fast-forwards to origin/main, then nixos-rebuild switch"
+  ssh "$HOST" "cd $HOST_DIR && git fetch origin && git merge --ff-only origin/main && sudo /run/current-system/sw/bin/nixos-rebuild switch"
 }
 
 # --- pulling production data into development -------------------------------
 
-dev_is_up() {
-  curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
-}
-
-# The files a pulled database names. Each checkout's .env says where its
-# files are — a bucket, or the uploads/ and board_uploads/ directories beside
-# it — and scripts/pull-files.py copies across whatever development does not
-# have, from either kind of store to either kind. Every file Papol stores is
-# written once under a name that never comes back, so a name both sides hold
-# already holds the same bytes, and that copy is the whole sync.
-pull_files() {
-  (cd "$DEV_DIR" && nix develop "$DEV_DIR" --command \
-    python scripts/pull-files.py "$PROD_DIR" "$DEV_DIR")
-}
-
 # Pulling is deliberately one-way and explicit. Production is read through
-# pg_dump, which takes a consistent snapshot while it continues serving,
-# and is never modified.
+# `d1 export`, which takes a consistent snapshot while it continues serving,
+# and is never modified. The files stay where they are: a pulled paper is
+# listed here, but its PDF is in production's bucket and not in the local
+# one, so opening it is a 404 until it is uploaded again.
 pull_data() {
-  [ "$#" -eq 0 ] || die "pull takes no options"
-  [ "$DEV_DIR" = "$PROD_DIR" ] && die "development and production are the same tree"
-  pg pg_isready -q -h /run/postgresql 2>/dev/null \
-    || die "no system PostgreSQL answering on /run/postgresql — is production on this host?"
-
+  [ $# -eq 0 ] || die "pull takes no options"
   # Replacing a database beneath a running server can leave it answering
   # from a mixture of the old and new data.
-  dev_is_up && die "the development server is answering on $DEV_PORT — stop it first"
+  port_busy "$WRANGLER_PORT" \
+    && die "the Worker is answering on $WRANGLER_PORT — stop it first"
+  install_node_tree "$DEV_DIR/cloudflare" --legacy-peer-deps
 
-  ensure_dev_db
+  local dump
+  dump=$(mktemp "${TMPDIR:-/tmp}/papol-prod.XXXXXX")
+  trap 'rm -f "$dump"' RETURN
 
-  # Development's live sessions, kept aside so signing in again is not part
-  # of every pull. Only where the account identity still matches the pulled
-  # data do they come back. The column list is auth_tokens' shape spelled
-  # out; a schema change that moves it shows up here as a failed pull, not
-  # as sessions quietly gone.
-  local sessions="$PGDIR/pull-sessions-$$.csv" pulled="$PGDIR/pull-$$.dump"
-  trap 'rm -f "$sessions" "$pulled"' RETURN
-  pg psql -h "$PGDIR" -U papol -d papol -qc "\\copy (SELECT s.token, s.user_uuid, s.created_at, s.last_used_at, s.platform, s.revoked_at, u.email FROM auth_tokens s JOIN users u ON u.uuid = s.user_uuid WHERE s.revoked_at IS NULL) TO '$sessions' CSV" 2>/dev/null \
-    || sessions=""
+  say "Exporting production's database"
+  wrangler d1 export papol --remote --output "$dump"
+  note "$(du -h "$dump" | cut -f1)"
 
-  # And the rest of what development held, in case this pull is regretted.
-  local dev_bak="$PGDIR/backups/papol-$(date +%F-%H%M)-pre-pull.dump"
-  mkdir -p "$PGDIR/backups"
-  if pg pg_dump -h "$PGDIR" -U papol -Fc -f "$dev_bak" papol 2>/dev/null; then
-    say "Kept development's database as .postgres/backups/$(basename "$dev_bak")"
-    ls -1t "$PGDIR"/backups/papol-*-pre-pull.dump 2>/dev/null \
-      | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -- || true
-  fi
+  # The export carries the schema, so it goes into an empty database. The
+  # local D1 is a SQLite file under .wrangler/state, and starting over is
+  # deleting it; the migrations table comes across with the rest, so the
+  # next `dev` finds nothing to apply.
+  say "Replacing the local database"
+  rm -rf "$DEV_DIR/cloudflare/.wrangler/state/v3/d1"
+  wrangler d1 execute papol --local --file "$dump"
 
-  # Before the database, not after. A row names a file in the store, and a
-  # pull that brought the rows alone left development holding papers whose
-  # PDFs were never there — a 404 from /uploads at the moment of opening one.
-  # Interrupted here, development still has its own database and a few extra
-  # files, which is nothing; the other order leaves the breakage behind.
-  say "Pulling production's files into development"
-  pull_files
-
-  # pg_dump takes a consistent snapshot while production continues serving.
-  say "Pulling production database into development"
-  pg pg_dump -h /run/postgresql -U papol -Fc -f "$pulled" papol
-  note "$(du -h "$pulled" | cut -f1)"
-  pg dropdb -h "$PGDIR" -U papol --if-exists papol
-  pg createdb -h "$PGDIR" -U papol papol
-  pg pg_restore -h "$PGDIR" -U papol -d papol --no-owner --no-privileges "$pulled"
-
-  # Production sessions must not work in development; development's own
-  # come back where the account they named still exists unchanged. And
-  # production's credentials and URLs must not become active here.
+  # Production sessions must not work here, and production's mail
+  # credentials must not become active here.
   say "Scrubbing production's reach out of the copy"
-  pg psql -h "$PGDIR" -U papol -d papol -q <<SQL
-BEGIN;
-DELETE FROM auth_tokens;
-CREATE TEMP TABLE old_sessions
-  (token TEXT, user_uuid TEXT, created_at TIMESTAMP, last_used_at TIMESTAMP,
-   platform TEXT, revoked_at TIMESTAMP, email TEXT);
-${sessions:+\\copy old_sessions FROM '$sessions' CSV}
-INSERT INTO auth_tokens (token, user_uuid, created_at, last_used_at, platform, revoked_at)
-  SELECT o.token, o.user_uuid, o.created_at, o.last_used_at, o.platform, o.revoked_at
-  FROM old_sessions o
-  JOIN users c ON c.uuid = o.user_uuid AND c.email = o.email;
-DELETE FROM settings WHERE key LIKE 'smtp_%';
-INSERT INTO settings (key, value) VALUES ('site_url', 'http://papol.local/')
-  ON CONFLICT(key) DO UPDATE SET value = excluded.value;
-COMMIT;
-SQL
-  note "production sessions and SMTP credentials dropped; site_url now points at development"
-  say "Done. Development now contains a sanitized copy of production's database."
-}
-
-# --- status -----------------------------------------------------------------
-
-status() {
-  local port; port=$(prod_port)
-  say "development — $DEV_DIR"
-  note "$(git -C "$DEV_DIR" log -1 --oneline 2>/dev/null || echo 'not a checkout')"
-  if dev_is_up; then
-    note "running on $DEV_PORT, and http://papol.local reaches it"
-  else
-    note "not running (./deploy.sh dev)"
-  fi
-
-  say "production — $PROD_DIR"
-  if [ -e "$PROD_DIR/.git" ]; then
-    note "$(git -C "$PROD_DIR" log -1 --oneline)"
-  else
-    note "not created yet (./deploy.sh prod)"
-  fi
-  note "$(systemctl is-active "$UNIT" 2>/dev/null || true) — $UNIT${port:+ on $port}"
-  note "$(systemctl is-active "$WORKER_UNIT" 2>/dev/null || true) — $WORKER_UNIT"
+  wrangler d1 execute papol --local \
+    --command "DELETE FROM auth_tokens; DELETE FROM settings WHERE key LIKE 'smtp_%'"
+  note "production sessions and SMTP credentials dropped; sign in again"
+  say "Done. Development now holds a sanitized copy of production's database."
 }
 
 # --- ------------------------------------------------------------------------
@@ -1712,10 +1168,9 @@ status() {
 case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
   prod)   shift; deploy_prod "$@" ;;
+  host)   shift; deploy_host "$@" ;;
   pull)   shift; pull_data "$@" ;;
-  db)     shift; dev_db "$@" ;;
-  status) status ;;
   macos)  shift; run_macos "$@" ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, pull, db, status, macos)" ;;
+  *)      die "unknown target: $1 (try dev, prod, host, pull, macos)" ;;
 esac
