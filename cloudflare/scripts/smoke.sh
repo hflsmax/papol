@@ -5,10 +5,14 @@
 #
 #   scripts/smoke.sh https://dev.papol.io
 #
-# It registers an account each time it runs and closes it at the end, so
-# it leaves nothing behind wherever it runs.
+# With --read-only it asks and writes nothing: the doors and the refusals.
+# Otherwise it registers an account, uploads a paper, paints and lets go,
+# and closes the account. The paper it uploaded stays in the Library, since
+# a paper is nobody's — so the full run is for dev, never for production.
 set -euo pipefail
-base=${1:?usage: smoke.sh <https://host>}
+read_only=no
+[ "${1:-}" = --read-only ] && { read_only=yes; shift; }
+base=${1:?usage: smoke.sh [--read-only] <https://host>}
 host=${base#https://}
 fail() { echo "smoke: $*" >&2; exit 1; }
 expect() { # expect <label> <wanted status> <curl args...>
@@ -25,6 +29,7 @@ expect "the viewer" 200 "$base/viewer/"
 expect "a board document" 200 "$base/boards/00000000-0000-0000-0000-000000000000"
 expect "the API refuses a stranger" 401 "$base/api/papers"
 expect "an unknown API path is not a page" 404 "$base/api/no-such-route"
+[ "$read_only" = yes ] && { echo "smoke: all good at $base (read-only)"; exit 0; }
 
 email="smoke-$(date +%s)-$RANDOM@example.test"
 token=$(curl -s -m 30 -X POST "$base/api/auth/register" -H 'content-type: application/json' \
