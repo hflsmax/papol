@@ -74,22 +74,24 @@ export function annotationOut(row: Row) {
   };
 }
 
+// A seminar as a paper page or a nook lists it: its state, who called
+// it, who hosts it, who is in the cohort.
+export async function roomSummary(db: D1Database, room: Row) {
+  const creator = await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", room.created_by);
+  const leader = room.leader_uuid ? await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", room.leader_uuid) : null;
+  const participants = await all<Row>(db,
+    "SELECT u.* FROM room_participants p JOIN users u ON u.uuid = p.user_uuid WHERE p.room_uuid = ? ORDER BY p.created_at, p.uuid", room.uuid);
+  return {
+    uuid: room.uuid, status: room.status, scheduled_time: room.scheduled_time ?? null, platform: room.platform ?? null,
+    style: room.style ?? null, style_desc: room.style_desc ?? null, created_at: room.created_at,
+    creator: creator ? userPublic(creator) : null, leader: leader ? userPublic(leader) : null,
+    participants: participants.map(userPublic),
+  };
+}
+
 async function roomSummaries(db: D1Database, paperSha256: string) {
   const rooms = await all<Row>(db, "SELECT * FROM rooms WHERE paper_sha256 = ? ORDER BY created_at DESC, uuid DESC", paperSha256);
-  const summaries = [];
-  for (const room of rooms) {
-    const creator = await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", room.created_by);
-    const leader = room.leader_uuid ? await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", room.leader_uuid) : null;
-    const participants = await all<Row>(db,
-      "SELECT u.* FROM room_participants p JOIN users u ON u.uuid = p.user_uuid WHERE p.room_uuid = ? ORDER BY p.created_at, p.uuid", room.uuid);
-    summaries.push({
-      uuid: room.uuid, status: room.status, scheduled_time: room.scheduled_time ?? null, platform: room.platform ?? null,
-      style: room.style ?? null, style_desc: room.style_desc ?? null, created_at: room.created_at,
-      creator: creator ? userPublic(creator) : null, leader: leader ? userPublic(leader) : null,
-      participants: participants.map(userPublic),
-    });
-  }
-  return summaries;
+  return Promise.all(rooms.map((room) => roomSummary(db, room)));
 }
 
 // The canonical paper, merged with the viewer's own copy — summary,
