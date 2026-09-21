@@ -4,8 +4,8 @@
   inputs = {
     # One nixpkgs: the current stable release, which is what Papol deploys
     # from. Everything reads it — the dev shells, `.#python`, and module.nix
-    # through backend-python.nix's lockedNixpkgs — so what the suite ran
-    # against and what production serves can never be two different answers.
+    # through this flake — so what the suite ran against and what production
+    # serves can never be two different answers.
     # A release branch only takes fixes, so `nix flake update` is news about
     # security patches, not a surprise toolchain; moving to the next release
     # (26.11 and onward) is a deliberate edit here, made while this branch
@@ -29,19 +29,50 @@
     # ---------------------------------------------------------------------
     # What Papol needs.
     #
-    # The backend's own runtime — the package list and the overrides — lives
-    # in backend-python.nix, which the systemd service reads too. It is one
-    # file rather than a copy on each side because the shell, the suite and
-    # the service have to be running the same libraries for a green suite to
-    # mean anything about a deploy.
+    # The backend's runtime is stated here once and read from here by
+    # everything that runs the backend: the shell, the suite, `.#python`,
+    # and the production service, which module.nix builds from this very
+    # flake. There used to be two of these. The service built its own
+    # interpreter from whatever nixpkgs the host's channel happened to be
+    # on, nothing compared them, and a deploy that passed every test here
+    # crash-looped in production on an import only the newer FastAPI had.
     # ---------------------------------------------------------------------
-    backend = import ./backend-python.nix;
-    inherit (backend) skipUpstreamTests;
 
-    devPkgsFor = system: import nixpkgs {
-      inherit system;
-      overlays = [ skipUpstreamTests ];
-    };
+    # No overlays, and the release's default interpreter. Both are about
+    # the binary cache: every derivation the shell asks for is then one
+    # Hydra built, so cache.nixos.org answers for all of it. Hydra builds
+    # the whole package set only for the default python3; a pinned
+    # python312 on a release whose default is 3.13 had every shell and CI
+    # job compiling mupdf, pymupdf and yt-dlp's test suite from source, a
+    # quarter of an hour before the first test ran. An override is likewise
+    # a derivation Hydra has never seen: the overlay that once turned off
+    # fastapi's tests was itself a guaranteed local build.
+    pkgsFor = system: import nixpkgs { inherit system; };
+
+    # The backend's imports, and nothing more. This is the deployed closure,
+    # so convenience does not belong in it — a server has no use for a
+    # linter and no business carrying a browser.
+    backendPython = pkgs: pkgs.python3.withPackages (ps: with ps; [
+      fastapi
+      uvicorn
+      sqlalchemy
+      psycopg          # PostgreSQL driver: DATABASE_URL is postgresql+psycopg://
+      pydantic
+      pymupdf          # imported as `fitz`
+      httpx
+      python-multipart
+      yt-dlp
+    ]);
+
+    # The database, pinned by major version for the same reason the Python
+    # is pinned at all: the suite runs against the development cluster, and
+    # a green suite only says something about production if production is
+    # the same PostgreSQL. Without this, the dev shell took the rolling
+    # channel's default (18) while services.postgresql took the host
+    # channel's stateVersion default (15), and nothing compared them. Moving
+    # to a new major is a deliberate edit here, paired with a dump/restore
+    # of production's data directory — never a side effect of a channel bump.
+    postgresql = pkgs: pkgs.postgresql_18;
 
     # The one browser in the shell: Chrome for Testing, which nixpkgs
     # packages as Playwright's browser bundle and builds for every system
@@ -71,10 +102,10 @@
     # brings of its own — the linker, the SDK, codesign — and nothing in
     # nixpkgs stands in for them.
     devPackages = pkgs: with pkgs; [
-      (python312.withPackages backend.packages)
+      (backendPython pkgs)
       (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, board/ and desktop/ are npm projects
-      (backend.postgresql pkgs)  # the database, the major production runs
+      (postgresql pkgs)    # the database, the major production runs
       sqlite               # reads old papol.db copies and the demo seed work
       ripgrep              # fast repository-wide source search
       gh                   # pull requests and releases on GitHub
@@ -116,27 +147,27 @@
     };
 
   in {
-    # Plain, and it matters that there is nothing to say about it. This module
-    # used to be handed an interpreter built from the importing system's pkgs,
-    # which meant the service ran a different FastAPI depending on how it had
-    # been imported and how current the host's channel was. module.nix pins
-    # its own interpreter now, so both ways in produce the same service.
+    # Plain, and it matters that there is nothing to say about it. The
+    # module reads its interpreter and its database from this flake, so a
+    # host that imports the file from a channel configuration and one that
+    # takes it as a flake input run the same service.
     nixosModules.default = import ./module.nix;
 
-    packages = forAllSystems (system: {
-      # The interpreter the deployed service runs under, exposed so it can be
-      # inspected without evaluating a whole NixOS system: `nix build .#python`
-      # and read what is in its site-packages. The flake's one input is the
-      # same source module.nix reaches through backend-python.nix's
-      # lockedNixpkgs, and the overlay is the same, so this is the server's
-      # interpreter itself and not a lookalike that could answer differently.
-      python = (devPkgsFor system).python312.withPackages backend.packages;
+    packages = forAllSystems (system: let pkgs = pkgsFor system; in {
+      # The interpreter the deployed service runs under: module.nix takes
+      # it from here, so this is the server's interpreter itself and not a
+      # lookalike that could answer differently. `nix build .#python` and
+      # read what is in its site-packages.
+      python = backendPython pkgs;
+
+      # The production cluster's PostgreSQL, likewise.
+      postgresql = postgresql pkgs;
 
       default = self.packages.${system}.python;
     });
 
     devShells = forAllSystems (system: let
-      pkgs = devPkgsFor system;
+      pkgs = pkgsFor system;
       # No C compiler of nixpkgs' own, on any system. Nothing in this shell
       # compiles C on Linux, and on a Mac the app has to link with Xcode's
       # clang and SDK. nixpkgs' SDK propagates libiconv, libresolv and

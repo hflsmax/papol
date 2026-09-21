@@ -4,9 +4,9 @@ let
   cfg = config.services.papol;
   appLimits = builtins.fromJSON (builtins.readFile ./config/app_limits.json);
 
-  # The interpreter the service runs, built from the nixpkgs this checkout is
-  # locked to rather than from `pkgs` — deliberately, and it is the only thing
-  # here that leaves the host's channel behind.
+  # The interpreter the service runs, and its database, read from this
+  # checkout's own flake rather than from `pkgs` — deliberately, and it is
+  # the only thing here that leaves the host's channel behind.
   #
   # `pkgs` is the machine's nixpkgs, which has nothing to do with the one the
   # suite ran against, and the backend is the one part of this module whose
@@ -15,12 +15,16 @@ let
   # main.py, and the first anyone hears of it is production restarting in a
   # loop. Everything else below — nginx, the backup script's tools — is
   # infrastructure, and takes the host's copy as it should.
-  backend = import ./backend-python.nix;
-  lockedPkgs = import backend.lockedNixpkgs {
-    inherit (pkgs) system;
-    overlays = [ backend.skipUpstreamTests ];
-  };
-  pythonEnv = lockedPkgs.python312.withPackages backend.packages;
+  #
+  # The host imports this file from a channel configuration with no flake
+  # inputs of its own, so the flake is opened from the checkout the service
+  # runs from — by git, so that only what is committed is copied into the
+  # store, never the uploads beside it. That needs the flakes feature on the
+  # host: this module turns it on below, and deploy.sh passes it on the
+  # command line for the rebuild that first does so.
+  papol = builtins.getFlake "git+file://${cfg.srcDir}";
+  papolPackages = papol.packages.${pkgs.stdenv.hostPlatform.system};
+  pythonEnv = papolPackages.python;
 
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";
@@ -264,6 +268,9 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    # What opening the checkout as a flake above needs from the host.
+    nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
     # The production database. The system cluster rather than a private one:
     # systemd owns starting it, NixOS owns upgrading it, and the socket in
     # /run/postgresql is where every PostgreSQL tool on the host already
@@ -273,11 +280,11 @@ in {
     # peer authentication, with no password to keep anywhere.
     services.postgresql = {
       enable = true;
-      # The pinned major from backend-python.nix — the same PostgreSQL the
-      # development shell and the suite run, not the host channel's
-      # stateVersion default. The suite's verdict is only about production
-      # while these two are one.
-      package = backend.postgresql lockedPkgs;
+      # The major the flake pins — the same PostgreSQL the development
+      # shell and the suite run, not the host channel's stateVersion
+      # default. The suite's verdict is only about production while these
+      # two are one.
+      package = papolPackages.postgresql;
       ensureDatabases = [ "papol" ];
       ensureUsers = [ { name = "papol"; ensureDBOwnership = true; } ];
       identMap = ''
