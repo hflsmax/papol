@@ -5,6 +5,7 @@ import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
 import { consume, digestIfDue, sweep, type Wakeup } from "./jobs/run";
 import { authRoutes } from "./routes/auth";
+import { boardRoutes } from "./routes/boards";
 import { jobRoutes } from "./routes/jobs";
 import { getBlob, headBlob, putBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
@@ -19,6 +20,7 @@ router.on("GET", "/api/client-requirements", ({ request }) => json({ ...requirem
 
 authRoutes(router);
 jobRoutes(router);
+boardRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);

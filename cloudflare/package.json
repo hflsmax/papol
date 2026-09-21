@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit",
     "deploy": "wrangler deploy"
   },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.4.0"
+  },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "typescript": "^5.9.0",

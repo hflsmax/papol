@@ -388,6 +388,33 @@ Decisions taken:
 - **The sweep runs what it claims.** It is a Worker invocation like any
   other, so a job it finds needs no second wake-up.
 
+### Step 4, boards — landed 2026-09-21
+
+`cloudflare/src/routes/boards.ts`, with the two capture kinds in
+`src/jobs/capture.ts`: every board route, the cards, the groups, the
+files, and the link cards whose pictures are jobs. The board-route cases
+of `test_desktop_sync.py` and `test_board_group_booklets.py` and the
+capture cases of `test_jobs.py` translate (`cloudflare/test/boards.test.ts`).
+
+Decisions taken:
+
+- **One way to write a synchronized row.** `src/sync/write.ts` versions
+  a row, writes it and logs it, and both the push and every route go
+  through it — what `commit_sync` did by watching the ORM's dirty set,
+  done by saying so.
+- **A board file is served by the Worker, not by a presigned redirect.**
+  The Python presigned a bucket URL so the web tier never carried bytes.
+  A Worker streaming from R2 costs nothing it was protecting against,
+  and gives the browser and the desktop one origin with no presign key
+  to keep. `/uploads/{key}` will follow the same rule when it arrives.
+- **A webpage's address is checked on its face.** The Python resolved
+  the hostname to refuse private addresses, because its Chromium sat on
+  the LAN. Browser Rendering is Cloudflare's browser on Cloudflare's
+  network, so what remains is the URL: a browser scheme, no credentials,
+  no loopback or private literal.
+- **A card's edit moves the board's clock, not its revision**, as the
+  push already had it.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
