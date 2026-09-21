@@ -561,6 +561,38 @@ Python test covered these; `cloudflare/test/admin.test.ts` does now.
   its own timings in the dashboard. (The user's call, 2026-09-21: drop
   what does not fit rather than port it awkwardly.)
 
+### Step 4, references — landed 2026-09-21
+
+`cloudflare/src/papers/tei.ts` (GROBID's TEI read into references,
+markers and figure links), `grobid.ts` (the service behind the tunnel,
+with an Access service token), `resolve.ts` (the CrossRef/OpenAlex
+judgment, `biblio.py` as was), `references.ts` (the `analyze_paper`
+job, the stored bibliography, lazy lookup, the preview) and
+`routes/references.ts` (`/api/viewer-references/…`, `/api/viewer/{digest}/info`).
+The TEI cases of `test_metadata_extraction.py`, `test_biblio.py`,
+`test_reference_preview.py` and the viewer case of `test_sharables.py`
+translate (`cloudflare/test/references.test.ts`); the GROBID header
+fallback for an upload that prints no identifier is in `extract.ts`.
+
+- XML is parsed with `@rgrove/parse-xml`, a small conformant parser
+  with a document-order tree, since a Worker has no `DOMParser`. The
+  TEI reading is the Python one line for line, including the equation-
+  number and Box-versus-Figure heuristics.
+- **Dropped**: the layout pass that read numbered "Figure N", "Box N"
+  and "Table N" headings out of the PDF's own text with PyMuPDF and
+  drew links for the phrases citing them. A Worker has no PyMuPDF, and
+  GROBID's own figure references cover the common case. The link
+  layer is poorer by the boxes GROBID misses.
+- **Dropped with the demo**: the ephemeral reference engine for the
+  bundled demo PDFs. Whether the demo returns is decided in its own
+  step; nothing here assumes it.
+- Secrets: `GROBID_URL`, `GROBID_ACCESS_CLIENT_ID`,
+  `GROBID_ACCESS_CLIENT_SECRET`. Unset, the viewer is told references
+  are unavailable and uploads get no title-block reading, as before.
+- The arXiv special cases are carried over unchanged and questioned in
+  issue #98: whether the identifier path resolves what the searches
+  would not is unmeasured.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:

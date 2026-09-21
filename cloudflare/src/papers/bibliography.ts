@@ -89,16 +89,51 @@ export function summarizeCrossref(item: Record<string, any>): Summary {
   };
 }
 
+// The matcher. Given a reference exactly as printed — authors, title,
+// venue, pages, year, run together in whatever style the bibliography
+// used — CrossRef's `query.bibliographic` finds the work it names.
+// Several candidates, not one: CrossRef ranks by text similarity alone,
+// and its top hit is sometimes a later journal version of a conference
+// paper. The caller decides which is really the work.
+export async function crossrefMatch(env: Env, raw: string): Promise<Record<string, any>[]> {
+  const query = crossrefQuery(raw);
+  if (!query) return [];
+  const params = new URLSearchParams({
+    "query.bibliographic": query, rows: String(limits.counts.bibliography_results),
+    select: "DOI,title,author,issued,container-title,is-referenced-by-count,abstract,link,score",
+  });
+  let response: Response;
+  try {
+    response = await fetch(`https://api.crossref.org/works?${params}`, { headers: { "user-agent": userAgent(env) }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (error) {
+    throw new Unavailable(String((error as Error).message ?? error));
+  }
+  if (response.status !== 200) throw new Unavailable(`CrossRef returned ${response.status}`);
+  try {
+    return ((await response.json()) as any).message?.items ?? [];
+  } catch (error) {
+    throw new Unavailable(String((error as Error).message ?? error));
+  }
+}
+
+// The reference, tidied into a query. A trailing "arXiv preprint
+// arXiv:1607.06450" is not in CrossRef at all and, left in, dominates
+// the match; bare URLs do the same for less reason.
+export function crossrefQuery(raw: string): string {
+  return raw.replace(/arXiv\s*preprint\s*arXiv:\s*[\d.]+(v\d+)?/gi, " ").replace(/https?:\/\/\S+/g, " ")
+    .split(/\s+/).filter(Boolean).join(" ").slice(0, limits.text.crossref_query);
+}
+
 // -------------------------------------------------------------- OpenAlex
 
-export async function openalexByDoi(env: Env, doi: string): Promise<Record<string, any> | null> {
-  const params = new URLSearchParams();
+async function openalexGet(env: Env, path: string, extra: Record<string, string> = {}): Promise<Record<string, any> | null> {
+  const params = new URLSearchParams(extra);
   if (env.PAPOL_CONTACT_EMAIL) params.set("mailto", env.PAPOL_CONTACT_EMAIL);
   if (env.PAPOL_OPENALEX_KEY) params.set("api_key", env.PAPOL_OPENALEX_KEY);
   const query = params.toString();
   let response: Response;
   try {
-    response = await fetch(`https://api.openalex.org/works/doi:${encodeURIComponent(bare(doi).toLowerCase())}${query ? `?${query}` : ""}`, {
+    response = await fetch(`https://api.openalex.org${path}${query ? `?${query}` : ""}`, {
       headers: { "user-agent": userAgent(env) }, signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (error) {
@@ -116,6 +151,28 @@ export async function openalexByDoi(env: Env, doi: string): Promise<Record<strin
   } catch (error) {
     throw new Unavailable(String((error as Error).message ?? error));
   }
+}
+
+export function openalexByDoi(env: Env, doi: string): Promise<Record<string, any> | null> {
+  return openalexGet(env, `/works/doi:${encodeURIComponent(bare(doi).toLowerCase())}`);
+}
+
+// arXiv preprints carry a DataCite DOI of a fixed shape, so an arXiv
+// number is a DOI lookup in disguise.
+export function openalexByArxiv(env: Env, arxivId: string): Promise<Record<string, any> | null> {
+  const number = arxivId.trim().replace("arXiv:", "").replace(/v\d+$/i, "");
+  return openalexByDoi(env, `10.48550/arXiv.${number}`);
+}
+
+// Candidates matching a title, best first. A title and not a whole
+// reference string: OpenAlex's `search` is a relevance search over
+// title and abstract, and a raw reference pulls it badly off course.
+// Metered, so asked only when nothing cheaper has answered.
+export async function openalexByTitle(env: Env, title: string): Promise<Record<string, any>[]> {
+  const wanted = title.split(/\s+/).filter(Boolean).join(" ");
+  if (wanted.length < limits.matching.title_search_length_min) return [];
+  const data = await openalexGet(env, "/works", { "per-page": String(limits.counts.bibliography_results), search: wanted });
+  return data?.results ?? [];
 }
 
 // OpenAlex stores abstracts as an inverted index — word to the positions

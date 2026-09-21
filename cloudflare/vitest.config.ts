@@ -13,7 +13,7 @@ export default defineConfig(async () => {
         miniflare: {
           // The suite hands wake-ups to the consumer itself, so a job
           // runs when a test says and not when the runtime delivers.
-          bindings: { TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual" },
+          bindings: { TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual", GROBID_URL: "https://grobid.test" },
         },
       }),
     ],

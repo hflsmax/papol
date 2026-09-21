@@ -8,6 +8,7 @@
 import limits from "../../../config/app_limits.json";
 import { batch, one, type Row } from "../db";
 import { extractMetadataJob, KIND as EXTRACT } from "../papers/extract";
+import { analyzePaperJob, KIND as ANALYZE } from "../papers/references";
 import { captureWebpageJob, captureYoutubeJob, WEBPAGE, YOUTUBE } from "./capture";
 import { claim, claimDue, fail, finish, JobError, payloadOf, wake, type Job } from "./queue";
 import { dailyDigest, digestHour, SEND_EMAIL, sendEmailJob } from "./notifications";
@@ -20,6 +21,7 @@ export const HANDLERS: Record<string, Handler> = {
   [WEBPAGE]: captureWebpageJob,
   [YOUTUBE]: captureYoutubeJob,
   [EXTRACT]: extractMetadataJob,
+  [ANALYZE]: analyzePaperJob,
 };
 
 const ERROR_LIMIT = limits.text.analysis_error;

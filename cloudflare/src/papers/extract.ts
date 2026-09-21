@@ -7,10 +7,8 @@
 // PDF" button, which still answers in the request: it is a button, not
 // an upload.
 //
-// GROBID's reading of the title block, the last resort for a paper that
-// prints no identifier, comes with the reference pass: it needs the TEI
-// parsing that pass brings. Until then such a paper gets its filename
-// for a title, which is what the form always let the user correct.
+// GROBID's reading of the title block is the last resort, for a paper
+// that prints no identifier the indexes could answer.
 
 import { extractText, getDocumentProxy } from "unpdf";
 
@@ -18,36 +16,12 @@ import { type Row } from "../db";
 import { JobError } from "../jobs/queue";
 import { UPLOADS } from "../sync/blobs";
 import { byDoi, Unavailable } from "./bibliography";
+import * as grobid from "./grobid";
+import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
+
+export { arxivDoi, extractArxivId, extractDoi };
 
 export const KIND = "extract_metadata";
-
-const ARXIV_ID = /(?:arXiv\s*:\s*|arxiv\s*\.\s*org\s*\/\s*abs\s*\/\s*)((?:\d{4}\s*\.\s*\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\s*\/\s*\d{7})(?:v\d+)?)/i;
-const DOI = /10\.\d{4,9}\/[^\s\])>"]+/gi;
-
-// The first complete-looking DOI in extracted text. Layout extraction can
-// split a DOI across lines, and PNAS papers print a supporting-information
-// URL before the canonical footer DOI, which comes out as the incomplete
-// `10.1073/pnas.`: a suffix without a digit yields to a later, complete one.
-export function extractDoi(text: string): string | null {
-  let fallback: string | null = null;
-  for (const match of text.matchAll(DOI)) {
-    const candidate = match[0].replace(/[.,;:]+$/, "");
-    fallback = fallback ?? candidate;
-    if (/\d/.test(candidate.split("/", 2)[1] ?? "")) return candidate;
-  }
-  return fallback;
-}
-
-// An arXiv id printed explicitly or in an arxiv.org URL.
-export function extractArxivId(text: string): string | null {
-  const match = ARXIV_ID.exec(text);
-  return match ? match[1].replace(/\s+/g, "") : null;
-}
-
-// The stable DataCite DOI for a versioned arXiv identifier.
-export function arxivDoi(arxivId: string): string {
-  return `10.48550/arXiv.${arxivId.replace(/v\d+$/i, "")}`;
-}
 
 // A title from a filename: the stem, underscores and hyphens as spaces,
 // each word capitalized.
@@ -95,6 +69,18 @@ export async function extractedMetadata(env: Env, bytes: Uint8Array, uploadedNam
     metadata.authors = known.authors.length ? JSON.stringify(known.authors) : null;
     metadata.journal = known.venue;
     metadata.year = known.year;
+  } else if (grobid.configured(env)) {
+    // No identifier the indexes could answer: GROBID reads the title
+    // block. A failure here is the filename title the form already has.
+    try {
+      const header = await grobid.extractHeader(env, bytes);
+      metadata.title = header.title ?? metadata.title;
+      metadata.authors = header.authors.length ? JSON.stringify(header.authors) : null;
+      metadata.journal = header.journal;
+      metadata.year = header.year;
+    } catch (error) {
+      console.warn(`GROBID could not read the header of ${fileName}: ${(error as Error).message}`);
+    }
   }
   return metadata;
 }
