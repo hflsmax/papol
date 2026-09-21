@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  barScale, evened, lineAtPosition, positionAtLine, shareOut,
+  barScale, evened, laidOut, lineAtPosition, positionAtLine, shareOut,
 } from './navigatorScale';
 import { isBibliography, isFrontMatter, topLevel } from './sections';
+import { positionOf, sectionStops } from './sectionStops';
+import SectionStrip from './SectionStrip';
+import { PHONE } from './styles';
 
 /**
  * The paper, drawn to length across the bar.
@@ -34,11 +37,12 @@ import { isBibliography, isFrontMatter, topLevel } from './sections';
  * Everything is placed in document units: 0 at the top of page one, one
  * unit per page. A section and an anchor both reduce to a number on that
  * line, which is the whole of the arithmetic here.
+ *
+ * All of it is for a screen with room for it. On a phone the same list of
+ * sections is drawn as its names in a row instead (see SectionStrip): the
+ * bar's shape is read at a glance, but the names on it are not, and
+ * under 560 points there is no room for them.
  */
-
-const positionOf = (page, y) => (
-  (Math.max(1, page || 1) - 1) + (1 - Math.max(0, Math.min(1, y ?? 0)))
-);
 
 // A subsection's tick: the anchors' triangle again, smaller and turned over
 // so that it points down at the strip while theirs point up at it, which
@@ -118,14 +122,19 @@ const GLIDE = 80;
 // once and glides the rest.
 const FAR = 1.5;
 
-// The sheets as the scroller has them laid out now, measured down its own
-// content so a scroll offset can be read straight off them.
-const laidOut = (scroller) => {
-  const origin = scroller.getBoundingClientRect().top - scroller.scrollTop;
-  return [...scroller.querySelectorAll('.pdf-page[data-page]')].map((sheet) => {
-    const rect = sheet.getBoundingClientRect();
-    return { top: rect.top - origin, height: rect.height };
-  });
+// Whether the window is a phone's, by the same measure the styles use.
+// Read once and then heard, so a window dragged across the line redraws.
+const usePhone = () => {
+  const [phone, setPhone] = useState(() => window.matchMedia?.(PHONE).matches ?? false);
+  useEffect(() => {
+    const query = window.matchMedia?.(PHONE);
+    if (!query) return undefined;
+    const tell = () => setPhone(query.matches);
+    tell();
+    query.addEventListener('change', tell);
+    return () => query.removeEventListener('change', tell);
+  }, []);
+  return phone;
 };
 
 export default function Navigator({
@@ -147,46 +156,20 @@ export default function Navigator({
   const tipRef = useRef(null);
   const glide = useRef({ frame: 0, target: 0, at: 0, wrote: 0, then: 0 });
   const scrubbing = useRef(false);
+  const phone = usePhone();
 
   const top = useMemo(() => topLevel(sections), [sections]);
 
-  const segments = useMemo(() => {
-    if (!pages) return [];
-    const marks = sections
-      // One level only. A paper's subsections outnumber its sections three
-      // to one, and drawn as their equals they turn the strip into a
-      // barcode of boxes too narrow to name — which is the opposite of
-      // seeing the shape of the paper. The sections are the shape; the
-      // subsections are detail inside it. Which level that is comes from
-      // the outline rather than being assumed to be its first: a paper
-      // filed under one bookmark of its own title keeps its sections a
-      // level down (see topLevel).
-      .filter((section) => (section.level ?? 0) === top)
-      .map((section) => ({ ...section, at: positionOf(section.page, section.y) }))
-      .filter((section) => section.at >= 0 && section.at <= pages)
-      // The outline keeps the author's order; a map keeps the paper's.
-      .sort((a, b) => a.at - b.at);
-    if (!marks.length) return [];
-    const out = marks.map((mark, index) => ({
-      ...mark,
-      span: Math.max(0, (index + 1 < marks.length ? marks[index + 1].at : pages) - mark.at),
-    }));
-    // Whatever comes before the first heading is the front of the paper —
-    // its title, its authors, usually its abstract. Part of the document,
-    // so part of the map.
-    //
-    // Unless the outline already names it. A paper whose first heading is
-    // Abstract has the front of itself on the bar under the author's own
-    // name for it, and adding Start beside it draws the same place twice:
-    // two boxes, the first holding nothing but the title block, and the
-    // reader has to guess which of them is the way in. The first section
-    // owns the bar from its left end anyway (see the edges below), so
-    // Abstract is where the top of the paper is reached.
-    if (marks[0].at > 0.02 && !isFrontMatter(marks[0].title)) {
-      out.unshift({ id: 'front', front: true, at: 0, span: marks[0].at, title: 'Start' });
-    }
-    return out;
-  }, [sections, pages, top]);
+  // The sections, one level only, in the paper's order, with the front of
+  // the paper before the first heading — the one list the bar and the
+  // phone's strip both draw (see sectionStops). One level, because drawn
+  // as their equals the subsections turn the strip into a barcode of boxes
+  // too narrow to name, which is the opposite of seeing the shape of the
+  // paper. The sections are the shape; the subsections are detail inside
+  // it. Abstract is not doubled by a Start beside it: the first section
+  // owns the bar from its left end anyway (see the edges below), so
+  // Abstract is where the top of the paper is reached.
+  const segments = useMemo(() => sectionStops(sections, pages), [sections, pages]);
 
   // The level below the sections: a tick standing on its section, and no
   // more. A subsection is detail within the shape, so it is drawn as detail
@@ -420,6 +403,21 @@ export default function Navigator({
     // A finger has no hover to go back to once it is lifted.
     if (event?.pointerType === 'touch') hush();
   };
+
+  // A phone gets the names, not the bar (see SectionStrip). The bar's
+  // effects above find no root to work on and stand down.
+  if (phone) {
+    return (
+      <SectionStrip
+        pages={pages}
+        sections={sections}
+        scrollerRef={scrollerRef}
+        live={live}
+        onSection={onSection}
+        onTop={onTop}
+      />
+    );
+  }
 
   if (!shown) return <span className="spacer" />;
 
