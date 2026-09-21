@@ -621,6 +621,27 @@ answered by the Worker except the demo's.
 
 ## Phase 5 — Cutover
 
+### Step 1 — landed 2026-09-21: the Worker is live on workers.dev
+
+- D1 `papol` (id `4a3f822d-…`) created and migrated; queue `papol-jobs`
+  created; the R2 bucket is `papol-files`, the one the Python backend
+  already used (`wrangler.toml` corrected from `papol`).
+- `wrangler deploy` succeeded: https://papol.hflsmax.workers.dev serves
+  the site and the API against the empty production database, with both
+  cron triggers and the queue consumer attached.
+- Secrets set: `PAPOL_CONTACT_EMAIL`, `PAPOL_OPENALEX_KEY`. Not set, and
+  waiting on decisions: mail (the Python backend sent SMTP from the
+  settings table; the Worker wants an HTTP mail API, `EMAIL_API_URL`,
+  `EMAIL_API_KEY`, `EMAIL_FROM`), GROBID (the tunnel and Access service
+  token do not exist yet), `PAPOL_URL` (the final hostname).
+- `scripts/migrate-postgres-to-d1.py` turns a `pg_dump --data-only
+  --column-inserts` file into D1 statements; tried against a synthetic
+  dump into the local D1. The production dump needs `sudo` on the host.
+
+Still to do: the data move; the hostname and DNS; the GROBID tunnel with
+Access; a mail provider; `deploy.sh prod` as `wrangler deploy`;
+`module.nix` reduced to GROBID and the tunnel; the Python backend deleted.
+
 Configuration and one move of the data, once phase 4 passes the suite:
 
 - D1, with its point-in-time restore replacing the dumps in

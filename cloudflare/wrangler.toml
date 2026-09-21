@@ -12,7 +12,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "papol"
-database_id = "papol-local"
+database_id = "4a3f822d-7dd5-41df-94a5-cf10f0adb6fa"
 migrations_dir = "migrations"
 
 # The files: a paper's PDF under uploads/, a board's files and the
@@ -20,7 +20,7 @@ migrations_dir = "migrations"
 # used in the same bucket (backend/storage.py).
 [[r2_buckets]]
 binding = "FILES"
-bucket_name = "papol"
+bucket_name = "papol-files"
 
 # The wake-up for a job the API wrote to the `jobs` table (src/jobs).
 # One message, one job; the table holds the outcome, so a message is
