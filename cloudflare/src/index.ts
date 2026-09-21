@@ -57,23 +57,11 @@ router.on("HEAD", "/api/sync/blobs/:sha256", headBlob);
 router.on("PUT", "/api/sync/blobs/:sha256", putBlob);
 router.on("GET", "/api/sync/blobs/:sha256", getBlob);
 
-const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
-
 // The handler is this module's only export: workerd reads every named
 // export of the entry module as a handler or a class, and refuses to
 // start on anything else — under `wrangler dev`, though not in the suite.
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
-    // Only over HTTPS: a page loaded over plain HTTP is an insecure
-    // context, where the browser withholds crypto.randomUUID and the
-    // apps cannot mint an id.
-    // `wrangler dev` serves plain HTTP on the loopback, which is not
-    // insecure to a browser, so that is left alone.
-    const url = new URL(request.url);
-    if (url.protocol === "http:" && !LOOPBACK.has(url.hostname)) {
-      url.protocol = "https:";
-      return Promise.resolve(Response.redirect(url.toString(), 301));
-    }
     return router.handle(request, env);
   },
 

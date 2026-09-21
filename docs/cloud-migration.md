@@ -723,8 +723,11 @@ strict, and nobody exercised the real thing before a person did. So:
   smoke test; production only from the Actions tab, by choice, after
   dev is green. Needs the `CLOUDFLARE_API_TOKEN` and
   `CLOUDFLARE_ACCOUNT_ID` repository secrets.
-- The Worker redirects plain HTTP to HTTPS, and `newUuid` no longer
-  depends on a browser API withheld outside secure contexts.
+- Plain HTTP is redirected to HTTPS at the edge, by the zone's "Always
+  Use HTTPS" setting, not by the Worker: a redirect in the Worker fired
+  under `wrangler dev` too, which serves plain HTTP on the loopback, and
+  broke every local check. `newUuid` no longer depends on a browser API
+  withheld outside secure contexts.
 
 ### Step 7 — landed 2026-09-21: the retired backend is deleted
 
