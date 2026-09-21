@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import type { Wakeup } from "../src/jobs/run";
 import { byDoi, summarizeCrossref, summarizeOpenalex } from "../src/papers/bibliography";
-import { extractDoi, extractArxivId, readers, titleFromFilename } from "../src/papers/extract";
+import { extractDoi, extractArxivId, titleFromFilename } from "../src/papers/extract";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
 const A_PAPER = "a1b2c3d4" + "0".repeat(24) + "f".repeat(32);
@@ -15,8 +15,7 @@ const A_PAPER = "a1b2c3d4" + "0".repeat(24) + "f".repeat(32);
 const ITS_TWIN = A_PAPER.slice(0, 32) + "e".repeat(32);
 const NAME = A_PAPER.slice(0, 32);
 
-const originalReader = readers.firstPages;
-afterEach(() => { readers.firstPages = originalReader; vi.unstubAllGlobals(); });
+afterEach(() => vi.unstubAllGlobals());
 
 async function woken(...uuids: string[]) {
   const batch = createMessageBatch<Wakeup>("papol-jobs", uuids.map((id) => ({ id: uuid(), timestamp: new Date(), body: { job: id }, attempts: 1 })));
@@ -34,7 +33,7 @@ function upload(account: Account, name: string, bytes: string) {
   return call("POST", "/api/papers/extract", { headers: account.headers, body: data });
 }
 
-// The bibliographic APIs, stood in for by host.
+// The bibliographic APIs and the host's helper, stood in for by host.
 function apis(answers: Record<string, (url: URL) => Response>) {
   vi.stubGlobal("fetch", async (input: string | URL | Request) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
@@ -42,6 +41,9 @@ function apis(answers: Record<string, (url: URL) => Response>) {
     return answer ? answer(url) : new Response("no such host", { status: 502 });
   });
 }
+// What the helper reads off the title block (grobid.test/helper/header).
+type TitleBlock = { title: string | null; authors: string[]; journal: string | null; year: number | null; doi: string | null; arxiv_id: string | null };
+const titleBlock = (read: Partial<TitleBlock> = {}) => Response.json({ title: null, authors: [], journal: null, year: null, doi: null, arxiv_id: null, ...read });
 const crossrefWork = { message: { DOI: "10.1145/2984511.2984540", title: ["Metamaterial Mechanisms"], "container-title": ["Proceedings of UIST '16"],
   issued: { "date-parts": [[2016]] }, author: [{ given: "Alexandra", family: "Ion" }, { given: "Patrick", family: "Baudisch" }] } };
 
@@ -103,8 +105,7 @@ describe("what a PDF says about itself", () => {
     expect((await env.FILES.list({ prefix: "uploads/" })).objects.map((o) => o.key)).toEqual([`uploads/${digest}.pdf`]);
     expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).status).toBe("queued");
 
-    readers.firstPages = async () => "Metamaterial Mechanisms\ndoi: 10.1145/2984511.2984540";
-    apis({ "api.crossref.org": () => Response.json(crossrefWork) });
+    apis({ "grobid.test": () => titleBlock({ title: "METAMATERIAL MECHANISMS", doi: "10.1145/2984511.2984540" }), "api.crossref.org": () => Response.json(crossrefWork) });
     await woken(ticket.job);
     const done = await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers });
     expect(done.status).toBe("done");
@@ -113,16 +114,22 @@ describe("what a PDF says about itself", () => {
     expect((await call("POST", "/api/papers/extract", { headers: account.headers, body: (() => { const d = new FormData(); d.append("file", new File(["x"], "notes.txt")); return d; })() })).status).toBe(400);
   });
 
-  it("falls back to the filename when nothing resolves, and fails with a sentence when nothing answers", async () => {
+  it("takes the title block when no index answers, the filename when the helper is down, and fails with a sentence when the indexes do not answer", async () => {
     const account = await register();
     const ticket = await (await upload(account, "Some-Paper.pdf", "%PDF-1.4 unresolved")).json<any>();
-    readers.firstPages = async () => "no identifier printed here";
+    apis({ "grobid.test": () => new Response("Bad Gateway", { status: 502 }) });
     await woken(ticket.job);
     expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result.title).toBe("Some Paper");
 
+    // No identifier on the page: what the paper says of itself, as read.
+    const untitled = await (await upload(account, "scan.pdf", "%PDF-1.4 no identifier")).json<any>();
+    apis({ "grobid.test": () => titleBlock({ title: "What the Paper Says", authors: ["A. Author"], journal: "A Venue", year: 2021 }) });
+    await woken(untitled.job);
+    expect((await ok("GET", `/api/jobs/${untitled.job}`, { headers: account.headers })).result)
+      .toMatchObject({ doi: null, title: "What the Paper Says", authors: JSON.stringify(["A. Author"]), journal: "A Venue", year: 2021 });
+
     const second = await (await upload(account, "other.pdf", "%PDF-1.4 unreachable")).json<any>();
-    readers.firstPages = async () => "doi: 10.1234/unreachable";
-    apis({ "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
+    apis({ "grobid.test": () => titleBlock({ doi: "10.1234/unreachable" }), "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
     await woken(second.job);
     expect(await ok("GET", `/api/jobs/${second.job}`, { headers: account.headers })).toMatchObject({ status: "failed", detail: "Metadata lookup failed" });
   });
@@ -156,9 +163,8 @@ describe("what a PDF says about itself", () => {
     await paperWithCopy(account, digest, "Incorrect imported title", { filePath: "countersnapping.pdf" });
     await exec("UPDATE papers SET doi = '10.0000/stale-doi' WHERE sha256 = ?", digest);
     await env.FILES.put("uploads/countersnapping.pdf", "%PDF-1.4\n%%EOF");
-    readers.firstPages = async () => "doi: 10.1073/pnas.2423301122";
     const asked: string[] = [];
-    apis({ "api.crossref.org": (url) => { asked.push(url.pathname); return Response.json({ message: { DOI: "10.1073/pnas.2423301122", title: ["Exotic mechanical properties"],
+    apis({ "grobid.test": () => titleBlock({ doi: "10.1073/pnas.2423301122" }), "api.crossref.org": (url) => { asked.push(url.pathname); return Response.json({ message: { DOI: "10.1073/pnas.2423301122", title: ["Exotic mechanical properties"],
       author: [{ given: "Paul", family: "Ducarme" }], "container-title": ["PNAS"], issued: { "date-parts": [[2025]] } } }); } });
     const found = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1073/pnas.2423301122")}`]);

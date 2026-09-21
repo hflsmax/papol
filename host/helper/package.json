@@ -1,0 +1,21 @@
+{
+  "name": "papol-helper",
+  "private": true,
+  "description": "The host's helper beside GROBID: takes a PDF, runs GROBID, reads its TEI, answers JSON. The Worker on Cloudflare's Free plan forwards bytes and stores rows; the CPU-heavy reading runs here. See docs/cloud-migration.md, phase 5 step 8.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs && git diff --exit-code -- dist",
+    "start": "node dist/helper.js",
+    "test": "node build.mjs && node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rgrove/parse-xml": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}

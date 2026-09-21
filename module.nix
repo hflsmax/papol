@@ -2,15 +2,27 @@
 
 # What is left of Papol on a NixOS host. The application itself is a
 # Cloudflare Worker (cloudflare/, deployed with `deploy.sh prod`); the host
-# keeps only GROBID, the reference analyzer the Worker cannot run itself,
-# and a Cloudflare Tunnel of Papol's own that carries the Worker's requests
-# to it. The FastAPI service, its worker, the system PostgreSQL, the nginx
-# vhosts that proxied the site and the LAN names, the health probe and the
-# R2 backup all left with the Python backend (docs/cloud-migration.md,
-# phase 5).
+# keeps GROBID, the reference analyzer the Worker cannot run itself, a
+# small helper beside it (host/helper/) that runs GROBID on a PDF and
+# reads its answer where the CPU is, and a Cloudflare Tunnel of Papol's
+# own that carries the Worker's requests to both. The FastAPI service, its
+# worker, the system PostgreSQL, the nginx vhosts that proxied the site and
+# the LAN names, the health probe and the R2 backup all left with the
+# Python backend (docs/cloud-migration.md, phase 5).
 
 let
   cfg = config.services.papol;
+
+  # The container's unit, named by the runtime oci-containers uses.
+  grobidUnit = "${config.virtualisation.oci-containers.backend}-papol-grobid.service";
+
+  # A whole PDF in one request, and the minutes a long paper takes to read.
+  longUpload = ''
+    client_max_body_size 100m;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_request_buffering off;
+  '';
 
   # A key the host's configuration.nix set for the retired service. An
   # unknown option fails the whole evaluation, so each is still declared —
@@ -42,8 +54,8 @@ in {
       default = "/srv/papol/prod";
       description = ''
         The checkout this module is imported from. `deploy.sh host`
-        fast-forwards it to main and rebuilds the system; nothing in the
-        module reads it.
+        fast-forwards it to main and rebuilds the system; the helper runs
+        its checked-in bundle, host/helper/dist/helper.js, from here.
       '';
     };
 
@@ -120,6 +132,27 @@ in {
       };
     };
 
+    # The helper beside GROBID (host/helper/): the Worker posts a PDF's
+    # bytes, the helper runs GROBID on it and reads the TEI into JSON, and
+    # the Worker stores rows. A Worker invocation on Cloudflare's Free plan
+    # has about ten milliseconds of CPU, which is enough to forward bytes
+    # and not enough to read a document. Reached through the same front
+    # door and credential as GROBID, under /helper/.
+    helper = {
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 8072;
+        description = "Where the helper listens, on localhost only.";
+      };
+
+      node = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.nodejs_22;
+        defaultText = lib.literalExpression "pkgs.nodejs_22";
+        description = "The Node that runs the bundle; the flake's shell builds it with the same major.";
+      };
+    };
+
     deploy = {
       passwordless = retired;
 
@@ -171,9 +204,36 @@ in {
       extraOptions = [ "--init" ];
     };
 
+    # The helper: one Node process on the checked-in bundle, as the user
+    # whose checkout it is, up after the container it talks to and back
+    # whenever it falls over. It reads one file and two loopback ports,
+    # so the rest of the system is closed to it.
+    systemd.services.papol-helper = {
+      description = "Papol's helper beside GROBID: reads PDFs for the Worker";
+      wantedBy = [ "multi-user.target" ];
+      wants = [ grobidUnit ];
+      after = [ "network.target" grobidUnit ];
+      environment = {
+        PAPOL_HELPER_PORT = toString cfg.helper.port;
+        PAPOL_GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
+      };
+      serviceConfig = {
+        ExecStart = "${cfg.helper.node}/bin/node ${cfg.srcDir}/host/helper/dist/helper.js";
+        User = cfg.user;
+        Restart = "on-failure";
+        RestartSec = 5;
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+        ProtectSystem = "strict";
+        ProtectHome = "read-only";
+      };
+    };
+
     # GROBID's front door for the tunnel: plain HTTP on localhost, the
-    # tunnel having terminated TLS; a whole PDF in one request, and the
-    # minutes a long paper takes to read.
+    # tunnel having terminated TLS. GROBID at the root and the helper
+    # under /helper/, the prefix stripped (the trailing slash on its
+    # proxy_pass): /helper/analyze reaches the helper as /analyze. One
+    # credential for both.
     services.nginx = lib.mkIf cfg.grobid.expose.enable {
       enable = true;
       virtualHosts.${cfg.grobid.expose.hostname} = {
@@ -181,12 +241,11 @@ in {
         basicAuthFile = cfg.grobid.expose.authFile;
         locations."/" = {
           proxyPass = "http://127.0.0.1:${toString cfg.grobid.port}";
-          extraConfig = ''
-            client_max_body_size 100m;
-            proxy_read_timeout 300s;
-            proxy_send_timeout 300s;
-            proxy_request_buffering off;
-          '';
+          extraConfig = longUpload;
+        };
+        locations."/helper/" = {
+          proxyPass = "http://127.0.0.1:${toString cfg.helper.port}/";
+          extraConfig = longUpload;
         };
       };
     };
