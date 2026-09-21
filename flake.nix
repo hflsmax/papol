@@ -36,12 +36,10 @@
     # mean anything about a deploy.
     # ---------------------------------------------------------------------
     backend = import ./backend-python.nix;
-    inherit (backend) skipUpstreamTests;
 
-    devPkgsFor = system: import nixpkgs {
-      inherit system;
-      overlays = [ skipUpstreamTests ];
-    };
+    # No overlays: every derivation the shell asks for is one Hydra built,
+    # so cache.nixos.org answers for all of it (backend-python.nix says why).
+    devPkgsFor = system: import nixpkgs { inherit system; };
 
     # The one browser in the shell: Chrome for Testing, which nixpkgs
     # packages as Playwright's browser bundle and builds for every system
@@ -71,7 +69,7 @@
     # brings of its own — the linker, the SDK, codesign — and nothing in
     # nixpkgs stands in for them.
     devPackages = pkgs: with pkgs; [
-      (python312.withPackages backend.packages)
+      ((backend.python pkgs).withPackages backend.packages)
       (tutorialNodeModules pkgs)
       nodejs_22            # frontend/, viewer/, board/ and desktop/ are npm projects
       (backend.postgresql pkgs)  # the database, the major production runs
@@ -128,9 +126,9 @@
       # inspected without evaluating a whole NixOS system: `nix build .#python`
       # and read what is in its site-packages. The flake's one input is the
       # same source module.nix reaches through backend-python.nix's
-      # lockedNixpkgs, and the overlay is the same, so this is the server's
-      # interpreter itself and not a lookalike that could answer differently.
-      python = (devPkgsFor system).python312.withPackages backend.packages;
+      # lockedNixpkgs, so this is the server's interpreter itself and not a
+      # lookalike that could answer differently.
+      python = (backend.python (devPkgsFor system)).withPackages backend.packages;
 
       default = self.packages.${system}.python;
     });

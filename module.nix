@@ -16,11 +16,8 @@ let
   # loop. Everything else below — nginx, the backup script's tools — is
   # infrastructure, and takes the host's copy as it should.
   backend = import ./backend-python.nix;
-  lockedPkgs = import backend.lockedNixpkgs {
-    inherit (pkgs) system;
-    overlays = [ backend.skipUpstreamTests ];
-  };
-  pythonEnv = lockedPkgs.python312.withPackages backend.packages;
+  lockedPkgs = import backend.lockedNixpkgs { system = pkgs.stdenv.hostPlatform.system; };
+  pythonEnv = (backend.python lockedPkgs).withPackages backend.packages;
 
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";

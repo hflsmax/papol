@@ -8,10 +8,10 @@
 # newer FastAPI has. That is what this file exists to prevent: the pin, the
 # package list and the overrides are stated once, and both callers read them.
 #
-# flake.nix has the inputs already and takes `packages` and `skipUpstreamTests`
-# directly. module.nix is imported straight into a channel-based NixOS
-# configuration and has no inputs at all, so it asks `lockedNixpkgs` for the
-# source this checkout is locked to.
+# flake.nix has the inputs already and takes `python` and `packages` directly.
+# module.nix is imported straight into a channel-based NixOS configuration and
+# has no inputs at all, so it asks `lockedNixpkgs` for the source this
+# checkout is locked to.
 {
   # The backend's imports, and nothing more. This list is the deployed
   # closure, so convenience does not belong in it — a server has no use for a
@@ -28,25 +28,22 @@
     yt-dlp
   ];
 
-  # nixpkgs runs fastapi's own test suite when it builds it, and that suite
-  # wants scipy, pint and a linter — an hours-long source build, none of it
-  # cached, for a library Papol merely imports. Upstream's tests are upstream's
-  # business. Skipping them is the difference between a shell that takes a
-  # minute to enter and one that takes an afternoon.
+  # The interpreter: the release's default python3, and nothing overridden
+  # in its package set. Both halves of that are about the binary cache.
   #
-  # The service takes this overlay too, and not merely to save the build. A
-  # service built without it is a different derivation from the one the shell
-  # and the suite ran against, and the whole point here is that there is one.
-  skipUpstreamTests = final: prev: {
-    python312 = prev.python312.override {
-      packageOverrides = pyFinal: pyPrev: {
-        fastapi = pyPrev.fastapi.overridePythonAttrs (_: { doCheck = false; });
-        # Pulled in by yt-dlp. Its suite starts local servers and hangs
-        # indefinitely inside the macOS build sandbox.
-        curl-cffi = pyPrev.curl-cffi.overridePythonAttrs (_: { doCheck = false; });
-      };
-    };
-  };
+  # Hydra builds the whole package set only for the default interpreter. A
+  # pinned `python312` on a release whose default is 3.13 has cache.nixos.org
+  # answer for the interpreter and little else, and every shell and CI job
+  # compiles mupdf, pymupdf and yt-dlp's suite from source: ten minutes on
+  # the Linux runner, a quarter of an hour on the Mac, and again on every
+  # runner whose GitHub Actions cache has been evicted in the meantime.
+  #
+  # An overlay that turned off fastapi's and curl-cffi's test suites used to
+  # sit here, from when the interpreter was not the default and those builds
+  # were local anyway. Any override makes a derivation Hydra has never seen,
+  # so it too was a guaranteed local build; with the default interpreter the
+  # tested packages are simply fetched, tests already run once upstream.
+  python = pkgs: pkgs.python3;
 
   # The database, pinned by major version for the same reason the Python
   # is pinned at all: the suite runs against the development cluster, and a
