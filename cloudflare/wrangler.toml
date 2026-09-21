@@ -22,5 +22,27 @@ migrations_dir = "migrations"
 binding = "FILES"
 bucket_name = "papol"
 
+# The wake-up for a job the API wrote to the `jobs` table (src/jobs).
+# One message, one job; the table holds the outcome, so a message is
+# never retried.
+[[queues.producers]]
+binding = "JOBS"
+queue = "papol-jobs"
+
+[[queues.consumers]]
+queue = "papol-jobs"
+max_batch_size = 1
+max_retries = 0
+
+# Every two minutes, jobs nobody was woken for; every hour, the daily
+# digest if it is its hour (src/jobs/run.ts).
+[triggers]
+crons = ["*/2 * * * *", "0 * * * *"]
+
+# Secrets are set with `wrangler secret put`, never written here:
+# EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts).
+[vars]
+PAPOL_URL = ""
+
 [observability]
 enabled = true

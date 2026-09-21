@@ -357,6 +357,37 @@ decisions taken so far, each with its reason:
 Not carried, and listed at the end of `sync.test.ts`: the cases about
 routes not yet ported, which come with those routes.
 
+### Step 3 — landed 2026-09-21: the queue, the mail, the digest
+
+`cloudflare/src/jobs`. The `jobs` table is still the truth; a Cloudflare
+Queue message carrying the row's uuid is the wake-up, sent after the
+batch that wrote the row; the consumer claims by uuid with one
+conditional `UPDATE ... RETURNING`; a cron every two minutes claims what
+is due and was not woken — a lost message, a consumer dead past its
+lease — and runs it there and then. The key, the lease and retry-once
+are as they were, and `test_jobs.py`'s cases translate
+(`cloudflare/test/jobs.test.ts`). `GET /api/jobs/{uuid}` is ported.
+The kinds that need the routes that queue them — the reading of an
+upload, the reference pass, the captures — come with those routes.
+
+Decisions taken:
+
+- **Mail goes through an HTTP email API, not SMTP.** A Worker has no
+  place for an SMTP conversation, and every transactional provider
+  speaks the same one call: from, to, subject, text, a bearer key.
+  `EMAIL_API_URL`, `EMAIL_API_KEY` and `EMAIL_FROM` name the provider at
+  cutover; unset, mail is skipped and the job says so, as an unconfigured
+  SMTP host meant before. The settings-table fallback for SMTP
+  credentials is not carried: a secret belongs in a secret, not in a
+  table the admin page edits.
+- **The digest is the hourly cron's, not a self-rescheduling row.** At
+  the digest hour it queues the day's emails and writes one `daily_digest`
+  row keyed by the day, which is the record that the day is done with
+  whatever hour asks again. `digest_hour` is read as UTC: a Worker has no
+  host clock to be local to.
+- **The sweep runs what it claims.** It is a Worker invocation like any
+  other, so a job it finds needs no second wake-up.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
