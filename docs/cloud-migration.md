@@ -312,6 +312,51 @@ The Python backend keeps running on the NixOS host throughout, on its
 Postgres; the two do not share a database, so there is no overlap period
 — production moves once, at cutover.
 
+### Step 2 — landed 2026-09-21: the sync protocol on D1
+
+The push runs on `batch()`: every change is worked on in memory against
+rows read first, and the rows, the change log and the stored reply are
+written as one atomic batch. `test_desktop_sync.py`'s protocol cases pass
+against the Worker (`cloudflare/test/sync.test.ts`), so D1 is decided.
+The desktop's push loop, its snapshot and its pull deserialize what they
+did before.
+
+The port is the moment to question what it carries, and these are the
+decisions taken so far, each with its reason:
+
+- **The idempotency middleware is gone.** The Python wrapped every
+  mutating route in a replay cache keyed by two headers. No shipped client
+  — not the desktop, not the three apps — ever sent them; only the demo
+  stripped them. The push has its own replay by mutation UUID, which the
+  desktop does rely on, and that stays. `applied_mutations` shrinks to
+  what the push needs (`migrations/0002_sync_simplified.sql`).
+- **A pull change is `{table, row}`.** The Python also sent `sequence`,
+  `uuid`, `revision` and `operation` beside each row; the desktop's
+  `RemoteChange` reads `table` and `row` and nothing else, and the row
+  carries its own name, revision and tombstone. The page's `cursor` is the
+  sequence.
+- **A card's edit does not version its board.** Through the ORM, bumping
+  `boards.updated_at` for a moved card also bumped the board's revision
+  and logged the board as changed, so a replica with a pending rename
+  reported a conflict it never had. The clock moves; the revision is for
+  what a replica may write on the board.
+- **Timestamps are ISO-8601 text everywhere.** SQLite stores text, the
+  wire carried text, the desktop writes RFC 3339 and never parses ours.
+  One format, no conversion.
+- **Validation is one module** (`cloudflare/src/validate.ts`), asked by
+  the push now and by the routes as they arrive, so a title the browser
+  accepts is one the Mac can push back — the property the Python kept by
+  running its pydantic models from both places.
+- **Password hashes are unchanged**: PBKDF2-SHA256 at 200,000 rounds in
+  the `salt$hex` form, through WebCrypto, so every account crosses as it
+  is.
+- **What the Python checked at every start, a test checks once**: that
+  the registry places every column of every synchronized table
+  (`cloudflare/test/registry.test.ts`, against the migrated schema).
+
+Not carried, and listed at the end of `sync.test.ts`: the cases about
+routes not yet ported, which come with those routes.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:

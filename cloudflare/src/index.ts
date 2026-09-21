@@ -2,25 +2,30 @@
 // (docs/cloud-migration.md, phase 4); what is not here yet is not here.
 
 import { requirements, verdict } from "./clientRequirements";
+import { json, Router } from "./http";
+import { authRoutes } from "./routes/auth";
+import { getBlob, headBlob, putBlob } from "./sync/blobs";
+import { pull, snapshot } from "./sync/pull";
+import { push } from "./sync/push";
 
-export function json(body: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
-  });
-}
+const router = new Router();
+
+// Deliberately unauthenticated: a user who is signed out, or whose
+// credential was just refused, is the one most likely to be holding a
+// build that can no longer sign in, and they still need to be told.
+router.on("GET", "/api/client-requirements", ({ request }) => json({ ...requirements(), verdict: verdict(request) }));
+
+authRoutes(router);
+
+router.on("POST", "/api/sync/push", push);
+router.on("GET", "/api/sync/snapshot", snapshot);
+router.on("GET", "/api/sync/pull", pull);
+router.on("HEAD", "/api/sync/blobs/:sha256", headBlob);
+router.on("PUT", "/api/sync/blobs/:sha256", putBlob);
+router.on("GET", "/api/sync/blobs/:sha256", getBlob);
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-
-    // Deliberately unauthenticated: a user who is signed out, or whose
-    // credential was just refused, is the one most likely to be holding a
-    // build that can no longer sign in, and they still need to be told.
-    if (url.pathname === "/api/client-requirements" && request.method === "GET") {
-      return json({ ...requirements(), verdict: verdict(request) });
-    }
-
-    return json({ detail: "Not Found" }, { status: 404 });
+  fetch(request: Request, env: Env): Promise<Response> {
+    return router.handle(request, env);
   },
 } satisfies ExportedHandler<Env>;
