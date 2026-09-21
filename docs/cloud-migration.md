@@ -456,6 +456,17 @@ Decisions taken:
   local runtime delivers queue messages on its own, which would run a job
   before a test had said what the outside world answers.
 
+### Step 4, annotations — landed 2026-09-21
+
+`cloudflare/src/routes/annotations.ts`: a note, a stroke, a clip; listed
+oldest first, narrowed by kind, changed by merging into the stored
+geometry, deleted by their author. The annotation cases of
+`test_account_data.py` translate (`cloudflare/test/annotations.test.ts`).
+A route stores a body with its kind's defaults filled in
+(`validate.normalizedBody`), as the Python's `body_text` did; a push
+stores what the replica sent, as the Python's did. A refusal is a
+sentence, or a list of them — not pydantic's list of error records.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:

@@ -4,6 +4,7 @@
 import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
 import { consume, digestIfDue, sweep, type Wakeup } from "./jobs/run";
+import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
 import { jobRoutes } from "./routes/jobs";
@@ -25,6 +26,7 @@ jobRoutes(router);
 boardRoutes(router);
 nookRoutes(router);
 paperRoutes(router);
+annotationRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);
