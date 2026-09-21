@@ -248,6 +248,8 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
       await send(new Uint8Array(BLOCK * 2));
       await writable.close();
     } catch (error) {
+      // The client sees a body that ends early; the log says why.
+      console.error(`Export for ${user.uuid} aborted: ${(error as Error)?.message ?? error}`);
       await writable.abort(error);
     }
   };
