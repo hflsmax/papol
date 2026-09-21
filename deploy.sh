@@ -1344,8 +1344,12 @@ deploy_prod() {
   local rebuild=no built
   PROD_STAGING=$(mktemp -d)
   trap clean_prod_staging EXIT
+  # module.nix opens the checkout as a flake, which needs the feature on.
+  # The module turns it on for the host; this passes it for the rebuild
+  # that first does so, and is nothing once it has.
+  local -a flakes=(--option extra-experimental-features "nix-command flakes")
   say "Building the system this checkout describes"
-  (cd "$PROD_STAGING" && nixos-rebuild build) \
+  (cd "$PROD_STAGING" && nixos-rebuild build "${flakes[@]}") \
     || die "this checkout does not describe a system that builds. Production is
     untouched and still serving; fix module.nix or flake.nix and deploy again."
   # Read through the symlink but leave it there: while it exists it is the
@@ -1383,7 +1387,7 @@ deploy_prod() {
   # supply — an unanswered sudo prompt is a failed deploy like any other.
   if [ "$rebuild" = yes ]; then
     say "Activating the new system"
-    if ! as_root nixos-rebuild switch; then
+    if ! as_root nixos-rebuild switch "${flakes[@]}"; then
       note "activation failed — putting the old service back"
       as_root systemctl start "$UNIT" \
         || die "activation failed AND $UNIT would not start. Production is down.
