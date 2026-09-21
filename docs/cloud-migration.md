@@ -511,6 +511,38 @@ viewer-references case, which arrives with the references.
 - A closed account is `users.deleted_at`, not an `is_deleted` flag: the
   column the schema already has.
 
+### Step 4, the account — landed 2026-09-21
+
+`cloudflare/src/routes/account.ts` with `cloudflare/src/account/export.ts`
+and `close.ts`: the profile, the picture, the password, the export, and
+closing the account. `test_account_data.py` translates
+(`cloudflare/test/account.test.ts`), joined by the route behaviour that
+had no test before: the picture's storage and serving, the password's
+checks, the confirmation and the last-admin refusal, the tombstone, and
+the seminars handed on or reopened.
+
+- The export is streamed, not built. Python wrote the zip to a scratch
+  file and streamed that; a Worker has no disk and 128 MB of memory, so
+  the archive is written through `fflate` as the client reads it, each
+  PDF copied from R2 a chunk at a time with the response's own
+  backpressure holding the reads. Nothing is held whole.
+- The export carries what the user has, not what they have let go of.
+  `gather` in Python selected copies, notes and ink with no
+  `deleted_at` filter, so a removed paper and its deleted notes came out
+  in the archive as if still kept. Live rows only, here.
+- Closing the account is one D1 batch: the deletes, the seminars handed
+  on, the sessions and sync bookkeeping, and the scrub of the row, all
+  or nothing; the avatar and the boards' files are removed from R2 only
+  after the batch has committed, as Python did.
+- The login route's "this account has been closed" branch is gone. The
+  tombstone's address is `deleted-<uuid>@papol.invalid` and its hash
+  matches no password, so a closed account is never found by the address
+  its owner had, and the branch could not fire. The address is free to
+  register again, which Python allowed too.
+- Avatars are served at `/uploads/avatars/<name>`: the one folder under
+  the uploads prefix, named as a route rather than a general path
+  wildcard.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:

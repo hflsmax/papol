@@ -256,12 +256,13 @@ export function paperRoutes(router: Router) {
   });
 
   // A stored file by its key: a paper's PDF under its digest, an avatar
-  // under a UUID. Both names are minted once and never reused, so what a
-  // URL here answers never changes and may be cached for good.
-  for (const method of ["GET", "HEAD"]) {
-    router.on(method, "/uploads/:key", async ({ env, params }) => {
+  // under a UUID in its own folder. Both names are minted once and never
+  // reused, so what a URL here answers never changes and may be cached
+  // for good.
+  for (const [method, path, folder] of [["GET", "/uploads/:key", ""], ["HEAD", "/uploads/:key", ""], ["GET", "/uploads/avatars/:key", "avatars/"], ["HEAD", "/uploads/avatars/:key", "avatars/"]]) {
+    router.on(method, path, async ({ env, params }) => {
       if (!/^[A-Za-z0-9._-]+$/.test(params.key)) refuse(404, "File not found");
-      const object = await env.FILES.get(`${UPLOADS}${params.key}`);
+      const object = await env.FILES.get(`${UPLOADS}${folder}${params.key}`);
       if (!object) refuse(404, "File not found");
       const headers: Record<string, string> = {
         "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",

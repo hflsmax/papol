@@ -4,6 +4,7 @@
 import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
 import { consume, digestIfDue, sweep, type Wakeup } from "./jobs/run";
+import { accountRoutes } from "./routes/account";
 import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
@@ -25,6 +26,7 @@ const router = new Router();
 router.on("GET", "/api/client-requirements", ({ request }) => json({ ...requirements(), verdict: verdict(request) }));
 
 authRoutes(router);
+accountRoutes(router);
 jobRoutes(router);
 boardRoutes(router);
 nookRoutes(router);
