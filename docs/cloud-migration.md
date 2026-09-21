@@ -691,10 +691,46 @@ twenty seconds later the paper was `ready` with the same 47 references
 and 73 markers the Python backend had read. `grobid.expose` defaults
 on with this host's tunnel id, so configuration.nix needed no change.
 
+### Step 5 — landed 2026-09-21: passwords at the platform's cost
+
+The first sign-in on papol.io failed: production WebCrypto refuses
+PBKDF2 above 100,000 iterations, and every hash made before the move
+used 200,000 (the local runtime the suite ran on did not object). Now
+`auth.ts` verifies the older form (`salt$hex`) in plain JavaScript
+(`@noble/hashes`, about a second of CPU, once per account) and writes
+the Worker's own form `pbkdf2$100000$salt$hex` for new passwords and
+for an older one the moment it verifies at sign-in. A closed account's
+unusable hash still matches nothing. With this the Worker's code,
+tests and configuration stop describing themselves against the backend
+they replaced: what they say is what they do.
+
+### Step 6 — landed 2026-09-21: dev.papol.io, and CI that uses it
+
+Two failures on the first day (the PBKDF2 ceiling, the plain-HTTP tab)
+were of one kind: the local runtime is permissive where Cloudflare is
+strict, and nobody exercised the real thing before a person did. So:
+
+- `[env.dev]` in `wrangler.toml`: a second Papol at https://dev.papol.io
+  with its own D1 (`papol-dev`), bucket (`papol-files-dev`) and queue
+  (`papol-jobs-dev`), the same code and site, its own secrets, GROBID
+  shared. `wrangler deploy --env dev`. Its data is disposable.
+- `cloudflare/scripts/smoke.sh <url>`: what a person does, against a
+  deployed Papol — the redirect, the documents, a sign-up and sign-in, an
+  upload, a save, a stroke, the PDF, the refusals — failing on the first
+  wrong answer. It passes against dev.papol.io.
+- `.github/workflows/worker.yml`: the Worker's suite on every pull
+  request that touches it; on `main`, a deploy to dev followed by the
+  smoke test; production only from the Actions tab, by choice, after
+  dev is green. Needs the `CLOUDFLARE_API_TOKEN` and
+  `CLOUDFLARE_ACCOUNT_ID` repository secrets.
+- The Worker redirects plain HTTP to HTTPS, and `newUuid` no longer
+  depends on a browser API withheld outside secure contexts.
+
 Still to do: the desktop app rebuilt with
 `PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as `wrangler
-deploy`; `module.nix` reduced to GROBID and the tunnel; the Python
-backend deleted; the stray `grobid.papol.io.mc-pony.com` record deleted.
+deploy`; `module.nix` reduced to GROBID and the tunnel; the retired
+backend's code deleted; the stray `grobid.papol.io.mc-pony.com` record
+deleted.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 

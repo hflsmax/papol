@@ -1,5 +1,4 @@
-// Notifications, admin messages and feedback. test_admin_messages.py and
-// the feedback cases of test_jobs.py, asked of the Worker.
+// Notifications, admin messages and feedback.
 import { describe, expect, it } from "vitest";
 
 import { call, count, exec, ok, register, rows, uuid } from "./helpers";

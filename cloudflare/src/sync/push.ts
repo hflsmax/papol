@@ -14,8 +14,7 @@
 // code, and the batch is atomic. Two replicas of one account pushing at
 // the same instant could interleave a read and a write; the revision
 // each carries reports that as a conflict on the next push, and the
-// snapshot every reconciliation fetches first settles it. That is the
-// same guarantee the Python gave, which held no lock across the read.
+// snapshot every reconciliation fetches first settles it.
 
 import { currentUser, type User } from "../auth";
 import { inActiveCohort } from "../cohorts";

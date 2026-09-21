@@ -1,6 +1,4 @@
-// People, nooks, shelves, tags, and the Library's list of papers. The
-// library cases of test_paper_is_not_owned.py and the shelf and tag
-// behavior of the Python routes, asked of the Worker.
+// People, nooks, shelves, tags, and the Library's list of papers.
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";

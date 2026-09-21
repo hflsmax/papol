@@ -1,8 +1,6 @@
 // The bibliography: GROBID's TEI read into references and markers, the
 // lookup that turns a printed reference into a work, and the viewer's
-// routes. The TEI cases of test_metadata_extraction.py, test_biblio.py,
-// test_reference_preview.py and the viewer-references case of
-// test_sharables.py, asked of the Worker.
+// routes.
 import { createExecutionContext, createMessageBatch, env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

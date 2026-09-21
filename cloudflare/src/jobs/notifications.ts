@@ -32,7 +32,7 @@ export async function siteUrl(env: Env): Promise<string> {
 }
 
 // The digest_hour setting (0-23), read as UTC: a Worker has no host clock
-// to be local to. The Python read the host's; the admin sets the number.
+// to be local to, so the admin sets the number in UTC.
 export async function digestHour(env: Env): Promise<number> {
   const setting = await one<{ value: string }>(env.DB, "SELECT value FROM settings WHERE key = 'digest_hour'");
   const hour = Number(setting?.value);
