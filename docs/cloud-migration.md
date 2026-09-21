@@ -683,10 +683,18 @@ outside the store. The Worker holds the same credential as
   `grobid.papol.io.mc-pony.com` there; the real CNAME in papol.io is
   added in the dashboard.
 
+Verified 2026-09-21, after the host's rebuild started the tunnel and the
+front door: `grobid.papol.io/api/isalive` answers 401 without the
+credential and `true` with it; resetting one paper's analysis and
+asking for its references through papol.io queued the pass, and
+twenty seconds later the paper was `ready` with the same 47 references
+and 73 markers the Python backend had read. `grobid.expose` defaults
+on with this host's tunnel id, so configuration.nix needed no change.
+
 Still to do: the desktop app rebuilt with
 `PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as `wrangler
 deploy`; `module.nix` reduced to GROBID and the tunnel; the Python
-backend deleted.
+backend deleted; the stray `grobid.papol.io.mc-pony.com` record deleted.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 
