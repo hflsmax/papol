@@ -11,6 +11,19 @@
  * vertical coordinate system. The line and the offset are in the same one.
  */
 
+/**
+ * The sheets as the scroller has them laid out now, measured down its own
+ * content so a scroll offset can be read straight off them — the shape the
+ * two conversions below take.
+ */
+export function laidOut(scroller) {
+  const origin = scroller.getBoundingClientRect().top - scroller.scrollTop;
+  return [...scroller.querySelectorAll('.pdf-page[data-page]')].map((sheet) => {
+    const rect = sheet.getBoundingClientRect();
+    return { top: rect.top - origin, height: rect.height };
+  });
+}
+
 /** How far into the document a line falls, in document units. */
 export function positionAtLine(pages, line) {
   let at = 0;

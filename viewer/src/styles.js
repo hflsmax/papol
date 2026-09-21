@@ -3,6 +3,11 @@ import { designTokens } from '../../shared/designTokens.js';
 import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
 import { macHandoffStyles } from '../../shared/macHandoffStyles.js';
 
+// Where a window stops being a desktop's and becomes a phone's. One
+// measure, used by the styles below and by the Navigator, which draws the
+// paper differently on either side of it.
+export const PHONE = '(max-width: 560px)';
+
 export const styles = `
 :root {
   ${designTokens}
@@ -389,6 +394,98 @@ ${macHandoffStyles}
   flex-shrink: 1;
   min-width: 72px;
 }
+
+/* ---------- The phone's strip ---------- */
+
+/* The sections by name, in a row, where the bar would be (see SectionStrip).
+   It takes the room the bar takes, beside the house on the bar's one line,
+   and scrolls sideways when the paper has more names than the screen has
+   width: a name cut off at the right edge is the sign that there are
+   more. */
+.section-strip {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--font-ui);
+}
+
+.strip-row {
+  /* So the stops' offsets are measured from the row, which is what keeps
+     the lit one in view. */
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* A sideways swipe scrolls the row; an up-and-down one is the page's. */
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* The names run off either end into nothing rather than against a hard
+     edge, so a half name at the edge reads as more beyond it and not as a
+     fault. Ten pixels: the width of a stop's own padding, so the fade
+     never reaches a letter of the first or the last. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 10px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 10px), transparent);
+}
+
+.strip-row::-webkit-scrollbar { display: none; }
+
+.viewer-bar .strip-stop,
+.viewer-bar .strip-stop:hover:not(:disabled) {
+  flex: none;
+  /* A name has to fit beside its neighbours: a long one is cut, and the
+     tap still goes where it says. */
+  max-width: 44vw;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+/* The front and the back matter are set back from the sections, as they
+   are on the bar: places to go, not places to look inside. */
+.viewer-bar .strip-stop.front,
+.viewer-bar .strip-stop.back { color: var(--ink-faint); }
+
+/* The section being read. The one thing the row says about the reader,
+   said in the accent so it is found without reading the row. */
+.viewer-bar .strip-stop[aria-current],
+.viewer-bar .strip-stop[aria-current]:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.strip-stop:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* Where in the paper that is: the page under the reading line, of how
+   many. Set at the end of the row, out of the scroll, so it is always
+   there to be read. */
+.strip-page {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.strip-of { opacity: 0.7; }
 
 .learn-papol {
   position: absolute;
@@ -1863,24 +1960,18 @@ ${macHandoffStyles}
   .search-pop input { flex: 1; width: auto; }
 }
 
-/* A phone. The paddings tighten, and the bar may wrap: on a touch screen
-   the tools stand in an open row (see the hover rules below), and that
-   row plus the paper's own menu is more than 320 points can hold on one
-   line. A second line costs a little height; controls pushed out of reach
-   would cost the controls. */
-@media (max-width: 560px) {
-  .viewer-bar { gap: 8px; padding: 8px 12px; flex-wrap: wrap; }
+/* A phone. The viewer is for reading and finding one's way: the bar holds
+   the house and the sections' names (see SectionStrip, which the Navigator
+   draws instead of the bar under this width) and nothing else. The tools
+   and the paper's menu are put away — painting a paper and reading about
+   it are desk work, and on a touch screen the tools stood in an open row
+   that, with the menu, took a line of its own. The paddings tighten. */
+@media ${PHONE} {
+  .viewer-bar { gap: 8px; padding: 8px 12px; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
-  /* Too little room for a name to survive being cut to three letters, and
-     a wrong-looking word is worse than none. The map keeps its shape, its
-     anchors and its marker, which is what it is for. */
-  .navigator-name { display: none; }
-  /* The map takes the bar's second line whole, rather than the sliver
-     left between the house and the tools on the first; the paper's own
-     menu keeps the first line's far end, where it always was. */
-  .navigator { order: 10; flex-basis: 100%; min-width: 0; }
-  .paper-menu { margin-left: auto; }
+  .viewer-bar .tools,
+  .viewer-bar .paper-menu { display: none; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one
