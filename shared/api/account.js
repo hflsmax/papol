@@ -3,8 +3,7 @@ import {
   nativeAccountUuid, nativeDataActive, nativeRepository, prepareNativeAccount,
   removeNativeAccount, scheduleAutomaticNativeSync, setNativeAccount,
 } from '../nativeData.js';
-import { runtimeFetch } from '../connectivity.js';
-import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
+import { jsonRequest, request } from '../httpClient.js';
 import { currentCredential, storeCredential } from '../credentials.js';
 import { withAbortTimeout } from '../requestTimeout.js';
 import { activateDesktopSession } from '../authTransition.js';
@@ -146,36 +145,6 @@ export async function updateProfile(data) {
   const user = await jsonRequest('/auth/profile', 'PUT', data);
   await prepareNativeAccount(user);
   return user;
-}
-
-/**
- * Download everything Papol holds about the user, as a tar archive.
- *
- * Fetched rather than linked: the export needs the bearer token, and a
- * plain <a href> cannot carry one. The blob is handed to the browser
- * through a link that is clicked and thrown away — the only way to name a
- * downloaded file from script.
- */
-export async function downloadMyData() {
-  const response = await runtimeFetch(`${API_BASE}/auth/export`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok) await handleResponse(response);
-  // The server names the file; fall back to the same shape if the header
-  // is missing (a proxy may strip it).
-  const disposition = response.headers.get('Content-Disposition') || '';
-  const named = /filename="?([^"]+)"?/.exec(disposition);
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = named ? named[1] : `papol-export-${new Date().toISOString().slice(0, 10)}.tar`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // WebKit may not consume the URL until after the click handler returns.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return blob.size;
 }
 
 export function deleteAccount(confirmEmail) {

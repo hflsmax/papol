@@ -105,16 +105,25 @@ describe("the picture", () => {
 });
 
 describe("the export", () => {
-  it("is a readable tar carrying every kind with its geometry, and the PDFs named after the papers", async () => {
+  it("is a readable tar carrying every kind with its geometry, and naming the files with where each lives", async () => {
     const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
     await adasNook(ada, grace);
+    const avatar = (await ok("POST", "/api/auth/avatar", { headers: ada.headers, body: (() => { const f = new FormData(); f.set("file", new File([new Uint8Array(3)], "me.png")); return f; })() })).avatar_path;
+    const board = uuid(), item = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Clippings', ?, ?, 0)", board, ada.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, original_filename, mime_type, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, 'photo.png', 'image/png', ?, ?, 0)", item, board, `${board}/photo.png`, at, at);
+    await env.FILES.put(`board_uploads/${board}/photo.png`, new Uint8Array(4));
+    // A paper whose PDF the store no longer has is in the data and not among the files.
+    await paperWithCopy(ada, "d".repeat(64), "Lost", { shelfUuid: await defaultShelf(ada) });
     const response = await call("GET", "/api/auth/export", { headers: ada.headers });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/x-tar");
     expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.tar"$/);
     const archive = untar(new Uint8Array(await response.arrayBuffer()));
     const names = Object.keys(archive).map((n) => n.replace(/^papol-export-\d{4}-\d{2}-\d{2}\//, ""));
-    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "seminars.json", "notifications.json", "uploads.json", "boards.json", "pdfs/on-leaving-2024.pdf"]));
+    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "seminars.json", "notifications.json", "uploads.json", "boards.json", "files.json"]));
+    // The files themselves are not in it: the browser fetches them.
+    expect(names.filter((n) => /^(pdfs|board-files|avatar)/.test(n))).toEqual([]);
     const read = (name: string) => JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith(`/${name}`))!]));
 
     expect(read("profile.json")).toMatchObject({ email: "leaver@example.com", display_name: "Ada" });
@@ -128,9 +137,14 @@ describe("the export", () => {
     expect(ink).toHaveLength(1);
     expect(ink[0]).toMatchObject({ color: "#d92b1f", shape: "round", page: 4 });
     expect(ink[0].points).toHaveLength(2);
-    expect(read("nook.json")).toEqual([expect.objectContaining({ paper: expect.objectContaining({ title: "On leaving" }), on_display: true, tags: [] })]);
+    expect(read("nook.json")).toEqual([expect.objectContaining({ paper: expect.objectContaining({ title: "On leaving" }), on_display: true, tags: [] }), expect.objectContaining({ paper: expect.objectContaining({ title: "Lost" }) })]);
     expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/notes.md"))!])).toContain("### Lemma 2 — page 4");
-    expect(archive[Object.keys(archive).find((n) => n.endsWith("/pdfs/on-leaving-2024.pdf"))!]).toEqual(PDF_BYTES);
+    expect(read("files.json")).toEqual([
+      { path: "avatar.png", url: `/uploads/${avatar}`, size: 3 },
+      { path: "pdfs/on-leaving-2024.pdf", url: `/uploads/${PDF}.pdf`, size: PDF_BYTES.length },
+      { path: `board-files/${board}/${item}-photo.png`, url: `/api/board-items/${item}/file`, size: 4 },
+    ]);
+    expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/README.txt"))!])).toContain("files.json");
   });
 });
 

@@ -791,7 +791,40 @@ compute over every byte of every PDF, and the Free plan's CPU budget
 killed the invocation mid-stream. The export is now a tar: each entry
 states its size and carries its bytes, so every PDF is piped from R2
 into the response without passing through JavaScript, and the Worker
-spends nothing but the headers. macOS opens a tar with a double-click.
+spends nothing on arithmetic. That bought back the checksums and not
+the bytes: see step 10.
+
+### Step 10 — landed 2026-09-21: the browser assembles the export
+
+Measured on dev with the same nook (29 papers, 113 MB): the tar export
+ended with `outcome: exceededCpu` after 2,010 ms of CPU, and the client
+got a truncated 200. Pushing bytes through the Worker's own stream costs
+it about 18 ms of CPU per megabyte even when they only pass from R2 to
+the response, and an invocation on the Free plan gets about two seconds
+in practice, so anything past roughly a hundred megabytes is cut off
+whatever the archive format. The Worker must not carry the PDFs.
+
+It no longer carries any file. The tar holds the data and one more
+entry, `files.json`: for each PDF in the nook, each board file and the
+picture, the path it takes in the export, the URL it is fetched from
+(`/uploads/<file>` for a PDF or the picture, `/api/board-items/<uuid>/
+file` for a board file) and its size. The website's "My data" button
+reads the tar in the browser (`shared/exportArchive.js`), fetches every
+file — each its own invocation, with the whole budget to itself — builds
+one zip with `fflate` (PDFs stored, text deflated) and saves it as
+`papol-export-<date>.zip`, with progress in the panel and a quiet line
+naming any file that could not be fetched. The README in the tar says as
+much for anyone taking the export with curl. The cost is memory: the
+browser holds the files and the zip at once, a few hundred megabytes for
+a large nook, which a desktop has.
+
+Measured after the change, same nook, from headless Chrome against dev:
+the export invocation 43 ms of CPU and 3.5 s of wall time (the D1 reads
+and one `head` per file), each of the 26 PDF fetches 0–3 ms of CPU —
+a response whose body is the bucket's object itself never passes
+through JavaScript, which is what makes `/uploads/` cheap where the
+export's stream was not — and the browser had the 129.5 MB zip in
+6.6 s, `zipfile.testzip()` clean.
 
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
