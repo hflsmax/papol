@@ -9,6 +9,14 @@ main = "src/index.ts"
 compatibility_date = "2026-08-22"
 compatibility_flags = ["nodejs_compat"]
 
+# Papol's own hostname, and www beside it. A custom domain: Cloudflare
+# writes the DNS records on deploy, and the workers.dev address stays as
+# a second door until the cutover is done.
+routes = [
+  { pattern = "papol.io", custom_domain = true },
+  { pattern = "www.papol.io", custom_domain = true },
+]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "papol"
@@ -46,7 +54,7 @@ crons = ["*/2 * * * *", "0 * * * *"]
 # Secrets are set with `wrangler secret put`, never written here:
 # EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts).
 [vars]
-PAPOL_URL = ""
+PAPOL_URL = "https://papol.io"
 
 [observability]
 enabled = true

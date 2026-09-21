@@ -650,9 +650,19 @@ on the host was not stopped: there are no users to write meanwhile,
 and the Python backend keeps running on Postgres until the hostname
 moves. `applied_mutations` was left behind, as the script says.
 
-Still to do: the hostname and DNS; the GROBID tunnel with Access; a
-mail provider; `deploy.sh prod` as `wrangler deploy`; `module.nix`
-reduced to GROBID and the tunnel; the Python backend deleted.
+### Step 3 — landed 2026-09-21: papol.io
+
+`papol.io` and `www.papol.io` are custom domains of the Worker
+(`routes` in `wrangler.toml`); Cloudflare wrote the DNS records on
+deploy. `PAPOL_URL` is `https://papol.io`. The workers.dev address
+stays as a second door for now. Mail is off by decision: no
+`EMAIL_API_*` secrets, notifications stay in the inbox. The previous
+production hostname was on the LAN only, so nothing public moves.
+
+Still to do: the GROBID tunnel with Access; the desktop app rebuilt
+with `PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as
+`wrangler deploy`; `module.nix` reduced to GROBID and the tunnel; the
+Python backend deleted.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 
