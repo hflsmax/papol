@@ -1,5 +1,5 @@
 import React from 'react';
-import { appPath } from '../base';
+import SeminarFlow from './SeminarFlow';
 
 const SOURCE_URL = 'https://github.com/hflsmax/papol';
 // The latest release is what the sign-in page's download button points to
@@ -61,10 +61,9 @@ export default function AboutPage() {
         <p>
           Any user of a paper can call a spontaneous seminar on it. Every
           user of that paper is invited; someone answers the call and leads;
-          the cohort settles the time and the place. The{' '}
-          <a href={appPath('/')}>home page</a> shows how one comes together,
-          step by step.
+          the cohort settles the time and the place.
         </p>
+        <SeminarFlow framed={false} />
       </section>
 
       <section className="panel" aria-labelledby="about-boards">

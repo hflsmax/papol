@@ -3273,6 +3273,10 @@ a.button:hover {
   text-underline-offset: 2px;
 }
 
+/* The seminar steps follow a paragraph here rather than a kicker, so they
+   stand a line further off it. */
+.about-page .flow-list { margin-top: 14px; }
+
 /* ---------- Seminar flow diagram ---------- */
 
 .flow-list {
