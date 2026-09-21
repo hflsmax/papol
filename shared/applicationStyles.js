@@ -2470,15 +2470,10 @@ h4 .state-pill {
 .home-organize-item strong { font-size: var(--fs-base); }
 .home-organize-item p { margin-top: 2px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
 
-.incubation-note {
-  margin-top: 18px;
-  font-size: var(--fs-sm);
-  font-style: italic;
-}
 
-/* The source link on the About page. A quiet annotation, not a call to action:
-   it sits below the note about incubation and is meant to be found by
-   someone looking for it. */
+/* The source link in the hero. A quiet annotation, not a call to action:
+   it sits below the note and is meant to be found by someone looking
+   for it. */
 .home-source {
   display: inline-block;
   margin-top: 14px;
@@ -3251,6 +3246,35 @@ a.button:hover {
   max-width: 46ch;
   margin: 0 auto;
   line-height: 1.7;
+}
+
+/* ---------- About ---------- */
+
+/* A page of prose panels: a kicker naming each section and a paragraph or
+   two beneath it, set like the organize items on the home page so the two
+   pages read as one site. The prose is the only thing on the page, so a
+   line is held to a readable measure whatever the window's width. */
+/* One story, read at the tagline's pace rather than a list's: the
+   hero's measure and leading, the first paragraph a shade larger and
+   darker, the rest following at a paragraph's distance. */
+.about-story p {
+  color: var(--ink-soft);
+  font-size: var(--fs-base);
+  line-height: 1.7;
+  max-width: 58ch;
+}
+
+.about-story p + p { margin-top: 14px; }
+
+.about-story .about-lede {
+  color: var(--ink);
+  font-size: calc(var(--fs-base) * 1.1);
+  margin-top: 6px;
+}
+
+.about-story a {
+  color: var(--accent);
+  text-underline-offset: 3px;
 }
 
 /* ---------- Seminar flow diagram ---------- */

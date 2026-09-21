@@ -17,6 +17,7 @@ import RoomPage from './components/RoomPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
+import AboutPage from './components/AboutPage';
 import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
@@ -657,9 +658,7 @@ export default function App({ startupUser = null, startupError = null }) {
             <p className="panel-note">Admin access only.</p>
           </div>
         ))}
-      {route.page === 'about' && (
-        <HomePage currentUser={user} />
-      )}
+      {route.page === 'about' && <AboutPage />}
       {route.page === 'learn' && <LearnPage />}
       {route.page === 'join' && (
         <AuthPage onAuth={handleAuth} initialMode="register" />
