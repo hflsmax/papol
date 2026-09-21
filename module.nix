@@ -180,11 +180,19 @@ in {
       # tunnel of Papol's own carries the requests in; nginx in front asks
       # for one credential, since GROBID has no door of its own.
       expose = {
-        enable = lib.mkEnableOption "GROBID to the Papol Worker through a Cloudflare Tunnel";
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = cfg.cloudflare.enable;
+          defaultText = lib.literalExpression "config.services.papol.cloudflare.enable";
+          description = ''
+            Expose GROBID to the Papol Worker through a Cloudflare Tunnel.
+            On by default wherever the host already tunnels to Cloudflare.
+          '';
+        };
 
         tunnelId = lib.mkOption {
           type = lib.types.str;
-          example = "feda19ad-9bc7-44bd-9ce4-60cf7cf4ed05";
+          default = "feda19ad-9bc7-44bd-9ce4-60cf7cf4ed05";
           description = "The papol tunnel's UUID: `wrangler tunnel create papol`.";
         };
 
