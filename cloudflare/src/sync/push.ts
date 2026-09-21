@@ -18,14 +18,14 @@
 // same guarantee the Python gave, which held no lock across the read.
 
 import { currentUser, type User } from "../auth";
-import { all, batch, columns, insert, newUuid, now, one, update, type Row } from "../db";
+import { all, batch, insert, newUuid, now, one, update, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext } from "../http";
 import * as validate from "../validate";
 import { requireSupportedClient } from "./client";
 import { blobKey, hasBlob, receivePaperFile } from "./blobs";
-import { logChange } from "./log";
 import { keyColumn, ownedThroughBoard, registry, rule, writable, WRITE_ORDER } from "./registry";
 import { rowSnapshot } from "./rows";
+import { writePaper, writeSynced } from "./write";
 import limits from "../../../config/app_limits.json";
 
 // ------------------------------------------------------------ the request
@@ -559,21 +559,18 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
   // the replicas — in an order a parent precedes its children in.
   const at = now();
   const changed = work.all().filter((entry) => entry.modified || (entry.table === "papers" && work.touched.includes(entry)));
-  for (const entry of changed) {
-    entry.row.revision = Number(entry.row.revision ?? 0) + 1;
-    entry.row.updated_at = at;
-  }
   const order = new Map<string, number>(WRITE_ORDER.map((table, index) => [table, index]));
   changed.sort((a, b) => (order.get(a.table) ?? 99) - (order.get(b.table) ?? 99));
   const statements: D1PreparedStatement[] = [];
   for (const entry of changed) {
-    statements.push(await writeRow(env.DB, entry));
-    if (entry.table !== "papers") {
-      const owner = ownedThroughBoard(entry.table)
-        ? (await work.load("boards", entry.row.board_uuid as string))?.row.user_uuid as string
-        : entry.row.user_uuid as string;
-      statements.push(logChange(env.DB, owner, entry.table, entry.row.uuid as string, await rowSnapshot(env.DB, entry.table, entry.row)));
+    if (entry.table === "papers") {
+      statements.push(await writePaper(env.DB, entry.row, entry.isNew));
+      continue;
     }
+    const owner = ownedThroughBoard(entry.table)
+      ? (await work.load("boards", entry.row.board_uuid as string))?.row.user_uuid as string
+      : entry.row.user_uuid as string;
+    statements.push(...await writeSynced(env.DB, entry.table, entry.row, owner, entry.isNew));
   }
   // A board's clock moved by a card; not a version of the board.
   for (const entry of work.all()) {
@@ -607,12 +604,3 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
   return new Response(body, { headers: { "content-type": "application/json" } });
 }
 
-async function writeRow(db: D1Database, entry: Entry): Promise<D1PreparedStatement> {
-  const names = (await columns(db, entry.table)).map((c) => c.name);
-  const full: Row = {};
-  for (const name of names) full[name] = entry.row[name] ?? null;
-  if (entry.isNew) return insert(db, entry.table, full);
-  const key = keyColumn(entry.table);
-  const { [key]: _key, ...rest } = full;
-  return update(db, entry.table, key, entry.row[key], rest);
-}

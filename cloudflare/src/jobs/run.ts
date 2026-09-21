@@ -7,6 +7,7 @@
 
 import limits from "../../../config/app_limits.json";
 import { batch, one, type Row } from "../db";
+import { captureWebpageJob, captureYoutubeJob, WEBPAGE, YOUTUBE } from "./capture";
 import { claim, claimDue, fail, finish, JobError, payloadOf, wake, type Job } from "./queue";
 import { dailyDigest, digestHour, SEND_EMAIL, sendEmailJob } from "./notifications";
 import { enqueue } from "./queue";
@@ -15,6 +16,8 @@ export type Handler = (env: Env, payload: Row) => Promise<unknown>;
 
 export const HANDLERS: Record<string, Handler> = {
   [SEND_EMAIL]: sendEmailJob,
+  [WEBPAGE]: captureWebpageJob,
+  [YOUTUBE]: captureYoutubeJob,
 };
 
 const ERROR_LIMIT = limits.text.analysis_error;

@@ -34,6 +34,10 @@ queue = "papol-jobs"
 max_batch_size = 1
 max_retries = 0
 
+# The browser that captures a webpage for a board card (src/jobs/capture.ts).
+[browser]
+binding = "BROWSER"
+
 # Every two minutes, jobs nobody was woken for; every hour, the daily
 # digest if it is its hour (src/jobs/run.ts).
 [triggers]
