@@ -72,7 +72,7 @@ function groupOut(group: Group, itemUuids: string[]) {
   return { uuid: group.uuid, kind: group.kind, title: group.title, header: group.header ?? "", auto_arrange: Boolean(group.auto_arrange), item_uuids: itemUuids };
 }
 
-async function boardOut(env: Env, board: Board, { includeItems = false, canEdit = false } = {}) {
+export async function boardOut(env: Env, board: Board, { includeItems = false, canEdit = false } = {}) {
   const owner = await one(env.DB, "SELECT * FROM users WHERE uuid = ?", board.user_uuid);
   const items = await all<Item>(env.DB, "SELECT * FROM board_items WHERE board_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", board.uuid);
   const active = items.filter((i) => !i.staged), staged = items.filter((i) => i.staged);

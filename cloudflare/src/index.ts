@@ -7,6 +7,7 @@ import { consume, digestIfDue, sweep, type Wakeup } from "./jobs/run";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
 import { jobRoutes } from "./routes/jobs";
+import { nookRoutes } from "./routes/nook";
 import { getBlob, headBlob, putBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
 import { push } from "./sync/push";
@@ -21,6 +22,7 @@ router.on("GET", "/api/client-requirements", ({ request }) => json({ ...requirem
 authRoutes(router);
 jobRoutes(router);
 boardRoutes(router);
+nookRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);

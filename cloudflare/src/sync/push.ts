@@ -18,6 +18,7 @@
 // same guarantee the Python gave, which held no lock across the read.
 
 import { currentUser, type User } from "../auth";
+import { inActiveCohort } from "../cohorts";
 import { all, batch, insert, newUuid, now, one, update, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext } from "../http";
 import * as validate from "../validate";
@@ -373,16 +374,6 @@ async function assignValues(work: Working, env: Env, entry: Entry, values: Recor
   setAll(row, values, new Set(["board_uuid", "group_uuid", "deleted_at"]));
   if (table === "board_groups") validate.boardGroup(row);
   else validate.boardItem(row);
-}
-
-// True if the user is in the cohort of a still-active seminar on this paper.
-async function inActiveCohort(db: D1Database, userUuid: string, paperSha256: string): Promise<boolean> {
-  return Boolean(await one(
-    db,
-    `SELECT 1 FROM room_participants p JOIN rooms r ON r.uuid = p.room_uuid
-     WHERE r.paper_sha256 = ? AND r.status != 'finished' AND p.user_uuid = ? LIMIT 1`,
-    paperSha256, userUuid,
-  ));
 }
 
 // ---------------------------------------------------------- one change
