@@ -183,9 +183,11 @@ build_tree() {
     fi
   done
 
+  # In the shell like the builds above it: npm and the browser it drives
+  # are the shell's, and a deploy run over ssh has no other PATH.
   if [ "$dir" = "$PROD_DIR" ]; then
     say "Browser smoke test ($dir)"
-    (cd "$dir/frontend" && npm run smoke:browser)
+    (cd "$dir" && nix develop --command bash -c "cd frontend && npm run smoke:browser")
   fi
 }
 
