@@ -12,7 +12,8 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@cloudflare/puppeteer": "^1.4.0"
+    "@cloudflare/puppeteer": "^1.4.0",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",

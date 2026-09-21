@@ -8,6 +8,7 @@ import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
 import { jobRoutes } from "./routes/jobs";
 import { nookRoutes } from "./routes/nook";
+import { paperRoutes } from "./routes/papers";
 import { getBlob, headBlob, putBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
 import { push } from "./sync/push";
@@ -23,6 +24,7 @@ authRoutes(router);
 jobRoutes(router);
 boardRoutes(router);
 nookRoutes(router);
+paperRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);

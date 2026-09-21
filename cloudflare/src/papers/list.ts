@@ -26,7 +26,7 @@ export async function roomStatusMap(db: D1Database): Promise<Map<string, string>
 
 // Every displayed copy of these papers, with its user: the readers shown
 // against a paper, which is each user's own business to be among.
-async function displayedCopies(db: D1Database, digests: string[]): Promise<Map<string, UserEntry[]>> {
+export async function displayedCopies(db: D1Database, digests: string[]): Promise<Map<string, UserEntry[]>> {
   const shown = new Map<string, UserEntry[]>();
   if (!digests.length) return shown;
   const rows = await all<Row>(

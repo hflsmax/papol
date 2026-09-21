@@ -95,11 +95,12 @@ export function bareDoi(value: unknown): string | null {
 }
 
 // A paper's title is the one thing it must have: a paper with no title is
-// a row nobody can find again.
+// a row nobody can find again. Trimmed here, once, so an upload, an edit
+// and a replica's push agree on what a title is.
 export function paperMetadata(row: { doi?: unknown; title?: unknown; authors?: unknown; journal?: unknown; year?: unknown }) {
   const check = checking();
   const doi = check.string("doi", bareDoi(row.doi), { max: text.paper_doi, optional: true });
-  const title = check.string("title", row.title, { min: 1, max: text.paper_title });
+  const title = check.string("title", typeof row.title === "string" ? row.title.trim() : row.title, { min: 1, max: text.paper_title });
   const authors = check.string("authors", row.authors, { max: text.paper_authors, optional: true });
   const journal = check.string("journal", row.journal, { max: text.paper_journal, optional: true });
   const year = check.integer("year", row.year, { min: publicationYear.min, max: publicationYear.max, optional: true });

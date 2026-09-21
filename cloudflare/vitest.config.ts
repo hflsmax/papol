@@ -11,7 +11,9 @@ export default defineConfig(async () => {
       cloudflareTest({
         wrangler: { configPath: "./wrangler.toml" },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations },
+          // The suite hands wake-ups to the consumer itself, so a job
+          // runs when a test says and not when the runtime delivers.
+          bindings: { TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual" },
         },
       }),
     ],
