@@ -16,6 +16,12 @@
 // better stated further down, where the answer is a value rather than a
 // rendering of one.
 //
+// One check does drive it, and stays narrow for that reason:
+// test-native-ui-e2e.py asks the window whether the app came up, took a
+// sign-in, and listed one paper, and reads everything else from the
+// replica. That is the part no value further down can answer — that there
+// is a window at all — and it is the whole of what a window is asked here.
+//
 // Apple ships no WebDriver for WKWebView, so the usual desktop drivers do not
 // work here. The accessibility API does: WebKit publishes the page as real
 // elements — AXButton, AXTextField, AXStaticText, each with the name a user

@@ -1,11 +1,12 @@
 name: Papol macOS
 
-# The test job is the gate, and it runs everywhere code moves: every pull
-# request, every push to main, and the release tag itself. It carries the
-# suites, the browser smokes (desk against replica rows, a citation clicked
-# in the viewer, a board's cards drawn), and the native lints, on the runner
-# that matches the machine the app ships to. Only a tag goes on to build,
-# notarize, and publish.
+# The test and end-to-end jobs are the gate, and they run everywhere code
+# moves: every pull request, every push to main, and the release tag itself.
+# Between them they carry the suites, the browser smokes (desk against
+# replica rows, a citation clicked in the viewer, a board's cards drawn),
+# the native lints, and the real app signed in to a real backend, on the
+# runner that matches the machine the app ships to. Only a tag goes on to
+# build, notarize, and publish.
 on:
   pull_request:
   push:
@@ -69,8 +70,70 @@ jobs:
         working-directory: desktop
         run: npm run check:native
 
+  # The shell itself, against a service. The test job's smokes open the
+  # bundled pages in a browser with a mocked bridge, and its cargo tests
+  # drive the replica with no window anywhere; nothing there says whether
+  # the application a person opens comes up, takes a sign-in, and shows
+  # the paper the service holds. This job starts the real backend, compiles
+  # the real app against it, and asks its window — through the
+  # accessibility API, the only way into a WKWebView — for exactly that.
+  # nix rather than the toolchain actions, because the backend's Python is
+  # listed nowhere but flake.nix.
+  end-to-end:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
+
+      # The accessibility API answers only a process the user has trusted,
+      # and there is no user here to click. macOS charges a command-line
+      # tool's request to the launchd job its ancestor was started by, so
+      # every executable up this step's process tree is written into the
+      # system TCC database — root-writable on the hosted runners, which
+      # ship with System Integrity Protection off — and the driver is asked
+      # afterwards whether it is trusted, so a grant that did not take fails
+      # here, with that message, rather than later as an app with no window.
+      - name: Let this job drive the app's interface
+        run: |
+          set -euo pipefail
+          csrutil status || true
+          db='/Library/Application Support/com.apple.TCC/TCC.db'
+          pid=$$
+          while [ "$pid" -gt 1 ]; do
+            client=$(ps -o comm= -p "$pid")
+            echo "trusting $client"
+            sudo sqlite3 "$db" "INSERT OR REPLACE INTO access
+              (service, client, client_type, auth_value, auth_reason, auth_version, flags)
+              VALUES ('kTCCServiceAccessibility', '$client', 1, 2, 4, 1, 0);"
+            pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
+          done
+          sudo killall tccd || true
+          xcrun swift desktop/scripts/papol-ui.swift windows
+
+      - name: Install desktop and bundled UI dependencies
+        run: nix develop --command bash -c 'cd desktop && npm ci && npm run install:web'
+
+      - name: The replica against the service
+        run: nix develop --command bash -c 'cd desktop && npm run test:e2e:native-sync'
+
+      - name: The app against the service
+        env:
+          PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/e2e
+        run: nix develop --command bash -c 'cd desktop && npm run test:e2e:native-ui'
+
+      - name: Keep what the window showed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-ui-failure
+          path: ${{ runner.temp }}/e2e
+          if-no-files-found: ignore
+
   build:
-    needs: test
+    needs: [test, end-to-end]
     # A dispatched run is the gate alone; only a tag builds and publishes.
     if: startsWith(github.ref, 'refs/tags/macos-v')
     runs-on: macos-26

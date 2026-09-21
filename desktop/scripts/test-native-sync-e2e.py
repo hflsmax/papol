@@ -4,105 +4,33 @@
 import json
 import os
 from pathlib import Path
-import socket
 import subprocess
 import tempfile
-import time
-import urllib.error
 import urllib.request
-import uuid
 
-
-ROOT = Path(__file__).parents[2]
-PYTHON = os.environ.get("PAPOL_TEST_PYTHON", os.sys.executable)
-
-
-def request(url, method="GET", body=None, token=None):
-    data = json.dumps(body).encode() if body is not None else None
-    headers = {"Content-Type": "application/json"} if data else {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    with urllib.request.urlopen(
-        urllib.request.Request(url, data=data, headers=headers, method=method),
-        timeout=5,
-    ) as response:
-        return json.loads(response.read() or b"null")
-
-
-def free_port():
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        return listener.getsockname()[1]
+import disposable_backend as backend_service
+from disposable_backend import ROOT, request
 
 
 def main():
     external_backend = os.environ.get("PAPOL_TEST_BACKEND_URL")
     if not external_backend:
-        dependency = subprocess.run(
-            [PYTHON, "-c", "import fastapi, uvicorn, sqlalchemy"],
-            capture_output=True,
-            text=True,
-        )
-        if dependency.returncode:
-            raise SystemExit(
-                "Native sync E2E needs the backend Python environment. "
-                "Set PAPOL_TEST_PYTHON=/path/to/that/python, or point "
-                "PAPOL_TEST_BACKEND_URL at a disposable backend.\n" + dependency.stderr
-            )
+        backend_service.require_backend_python()
     with tempfile.TemporaryDirectory(prefix="papol-native-e2e-") as directory:
         temporary = Path(directory)
         server = None
-        pdf_name = os.environ.get("PAPOL_TEST_SEED_PDF", "native-e2e.pdf")
         if external_backend:
             backend = external_backend.rstrip("/")
         else:
-            port = free_port()
+            port = backend_service.free_port()
             backend = f"http://127.0.0.1:{port}"
-            environment = {
-                **os.environ,
-                "DATABASE_URL": f"sqlite:///{temporary / 'server.sqlite3'}",
-                "PAPOL_UPLOADS_DIR": str(temporary / "uploads"),
-                "PAPOL_BOARD_FILES_DIR": str(temporary / "board-files"),
-            }
-            uploads = temporary / "uploads"
-            uploads.mkdir()
-            (uploads / pdf_name).write_bytes(b"%PDF-1.4\nnative e2e seed\n%%EOF")
-            server = subprocess.Popen(
-                [PYTHON, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
-                cwd=ROOT / "backend",
-                env=environment,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            server = backend_service.start(temporary, port)
         try:
-            for _ in range(100):
-                if server is not None and server.poll() is not None:
-                    stdout, stderr = server.communicate()
-                    raise RuntimeError(f"backend stopped early\n{stdout}\n{stderr}")
-                try:
-                    urllib.request.urlopen(
-                        f"{backend}/api/sync/pull",
-                        timeout=3 if external_backend else .2,
-                    )
-                except urllib.error.HTTPError as error:
-                    if error.code == 401:
-                        break
-                except OSError:
-                    time.sleep(.05)
-            else:
-                raise RuntimeError("backend did not become ready")
-
-            auth = request(f"{backend}/api/auth/register", "POST", {
-                "email": f"native-e2e-{uuid.uuid4()}@example.test",
-                "display_name": "Native E2E",
-                "affiliation": None,
-                "password": "testing-password",
-            })
-            paper = request(f"{backend}/api/papers", "POST", {
-                "title": "Native annotation E2E",
-                "file_path": pdf_name,
-            }, auth["token"])
+            backend_service.wait_ready(
+                backend, server, timeout=3 if external_backend else .2,
+            )
+            auth = backend_service.register(backend, "Native E2E")
+            paper = backend_service.create_paper(backend, auth["token"], "Native annotation E2E")
             completed = subprocess.run(
                 [
                     "cargo", "run", "--quiet", "--locked",
@@ -166,12 +94,7 @@ def main():
                 assert response.read().startswith(b"%PDF-1.4")
             print("native board, annotation, and PDF offline restart/synchronization: ok")
         finally:
-            if server is not None:
-                server.terminate()
-                try:
-                    server.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    server.kill()
+            backend_service.stop(server)
 
 
 if __name__ == "__main__":

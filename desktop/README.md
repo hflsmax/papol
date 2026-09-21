@@ -204,8 +204,16 @@ SQLite synchronization lifecycle. Run
 environment to exercise the same dependent board operations against FastAPI
 and an isolated in-memory SQLite database. `npm run test:e2e:native-sync`
 starts a disposable real backend and drives a Rust harness through offline
-creation, process restart, blob transfer, push, and pull; set
-`PAPOL_TEST_PYTHON` to the backend virtual environment's Python executable.
+creation, process restart, blob transfer, push, and pull. `npm run
+test:e2e:native-ui` starts the same backend, compiles the real app against
+it, opens it on a fresh replica under a throwaway `HOME`, and signs in
+through its own window: the desk has to come up, take the account, and list
+the paper the service holds, and the replica underneath has to hold it too.
+It drives the window with `scripts/papol-ui.swift` (below) and needs
+Accessibility permission for whatever runs it. Both take the backend's
+Python from `nix develop`; set `PAPOL_TEST_PYTHON` to point at another.
+CI runs both on every pull request, in `desktop-macos.yml`'s end-to-end job,
+which grants the runner that permission itself.
 Dependabot checks the four npm lockfiles, the Rust lockfile, and GitHub Actions
 weekly so Tauri and its surrounding supply chain do not silently age in place.
 To use another backend in that bundle:
