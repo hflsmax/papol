@@ -5,6 +5,7 @@ import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
 import { consume, digestIfDue, sweep, type Wakeup } from "./jobs/run";
 import { accountRoutes } from "./routes/account";
+import { adminRoutes } from "./routes/admin";
 import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
@@ -35,6 +36,7 @@ annotationRoutes(router);
 roomRoutes(router);
 inboxRoutes(router);
 sharableRoutes(router);
+adminRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);
