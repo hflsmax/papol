@@ -638,9 +638,21 @@ answered by the Worker except the demo's.
   --column-inserts` file into D1 statements; tried against a synthetic
   dump into the local D1. The production dump needs `sudo` on the host.
 
-Still to do: the data move; the hostname and DNS; the GROBID tunnel with
-Access; a mail provider; `deploy.sh prod` as `wrangler deploy`;
-`module.nix` reduced to GROBID and the tunnel; the Python backend deleted.
+### Step 2 — landed 2026-09-21: the data is across
+
+`sudo -u postgres pg_dump -d papol --data-only --column-inserts` on the
+host, converted with `scripts/migrate-postgres-to-d1.py`, rehearsed
+into the local D1, then loaded into production with `wrangler d1
+execute --remote --file`: 8,369 statements, every table's count equal
+to the dump's (12 users, 44 papers, 88 annotations, 2,540 references,
+3,921 citation markers, 1,405 links, 102 change-log rows). The service
+on the host was not stopped: there are no users to write meanwhile,
+and the Python backend keeps running on Postgres until the hostname
+moves. `applied_mutations` was left behind, as the script says.
+
+Still to do: the hostname and DNS; the GROBID tunnel with Access; a
+mail provider; `deploy.sh prod` as `wrangler deploy`; `module.nix`
+reduced to GROBID and the tunnel; the Python backend deleted.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 
