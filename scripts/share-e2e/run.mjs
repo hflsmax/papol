@@ -1,8 +1,8 @@
 // Sharing, driven through the interface a user actually uses.
 //
-//     python3 scripts/share-e2e/seed.py && node scripts/share-e2e/run.mjs
+//     node scripts/share-e2e/seed.mjs && node scripts/share-e2e/run.mjs
 //
-// The backend suite already states what a link means. This says that a
+// The Worker suite already states what a link means. This says that a
 // visitor holding one sees it: the attribution, the annotations, the offer of the
 // paper — and, for a lean link, none of the annotations. That half had no coverage
 // at all, in either surface.
@@ -17,7 +17,7 @@ let fx;
 try {
   fx = JSON.parse(readFileSync(FIXTURE));
 } catch {
-  console.error(`No fixture at ${FIXTURE}. Run scripts/share-e2e/seed.py first.`);
+  console.error(`No fixture at ${FIXTURE}. Run scripts/share-e2e/seed.mjs first.`);
   process.exit(2);
 }
 

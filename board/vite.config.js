@@ -11,6 +11,6 @@ export default defineConfig(({ command }) => ({
   resolve: { dedupe: ['react', 'react-dom'] },
   server: {
     fs: { allow: ['..'] },
-    proxy: { '/api': 'http://127.0.0.1:8000', '/uploads': 'http://127.0.0.1:8000' },
+    proxy: { '/api': 'http://127.0.0.1:8787', '/uploads': 'http://127.0.0.1:8787' },
   },
 }));

@@ -39,8 +39,7 @@ otherwise, per surface:
     (cd frontend && npm run test)    # units, production build, browser smoke
     (cd viewer   && npm test)
     (cd board    && npm test)
-    ./deploy.sh db                   # the suite's PostgreSQL, and the exact
-                                     # `python -m unittest` line to run next
+    (cd cloudflare && npm run typecheck && npm test)   # the Worker, on a local D1
     (cd desktop  && cargo test --manifest-path src-tauri/Cargo.toml)
 
 `npm run test` in `frontend` includes the browser smoke test, which now opens
@@ -60,10 +59,11 @@ nothing rendered a desktop surface against a replica-served row.
 Three things now stand where that gap was:
 
 - **`schema/api_shapes.json`** declares the list fields each API view always
-  carries. `backend/test_api_shapes.py` pins it to the response models, and
-  `shared/nativeData.js` completes replica-served rows against it — a list
-  the replica cannot know starts empty instead of missing. A response model
-  gaining or losing a list moves the declaration, and the test says so.
+  carries, and `shared/nativeData.js` completes replica-served rows against
+  it — a list the replica cannot know starts empty instead of missing. The
+  test that pinned it to the server's response models went with the Python
+  backend; a Worker response gaining or losing a list moves the declaration
+  by hand, and `frontend/src/nativeData.test.js` reads it.
 - **The browser smoke's desktop pass** opens the built bundle as Papol macOS
   runs it — a mocked Tauri bridge answering with replica-shaped rows — and
   fails if a surface crashes or renders the wrong thing.
@@ -171,7 +171,7 @@ pass. Every one of these has to move together:
 - `frontend/src/routes.js` — which page a path opens
 - `frontend/src/routes.test.js` — the shapes that must keep working, and the
   shapes that must keep *not* working
-- `backend/services/papers.py`, `desktop/src-tauri/src/data/database.rs` — the
+- `cloudflare/src/papers/resolve.ts`, `desktop/src-tauri/src/data/database.rs` — the
   two resolvers that turn a name from a URL back into the stored identity
 - `frontend/scripts/browser-smoke.mjs` — the links the smoke test opens
 - `health/links.sh` — the links production is checked with after a deploy
@@ -185,7 +185,7 @@ And keep the two apart. A **name** is what a URL and the wire carry and a
 lookup resolves; an **identity** is what rows are keyed by, blobs are stored
 under, and bytes are checked against. A paper's name is the first half of its
 digest; its identity is all of it, and shortening the one must never shorten
-the other. `backend/test_paper_names.py` holds that line, and the test that
+the other. `cloudflare/test/papers.test.ts` holds that line, and the test that
 matters most there is the one asserting the blob check still demands all 64
 characters: a name half as long would be a check half as strong.
 

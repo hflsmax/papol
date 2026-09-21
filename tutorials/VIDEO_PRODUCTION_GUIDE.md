@@ -37,16 +37,21 @@ Before recording:
 
 1. Enter `nix develop` and confirm Chromium, FFmpeg, Node, and Puppeteer Core
    resolve from that shell.
-2. Confirm the local Papol server is reachable and the recorder's required
-   account token, database rows, and source files exist.
+2. Confirm the local Papol is reachable — `cloudflare/scripts/assemble.sh`
+   for the built pages, then `./deploy.sh dev` — and that the recorder's
+   required account token, database rows, and source files exist. The
+   recorders read the newest session out of the local D1 through wrangler,
+   or take one from `PAPOL_TOKEN`.
 3. Launch the recorder from the repository root, for example:
    `nix develop --command node tutorials/<lesson>/record.mjs`.
 
 Running from the tutorial directory can break scripts that intentionally use
-repository-relative paths such as `.postgres/` or `uploads/`. Do not rely
-on globally installed Node or Python packages: a successful run must be
-reproducible directly from the flake and repository sources. If a required
-recorder import is missing, fix `flake.nix` rather than installing it ad hoc.
+repository-relative paths such as `cloudflare/`. Do not rely on globally
+installed Node packages: a successful run must be reproducible directly from
+the flake and repository sources. If a required recorder import is missing,
+fix `flake.nix` rather than installing it ad hoc. The voice generator is the
+one exception: Kokoro is a Python package, run from a disposable virtual
+environment of your own, and nothing of it is in the flake.
 
 ## Production sequence
 

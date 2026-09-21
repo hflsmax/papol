@@ -3,8 +3,8 @@
 Papol macOS is a standalone Tauri application. Its three web surfaces and
 their runtime dependencies (the Desk, PDF viewer, boards, PDF.js fonts and
 WASM, tutorials, and demo assets) are compiled into the application and DMG.
-Only data and uploaded files come from the hosted FastAPI backend at
-`https://mc-pony.com/papol`, so the macOS app and browser clients share accounts
+Only data and uploaded files come from the hosted backend, the Worker at
+`https://papol.io`, so the macOS app and browser clients share accounts
 and data without loading the hosted frontend.
 
 ## Offline use
@@ -199,19 +199,20 @@ both before signing and publishing.
 
 The synchronization boundary has focused suites. From `desktop/`, run
 `npm run test:sync` for the network-only connectivity boundary and native
-SQLite synchronization lifecycle. Run
-`npm run test:backend-contract` inside the repository's Python development
-environment to exercise the same dependent board operations against FastAPI
-and an isolated in-memory SQLite database. `npm run test:e2e:native-sync`
-starts a disposable real backend and drives a Rust harness through offline
-creation, process restart, blob transfer, push, and pull. `npm run
+SQLite synchronization lifecycle; the server's side of the same contract
+is `cloudflare/test/sync.test.ts`. `npm run test:e2e:native-sync`
+starts a disposable real backend — the Worker, as `wrangler dev` on a port
+of its own with a database of its own — and drives a Rust harness through
+offline creation, process restart, blob transfer, push, and pull. `npm run
 test:e2e:native-ui` starts the same backend, compiles the real app against
 it, opens it on a fresh replica under a throwaway `HOME`, and signs in
 through its own window: the desk has to come up, take the account, and list
 the paper the service holds, and the replica underneath has to hold it too.
 It drives the window with `scripts/papol-ui.swift` (below) and needs
-Accessibility permission for whatever runs it. Both take the backend's
-Python from `nix develop`; set `PAPOL_TEST_PYTHON` to point at another.
+Accessibility permission for whatever runs it. Both take wrangler from
+`cloudflare/node_modules` (`npm ci --legacy-peer-deps` there first) and
+Node from `nix develop`; the scripts themselves want nothing of Python's
+but the standard library, so the Mac's own `python3` runs them.
 CI runs both on every pull request, in `desktop-macos.yml`'s end-to-end job,
 which grants the runner that permission itself.
 Dependabot checks the four npm lockfiles, the Rust lockfile, and GitHub Actions
@@ -283,7 +284,7 @@ the same screens in a browser against the development server instead.
 ### Extending offline data
 
 For a nullable field on an existing synchronized row: add it to
-`schema/domain/domain.sql`, mirror it in the SQLAlchemy model, add it to
+`schema/domain/domain.sql`, mirror it in a D1 migration (`cloudflare/migrations`), add it to
 `schema/sync_registry.json` only if the desktop may write it, expose it from
 the named local query, and add a round-trip test.
 

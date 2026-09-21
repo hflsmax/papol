@@ -13,7 +13,7 @@ const rootDir = resolve(desktopDir, '..');
 const outputDir = join(desktopDir, 'dist');
 const cacheDir = join(desktopDir, 'node_modules', '.cache', 'papol');
 const inputMarker = join(cacheDir, 'build-web.sha256');
-const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'https://mc-pony.com/papol');
+const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'https://papol.io');
 
 function build(name) {
   const result = spawnSync('npm', ['run', 'build'], {

@@ -12,7 +12,7 @@ Papol should use a **practical local-first architecture** for the desktop app:
 - synchronized domain tables use the same names, columns, types, and UUID identities locally and on the server;
 - every user-owned edit commits locally first, in the same transaction as a durable outbox record;
 - one Tauri/Rust sync coordinator pushes the outbox and pulls server changes;
-- the existing FastAPI service remains authoritative for accounts, authorization, shared/public state, and cross-device reconciliation;
+- the service (the Worker in `cloudflare/`; the FastAPI service when this was written) remains authoritative for accounts, authorization, shared/public state, and cross-device reconciliation;
 - PDFs and board attachments live as content-addressed files beside the database, not as duplicate blobs inside queued HTTP requests;
 - the UI never treats the network response cache as its data model.
 
@@ -20,7 +20,7 @@ The recommended desktop store is **SQLite owned by the Tauri/Rust layer**, with 
 
 Papol should **not adopt a general-purpose CRDT system now**. Its required offline edits are private, user-owned records and boards, not concurrent collaborative documents. Stable client-generated IDs, idempotent server mutations, server revisions, tombstones, and a few entity-specific conflict rules provide a much smaller system. The domain schema should be shared by default; local/server differences belong in separate infrastructure tables rather than alternate representations of the same entity.
 
-There are off-the-shelf products, but none is a drop-in match for the present stack. PowerSync is the closest and deserves a future spike if Papol moves its backend database to PostgreSQL. Today, that route combines a backend database migration with an explicitly alpha Tauri SDK. A focused Papol sync protocol is therefore the simplest production path—not because synchronization is easy, but because Papol's required domain is narrower than the migrations and runtime dependencies imposed by the available products.
+There are off-the-shelf products, but none is a drop-in match for the present stack. PowerSync was the closest when this was written, and would have wanted a PostgreSQL that Papol has since moved away from (the server's database is D1; `cloud-migration.md`). That route combined a backend database migration with an explicitly alpha Tauri SDK. A focused Papol sync protocol is therefore the simplest production path—not because synchronization is easy, but because Papol's required domain is narrower than the migrations and runtime dependencies imposed by the available products.
 
 ## What “offline-first” means for Papol
 
@@ -72,7 +72,7 @@ Bundled React UI: library / viewer / board windows
         └─ account-partitioned repository
               │ native HTTPS
               ▼
-           FastAPI synchronization API
+           the Worker's synchronization API
         ├─ authentication + authorization
         ├─ idempotent mutation application
         ├─ monotonic per-user change feed
@@ -130,7 +130,7 @@ board_items (
 
 The server may join that row to account and authorization tables, while the local database may hold only the signed-in user's rows. Neither side renames `content`, converts the card into a response-cache object, or assigns a second local identifier.
 
-One file, `schema/domain/domain.sql`, is the canonical physical schema; the desktop writes it verbatim into a new replica. SQLAlchemy models remain the server's runtime mappings, and a test creates a fresh database from the shared file and compares its columns with the metadata, so the two cannot drift. There is no second file describing a shape the schema used to have: a change an existing database cannot be read under is a new `schema_version` in `schema/sync_registry.json`, the server refuses a database at any other version, and the desktop discards a replica at any other version and pulls the account again.
+One file, `schema/domain/domain.sql`, is the canonical physical schema; the desktop writes it verbatim into a new replica. The server's D1 carries the same tables through its migrations (`cloudflare/migrations`), and `cloudflare/test/registry.test.ts` compares every synchronized table's columns with the registry, so the two cannot drift. There is no second file describing a shape the schema used to have: a change an existing database cannot be read under is a new `schema_version` in `schema/sync_registry.json`, the server refuses a database at any other version, and the desktop discards a replica at any other version and pulls the account again.
 
 Keep differences explicit in prefixed auxiliary tables. A minimum local-only shape is:
 
