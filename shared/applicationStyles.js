@@ -2470,15 +2470,17 @@ h4 .state-pill {
 .home-organize-item strong { font-size: var(--fs-base); }
 .home-organize-item p { margin-top: 2px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
 
-.incubation-note {
+/* One line under the tagline saying where Papol is and that its source is
+   open: an aside in the hero's voice, not a second tagline. */
+.home-note {
   margin-top: 18px;
   font-size: var(--fs-sm);
   font-style: italic;
 }
 
-/* The source link on the About page. A quiet annotation, not a call to action:
-   it sits below the note about incubation and is meant to be found by
-   someone looking for it. */
+/* The source link in the hero. A quiet annotation, not a call to action:
+   it sits below the note and is meant to be found by someone looking
+   for it. */
 .home-source {
   display: inline-block;
   margin-top: 14px;
@@ -3251,6 +3253,24 @@ a.button:hover {
   max-width: 46ch;
   margin: 0 auto;
   line-height: 1.7;
+}
+
+/* ---------- About ---------- */
+
+/* A page of prose panels: a kicker naming each section and a paragraph or
+   two beneath it, set like the organize items on the home page so the two
+   pages read as one site. The prose is the only thing on the page, so a
+   line is held to a readable measure whatever the window's width. */
+.about-page p {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  max-width: 64ch;
+}
+
+.about-page a {
+  color: var(--accent);
+  text-underline-offset: 2px;
 }
 
 /* ---------- Seminar flow diagram ---------- */

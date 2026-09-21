@@ -12,13 +12,13 @@ export default function HomePage({ currentUser }) {
           Read closely. Keep what matters. Let every paper stay part of your
           thinking.
         </p>
-        <p className="incubation-note">
-          Papol is in incubation. Once it gains traction, it will move to an
-          independent domain with better support.
+        <p className="home-note">
+          Papol lives at papol.io and is open source.
         </p>
-        {/* Papol is open source, and a user who wants to know how their
-            notes are stored can go and read it. The annotation alone: a line
-            saying "GitHub" beside the GitHub logo says it twice. */}
+        {/* A user who wants to know how their notes are stored can go and
+            read the source. The logo alone: the line above already says
+            "open source", and a word "GitHub" beside the GitHub logo would
+            say it a third time. */}
         <a
           className="home-source"
           href="https://github.com/hflsmax/papol"
