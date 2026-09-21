@@ -33,7 +33,7 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://mc-pony.com/**" },
+        { "url": "https://papol.io/**" },
         { "url": "http://localhost:**" },
         { "url": "http://127.0.0.1:**" }
       ]
