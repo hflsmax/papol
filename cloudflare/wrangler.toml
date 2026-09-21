@@ -15,5 +15,12 @@ database_name = "papol"
 database_id = "papol-local"
 migrations_dir = "migrations"
 
+# The files: a paper's PDF under uploads/, a board's files and the
+# desktop's blobs under board_uploads/ — the same keys the Python backend
+# used in the same bucket (backend/storage.py).
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "papol"
+
 [observability]
 enabled = true
