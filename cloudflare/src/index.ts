@@ -20,7 +20,17 @@ import { getBlob, headBlob, putBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
 import { push } from "./sync/push";
 
-const router = new Router();
+// What no route claims is the website: the main frontend's files and,
+// for any clean path, its document (History API routing). An unknown
+// API or upload path is an error, not a page.
+const router = new Router(({ request, env, url }) => {
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) return json({ detail: "Not Found" }, { status: 404 });
+  return env.ASSETS.fetch(request);
+});
+
+// A board is its own full-screen app with its own build, served under
+// /boards; its document answers for every board's URL.
+router.on("GET", "/boards/:uuid", ({ request, env, url }) => env.ASSETS.fetch(new Request(`${url.origin}/boards/`, request)));
 
 // Deliberately unauthenticated: a user who is signed out, or whose
 // credential was just refused, is the one most likely to be holding a
