@@ -125,11 +125,14 @@ class _Sources:
         return self.now() != self.stamp
 
 
-async def run(reload: bool = False):
-    stopping = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, stopping.set)
+async def run(reload: bool = False, stopping: asyncio.Event | None = None):
+    """The loop. `stopping` is what SIGTERM sets; the suite passes its own
+    to stop the loop without a signal."""
+    if stopping is None:
+        stopping = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, stopping.set)
 
     database.migrate()
     with database.SessionLocal() as db:
