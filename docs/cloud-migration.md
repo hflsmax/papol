@@ -415,6 +415,16 @@ Decisions taken:
 - **A card's edit moves the board's clock, not its revision**, as the
   push already had it.
 
+### Step 4, the nook — landed 2026-09-21
+
+`cloudflare/src/routes/nook.ts` and `src/papers/list.ts`: the Library's
+users, a user's nook, shelves, tags, and the Library's list of papers.
+The library cases of `test_paper_is_not_owned.py` translate
+(`cloudflare/test/nook.test.ts`); the paper page itself, with its
+routes, comes next. One decision: a list of papers is built in a handful
+of queries for the whole list — the displayed copies, the seminar
+statuses, the nook's own tags — rather than the ORM's query per row.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
