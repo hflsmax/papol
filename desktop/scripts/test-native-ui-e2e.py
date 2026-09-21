@@ -127,8 +127,8 @@ def replica_titles(home, identifier):
 def keep_evidence(pid, app, server, home):
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     if pid is not None:
-        _, listing = ui("dump", str(pid))
-        (ARTIFACTS / "window.txt").write_text(listing + "\n")
+        status, listing = ui("dump", str(pid))
+        (ARTIFACTS / "window.txt").write_text(f"dump exited {status}\n{listing}\n")
         ui("shot", str(pid), str(ARTIFACTS / "window.png"))
     if app is not None and (home / "app.log").exists():
         shutil.copy(home / "app.log", ARTIFACTS / "app.log")

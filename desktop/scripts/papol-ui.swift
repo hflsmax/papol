@@ -398,6 +398,15 @@ func typeText(_ pid: pid_t, into wanted: String, text: String) -> Int32 {
         }
         down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
         up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        // A new event takes its modifiers from the source's current state,
+        // and the ⌘ from the select-all above is still "held" there until
+        // the system has digested its key-up. On a loaded machine that is
+        // later than the next event is made, and every character then goes
+        // in with ⌘ on it: a "2" in an e-mail address becomes ⌘2, which is
+        // the sidebar's Create account, and the form is gone. Say plainly
+        // that these are unmodified keys.
+        down.flags = []
+        up.flags = []
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
         // A webview coalesces events posted faster than it renders, and
