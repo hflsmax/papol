@@ -1,19 +1,28 @@
 import React from 'react';
 
-// One paragraph, in the author's own words.
+// The author's page: who made Papol, what it grew from, and what it is for.
 export default function AboutPage() {
   return (
     <div className="about-page">
-      <section className="panel" aria-labelledby="about-title">
+      <section className="panel about-story" aria-labelledby="about-title">
         <h6 className="kicker" id="about-title">About Papol</h6>
-        <p>
-          Papol is developed as a hobby project by me,{' '}
+        <p className="about-lede">
+          Papol is a hobby project of mine. I am{' '}
           <a href="https://mc-pony.com" target="_blank" rel="noreferrer">Cong Ma</a>,
-          a computer science researcher. It combines the best features I have used
-          in research and paper reading: above all the citation popups of Google
-          Scholar&rsquo;s browser plugin, and the infinite board for brainstorming of
-          Allume (formerly Muse). The functionalities are all interconnected. Papol
-          is an ecosystem where ideas flow.
+          a computer science researcher, and I built it from the best of what I
+          have used for reading papers.
+        </p>
+        <p>
+          Two things shaped it most. The citation popups of Google Scholar&rsquo;s
+          browser button, which show you what a reference is without leaving the
+          page you are reading. And the infinite board of Allume, formerly Muse,
+          which gives thinking the room to spread out.
+        </p>
+        <p>
+          In Papol these are not separate tools. Reading, references, notes,
+          boards and seminars are one connected place, so that an idea found in
+          one paper can travel to the next. Papol is an ecosystem where ideas
+          flow.
         </p>
       </section>
     </div>

@@ -3254,21 +3254,28 @@ a.button:hover {
    two beneath it, set like the organize items on the home page so the two
    pages read as one site. The prose is the only thing on the page, so a
    line is held to a readable measure whatever the window's width. */
-.about-page p {
+/* One story, read at the tagline's pace rather than a list's: the
+   hero's measure and leading, the first paragraph a shade larger and
+   darker, the rest following at a paragraph's distance. */
+.about-story p {
   color: var(--ink-soft);
-  font-size: var(--fs-sm);
-  line-height: 1.55;
-  max-width: 64ch;
+  font-size: var(--fs-base);
+  line-height: 1.7;
+  max-width: 58ch;
 }
 
-.about-page a {
+.about-story p + p { margin-top: 14px; }
+
+.about-story .about-lede {
+  color: var(--ink);
+  font-size: calc(var(--fs-base) * 1.1);
+  margin-top: 6px;
+}
+
+.about-story a {
   color: var(--accent);
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
 }
-
-/* The seminar steps follow a paragraph here rather than a kicker, so they
-   stand a line further off it. */
-.about-page .flow-list { margin-top: 14px; }
 
 /* ---------- Seminar flow diagram ---------- */
 
