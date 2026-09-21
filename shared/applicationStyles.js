@@ -2470,13 +2470,6 @@ h4 .state-pill {
 .home-organize-item strong { font-size: var(--fs-base); }
 .home-organize-item p { margin-top: 2px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
 
-/* One line under the tagline saying where Papol is and that its source is
-   open: an aside in the hero's voice, not a second tagline. */
-.home-note {
-  margin-top: 18px;
-  font-size: var(--fs-sm);
-  font-style: italic;
-}
 
 /* The source link in the hero. A quiet annotation, not a call to action:
    it sits below the note and is meant to be found by someone looking

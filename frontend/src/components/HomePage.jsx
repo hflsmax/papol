@@ -12,9 +12,6 @@ export default function HomePage({ currentUser }) {
           Read closely. Keep what matters. Let every paper stay part of your
           thinking.
         </p>
-        <p className="home-note">
-          Papol lives at papol.io and is open source.
-        </p>
         {/* A user who wants to know how their notes are stored can go and
             read the source. The logo alone: the line above already says
             "open source", and a word "GitHub" beside the GitHub logo would
