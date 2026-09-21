@@ -6,10 +6,12 @@
 // other row goes by — written by shared/paperName.js and read here.
 
 import { type User } from "../auth";
-import { all, one, type Row } from "../db";
+import { all, batch, newUuid, now, one, type Row } from "../db";
 import { refuse } from "../http";
 import { userPublic } from "../routes/boards";
+import { writeSynced } from "../sync/write";
 import { displayedCopies } from "./list";
+import { liveReadingLink } from "./sharables";
 
 export const PAPER_NAME_LENGTH = 32;
 const NAME = /^[0-9a-f]{32}$/;
@@ -63,6 +65,30 @@ export async function copyOf(db: D1Database, paperSha256: string, user: User): P
 
 export async function requireCopy(db: D1Database, paperSha256: string, user: User): Promise<Copy> {
   return (await copyOf(db, paperSha256, user)) ?? refuse(403, "Add this paper to your nook first");
+}
+
+// Where a paper lands when nothing says otherwise: the shelf marked
+// default, or the first one.
+export async function defaultShelf(db: D1Database, user: User): Promise<Row | null> {
+  return one<Row>(db, "SELECT * FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY is_default DESC, position LIMIT 1", user.uuid);
+}
+
+// Take a paper into the user's nook: a copy of the one canonical paper
+// on their default shelf. One copy per user: a paper added back after
+// being removed revives that copy rather than storing a second. One
+// road, however the paper was found — the Library, a link — so where it
+// lands does not depend on how it was found.
+export async function keepPaper(db: D1Database, user: User, paperSha256: string): Promise<Copy> {
+  if (await copyOf(db, paperSha256, user)) refuse(400, "This paper is already in your nook");
+  const shelf = await defaultShelf(db, user);
+  const removed = await one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid);
+  const at = now();
+  const copy: Copy = removed
+    ? { ...removed, deleted_at: null, shelf_uuid: shelf?.uuid as string ?? null }
+    : { uuid: newUuid(), paper_sha256: paperSha256, user_uuid: user.uuid, shelf_uuid: shelf?.uuid as string ?? null, summary: null, thought: null,
+        is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, created_at: at, updated_at: at, revision: 0, deleted_at: null };
+  await batch(db, await writeSynced(db, "copies", copy, user.uuid, !removed));
+  return copy;
 }
 
 // One row shape covers notes, ink and clips: they are three ways of
@@ -121,10 +147,7 @@ export async function paperDetail(db: D1Database, paper: Paper, viewer: User) {
     // Only ever a link carrying their annotations: the paper's own link is
     // nobody's, and telling them one exists would make it sound like
     // something of theirs is out.
-    const shared = await one<{ uuid: string }>(db,
-      "SELECT uuid FROM sharables WHERE user_uuid = ? AND kind = 'rich' AND paper_sha256 = ? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 1",
-      viewer.uuid, paper.sha256);
-    detail.sharable_uuid = shared?.uuid ?? null;
+    detail.sharable_uuid = (await liveReadingLink(db, viewer.uuid, paper.sha256))?.uuid ?? null;
   }
   detail.also_read_by = (await displayedCopies(db, [paper.sha256])).get(paper.sha256) ?? [];
   detail.rooms = await roomSummaries(db, paper.sha256);
