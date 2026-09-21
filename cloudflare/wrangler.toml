@@ -24,8 +24,7 @@ database_id = "4a3f822d-7dd5-41df-94a5-cf10f0adb6fa"
 migrations_dir = "migrations"
 
 # The files: a paper's PDF under uploads/, a board's files and the
-# desktop's blobs under board_uploads/ — the same keys the Python backend
-# used in the same bucket (backend/storage.py).
+# desktop's blobs under board_uploads/ (src/sync/blobs.ts).
 [[r2_buckets]]
 binding = "FILES"
 bucket_name = "papol-files"

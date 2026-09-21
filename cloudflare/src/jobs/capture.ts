@@ -6,10 +6,8 @@
 // thumbnail and title, and put the image beside the card. A capture that
 // fails leaves the card as the link it already was; the job says why.
 //
-// The Python ran a Chromium subprocess and, for a LAN-attached host,
-// resolved the hostname first to refuse private addresses. The browser
-// here is Cloudflare's, on Cloudflare's network, so the check that
-// remains is on the URL itself: a browser scheme, a hostname that is not
+// The browser is Cloudflare's, on Cloudflare's network, so no private
+// address of ours is reachable from it; the check is on the URL itself: a browser scheme, a hostname that is not
 // a loopback or private literal, no credentials.
 
 import puppeteer from "@cloudflare/puppeteer";

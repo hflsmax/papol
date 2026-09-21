@@ -683,10 +683,24 @@ outside the store. The Worker holds the same credential as
   `grobid.papol.io.mc-pony.com` there; the real CNAME in papol.io is
   added in the dashboard.
 
+### Step 5 — landed 2026-09-21: passwords at the platform's cost
+
+The first sign-in on papol.io failed: production WebCrypto refuses
+PBKDF2 above 100,000 iterations, and every hash made before the move
+used 200,000 (the local runtime the suite ran on did not object). Now
+`auth.ts` verifies the older form (`salt$hex`) in plain JavaScript
+(`@noble/hashes`, about a second of CPU, once per account) and writes
+the Worker's own form `pbkdf2$100000$salt$hex` for new passwords and
+for an older one the moment it verifies at sign-in. A closed account's
+unusable hash still matches nothing. With this the Worker's code,
+tests and configuration stop describing themselves against the backend
+they replaced: what they say is what they do.
+
 Still to do: the desktop app rebuilt with
 `PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as `wrangler
-deploy`; `module.nix` reduced to GROBID and the tunnel; the Python
-backend deleted.
+deploy`; `module.nix` reduced to GROBID and the tunnel; the retired
+backend's code deleted; the stray `grobid.papol.io.mc-pony.com` record
+deleted.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 

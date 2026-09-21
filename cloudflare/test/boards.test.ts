@@ -1,6 +1,4 @@
-// Boards through the API, and the cards whose pictures are jobs. The
-// board-route cases of test_desktop_sync.py, test_board_group_booklets.py
-// and the capture cases of test_jobs.py, asked of the Worker.
+// Boards through the API, and the cards whose pictures are jobs.
 import { createExecutionContext, createMessageBatch, env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 

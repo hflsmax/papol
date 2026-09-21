@@ -1,7 +1,7 @@
 // Signing up, in, and out, and asking who you are.
 
 import {
-  currentUser, hashPassword, loginPlatform, newToken, sessionInsert, userPrivate,
+  currentUser, hashPassword, isLegacyHash, loginPlatform, newToken, sessionInsert, userPrivate,
   verifyPassword, type User,
 } from "../auth";
 import { batch, insert, newUuid, now, one, statement } from "../db";
@@ -59,7 +59,13 @@ export function authRoutes(router: Router) {
       refuse(401, "Invalid email or password");
     }
     const token = newToken();
-    await sessionInsert(env.DB, token, user.uuid, loginPlatform(request)).run();
+    const statements = [sessionInsert(env.DB, token, user.uuid, loginPlatform(request))];
+    // A password in the older form is re-hashed in the Worker's form now
+    // that it has been seen: the next sign-in is native.
+    if (isLegacyHash(user.password_hash)) {
+      statements.push(statement(env.DB, "UPDATE users SET password_hash = ? WHERE uuid = ?", await hashPassword(String(data.password)), user.uuid));
+    }
+    await batch(env.DB, statements);
     return json({ token, user: userPrivate(user) });
   });
 

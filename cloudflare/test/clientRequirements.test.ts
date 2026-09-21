@@ -1,4 +1,4 @@
-// The port of the client-requirements cases in backend/test_client_gate.py.
+// The client-requirements gate.
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
@@ -38,7 +38,7 @@ describe("client requirements", () => {
   it("starts on a database at this build's schema", async () => {
     const stamped = await env.DB.prepare("SELECT value FROM settings WHERE key = 'schema_version'").first<{ value: string }>();
     expect(stamped?.value).toBe(CURRENT);
-    // Every table backend/models.py declares, and nothing of Papol's besides.
+    // Every table the schema declares, and nothing of Papol's besides.
     const { results } = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' ORDER BY name",
     ).all<{ name: string }>();
