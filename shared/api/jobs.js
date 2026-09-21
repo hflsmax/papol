@@ -1,4 +1,5 @@
 import { request } from '../httpClient.js';
+import { pollUntil } from '../polling.js';
 
 // ---------- Jobs ----------
 
@@ -18,32 +19,15 @@ export class JobFailed extends Error {
   }
 }
 
-const FIRST_WAIT_MS = 600;
-const LONGEST_WAIT_MS = 4000;
-
-function sleep(ms, signal) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => {
-      clearTimeout(timer);
-      reject(signal.reason instanceof Error ? signal.reason : new DOMException('Aborted', 'AbortError'));
-    }, { once: true });
-  });
+export function jobSettled(job) {
+  return job.status === 'done' || job.status === 'failed';
 }
 
-// The job once it is over: its result when it is done, a JobFailed when
-// it is not. Asks a little less often as the wait goes on — a metadata
-// lookup answers in a second, a browser rendering a page takes ten, and
-// neither deserves a request every half second for a minute. An
+// The job's result once it is done; a JobFailed when it is not. Asks on
+// the schedule every wait in Papol uses (shared/polling.js). An
 // AbortSignal ends the waiting, not the job.
 export async function awaitJob(uuid, { signal } = {}) {
-  let wait = FIRST_WAIT_MS;
-  for (;;) {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const job = await getJob(uuid);
-    if (job.status === 'done') return job.result;
-    if (job.status === 'failed') throw new JobFailed(job);
-    await sleep(wait, signal);
-    wait = Math.min(wait * 1.5, LONGEST_WAIT_MS);
-  }
+  const job = await pollUntil(() => getJob(uuid), jobSettled, { signal });
+  if (job.status === 'failed') throw new JobFailed(job);
+  return job.result;
 }

@@ -176,7 +176,9 @@ The API contract changed in two places, and both are the final shape:
 Both are polled at `GET /api/jobs/{uuid}` (`JobOut`: `queued`, `running`,
 `done` with `result`, `failed` with `detail`), which answers only the user
 whose request queued the job. `shared/api/jobs.js` is the client's side
-of it. The paper's reference pass (`analyze_paper`) kept its contract —
+of it, and `shared/polling.js` is the one loop every wait in a client
+goes through — a job ticket and the viewer's reference status alike:
+ask, show each answer, stop when it has settled, back off in between. The paper's reference pass (`analyze_paper`) kept its contract —
 `papers.references_status` and `/api/viewer-references` saying `pending`
 — because that was already a poll; what changed is that the pass runs on
 the worker, and its in-process bookkeeping (the `_analyzing` set) became
