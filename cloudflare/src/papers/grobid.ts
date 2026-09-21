@@ -1,8 +1,9 @@
 // GROBID: the analyzer that turns a PDF into a reference list. A trained
 // model that says "[12]" on page 3 is a citation and which line of the
 // bibliography it points at. It runs as its own service on the NixOS
-// host, reached through a Cloudflare tunnel with Access in front, so the
-// Worker presents a service token with each request.
+// host, reached through a Cloudflare tunnel with nginx in front asking
+// for one credential (module.nix, `grobid.expose`), which the Worker
+// presents with each request.
 
 import { parseHeader, parseTei, type Analysis, type HeaderMetadata } from "./tei";
 
@@ -20,10 +21,7 @@ async function post(env: Env, path: string, bytes: Uint8Array, fields: [string, 
   form.set("input", new Blob([bytes as unknown as ArrayBuffer], { type: "application/pdf" }), "paper.pdf");
   for (const [name, value] of fields) form.append(name, value);
   const headers: Record<string, string> = {};
-  if (env.GROBID_ACCESS_CLIENT_ID && env.GROBID_ACCESS_CLIENT_SECRET) {
-    headers["CF-Access-Client-Id"] = env.GROBID_ACCESS_CLIENT_ID;
-    headers["CF-Access-Client-Secret"] = env.GROBID_ACCESS_CLIENT_SECRET;
-  }
+  if (env.GROBID_AUTH) headers.authorization = `Basic ${btoa(env.GROBID_AUTH)}`;
   const response = await fetch(`${env.GROBID_URL.replace(/\/+$/, "")}${path}`, { method: "POST", body: form, headers, signal: AbortSignal.timeout(ANALYZE_TIMEOUT_MS) });
   if (response.status === 204) throw new Error("GROBID could not read this PDF (no text extracted)");
   if (response.status !== 200) throw new Error(`GROBID returned ${response.status}`);

@@ -175,6 +175,55 @@ in {
         default = 8070;
         description = "Port GROBID listens on, bound to localhost only";
       };
+
+      # The Worker on Cloudflare reads references through GROBID here. A
+      # tunnel of Papol's own carries the requests in; nginx in front asks
+      # for one credential, since GROBID has no door of its own.
+      expose = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = cfg.cloudflare.enable;
+          defaultText = lib.literalExpression "config.services.papol.cloudflare.enable";
+          description = ''
+            Expose GROBID to the Papol Worker through a Cloudflare Tunnel.
+            On by default wherever the host already tunnels to Cloudflare.
+          '';
+        };
+
+        tunnelId = lib.mkOption {
+          type = lib.types.str;
+          default = "feda19ad-9bc7-44bd-9ce4-60cf7cf4ed05";
+          description = "The papol tunnel's UUID: `wrangler tunnel create papol`.";
+        };
+
+        credentialsFile = lib.mkOption {
+          type = lib.types.str;
+          default = "/home/${cfg.user}/.cloudflared/${cfg.grobid.expose.tunnelId}.json";
+          defaultText = lib.literalExpression ''"/home/''${user}/.cloudflared/''${tunnelId}.json"'';
+          description = "Tunnel credentials JSON; systemd loads it as root at service start.";
+        };
+
+        hostname = lib.mkOption {
+          type = lib.types.str;
+          default = "grobid.papol.io";
+          description = "Ingress hostname: a proxied CNAME to <tunnelId>.cfargotunnel.com.";
+        };
+
+        authFile = lib.mkOption {
+          type = lib.types.str;
+          default = "/srv/papol/grobid.htpasswd";
+          description = ''
+            htpasswd file nginx checks: one line, the user and password the
+            Worker holds as its GROBID_AUTH secret. Outside the Nix store.
+          '';
+        };
+
+        port = lib.mkOption {
+          type = lib.types.port;
+          default = 8071;
+          description = "Where nginx listens for the tunnel, on localhost only.";
+        };
+      };
     };
 
     deploy = {
@@ -510,6 +559,23 @@ in {
           serverAliases = builtins.tail cfg.hostAliases;
           locations."/" = proxyTo cfg.hostAliasPort;
         };
+      } // lib.optionalAttrs cfg.grobid.expose.enable {
+        # GROBID's front door for the tunnel: plain HTTP on localhost, the
+        # tunnel having terminated TLS; a whole PDF in one request, and the
+        # minutes a long paper takes to read.
+        ${cfg.grobid.expose.hostname} = {
+          listen = [ { addr = "127.0.0.1"; port = cfg.grobid.expose.port; } ];
+          basicAuthFile = cfg.grobid.expose.authFile;
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:${toString cfg.grobid.port}";
+            extraConfig = ''
+              client_max_body_size 100m;
+              proxy_read_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_request_buffering off;
+            '';
+          };
+        };
       };
     };
 
@@ -518,14 +584,26 @@ in {
     # instance can carry several hostnames. Points straight at uvicorn (which
     # serves the built frontend, /uploads and the API); nginx is not in this
     # path.
-    services.cloudflared = lib.mkIf cfg.cloudflare.enable {
-      enable = true;
-      tunnels.${cfg.cloudflare.tunnelId} = {
-        credentialsFile = cfg.cloudflare.credentialsFile;
-        default = "http_status:404";
-        ingress.${cfg.cloudflare.hostname} = "http://${cfg.host}:${toString cfg.port}";
-      };
-    };
+    services.cloudflared = lib.mkMerge [
+      (lib.mkIf cfg.cloudflare.enable {
+        enable = true;
+        tunnels.${cfg.cloudflare.tunnelId} = {
+          credentialsFile = cfg.cloudflare.credentialsFile;
+          default = "http_status:404";
+          ingress.${cfg.cloudflare.hostname} = "http://${cfg.host}:${toString cfg.port}";
+        };
+      })
+      # Papol's own tunnel, carrying GROBID to the Worker. Its own id, so
+      # it is its own cloudflared instance beside any other on the host.
+      (lib.mkIf cfg.grobid.expose.enable {
+        enable = true;
+        tunnels.${cfg.grobid.expose.tunnelId} = {
+          credentialsFile = cfg.grobid.expose.credentialsFile;
+          default = "http_status:404";
+          ingress.${cfg.grobid.expose.hostname} = "http://127.0.0.1:${toString cfg.grobid.expose.port}";
+        };
+      })
+    ];
 
     # mDNS, so http://papol.local resolves on the LAN without touching the router.
     services.avahi = {

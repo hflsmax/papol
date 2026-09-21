@@ -621,6 +621,73 @@ answered by the Worker except the demo's.
 
 ## Phase 5 — Cutover
 
+### Step 1 — landed 2026-09-21: the Worker is live on workers.dev
+
+- D1 `papol` (id `4a3f822d-…`) created and migrated; queue `papol-jobs`
+  created; the R2 bucket is `papol-files`, the one the Python backend
+  already used (`wrangler.toml` corrected from `papol`).
+- `wrangler deploy` succeeded: https://papol.hflsmax.workers.dev serves
+  the site and the API against the empty production database, with both
+  cron triggers and the queue consumer attached.
+- Secrets set: `PAPOL_CONTACT_EMAIL`, `PAPOL_OPENALEX_KEY`. Not set, and
+  waiting on decisions: mail (the Python backend sent SMTP from the
+  settings table; the Worker wants an HTTP mail API, `EMAIL_API_URL`,
+  `EMAIL_API_KEY`, `EMAIL_FROM`), GROBID (the tunnel and Access service
+  token do not exist yet), `PAPOL_URL` (the final hostname).
+- `scripts/migrate-postgres-to-d1.py` turns a `pg_dump --data-only
+  --column-inserts` file into D1 statements; tried against a synthetic
+  dump into the local D1. The production dump needs `sudo` on the host.
+
+### Step 2 — landed 2026-09-21: the data is across
+
+`sudo -u postgres pg_dump -d papol --data-only --column-inserts` on the
+host, converted with `scripts/migrate-postgres-to-d1.py`, rehearsed
+into the local D1, then loaded into production with `wrangler d1
+execute --remote --file`: 8,369 statements, every table's count equal
+to the dump's (12 users, 44 papers, 88 annotations, 2,540 references,
+3,921 citation markers, 1,405 links, 102 change-log rows). The service
+on the host was not stopped: there are no users to write meanwhile,
+and the Python backend keeps running on Postgres until the hostname
+moves. `applied_mutations` was left behind, as the script says.
+
+### Step 3 — landed 2026-09-21: papol.io
+
+`papol.io` and `www.papol.io` are custom domains of the Worker
+(`routes` in `wrangler.toml`); Cloudflare wrote the DNS records on
+deploy. `PAPOL_URL` is `https://papol.io`. The workers.dev address
+stays as a second door for now. Mail is off by decision: no
+`EMAIL_API_*` secrets, notifications stay in the inbox. The previous
+production hostname was on the LAN only, so nothing public moves.
+
+### Step 4 — landed 2026-09-21: GROBID behind a tunnel of Papol's own
+
+A tunnel `papol` (`wrangler tunnel create papol`, id `feda19ad-…`),
+separate from the host's other tunnel, carries `grobid.papol.io` to
+the NixOS host. There, `module.nix`'s new `grobid.expose` options run
+cloudflared for that tunnel and an nginx vhost on localhost in front
+of GROBID, asking for one basic-auth credential from an htpasswd file
+outside the store. The Worker holds the same credential as
+`GROBID_AUTH` and `https://grobid.papol.io` as `GROBID_URL`.
+
+- Not Cloudflare Access, as first planned: the wrangler login has no
+  Zero Trust scope, and a single-tenant service needs no more than one
+  shared credential over TLS. The Access design is gone from
+  `grobid.ts` (`GROBID_ACCESS_CLIENT_ID/SECRET` are not secrets any
+  more).
+- The tunnel's credentials JSON was derived from its token through the
+  API and placed at `~/.cloudflared/<id>.json` on the host, where the
+  NixOS cloudflared service expects it; a remotely-created tunnel
+  otherwise has no local file.
+- The host's cloudflared login is scoped to another zone, so
+  `cloudflared tunnel route dns` wrote a stray record
+  `grobid.papol.io.mc-pony.com` there; the real CNAME in papol.io is
+  added in the dashboard.
+
+Still to do: the desktop app rebuilt with
+`PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as `wrangler
+deploy`; `module.nix` reduced to GROBID and the tunnel; the Python
+backend deleted.
+
 Configuration and one move of the data, once phase 4 passes the suite:
 
 - D1, with its point-in-time restore replacing the dumps in
