@@ -200,7 +200,7 @@ export function addBoardYouTube(uuid, url, x, y) {
 // is a job. This resolves to the card once the picture is there, and
 // rejects — with the card still on the board, as a link — when it could
 // not be made. The error carries the card so the caller can show both.
-// No job means the picture came with the answer, as it does in the demo.
+// No job means the picture came with the answer.
 async function captured(queuing) {
   const { job, item } = await queuing;
   if (!job) return item;

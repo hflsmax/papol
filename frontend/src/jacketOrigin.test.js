@@ -15,11 +15,6 @@ test('a nook, home and the library are the places a paper is kept', () => {
   assert.equal(placeOf(PAPER), null);
 });
 
-test('the demo keeps its places under their ordinary names', () => {
-  assert.equal(placeOf('/demo/library'), '/library');
-  assert.equal(placeOf(`/demo/u/${U}`), `/u/${U}`);
-});
-
 test('opening a paper remembers the place it was opened from', () => {
   assert.equal(originAfterMove(null, '/library', PAPER), '/library');
   assert.equal(originAfterMove('/library', `/u/${U}`, PAPER), `/u/${U}`);

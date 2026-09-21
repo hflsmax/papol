@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const viewerRoot = join(root, 'viewer');
-const pdfPath = join(root, 'frontend/public/assets/demo/papers/attention.pdf');
+const pdfPath = join(root, 'frontend/scripts/fixtures/attention.pdf');
 const chromePath = process.env.PAPOL_BENCHMARK_CHROME
   || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const hash = 'bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697';

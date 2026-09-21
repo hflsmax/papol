@@ -1,11 +1,7 @@
 // The viewer is its own app but not its own world: it runs on Papol's
 // origin and carries the same session token, so there is no second sign-in
 // and no second idea of who a user is.
-// Both /viewer and /demo/viewer run this build. Step back once from the
-// former and twice from the latter to reach Papol's root API and assets.
-import { appPath, backendPath, inDemo } from './base.js';
-import { IS_DESKTOP } from '../../shared/appEnvironment.js';
-import { demoPaperMedia, hydrateDesktopMedia } from '../../shared/desktopMedia.js';
+import { appPath, backendPath } from './base.js';
 import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
   annotationView, boardView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl,
@@ -158,11 +154,6 @@ export async function pdfLoadInput(paper, { onSyncProgress } = {}) {
     return { data: await openedFileBytes(paper.sha256) };
   }
   if (sharedReading(paper)) return { url: pdfHref(paper) };
-  if (IS_DESKTOP && inDemo()) {
-    const asset = demoPaperMedia(paper?.sha256);
-    if (!asset) throw new Error('This paper requires a network connection.');
-    return { data: await hydrateDesktopMedia(asset) };
-  }
   if (nativeDataActive()) {
     if (!paper?.sha256) throw new Error('PDF is not available in the local replica');
     try {

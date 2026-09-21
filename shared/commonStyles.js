@@ -399,7 +399,7 @@ button:disabled {
 .switch-toggle, .paper-browser-toggle, .tag-input, .rating-clear,
 .back-button, .icon-button, .collapse-button, .chip-x,
 .notification-toggle, .delete-comment-button, .board-booklet-spine,
-.shelf-name-input, .demo-banner-link, .admin-sort,
+.shelf-name-input, .notice-banner-link, .admin-sort,
 .tag-dropdown button, .shelf-palette button,
 .share-menu > button, .share-menu > a,
 .board-actions-popover button, .board-new-hint button,

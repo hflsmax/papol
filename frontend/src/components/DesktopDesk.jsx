@@ -23,7 +23,6 @@ import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
 } from '../../../shared/nativeData.js';
-import { inDemo } from '../base';
 
 // Asked on every launch while another app is the PDF viewer. The viewer asks
 // the same question over an opened file; answering in either place quiets
@@ -33,7 +32,6 @@ function DefaultViewerPrompt() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (inDemo()) return undefined;
     let active = true;
     pdfViewerStatus()
       .then((status) => {
@@ -58,11 +56,11 @@ function DefaultViewerPrompt() {
   };
 
   return (
-    <div className="demo-banner pdf-viewer-prompt" role="status">
+    <div className="notice-banner pdf-viewer-prompt" role="status">
       <span>{error || 'Use Papol as your default PDF viewer?'}</span>
-      <span className="demo-banner-actions">
-        <button type="button" className="demo-banner-button" onClick={makeDefault}>Use Papol</button>
-        <button type="button" className="demo-banner-link" onClick={dismiss}>Not now</button>
+      <span className="notice-banner-actions">
+        <button type="button" className="notice-banner-button" onClick={makeDefault}>Use Papol</button>
+        <button type="button" className="notice-banner-link" onClick={dismiss}>Not now</button>
       </span>
     </div>
   );
@@ -401,7 +399,7 @@ export function useNook(userUuid, refreshKey) {
 }
 
 export function DesktopBrowser({
-  listing, route, currentUser, nookState, onNavigate, onOpenBoard, onSyncRefresh, banner,
+  listing, route, currentUser, nookState, onNavigate, onOpenBoard, onSyncRefresh,
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
 }) {
   const { nook, setNook, reload, syncing } = nookState;
@@ -851,7 +849,6 @@ export function DesktopBrowser({
         {/* The rest of the unified toolbar: nothing to press, but it moves
             the window like the title bar it stands in for. */}
         <div className="desktop-toolbar" data-tauri-drag-region="deep" />
-        {banner}
         <DefaultViewerPrompt />
         {/* Keyed by what the pane shows, so a crash stays in this pane and
             choosing anything else starts it clean. */}
