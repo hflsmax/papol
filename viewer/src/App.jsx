@@ -45,6 +45,7 @@ import { findTextMatches, indexPdfDocument } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
+import { anchorKeyAction, isEditingTarget } from './anchorKeys';
 import { pageAtLine } from './readingPage';
 import { readSections } from './sections';
 import ReturnPill from './ReturnPill';
@@ -1292,15 +1293,7 @@ export default function App() {
         setSelectedInk(null);
         return;
       }
-      const el = e.target;
-      if (
-        el?.isContentEditable ||
-        el?.tagName === 'INPUT' ||
-        el?.tagName === 'TEXTAREA' ||
-        el?.tagName === 'SELECT'
-      ) {
-        return;
-      }
+      if (isEditingTarget(e.target)) return;
       const isUndoKey = e.code === 'KeyZ' || e.key?.toLowerCase() === 'z';
       if ((e.metaKey || e.ctrlKey) && !e.altKey && isUndoKey) {
         e.preventDefault();
@@ -1322,6 +1315,23 @@ export default function App() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // The anchor in hand — the one whose pin was clicked and whose card
+      // is open. Delete and Backspace take it away, the same way as the
+      // card's own bin, undo and all; Escape puts it down. Beside the clip
+      // and the ink, which the same keys serve the same way; and only with
+      // an anchor in hand, so Backspace on the bare page stays whatever
+      // the browser makes of it.
+      const anchorAction = anchorKeyAction(e, { selected: activeNoteUuid != null, readOnly });
+      if (anchorAction === 'deselect') {
+        e.preventDefault();
+        pointAtNote(null);
+        return;
+      }
+      if (anchorAction === 'delete') {
+        e.preventDefault();
+        removeNote(activeNoteUuid);
+        return;
+      }
       if (e.key === 'Escape') {
         e.preventDefault();
         setSheet(null);
