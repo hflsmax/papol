@@ -248,6 +248,28 @@ export function annotation(row: { kind?: unknown; page?: unknown; group_uuid?: u
   check.done();
 }
 
+// The body as it is stored by a route: one kind's geometry with its
+// defaults filled in, so a stroke drawn without saying its colour has one
+// on every device. Asked only of a body `annotation()` has passed.
+export function normalizedBody(kind: string, body: Record<string, unknown>): Record<string, unknown> {
+  if (kind === "note") {
+    const anchor = body.anchor as Record<string, unknown> | null | undefined;
+    return anchor == null ? {} : { anchor: { type: "point", x: anchor.x, y: anchor.y } };
+  }
+  if (kind === "ink") {
+    return {
+      points: (body.points as Record<string, unknown>[]).map((p) => ({ x: p.x, y: p.y })),
+      color: body.color ?? "#b3923d", width: body.width ?? 0.004, opacity: body.opacity ?? 1, shape: body.shape ?? "flat",
+    };
+  }
+  const source = body.source as Record<string, unknown>, frame = body.frame as Record<string, unknown>;
+  return {
+    source: { x: source.x, y: source.y, w: source.w, h: source.h },
+    frame: { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
+    floating: Boolean(body.floating ?? false),
+  };
+}
+
 // ------------------------------------------------------------------ users
 
 export const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
