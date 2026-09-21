@@ -20,19 +20,22 @@ test('asks again until the answer has settled, showing every answer', async () =
 });
 
 test('waits longer each time, up to the longest wait', async () => {
-  const asked = [];
-  let answers = 5;
-  await pollUntil(
-    async () => { asked.push(Date.now()); return --answers; },
-    (left) => left === 0,
-    { firstWaitMs: 10, backoff: 2, longestWaitMs: 25 },
-  );
-  const gaps = asked.slice(1).map((at, i) => at - asked[i]);
-  // 10, 20, 25, 25 — allowing the timer's own slack.
-  assert.equal(gaps.length, 4);
-  assert.ok(gaps[0] >= 9 && gaps[0] < 20, `first gap ${gaps[0]}`);
-  assert.ok(gaps[1] >= 19, `second gap ${gaps[1]}`);
-  assert.ok(gaps[2] >= 24 && gaps[2] < 40, `capped gap ${gaps[2]}`);
+  // The schedule is what is under test, not the clock: record what the
+  // loop asks the timer for, and fire at once.
+  const waits = [];
+  const realSetTimeout = global.setTimeout;
+  global.setTimeout = (fn, ms) => { waits.push(ms); return realSetTimeout(fn, 0); };
+  try {
+    let answers = 5;
+    await pollUntil(
+      async () => --answers,
+      (left) => left === 0,
+      { firstWaitMs: 10, backoff: 2, longestWaitMs: 25 },
+    );
+  } finally {
+    global.setTimeout = realSetTimeout;
+  }
+  assert.deepEqual(waits, [10, 20, 25, 25]);
 });
 
 test('aborting ends the waiting, not the asking that already answered', async () => {
