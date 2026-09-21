@@ -213,11 +213,22 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
   existingPaper = null;
   calls.length = 0;
   navigator.onLine = true;
-  global.fetch = async () => new Response(JSON.stringify({
-    doi: '10.1234/parsed', title: 'Parsed title',
-    authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
-    file_path: `${HASH}.pdf`, sha256: HASH,
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  // The upload answers with a job; the reading is the job's result.
+  const answers = {
+    '/api/papers/extract': [202, { job: 'job-1', file_path: `${HASH}.pdf`, sha256: HASH }],
+    '/api/jobs/job-1': [200, {
+      uuid: 'job-1', kind: 'extract_metadata', status: 'done', detail: null,
+      result: {
+        doi: '10.1234/parsed', title: 'Parsed title',
+        authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
+        file_path: `${HASH}.pdf`,
+      },
+    }],
+  };
+  global.fetch = async (url) => {
+    const [status, body] = answers[new URL(url, 'http://papol.test').pathname];
+    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  };
   try {
     await resolveSource().addToNook();
   } finally {

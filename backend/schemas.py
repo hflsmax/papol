@@ -873,3 +873,33 @@ class ReextractedMetadata(BaseModel):
     authors: Optional[str] = None
     journal: Optional[str] = None
     year: Optional[int] = None
+
+
+class JobOut(BaseModel):
+    """How a job is getting on, from `GET /api/jobs/{uuid}`.
+
+    `status` is what a client acts on: `queued` and `running` mean ask
+    again, `done` means `result` holds what the kind of job promised
+    (an upload's `ExtractedMetadata`, a capture's file), `failed` means
+    `detail` says why in a sentence meant for the user."""
+    uuid: str
+    kind: str
+    status: str  # queued | running | done | failed
+    detail: Optional[str] = None
+    result: Optional[dict] = None
+
+
+class ExtractionQueued(BaseModel):
+    """An upload, stored, with its metadata still being read: poll `job`."""
+    job: str
+    file_path: str
+    sha256: str
+
+
+class BoardItemQueued(BaseModel):
+    """A card written to the board, with its picture still being made:
+    the card is already on the board, and `job` says when it has one.
+    No `job` means it already has: the demo makes the picture in the
+    request, having no worker."""
+    job: Optional[str] = None
+    item: "BoardItemOut"

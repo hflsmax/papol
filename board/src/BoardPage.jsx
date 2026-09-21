@@ -530,7 +530,16 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
         redoStack.current = [];
         await load();
         setSelectedItems([item.uuid]);
-      } catch (err) { setError(err.message); } finally {
+      } catch (err) {
+        setError(err.message);
+        // A picture that could not be made leaves the card on the board
+        // as a link: show it, so what was pasted is not lost with the error.
+        if (err.item) {
+          undoStack.current.push({ type: 'add', uuid: err.item.uuid });
+          redoStack.current = [];
+          try { await load(); } catch { /* the error already on screen is the one that matters */ }
+        }
+      } finally {
         urlLoadingRef.current = urlLoadingRef.current.filter((item) => item.uuid !== loadingUuid);
         setUrlLoading(urlLoadingRef.current);
         setBusy(false);

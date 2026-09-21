@@ -4,6 +4,7 @@ import {
 } from '../nativeData.js';
 import { runtimeFetch } from '../connectivity.js';
 import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
+import { JobFailed, awaitJob } from './jobs.js';
 
 // ---------- Boards (private spaces inside the user's nook) ----------
 
@@ -192,7 +193,24 @@ export function addBoardYouTube(uuid, url, x, y) {
       values: { board_uuid: uuid, kind: 'youtube', content: url, source_url: url, x, y },
     }]).then((receipt) => receipt.rows[0]);
   }
-  return jsonRequest(`/boards/${uuid}/youtube`, 'POST', { url, x, y });
+  return captured(jsonRequest(`/boards/${uuid}/youtube`, 'POST', { url, x, y }));
+}
+
+// A link card is on the board as soon as the server answers; its picture
+// is a job. This resolves to the card once the picture is there, and
+// rejects — with the card still on the board, as a link — when it could
+// not be made. The error carries the card so the caller can show both.
+// No job means the picture came with the answer, as it does in the demo.
+async function captured(queuing) {
+  const { job, item } = await queuing;
+  if (!job) return item;
+  try {
+    await awaitJob(job);
+  } catch (error) {
+    if (error instanceof JobFailed) error.item = item;
+    throw error;
+  }
+  return item;
 }
 
 export function addBoardWebpage(uuid, url, x, y) {
@@ -205,7 +223,7 @@ export function addBoardWebpage(uuid, url, x, y) {
       values: { board_uuid: uuid, kind: 'webpage', content: label, source_url: url, x, y, width: 480 },
     }]).then((receipt) => receipt.rows[0]);
   }
-  return jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y });
+  return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
 }
 
 export function placeStagedBoardItem(uuid, x, y) {

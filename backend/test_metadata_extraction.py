@@ -10,6 +10,7 @@ import main
 import metadata_lookup
 import openalex
 import storage
+from services import extraction
 from pdf_parser import arxiv_doi, extract_arxiv_id, extract_doi, extract_doi_from_pdf
 
 GROBID_HEADER = """<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
@@ -281,17 +282,6 @@ class MetadataExtractionTests(unittest.TestCase):
         )
 
 
-class _Upload:
-    """The parts of an UploadFile that the extract endpoint touches."""
-
-    def __init__(self, path: Path):
-        self.filename = path.name
-        self._data = path.read_bytes()
-
-    async def read(self) -> bytes:
-        return self._data
-
-
 def _identifierless_pdf(directory: str, name: str) -> Path:
     """A PDF printing a title and authors but no DOI, as an author's
     camera-ready copy does."""
@@ -329,9 +319,7 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
                     grobid, "extract_header", AsyncMock(return_value=PRINTED_HEADER)
                 ),
             ):
-                metadata = await main.extract_paper_metadata(
-                    file=_Upload(path), current_user=None
-                )
+                metadata = await extraction.extracted_metadata(path.name, path.name, path)
 
         # Nothing was printed to look up, so no API was asked.
         lookup.assert_not_awaited()
@@ -350,20 +338,18 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
             }
             with (
                 patch.object(storage, "uploads", storage.FilesystemFiles(Path(directory))),
-                patch.object(main, "_printed_header", AsyncMock()) as header,
+                patch.object(extraction, "printed_header", AsyncMock()) as header,
                 patch.object(
                     metadata_lookup, "by_doi", AsyncMock(return_value=resolved)
                 ),
                 patch.object(
-                    main,
+                    extraction,
                     "extract_doi_from_pdf",
                     return_value=("10.1145/2984511.2984540", ""),
                 ),
-                patch.object(main, "extract_arxiv_id", return_value=None),
+                patch.object(extraction, "extract_arxiv_id", return_value=None),
             ):
-                metadata = await main.extract_paper_metadata(
-                    file=_Upload(path), current_user=None
-                )
+                metadata = await extraction.extracted_metadata(path.name, path.name, path)
 
         # GROBID never names a venue and rarely a year; asking it here could
         # only lose what CrossRef already knew.
@@ -385,9 +371,7 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
                     AsyncMock(side_effect=RuntimeError("GROBID returned 503")),
                 ),
             ):
-                metadata = await main.extract_paper_metadata(
-                    file=_Upload(path), current_user=None
-                )
+                metadata = await extraction.extracted_metadata(path.name, path.name, path)
 
         self.assertEqual(metadata.title, "Some Paper Name")
         self.assertIsNone(metadata.authors)

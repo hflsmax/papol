@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse, FileResponse, Response
 from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile as StarletteUploadFile
 import tempfile
-from contextlib import contextmanager
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
 from pydantic import ValidationError
@@ -19,16 +18,12 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import hashlib
-import ipaddress
 import json
 import re
 import uuid
 import logging
-import socket
-import subprocess
 import traceback
 import urllib.parse
-import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
 from app_limits import limit, mebibytes
@@ -55,7 +50,8 @@ from schemas import (
     RoomSummary, RoomDetail, RoomMessageOut, RoomAvailabilityOut,
     RoomMessageCreate,
     PaperCreate, PaperMetadata, PaperUpdate, Paper as PaperSchema, PaperList, Nook,
-    ExtractedMetadata, ReextractedMetadata, NookStats,
+    ReextractedMetadata, NookStats,
+    ExtractionQueued, BoardItemQueued,
     AvailabilitySubmit, RoomAnnounce, RoomLeave,
     AnnotationCreate, AnnotationUpdate, AnnotationOut,
     PaperReferences, ReferenceOut, ReferencePreviewIn, CitationOut, DocumentLinkOut,
@@ -71,12 +67,7 @@ from auth import (
     hash_password, verify_password, create_token, login_platform, get_current_user,
     get_optional_user, bearer_scheme
 )
-from pdf_parser import (
-    arxiv_doi, extract_arxiv_id, extract_doi_from_pdf, get_title_from_filename,
-)
 import grobid
-import biblio
-import metadata_lookup
 from cohorts import (
     cohort_user_uuids as _paper_user_uuids,
     in_active_cohort as _in_active_cohort,
@@ -90,10 +81,12 @@ from sync.changes import commit_sync
 from routes.admin import router as admin_router
 from routes.client_requirements import router as client_requirements_router
 from routes.feedback import router as feedback_router
+from routes.jobs import router as jobs_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
 from demo import in_demo_request
 import storage
+from services import analysis, capture, extraction, jobs
 from services.annotations import (
     KINDS, NOTE, annotation_out, annotations_of, body_text,
 )
@@ -141,6 +134,7 @@ app.state.session_factory = SessionLocal
 app.include_router(sync_router)
 app.include_router(notifications_router)
 app.include_router(feedback_router)
+app.include_router(jobs_router)
 app.include_router(admin_router)
 app.include_router(sharables_router)
 app.include_router(client_requirements_router)
@@ -970,254 +964,77 @@ async def add_board_file(
     return item
 
 
-def _youtube_id(url: str) -> str | None:
-    try:
-        parsed = urllib.parse.urlparse(url.strip())
-    except ValueError:
-        return None
-    host = (parsed.hostname or "").lower().removeprefix("www.")
-    candidate = None
-    if host == "youtu.be":
-        candidate = parsed.path.strip("/").split("/")[0]
-    elif host in {"youtube.com", "m.youtube.com"}:
-        if parsed.path == "/watch":
-            candidate = urllib.parse.parse_qs(parsed.query).get("v", [None])[0]
-        else:
-            parts = parsed.path.strip("/").split("/")
-            if len(parts) == 2 and parts[0] in {"shorts", "embed", "live"}:
-                candidate = parts[1]
-    return candidate if candidate and re.fullmatch(r"[A-Za-z0-9_-]{11}", candidate) else None
 
-
-def _youtube_time(url: str) -> float | None:
-    parsed = urllib.parse.urlparse(url.strip())
-    values = urllib.parse.parse_qs(parsed.query)
-    raw = (values.get("t") or values.get("start") or [None])[0]
-    if raw is None and parsed.fragment.startswith("t="):
-        raw = parsed.fragment[2:]
-    if not raw:
-        return None
-    if re.fullmatch(r"\d+(?:\.\d+)?", raw):
-        return float(raw)
-    match = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?", raw)
-    if not match or not any(match.groups()):
-        raise ValueError("Invalid YouTube timestamp")
-    hours, minutes, seconds = match.groups()
-    return int(hours or 0) * 3600 + int(minutes or 0) * 60 + float(seconds or 0)
-
-
-def _fetch_youtube_thumbnail(url: str, video_id: str) -> tuple[bytes, str]:
-    endpoint = "https://www.youtube.com/oembed?" + urllib.parse.urlencode(
-        {"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}
-    )
-    request = urllib.request.Request(endpoint, headers={"User-Agent": "Papol/1.0"})
-    with urllib.request.urlopen(request, timeout=limit("timeouts_ms", "youtube_metadata") / 1000) as response:
-        metadata = json.loads(response.read(limit("files", "youtube_metadata_kb") * 1024))
-    thumbnail = str(metadata.get("thumbnail_url") or "")
-    host = (urllib.parse.urlparse(thumbnail).hostname or "").lower()
-    if host != "i.ytimg.com" and not host.endswith(".ytimg.com"):
-        raise ValueError("YouTube returned an invalid thumbnail location")
-    image_request = urllib.request.Request(thumbnail, headers={"User-Agent": "Papol/1.0"})
-    with urllib.request.urlopen(image_request, timeout=limit("timeouts_ms", "youtube_thumbnail") / 1000) as response:
-        image = response.read(BOARD_FILE_LIMIT + 1)
-    if not image or len(image) > BOARD_FILE_LIMIT:
-        raise ValueError("YouTube thumbnail is empty or too large")
-    return image, str(metadata.get("title") or url)[:limit("text", "board_content")]
-
-
-def _capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
-    """Resolve a constrained YouTube stream and decode the exact requested frame."""
-    with tempfile.TemporaryDirectory(prefix="papol-youtube-") as directory:
-        template = str(Path(directory) / "source.%(ext)s")
-        extractor_args = "youtube:player_client=mweb"
-        po_token = os.environ.get("PAPOL_YOUTUBE_PO_TOKEN", "").strip()
-        if po_token:
-            extractor_args += f";po_token=mweb.gvs+{po_token}"
-        cookies = os.environ.get("PAPOL_YOUTUBE_COOKIES", "").strip()
-        download_command = [
-            "yt-dlp",
-            "--no-playlist", "--no-warnings", "--quiet",
-            # mweb with a GVS PO token exposes native adaptive formats. With
-            # no token it still provides the public fallback used below.
-            "--extractor-args", extractor_args,
-        ]
-        if cookies:
-            if not Path(cookies).is_file():
-                raise ValueError("PAPOL_YOUTUBE_COOKIES does not name a readable file")
-            download_command += ["--cookies", cookies]
-        download_command += [
-            "--max-filesize", f'{limit("files", "youtube_source_mb")}M',
-            "--write-info-json",
-            "-f", "bestvideo[height<=1080]/bestvideo/best[height<=1080]/best",
-            "-o", template,
-            url,
-        ]
-        download_process = subprocess.run(
-            download_command,
-            capture_output=True,
-            text=True,
-            timeout=limit("timeouts_ms", "youtube_download") / 1000,
-            check=False,
-        )
-        if download_process.returncode != 0:
-            raise ValueError(download_process.stderr.strip() or "YouTube video could not be downloaded")
-        metadata_files = list(Path(directory).glob("source.info.json"))
-        media_files = [
-            path for path in Path(directory).glob("source.*")
-            if path.name != "source.info.json" and path.is_file()
-        ]
-        if not metadata_files or not media_files:
-            raise ValueError("YouTube did not provide a playable video stream")
-        metadata = json.loads(metadata_files[0].read_text())
-        duration = metadata.get("duration")
-        if duration is not None and timestamp > float(duration):
-            raise ValueError("The timestamp is beyond the end of this video")
-
-        with tempfile.NamedTemporaryFile(suffix=".png") as output:
-            frame_process = subprocess.run(
-                [
-                    "ffmpeg", "-hide_banner", "-loglevel", "error",
-                    "-ss", f"{timestamp:.3f}",
-                    "-i", str(media_files[0]),
-                    "-frames:v", "1",
-                    "-vf", "scale=1280:-2:flags=lanczos",
-                    "-compression_level", "3",
-                    "-y", output.name,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=limit("timeouts_ms", "media_capture") / 1000,
-                check=False,
-            )
-            if frame_process.returncode != 0:
-                raise ValueError(frame_process.stderr.strip() or "Video frame could not be decoded")
-            image = output.read(BOARD_FILE_LIMIT + 1)
-    if not image or len(image) > BOARD_FILE_LIMIT:
-        raise ValueError("Captured frame is empty or too large")
-    return image, str(metadata.get("title") or url)[:limit("text", "board_content")]
-
-
-def _public_web_url(value: str) -> str:
-    """Accept a browser URL without giving the capture process LAN access."""
-    url = value.strip()
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise ValueError("Paste a valid http or https URL")
-    if parsed.username or parsed.password:
-        raise ValueError("URLs with embedded credentials are not supported")
-    try:
-        addresses = {
-            ipaddress.ip_address(row[4][0])
-            for row in socket.getaddrinfo(parsed.hostname, parsed.port or 443)
-        }
-    except (OSError, ValueError) as exc:
-        raise ValueError("The website address could not be resolved") from exc
-    if not addresses or any(not address.is_global for address in addresses):
-        raise ValueError("Local and private network addresses cannot be captured")
-    return url
-
-
-def _capture_webpage(url: str) -> bytes:
-    """Render the visible part of a medium desktop viewport as a PNG."""
-    safe_url = _public_web_url(url)
-    with tempfile.NamedTemporaryFile(suffix=".png") as output:
-        process = subprocess.run(
-            [
-                "chromium", "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                "--no-first-run", "--disable-extensions", "--disable-background-networking",
-                "--window-size=1280,800", "--force-device-scale-factor=1",
-                "--virtual-time-budget=5000", f"--screenshot={output.name}",
-                # Defense in depth after the DNS check above, including pages
-                # that try to redirect the browser into Papol's own network.
-                "--host-resolver-rules=MAP localhost ~NOTFOUND, MAP *.localhost ~NOTFOUND, MAP 127.* ~NOTFOUND, MAP 10.* ~NOTFOUND, MAP 192.168.* ~NOTFOUND, MAP 169.254.* ~NOTFOUND",
-                safe_url,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=limit("timeouts_ms", "media_capture") / 1000,
-            check=False,
-        )
-        if process.returncode != 0:
-            raise ValueError(process.stderr.strip() or "The website could not be rendered")
-        output.seek(0)
-        image = output.read(BOARD_FILE_LIMIT + 1)
-    if not image or len(image) > BOARD_FILE_LIMIT:
-        raise ValueError("The website screenshot is empty or too large")
-    return image
-
-
-@app.post("/api/boards/{board_uuid}/youtube", response_model=BoardItemOut)
+@app.post("/api/boards/{board_uuid}/youtube", response_model=BoardItemQueued, status_code=202)
 async def add_youtube_to_board(
     board_uuid: str,
     data: BoardLinkCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """A video card, on the board at once; its frame is a job. The link is
+    checked here, so a URL that is not a video is refused now rather than
+    by a worker later; the picture is made by the worker and the client
+    polls the job to learn when the card has it."""
     board = _owned_board(board_uuid, user, db)
-    video_id = _youtube_id(data.url)
+    video_id = capture.youtube_id(data.url)
     if not video_id:
         raise HTTPException(status_code=422, detail="Paste a valid YouTube video URL")
     try:
-        timestamp = _youtube_time(data.url)
-        if timestamp is None:
-            image, title = await asyncio.to_thread(
-                _fetch_youtube_thumbnail, data.url, video_id
-            )
-            suffix, mime = ".jpg", "image/jpeg"
-        else:
-            image, title = await asyncio.to_thread(
-                _capture_youtube_frame, data.url, timestamp
-            )
-            suffix, mime = ".png", "image/png"
-    except Exception as exc:
-        logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
-        raise HTTPException(status_code=502, detail=f"Could not capture the YouTube frame: {exc}")
-    key = f"{board.uuid}/{uuid.uuid4().hex}{suffix}"
-    await asyncio.to_thread(storage.board_files.put, key, image, mime)
+        capture.youtube_time(data.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    url = data.url.strip()
     item = BoardItem(
         board_uuid=board.uuid,
         kind="youtube",
-        content=title,
-        file_path=key,
-        sha256=hashlib.sha256(image).hexdigest(),
-        original_filename=f"youtube-{video_id}{suffix}",
-        mime_type=mime,
-        source_url=data.url.strip(),
+        content=url,
+        source_url=url,
         x=data.x,
         y=data.y,
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
+    db.flush()
+    if in_demo_request():
+        # The demo has no worker and no permanent rows. The picture is made
+        # here, in the request, into the workspace's own files — as every
+        # demo effect is — and the card answers complete, with no job to poll.
+        try:
+            image, title, suffix, mime = await asyncio.to_thread(capture.youtube_picture, url, video_id)
+        except Exception as exc:
+            logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
+            raise HTTPException(status_code=502, detail=f"Could not capture the YouTube frame: {exc}")
+        capture.attach_youtube(db, item, image, title, suffix, mime, video_id)
+        db.refresh(item)
+        return BoardItemQueued(job=None, item=BoardItemOut.model_validate(item))
+    job = jobs.enqueue(
+        db, capture.YOUTUBE, {"item_uuid": item.uuid, "url": url, "video_id": video_id},
+        user_uuid=user.uuid,
+    )
     commit_sync(db)
     db.refresh(item)
-    return item
+    return BoardItemQueued(job=job, item=BoardItemOut.model_validate(item))
 
 
-@app.post("/api/boards/{board_uuid}/webpage", response_model=BoardItemOut)
+@app.post("/api/boards/{board_uuid}/webpage", response_model=BoardItemQueued, status_code=202)
 async def add_webpage_to_board(
     board_uuid: str,
     data: BoardLinkCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """A webpage card, on the board at once; its screenshot is a job."""
     board = _owned_board(board_uuid, user, db)
     try:
-        url = _public_web_url(data.url)
-        image = await asyncio.to_thread(_capture_webpage, url)
-    except Exception as exc:
-        logger.warning("Could not capture webpage %s: %s", data.url, exc)
-        raise HTTPException(status_code=502, detail=f"Could not capture the webpage: {exc}")
-    key = f"{board.uuid}/{uuid.uuid4().hex}.png"
-    await asyncio.to_thread(storage.board_files.put, key, image, "image/png")
+        url = capture.public_web_url(data.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     hostname = urllib.parse.urlparse(url).hostname or url
     item = BoardItem(
         board_uuid=board.uuid,
         kind="webpage",
         content=hostname,
-        file_path=key,
-        sha256=hashlib.sha256(image).hexdigest(),
-        original_filename=f'webpage-{hostname[:limit("text", "display_name")]}.png',
-        mime_type="image/png",
         source_url=url,
         x=data.x,
         y=data.y,
@@ -1225,9 +1042,23 @@ async def add_webpage_to_board(
     )
     board.updated_at = datetime.utcnow()
     db.add(item)
+    db.flush()
+    if in_demo_request():
+        # In the request, as with the video above: the demo has no worker.
+        try:
+            image = await asyncio.to_thread(capture.capture_webpage, url)
+        except Exception as exc:
+            logger.warning("Could not capture webpage %s: %s", url, exc)
+            raise HTTPException(status_code=502, detail=f"Could not capture the webpage: {exc}")
+        capture.attach_webpage(db, item, image, url)
+        db.refresh(item)
+        return BoardItemQueued(job=None, item=BoardItemOut.model_validate(item))
+    job = jobs.enqueue(
+        db, capture.WEBPAGE, {"item_uuid": item.uuid, "url": url}, user_uuid=user.uuid,
+    )
     commit_sync(db)
     db.refresh(item)
-    return item
+    return BoardItemQueued(job=job, item=BoardItemOut.model_validate(item))
 
 
 @app.delete("/api/board-items/{item_uuid}", status_code=204)
@@ -1565,25 +1396,6 @@ def _store_pdf(data: bytes) -> tuple[str, str]:
     return filename, digest
 
 
-@contextmanager
-def _pdf_on_disk(filename: str, data: bytes | None = None):
-    """A local path holding a stored PDF, for the readers that want one.
-    Bytes that just arrived are written to scratch rather than fetched back
-    from a bucket they were only just sent to; a file kept beside the
-    process is simply itself."""
-    if data is None or storage.uploads.path(filename) is not None:
-        with storage.uploads.local(filename) as path:
-            yield path
-        return
-    handle = tempfile.NamedTemporaryFile(prefix="papol-upload-", suffix=".pdf", delete=False)
-    try:
-        with handle:
-            handle.write(data)
-        yield Path(handle.name)
-    finally:
-        Path(handle.name).unlink(missing_ok=True)
-
-
 def _paper_with_digest(db: Session, digest: str) -> Paper | None:
     """The paper holding exactly these bytes, if Papol already has one.
 
@@ -1749,104 +1561,29 @@ async def list_all_papers(
     ]
 
 
-async def _printed_header(path: str) -> grobid.HeaderMetadata | None:
-    """What the PDF says about itself, for fields nothing else could supply.
-
-    An author's copy, a preprint, or a tech report often prints no DOI at
-    all, and without an identifier the bibliographic APIs have nothing to
-    answer. GROBID reads the title block off page one instead.
-
-    It is strictly a last resort. Measured against CrossRef over the library,
-    GROBID never names the venue, misses most years, and mistakes an
-    affiliation for an author often enough that its answers are a starting
-    point for the user to correct, not a result. It is therefore asked only
-    about fields no API supplied, and never about the DOI: it finds no
-    identifier the printed-text scan misses, and mangles those it does report
-    into a PNAS supplement or an unparsed arXiv id.
-
-    A fallback that fails leaves the user where they already were, with a
-    filename for a title and every field open for typing, so an unreachable
-    or unhappy analyzer is logged rather than raised.
-    """
-    if not grobid.configured():
-        return None
-    try:
-        return await grobid.extract_header(path)
-    except Exception:
-        logger.exception("GROBID header extraction failed")
-        return None
-
-
-@app.post("/api/papers/extract", response_model=ExtractedMetadata)
+@app.post("/api/papers/extract", response_model=ExtractionQueued, status_code=202)
 async def extract_paper_metadata(
-    file: UploadFile = File(...), current_user: User = Depends(get_current_user)
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """
-    Upload a PDF and fetch metadata by its DOI or arXiv identifier.
-    Returns extracted metadata for user to review/edit.
-    Does not save to database yet.
+    """Upload a PDF. It is stored now, under its digest; what it says about
+    itself — the DOI or arXiv id it prints, what the bibliographic APIs
+    know of that, GROBID's reading of the title block failing those — is
+    a job, and the form polls `/api/jobs/{job}` for the fields to review.
+    Nothing is saved to the database until the user saves the paper.
     """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
     data = await file.read()
-    filename, _ = await asyncio.to_thread(_store_pdf, data)
-    with _pdf_on_disk(filename, data) as file_path:
-        return await _extracted_metadata(file.filename, filename, file_path)
-
-
-async def _extracted_metadata(uploaded_name: str, filename: str, file_path: Path) -> ExtractedMetadata:
-    # Identifiers are normally printed near the front of a paper.
-    doi, text = extract_doi_from_pdf(str(file_path))
-    arxiv_id = extract_arxiv_id(text)
-
-    # Default metadata from filename
-    metadata = {
-        "doi": doi,
-        "title": get_title_from_filename(uploaded_name),
-        "authors": None,
-        "journal": None,
-        "year": None,
-        "file_path": filename
-    }
-
-    lookup_doi = arxiv_doi(arxiv_id) if arxiv_id else doi
-    try:
-        api_metadata = await metadata_lookup.by_doi(lookup_doi) if lookup_doi else None
-    except metadata_lookup.Unavailable as exc:
-        logger.exception("Bibliographic metadata APIs are unavailable")
-        raise HTTPException(
-            status_code=503,
-            detail="Metadata lookup failed",
-        ) from exc
-
-    if api_metadata:
-        metadata.update({
-            "doi": api_metadata.get("doi") or lookup_doi,
-            "title": api_metadata.get("title") or metadata["title"],
-            "authors": (
-                json.dumps(api_metadata["authors"])
-                if api_metadata.get("authors") else None
-            ),
-            "journal": api_metadata.get("venue"),
-            "year": api_metadata.get("year"),
-        })
-    else:
-        # Nothing resolved this paper: it prints no identifier, or no API
-        # knows the one it prints. Rather than hand back a filename, ask the
-        # PDF what it calls itself.
-        metadata["doi"] = lookup_doi
-        header = await _printed_header(str(file_path))
-        if header:
-            metadata.update({
-                "title": header.title or metadata["title"],
-                "authors": json.dumps(header.authors) if header.authors else None,
-                "journal": header.journal,
-                "year": header.year,
-            })
-    return ExtractedMetadata(**metadata)
-
-
+    filename, digest = await asyncio.to_thread(_store_pdf, data)
+    job = jobs.enqueue(
+        db, extraction.KIND, {"file_path": filename, "uploaded_name": file.filename},
+        user_uuid=current_user.uuid,
+    )
+    db.commit()
+    return ExtractionQueued(job=job, file_path=filename, sha256=digest)
 
 
 def _notify(db: Session, user_uuids, room: Room, content: str):
@@ -1957,7 +1694,6 @@ def _set_copy_tags(db: Session, copy: Copy, tags: list[Tag]):
 @app.post("/api/papers", response_model=PaperSchema)
 async def create_paper(
     paper: PaperCreate,
-    background: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2023,18 +1759,12 @@ async def create_paper(
         ))
 
     # Full-document analysis is independent of the reviewed metadata and can
-    # take seconds. Mark it pending in the same commit as the paper, then run
-    # it after the response using its own database session.
-    queue_analysis = _may_start_analysis(db_paper)
-    if queue_analysis:
-        db_paper.references_status = "pending"
-        db_paper.references_error = None
-        db_paper.references_at = datetime.utcnow()
+    # take a minute. It is a job, queued in the same commit as the paper;
+    # the viewer asks after it until the paper says it is ready.
+    if grobid.configured():
+        analysis.request_analysis(db, db_paper)
     commit_sync(db)
     db.refresh(db_paper)
-    if queue_analysis:
-        _analyzing.add(db_paper.sha256)
-        background.add_task(_analyze_paper, db_paper.sha256)
     return _paper_detail(db, db_paper, current_user)
 
 
@@ -2065,54 +1795,14 @@ async def reextract_paper_metadata(
 ):
     """Re-read a paper's PDF metadata for the edit form."""
     paper = paper_or_404(paper_sha256, db)
-    key = _paper_pdf_key(paper)
+    key = analysis.paper_pdf_key(paper)
     if key is None:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
     try:
         with storage.uploads.local(key) as path:
-            return await _reextracted_metadata(paper, path)
+            return await extraction.reextracted_metadata(paper, path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
-
-
-async def _reextracted_metadata(paper: Paper, path: Path) -> ReextractedMetadata:
-    doi, text = extract_doi_from_pdf(str(path))
-    arxiv_id = extract_arxiv_id(text)
-    # This action promises to re-read the PDF. Prefer the identifier printed
-    # in the file over possibly stale or incorrectly entered paper data.
-    lookup_doi = (arxiv_doi(arxiv_id) if arxiv_id else doi) or paper.doi
-    api_metadata = None
-    if lookup_doi:
-        try:
-            api_metadata = await metadata_lookup.by_doi(lookup_doi)
-        except metadata_lookup.Unavailable as exc:
-            logger.exception("Bibliographic metadata APIs are unavailable")
-            raise HTTPException(
-                status_code=503,
-                detail="Metadata lookup failed",
-            ) from exc
-    if api_metadata:
-        return ReextractedMetadata(
-            doi=api_metadata.get("doi") or lookup_doi,
-            title=api_metadata.get("title"),
-            authors=(
-                json.dumps(api_metadata["authors"])
-                if api_metadata.get("authors") else None
-            ),
-            journal=api_metadata.get("venue"),
-            year=api_metadata.get("year"),
-        )
-    # The page itself still carries a title and an author list.
-    header = await _printed_header(str(path))
-    if header and (header.title or header.authors):
-        return ReextractedMetadata(
-            doi=lookup_doi,
-            title=header.title,
-            authors=json.dumps(header.authors) if header.authors else None,
-            journal=header.journal,
-            year=header.year,
-        )
-    raise HTTPException(status_code=404, detail="Metadata was not found")
 
 
 @app.get("/api/viewer/{pdf_sha256}", response_model=PaperSchema)
@@ -2497,17 +2187,9 @@ async def add_to_nook(
 # ---------------- References ----------------
 
 # A PDF's bibliography is read once and kept, because reading it costs a
-# GROBID pass over the whole document. The work happens in the background
-# and the viewer asks again; what follows is the bookkeeping that makes
-# "ask again" cheap and "ask twice at once" harmless.
-
-# Papers being analyzed right now in this process, so a viewer polling
-# every second does not start a second pass over the same PDF.
-_analyzing: set[str] = set()
-
-# A pass that has been pending longer than this was interrupted — the
-# server restarted mid-analysis — and may be started again.
-_ANALYSIS_STALE = timedelta(minutes=15)
+# GROBID pass over the whole document. For a stored paper it is a job —
+# services/analysis.py — and the viewer asks again until the paper says
+# it is ready. The demo's bundled PDFs are the exception below.
 
 # Demo papers live in the browser, but their bundled PDFs are available to
 # this backend. Their analysis mirrors a stored paper while remaining
@@ -2527,139 +2209,9 @@ def _public_pdf_key(digest: str) -> str | None:
     return f"{digest}.pdf"
 
 
-def _paper_pdf_key(paper: Paper) -> str | None:
-    """The stored name of a paper's PDF, if the store holds it."""
-    if not paper.file_path or not storage.valid_key(paper.file_path):
-        return None
-    return paper.file_path if storage.uploads.exists(paper.file_path) else None
-
-
 async def _analyze_bundled(digest: str, key: str):
     with storage.uploads.local(key) as path:
         await _bundled_references.analyze(digest, path)
-
-
-async def _analyze_paper(paper_sha256: str):
-    """Read one paper's references through GROBID and store them.
-
-    Runs after the paper-save response, on its own session. The viewer can
-    observe `pending` and later retrieve the stored result. Any failure is
-    recorded on the paper rather than raised, so a PDF that cannot be
-    analyzed says so instead of being retried forever."""
-    db = SessionLocal()
-    try:
-        paper = db.get(Paper, paper_sha256)
-        if paper is None:
-            return
-        key = _paper_pdf_key(paper)
-        if key is None:
-            _finish_analysis(db, paper, "failed", "The PDF for this paper is missing")
-            return
-        try:
-            with storage.uploads.local(key) as path:
-                analysis = await grobid.analyze(str(path))
-        except Exception as e:
-            logger.warning(f"GROBID failed on paper {paper_sha256}: {e}")
-            _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
-            return
-
-        # A re-analysis replaces what was there. Resolutions are lost with
-        # it, which is the honest thing: they were attached to references
-        # read out of the PDF a different way.
-        db.query(PaperCitation).filter(
-            PaperCitation.paper_sha256 == paper_sha256
-        ).delete()
-        db.query(PaperLink).filter(
-            PaperLink.paper_sha256 == paper_sha256
-        ).delete()
-        db.query(PaperReference).filter(
-            PaperReference.paper_sha256 == paper_sha256
-        ).delete()
-
-        rows: dict[str, PaperReference] = {}
-        for ref in analysis.references:
-            row = PaperReference(
-                paper_sha256=paper_sha256,
-                key=ref.key,
-                index=ref.index,
-                raw=ref.raw,
-                title=ref.title,
-                authors=json.dumps(ref.authors) if ref.authors else None,
-                year=ref.year,
-                journal=ref.journal,
-                doi=ref.doi,
-                arxiv_id=ref.arxiv_id,
-                page=ref.page,
-                y=ref.y,
-            )
-            db.add(row)
-            rows[ref.key] = row
-        db.flush()  # the citations need the reference ids
-
-        for cite in analysis.citations:
-            row = rows.get(cite.key)
-            if row is None:
-                continue
-            db.add(PaperCitation(
-                paper_sha256=paper_sha256,
-                reference_uuid=row.uuid,
-                label=cite.label,
-                page=cite.page,
-                x=cite.x, y=cite.y, w=cite.w, h=cite.h,
-                inferred=cite.inferred,
-            ))
-
-        for link in analysis.links:
-            db.add(PaperLink(
-                paper_sha256=paper_sha256,
-                kind=link.kind,
-                label=link.label,
-                page=link.page,
-                x=link.x, y=link.y, w=link.w, h=link.h,
-                target_page=link.target_page,
-                target_y=link.target_y,
-            ))
-
-        _finish_analysis(db, paper, "ready", None)
-        logger.info(
-            f"Paper {paper_sha256}: {len(analysis.references)} references, "
-            f"{len(analysis.citations)} citation markers, "
-            f"{len(analysis.links)} document links"
-        )
-    except Exception as e:
-        # Whatever went wrong, the paper must not be left saying
-        # "pending" forever: a user would poll a job that is not running.
-        logger.error(f"Reference analysis of paper {paper_sha256} failed: {e}")
-        db.rollback()
-        paper = db.get(Paper, paper_sha256)
-        if paper is not None:
-            _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
-    finally:
-        db.close()
-        _analyzing.discard(paper_sha256)
-
-
-def _finish_analysis(db: Session, paper: Paper, status: str, detail: str | None):
-    paper.references_status = status
-    paper.references_error = detail
-    paper.references_at = datetime.utcnow()
-    db.commit()
-
-
-def _may_start_analysis(paper: Paper) -> bool:
-    """Whether this paper wants a pass now. Never for a failure — a PDF
-    GROBID could not read will not read differently on the next open, and
-    a user refreshing should not queue a job each time."""
-    if paper.sha256 in _analyzing:
-        return False
-    if in_demo_request():
-        return False  # the job would run on the permanent database
-    if paper.references_status is None:
-        return True
-    if paper.references_status == "pending":
-        stamped = paper.references_at
-        return stamped is None or datetime.utcnow() - stamped > _ANALYSIS_STALE
-    return False
 
 
 async def _bundled_paper_references(
@@ -2684,7 +2236,6 @@ async def _bundled_paper_references(
 
 async def _paper_references(
     paper: Paper,
-    background: BackgroundTasks,
     db: Session,
 ) -> PaperReferences:
     """The bibliography of one paper, once someone is allowed to read it.
@@ -2705,11 +2256,9 @@ async def _paper_references(
             detail="Reference analysis unavailable",
         )
 
-    if grobid.configured():
-        if _may_start_analysis(paper):
-            _analyzing.add(paper.sha256)
-            _finish_analysis(db, paper, "pending", None)
-            background.add_task(_analyze_paper, paper.sha256)
+    # Never from the demo: the job would run on the permanent database.
+    if grobid.configured() and not in_demo_request() and analysis.request_analysis(db, paper):
+        db.commit()
 
     if paper.references_status != "ready":
         return PaperReferences(
@@ -2840,7 +2389,7 @@ async def viewer_references(
     # shared it, so a shared reading carries its bibliography like any other.
     # The paper is already in hand either way: naming it again only to look it
     # up again would be asking the question this route has already answered.
-    return await _paper_references(paper, background, db)
+    return await _paper_references(paper, db)
 
 
 @app.get("/api/viewer-references/item/{reference_uuid}", response_model=ReferenceOut)

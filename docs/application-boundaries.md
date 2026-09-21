@@ -33,3 +33,12 @@ and reusable domain or background-job policy lives in `backend/services`.
 Dependencies point inward: `main` assembles routers, routers use services, and
 services never import routers or the application module. A route-boundary test
 locks down both this dependency direction and the public endpoint contracts.
+
+`backend/worker.py` is the second process, and the reason services never
+import `main`: it runs the jobs the web tier queues (`services/jobs.py` is
+the queue, a table) with nothing of the HTTP application loaded. A job's
+handler is a service function; the worker names every kind it knows in one
+table, and the web tier queues by kind. Work that takes longer than a
+request should — an analyzer, a browser, an SMTP server — is a job, and a
+route that needs it writes the job in its own transaction and answers with
+the job's uuid for `GET /api/jobs/{uuid}`.

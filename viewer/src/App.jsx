@@ -19,6 +19,7 @@ import {
 } from './source';
 import { appPath, backendPath, inDemo, modeRoute, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
+import { pollUntil } from '../../shared/polling.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus,
@@ -1188,37 +1189,22 @@ export default function App() {
     const paperSha256 = paper?.sha256;
     if (!firstPageReady || !paperSha256) return undefined;
 
-    let cancelled = false;
-    let timer = null;
-    // Back off as the wait goes on: a short paper is ready in a second, a
-    // long one takes a minute, and neither should be asked about every
-    // second for a minute.
-    let wait = 1500;
+    // A shared reading reads the same bibliography on the authority of
+    // its link, so the source answers when it has its own way in.
+    const list = source?.references?.list || getViewerReferences;
+    const waiting = new AbortController();
+    // Every answer is shown, `pending` included, and the asking stops when
+    // the paper's pass has settled — on the one schedule every wait in
+    // Papol keeps (shared/polling.js).
+    pollUntil(() => list(paperSha256), (loaded) => loaded.status !== 'pending', {
+      signal: waiting.signal, onAnswer: setAnalysis,
+    }).catch(() => {
+      // References are an extra. Failing to load them is not worth an
+      // error bar over the user's paper.
+      if (!waiting.signal.aborted) setAnalysis({ status: 'failed', references: [], citations: [] });
+    });
 
-    const ask = () => {
-      // A shared reading reads the same bibliography on the authority of
-      // its link, so the source answers when it has its own way in.
-      (source?.references?.list || getViewerReferences)(paperSha256)
-        .then((loaded) => {
-          if (cancelled) return;
-          setAnalysis(loaded);
-          if (loaded.status === 'pending') {
-            wait = Math.min(wait * 1.4, 10000);
-            timer = setTimeout(ask, wait);
-          }
-        })
-        .catch(() => {
-          // References are an extra. Failing to load them is not worth an
-          // error bar over the user's paper.
-          if (!cancelled) setAnalysis({ status: 'failed', references: [], citations: [] });
-        });
-    };
-    ask();
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
+    return () => waiting.abort();
   }, [firstPageReady, paper, source]);
 
   useEffect(() => {

@@ -15,6 +15,7 @@ import main
 import storage
 from database import get_db
 from demo import DEMO_PASSWORD, DemoApplication, SUPPORTED_HANDLERS
+from services import capture
 from storage import FilesystemFiles
 
 
@@ -231,11 +232,14 @@ class DemoFilesTests(unittest.TestCase):
 
     def capture_webpage(self, board_uuid, headers=None):
         with (
-            patch.object(main, '_public_web_url', side_effect=lambda url: url),
-            patch.object(main, '_capture_webpage', return_value=PNG),
+            patch.object(capture, 'public_web_url', side_effect=lambda url: url),
+            patch.object(capture, 'capture_webpage', return_value=PNG),
         ):
-            return self.call('POST', f'/boards/{board_uuid}/webpage', headers=headers,
-                             json={'url': 'https://example.test/page', 'x': 0, 'y': 0})
+            answer = self.call('POST', f'/boards/{board_uuid}/webpage', headers=headers,
+                               json={'url': 'https://example.test/page', 'x': 0, 'y': 0})
+        # No worker in the demo: the picture came with the answer, not a job.
+        self.assertIsNone(answer['job'])
+        return answer['item']
 
     def test_uploads_are_refused_before_any_handler_runs(self):
         board = self.call('POST', '/boards', json={'name': 'Temporary board'})
@@ -293,8 +297,8 @@ class DemoFilesTests(unittest.TestCase):
         board = self.call('POST', '/boards', json={'name': 'Full board'})
         self.capture_webpage(board['uuid'])
         with (
-            patch.object(main, '_public_web_url', side_effect=lambda url: url),
-            patch.object(main, '_capture_webpage', return_value=PNG),
+            patch.object(capture, 'public_web_url', side_effect=lambda url: url),
+            patch.object(capture, 'capture_webpage', return_value=PNG),
         ):
             response = self.client.post(f"/api/demo/boards/{board['uuid']}/webpage", headers=self.headers,
                                         json={'url': 'https://example.test/again', 'x': 0, 'y': 0})
