@@ -467,6 +467,16 @@ A route stores a body with its kind's defaults filled in
 stores what the replica sent, as the Python's did. A refusal is a
 sentence, or a list of them — not pydantic's list of error records.
 
+### Step 4, seminars — landed 2026-09-21
+
+`cloudflare/src/routes/rooms.ts` and the cohort in `src/cohorts.ts`:
+calling a seminar, the cohort joining and leaving, hosting and stepping
+back, messages and availability, announcing and finishing, and
+uncalling. `test_seminar_transitions.py` translates
+(`cloudflare/test/rooms.test.ts`). Nothing here synchronizes — rooms are
+the website's — so the rows are written plainly. The ORM's
+delete-orphan cascade on uncalling is four `DELETE`s said in order.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:

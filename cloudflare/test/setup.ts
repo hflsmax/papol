@@ -21,9 +21,9 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 const EMPTIED = [
   "_server_change_log", "_server_clients", "applied_mutations", "auth_tokens",
   "copy_tags", "annotations", "board_items", "board_groups", "boards", "copies",
-  "room_participants", "room_messages", "room_availabilities", "rooms",
+  "notifications", "room_participants", "room_messages", "room_availabilities", "rooms",
   "paper_citations", "paper_links", "paper_references", "papers",
-  "shelves", "tags", "notifications", "feedback", "jobs",
+  "shelves", "tags", "feedback", "jobs",
   "admin_message_deliveries", "admin_messages", "error_logs", "users",
 ];
 
