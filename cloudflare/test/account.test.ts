@@ -1,10 +1,31 @@
 // The account: profile, picture, password, leaving with your things, and
 // leaving.
 import { env } from "cloudflare:test";
-import { unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account, type Json } from "./helpers";
+
+
+// A tar, read back: each entry a 512-byte header naming and sizing the
+// bytes that follow, padded to the block; two empty blocks at the end.
+function untar(bytes: Uint8Array): Record<string, Uint8Array> {
+  const decoder = new TextDecoder();
+  const field = (block: Uint8Array, offset: number, length: number) => decoder.decode(block.subarray(offset, offset + length)).replace(/\0.*$/s, "");
+  const entries: Record<string, Uint8Array> = {};
+  for (let at = 0; at + 512 <= bytes.length;) {
+    const block = bytes.subarray(at, at + 512);
+    if (block.every((b) => b === 0)) break;
+    const size = parseInt(field(block, 124, 12), 8);
+    const prefix = field(block, 345, 155);
+    const name = (prefix ? `${prefix}/` : "") + field(block, 0, 100);
+    const claimed = parseInt(field(block, 148, 8), 8);
+    const summed = block.reduce((a, b, i) => a + (i >= 148 && i < 156 ? 32 : b), 0);
+    if (claimed !== summed) throw new Error(`bad header checksum for ${name}`);
+    entries[name] = bytes.slice(at + 512, at + 512 + size);
+    at += 512 + Math.ceil(size / 512) * 512;
+  }
+  return entries;
+}
 
 const PDF = "c".repeat(64);
 const PDF_BYTES = new TextEncoder().encode("%PDF-1.4\n%%EOF");
@@ -84,13 +105,14 @@ describe("the picture", () => {
 });
 
 describe("the export", () => {
-  it("is a readable archive carrying every kind with its geometry, and the PDFs named after the papers", async () => {
+  it("is a readable tar carrying every kind with its geometry, and the PDFs named after the papers", async () => {
     const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
     await adasNook(ada, grace);
     const response = await call("GET", "/api/auth/export", { headers: ada.headers });
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.zip"$/);
-    const archive = unzipSync(new Uint8Array(await response.arrayBuffer()));
+    expect(response.headers.get("content-type")).toBe("application/x-tar");
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.tar"$/);
+    const archive = untar(new Uint8Array(await response.arrayBuffer()));
     const names = Object.keys(archive).map((n) => n.replace(/^papol-export-\d{4}-\d{2}-\d{2}\//, ""));
     expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "seminars.json", "notifications.json", "uploads.json", "boards.json", "pdfs/on-leaving-2024.pdf"]));
     const read = (name: string) => JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith(`/${name}`))!]));

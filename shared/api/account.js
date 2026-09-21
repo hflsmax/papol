@@ -149,7 +149,7 @@ export async function updateProfile(data) {
 }
 
 /**
- * Download everything Papol holds about the user, as a zip.
+ * Download everything Papol holds about the user, as a tar archive.
  *
  * Fetched rather than linked: the export needs the bearer token, and a
  * plain <a href> cannot carry one. The blob is handed to the browser
@@ -169,7 +169,7 @@ export async function downloadMyData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = named ? named[1] : `papol-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  a.download = named ? named[1] : `papol-export-${new Date().toISOString().slice(0, 10)}.tar`;
   document.body.appendChild(a);
   a.click();
   a.remove();
