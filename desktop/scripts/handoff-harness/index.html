@@ -20,7 +20,7 @@ const scheme = params.get('scheme') || 'papol';
 // A scheme that is certainly registered, to tell "Papol did not open" apart
 // from "this browser will not open anything from here".
 const control = params.get('control') || 'vscode:';
-const viewer = 'https://mc-pony.com/papol/viewer/?pdf=handoff-harness&page=14';
+const viewer = 'https://papol.io/viewer/?pdf=handoff-harness&page=14';
 const address = handoffAddress(viewer).replace(/^papol:/, `${scheme}:`);
 const started = location.href;
 
