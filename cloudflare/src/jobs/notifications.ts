@@ -28,7 +28,7 @@ export async function sendEmailJob(env: Env, payload: Row): Promise<Row> {
 
 export async function siteUrl(env: Env): Promise<string> {
   const setting = await one<{ value: string }>(env.DB, "SELECT value FROM settings WHERE key = 'site_url'");
-  return env.PAPOL_URL || setting?.value || "https://mc-pony.com/papol/";
+  return env.PAPOL_URL || setting?.value || "https://papol.io/";
 }
 
 // The digest_hour setting (0-23), read as UTC: a Worker has no host clock

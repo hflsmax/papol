@@ -114,8 +114,8 @@ says so at its head).
 itself; `check.sh` is the probe module.nix's timer runs every minute. Both
 can be run by hand.
 
-    health/check.sh https://mc-pony.com/papol    # the service is answering
-    health/links.sh https://mc-pony.com/papol <digest-of-a-real-paper>
+    cloudflare/scripts/smoke.sh https://papol.io   # what a person does, end to end
+    health/links.sh https://papol.io <digest-of-a-real-paper>
 
 `links.sh` opens each link in a headless browser and reads `data-page` off the
 application root, which says which page the router actually built. It is the
