@@ -477,6 +477,14 @@ uncalling. `test_seminar_transitions.py` translates
 the website's — so the rows are written plainly. The ORM's
 delete-orphan cascade on uncalling is four `DELETE`s said in order.
 
+### Step 4, the inbox — landed 2026-09-21
+
+`cloudflare/src/routes/inbox.ts`: notifications, the messages an admin
+broadcasts and their dismissal, feedback with the admins' inbox message
+and mail queued beside it, and the two admin routes that send and list
+recipients. `test_admin_messages.py` and the feedback cases of
+`test_jobs.py` translate (`cloudflare/test/inbox.test.ts`).
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
