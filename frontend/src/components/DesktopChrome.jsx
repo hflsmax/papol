@@ -35,7 +35,6 @@ export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
         label: 'Discover',
         items: [
           { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '3', active: page === 'learn' },
-          { key: 'demo', label: 'Try the demo', path: '/demo', glyph: 'demo' },
         ],
       },
     ];

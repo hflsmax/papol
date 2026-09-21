@@ -13,29 +13,21 @@ const PAPER = `(${PAPER_NAME_PATTERN})`;
 // was handed can be tested without a browser: routes.test.js walks every
 // shape below, and a name that changes shape has to be answered here.
 export function parseRoute(pathname = window.location.pathname || '/') {
-  const rawPath = stripAppBase(pathname || '/');
-  const demo = rawPath === '/demo' || rawPath.startsWith('/demo/');
-  const path = demo
-    ? rawPath === '/demo' ? '/' : rawPath.slice('/demo'.length)
-    : rawPath;
-  const routed = (route) => ({
-    ...route,
-    ...(demo ? { demo: true } : {}),
-  });
+  const path = stripAppBase(pathname || '/');
   const at = (pattern) => path.match(new RegExp(`^${pattern}/?$`, 'i'))?.[1].toLowerCase();
   let uuid;
-  if ((uuid = at(`/u/${UUID}/boards`))) return routed({ page: 'nook', uuid, section: 'boards' });
-  if ((uuid = at(`/u/${UUID}`))) return routed({ page: 'nook', uuid });
-  if ((uuid = at(`/paper/${PAPER}`))) return routed({ page: 'paper', uuid });
-  if ((uuid = at(`/board/${UUID}`))) return routed({ page: 'board', uuid });
-  if ((uuid = at(`/room/${UUID}`))) return routed({ page: 'room', uuid });
-  if (path === '/profile') return routed({ page: 'profile' });
-  if (path === '/join') return routed({ page: 'join' });
-  if (path === '/about') return routed({ page: 'about' });
-  if (path === '/learn') return routed({ page: 'learn' });
-  if (path === '/signin') return routed({ page: 'signin' });
-  if (path === '/library') return routed({ page: 'papers' });
-  if (path === '/inbox') return routed({ page: 'inbox' });
-  if (path === '/admin') return routed({ page: 'admin' });
-  return routed({ page: 'home' });
+  if ((uuid = at(`/u/${UUID}/boards`))) return { page: 'nook', uuid, section: 'boards' };
+  if ((uuid = at(`/u/${UUID}`))) return { page: 'nook', uuid };
+  if ((uuid = at(`/paper/${PAPER}`))) return { page: 'paper', uuid };
+  if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
+  if ((uuid = at(`/room/${UUID}`))) return { page: 'room', uuid };
+  if (path === '/profile') return { page: 'profile' };
+  if (path === '/join') return { page: 'join' };
+  if (path === '/about') return { page: 'about' };
+  if (path === '/learn') return { page: 'learn' };
+  if (path === '/signin') return { page: 'signin' };
+  if (path === '/library') return { page: 'papers' };
+  if (path === '/inbox') return { page: 'inbox' };
+  if (path === '/admin') return { page: 'admin' };
+  return { page: 'home' };
 }

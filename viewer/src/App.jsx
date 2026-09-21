@@ -17,7 +17,7 @@ import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
 } from './source';
-import { appPath, backendPath, inDemo, modeRoute, stripAppBase } from './base';
+import { appPath, backendPath, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
 import { pollUntil } from '../../shared/polling.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
@@ -80,13 +80,6 @@ export const preloadPdfPage = () => {
   return pdfPageModule;
 };
 const PdfPage = lazy(preloadPdfPage);
-
-const markReturnToPapol = () => {
-  // This is a one-shot navigation handoff, not demo-mode state. Papol
-  // consumes it on arrival so returning from the viewer does not greet the
-  // same visit a second time.
-  window.sessionStorage.setItem('papol.viewerReturn', '1');
-};
 
 const MIN_SCALE = appLimits.viewer.zoom_min;
 const MAX_SCALE = appLimits.viewer.zoom_max;
@@ -1032,8 +1025,8 @@ export default function App() {
     if (!pdfHash) return undefined;
     let cancelled = false;
     setPaperInfoError(null);
-    // A demo paper is fictional: there is nothing to look up and no server to
-    // ask, so the demo's source answers from the paper itself.
+    // A shared reading and an opened file answer for themselves; a nook
+    // paper is looked up.
     (source?.info ? source.info() : getViewerPaperInfo(pdfHash))
       .then((info) => {
         if (!cancelled) setPaperInfo(info);
@@ -2034,8 +2027,7 @@ export default function App() {
     // The desktop viewer itself has a tauri:// URL, which the backend rejects
     // (and which would be useless outside this Mac). Keep board backlinks on
     // the canonical hosted viewer while preserving the current paper query.
-    const viewerPath = modeRoute('/viewer/', { demo: inDemo() });
-    const backlink = new URL(backendPath(viewerPath), window.location.href);
+    const backlink = new URL(backendPath('/viewer/'), window.location.href);
     backlink.search = window.location.search;
     backlink.hash = window.location.hash;
     backlink.searchParams.delete('note');
@@ -3349,11 +3341,7 @@ export default function App() {
             <a
               href={source?.homeHref || appPath('/')}
               onClick={(event) => {
-                if (closeDesktopDocumentWindow()) {
-                  event.preventDefault();
-                } else {
-                  markReturnToPapol();
-                }
+                if (closeDesktopDocumentWindow()) event.preventDefault();
               }}
             >
               Back to Papol
@@ -3394,7 +3382,6 @@ export default function App() {
     // Papol macOS opens papers as document windows. Closing that window
     // returns to the library that has remained mounted behind it.
     if (closeDesktopDocumentWindow()) return;
-    markReturnToPapol();
     window.location.assign(source?.homeHref || appPath('/'));
   };
   // The document's own history, kept apart from the window's Back: the return
@@ -3468,10 +3455,7 @@ export default function App() {
             aria-label="Papol home"
             title="Papol home"
             onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
-                markReturnToPapol();
-                return;
-              }
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
               e.preventDefault();
               returnToPapol();
             }}

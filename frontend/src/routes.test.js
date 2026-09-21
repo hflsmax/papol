@@ -30,13 +30,6 @@ test('a link carrying the whole digest is not a paper link', () => {
   assert.equal(parseRoute(`/paper/${DIGEST}`).page, 'home');
 });
 
-test('a paper link opens that paper in the demo', () => {
-  assert.deepEqual(
-    parseRoute(`/demo/paper/${NAME}`),
-    { page: 'paper', uuid: NAME, demo: true },
-  );
-});
-
 test('a user link opens their space', () => {
   assert.deepEqual(parseRoute(`/u/${UUID}`), { page: 'nook', uuid: UUID });
   assert.deepEqual(
@@ -60,7 +53,6 @@ test('every standing page is reachable by its path', () => {
     '/library': 'papers',
     '/inbox': 'inbox',
     '/admin': 'admin',
-    '/demo': 'home',
   };
   for (const [path, page] of Object.entries(pages)) {
     assert.equal(parseRoute(path).page, page, `${path} should open ${page}`);
@@ -96,5 +88,4 @@ test("a board link opens that board's jacket, not its canvas", () => {
   // board application — the canvas — which this router never sees.
   assert.deepEqual(parseRoute(`/board/${UUID}`), { page: 'board', uuid: UUID });
   assert.deepEqual(parseRoute(`/board/${UUID}/`), { page: 'board', uuid: UUID });
-  assert.deepEqual(parseRoute(`/demo/board/${UUID}`), { page: 'board', uuid: UUID, demo: true });
 });

@@ -58,17 +58,12 @@ export function handoffCapableMac(nav) {
 }
 
 // What the user is looking at, named the way the offer will name it
-// (US-7.23). The demo is nobody's reading, so it is not a document to hand
-// over (US-7.31).
+// (US-7.23).
 export function handoffDocument(href) {
   const url = parse(href);
   if (!url) return null;
   if (!/^https?:$/.test(url.protocol)) return null;
   const path = url.pathname;
-  // The demo is named two ways — by the path the library links to and by the
-  // flag a board carries once it is open — and neither is a reading of mine.
-  if (/\/demo\//.test(path)) return null;
-  if (url.searchParams.get('demo') === '1') return null;
   if (/\/viewer(\/|$)/.test(path)) {
     if (!url.searchParams.get('pdf') && !url.searchParams.get('share')) return null;
     return { kind: 'paper', noun: 'this paper' };

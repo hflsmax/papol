@@ -52,11 +52,6 @@ test('the board app with no board is not a document', () => {
   assert.equal(handoffDocument('https://mc-pony.com/papol/boards/index.html'), null);
 });
 
-test('the demo offers nothing, viewer or board', () => {
-  assert.equal(handoffDocument('https://mc-pony.com/papol/demo/viewer/?pdf=abc'), null);
-  assert.equal(handoffDocument('https://mc-pony.com/papol/demo/boards/b-42'), null);
-});
-
 test('the library is not a document window', () => {
   assert.equal(handoffDocument('https://mc-pony.com/papol/'), null);
   assert.equal(handoffDocument('https://mc-pony.com/papol/u/someone'), null);
@@ -353,20 +348,6 @@ test('focus returning before anything was ever lost settles nothing', async () =
   assert.equal(win.timers.size, 1, 'still waiting');
   win.expire();
   assert.equal(await settled, 'unknown');
-});
-
-// US-7.31: the demo is named by the path the library links to, and by the
-// flag a board carries once it is open. Neither is a reading of mine.
-test('a board flagged as the demo is not a document to hand over', () => {
-  assert.equal(handoffDocument('https://mc-pony.com/papol/boards/b-42?demo=1'), null);
-  assert.equal(handoffDocument('https://mc-pony.com/papol/viewer/?pdf=abc&demo=1'), null);
-  assert.equal(handoffOffer({ href: 'https://mc-pony.com/papol/boards/b-42?demo=1', mac: true }), null);
-});
-
-test('nothing about the demo can be carried into an address', () => {
-  const address = handoffAddress('https://mc-pony.com/papol/boards/b-42?board=b-42&demo=0');
-  assert.ok(address);
-  assert.ok(!address.includes('demo'), address);
 });
 
 // US-7.24: there is nothing to hand off to on a device that cannot install it.

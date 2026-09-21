@@ -285,7 +285,7 @@ ${commonStyles}
   white-space: pre-wrap;
 }
 
-.demo-banner {
+.notice-banner {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -398,14 +398,14 @@ ${commonStyles}
 
 ${macHandoffStyles}
 
-.demo-banner-actions {
+.notice-banner-actions {
   display: inline-flex;
   align-items: center;
   gap: 14px;
   white-space: nowrap;
 }
 
-.demo-banner-button {
+.notice-banner-button {
   border: 1px solid var(--gold-ink);
   border-radius: var(--radius-pill);
   background: transparent;
@@ -417,18 +417,18 @@ ${macHandoffStyles}
   cursor: pointer;
 }
 
-.demo-banner-button:hover {
+.notice-banner-button:hover {
   background: var(--gold-ink);
   color: var(--ink-inverse);
 }
 
-.demo-banner-link {
+.notice-banner-link {
   color: var(--gold-ink);
   font-size: var(--fs-sm);
   text-decoration: underline;
 }
 
-.pdf-viewer-prompt button.demo-banner-link {
+.pdf-viewer-prompt button.notice-banner-link {
   padding: 0;
   cursor: pointer;
 }
@@ -1285,11 +1285,6 @@ button.full-width {
 .avatar-img {
   object-fit: cover;
   background: var(--accent-soft);
-}
-
-/* Tall full-figure images (demo characters): crop around the head */
-.avatar-img.head-crop {
-  object-position: 50% 12%;
 }
 
 .nook-header-row {
@@ -2478,14 +2473,6 @@ h4 .state-pill {
   color: var(--ink-soft);
 }
 
-.demo-intro h3 {
-  margin-bottom: 12px;
-}
-
-.demo-intro p {
-  margin-bottom: 12px;
-}
-
 .home-organize-item { padding: 8px 0; }
 .home-organize-item + .home-organize-item { border-top: 1px solid var(--line); }
 .home-organize-item strong { font-size: var(--fs-base); }
@@ -2499,7 +2486,7 @@ h4 .state-pill {
 
 /* The source link on the About page. A quiet annotation, not a call to action:
    it sits below the note about incubation and is meant to be found by
-   someone looking for it, not to compete with the demo button. */
+   someone looking for it. */
 .home-source {
   display: inline-block;
   margin-top: 14px;
@@ -2511,24 +2498,6 @@ h4 .state-pill {
 
 .home-source:hover { color: var(--ink); }
 .home-source svg { display: block; width: 100%; height: 100%; }
-
-.demo-cta-block {
-  margin-top: 24px;
-}
-
-.demo-cta {
-  padding: 15px 46px;
-  font-size: var(--fs-xl);
-  letter-spacing: 0.02em;
-  border-radius: var(--radius);
-  box-shadow: 0 3px 10px rgba(43, 74, 111, 0.3);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.demo-cta:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 14px rgba(43, 74, 111, 0.35);
-}
 
 .comment-actions {
   display: inline-flex;

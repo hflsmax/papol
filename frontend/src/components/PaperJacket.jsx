@@ -17,9 +17,8 @@ import { RatingInput, RatingSummary } from './Rating';
 import Markdown, { MarkdownHint } from './Markdown';
 import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
-import { inDemo } from '../../../shared/appUrls.js';
 import { authorList } from '../paperFormat';
-import { appPath, modePath } from '../base';
+import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { contextMenuHandler } from '../../../shared/contextMenu';
@@ -134,7 +133,7 @@ export default function PaperJacket({
   // a viewer URL.
   const viewerHref = () => {
     if (!paper?.sha256) return null;
-    return modePath(`/viewer/?pdf=${paper.sha256}`, { demo: inDemo() });
+    return appPath(`/viewer/?pdf=${paper.sha256}`);
   };
 
   const noteHref = (comment) => {
@@ -194,7 +193,7 @@ export default function PaperJacket({
       window.history.replaceState(
         window.history.state,
         '',
-        modePath(`/paper/${paperName(added.sha256)}`, { demo: inDemo() }),
+        appPath(`/paper/${paperName(added.sha256)}`),
       );
       // Reload rather than stop at the returned copy: a paper just taken into
       // the nook needs the user's shelves for its shelf menu.
