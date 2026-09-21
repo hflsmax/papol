@@ -7,6 +7,13 @@ interface Secrets {
   EMAIL_API_URL?: string;
   EMAIL_API_KEY?: string;
   EMAIL_FROM?: string;
+  // The bibliographic APIs' polite pools, and OpenAlex's allowance
+  // (src/papers/bibliography.ts).
+  PAPOL_CONTACT_EMAIL?: string;
+  PAPOL_OPENALEX_KEY?: string;
+  // "manual" in the suite: wake-ups are handed to the consumer by the
+  // test, not sent (src/jobs/queue.ts).
+  QUEUE_DELIVERY?: string;
 }
 
 interface Env extends Secrets {}

@@ -1,0 +1,294 @@
+// Papers: uploading one, saving it with reviewed metadata, opening it,
+// editing it, taking a copy and letting one go, and the PDF itself.
+
+import limits from "../../../config/app_limits.json";
+import { currentUser, optionalUser, type User } from "../auth";
+import { inActiveCohort } from "../cohorts";
+import { all, batch, newUuid, now, one, type Row } from "../db";
+import { json, readJson, refuse, type Router } from "../http";
+import { enqueue, wake } from "../jobs/queue";
+import { copyOf, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
+import { KIND as EXTRACT, reextractedMetadata } from "../papers/extract";
+import { Unavailable } from "../papers/bibliography";
+import { UPLOADS } from "../sync/blobs";
+import { writePaper, writeSynced } from "../sync/write";
+import * as validate from "../validate";
+
+const DIGEST = /^[0-9a-f]{64}$/;
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Store an uploaded PDF under its own content hash. Content-addressed:
+// the same bytes always land on the same key, so an upload Papol already
+// holds costs nothing and no two names ever refer to different files.
+async function storePdf(env: Env, bytes: Uint8Array): Promise<{ fileName: string; digest: string }> {
+  const digest = await sha256Hex(bytes);
+  const fileName = `${digest}.pdf`;
+  if (!(await env.FILES.head(`${UPLOADS}${fileName}`))) {
+    await env.FILES.put(`${UPLOADS}${fileName}`, bytes, { httpMetadata: { contentType: "application/pdf" } });
+  }
+  return { fileName, digest };
+}
+
+async function ownTags(env: Env, user: User, tagUuids: unknown): Promise<string[]> {
+  const wanted = [...new Set(Array.isArray(tagUuids) ? tagUuids.map(String) : [])];
+  if (!wanted.length) return [];
+  const owned = await all<{ uuid: string }>(env.DB,
+    `SELECT uuid FROM tags WHERE user_uuid = ? AND deleted_at IS NULL AND uuid IN (${wanted.map(() => "?").join(",")})`, user.uuid, ...wanted);
+  if (owned.length !== wanted.length) refuse(400, "One or more tags do not belong to you");
+  return wanted;
+}
+
+// Replace a copy's tag links with versioned association rows: the links
+// it has go on or come off, and new ones are made.
+async function setCopyTags(env: Env, copy: Copy, tagUuids: string[]): Promise<D1PreparedStatement[]> {
+  const statements: D1PreparedStatement[] = [];
+  const links = await all<Row>(env.DB, "SELECT * FROM copy_tags WHERE copy_uuid = ?", copy.uuid);
+  const wanted = new Set(tagUuids);
+  const at = now();
+  for (const link of links) {
+    const keep = wanted.has(link.tag_uuid as string);
+    const was = link.deleted_at === null;
+    if (keep === was) continue;
+    link.deleted_at = keep ? null : at;
+    statements.push(...await writeSynced(env.DB, "copy_tags", link, copy.user_uuid, false));
+  }
+  const held = new Set(links.map((l) => l.tag_uuid as string));
+  for (const tagUuid of wanted) {
+    if (held.has(tagUuid)) continue;
+    const link = { uuid: newUuid(), copy_uuid: copy.uuid, tag_uuid: tagUuid, user_uuid: copy.user_uuid, created_at: at, updated_at: at, revision: 0, deleted_at: null };
+    statements.push(...await writeSynced(env.DB, "copy_tags", link, copy.user_uuid, true));
+  }
+  return statements;
+}
+
+async function defaultShelf(env: Env, user: User): Promise<Row | null> {
+  return one<Row>(env.DB, "SELECT * FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY is_default DESC, position LIMIT 1", user.uuid);
+}
+
+async function ownShelf(env: Env, user: User, shelfUuid: unknown): Promise<Row | null> {
+  if (shelfUuid === null || shelfUuid === undefined) return defaultShelf(env, user);
+  return one<Row>(env.DB, "SELECT * FROM shelves WHERE uuid = ? AND user_uuid = ?", String(shelfUuid), user.uuid);
+}
+
+const METADATA_FIELDS = ["title", "authors", "journal", "year", "doi"] as const;
+const PERSONAL_FIELDS = ["summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"] as const;
+
+export function paperRoutes(router: Router) {
+  // Upload a PDF. It is stored now, under its digest; what it says about
+  // itself is a job, and the form polls /api/jobs/{job} for the fields to
+  // review. Nothing is saved to the database until the user saves the paper.
+  router.on("POST", "/api/papers/extract", async ({ request, env }) => {
+    const user = await currentUser(request, env);
+    let data: FormData;
+    try { data = await request.formData(); } catch { return refuse(422, "The request is not a form"); }
+    const file = data.get("file");
+    if (!(file instanceof File)) refuse(422, "file is required");
+    if (!file.name.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const { fileName, digest } = await storePdf(env, bytes);
+    const job = enqueue(env.DB, EXTRACT, { file_path: fileName, uploaded_name: file.name }, { userUuid: user.uuid });
+    await job.statement.run();
+    await wake(env, [job.uuid]);
+    return json({ job: job.uuid, file_path: fileName, sha256: digest }, { status: 202 });
+  });
+
+  // Save a paper with user-edited metadata and an optional first note. A
+  // paper is its PDF: an upload of bytes Papol already holds becomes a
+  // new copy of that paper, and anything else is a paper of its own.
+  router.on("POST", "/api/papers", async ({ request, env }) => {
+    const user = await currentUser(request, env);
+    const data = await readJson<Row>(request);
+    const filePath = String(data.file_path ?? "");
+    if (!/^[0-9a-f]{64}\.pdf$/.test(filePath) || !(await env.FILES.head(`${UPLOADS}${filePath}`))) refuse(400, "PDF file not found");
+    const metadata = validate.paperMetadata(data);
+    const check = validate.checking();
+    const thought = check.string("thought", data.thought, { max: limits.text.paper_thought, optional: true });
+    const summary = check.string("summary", data.summary, { optional: true });
+    const initialComment = check.string("initial_comment", data.initial_comment, { optional: true });
+    for (const field of ["rating_expertise", "rating_reading", "rating_liking"]) {
+      check.integer(field, data[field], { min: limits.ratings.min, max: limits.ratings.max, optional: true });
+    }
+    check.done();
+    const digest = filePath.slice(0, 64);
+    let paper = await one<Paper>(env.DB, "SELECT * FROM papers WHERE sha256 = ? AND deleted_at IS NULL", digest);
+    const isNew = !paper;
+    const at = now();
+    if (paper) {
+      if (await copyOf(env.DB, paper.sha256, user)) refuse(400, "This paper is already in your nook");
+      // The uploader reviewed the metadata; shared metadata takes the edit.
+      Object.assign(paper, metadata);
+    } else {
+      paper = { sha256: digest, ...metadata, file_path: filePath, uploaded_by: user.uuid, created_at: at, updated_at: at, revision: 1, deleted_at: null,
+        references_status: null, references_error: null, references_at: null } as Paper;
+    }
+    const tagUuids = await ownTags(env, user, data.tag_uuids);
+    const shelf = await ownShelf(env, user, data.shelf_uuid);
+    if (!shelf) refuse(400, "Shelf does not belong to you");
+    const copy: Copy = {
+      uuid: newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf.uuid as string,
+      summary: summary ?? null, thought: thought ?? null, is_author: data.is_author ? 1 : 0,
+      rating_expertise: data.rating_expertise ?? null, rating_reading: data.rating_reading ?? null, rating_liking: data.rating_liking ?? null,
+      created_at: at, updated_at: at, revision: 0, deleted_at: null,
+    };
+    const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, true)];
+    statements.push(...await setCopyTags(env, copy, tagUuids));
+    if (initialComment?.trim()) {
+      const note = { uuid: newUuid(), kind: "note", user_uuid: user.uuid, paper_sha256: paper.sha256, page: null, group_uuid: null,
+        content: initialComment.trim(), name: null, body: "{}", created_at: at, updated_at: at, revision: 0, deleted_at: null };
+      statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, true));
+    }
+    await batch(env.DB, statements);
+    return json(await paperDetail(env.DB, paper, user));
+  });
+
+  // Any signed-in user may open any paper: the Library holds every one,
+  // and whose nook it sits in is nobody's business but theirs.
+  router.on("GET", "/api/papers/:name", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    return json(await paperDetail(env.DB, await paperOr404(env.DB, params.name), user));
+  });
+
+  // Re-read a paper's PDF metadata for the edit form.
+  router.on("POST", "/api/papers/:name/extract-metadata", async ({ request, env, params }) => {
+    await currentUser(request, env);
+    const paper = await paperOr404(env.DB, params.name);
+    const object = DIGEST.test(paper.file_path.slice(0, 64)) || paper.file_path ? await env.FILES.get(`${UPLOADS}${paper.file_path}`) : null;
+    if (!object) refuse(404, "PDF for this paper is missing");
+    let found;
+    try {
+      found = await reextractedMetadata(env, new Uint8Array(await object.arrayBuffer()), paper.doi);
+    } catch (error) {
+      if (error instanceof Unavailable) refuse(503, "Metadata lookup failed");
+      throw error;
+    }
+    if (!found) refuse(404, "Metadata was not found");
+    return json(found);
+  });
+
+  // Update a paper. Personal fields apply to the viewer's own copy;
+  // metadata lives on the one canonical paper, and any signed-in user may
+  // edit it, for everyone.
+  router.on("PUT", "/api/papers/:name", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const paper = await paperOr404(env.DB, params.name);
+    const data = await readJson<Row>(request);
+    const personal = Object.fromEntries(PERSONAL_FIELDS.filter((f) => f in data).map((f) => [f, data[f]]));
+    const metadata = Object.fromEntries(METADATA_FIELDS.filter((f) => f in data).map((f) => [f, data[f]]));
+    const statements: D1PreparedStatement[] = [];
+    let copy: Copy | null = null;
+    const touchCopy = async () => { copy = copy ?? await requireCopy(env.DB, paper.sha256, user); return copy; };
+
+    if (Object.keys(personal).length) {
+      const mine = await touchCopy();
+      validate.copyFields(personal);
+      const { is_public: wantedVisibility, ...rest } = personal;
+      if (wantedVisibility === false && await inActiveCohort(env.DB, user.uuid, paper.sha256)) refuse(400, "Leave the seminar before hiding this paper");
+      if (wantedVisibility !== undefined && wantedVisibility !== null) {
+        // Visibility lives on the shelf: the copy moves to one that says so.
+        const target = await one<Row>(env.DB, "SELECT uuid FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL AND is_public = ? ORDER BY is_default DESC, position LIMIT 1",
+          user.uuid, wantedVisibility ? 1 : 0);
+        if (!target) refuse(400, `Create a ${wantedVisibility ? "public" : "private"} shelf first`);
+        mine.shelf_uuid = target.uuid as string;
+      }
+      for (const [key, value] of Object.entries(rest)) mine[key] = key === "is_author" ? (value ? 1 : 0) : value;
+    }
+    if (data.tag_uuids !== undefined && data.tag_uuids !== null) {
+      statements.push(...await setCopyTags(env, await touchCopy(), await ownTags(env, user, data.tag_uuids)));
+    }
+    if (data.shelf_uuid !== undefined && data.shelf_uuid !== null) {
+      const mine = await touchCopy();
+      const shelf = await one<Row>(env.DB, "SELECT * FROM shelves WHERE uuid = ? AND user_uuid = ?", String(data.shelf_uuid), user.uuid);
+      if (!shelf) refuse(400, "Shelf does not belong to you");
+      const current = mine.shelf_uuid ? await one<{ is_public: number }>(env.DB, "SELECT is_public FROM shelves WHERE uuid = ?", mine.shelf_uuid) : null;
+      if (!shelf.is_public && current?.is_public && await inActiveCohort(env.DB, user.uuid, paper.sha256)) {
+        refuse(400, "Leave the seminar before moving this paper to a private shelf");
+      }
+      mine.shelf_uuid = shelf.uuid as string;
+    }
+    if (copy) statements.push(...await writeSynced(env.DB, "copies", copy, user.uuid, false));
+    if (Object.keys(metadata).length) {
+      Object.assign(paper, metadata);
+      if (typeof paper.title === "string") paper.title = paper.title.trim();
+      // The same shape a replica's push is held to, asked of the paper
+      // after the edit rather than of the edit.
+      Object.assign(paper, validate.paperMetadata(paper));
+      statements.push(await writePaper(env.DB, paper, false));
+    }
+    await batch(env.DB, statements);
+    return json(await paperDetail(env.DB, paper, user));
+  });
+
+  // Remove the paper from the viewer's nook: their copy and their notes.
+  // The paper and its file stay, and the paper stays in the Library. Ink
+  // and clips are left where they are: leaving a nook is not a deletion,
+  // and a user who adds the paper again finds their paint still on the page.
+  router.on("DELETE", "/api/papers/:name", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const paper = await paperOr404(env.DB, params.name);
+    const copy = await requireCopy(env.DB, paper.sha256, user);
+    const at = now();
+    copy.deleted_at = at;
+    const statements = await writeSynced(env.DB, "copies", copy, user.uuid, false);
+    for (const note of await all<Row>(env.DB, "SELECT * FROM annotations WHERE paper_sha256 = ? AND user_uuid = ? AND kind = 'note' AND deleted_at IS NULL", paper.sha256, user.uuid)) {
+      note.deleted_at = at;
+      statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, false));
+    }
+    await batch(env.DB, statements);
+    return json({ message: "Paper removed from your nook" });
+  });
+
+  // Add the paper to the viewer's nook: a new copy of the one canonical
+  // paper. One copy per user: a paper added back after being removed
+  // revives that copy, since a second one cannot be stored.
+  router.on("POST", "/api/papers/:name/add-to-nook", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const paper = await paperOr404(env.DB, params.name);
+    if (await copyOf(env.DB, paper.sha256, user)) refuse(400, "This paper is already in your nook");
+    const shelf = await defaultShelf(env, user);
+    const removed = await one<Copy>(env.DB, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paper.sha256, user.uuid);
+    const at = now();
+    const copy: Copy = removed
+      ? { ...removed, deleted_at: null, shelf_uuid: shelf?.uuid as string ?? null }
+      : { uuid: newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf?.uuid as string ?? null, summary: null, thought: null,
+          is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, created_at: at, updated_at: at, revision: 0, deleted_at: null };
+    await batch(env.DB, await writeSynced(env.DB, "copies", copy, user.uuid, !removed));
+    return json(await paperDetail(env.DB, paper, user));
+  });
+
+  // Resolve the paper named by a viewer URL, which names its PDF. The user
+  // has to keep it; a shared link's reading arrives with the sharables.
+  router.on("GET", "/api/viewer/:digest", async ({ request, env, params, url }) => {
+    const digest = params.digest.trim().toLowerCase();
+    if (!DIGEST.test(digest)) refuse(404, "PDF not found");
+    if (url.searchParams.get("share")) refuse(404, "This reading is no longer shared");
+    const user = await optionalUser(request, env);
+    if (!user) refuse(401, "Not authenticated");
+    const paper = await one<Paper>(env.DB, "SELECT * FROM papers WHERE sha256 = ?", digest);
+    if (!paper) refuse(404, "PDF not found");
+    if (!(await copyOf(env.DB, paper.sha256, user))) refuse(403, "Add this paper to your nook first");
+    return json(await paperDetail(env.DB, paper, user));
+  });
+
+  // A stored file by its key: a paper's PDF under its digest, an avatar
+  // under a UUID. Both names are minted once and never reused, so what a
+  // URL here answers never changes and may be cached for good.
+  for (const method of ["GET", "HEAD"]) {
+    router.on(method, "/uploads/:key", async ({ env, params }) => {
+      if (!/^[A-Za-z0-9._-]+$/.test(params.key)) refuse(404, "File not found");
+      const object = await env.FILES.get(`${UPLOADS}${params.key}`);
+      if (!object) refuse(404, "File not found");
+      const headers: Record<string, string> = {
+        "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",
+        "content-length": String(object.size),
+        "cache-control": "public, max-age=31536000, immutable",
+        "accept-ranges": "bytes",
+      };
+      if (object.httpEtag) headers.etag = object.httpEtag;
+      return new Response(method === "HEAD" ? null : object.body, { headers });
+    });
+  }
+}

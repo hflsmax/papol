@@ -79,8 +79,10 @@ export function enqueue(
 
 // Send the wake-ups for rows just written. After the batch, never
 // before: a message about a row that does not exist yet finds nothing.
+// The suite hands wake-ups to the consumer itself, so that a job runs
+// when the test says and not when the local runtime feels like it.
 export async function wake(env: Env, uuids: string[]): Promise<void> {
-  if (!uuids.length) return;
+  if (!uuids.length || env.QUEUE_DELIVERY === "manual") return;
   await env.JOBS.sendBatch(uuids.map((uuid) => ({ body: { job: uuid } })));
 }
 

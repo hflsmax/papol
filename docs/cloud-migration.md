@@ -425,6 +425,37 @@ routes, comes next. One decision: a list of papers is built in a handful
 of queries for the whole list — the displayed copies, the seminar
 statuses, the nook's own tags — rather than the ORM's query per row.
 
+### Step 4, papers — landed 2026-09-21
+
+`cloudflare/src/routes/papers.ts`, `src/papers/`: the upload and the
+`extract_metadata` job that reads it, saving, the paper page, editing,
+taking a copy and letting it go, the viewer's paper, and `/uploads/{key}`.
+`test_paper_names.py`, the rest of `test_paper_is_not_owned.py`,
+`test_paper_metadata_shape.py`'s rules and `test_metadata_lookup.py`
+translate (`cloudflare/test/papers.test.ts`).
+
+Decisions taken:
+
+- **The PDF is read by `unpdf`**, pdf.js built for the edge, in place of
+  PyMuPDF: the first three pages' text, for the identifier printed there.
+- **GROBID's title-block fallback waits for the reference pass.** It
+  needs the TEI parsing that pass brings; until then a paper that prints
+  no identifier gets its filename for a title, which the form always let
+  the user correct.
+- **A title is trimmed in the one validator**, so an upload, an edit and
+  a replica's push agree on what a title is. The Python trimmed on two of
+  the three paths.
+- **The reference pass is not queued on save yet**: its handler comes
+  with the pass, and a job no handler knows is failed, not left. A saved
+  paper's `references_status` is null — never asked — until then.
+- **`/uploads/{key}` is streamed by the Worker from R2**, immutable and
+  rangeable, as the board files are. The CDN option (`PAPOL_FILES_PUBLIC_URL`)
+  is not carried: one origin, and Cloudflare's cache in front of the
+  Worker is the CDN.
+- **In the suite, wake-ups are handed to the consumer by the test.** The
+  local runtime delivers queue messages on its own, which would run a job
+  before a test had said what the outside world answers.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
