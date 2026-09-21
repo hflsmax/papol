@@ -3902,7 +3902,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
 .board-toolbar-title[readonly]:focus { border-color: transparent; background: transparent; }
-.board-toolbar-edited { position: absolute; left: 50%; transform: translateX(-50%); color: var(--ink-faint); cursor: default; font: var(--fs-2xs) var(--font-ui); user-select: none; white-space: nowrap; }
+/* Stands in the row after the name rather than pinned to the bar's centre:
+   pinned there, a long name or a narrow window (a tablet) ran the two into
+   each other. It gives way first when the row is short of room. */
+.board-toolbar-edited { flex: 0 100 auto; min-width: 0; overflow: hidden; color: var(--ink-faint); cursor: default; font: var(--fs-2xs) var(--font-ui); user-select: none; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 900px) { .board-toolbar-edited { display: none; } }
 .board-readonly-badge { border-color: var(--line-strong); background: var(--paper); color: var(--ink-soft); }
 .board-toolbar-spacer { flex: 1; }
 .board-toolbar .board-tidy-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink-soft); }
@@ -4129,12 +4133,38 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     gap: 0;
   }
 
+  /* Each tab takes its own words' width plus an equal share of what is
+     left, on one line: an equal fifth of a phone was narrower than
+     "Mac app" with its glyph, which broke onto two lines. */
   .topnav nav a {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
     text-align: center;
-    padding: 9px 0;
+    padding: 9px 2px;
     font-family: var(--font-ui);
     font-size: var(--fs-sm);
+  }
+
+  /* The announcement and its link each keep whole: the link drops to a
+     second line rather than both breaking mid-sentence side by side. */
+  .macos-download-banner {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  /* The paper page's title and its authors get the whole width; the shelf
+     control and the author checkbox go under them instead of squeezing
+     the words into a column a few words wide. */
+  .detail-title-row,
+  .detail-authors-row {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+
+  .detail-title-row h2,
+  .detail-authors-row .authors {
+    flex-basis: 100%;
   }
 
   .panel {
