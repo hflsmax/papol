@@ -12,6 +12,7 @@ import { jobRoutes } from "./routes/jobs";
 import { nookRoutes } from "./routes/nook";
 import { paperRoutes } from "./routes/papers";
 import { roomRoutes } from "./routes/rooms";
+import { sharableRoutes } from "./routes/sharables";
 import { getBlob, headBlob, putBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
 import { push } from "./sync/push";
@@ -31,6 +32,7 @@ paperRoutes(router);
 annotationRoutes(router);
 roomRoutes(router);
 inboxRoutes(router);
+sharableRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);

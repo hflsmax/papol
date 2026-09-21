@@ -2,14 +2,15 @@
 // editing it, taking a copy and letting one go, and the PDF itself.
 
 import limits from "../../../config/app_limits.json";
-import { currentUser, optionalUser, type User } from "../auth";
+import { currentUser, type User } from "../auth";
 import { inActiveCohort } from "../cohorts";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
-import { copyOf, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
+import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
 import { KIND as EXTRACT, reextractedMetadata } from "../papers/extract";
 import { Unavailable } from "../papers/bibliography";
+import { viewerPaper } from "../papers/sharables";
 import { UPLOADS } from "../sync/blobs";
 import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
@@ -65,12 +66,8 @@ async function setCopyTags(env: Env, copy: Copy, tagUuids: string[]): Promise<D1
   return statements;
 }
 
-async function defaultShelf(env: Env, user: User): Promise<Row | null> {
-  return one<Row>(env.DB, "SELECT * FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY is_default DESC, position LIMIT 1", user.uuid);
-}
-
 async function ownShelf(env: Env, user: User, shelfUuid: unknown): Promise<Row | null> {
-  if (shelfUuid === null || shelfUuid === undefined) return defaultShelf(env, user);
+  if (shelfUuid === null || shelfUuid === undefined) return defaultShelf(env.DB, user);
   return one<Row>(env.DB, "SELECT * FROM shelves WHERE uuid = ? AND user_uuid = ?", String(shelfUuid), user.uuid);
 }
 
@@ -241,35 +238,20 @@ export function paperRoutes(router: Router) {
     return json({ message: "Paper removed from your nook" });
   });
 
-  // Add the paper to the viewer's nook: a new copy of the one canonical
-  // paper. One copy per user: a paper added back after being removed
-  // revives that copy, since a second one cannot be stored.
+  // Add the paper to the viewer's nook. Any signed-in user may: nobody
+  // owns a paper, so no display stands between them and a copy of their own.
   router.on("POST", "/api/papers/:name/add-to-nook", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
-    if (await copyOf(env.DB, paper.sha256, user)) refuse(400, "This paper is already in your nook");
-    const shelf = await defaultShelf(env, user);
-    const removed = await one<Copy>(env.DB, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paper.sha256, user.uuid);
-    const at = now();
-    const copy: Copy = removed
-      ? { ...removed, deleted_at: null, shelf_uuid: shelf?.uuid as string ?? null }
-      : { uuid: newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf?.uuid as string ?? null, summary: null, thought: null,
-          is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, created_at: at, updated_at: at, revision: 0, deleted_at: null };
-    await batch(env.DB, await writeSynced(env.DB, "copies", copy, user.uuid, !removed));
+    await keepPaper(env.DB, user, paper.sha256);
     return json(await paperDetail(env.DB, paper, user));
   });
 
-  // Resolve the paper named by a viewer URL, which names its PDF. The user
-  // has to keep it; a shared link's reading arrives with the sharables.
-  router.on("GET", "/api/viewer/:digest", async ({ request, env, params, url }) => {
-    const digest = params.digest.trim().toLowerCase();
-    if (!DIGEST.test(digest)) refuse(404, "PDF not found");
-    if (url.searchParams.get("share")) refuse(404, "This reading is no longer shared");
-    const user = await optionalUser(request, env);
-    if (!user) refuse(401, "Not authenticated");
-    const paper = await one<Paper>(env.DB, "SELECT * FROM papers WHERE sha256 = ?", digest);
-    if (!paper) refuse(404, "PDF not found");
-    if (!(await copyOf(env.DB, paper.sha256, user))) refuse(403, "Add this paper to your nook first");
+  // Resolve the paper named by a viewer URL, which names its PDF, for a
+  // user who keeps it. A shared reading is opened by /api/shared instead.
+  router.on("GET", "/api/viewer/:digest", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const paper = await viewerPaper(env.DB, params.digest, user, null);
     return json(await paperDetail(env.DB, paper, user));
   });
 

@@ -485,6 +485,32 @@ and mail queued beside it, and the two admin routes that send and list
 recipients. `test_admin_messages.py` and the feedback cases of
 `test_jobs.py` translate (`cloudflare/test/inbox.test.ts`).
 
+### Step 4, links — landed 2026-09-21
+
+`cloudflare/src/papers/sharables.ts` and `cloudflare/src/routes/sharables.ts`:
+a paper's own link and a reading's link, asking for one's own, dropping
+the annotations from a link or taking it back, the reading a link opens
+for anyone, and what a holder may keep of it. `test_sharables.py`
+translates (`cloudflare/test/sharables.test.ts`) except the
+viewer-references case, which arrives with the references.
+
+- One road into a nook. The Python add-to-nook and the shared
+  add-to-nook each built a copy on their own, and the second never
+  revived a removed copy, so a paper let go and then taken back by link
+  left its dead copy beside the new one. `keepPaper` is the one path,
+  and both routes call it.
+- The viewer's authorization is one function, `viewerPaper`: a user who
+  keeps the paper, or a link that names it. `/api/viewer/{digest}` calls
+  it as the Python route did, without a link; the info and references
+  routes, when they come, pass the `share` query through it.
+- A rich link is demoted where it is opened, not where the copy is
+  deleted. The Python service did the same, for the same reason: the web
+  route and a synchronized delete are two roads out of a nook, and the
+  read is the one place both pass through. The cost is a write on a
+  read, once per demotion.
+- A closed account is `users.deleted_at`, not an `is_deleted` flag: the
+  column the schema already has.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
