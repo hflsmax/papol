@@ -14,7 +14,9 @@
 #   ./deploy.sh macos credentials
 #                  print the local signing/notarization values for GitHub
 #   ./deploy.sh macos release [patch|minor|major|VERSION]
-#                  bump, commit, tag, and push a macOS release
+#                  bump, open a pull request that merges itself, then tag
+#   ./deploy.sh macos release resume
+#                  pick an interrupted release back up after the PR is open
 #
 # Code goes up with `prod`. Data never goes from development to production;
 # `pull` explicitly replaces development's database with production's, and
@@ -343,7 +345,7 @@ macos_credentials() {
 }
 
 macos_release() {
-  local requested="${1:-patch}" current version tag
+  local requested="${1:-patch}" current version tag branch pr
   local desktop_package="$DEV_DIR/desktop/package.json"
   local desktop_lock="$DEV_DIR/desktop/package-lock.json"
   local tauri_config="$DEV_DIR/desktop/src-tauri/tauri.conf.json"
@@ -360,7 +362,12 @@ macos_release() {
     "desktop/src-tauri/Cargo.lock"
   )
 
-  [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, or X.Y.Z"
+  [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, X.Y.Z, or resume"
+  command -v gh >/dev/null 2>&1 || die "gh is required to open the release pull request"
+  if [ "$requested" = resume ]; then
+    macos_release_resume
+    return
+  fi
   command -v node >/dev/null 2>&1 || die "node is required to prepare a macOS release"
   [ "$(git -C "$DEV_DIR" branch --show-current)" = main ] \
     || die "macos releases must be cut from the main branch"
@@ -368,6 +375,13 @@ macos_release() {
     || die "stage or unstage existing changes before cutting a release"
   git -C "$DEV_DIR" diff --quiet -- "${version_files[@]}" \
     || die "desktop version files have uncommitted changes"
+  # main is protected: nothing reaches it except through a pull request
+  # whose checks pass. So the bump travels on a branch of its own, and it
+  # starts from exactly what origin has, or a local-only commit would ride
+  # along into the release.
+  git -C "$DEV_DIR" fetch --quiet origin main
+  [ "$(git -C "$DEV_DIR" rev-parse HEAD)" = "$(git -C "$DEV_DIR" rev-parse origin/main)" ] \
+    || die "main is not at origin/main; pull, or drop local-only commits, before cutting a release"
 
   current=$(node -p "require('$desktop_package').version")
   if [[ ! $current =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -379,7 +393,7 @@ macos_release() {
     major) version="$((BASH_REMATCH[1] + 1)).0.0" ;;
     *)
       [[ $requested =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-        || die "release version must be patch, minor, major, or X.Y.Z"
+        || die "release version must be patch, minor, major, X.Y.Z, or resume"
       version=$requested
       ;;
   esac
@@ -401,11 +415,16 @@ if (compare(version, current) < 0) {
 NODE
 
   tag="macos-v$version"
+  branch="release/$tag"
   if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     die "tag $tag already exists locally"
   fi
   if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
     die "tag $tag already exists on origin"
+  fi
+  if git -C "$DEV_DIR" rev-parse -q --verify "refs/heads/$branch" >/dev/null \
+    || git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/heads/$branch" >/dev/null 2>&1; then
+    die "branch $branch already exists; ./deploy.sh macos release resume picks up an unfinished release"
   fi
 
   node - "$version" "$desktop_package" "$desktop_lock" "$tauri_config" \
@@ -434,17 +453,87 @@ NODE
 
   # A terminal makes diff open the pager even when it has nothing to say.
   git -C "$DEV_DIR" --no-pager diff --check
+  git -C "$DEV_DIR" switch --quiet --create "$branch"
   git -C "$DEV_DIR" add -- "${version_files[@]}"
-  git -C "$DEV_DIR" commit -m "Release Papol macOS v$version"
-  git -C "$DEV_DIR" push origin main
-  git -C "$DEV_DIR" tag -a "$tag" -m "Papol macOS v$version"
+  git -C "$DEV_DIR" commit --quiet -m "Release Papol macOS v$version"
+  git -C "$DEV_DIR" push --quiet --set-upstream origin "$branch"
+  pr=$(cd "$DEV_DIR" && gh pr create --base main --head "$branch" \
+    --title "Release Papol macOS v$version" \
+    --body "Version bump only. The pull request merges itself once the checks pass; deploy.sh then tags the merge commit $tag, and that tag builds, notarizes and publishes the DMG.")
+  (cd "$DEV_DIR" && gh pr merge --auto --merge "$pr" >/dev/null)
+  git -C "$DEV_DIR" switch --quiet main
+  say "Opened $pr"
+  macos_release_finish "$version" "$pr"
+}
+
+# The half of a release that happens after the pull request is up: wait
+# for it to merge, then tag the merge commit. Separate so an interrupted
+# wait can be picked back up with `release resume`.
+macos_release_finish() {
+  local version="$1" pr="$2" tag="macos-v$1" branch="release/macos-v$1"
+  local state status sha failed
+  note "Waiting for the checks; the pull request merges itself when they pass."
+  note "Ctrl-C is safe: ./deploy.sh macos release resume picks the wait back up."
+  while :; do
+    read -r state status sha failed < <(cd "$DEV_DIR" && gh pr view "$pr" \
+      --json state,mergeStateStatus,mergeCommit,statusCheckRollup \
+      --jq '[.state, .mergeStateStatus, (.mergeCommit.oid // "-"),
+             ([.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "CANCELLED") | .name] | join(",") | if . == "" then "-" else . end)]
+            | join(" ")')
+    case "$state" in
+      MERGED) break ;;
+      CLOSED) die "$pr was closed without merging" ;;
+    esac
+    [ "$failed" = "-" ] || die "checks failed on $pr: $failed"
+    # main is required to be merged in before a branch lands; when main
+    # moves under an open release, bring the branch up and let the checks
+    # run again on the result.
+    if [ "$status" = BEHIND ]; then
+      note "main moved; bringing $branch up to date"
+      (cd "$DEV_DIR" && gh pr update-branch "$pr" >/dev/null)
+    fi
+    sleep 30
+  done
+
+  git -C "$DEV_DIR" fetch --quiet origin main
+  [ "$sha" != "-" ] || die "GitHub reports no merge commit for $pr"
+  git -C "$DEV_DIR" merge-base --is-ancestor "$sha" origin/main \
+    || die "merge commit $sha of $pr is not on origin/main"
+  if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
+    say "Papol macOS v$version is already tagged on origin"
+    return
+  fi
+  git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null \
+    || git -C "$DEV_DIR" tag -a "$tag" -m "Papol macOS v$version" "$sha"
   git -C "$DEV_DIR" push origin "$tag"
+  git -C "$DEV_DIR" push --quiet origin --delete "$branch" 2>/dev/null || true
+  git -C "$DEV_DIR" branch --quiet -D "$branch" 2>/dev/null || true
+  if [ "$(git -C "$DEV_DIR" branch --show-current)" = main ]; then
+    git -C "$DEV_DIR" merge --quiet --ff-only origin/main
+  fi
   say "Tagged Papol macOS v$version"
   # The gate is CI's, not this script's: the tag runs the suites, the
   # browser smokes and the native lints on a macOS runner, and the DMG
   # is built, notarized and published only if they pass.
   note "CI is now testing the tag; the release publishes only if the gate passes:"
   note "https://github.com/hflsmax/papol/actions/workflows/desktop-macos.yml"
+}
+
+# Pick up the newest release pull request that is neither closed nor tagged.
+macos_release_resume() {
+  local line pr branch version tag
+  line=$(cd "$DEV_DIR" && gh pr list --state all --limit 30 --json url,headRefName,state \
+    --jq '([.[] | select(.state != "CLOSED") | select(.headRefName | startswith("release/macos-v"))][0] // empty)
+          | "\(.url) \(.headRefName)"')
+  [ -n "$line" ] || die "no release pull request to resume"
+  read -r pr branch <<<"$line"
+  version="${branch#release/macos-v}"
+  tag="macos-v$version"
+  if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
+    die "nothing to resume: $tag is already on origin"
+  fi
+  say "Resuming Papol macOS v$version from $pr"
+  macos_release_finish "$version" "$pr"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -920,7 +1009,7 @@ Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--no-check] [--skip-notarize]
   ./deploy.sh macos credentials
-  ./deploy.sh macos release [patch|minor|major|VERSION]
+  ./deploy.sh macos release [patch|minor|major|VERSION|resume]
 
 `prod` and its `build` alias create an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
@@ -932,8 +1021,10 @@ notarization service.
 notarized release, checks for a local Developer ID identity, and prints the
 values in the local credential file for copying to GitHub.
 `release` increments the desktop patch version by default (or accepts a minor,
-major, or explicit stable version), commits only its three version files, and
-pushes the matching `macos-v*` tag to trigger the GitHub release build.
+major, or explicit stable version), commits only its version files on a branch,
+opens a pull request that merges itself once the checks pass, waits for that,
+and pushes the matching `macos-v*` tag at the merge commit to trigger the
+GitHub release build. `resume` picks the wait back up after an interruption.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, build, credentials, or release)" ;;
