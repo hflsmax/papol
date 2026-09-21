@@ -7,8 +7,6 @@ import {
   adminUpdateRow,
   adminDeleteRow,
   adminRunSql,
-  adminDbMetrics,
-  adminResetDbMetrics,
   adminListFeedback,
   adminSetFeedbackResolved,
   adminSendMessage,
@@ -170,90 +168,6 @@ function AdminMessagePanel() {
         {sending ? 'Sending…' : audience === 'all' ? 'Send to everyone' : 'Send to selected users'}
       </button>
     </form>
-  );
-}
-
-function DbMetricsPanel() {
-  const [metrics, setMetrics] = useState(null);
-  const [error, setError] = useState(null);
-
-  const load = (promise) =>
-    promise.then(setMetrics).catch((e) => setError(e.message));
-
-  useEffect(() => {
-    load(adminDbMetrics());
-  }, []);
-
-  if (error) return <div className="error" role="alert">{error}</div>;
-  if (!metrics) return <div className="loading" role="status" aria-live="polite">Loading metrics…</div>;
-
-  return (
-    <>
-      <p className="panel-note">
-        {metrics.total_queries} quer{metrics.total_queries === 1 ? 'y' : 'ies'}
-        {' '}({metrics.total_ms} ms total) since{' '}
-        {new Date(metrics.since + 'Z').toLocaleString()}.{' '}
-        <button className="link-button" onClick={() => load(adminDbMetrics())}>
-          Refresh
-        </button>{' '}
-        <button className="link-button" onClick={() => load(adminResetDbMetrics())}>
-          Reset
-        </button>
-      </p>
-      {metrics.operations.length === 0 ? (
-        <p className="no-papers">No database operations recorded yet.</p>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>operation</th>
-                <th>table</th>
-                <th>count</th>
-                <th>avg ms</th>
-                <th>max ms</th>
-                <th>total ms</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.operations.map((op) => (
-                <tr key={`${op.operation}:${op.table}`}>
-                  <td>{op.operation}</td>
-                  <td>{op.table}</td>
-                  <td>{op.count}</td>
-                  <td>{op.avg_ms}</td>
-                  <td>{op.max_ms}</td>
-                  <td>{op.total_ms}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {metrics.slowest.length > 0 && (
-        <>
-          <h6 className="kicker metrics-subtitle">Slowest queries</h6>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>ms</th>
-                  <th>statement</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.slowest.map((q, i) => (
-                  <tr key={i}>
-                    <td>{q.ms}</td>
-                    <td className="admin-statement">{q.statement}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </>
   );
 }
 
@@ -643,11 +557,6 @@ export default function AdminPage() {
             )}
           </div>
         )}
-      </div>
-
-      <div className="panel">
-        <h6 className="kicker">Database metrics</h6>
-        <DbMetricsPanel />
       </div>
     </div>
   );

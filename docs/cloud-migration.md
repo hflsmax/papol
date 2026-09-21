@@ -543,6 +543,24 @@ the seminars handed on or reopened.
   the uploads prefix, named as a route rather than a general path
   wildcard.
 
+### Step 4, the admin pages — landed 2026-09-21
+
+`cloudflare/src/routes/admin.ts`: the reports and their resolution, the
+tables, a row edited or deleted by its key, and one raw statement. No
+Python test covered these; `cloudflare/test/admin.test.ts` does now.
+
+- The tables are asked of the database. Python listed SQLAlchemy's
+  metadata and coerced values through each column's Python type; the
+  Worker reads `sqlite_master` and `PRAGMA table_info`, and coerces a
+  typed value by the column's declared affinity. SQLite's own tables and
+  D1's migration table are not Papol's and are not listed.
+- The database timing metrics are dropped: `GET /api/admin/db-metrics`,
+  its reset, the admin page's panel and the two client functions. They
+  were counters in one Python process, collected through SQLAlchemy
+  engine events; a Worker has no process to hold them and D1 reports
+  its own timings in the dashboard. (The user's call, 2026-09-21: drop
+  what does not fit rather than port it awkwardly.)
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:
