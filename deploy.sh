@@ -26,7 +26,7 @@
 # as long as you leave this command running. Production is a checkout of its
 # own under /srv/papol/prod, served by papol.service. The two share a host
 # and a GROBID container and nothing else: separate databases, separate
-# uploads, separate .env.
+# files (a bucket, or directories in the checkout — .env says), separate .env.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1559,31 +1559,15 @@ dev_is_up() {
   curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:$DEV_PORT/" 2>/dev/null
 }
 
-# The files a pulled database names. Every file Papol stores is written once
-# under a name that never comes back: a paper's PDF and a board's blob are
-# named after their contents, an avatar and a board's upload after a UUID
-# minted for that one write, and the old avatar is deleted rather than
-# replaced. So a name production and development share already holds the same
-# bytes, and pulling is exactly "copy across what development does not have" —
-# which is also why this is quick on every pull after the first, with hundreds
-# of megabytes of papers on both sides.
+# The files a pulled database names. Each checkout's .env says where its
+# files are — a bucket, or the uploads/ and board_uploads/ directories beside
+# it — and scripts/pull-files.py copies across whatever development does not
+# have, from either kind of store to either kind. Every file Papol stores is
+# written once under a name that never comes back, so a name both sides hold
+# already holds the same bytes, and that copy is the whole sync.
 pull_files() {
-  local source="$1" target="$2" copied=0 relative destination
-  [ -d "$source" ] || return 0
-  mkdir -p "$target"
-  while IFS= read -r file; do
-    relative="${file#"$source"/}"
-    destination="$target/$relative"
-    [ -e "$destination" ] && continue
-    mkdir -p "$(dirname "$destination")"
-    cp -p "$file" "$destination"
-    copied=$((copied + 1))
-  done < <(find "$source" -type f)
-  if [ "$copied" -eq 0 ]; then
-    note "$(basename "$target") — development already had every file"
-  else
-    note "$(basename "$target") — $copied file(s) copied"
-  fi
+  (cd "$DEV_DIR" && nix develop "$DEV_DIR" --command \
+    python scripts/pull-files.py "$PROD_DIR" "$DEV_DIR")
 }
 
 # Pulling is deliberately one-way and explicit. Production is read through
@@ -1620,14 +1604,13 @@ pull_data() {
       | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -- || true
   fi
 
-  # Before the database, not after. A row names a file on disk, and a pull
-  # that brought the rows alone left development holding papers whose PDFs
-  # were never there — a 404 from /uploads at the moment of opening one.
+  # Before the database, not after. A row names a file in the store, and a
+  # pull that brought the rows alone left development holding papers whose
+  # PDFs were never there — a 404 from /uploads at the moment of opening one.
   # Interrupted here, development still has its own database and a few extra
   # files, which is nothing; the other order leaves the breakage behind.
   say "Pulling production's files into development"
-  pull_files "$PROD_DIR/uploads" "$DEV_DIR/uploads"
-  pull_files "$PROD_DIR/board_uploads" "$DEV_DIR/board_uploads"
+  pull_files
 
   # pg_dump takes a consistent snapshot while production continues serving.
   say "Pulling production database into development"

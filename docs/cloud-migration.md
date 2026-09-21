@@ -79,11 +79,65 @@ Order of work:
 4. While in here: throttle the last-used stamp in `backend/auth.py`
    (`_live_session`) so authenticated reads stop writing on every request.
 
-## Phase 2 — Object storage for files
+## Phase 2 — Object storage for files — DONE 2026-09-21
 
-`uploads/` and `board_uploads/` are local paths served by the Python process
-(`StaticFiles` mounts and `FileResponse` in `backend/main.py`). Two instances
-cannot share them.
+Landed: every file Papol stores goes through `backend/storage.py`, and the
+bytes can live in a bucket. Two areas — `uploads` (a paper's PDF under its
+digest, an avatar under a UUID) and `board_files` (a board's files under
+its uuid, the desktop's blobs under `blobs/`) — each behind one interface:
+put, get, exists, delete, list, copy, a local path for the readers that
+need one (PyMuPDF, the GROBID upload), and a URL. The keys are the
+`file_path` values the database already held, so no row changed.
+
+Two backends. Unset, `PAPOL_FILES_URL` means the filesystem — the
+`uploads/` and `board_uploads/` directories, as before — which is what
+development, the suite and the e2e harnesses run on. `s3://bucket[/prefix]`
+means S3-compatible object storage through boto3, with the endpoint and
+credentials in boto3's own variables (`AWS_ENDPOINT_URL_S3`,
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` —
+`auto` for Cloudflare R2). Both areas are prefixes in that one bucket.
+
+Serving follows from the backend, and the API contract did not move: the
+same URLs answer either way. With a bucket, `/uploads/{key}`,
+`/api/board-items/{uuid}/file` and `/api/sync/blobs/{sha256}` answer a 307
+to a URL the bucket serves itself — presigned for an hour, or the CDN when
+`PAPOL_FILES_PUBLIC_URL` names a public face for the bucket (uploads only;
+board files stay presigned, because the link is the credential). The web
+tier never carries file bytes. With the filesystem, the process serves
+the file as it always did. Browsers and the desktop's native client
+both follow the redirect and drop the `Authorization` header when they
+cross origins, which is what lets a presigned URL and a bearer token
+coexist on the authenticated routes.
+
+`deploy.sh pull` calls `scripts/pull-files.py`, which reads each
+checkout's `.env`, builds the two stores it describes, and copies across
+whatever development lacks — bucket to directories, directories to
+directories, whichever pair it finds. `backend/test_storage.py` runs one
+contract against both backends, the bucket being a small S3 server started
+in-process that boto3 talks to over real HTTP, and follows each route's
+redirect to it.
+
+To move production onto a bucket: make the bucket, put the variables in
+`/srv/papol/prod/.env`, load the directories into it, and deploy:
+
+    sudo systemctl stop papol
+    python scripts/pull-files.py --from-directories /srv/papol/prod /srv/papol/prod
+    ./deploy.sh prod
+
+(With the flag the source is the checkout's directories whatever its
+`.env` says, and the destination is the store the `.env` names; the copy
+is idempotent, so an interrupted one is rerun.) The bucket needs a CORS
+rule allowing `GET` and `HEAD` from the site's origin, with
+`Content-Length`, `Content-Range`, `Accept-Ranges` and `ETag` exposed:
+pdf.js fetches the PDF across origins and reads by range. The daily R2
+archive still zips the checkout and the dump; the bucket is its own
+durable store and is not in the archive.
+
+What the phase was planned around, kept for the record:
+
+`uploads/` and `board_uploads/` were local paths served by the Python
+process (`StaticFiles` mounts and `FileResponse` in `backend/main.py`).
+Two instances could not share them.
 
 1. Introduce a storage interface (put / get / delete / public URL) and move
    the current filesystem code behind it.

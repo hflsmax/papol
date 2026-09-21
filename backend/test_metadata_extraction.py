@@ -9,6 +9,7 @@ import grobid
 import main
 import metadata_lookup
 import openalex
+import storage
 from pdf_parser import arxiv_doi, extract_arxiv_id, extract_doi, extract_doi_from_pdf
 
 GROBID_HEADER = """<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
@@ -321,7 +322,7 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as directory:
             path = _identifierless_pdf(directory, "2016UIST-Metamaterial-AuthorsCopy.pdf")
             with (
-                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(storage, "uploads", storage.FilesystemFiles(Path(directory))),
                 patch.object(metadata_lookup, "by_doi", AsyncMock()) as lookup,
                 patch.object(grobid, "configured", return_value=True),
                 patch.object(
@@ -348,7 +349,7 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
                 "year": 2016,
             }
             with (
-                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(storage, "uploads", storage.FilesystemFiles(Path(directory))),
                 patch.object(main, "_printed_header", AsyncMock()) as header,
                 patch.object(
                     metadata_lookup, "by_doi", AsyncMock(return_value=resolved)
@@ -375,7 +376,7 @@ class PrintedHeaderFallbackTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as directory:
             path = _identifierless_pdf(directory, "Some-Paper-Name.pdf")
             with (
-                patch.object(main, "UPLOADS_DIR", Path(directory)),
+                patch.object(storage, "uploads", storage.FilesystemFiles(Path(directory))),
                 patch.object(metadata_lookup, "by_doi", AsyncMock()),
                 patch.object(grobid, "configured", return_value=True),
                 patch.object(

@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 import account
 from models import Annotation, Copy, Paper, Shelf, User
 from services.papers import paper_name
+from storage import FilesystemFiles
 import testdb
 
 PDF_HASH = "c" * 64
@@ -128,7 +129,10 @@ class AccountDataTests(unittest.TestCase):
             boards.mkdir()
             out = root / "export.zip"
             with self.Session() as db:
-                account.write_zip(db, self.user(db), uploads, boards, out)
+                account.write_zip(
+                    db, self.user(db),
+                    FilesystemFiles(uploads), FilesystemFiles(boards), out,
+                )
 
             with zipfile.ZipFile(out) as archive:
                 names = {Path(name).name for name in archive.namelist()}

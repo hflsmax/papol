@@ -10,6 +10,7 @@ standing against the paper, and whether they may take part in its seminar.
 These tests hold that line from both sides.
 """
 
+import hashlib
 import unittest
 
 from fastapi import Depends, HTTPException
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import main
+import storage
 from auth import get_current_user, get_optional_user
 from database import get_db
 from models import Copy, Paper, Shelf, User
@@ -124,9 +126,10 @@ class PaperIsNotOwned(unittest.TestCase):
         from unittest.mock import patch
 
         raced = f"{'e' * 64}.pdf"
-        (main.UPLOADS_DIR / raced).write_bytes(b"%PDF-1.4 raced\n%%EOF")
-        self.addCleanup((main.UPLOADS_DIR / raced).unlink, True)
-        digest = main._sha256_of(main.UPLOADS_DIR / raced)
+        raced_bytes = b"%PDF-1.4 raced\n%%EOF"
+        storage.uploads.put(raced, raced_bytes, "application/pdf")
+        self.addCleanup(storage.uploads.delete, raced)
+        digest = hashlib.sha256(raced_bytes).hexdigest()
 
         with self.Session() as db:
             db.add(Paper(
