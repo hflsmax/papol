@@ -7,6 +7,7 @@ import { consume, digestIfDue, sweep, type Wakeup } from "./jobs/run";
 import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
+import { inboxRoutes } from "./routes/inbox";
 import { jobRoutes } from "./routes/jobs";
 import { nookRoutes } from "./routes/nook";
 import { paperRoutes } from "./routes/papers";
@@ -29,6 +30,7 @@ nookRoutes(router);
 paperRoutes(router);
 annotationRoutes(router);
 roomRoutes(router);
+inboxRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);
