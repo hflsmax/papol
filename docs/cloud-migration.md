@@ -1,18 +1,35 @@
 # The cloud migration
 
-Written 2026-09-20. Papol today is a single NixOS host: one uvicorn process,
-SQLite, files on local disk, a GROBID container on the side. The plan is to
-move it to the cloud, expect real load, and rewrite the backend in Go. This
-document records the decisions and the order of work, so each phase can land
-on its own without re-litigating the destination.
+Written 2026-09-20; destination revised 2026-09-21. Papol began as a single
+NixOS host: one uvicorn process, SQLite, files on local disk, a GROBID
+container on the side. The plan is to move it to the cloud and expect real
+load. This document records the decisions and the order of work, so each
+phase can land on its own without re-litigating the destination.
 
 The guiding rule: **change the database where the tests are, change the
-language after the data model has stopped moving.** Postgres migrates first,
-in Python, covered by the existing suite. The Go port comes later and ports a
-stabilized backend, not a moving target. We have no users yet, so every phase
-is free to break compatibility (see "break it rather than carry it") — but
-not to break the API contract that the three SPAs and the macOS app speak,
-which stays fixed throughout.
+language after the data model has stopped moving.** Postgres migrated
+first, in Python, covered by the existing suite; then files, then jobs.
+The port comes last and ports a stabilized backend, not a moving target.
+We have no users yet, so every phase is free to break compatibility (see
+"break it rather than carry it") — but not to break the API contract that
+the three SPAs and the macOS app speak, which stays fixed throughout.
+
+The destination, decided after phase 3: **Cloudflare**. The API and the
+jobs run as Workers in TypeScript, the database is D1, the files are
+already in R2, and the one thing that cannot run there — GROBID, a JVM —
+stays on the NixOS host, which becomes the GROBID host and nothing else.
+The Go rewrite this document first planned is withdrawn: Go does not run
+on Workers, and once the jobs are Workers too there is no resident
+process left for Go to be.
+
+D1 is SQLite, which phase 1 left. That is not a reversal of phase 1's
+reason. The problem was a write lock held in application code by one
+process that had to be the only one; D1 serializes writes inside the
+service, so no process of ours holds a lock and any number of Workers
+write. What phase 1 also bought — the suite running on the engine
+production runs, `SKIP LOCKED`, interactive transactions — is
+re-examined in phase 4, and the one that does not carry over
+(interactive transactions) is the first thing that phase proves out.
 
 ## What stays
 
@@ -20,9 +37,9 @@ which stays fixed throughout.
   app talk to the backend over HTTP and do not care what serves it. The
   desktop sync contract in particular is pinned by
   `backend/test_desktop_sync.py`; that test is the acceptance gate for every
-  phase, including the Go port.
-- GROBID as an external service. It is already out-of-process; in the cloud
-  it becomes its own scalable deployment.
+  phase, including the port.
+- GROBID as an external service. It is already out-of-process; it stays on
+  the NixOS host, reached over the tunnel that host already has.
 - Nix for development environments, for as long as it earns its keep.
 
 ## Phase 1 — Postgres (in Python) — DONE 2026-09-20
@@ -224,35 +241,97 @@ timeout, PDF text extraction, webpage capture, SMTP sends
 3. Workers are a separate process from the web tier, even while both still
    run on one host.
 
-## Phase 4 — The Go rewrite
+## Phase 4 — The Workers port
 
-Ported after phases 1–3, when the data model and API shape have settled.
-About 10,500 lines of application Python and 5,200 lines of tests.
+The backend, API and jobs alike, rewritten in TypeScript as one Worker
+project, against the existing suite. About 10,500 lines of application
+Python and 5,600 lines of tests; the tests are the asset and the cost, and
+are translated, not skipped. `test_desktop_sync.py` passes against the
+Worker before anything switches.
 
-- The tests are the real asset and the real cost: the sync protocol
-  (`backend/sync/`, ~1,200 lines), idempotency, sharables, and the upgrade
-  path are all specified by tests that must be translated, not skipped.
-  `test_desktop_sync.py` runs against the Go server before anything switches.
-- PyMuPDF is used in `pdf_parser.py` (text from the first pages) and
-  `grobid.py`. Plain text extraction has Go libraries; whatever `grobid.py`
-  needs beyond that gets checked when we get there, with "shell out to a
-  small tool" as the acceptable fallback.
-- The port is wholesale, not strangler-fig: no users, one developer, and a
-  proxy split would cost more than it protects.
-- The prize on the other side: one static binary (simpler `module.nix`, or
-  its container successor), lower memory per instance, and no GIL between us
-  and CPU-bound handlers.
+What each piece becomes:
 
-## Phase 5 — Cloud deployment
+- **The database**: D1, bound to the Worker; no connection string, no
+  pooler, no provider. The schema is the one `models.py` declares — it was
+  SQLite before phase 1 and round-trips, as `migrate-sqlite-to-postgres.py`
+  showed. Backups are D1's own point-in-time restore. The one gap is that
+  D1 has no interactive transactions: a request cannot read, decide in
+  code, and write inside one transaction; it gets `batch()`, which runs a
+  list of statements atomically. Two places read-then-write today — the
+  sync push (`backend/sync/`) and the idempotency middleware, which holds
+  a transaction open around the handler — and both become read, decide,
+  then one `batch` of writes guarded by the revisions they read. This is
+  the port's one real risk, so it is proved first (step 2 below) against
+  `test_desktop_sync.py`. Managed Postgres through Hyperdrive is the
+  fallback if the push resists `batch`; nothing else in the plan moves.
+- **The API**: a Worker. It is already stateless, holds nothing in memory
+  across requests, and hands files out by presigned R2 URL, so the routes
+  port as they are.
+- **The queue**: the `jobs` table, unchanged, is still the truth. What
+  changes is the wake-up and the claim. A route writes the row in its
+  `batch` as now and, after it, sends the row's uuid to a Cloudflare
+  Queue. A consumer in the same Worker claims the row with one conditional
+  `UPDATE ... WHERE status = 'queued' RETURNING`, atomic on D1's single
+  writer, which is what `FOR UPDATE SKIP LOCKED` did on Postgres; runs it;
+  and records the outcome on it. The message is acked either way, since
+  the row carries the result. A Cron Trigger every two minutes claims
+  anything due that nobody was woken for — a lost message, a consumer that
+  died past its lease — so the queue is a hint and the sweep is what makes
+  it correct. Transactional enqueue, the key that holds one live job, the
+  lease and retry-once all survive; `test_jobs.py` translates as it is.
+- **The jobs**: `send_email` calls an email API instead of SMTP.
+  `daily_digest` is a Cron Trigger at the digest hour rather than a
+  self-rescheduling row. `extract_metadata` reads the first pages through a
+  PDF library compiled to Wasm in place of PyMuPDF, and asks CrossRef,
+  OpenAlex and GROBID over HTTP as now. `analyze_paper` fetches the PDF
+  from R2, posts it to GROBID across the tunnel, parses the TEI and writes
+  the rows. `capture_webpage` uses Browser Rendering in place of a
+  Chromium subprocess. `capture_youtube` keeps only the oEmbed thumbnail:
+  **the timestamped frame is dropped**, with `yt-dlp` and `ffmpeg` and
+  their environment variables, since native binaries have no place in a
+  Worker and the frame was the only reason for them.
+- **The demo**: its in-memory SQLite world has no equivalent in a Worker.
+  It moves to a Durable Object per demo session, which gives the same
+  disposable, single-visitor state with its own storage.
+- **The static apps**: served as Worker assets from the same deploy.
 
-Mostly configuration once 1–4 are done:
+Order of work, each step a PR that leaves everything green:
 
-- Managed Postgres with its backup/PITR story replacing the `.bak` files.
-- Web tier scaled horizontally (auth tokens already live in the database, so
-  instances are stateless); workers and GROBID scaled independently.
-- Static assets (frontend/viewer/board dists) behind a CDN instead of
-  uvicorn-behind-nginx.
-- Structured logs shipped off-host; the `ErrorLog` table remains the
-  admin-facing view, not the system of record.
-- `deploy.sh` keeps its verbs (`dev`, `prod`, `pull`, `status`) but their
-  implementations move from "ssh to the box" to the cloud provider's terms.
+1. Remove the timestamped frame from the Python worker now, so the port
+   does not carry it.
+2. Stand up the Worker project with a local D1, the Vitest workers pool
+   for the suite, the schema from `models.py`, and the sync push on
+   `batch` with `test_desktop_sync.py` passing against it. This is the
+   step that decides D1; it comes before anything easier.
+3. Port the queue and the job kinds, with `test_jobs.py`.
+4. Port the remaining routes; the idempotency middleware moves onto
+   `batch` here.
+5. Port the demo onto a Durable Object.
+
+The Python backend keeps running on the NixOS host throughout, on its
+Postgres; the two do not share a database, so there is no overlap period
+— production moves once, at cutover.
+
+## Phase 5 — Cutover
+
+Configuration and one move of the data, once phase 4 passes the suite:
+
+- D1, with its point-in-time restore replacing the dumps in
+  `backend/backups/` and the R2 archive. Production's data goes across
+  once, with the service stopped: a `pg_dump` of the Postgres, rewritten
+  to SQLite statements (the inverse of `migrate-sqlite-to-postgres.py`,
+  over the same schema), and loaded with `wrangler d1 execute`. Files are
+  already in R2 and do not move.
+- GROBID stays where it is. The NixOS host keeps the container, the tunnel
+  that exposes it to the Worker with Cloudflare Access in front, and
+  nothing else: `papol.service`, `papol-worker.service`, nginx and the
+  system Postgres are removed from `module.nix`.
+- Structured logs and errors go to Workers' own observability; the
+  `ErrorLog` table remains the admin-facing view, not the system of record.
+- `deploy.sh` keeps its verbs (`dev`, `prod`, `pull`, `status`), with
+  `prod` becoming a `wrangler deploy` plus the GROBID host's rebuild, and
+  `pull` a copy from the managed database and R2 into the development
+  cluster and directories.
+- The Python backend, its `module.nix` units and its nix Python closure are
+  deleted, not kept as a fallback: no users, and two backends is the
+  combination that drifts.
