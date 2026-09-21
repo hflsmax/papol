@@ -1,18 +1,22 @@
-"""A picture of a link, for a board card: a webpage or a YouTube frame.
+"""A picture of a link, for a board card: a webpage or a YouTube thumbnail.
 
 The request checks the URL — a real host, a public address, a video id
 it can read — writes the card at once, and queues the capture. The card
 is a link without a preview until the worker has rendered the page in a
-headless browser, or fetched the video's thumbnail or decoded the frame
-at the timestamp asked for, and put the image beside the card. A capture
-that fails leaves the card as the link it already was; the job says why.
+headless browser, or fetched the video's thumbnail and title, and put the
+image beside the card. A capture that fails leaves the card as the link
+it already was; the job says why.
+
+A video's card is its thumbnail, whatever timestamp the link carries. It
+once was the frame at that moment, decoded from a download of the video;
+that needed yt-dlp and ffmpeg beside the worker, which is more than the
+picture was worth and more than the port can carry (docs/cloud-migration.md).
 """
 
 import hashlib
 import ipaddress
 import json
 import logging
-import os
 import re
 import socket
 import subprocess
@@ -21,7 +25,6 @@ import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -59,23 +62,6 @@ def youtube_id(url: str) -> str | None:
     return candidate if candidate and re.fullmatch(r"[A-Za-z0-9_-]{11}", candidate) else None
 
 
-def youtube_time(url: str) -> float | None:
-    parsed = urllib.parse.urlparse(url.strip())
-    values = urllib.parse.parse_qs(parsed.query)
-    raw = (values.get("t") or values.get("start") or [None])[0]
-    if raw is None and parsed.fragment.startswith("t="):
-        raw = parsed.fragment[2:]
-    if not raw:
-        return None
-    if re.fullmatch(r"\d+(?:\.\d+)?", raw):
-        return float(raw)
-    match = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?", raw)
-    if not match or not any(match.groups()):
-        raise ValueError("Invalid YouTube timestamp")
-    hours, minutes, seconds = match.groups()
-    return int(hours or 0) * 3600 + int(minutes or 0) * 60 + float(seconds or 0)
-
-
 def public_web_url(value: str) -> str:
     """Accept a browser URL without giving the capture process LAN access."""
     url = value.strip()
@@ -99,6 +85,7 @@ def public_web_url(value: str) -> str:
 # ------------------------------------------------------------- the capturing
 
 def fetch_youtube_thumbnail(url: str, video_id: str) -> tuple[bytes, str]:
+    """The video's thumbnail and title, from YouTube's oEmbed endpoint."""
     endpoint = "https://www.youtube.com/oembed?" + urllib.parse.urlencode(
         {"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}
     )
@@ -114,78 +101,6 @@ def fetch_youtube_thumbnail(url: str, video_id: str) -> tuple[bytes, str]:
         image = response.read(BOARD_FILE_LIMIT + 1)
     if not image or len(image) > BOARD_FILE_LIMIT:
         raise ValueError("YouTube thumbnail is empty or too large")
-    return image, str(metadata.get("title") or url)[:limit("text", "board_content")]
-
-
-def capture_youtube_frame(url: str, timestamp: float) -> tuple[bytes, str]:
-    """Resolve a constrained YouTube stream and decode the exact requested frame."""
-    with tempfile.TemporaryDirectory(prefix="papol-youtube-") as directory:
-        template = str(Path(directory) / "source.%(ext)s")
-        extractor_args = "youtube:player_client=mweb"
-        po_token = os.environ.get("PAPOL_YOUTUBE_PO_TOKEN", "").strip()
-        if po_token:
-            extractor_args += f";po_token=mweb.gvs+{po_token}"
-        cookies = os.environ.get("PAPOL_YOUTUBE_COOKIES", "").strip()
-        download_command = [
-            "yt-dlp",
-            "--no-playlist", "--no-warnings", "--quiet",
-            # mweb with a GVS PO token exposes native adaptive formats. With
-            # no token it still provides the public fallback used below.
-            "--extractor-args", extractor_args,
-        ]
-        if cookies:
-            if not Path(cookies).is_file():
-                raise ValueError("PAPOL_YOUTUBE_COOKIES does not name a readable file")
-            download_command += ["--cookies", cookies]
-        download_command += [
-            "--max-filesize", f'{limit("files", "youtube_source_mb")}M',
-            "--write-info-json",
-            "-f", "bestvideo[height<=1080]/bestvideo/best[height<=1080]/best",
-            "-o", template,
-            url,
-        ]
-        download_process = subprocess.run(
-            download_command,
-            capture_output=True,
-            text=True,
-            timeout=limit("timeouts_ms", "youtube_download") / 1000,
-            check=False,
-        )
-        if download_process.returncode != 0:
-            raise ValueError(download_process.stderr.strip() or "YouTube video could not be downloaded")
-        metadata_files = list(Path(directory).glob("source.info.json"))
-        media_files = [
-            path for path in Path(directory).glob("source.*")
-            if path.name != "source.info.json" and path.is_file()
-        ]
-        if not metadata_files or not media_files:
-            raise ValueError("YouTube did not provide a playable video stream")
-        metadata = json.loads(metadata_files[0].read_text())
-        duration = metadata.get("duration")
-        if duration is not None and timestamp > float(duration):
-            raise ValueError("The timestamp is beyond the end of this video")
-
-        with tempfile.NamedTemporaryFile(suffix=".png") as output:
-            frame_process = subprocess.run(
-                [
-                    "ffmpeg", "-hide_banner", "-loglevel", "error",
-                    "-ss", f"{timestamp:.3f}",
-                    "-i", str(media_files[0]),
-                    "-frames:v", "1",
-                    "-vf", "scale=1280:-2:flags=lanczos",
-                    "-compression_level", "3",
-                    "-y", output.name,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=limit("timeouts_ms", "media_capture") / 1000,
-                check=False,
-            )
-            if frame_process.returncode != 0:
-                raise ValueError(frame_process.stderr.strip() or "Video frame could not be decoded")
-            image = output.read(BOARD_FILE_LIMIT + 1)
-    if not image or len(image) > BOARD_FILE_LIMIT:
-        raise ValueError("Captured frame is empty or too large")
     return image, str(metadata.get("title") or url)[:limit("text", "board_content")]
 
 
@@ -218,17 +133,6 @@ def capture_webpage(url: str) -> bytes:
     return image
 
 
-def youtube_picture(url: str, video_id: str) -> tuple[bytes, str, str, str]:
-    """The video's thumbnail, or the frame at the timestamp the link names:
-    (image, title, file suffix, mime type)."""
-    timestamp = youtube_time(url)
-    if timestamp is None:
-        image, title = fetch_youtube_thumbnail(url, video_id)
-        return image, title, ".jpg", "image/jpeg"
-    image, title = capture_youtube_frame(url, timestamp)
-    return image, title, ".png", "image/png"
-
-
 # ------------------------------------------------------ putting it on the card
 
 def attach(db: Session, item: BoardItem, image: bytes, suffix: str, mime: str, original: str) -> dict:
@@ -252,10 +156,9 @@ def attach_webpage(db: Session, item: BoardItem, image: bytes, url: str) -> dict
     )
 
 
-def attach_youtube(db: Session, item: BoardItem, image: bytes, title: str,
-                   suffix: str, mime: str, video_id: str) -> dict:
+def attach_youtube(db: Session, item: BoardItem, image: bytes, title: str, video_id: str) -> dict:
     item.content = title
-    return attach(db, item, image, suffix, mime, f"youtube-{video_id}{suffix}")
+    return attach(db, item, image, ".jpg", "image/jpeg", f"youtube-{video_id}.jpg")
 
 
 # ------------------------------------------------------------------ the jobs
@@ -282,8 +185,8 @@ async def capture_youtube_job(db: Session, payload: dict) -> dict:
     item = _card(db, payload)
     url, video_id = payload["url"], payload["video_id"]
     try:
-        image, title, suffix, mime = youtube_picture(url, video_id)
+        image, title = fetch_youtube_thumbnail(url, video_id)
     except Exception as exc:
-        logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
-        raise jobs.JobError(f"Could not capture the YouTube frame: {exc}") from exc
-    return attach_youtube(db, item, image, title, suffix, mime, video_id)
+        logger.warning("Could not fetch the YouTube thumbnail for %s: %s", video_id, exc)
+        raise jobs.JobError(f"Could not fetch the video's thumbnail: {exc}") from exc
+    return attach_youtube(db, item, image, title, video_id)
