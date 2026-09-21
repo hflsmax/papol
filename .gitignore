@@ -16,6 +16,8 @@ board/dist/
 board/node_modules/
 desktop/dist/
 desktop/node_modules/
+cloudflare/node_modules/
+cloudflare/.wrangler/
 __pycache__/
 *.pyc
 

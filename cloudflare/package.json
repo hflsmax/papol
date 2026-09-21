@@ -1,0 +1,20 @@
+{
+  "name": "papol-cloudflare",
+  "private": true,
+  "description": "Papol's backend as a Cloudflare Worker: the API and the jobs, on D1 and R2. See docs/cloud-migration.md, phase 4.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "typescript": "^5.9.0",
+    "vitest": "4.1.11",
+    "wrangler": "^4.135.0"
+  }
+}
