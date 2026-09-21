@@ -1876,7 +1876,11 @@ ${macHandoffStyles}
      a wrong-looking word is worse than none. The map keeps its shape, its
      anchors and its marker, which is what it is for. */
   .navigator-name { display: none; }
-  .navigator { min-width: 56px; }
+  /* The map takes the bar's second line whole, rather than the sliver
+     left between the house and the tools on the first; the paper's own
+     menu keeps the first line's far end, where it always was. */
+  .navigator { order: 10; flex-basis: 100%; min-width: 0; }
+  .paper-menu { margin-left: auto; }
 }
 
 /* A touch screen has no hover, so anything that was only revealed by one

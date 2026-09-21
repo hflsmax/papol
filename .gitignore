@@ -30,3 +30,6 @@ result-*
 
 # Agent worktrees — scratch checkouts, not source
 .claude/worktrees/
+
+# Layout screenshots taken while checking the apps at each screen size
+screenshots/
