@@ -1,6 +1,5 @@
-// Seminar rooms through the API: test_seminar_transitions.py, asked of
-// the Worker, plus the cohort's messages, availability and a host
-// handing on.
+// Seminar rooms through the API: the seminar's transitions, the
+// cohort's messages, availability and a host handing on.
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, type Account } from "./helpers";

@@ -1,6 +1,5 @@
 // A sharable hands one user's reading of one paper to anyone with the
-// link — and hands over nothing else in that user's nook. test_sharables.py,
-// asked of the Worker.
+// link — and hands over nothing else in that user's nook.
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { call, count, exec, ok, paperWithCopy, register, row, uuid, type Account, type Json } from "./helpers";

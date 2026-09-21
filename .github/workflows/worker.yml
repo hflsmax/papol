@@ -1,0 +1,67 @@
+# The Worker: its suite on every pull request; on main, a deploy to the
+# dev environment (dev.papol.io) followed by the smoke test against it;
+# production only by hand, from the Actions tab, after dev has passed.
+#
+# Needs two repository secrets: CLOUDFLARE_API_TOKEN (a token with the
+# "Edit Cloudflare Workers" template plus D1 edit, Queues edit and, for the
+# custom domains, DNS edit on papol.io) and CLOUDFLARE_ACCOUNT_ID.
+name: worker
+
+on:
+  pull_request:
+    paths: ["cloudflare/**", "shared/**", "config/**", "schema/**", ".github/workflows/worker.yml"]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Where to deploy"
+        type: choice
+        options: [dev, production]
+        default: dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: cloudflare } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: cloudflare/package-lock.json }
+      - run: npm ci --legacy-peer-deps
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    # main lands on dev by itself; production is asked for.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TARGET: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # The three Vite apps, laid out as the Worker serves them.
+      - run: for app in frontend viewer board; do (cd $app && npm ci); done
+      - run: npm ci --legacy-peer-deps
+        working-directory: cloudflare
+      - run: cloudflare/scripts/assemble.sh
+      - name: Apply migrations
+        working-directory: cloudflare
+        run: |
+          if [ "$TARGET" = production ]; then npx wrangler d1 migrations apply papol --remote
+          else npx wrangler d1 migrations apply papol-dev --remote --env dev; fi
+      - name: Deploy
+        working-directory: cloudflare
+        run: |
+          if [ "$TARGET" = production ]; then npx wrangler deploy
+          else npx wrangler deploy --env dev; fi
+      - name: Smoke test
+        run: |
+          if [ "$TARGET" = production ]; then cloudflare/scripts/smoke.sh https://papol.io
+          else cloudflare/scripts/smoke.sh https://dev.papol.io; fi

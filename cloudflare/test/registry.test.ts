@@ -1,6 +1,5 @@
 // The registry has to say the truth about every column of every
-// synchronized table, or it is worth nothing. The Python checked this
-// against its models at every start; the Worker checks it against the
+// synchronized table, or it is worth nothing. Checked against the
 // migrated database here, once, because the schema does not change
 // between deploys.
 import { env } from "cloudflare:test";

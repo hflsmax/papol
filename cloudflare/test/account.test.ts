@@ -1,6 +1,5 @@
 // The account: profile, picture, password, leaving with your things, and
-// leaving. test_account_data.py, asked of the Worker, and the route
-// behaviour that had no test of its own.
+// leaving.
 import { env } from "cloudflare:test";
 import { unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";

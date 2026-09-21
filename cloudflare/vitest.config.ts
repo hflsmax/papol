@@ -1,5 +1,5 @@
 // The suite runs inside the Workers runtime, against a D1 that is levelled
-// and migrated per test file — the counterpart of backend/testdb.py.
+// and migrated per test file.
 import fs from "node:fs";
 import path from "node:path";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";

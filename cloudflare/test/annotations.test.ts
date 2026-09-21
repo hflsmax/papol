@@ -1,5 +1,4 @@
-// Notes, ink and clips through the API. The annotation cases of
-// test_account_data.py, asked of the Worker.
+// Notes, ink and clips through the API.
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, ok, paperWithCopy, register, row, type Account } from "./helpers";

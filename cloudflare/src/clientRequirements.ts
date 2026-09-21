@@ -1,7 +1,6 @@
 // What Papol requires of a client that talks to it: the schema it was built for.
 //
-// The port of backend/services/client_requirements.py, whose docstring
-// says why: one number, `schema_version` in schema/sync_registry.json,
+// One number, `schema_version` in schema/sync_registry.json,
 // names the data model and the wire that carries it. A Papol client sends
 // the one it was compiled with on every request, and the server compares.
 // Equal is supported; anything else is a build that cannot be talked to,

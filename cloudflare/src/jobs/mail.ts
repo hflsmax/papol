@@ -1,11 +1,11 @@
 // Outgoing email, through an HTTP email API.
 //
-// The Python spoke SMTP from a worker process. A Worker has no place for
-// an SMTP conversation and every transactional mail provider offers the
+// A Worker has no place for an SMTP conversation, and every
+// transactional mail provider offers the
 // same one-call HTTP shape — from, to, subject, text, a bearer key — so
 // that is what this speaks. The provider is chosen at cutover by setting
-// the three variables; unset, mail is skipped and the job says so, which
-// is what an unconfigured SMTP host meant before. The settings-table
+// the three variables; unset, mail is skipped and the job says so. The
+// settings-table
 // fallback for SMTP credentials is not carried: a secret belongs in a
 // secret, not in a table the admin page edits.
 
