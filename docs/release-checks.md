@@ -98,9 +98,15 @@ skip on the machine that wants to ship is not a gate. What stands behind it:
 
 `./deploy.sh macos prod` additionally smoke-tests the web payload Tauri
 actually bundled (`PAPOL_SMOKE_DIST=desktop/dist`), which is the closest a
-check gets to the shipped bytes. What no smoke covers is the native shell
-itself — a window that opens, a real replica underneath — which is what
-opening the installed app once before publishing is still for.
+check gets to the shipped bytes. The native shell itself — a window that
+opens, a real replica underneath, a real service behind it — is the
+end-to-end job's, in the same workflow: it starts the backend, compiles the
+app against it, signs in through the window, and requires the seeded paper
+to be listed there and held in the replica. It asks the window for those
+three things by name and nothing more; a suite that drives a whole feature
+through the accessibility API spends its failures on itself, which is why
+the sharing suite that once did was removed (`desktop/scripts/papol-ui.swift`
+says so at its head).
 
 ## After a release
 
