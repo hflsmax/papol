@@ -24,27 +24,6 @@ let
     proxy_request_buffering off;
   '';
 
-  # A key the host's configuration.nix set for the retired service. An
-  # unknown option fails the whole evaluation, so each is still declared —
-  # accepted, ignored, and named in a warning — until the host's
-  # configuration is trimmed. Delete the option and the line together.
-  retired = lib.mkOption {
-    type = lib.types.anything;
-    default = null;
-    visible = false;
-    description = ''
-      Retired with the Python backend; accepted and ignored. Delete the
-      line from configuration.nix.
-    '';
-  };
-  retiredKeys = [
-    "port" "host" "domain" "hostAliases" "hostAliasPort" "contactEmail"
-    "health" "backup" "cloudflare" "deploy.passwordless"
-  ];
-  stillSet = lib.filter
-    (key: lib.getAttrFromPath (lib.splitString "." key) cfg != null)
-    retiredKeys;
-
 in {
   options.services.papol = {
     enable = lib.mkEnableOption "GROBID for Papol, exposed to the Worker at papol.io";
@@ -154,8 +133,6 @@ in {
     };
 
     deploy = {
-      passwordless = retired;
-
       passwordlessRebuild = lib.mkOption {
         type = lib.types.bool;
         default = false;
@@ -174,23 +151,9 @@ in {
         '';
       };
     };
-
-    port = retired;
-    host = retired;
-    domain = retired;
-    hostAliases = retired;
-    hostAliasPort = retired;
-    contactEmail = retired;
-    health = retired;
-    backup = retired;
-    cloudflare = retired;
   };
 
   config = lib.mkIf cfg.enable {
-    warnings = map (key:
-      "services.papol.${key} is retired with the Python backend and does nothing; delete it from configuration.nix"
-    ) stillSet;
-
     # oci-containers defaults to podman, which would stand a second container
     # runtime up beside the docker this host already runs — and pull the
     # image again into it. mkDefault, so setting it yourself still wins.
