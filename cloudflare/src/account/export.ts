@@ -1,13 +1,14 @@
 // Taking your things with you. A user who cannot leave with their notes
 // does not really own them, so everything Papol holds about a user comes
-// out as one zip: the data as JSON, the notes again as Markdown for a
-// person rather than a parser, and the PDFs named after the papers.
+// out as one archive: the data as JSON, the notes again as Markdown for
+// a person rather than a parser, and the PDFs named after the papers.
 //
-// Streamed rather than built: a nook of a hundred papers is a few hundred
-// megabytes of PDF, and the Worker holds one chunk of it at a time,
-// waiting on the client between chunks.
-
-import { Zip, ZipDeflate, ZipPassThrough } from "fflate";
+// A tar, not a zip. A zip carries a checksum of every entry, which the
+// Worker would have to compute over every byte of every PDF, and a nook
+// of a hundred papers is more arithmetic than a Worker invocation is
+// given. A tar states each entry's size and then carries its bytes, so
+// the PDFs are piped from the bucket into the response untouched, and
+// the archive costs the Worker nothing but the headers.
 
 import { type User } from "../auth";
 import { all, type Row } from "../db";
@@ -142,50 +143,74 @@ This export does not include your password, which Papol cannot read either
 `;
 
 const KEY = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
+const BLOCK = 512;
 
-// The archive, as a body that is written as it is read. Each entry is
-// pushed through the zip and its output handed to the response one
-// chunk at a time, so a slow download holds back the reads from R2
-// rather than piling their bytes up in memory.
-export async function exportZip(env: Env, user: User): Promise<Response> {
+function octal(value: number, width: number): string {
+  return value.toString(8).padStart(width - 1, "0") + "\0";
+}
+
+// A ustar header: the path, split across `prefix` and `name` at a slash
+// when it is longer than the name field, the size, and a checksum of the
+// header itself, which is the only arithmetic tar asks for.
+function header(path: string, size: number, mtime: number): Uint8Array {
+  const encoder = new TextEncoder();
+  let name = path, prefix = "";
+  if (encoder.encode(path).length > 100) {
+    const cut = path.lastIndexOf("/", 155);
+    if (cut > 0) { prefix = path.slice(0, cut); name = path.slice(cut + 1); }
+  }
+  const block = new Uint8Array(BLOCK);
+  const put = (offset: number, text: string) => block.set(encoder.encode(text), offset);
+  put(0, name);
+  put(100, octal(0o644, 8));
+  put(108, octal(0, 8));
+  put(116, octal(0, 8));
+  put(124, octal(size, 12));
+  put(136, octal(mtime, 12));
+  put(148, "        ");
+  put(156, "0");
+  put(257, "ustar\0");
+  put(263, "00");
+  put(265, "papol");
+  put(297, "papol");
+  put(345, prefix);
+  const sum = block.reduce((a, b) => a + b, 0);
+  put(148, sum.toString(8).padStart(6, "0") + "\0 ");
+  return block;
+}
+
+// The archive, as a body that is written as it is read: a slow download
+// holds back the reads from the bucket rather than piling bytes up in
+// memory, and each file's bytes travel from the bucket to the client
+// without passing through JavaScript.
+export async function exportArchive(env: Env, user: User): Promise<Response> {
   const stamp = new Date().toISOString().slice(0, 10);
   const root = `papol-export-${stamp}`;
+  const mtime = Math.floor(Date.now() / 1000);
   const data = await gather(env.DB, user);
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
   const write = async () => {
-    const writer = writable.getWriter();
-    const pending: Uint8Array[] = [];
-    let failed: Error | null = null;
-    const zip = new Zip((error, chunk) => { if (error) failed = error; else pending.push(chunk); });
-    const flush = async () => {
-      if (failed) throw failed;
-      for (const chunk of pending.splice(0)) await writer.write(chunk);
+    const send = async (bytes: Uint8Array) => {
+      const writer = writable.getWriter();
+      try { await writer.write(bytes); } finally { writer.releaseLock(); }
     };
+    const padding = (size: number) => new Uint8Array((BLOCK - (size % BLOCK)) % BLOCK);
     const text = async (name: string, content: string) => {
-      const entry = new ZipDeflate(`${root}/${name}`);
-      zip.add(entry);
-      entry.push(new TextEncoder().encode(content), true);
-      await flush();
+      const bytes = new TextEncoder().encode(content);
+      await send(header(`${root}/${name}`, bytes.length, mtime));
+      await send(bytes);
+      await send(padding(bytes.length));
     };
-    // A stored file, copied through as it is: PDFs and images are already
-    // compressed. One the store no longer has is left out, as a missing
-    // file always was.
+    // A stored file, piped through as it is. One the store no longer has
+    // is left out, as a missing file always was.
     const stored = async (key: string, name: string): Promise<boolean> => {
       if (!KEY.test(key)) return false;
       const object = await env.FILES.get(key);
       if (!object) return false;
-      const entry = new ZipPassThrough(`${root}/${name}`);
-      zip.add(entry);
-      const reader = object.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        entry.push(value);
-        await flush();
-      }
-      entry.push(new Uint8Array(0), true);
-      await flush();
+      await send(header(`${root}/${name}`, object.size, mtime));
+      await object.body.pipeTo(writable, { preventClose: true });
+      await send(padding(object.size));
       return true;
     };
     try {
@@ -219,16 +244,18 @@ export async function exportZip(env: Env, user: User): Promise<Response> {
           await stored(`${BOARD_FILES}${item.file}`, `board-files/${board.uuid}/${item.uuid}-${filename}`);
         }
       }
-      zip.end();
-      await flush();
-      await writer.close();
+      // Two empty blocks end the archive.
+      await send(new Uint8Array(BLOCK * 2));
+      await writable.close();
     } catch (error) {
-      await writer.abort(error);
+      // The client sees a body that ends early; the log says why.
+      console.error(`Export for ${user.uuid} aborted: ${(error as Error)?.message ?? error}`);
+      await writable.abort(error);
     }
   };
   void write();
 
   return new Response(readable, {
-    headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${root}.zip"` },
+    headers: { "content-type": "application/x-tar", "content-disposition": `attachment; filename="${root}.tar"` },
   });
 }

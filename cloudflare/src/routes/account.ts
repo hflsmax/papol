@@ -3,7 +3,7 @@
 
 import limits from "../../../config/app_limits.json";
 import { closeAccount } from "../account/close";
-import { exportZip } from "../account/export";
+import { exportArchive } from "../account/export";
 import { currentUser, hashPassword, userPrivate, verifyPassword, type User } from "../auth";
 import { newUuid, one, statement } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
@@ -77,9 +77,9 @@ export function accountRoutes(router: Router) {
     return json({ message: "Password updated" });
   });
 
-  // Everything Papol holds about this user, in one zip.
+  // Everything Papol holds about this user, in one archive.
   router.on("GET", "/api/auth/export", async ({ request, env }) => {
-    return exportZip(env, await currentUser(request, env));
+    return exportArchive(env, await currentUser(request, env));
   });
 
   // Close the account. Being signed in is what proves who they are;

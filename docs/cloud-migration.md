@@ -782,6 +782,17 @@ rows.
 - With no helper configured, or one that is down, nothing changes from
   before: references are "unavailable", uploads get the filename title.
 
+### Step 9 — landed 2026-09-21: the export is a tar
+
+Measured on dev with a mirror of production and the owner's 29 papers
+(113 MB): the zip export was cut off at 80–95 MB, unreadable, both
+times. A zip carries a CRC-32 of every entry, which the Worker had to
+compute over every byte of every PDF, and the Free plan's CPU budget
+killed the invocation mid-stream. The export is now a tar: each entry
+states its size and carries its bytes, so every PDF is piped from R2
+into the response without passing through JavaScript, and the Worker
+spends nothing but the headers. macOS opens a tar with a double-click.
+
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
 deleted; the host's configuration.nix trimmed of the retired keys.
