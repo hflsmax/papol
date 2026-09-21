@@ -33,10 +33,18 @@ export function titleFromFilename(name: string): string {
 // Replaceable, so the suite can stand in for the PDF reader.
 export const readers = {
   // The text of the first pages, where identifiers are printed.
+  // Only the first pages are read: an identifier is printed at the front,
+  // and laying out the text of a whole paper costs more CPU than a Worker
+  // has to spend on one job.
   async firstPages(bytes: Uint8Array, pages = 3): Promise<string> {
     const pdf = await getDocumentProxy(bytes);
-    const { text } = await extractText(pdf, { mergePages: false });
-    return (text as string[]).slice(0, pages).join("\n");
+    const texts: string[] = [];
+    for (let number = 1; number <= Math.min(pages, pdf.numPages); number++) {
+      const page = await pdf.getPage(number);
+      const content = await page.getTextContent();
+      texts.push(content.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+    }
+    return texts.join("\n");
   },
 };
 
