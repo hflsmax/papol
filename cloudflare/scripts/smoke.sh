@@ -5,8 +5,8 @@
 #
 #   scripts/smoke.sh https://dev.papol.io
 #
-# Meant for the dev environment, whose data is disposable: it registers an
-# account each time it runs.
+# It registers an account each time it runs and closes it at the end, so
+# it leaves nothing behind wherever it runs.
 set -euo pipefail
 base=${1:?usage: smoke.sh <https://host>}
 host=${base#https://}
@@ -57,6 +57,6 @@ expect "the stroke is listed" 200 "${auth[@]}" "$base/api/papers/$name/annotatio
 expect "the stroke taken back" 200 "${auth[@]}" -X DELETE "$base/api/annotations/$stroke_uuid"
 expect "the PDF is served" 200 "$base/uploads/$file_path"
 expect "the paper let go" 200 "${auth[@]}" -X DELETE "$base/api/papers/$name"
-expect "signed out" 200 "${auth[@]}" -X POST "$base/api/auth/logout"
+expect "the account closed behind it" 200 "${auth[@]}" -X DELETE "$base/api/auth/account" -H 'content-type: application/json' -d "{\"confirm_email\":\"$email\"}"
 expect "and the session is over" 401 "${auth[@]}" "$base/api/auth/me"
 echo "smoke: all good at $base"
