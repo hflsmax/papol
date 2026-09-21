@@ -593,6 +593,32 @@ fallback for an upload that prints no identifier is in `extract.ts`.
   issue #98: whether the identifier path resolves what the searches
   would not is unmeasured.
 
+### Step 4, the website — landed 2026-09-21
+
+The three Vite builds are served as Workers Static Assets from
+`cloudflare/site/`, laid out by `cloudflare/scripts/assemble.sh`: the
+frontend at the root, the viewer under `/viewer/`, the board under
+`/boards/`. Every request passes through the Worker (`run_worker_first`),
+and the router's fallback is the assets store: an unknown `/api/` or
+`/uploads/` path is a JSON 404, `/boards/<uuid>` is the board's
+document, and any other clean path is the frontend's document for
+History API routing (`not_found_handling = "single-page-application"`).
+`cloudflare/test/site.test.ts` covers the routing against three
+one-line documents the suite stands in when no site is assembled.
+
+- The frontend is built at base `/`. The `/papol/` base the production
+  build carried was the NixOS host's nginx arrangement; the Worker is
+  its own origin.
+- **Dropped: the demo.** `backend/demo.py` ran the whole API against a
+  per-session in-memory database; on Cloudflare that is a Durable
+  Object with its own SQLite re-implementing the D1 layer, which is
+  not worth it for a sales demo with no users. `/api/demo/*`,
+  `/demo/viewer` and `/demo/boards/*` do not exist on the Worker. The
+  front ends still link to them; removing that is issue #100.
+
+Phase 4 is complete with this step: every route the frontends call is
+answered by the Worker except the demo's.
+
 ## Phase 5 — Cutover
 
 Configuration and one move of the data, once phase 4 passes the suite:

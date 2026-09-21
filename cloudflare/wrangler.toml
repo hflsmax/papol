@@ -50,3 +50,13 @@ PAPOL_URL = ""
 
 [observability]
 enabled = true
+
+# The built front ends, assembled by scripts/assemble.sh: the Worker serves
+# them as static assets. Every request passes through the Worker first, so
+# one router decides what is an API path, a board document, or a file.
+[assets]
+directory = "./site"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "single-page-application"
+run_worker_first = true

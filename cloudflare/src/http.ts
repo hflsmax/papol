@@ -49,6 +49,9 @@ interface Route {
 export class Router {
   private routes: Route[] = [];
 
+  // The fallback answers a request no route claims.
+  constructor(private fallback: Handler = () => json({ detail: "Not Found" }, { status: 404 })) {}
+
   on(method: string, path: string, handler: Handler): this {
     this.routes.push({ method, pattern: new URLPattern({ pathname: path }), handler });
     return this;
@@ -71,6 +74,12 @@ export class Router {
         return json({ detail: String((error as Error)?.message ?? error) }, { status: 500 });
       }
     }
-    return json({ detail: "Not Found" }, { status: 404 });
+    try {
+      return await this.fallback({ request, env, url, params: {} });
+    } catch (error) {
+      if (error instanceof HttpError) return json({ detail: error.detail }, { status: error.status });
+      console.error(`${request.method} ${url.pathname}:`, error);
+      return json({ detail: String((error as Error)?.message ?? error) }, { status: 500 });
+    }
   }
 }
