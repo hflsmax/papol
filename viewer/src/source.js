@@ -2,7 +2,7 @@ import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
 import { notesIn } from './annotationKinds.js';
-import { appPath, inDemo, modePath } from './base.js';
+import { appPath } from './base.js';
 import { paperName } from '../../shared/paperName.js';
 import {
   getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
@@ -18,27 +18,20 @@ import {
  *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  *   ?share=<uuid>          someone's reading of a PDF, handed over by link
- * Demo PDFs use the same hash identity and a disposable API workspace.
  *
- * Nook and demo sources expose the same annotation interfaces. A file source
+ * A nook source exposes the annotation interfaces. A file source
  * intentionally omits them; if its bytes already belong to a nook paper, the
  * viewer hands the window over to that canonical source. A shared source
  * declares itself read-only: its annotations are someone else's.
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
-  const demo = inDemo();
   const share = (params.get('share') || '').toLowerCase();
   // A link is the whole permission, so it is answered before anything else
   // and without a hash: the sharable says which PDF it opens.
   if (/^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
-  if (demo) {
-    const source = apiSource(pdf);
-    source.requiresSignIn = false;
-    return source;
-  }
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
   return apiSource(pdf);
 }
@@ -72,14 +65,14 @@ function apiSource(
     return paperReady;
   };
   const source = {
-    homeHref: modePath('/', { demo: inDemo() }),
+    homeHref: appPath('/'),
     // The desktop blob store is content-addressed, so the viewer can begin
     // reading these bytes before this source's paper metadata query returns.
     pdfHash,
     requiresSignIn: true,
     async load() {
       const loaded = await paper();
-      source.homeHref = modePath(`/paper/${paperName(loaded.sha256)}`, { demo: inDemo() });
+      source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
       return { doc: loaded, notes: [] };
     },
     async loadNotes() {
@@ -120,7 +113,7 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // Where the home button leads. A link hands over one reading of one
     // PDF, not a place in the Desk — and the Desk asks for an account
     // besides — so the way out names no paper and goes to Papol itself.
-    homeHref: modePath('/', { demo: inDemo() }),
+    homeHref: appPath('/'),
     requiresSignIn: false,
     // Their annotations are theirs: whatever is already on these pages was put
     // there by the sharer and nothing in the viewer may change it.

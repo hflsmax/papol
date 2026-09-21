@@ -175,7 +175,6 @@ pass. Every one of these has to move together:
   two resolvers that turn a name from a URL back into the stored identity
 - `frontend/scripts/browser-smoke.mjs` — the links the smoke test opens
 - `health/links.sh` — the links production is checked with after a deploy
-- `shared/demo.js` — the demo answers the same paths without a service
 - `viewer/src/source.js`, `shared/nativeData.js` — the other surfaces' names
 
 Grep for the old shape before declaring it done: `grep -rn '{8}-\[0-9a-f\]'`

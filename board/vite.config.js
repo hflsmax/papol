@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Relative assets remain inside /boards (or /demo/boards) when the board is
+// Relative assets remain inside /boards when the board is
 // addressed as /boards/<guid>, including below a /papol deployment prefix.
 export default defineConfig(({ command }) => ({
   base: command === 'serve' ? '/boards/' : './',

@@ -5,10 +5,10 @@ import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
-import { boardJacketPath, homePath, inDemo } from '../../shared/appUrls.js';
+import { boardJacketPath, homePath } from '../../shared/appUrls.js';
 
 function route() {
-  const match = window.location.pathname.match(/\/(?:demo\/)?boards\/([^/]+)\/?$/);
+  const match = window.location.pathname.match(/\/boards\/([^/]+)\/?$/);
   return match && match[1] !== 'index.html'
     ? decodeURIComponent(match[1])
     : new URLSearchParams(window.location.search).get('board');
@@ -22,9 +22,7 @@ function route() {
  * link or a file opened from disk. A board always has one, because opening
  * its canvas already asked who you are.
  */
-const papolHome = (uuid) => (uuid
-  ? boardJacketPath(uuid, { demo: inDemo() })
-  : homePath({ demo: inDemo() }));
+const papolHome = (uuid) => (uuid ? boardJacketPath(uuid) : homePath());
 
 function goHome(uuid) {
   if (closeDesktopDocumentWindow()) return;
@@ -33,9 +31,7 @@ function goHome(uuid) {
 
 export default function App() {
   const boardUuid = route();
-  const demo = inDemo() ||
-    new URLSearchParams(window.location.search).get('demo') === '1';
-  if (!demo && !getToken()) {
+  if (!getToken()) {
     const marker = '/boards/';
     const base = window.location.pathname.slice(0, window.location.pathname.indexOf(marker));
     const next = window.location.pathname.slice(base.length);

@@ -20,23 +20,12 @@ export default defineConfig({
     },
   },
   server: {
-    // The demo world is shared between the two apps, a level above
-    // either root.
+    // shared/ sits a level above either app's root.
     fs: { allow: ['..'] },
     proxy: {
       // Keep all three development surfaces on one browser origin. Besides
       // matching production routing, this lets the desktop shell carry its
       // login and viewer handoff into the separately hosted Vite apps.
-      '/demo/viewer': {
-        target: 'http://127.0.0.1:5174',
-        rewrite: (path) => path.replace(/^\/demo\/viewer/, '/viewer') || '/viewer/',
-        ws: true,
-      },
-      '/demo/boards': {
-        target: 'http://127.0.0.1:5175',
-        rewrite: (path) => path.replace(/^\/demo\/boards/, '/boards') || '/boards/',
-        ws: true,
-      },
       '/viewer': {
         target: 'http://127.0.0.1:5174',
         ws: true,

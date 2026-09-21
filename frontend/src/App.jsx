@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
-  getMe, getStartupUser, getToken, logout, pendingLocalChanges,
+  getMe, getToken, logout, pendingLocalChanges,
   refreshStartupUser,
 } from '../../shared/api/account.js';
 import { getNotifications, getPendingAdminMessages } from '../../shared/api/notifications.js';
@@ -10,8 +10,6 @@ import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import Nook from './components/Nook';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
-import { resetDemo } from '../../shared/demo.js';
-import { inDemo } from '../../shared/appUrls.js';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
 import PapersPage from './components/PapersPage';
@@ -36,7 +34,7 @@ import {
   MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
-import { appPath, modePath, modeRoute, stripAppBase } from './base';
+import { appPath, stripAppBase } from './base';
 import { parseRoute } from './routes';
 import {
   originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
@@ -56,7 +54,6 @@ import {
   checkClientCompatibility, setClientCompatibility,
 } from '../../shared/clientCompatibility.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
-import { useModalDialog } from '../../shared/useModalDialog.js';
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
@@ -71,18 +68,13 @@ const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 // the banner back without knowing anything about this file.
 const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DISMISSED);
 
-// A path as the address bar spells it: under /demo while the demo is on,
-// and under the base the app is served from.
-const mountedPath = (path) => modePath(path, { demo: inDemo() });
+// A path as the address bar spells it: under the base the app is served from.
+const mountedPath = (path) => appPath(path);
 
 function navigate(path, { replace = false } = {}) {
-  const destination = inDemo() && !['/signin', '/join'].includes(path)
-    && !path.startsWith('/demo')
-    ? modeRoute(path, { demo: true })
-    : path;
   // Don't push a history entry when already there; otherwise Back appears
   // to do nothing.
-  const mountedDestination = appPath(destination);
+  const mountedDestination = mountedPath(path);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
   // A jacket's Back leads to the nook or Desk it was opened from,
   // and this is the one door every in-app move goes through.
@@ -114,7 +106,7 @@ function openBoard(uuid) {
 // leaves the Desk — on the desktop into a document window beside it, on
 // the web by going there.
 function openBoardCanvas(uuid) {
-  const path = modePath(`/boards/${uuid}`, { demo: inDemo() });
+  const path = appPath(`/boards/${uuid}`);
   if (DESKTOP) {
     openDesktopDocumentWindow(path, 'popup,width=1200,height=820');
     return;
@@ -149,7 +141,6 @@ export default function App({ startupUser = null, startupError = null }) {
   // credential or a first desktop sign-in still needs to gate the shell.
   const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
-  const [demoError, setDemoError] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
@@ -159,22 +150,12 @@ export default function App({ startupUser = null, startupError = null }) {
   const deskDragDepth = useRef(0);
   const deskDropNoticeTimer = useRef(null);
   const offeredErrorReports = useRef(new Set());
-  // The welcome modal greets every fresh demo visit. Returning from its
-  // viewer is still the same visit, so consume the viewer's one-shot marker
-  // rather than greeting the user again after the full-page transition.
-  const [demoIntroSeen, setDemoIntroSeen] = useState(() => {
-    const returnedFromViewer = window.sessionStorage.getItem('papol.viewerReturn') === '1';
-    window.sessionStorage.removeItem('papol.viewerReturn');
-    return returnedFromViewer;
-  });
   const [showMacosDownloadBanner, setShowMacosDownloadBanner] = useState(
     () => !DESKTOP && !macosBannerWasDismissed(),
   );
 
-  // State-machine precedence is deliberate: an explicit demo URL wins;
-  // otherwise a real authenticated user wins; guest is only the public
-  // fallback when neither of those primary modes applies.
-  const mode = route.demo ? 'demo' : user ? 'signed-in' : 'guest';
+  // An authenticated user is signed in; guest is the public fallback.
+  const mode = user ? 'signed-in' : 'guest';
 
   const offerErrorReport = useCallback((error, area) => {
     const report = unexpectedDesktopErrorReport(error, area, {
@@ -232,27 +213,6 @@ export default function App({ startupUser = null, startupError = null }) {
       window.removeEventListener(REPORTABLE_NATIVE_ERROR_EVENT, onNativeError);
     };
   }, [offerErrorReport, startupError]);
-
-  const restoreRealUser = async () => {
-    const localUser = await getStartupUser().catch(() => null);
-    if (localUser) {
-      setUser(localUser);
-      if (getToken()) {
-        refreshStartupUser(localUser).then(setUser).catch(() => {});
-      }
-      return;
-    }
-    if (!getToken()) {
-      setUser(null);
-      return;
-    }
-    try {
-      setUser(await getMe());
-    } catch {
-      await storeCredential(null);
-      setUser(null);
-    }
-  };
 
   useEffect(() => {
     const importIntoDesk = mode === 'signed-in';
@@ -326,46 +286,14 @@ export default function App({ startupUser = null, startupError = null }) {
     };
   }, [mode]);
 
-  const dismissDemoIntro = () => setDemoIntroSeen(true);
-
-  const demoIntroVisible = mode === 'demo' && Boolean(user) && !demoIntroSeen;
-  const demoDialogRef = useModalDialog(demoIntroVisible, dismissDemoIntro);
-
   useEffect(() => {
-    const onRouteChange = async () => {
-      const next = parseRoute();
-      setRoute(next);
-      if (next.demo && !route.demo) {
-        resetDemo();
-        setDemoError(null);
-        setUser(null);
-        try {
-          const demoUser = await getMe();
-          if (inDemo()) setUser(demoUser);
-        } catch (error) {
-          if (inDemo()) setDemoError(error.message);
-        }
-      } else if (!next.demo && route.demo) {
-        resetDemo();
-        await restoreRealUser();
-      }
-    };
+    const onRouteChange = () => setRoute(parseRoute());
     window.addEventListener('popstate', onRouteChange);
     return () => window.removeEventListener('popstate', onRouteChange);
-  }, [route.demo]);
+  }, []);
 
   useEffect(() => {
-    // A canonical paper URL is public and real. Do not route a signed-out
-    // recipient into the fictional demo before that paper is opened.
     const initialRoute = parseRoute();
-    if (initialRoute.demo) {
-      resetDemo();
-      getMe().then((demoUser) => { if (inDemo()) setUser(demoUser); })
-        .catch((error) => { if (inDemo()) setDemoError(error.message); })
-        .finally(() => setAuthChecked(true));
-      return;
-    }
-    resetDemo();
     if (startupUser) {
       // The local desktop identity is already on screen. Server auth now
       // refreshes network capability and profile data in the background.
@@ -390,8 +318,7 @@ export default function App({ startupUser = null, startupError = null }) {
     getMe()
       .then(setUser)
       .catch(async () => {
-        // A stale session becomes an ordinary guest session. Demo is only
-        // entered by a URL that explicitly contains /demo.
+        // A stale session becomes an ordinary guest session.
         await storeCredential(null);
         setUser(null);
       })
@@ -427,7 +354,6 @@ export default function App({ startupUser = null, startupError = null }) {
   // has ended. Either way the answer is the sign-in page, not an error where
   // the page should be, and it leads back here once they have signed in.
   useEffect(() => subscribeUnauthenticated(() => {
-    if (inDemo()) return;
     void storeCredential(null);
     // The desktop keeps the owner's local identity and work through a
     // rejected credential; only network access is gone until they sign in.
@@ -443,13 +369,13 @@ export default function App({ startupUser = null, startupError = null }) {
   const signedInUser = useRef(user);
   signedInUser.current = user;
   useEffect(() => subscribeSignInRequests((request) => {
-    if (!signedInUser.current || inDemo()) navigate(request?.register ? '/join' : '/signin');
+    if (!signedInUser.current) navigate(request?.register ? '/join' : '/signin');
   }), []);
 
   // Viewer and board windows have separate WebKit storage. Adopt an account
   // signed in there so the permanent Desk reflects it immediately.
   useEffect(() => subscribeNativeData((payload) => {
-    if (inDemo() || !payload?.accountUuid || !payload.profile) return;
+    if (!payload?.accountUuid || !payload.profile) return;
     setNativeAccount(payload.accountUuid);
     setUser(payload.profile);
     setAuthChecked(true);
@@ -503,7 +429,6 @@ export default function App({ startupUser = null, startupError = null }) {
       || candidate.startsWith('/viewer/')
       ? candidate
       : '/';
-    resetDemo();
     // login/register already persisted the credential for this account.
     setUser(user);
     // Surfaces of their own, built and served separately from this one:
@@ -515,31 +440,7 @@ export default function App({ startupUser = null, startupError = null }) {
     navigate(returnTo);
   };
 
-  const handleBackToAccount = async () => {
-    window.history.replaceState(null, '', appPath('/'));
-    setRoute(parseRoute());
-    resetDemo();
-    await restoreRealUser();
-  };
-
-  const handleDemo = () => {
-    navigate('/demo');
-  };
-
   const handleLogout = async () => {
-    if (inDemo()) {
-      // Leaving the demo is a navigation, not a state teardown — the demo
-      // stays alive underneath so Back returns into it. Signing in for
-      // real (handleAuth) is what actually ends the demo.
-      const leave = await confirmAction(
-        'This leaves the demo and takes you to the sign-in page of the ' +
-          'real Papol. Continue?',
-        { confirmLabel: 'Leave demo' },
-      );
-      if (!leave) return;
-      navigate('/signin');
-      return;
-    }
     // In the browser there is nothing local to lose: no downloaded papers, no
     // offline changes. Only the desktop app, which keeps both on the machine,
     // has to ask before throwing them away.
@@ -566,24 +467,11 @@ export default function App({ startupUser = null, startupError = null }) {
       }
       return;
     }
-    resetDemo();
     setUser(null);
     navigate('/');
   };
 
-  if (route.demo && demoError) {
-    return (
-      <>
-        <style>{applicationStyles}</style>
-        <div className="loading" role="alert">
-          <p>{demoError}</p>
-          <a href={appPath('/')}>Back to Papol</a>
-        </div>
-      </>
-    );
-  }
-
-  if (!authChecked || (route.demo && !user)) {
+  if (!authChecked) {
     return (
       <>
         <style>{applicationStyles}</style>
@@ -638,82 +526,6 @@ export default function App({ startupUser = null, startupError = null }) {
     navigate(`${routePath}${destination.search}`);
   };
 
-  const demoIntro = demoIntroVisible && (
-    <div className="modal-overlay" onClick={dismissDemoIntro}>
-      <div ref={demoDialogRef} className="modal-box" role="dialog" aria-modal="true" aria-labelledby="demo-intro-title" tabIndex="-1" onClick={(e) => e.stopPropagation()}>
-        <div className="panel demo-intro">
-          <h3 id="demo-intro-title">Welcome to Papol</h3>
-          <p>
-            Papol is your paper reading companion. Stay close to the ideas
-            that matter, and the people thinking about them.
-          </p>
-          <p>
-            You are looking at the demo: you play as SpongeBob among
-            fictional users. Changes last only for this temporary visit.
-            Some features are not supported in the demo.
-          </p>
-          <p>
-            Register an account to have your own nook
-            and keep your papers and notes.
-          </p>
-          <div className="form-actions">
-            <button
-              className="primary"
-              onClick={() => {
-                dismissDemoIntro();
-                navigate('/join');
-              }}
-            >
-              Register
-            </button>
-            <button
-              onClick={() => {
-                dismissDemoIntro();
-                navigate('/signin');
-              }}
-            >
-              Sign in
-            </button>
-            <button onClick={dismissDemoIntro}>Explore the demo</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const demoBanner = user && inDemo() && (
-    <div className="demo-banner">
-      <span>
-        Demo mode — everything here is fictional and happens in your
-        browser. Nothing is saved.
-      </span>
-      {getToken() ? (
-        <a className="demo-banner-button" href={appPath('/')} onClick={(event) => {
-          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-          event.preventDefault();
-          handleBackToAccount();
-        }}>
-          Back to my account
-        </a>
-      ) : (
-        <span className="demo-banner-actions">
-          <button
-            className="demo-banner-button"
-            onClick={() => navigate('/join')}
-          >
-            Create a real account
-          </button>
-          <button
-            className="link-button demo-banner-link"
-            onClick={() => navigate('/signin')}
-          >
-            Sign in
-          </button>
-        </span>
-      )}
-    </div>
-  );
-
   const macosDownloadBanner = showMacosDownloadBanner && (
     <div className="macos-download-banner" role="status">
       <span>Papol is now available as a Mac app.</span>
@@ -756,9 +568,8 @@ export default function App({ startupUser = null, startupError = null }) {
     />
   );
 
-  // Keyed by world and identity: leaving or entering the demo, or changing
-  // real accounts, remounts every page so no nook or private paper state can
-  // survive an identity boundary.
+  // Keyed by identity: changing accounts remounts every page so no nook or
+  // private paper state can survive an identity boundary.
   // The boundary is keyed by the route, so a crash stays on the page that
   // raised it and leaving that page starts clean.
   const pages = (
@@ -783,10 +594,7 @@ export default function App({ startupUser = null, startupError = null }) {
           // The desktop app opens on signing in, not on a pitch for Papol.
           <AuthPage onAuth={handleAuth} initialMode="login" />
         ) : (
-          <HomePage
-            currentUser={user}
-            onDemo={inDemo() ? undefined : handleDemo}
-          />
+          <HomePage currentUser={user} />
         ))}
       {route.page === 'nook' && (
         <Nook
@@ -850,10 +658,7 @@ export default function App({ startupUser = null, startupError = null }) {
           </div>
         ))}
       {route.page === 'about' && (
-        <HomePage
-          currentUser={user}
-          onDemo={inDemo() ? undefined : handleDemo}
-        />
+        <HomePage currentUser={user} />
       )}
       {route.page === 'learn' && <LearnPage />}
       {route.page === 'join' && (
@@ -901,7 +706,6 @@ export default function App({ startupUser = null, startupError = null }) {
           message={deskDropNotice}
           opensViewer={mode === 'guest'}
         />
-        {demoIntro}
         <CompatibilityGate />
         {adminMessageDialog}
         {feedbackDialog}
@@ -944,7 +748,6 @@ export default function App({ startupUser = null, startupError = null }) {
               onNavigate={navigate}
               onOpenBoard={openBoard}
               onSyncRefresh={syncRefresh}
-              banner={demoBanner}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
               onReportableError={offerErrorReport}
@@ -952,7 +755,6 @@ export default function App({ startupUser = null, startupError = null }) {
           ) : (
             <div className="desktop-pane">
               <DesktopToolbar title={desktopTitle(route, user)} />
-              {demoBanner}
               <div className="desktop-scroll">
                 <div className="desktop-content">{pages}</div>
               </div>
@@ -967,10 +769,8 @@ export default function App({ startupUser = null, startupError = null }) {
     <>
       <style>{applicationStyles}</style>
       <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} />
-      {demoIntro}
       {adminMessageDialog}
       {macosDownloadBanner}
-      {demoBanner}
       <button
         type="button"
         className="feedback-button"

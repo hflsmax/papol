@@ -15,11 +15,10 @@ identifier of its own, the notes column gives it.
 | Term | Meaning | Notes |
 | --- | --- | --- |
 | **User** | Someone with a Papol account. Papol has one kind of person and one noun for them. | `User`, `users`. |
-| **Visitor** | A user who is not signed in. | Sees the demo, a sharable and the sign-in pages, nothing else. |
+| **Visitor** | A user who is not signed in. | Sees the home page, a sharable and the sign-in pages; the community's pages ask them to sign in. |
 | **Nook** | One user's public reading corner: their copies, shelves, boards and tags. | `Nook.jsx`, `getNook()`, `GET /api/users/<uuid>/nook`, `route.page === 'nook'` at `/u/<uuid>`. |
 | **Shelf** | One of a user's homes for papers, each **public** or **private**. *Visibility lives on the shelf and nowhere else.* | `shelves.is_public`. A copy is public when its shelf is; the toggle in `NookManager.jsx` reads Public / Private. |
 | **Library** | Every paper there is, and every user with a copy on a public shelf. The place a paper is found rather than owned. | Papers and the people who read them are two views of one Library, not two places. `/library`, `route.page === 'papers'`. |
-| **Demo** | A fictional Papol backed by a disposable session; changes never reach permanent content. The URL determines whether it is on. | `backend/demo.py`, `shared/demo.js`; [architecture](demo-architecture.md). Supported features use real handlers; others report that they are unsupported. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
 ## 2. Works
@@ -120,7 +119,7 @@ says who may *read this PDF*. Neither moves the other.
 | **Papol for Mac** | The native macOS app. Same three surfaces, same account: a paper open in a browser and in the app is one paper, not a copy. | `desktop/`. |
 | **Handoff** | Moving the document in front of the user *right now* from the browser into the app: same document, same place. | `shared/macHandoff.js`, `MacHandoffBar.jsx`. Distinct from the **download banner**, which advertises the app in general. |
 | **Handoff address** | The web address the user is already at, re-addressed to the app: `https://host/papol/viewer/?pdf=…` becomes `papol://host/papol/viewer/?pdf=…`. | Only the keys naming a document and a place in it cross over, because anyone at all can send the app one of these. |
-| **Document** | What the offer names: *this paper* or *this board*. Never "the app". | `handoffDocument()`. The demo has no document. |
+| **Document** | What the offer names: *this paper* or *this board*. Never "the app". | `handoffDocument()`. |
 | **Not now / Don't ask again** | The two answers: this document, or this browser. Papol never opens the app without being asked. | `DEFERRED_KEY`, `RETIRED_KEY`. |
 
 Papol **cannot tell whether the app is installed** and does not pretend to.

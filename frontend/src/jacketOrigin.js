@@ -13,7 +13,7 @@ import { parseRoute } from './routes.js';
  *
  * So the place is remembered for the tab, in sessionStorage, which outlives
  * both a reload and the trip through the viewer. Paths here are the app's
- * own — no base, no /demo — because `navigate` adds both.
+ * own — no base — because `navigate` adds it.
  *
  * One memory serves both jackets. A reader is in one work at a time, and
  * where they were before it does not depend on whether the work turned out

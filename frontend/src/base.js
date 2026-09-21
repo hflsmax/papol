@@ -1,3 +1,3 @@
 export {
-  APP_BASE, BACKEND_BASE, appPath, backendPath, inDemo, modePath, modeRoute, stripAppBase,
+  APP_BASE, BACKEND_BASE, appPath, backendPath, stripAppBase,
 } from '../../shared/appUrls.js';

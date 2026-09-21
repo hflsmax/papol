@@ -73,7 +73,7 @@ try {
       });
       await browser.send('DOM.setFileInputFiles', {
         nodeId,
-        files: [fileURLToPath(new URL('../public/assets/demo/papers/attention.pdf', import.meta.url))],
+        files: [fileURLToPath(new URL('./fixtures/attention.pdf', import.meta.url))],
       });
     };
     await browser.evaluate("window.failImport = 'expected';");

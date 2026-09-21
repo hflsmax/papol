@@ -1107,9 +1107,7 @@ function PdfPage({
   }, [textReady, renderScale, searchMatches, activeSearchId]);
 
   // Only that the page is on screen — not that the references are ready.
-  // The PDF's own links are in the file itself: they need no analyzer, and
-  // in the demo, where there is no analysis at all, they are the whole of
-  // what this layer has to offer.
+  // The PDF's own links are in the file itself: they need no analyzer.
   // Worked out once for a document and its analysis, not again every time
   // the page comes back near the view.
   useEffect(() => {

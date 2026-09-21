@@ -248,19 +248,3 @@ test('a lean link carries the paper and none of the user\u2019s annotations', as
     Object.assign(reading, rich);
   }
 });
-
-test('a demo share link uses the ordinary shared-reading source', () => {
-  const previous = global.location.pathname;
-  global.window.location = new URL(`http://127.0.0.1/demo/viewer/?share=${SHARE}`);
-  global.location = global.window.location;
-  try {
-    const source = resolveSource();
-    assert.equal(source.readOnly, true);
-    assert.equal(source.requiresSignIn, false);
-    assert.equal(source.homeHref, '/demo');
-  } finally {
-    global.window.location = new URL(`http://127.0.0.1/viewer/?share=${SHARE}`);
-    global.location = global.window.location;
-    assert.equal(global.location.pathname, previous);
-  }
-});
