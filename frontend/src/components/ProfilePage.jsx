@@ -3,9 +3,9 @@ import {
   updateProfile,
   changePassword,
   uploadAvatar,
-  downloadMyData,
   deleteAccount,
 } from '../../../shared/api/account.js';
+import { downloadMyData } from '../myData.js';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
@@ -302,7 +302,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
-  const [exportedBytes, setExportedBytes] = useState(null);
+  const [exported, setExported] = useState(null);
+  const [exportStep, setExportStep] = useState('');
 
   const [closeEmail, setCloseEmail] = useState('');
   const [closeError, setCloseError] = useState(null);
@@ -311,14 +312,15 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
   const handleExport = async () => {
     setExportError(null);
-    setExportedBytes(null);
+    setExported(null);
     setIsExporting(true);
     try {
-      setExportedBytes(await downloadMyData());
+      setExported(await downloadMyData((step) => setExportStep(describeExportStep(step))));
     } catch (err) {
       setExportError(err.message);
     } finally {
       setIsExporting(false);
+      setExportStep('');
     }
   };
 
@@ -574,10 +576,15 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
         <h2 className="panel-title">My data</h2>
 
         {exportError && <div className="error" role="alert">{exportError}</div>}
-        {exportedBytes != null && (
+        {exported && (
           <div className="success" role="status">
-            Downloaded — {formatSize(exportedBytes)}.
+            Downloaded — {formatSize(exported.bytes)}.
           </div>
+        )}
+        {exported?.failed.length > 0 && (
+          <p className="panel-note">
+            {exported.failed.length === 1 ? '1 file' : `${exported.failed.length} files`} could not be fetched: {exported.failed.join(', ')}.
+          </p>
         )}
 
         <p className="panel-note">
@@ -588,7 +595,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
         <div className="form-actions">
           <button onClick={handleExport} disabled={isExporting}>
-            {isExporting ? 'Gathering it up…' : 'Download my data'}
+            {isExporting ? exportStep || 'Gathering it up…' : 'Download my data'}
           </button>
         </div>
       </div>
@@ -634,6 +641,14 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
     </div>
   );
+}
+
+// What the button says while the export is put together: the data
+// first, then the files one by one, then the zip.
+function describeExportStep({ phase, done, total }) {
+  if (phase === 'fetching' && total) return `Fetching ${Math.min(done + 1, total)} of ${total} files…`;
+  if (phase === 'packing') return 'Packing the zip…';
+  return 'Gathering it up…';
 }
 
 function formatSize(bytes) {
