@@ -6,6 +6,7 @@ import {
 import { inOfflineMode, runtimeFetch } from '../connectivity.js';
 import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
 import { withAbortTimeout } from '../requestTimeout.js';
+import { awaitJob } from './jobs.js';
 import { planOfflineNookAddition } from '../nookTransition.js';
 import { onServer } from './serverOperation.js';
 import { mySharable } from './sharables.js';
@@ -45,17 +46,29 @@ export async function listPapers() {
   return papers;
 }
 
-export async function lookupPaperMetadata(file, filename = file?.name) {
-  if (inOfflineMode()) return null;
+// Upload a PDF and wait for what the server reads out of it. The upload
+// itself answers at once with a job; the reading — the printed DOI, the
+// bibliographic APIs, the title block — happens on a worker, and the
+// form gets the fields when the job is done. What comes back is the
+// job's result plus the digest the upload was stored under.
+async function uploadAndRead(file, filename, signal) {
   const formData = new FormData();
   if (filename) formData.append('file', file, filename);
   else formData.append('file', file);
+  const queued = await handleResponse(await runtimeFetch(`${API_BASE}/papers/extract`, {
+    method: 'POST', headers: authHeaders(), body: formData, signal,
+  }));
+  const metadata = await awaitJob(queued.job, { signal });
+  return { ...metadata, file_path: queued.file_path, sha256: queued.sha256 };
+}
+
+export async function lookupPaperMetadata(file, filename = file?.name) {
+  if (inOfflineMode()) return null;
   try {
-    return await withAbortTimeout(async (signal) => handleResponse(
-      await runtimeFetch(`${API_BASE}/papers/extract`, {
-        method: 'POST', headers: authHeaders(), body: formData, signal,
-      }),
-    ), DESKTOP_EXTRACT_TIMEOUT_MS);
+    return await withAbortTimeout(
+      (signal) => uploadAndRead(file, filename, signal),
+      DESKTOP_EXTRACT_TIMEOUT_MS,
+    );
   } catch {
     return null;
   }
@@ -76,9 +89,7 @@ export async function extractPaperMetadata(file) {
       metadata_offline: false,
     };
   }
-  const formData = new FormData();
-  formData.append('file', file);
-  return request('/papers/extract', { method: 'POST', body: formData });
+  return uploadAndRead(file);
 }
 
 export async function discardPaperImport(extractedData) {

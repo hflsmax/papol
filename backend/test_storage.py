@@ -416,20 +416,19 @@ class ServingFromABucketTests(unittest.TestCase):
 
     def test_an_uploaded_pdf_is_stored_in_the_bucket_once(self):
         pdf = b"%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF"
-        with patch.object(main, "extract_doi_from_pdf", return_value=(None, "")), \
-                patch.object(main, "_printed_header", return_value=None):
-            first = self.client.post(
-                "/api/papers/extract",
-                files={"file": ("paper.pdf", pdf, "application/pdf")},
-            )
-            again = self.client.post(
-                "/api/papers/extract",
-                files={"file": ("paper.pdf", pdf, "application/pdf")},
-            )
-        self.assertEqual(first.status_code, 200, first.text)
-        self.assertEqual(again.status_code, 200, again.text)
+        first = self.client.post(
+            "/api/papers/extract",
+            files={"file": ("paper.pdf", pdf, "application/pdf")},
+        )
+        again = self.client.post(
+            "/api/papers/extract",
+            files={"file": ("paper.pdf", pdf, "application/pdf")},
+        )
+        self.assertEqual(first.status_code, 202, first.text)
+        self.assertEqual(again.status_code, 202, again.text)
         digest = hashlib.sha256(pdf).hexdigest()
         self.assertEqual(first.json()["file_path"], f"{digest}.pdf")
+        self.assertEqual(first.json()["sha256"], digest)
         self.assertEqual(list(storage.uploads.keys()), [f"{digest}.pdf"])
         self.assertEqual(storage.uploads.get(f"{digest}.pdf"), pdf)
 

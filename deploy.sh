@@ -24,9 +24,10 @@
 #
 # Production is deployed and stays up; development is a server that runs for
 # as long as you leave this command running. Production is a checkout of its
-# own under /srv/papol/prod, served by papol.service. The two share a host
-# and a GROBID container and nothing else: separate databases, separate
-# files (a bucket, or directories in the checkout — .env says), separate .env.
+# own under /srv/papol/prod, served by papol.service with papol-worker.service
+# doing the queued work beside it. The two share a host and a GROBID
+# container and nothing else: separate databases, separate files (a bucket,
+# or directories in the checkout — .env says), separate .env.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,6 +44,7 @@ fi
 DEV_PORT="${PAPOL_DEV_PORT:-$DEFAULT_DEV_PORT}"
 PROD_BRANCH=production
 UNIT=papol
+WORKER_UNIT=papol-worker
 KEEP_BACKUPS=10
 
 say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
@@ -1041,6 +1043,7 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 WATCH_PIDS=()
 BACKEND_PID=
+WORKER_PID=
 
 # Killing the group is the polite way and usually enough. It is not
 # guaranteed, though: npm and nix each get a say in how the processes below
@@ -1065,7 +1068,20 @@ stop_dev() {
     wait "$BACKEND_PID" 2>/dev/null || true
     BACKEND_PID=
   fi
+  if [ -n "$WORKER_PID" ]; then
+    kill -TERM "$WORKER_PID" 2>/dev/null || true
+    wait "$WORKER_PID" 2>/dev/null || true
+    WORKER_PID=
+  fi
   stop_watchers
+}
+
+# The worker beside the server: the same code, the same environment, doing
+# what the server queues. It restarts itself when a backend file changes,
+# as uvicorn does, so an edit to a job is live at the next job.
+run_worker() {
+  (cd "$DEV_DIR/backend" && exec nix develop "$DEV_DIR" --command python worker.py --reload) &
+  WORKER_PID=$!
 }
 
 # Anything left rebuilding into dist from a run that is already over. Two
@@ -1257,17 +1273,20 @@ run_dev() {
     say "Development on http://127.0.0.1:$DEV_PORT, and http://papol.local on the LAN"
   fi
   if [ "$watch" = yes ]; then
-    note "saving a file rebuilds it: backend reloads itself; frontend, viewer,"
-    note "and board rebuild into dist — reload the page to see them"
+    note "saving a file rebuilds it: backend and worker reload themselves; frontend,"
+    note "viewer, and board rebuild into dist — reload the page to see them"
   else
-    note "not watching; backend still reloads itself"
+    note "not watching; backend and worker still reload themselves"
   fi
   note "For hot reload without a page refresh, npm run dev gives you 5173–5175."
   note "Ctrl-C stops everything."
   echo
 
-  # This shell outlives the server so it can detect a dead reload worker and
-  # take the asset watchers with it on the way out.
+  # The worker first, so a paper saved as soon as the server answers is
+  # analyzed rather than queued. This shell outlives the server so it can
+  # detect a dead reload worker and take the asset watchers and the job
+  # worker with it on the way out.
+  run_worker
   run_backend
 }
 
@@ -1455,8 +1474,10 @@ deploy_prod() {
     note "the running system is not this one — this deploy activates $(basename "$built")"
   fi
 
-  say "Stopping $UNIT"
-  as_root systemctl stop "$UNIT"
+  say "Stopping $UNIT and $WORKER_UNIT"
+  # The worker first: a job in hand finishes (the unit waits for it), and
+  # nothing new is queued once the web tier is down.
+  as_root systemctl stop "$WORKER_UNIT" "$UNIT"
 
   # Taken with the service down. A build written for another schema refuses
   # to start on this database; bringing it across by hand starts from here.
@@ -1482,7 +1503,7 @@ deploy_prod() {
     say "Activating the new system"
     if ! as_root nixos-rebuild switch "${flakes[@]}"; then
       note "activation failed — putting the old service back"
-      as_root systemctl start "$UNIT" \
+      as_root systemctl start "$UNIT" "$WORKER_UNIT" \
         || die "activation failed AND $UNIT would not start. Production is down.
     The database is untouched, backed up beside it, and the checkout is at
     $(git -C "$PROD_DIR" rev-parse --short HEAD); putting the code back is
@@ -1492,14 +1513,32 @@ deploy_prod() {
     Deploying again retries the activation; it no longer skips it."
     fi
   else
-    say "Starting $UNIT"
-    as_root systemctl start "$UNIT" || die "$UNIT would not start. Production is down.
+    say "Starting $UNIT and $WORKER_UNIT"
+    as_root systemctl start "$UNIT" "$WORKER_UNIT" || die "$UNIT would not start. Production is down.
     journalctl -u $UNIT is where it says why; the pre-deploy database backup
     is beside the database."
   fi
 
   health_check
+  worker_check
   link_check "$old"
+}
+
+# The web tier answering says nothing about the worker: a paper saved now
+# would say "pending" for as long as nobody noticed. Ask systemd.
+worker_check() {
+  local i
+  for i in $(seq 10); do
+    if [ "$(systemctl is-active "$WORKER_UNIT" 2>/dev/null || true)" = active ]; then
+      note "$WORKER_UNIT is running"
+      return 0
+    fi
+    sleep 1
+  done
+  printf '\n'
+  as_root journalctl -u "$WORKER_UNIT" -n 30 --no-pager
+  die "$WORKER_UNIT is not running — the log is above. The site is up, but
+    uploads, reference analysis, captures and mail wait on this unit."
 }
 
 # The service is up when it serves the page — which also says the build
@@ -1665,6 +1704,7 @@ status() {
     note "not created yet (./deploy.sh prod)"
   fi
   note "$(systemctl is-active "$UNIT" 2>/dev/null || true) — $UNIT${port:+ on $port}"
+  note "$(systemctl is-active "$WORKER_UNIT" 2>/dev/null || true) — $WORKER_UNIT"
 }
 
 # --- ------------------------------------------------------------------------

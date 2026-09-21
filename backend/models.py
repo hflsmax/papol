@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint, Table, LargeBinary, and_
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, Index, UniqueConstraint, Table, LargeBinary, and_, text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from uuid import uuid4
@@ -712,3 +712,45 @@ class Feedback(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")
+
+
+class Job(Base):
+    """One piece of work the web tier handed to a worker.
+
+    The queue is this table. A request writes the row in the same
+    transaction as whatever the job is about — the paper, the board card,
+    the feedback — so there is never a job for a row that was rolled back,
+    nor a row waiting for a job that was never written. A worker claims a
+    row with `SELECT ... FOR UPDATE SKIP LOCKED`, runs it, and writes the
+    outcome back. `services/jobs.py` is the whole of the protocol.
+
+    `key` names work that must not be queued twice at once — one analysis
+    per paper, one daily digest — and is unique among the rows that are
+    still queued or running. A finished job frees its key.
+    """
+    __tablename__ = "jobs"
+    __table_args__ = (
+        Index(
+            "uq_jobs_live_key", "key", unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+            sqlite_where=text("status IN ('queued', 'running')"),
+        ),
+        Index("ix_jobs_due", "status", "run_at"),
+    )
+
+    uuid = uuid_key()
+    kind = Column(String(40), nullable=False)
+    key = Column(String(120), nullable=True)
+    payload = Column(Text, nullable=False, default="{}")  # JSON
+    status = Column(String(10), nullable=False, default="queued")  # queued | running | done | failed
+    # Who may ask after it: the user whose request queued it, or nobody.
+    user_uuid = Column(String(36), ForeignKey("users.uuid"), nullable=True, index=True)
+    result = Column(Text, nullable=True)  # JSON, once done
+    error = Column(Text, nullable=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    # Not before this moment: the digest waits for its hour.
+    run_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    worker = Column(String(120), nullable=True)

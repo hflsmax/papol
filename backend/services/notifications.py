@@ -1,14 +1,26 @@
-import asyncio
+"""Notifications, and the mail that carries them out of Papol.
+
+Nothing here talks to an SMTP server in a request. A message to send is
+a `send_email` job — one per recipient, so one refused address fails one
+job — and the worker sends it. The daily digest is a job too, one that
+queues the day's emails and then itself for tomorrow, so it runs once
+however many web processes or workers there are, and a restart at any
+hour does not lose the day.
+"""
+
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from database import SessionLocal
 from emailer import send_email
 from models import Notification, Setting, User
+from services import jobs
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+
+SEND_EMAIL, DAILY_DIGEST = "send_email", "daily_digest"
+DEFAULT_DIGEST_HOUR = 21
 
 def site_url(db: Session) -> str:
     return (
@@ -44,9 +56,41 @@ def smtp_config(db: Session):
     }
 
 
+# ------------------------------------------------------------------ sending
+
+def queue_email(db: Session, to: str, subject: str, body: str, *, notification_uuids=()) -> str:
+    """One email, to be sent by a worker. The notifications named are
+    marked emailed once it has been — and stay unemailed if it never is,
+    so the digest carries them."""
+    return jobs.enqueue(db, SEND_EMAIL, {
+        "to": to, "subject": subject, "body": body,
+        "notification_uuids": list(notification_uuids),
+    })
+
+
+async def send_email_job(db: Session, payload: dict) -> dict:
+    """The job. Configuration is read now, not when the mail was queued:
+    the settings table is the admin's, and may have been fixed since."""
+    cfg = smtp_config(db)
+    if cfg is None:
+        return {"sent": False, "skipped": "SMTP not configured"}
+    try:
+        send_email(cfg, payload["to"], payload["subject"], payload["body"])
+    except Exception as exc:
+        raise jobs.JobError(f"Email to {payload['to']} failed: {exc}") from exc
+    uuids = payload.get("notification_uuids") or []
+    if uuids:
+        for notif in db.query(Notification).filter(Notification.uuid.in_(uuids)).all():
+            notif.emailed = True
+        db.commit()
+    return {"sent": True}
+
+
+# --------------------------------------------------------------- the digest
+
 def send_daily_digest(db: Session) -> dict:
-    """Email each user their unread notifications from the past day.
-    A notification is emailed at most once."""
+    """Queue each user an email of their unread notifications from the
+    past day. A notification is emailed at most once."""
     since = datetime.utcnow() - timedelta(days=1)
     rows = (
         db.query(Notification)
@@ -62,11 +106,10 @@ def send_daily_digest(db: Session) -> dict:
     for n in rows:
         by_user.setdefault(n.user_uuid, []).append(n)
 
-    cfg = smtp_config(db)
-    if cfg is None:
-        return {"emails_sent": 0, "users_with_news": len(by_user), "skipped": "SMTP not configured"}
+    if smtp_config(db) is None:
+        return {"emails_queued": 0, "users_with_news": len(by_user), "skipped": "SMTP not configured"}
 
-    sent = 0
+    queued = 0
     for uid, notifs in by_user.items():
         user = db.query(User).filter(User.uuid == uid).first()
         if not user:
@@ -80,49 +123,51 @@ def send_daily_digest(db: Session) -> dict:
             f"Read and reply in your inbox: {site_url(db).rstrip('/')}/inbox\n\n"
             "— Papol"
         )
-        try:
-            send_email(
-                cfg,
-                user.email,
-                f"Papol: {count} new message{'s' if count != 1 else ''} today",
-                body,
-            )
-        except Exception:
-            logger.exception("Digest email to %s failed", user.email)
-            continue
-        for n in notifs:
-            n.emailed = True
-        sent += 1
+        queue_email(
+            db, user.email,
+            f"Papol: {count} new message{'s' if count != 1 else ''} today",
+            body,
+            notification_uuids=[n.uuid for n in notifs],
+        )
+        queued += 1
     db.commit()
-    return {"emails_sent": sent, "users_with_news": len(by_user)}
+    return {"emails_queued": queued, "users_with_news": len(by_user)}
 
 
-def _seconds_until(hour: int) -> float:
-    now = datetime.now()
-    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-    if target <= now:
+def digest_hour(db: Session) -> int:
+    """The digest_hour setting (0-23, server time)."""
+    try:
+        return int(setting_value(db, "digest_hour") or DEFAULT_DIGEST_HOUR)
+    except (TypeError, ValueError):
+        return DEFAULT_DIGEST_HOUR
+
+
+def next_digest_at(hour: int, now: datetime | None = None) -> datetime:
+    """The next time the clock on this host reads `hour`, as the naive UTC
+    the database keeps. A digest hour is set in the admin's own day."""
+    local_now = now or datetime.now()
+    target = local_now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if target <= local_now:
         target += timedelta(days=1)
-    return (target - now).total_seconds()
+    return target.astimezone(timezone.utc).replace(tzinfo=None)
 
-def start_digest_loop():
-    async def loop():
-        while True:
-            # Send hour is the digest_hour setting (0-23, server time)
-            db = SessionLocal()
-            try:
-                hour = int(setting_value(db, "digest_hour") or 21)
-            except (TypeError, ValueError):
-                hour = 21
-            finally:
-                db.close()
-            await asyncio.sleep(_seconds_until(hour))
-            db = SessionLocal()
-            try:
-                logger.info("Daily digest: %s", send_daily_digest(db))
-            except Exception:
-                logger.exception("Daily digest failed")
-            finally:
-                db.close()
 
-    return asyncio.create_task(loop())
+def schedule_daily_digest(db: Session) -> str | None:
+    """See to it that a digest is on the queue for its next hour. Idle
+    when one already is: the key allows one at a time, whichever worker
+    asks. Committed here — nothing else is in flight when this is called."""
+    queued = jobs.enqueue(
+        db, DAILY_DIGEST, {}, key=DAILY_DIGEST, run_at=next_digest_at(digest_hour(db)),
+    )
+    db.commit()
+    return queued
 
+
+async def daily_digest_job(db: Session, payload: dict) -> dict:
+    """The job: the day's emails onto the queue, and tomorrow's digest
+    after them. The next one is queued only once this one is off the key,
+    which is why it is queued by the worker after `finish`, not here — see
+    worker.py; here the digest is simply sent."""
+    outcome = send_daily_digest(db)
+    logger.info("Daily digest: %s", outcome)
+    return outcome

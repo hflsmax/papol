@@ -26,6 +26,58 @@ let
   papolPackages = papol.packages.${pkgs.stdenv.hostPlatform.system};
   pythonEnv = papolPackages.python;
 
+  # What the web process and the worker have in common: when they may
+  # start, what they are told, and how they are run. The two units below
+  # are this plus the one command each of them is.
+  grobidUnit = "${config.virtualisation.oci-containers.backend}-papol-grobid.service";
+  papolProcess = {
+    after = [ "network.target" "postgresql.service" grobidUnit ];
+    requires = [ "postgresql.service" grobidUnit ];
+    wantedBy = [ "multi-user.target" ];
+    environment = {
+      GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
+      DATABASE_URL = "postgresql+psycopg://papol@/papol?host=/run/postgresql";
+    } // (lib.optionalAttrs (cfg.contactEmail != null) {
+        PAPOL_CONTACT_EMAIL = cfg.contactEmail;
+      });
+  };
+  papolServiceConfig = {
+    Type = "simple";
+    User = cfg.user;
+    Group = "users";
+    WorkingDirectory = "${cfg.srcDir}/backend";
+    # Secrets by file, never through the store: anything written into a
+    # NixOS option is copied into a world-readable /nix/store path.
+    # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail, and
+    # where the files are: PAPOL_FILES_URL (s3://bucket) with the
+    # AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and
+    # AWS_DEFAULT_REGION beside it, and PAPOL_FILES_PUBLIC_URL if the
+    # bucket has a public face. Unset, the files are directories in
+    # this checkout. backend/storage.py is where these are read.
+    #
+    # The same .env the development shell reads through direnv, so a
+    # setting is written once and both the shell and the service see it.
+    # It sits beside the code the service already runs from, and is
+    # gitignored — the repository is public, and this file must never
+    # follow it. The leading "-" means it may simply not exist.
+    EnvironmentFile = "-${cfg.srcDir}/.env";
+    Restart = "on-failure";
+    RestartSec = 5;
+  };
+  # Each unit's `path` covers its Exec* commands, this one included.
+  waitForGrobid = pkgs.writeShellScript "wait-for-papol-grobid" ''
+    for attempt in $(seq 1 60); do
+      if curl --fail --silent --max-time 2 \
+          "http://127.0.0.1:${toString cfg.grobid.port}/api/isalive" \
+          | grep --quiet '^true$'; then
+        exit 0
+      fi
+      sleep 2
+    done
+    echo "Required GROBID service did not become healthy" >&2
+    exit 1
+  '';
+
   backupScript = pkgs.writeShellApplication {
     name = "papol-r2-backup";
     runtimeInputs = [ pkgs.coreutils pkgs.zip pkgs.wrangler config.services.postgresql.package ];
@@ -299,55 +351,29 @@ in {
       '';
     };
 
-    systemd.services.papol = {
+    # The application is two processes on one code and one environment:
+    # uvicorn, which answers HTTP, and the worker, which does what uvicorn
+    # only queues — the GROBID pass over a paper, the browser that captures
+    # a webpage, the mail. They share the database, the files and the
+    # secrets; what differs is who they talk to, and so what is on their
+    # PATH. Each may be stopped, restarted or multiplied without the other.
+    systemd.services.papol = papolProcess // {
       description = "Papol Paper Documentation Service";
-      after = [ "network.target" "postgresql.service" "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
-      requires = [ "postgresql.service" "${config.virtualisation.oci-containers.backend}-papol-grobid.service" ];
-      wantedBy = [ "multi-user.target" ];
-
-      environment = {
-        GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
-        DATABASE_URL = "postgresql+psycopg://papol@/papol?host=/run/postgresql";
-      } // (lib.optionalAttrs (cfg.contactEmail != null) {
-          PAPOL_CONTACT_EMAIL = cfg.contactEmail;
-        });
-
-      serviceConfig = {
-        Type = "simple";
-        User = cfg.user;
-        Group = "users";
-        WorkingDirectory = "${cfg.srcDir}/backend";
-        # The unit's `path` below covers Exec* commands, this one included.
-        ExecStartPre = pkgs.writeShellScript "wait-for-papol-grobid" ''
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent --max-time 2 \
-                "http://127.0.0.1:${toString cfg.grobid.port}/api/isalive" \
-                | grep --quiet '^true$'; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Required GROBID service did not become healthy" >&2
-          exit 1
-        '';
+      serviceConfig = papolServiceConfig // {
+        ExecStartPre = waitForGrobid;
         ExecStart = "${pythonEnv}/bin/uvicorn main:app --host ${cfg.host} --port ${toString cfg.port}";
-        # Secrets by file, never through the store: anything written into a
-        # NixOS option is copied into a world-readable /nix/store path.
-        # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail, and
-        # where the files are: PAPOL_FILES_URL (s3://bucket) with the
-        # AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and
-        # AWS_DEFAULT_REGION beside it, and PAPOL_FILES_PUBLIC_URL if the
-        # bucket has a public face. Unset, the files are directories in
-        # this checkout. backend/storage.py is where these are read.
-        #
-        # The same .env the development shell reads through direnv, so a
-        # setting is written once and both the shell and the service see it.
-        # It sits beside the code the service already runs from, and is
-        # gitignored — the repository is public, and this file must never
-        # follow it. The leading "-" means it may simply not exist.
-        EnvironmentFile = "-${cfg.srcDir}/.env";
-        Restart = "on-failure";
-        RestartSec = 5;
+      };
+      path = [ pkgs.curl pkgs.gnugrep pkgs.coreutils ];
+    };
+
+    systemd.services.papol-worker = papolProcess // {
+      description = "Papol worker: the jobs the web tier queues";
+      serviceConfig = papolServiceConfig // {
+        ExecStartPre = waitForGrobid;
+        ExecStart = "${pythonEnv}/bin/python worker.py";
+        # A stop lets the job in hand finish. A GROBID pass is bounded at
+        # five minutes (GROBID_TIMEOUT); a capture at far less.
+        TimeoutStopSec = 330;
       };
       path = [ pkgs.ffmpeg pkgs.yt-dlp pkgs.chromium pkgs.curl pkgs.gnugrep pkgs.coreutils ];
     };

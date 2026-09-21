@@ -26,6 +26,7 @@ from models import (
     Room, RoomParticipant, ServerChange, Shelf, SyncClient, Tag,
     User,
 )
+from services import extraction
 from services.papers import paper_name
 import testdb
 
@@ -970,11 +971,11 @@ class DesktopSyncContractTests(unittest.TestCase):
         storage.uploads.put("countersnapping.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")
         with (
             patch.object(
-                main,
+                extraction,
                 "extract_doi_from_pdf",
                 return_value=("10.1073/pnas.2423301122", "PDF text"),
             ),
-            patch.object(main.metadata_lookup, "by_doi", lookup),
+            patch.object(extraction.metadata_lookup, "by_doi", lookup),
         ):
             response = self.client.post(
                 f"/api/papers/{paper_name(paper_sha256)}/extract-metadata",

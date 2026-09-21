@@ -5,16 +5,10 @@ from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from models import AdminMessage, AdminMessageDelivery, Notification, User
 from schemas import AdminMessageOut, NotificationList, NotificationOut
-from services.notifications import start_digest_loop
 from sqlalchemy.orm import Session
 from app_limits import limit
 
 router = APIRouter()
-
-
-@router.on_event("startup")
-def _start_digest_loop():
-    start_digest_loop()
 
 # ---------------- Notifications ----------------
 

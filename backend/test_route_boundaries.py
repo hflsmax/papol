@@ -6,6 +6,7 @@ from pathlib import Path
 from main import app
 from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
+from routes.jobs import router as jobs_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
 
@@ -16,6 +17,7 @@ EXPECTED_ROUTES = {
     ("POST", "/api/notifications/{notif_uuid}/read"): "routes.notifications",
     ("POST", "/api/notifications/read"): "routes.notifications",
     ("POST", "/api/feedback"): "routes.feedback",
+    ("GET", "/api/jobs/{job_uuid}"): "routes.jobs",
     ("POST", "/api/papers/{paper_sha256}/sharable"): "routes.sharables",
     ("GET", "/api/papers/{paper_sha256}/sharable"): "routes.sharables",
     ("POST", "/api/sharables/{sharable_uuid}/lean"): "routes.sharables",
@@ -39,7 +41,7 @@ EXPECTED_ROUTES = {
 
 def test_extracted_routes_keep_their_contract_and_domain_owner():
     actual = {}
-    for router in (notifications_router, feedback_router, admin_router, sharables_router):
+    for router in (notifications_router, feedback_router, jobs_router, admin_router, sharables_router):
         for route in router.routes:
             path = route.path
             for method in route.methods - {"HEAD", "OPTIONS"}:

@@ -145,9 +145,70 @@ Two instances could not share them.
    served by presigned URL or CDN, not through the app.
 3. `deploy.sh pull` learns to sync the bucket alongside the dump.
 
-## Phase 3 — Background jobs
+## Phase 3 — Background jobs — DONE 2026-09-21
 
-Heavy work runs inside the web process today: GROBID calls with a 300-second
+Landed: the web tier does no heavy work. What a request cannot answer at
+once it writes as a row in a `jobs` table — in the same transaction as
+the paper, the card or the report the job is about — and
+`backend/worker.py`, a second process on the same code and environment,
+claims rows with `SELECT ... FOR UPDATE SKIP LOCKED` and runs them.
+`backend/services/jobs.py` is the whole protocol: enqueue, claim, finish,
+fail. There is no broker; the queue is PostgreSQL, which any number of
+workers on any number of hosts already share, and the same shape ports
+to Go as one table and one query. A job's `key` holds one live job at a
+time (one analysis per paper, one daily digest); a worker that dies
+mid-job leaves it `running`, and after a fifteen-minute lease the next
+claim takes it up once more, then fails it.
+
+The API contract changed in two places, and both are the final shape:
+
+- `POST /api/papers/extract` stores the PDF and answers `202` with
+  `{job, file_path, sha256}`. The reading of the file — the printed
+  identifier, CrossRef and OpenAlex, GROBID's title block as a last
+  resort — is the `extract_metadata` job, and its result is the
+  `ExtractedMetadata` the form used to get in the response.
+- `POST /api/boards/{uuid}/webpage` and `/youtube` check the link, write
+  the card, and answer `202` with `{job, item}`. The card is on the board
+  as a link at once; the `capture_webpage` / `capture_youtube` job puts
+  the picture on it, and a capture that fails leaves the card as the link
+  it was, with the job saying why.
+
+Both are polled at `GET /api/jobs/{uuid}` (`JobOut`: `queued`, `running`,
+`done` with `result`, `failed` with `detail`), which answers only the user
+whose request queued the job. `shared/api/jobs.js` is the client's side
+of it. The paper's reference pass (`analyze_paper`) kept its contract —
+`papers.references_status` and `/api/viewer-references` saying `pending`
+— because that was already a poll; what changed is that the pass runs on
+the worker, and its in-process bookkeeping (the `_analyzing` set) became
+the job key. Mail is `send_email`, one job per recipient, queued by the
+feedback route and by the daily digest; the digest is itself a job that
+queues tomorrow's after finishing, so it runs once however many web
+processes or workers there are, rather than once per uvicorn startup.
+An old desktop build calling the upload route still works: it treats
+the ticket as an answer with no title and falls back to the filename.
+
+Production runs `papol-worker.service` beside `papol.service`, from the
+same `module.nix` definition (`papolProcess`, `papolServiceConfig`); the
+browser, ffmpeg and yt-dlp moved off the web unit's PATH onto the
+worker's, and the worker's stop timeout covers a GROBID pass so a deploy
+lets the job in hand finish. `./deploy.sh prod` stops and starts both and
+checks both; `./deploy.sh dev` runs `python worker.py --reload` beside
+uvicorn, and `python -m unittest` runs jobs in-process through
+`worker.drain()`. `backend/test_jobs.py` is the queue's own suite: the
+key, the lease, and each kind from the request that queues it to the row
+the worker leaves.
+
+Two things stayed in the request on purpose. The edit form's "re-read
+the PDF" button (`/api/papers/{sha}/extract-metadata`) still answers
+synchronously: it is a button, not an upload, and the demo — which has no
+jobs, by design — answers it too. And the demo's bundled PDFs are still
+analyzed in the web process through the ephemeral reference engine,
+because that state is process-local by design and a worker could not
+fill it.
+
+What the phase was planned around, kept for the record:
+
+Heavy work ran inside the web process: GROBID calls with a 300-second
 timeout, PDF text extraction, webpage capture, SMTP sends
 (`services/feedback.py`, `services/notifications.py`).
 
