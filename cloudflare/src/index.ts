@@ -62,6 +62,14 @@ export const HOURLY_CRON = "0 * * * *";
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
+    // Only over HTTPS: a page loaded over plain HTTP is an insecure
+    // context, where the browser withholds crypto.randomUUID and the
+    // apps cannot mint an id.
+    const url = new URL(request.url);
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+      return Promise.resolve(Response.redirect(url.toString(), 301));
+    }
     return router.handle(request, env);
   },
 

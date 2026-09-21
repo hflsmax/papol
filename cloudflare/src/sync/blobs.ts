@@ -2,8 +2,8 @@
 //
 // A board file the desktop made is named by its digest under the blobs
 // prefix of the board files area; a paper's PDF is copied from there to
-// the uploads area under its digest. The keys are the ones the Python
-// backend used in the same bucket, so files already there are found.
+// the uploads area under its digest. The keys are the ones the bucket
+// has always held, so every file already there is found.
 
 import limits from "../../../config/app_limits.json";
 import { currentUser } from "../auth";
@@ -17,7 +17,7 @@ const BLOB_LIMIT = limits.files.offline_blob_mb * 1024 * 1024;
 const DIGEST = /^[0-9a-f]{64}$/;
 
 // What the board item's file_path says: the key within the board files
-// area, as the Python stored it.
+// area.
 export function blobKey(sha256: string): string {
   return `blobs/${sha256}`;
 }

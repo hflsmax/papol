@@ -1,5 +1,5 @@
 // The queue on Workers: what the API writes, what a wake-up runs, what
-// the sweep rescues, and the mail. The counterpart of backend/test_jobs.py.
+// the sweep rescues, and the mail.
 import { createExecutionContext, createMessageBatch, createScheduledController, env, getQueueResult, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

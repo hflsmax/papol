@@ -1,8 +1,6 @@
 // Papers through the API: the name a link carries, the upload and the
 // job that reads it, saving, opening, editing, taking a copy and letting
-// one go, and the PDF itself. test_paper_names.py, the remaining cases of
-// test_paper_is_not_owned.py, test_paper_metadata_shape.py's edit rules,
-// test_metadata_lookup.py and the upload cases of test_jobs.py.
+// one go, and the PDF itself.
 import { createExecutionContext, createMessageBatch, env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

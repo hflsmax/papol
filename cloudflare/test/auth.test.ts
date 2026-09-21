@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { hashPassword, verifyPassword } from "../src/auth";
-import { call, ok, register, row } from "./helpers";
+import { call, exec, ok, register, row, uuid } from "./helpers";
 
 describe("accounts", () => {
   it("signs a new user up with their furniture and a session", async () => {
@@ -51,15 +51,23 @@ describe("accounts", () => {
     expect((await call("GET", "/api/auth/me", { headers: { Authorization: "Bearer expired" } })).status).toBe(401);
   });
 
-  it("reads the password hashes the Python backend wrote", async () => {
-    // hashlib.pbkdf2_hmac("sha256", b"testing-password", b"00" * 16, 200_000).hex()
-    const stored = "00000000000000000000000000000000$6d1a5fde4f5a8ae7cf7e04ad8ea2a3a6b0ac86e7f7db9fb1cd2a5c4f6d0f1e3b";
+  it("reads the older password hashes, and re-hashes them in its own form at sign-in", { timeout: 60_000 }, async () => {
+    // hashlib.pbkdf2_hmac("sha256", b"testing-password", b"0" * 32, 200_000).hex()
+    const legacy = "00000000000000000000000000000000$647714d0f7ae0f44941ebadde82604f5c37bf85875f58bbdd82f3bb37cb9b369";
+    expect(await verifyPassword("testing-password", legacy)).toBe(true);
+    expect(await verifyPassword("other", legacy)).toBe(false);
+    expect(await verifyPassword("testing-password", "closed-account-no-password")).toBe(false);
     const ours = await hashPassword("testing-password");
-    expect(ours).toMatch(/^[0-9a-f]{32}\$[0-9a-f]{64}$/);
+    expect(ours).toMatch(/^pbkdf2\$100000\$[0-9a-f]{32}\$[0-9a-f]{64}$/);
     expect(await verifyPassword("testing-password", ours)).toBe(true);
     expect(await verifyPassword("other", ours)).toBe(false);
-    // The format is what matters here; the vector is checked against the
-    // Python in the data-move rehearsal, where real hashes cross.
-    expect(stored.split("$")[0]).toHaveLength(32);
+
+    const at = new Date().toISOString();
+    await exec("INSERT INTO users (uuid, email, display_name, email_public, is_admin, password_hash, created_at) VALUES (?, 'older@example.test', 'Older', 1, 0, ?, ?)", uuid(), legacy, at);
+    expect((await call("POST", "/api/auth/login", { json: { email: "older@example.test", password: "wrong" } })).status).toBe(401);
+    expect((await call("POST", "/api/auth/login", { json: { email: "older@example.test", password: "testing-password" } })).status).toBe(200);
+    const stored = (await row<{ password_hash: string }>("SELECT password_hash FROM users WHERE email = 'older@example.test'"))!.password_hash;
+    expect(stored).toMatch(/^pbkdf2\$100000\$/);
+    expect((await call("POST", "/api/auth/login", { json: { email: "older@example.test", password: "testing-password" } })).status).toBe(200);
   });
 });

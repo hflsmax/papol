@@ -1,7 +1,7 @@
 // Answers and refusals, in the shape every Papol client already reads.
 //
-// A refusal is `{detail}` with a status, as FastAPI answered and as the
-// three apps and the desktop parse. Throwing one from anywhere in a route
+// A refusal is `{detail}` with a status, which is what the three apps
+// and the desktop parse. Throwing one from anywhere in a route
 // ends the request with it; anything else thrown is a 500 with its message.
 
 export class HttpError extends Error {

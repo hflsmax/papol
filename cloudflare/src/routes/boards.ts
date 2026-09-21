@@ -1,7 +1,7 @@
 // Boards: a user's canvases of cards, and the cards on them.
 //
-// Every write here goes through writeSynced, so a replica hears of it as
-// it heard of the Python's commit_sync. A board's `updated_at` is its
+// Every write here goes through writeSynced, so a replica hears of it.
+// A board's `updated_at` is its
 // clock, moved by anything on it; only what a replica may write on the
 // board itself versions it.
 

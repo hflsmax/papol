@@ -1,6 +1,6 @@
 // The queue: jobs the API writes and the consumer runs.
 //
-// The `jobs` table is the truth, as it was for the Python worker. A route
+// The `jobs` table is the truth. A route
 // writes the row in its batch beside whatever the job is about, and after
 // the batch sends the row's uuid to a Cloudflare Queue as the wake-up; a
 // consumer claims the row by uuid and runs it. A Cron Trigger claims

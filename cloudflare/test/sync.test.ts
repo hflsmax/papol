@@ -1,5 +1,4 @@
-// The desktop sync contract, as backend/test_desktop_sync.py pins it,
-// asked of the Worker. Cases that reached the protocol through routes
+// The desktop sync contract, asked of the Worker. Cases that reached the protocol through routes
 // not yet ported (boards, papers, the nook, closing an account) are
 // asked through the push instead where the protocol is what they were
 // about, and listed at the end where they are not.
@@ -582,7 +581,7 @@ describe("the client gate", () => {
   });
 });
 
-// Cases in backend/test_desktop_sync.py not asked here, and why:
+// Cases of the original contract suite not asked here, and why:
 //
 // - test_identified_mutation_is_applied_once_and_replays_its_response,
 //   test_reusing_a_mutation_id_for_different_content_is_rejected (the
