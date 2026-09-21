@@ -615,13 +615,15 @@ class JobTests(unittest.TestCase):
 
     def test_a_video_capture_that_fails_leaves_the_link_card(self):
         board = self.board()
+        # A timestamp in the link is kept in the link and changes nothing
+        # else: the card's picture is the thumbnail, whatever the moment.
         queued = self.client.post(f"/api/boards/{board}/youtube", json={
             "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s", "x": 0, "y": 0,
         }).json()
-        with patch.object(capture, "capture_youtube_frame", side_effect=ValueError("no stream")):
+        with patch.object(capture, "fetch_youtube_thumbnail", side_effect=ValueError("no such video")):
             self.drain()
         failed = self.poll(queued["job"])
-        self.assertEqual(failed["detail"], "Could not capture the YouTube frame: no stream")
+        self.assertEqual(failed["detail"], "Could not fetch the video's thumbnail: no such video")
         with self.Session() as db:
             card = db.get(BoardItem, queued["item"]["uuid"])
             self.assertEqual((card.kind, card.file_path, card.source_url),
