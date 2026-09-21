@@ -3,7 +3,7 @@ import {
   enterOfflineMode, exitOfflineMode, getLocalSyncPreference,
   inOfflineMode, OFFLINE_MODE_MESSAGE, OnlineRequiredError, setLocalSyncPreference,
 } from './connectivity.js';
-import { BACKEND_BASE, inDemo } from './appUrls.js';
+import { BACKEND_BASE } from './appUrls.js';
 import { currentCredential } from './credentials.js';
 import apiShapes from '../schema/api_shapes.json' with { type: 'json' };
 
@@ -127,9 +127,8 @@ export function setNativeAccount(user) {
   else localStorage.removeItem(ACCOUNT_KEY);
 }
 
-// The demo's user lives in a disposable workspace, never in the local replica.
 export async function prepareNativeAccount(user) {
-  if (!IS_DESKTOP || inDemo() || user?.uuid == null) return false;
+  if (!IS_DESKTOP || user?.uuid == null) return false;
   await invoke('local_account_set', { accountUuid: user.uuid, profile: user });
   setNativeAccount(user);
   return true;
@@ -142,7 +141,7 @@ export function nativeAccountUuid() {
 }
 
 export function nativeDataActive() {
-  return !inDemo() && nativeAccountUuid() != null;
+  return nativeAccountUuid() != null;
 }
 
 async function nativeQuery(queryName, parameters = {}) {

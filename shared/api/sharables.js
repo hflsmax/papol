@@ -1,4 +1,4 @@
-import { inDemo, modePath } from '../appUrls.js';
+import { appPath } from '../appUrls.js';
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
 import { paperName } from '../paperName.js';
@@ -45,7 +45,7 @@ export function readSharable(sharableUuid) {
 // Where a link leads: the viewer, opened on what the link carries. Absolute,
 // because the only use for it is being given to someone else.
 export function sharableHref(sharableUuid) {
-  const path = modePath(`/viewer/?share=${sharableUuid}`, { demo: inDemo() });
+  const path = appPath(`/viewer/?share=${sharableUuid}`);
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
 }

@@ -18,7 +18,7 @@ export function backendUrl(base, path = '/') {
 const viteEnvironment = import.meta.env || {};
 const configuredBase = (viteEnvironment.BASE_URL || '/').replace(/\/$/, '');
 const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
-const surfaceMarkers = ['/demo/viewer', '/viewer', '/demo/boards', '/boards'];
+const surfaceMarkers = ['/viewer', '/boards'];
 const marker = surfaceMarkers.find((candidate) => pathname.includes(candidate));
 const markerAt = marker ? pathname.indexOf(marker) : -1;
 
@@ -27,18 +27,6 @@ export const APP_BASE = markerAt >= 0 ? pathname.slice(0, markerAt) : configured
 export function appPath(path = '/') {
   const absolute = path.startsWith('/') ? path : `/${path}`;
   return `${APP_BASE}${absolute}` || '/';
-}
-
-// One spelling for the same place in an ordinary or demo visit. This keeps
-// the Desk, viewer and board from each reconstructing the /demo prefix.
-export function modeRoute(path = '/', { demo = false } = {}) {
-  const absolute = path.startsWith('/') ? path : `/${path}`;
-  if (!demo) return absolute;
-  return absolute === '/' ? '/demo' : `/demo${absolute}`;
-}
-
-export function modePath(path = '/', options = {}) {
-  return appPath(modeRoute(path, options));
 }
 
 const configuredBackend = normalizeBackendBase(viteEnvironment.VITE_PAPOL_BACKEND);
@@ -53,25 +41,19 @@ export function backendPath(path = '/') {
 // itself. It names nothing it is leaving behind — no board, no nook, no
 // paper — because a home button that points back at the thing you just
 // closed is a back button wearing a house.
-export function homePath({ demo = false } = {}) {
-  return modePath('/', { demo });
+export function homePath() {
+  return appPath('/');
 }
 
 // A board's **jacket** — its one screen in the Library, where its name, its
 // description and the way in are kept. Singular, as a paper's is: the plural
 // `/boards/<uuid>` is the canvas, which is a different application.
-export function boardJacketPath(uuid, { demo = false } = {}) {
-  return modePath(`/board/${uuid}`, { demo });
+export function boardJacketPath(uuid) {
+  return appPath(`/board/${uuid}`);
 }
 
 export function stripAppBase(value) {
   if (!APP_BASE) return value || '/';
   if (value === APP_BASE) return '/';
   return value.startsWith(`${APP_BASE}/`) ? value.slice(APP_BASE.length) : value;
-}
-
-export function inDemo() {
-  if (typeof window === 'undefined') return false;
-  const path = stripAppBase(window.location.pathname);
-  return path === '/demo' || path.startsWith('/demo/');
 }

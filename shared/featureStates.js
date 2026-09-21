@@ -16,9 +16,9 @@
 //     undone, and the control that sets it is where that belongs.
 //   * Anything in sessionStorage is one tab's memory, and this list is shown
 //     in a different tab, which could neither read it nor clear it: the
-//     handoff bar's "Not now", `papol.viewerReturn`, `papol.newBoardHint`,
-//     `papol.paperBrowserOpen`, the demo world. "Not now" is deliberately
-//     absent for that reason, and it is gone when that tab closes anyway.
+//     handoff bar's "Not now", `papol.newBoardHint`, `papol.paperBrowserOpen`.
+//     "Not now" is deliberately absent for that reason, and it is gone when
+//     that tab closes anyway.
 //   * Identity and machinery are not the user's answers to anything:
 //     `papol_token`, `papol.localAccountUuid`, `papol.syncPreference`,
 //     `papol.clientCompatibility`.

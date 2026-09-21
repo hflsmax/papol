@@ -27,7 +27,7 @@ export function paperHref(paper) {
   return appPath(`/paper/${paperName(paper.sha256)}`);
 }
 
-// Uploaded and immutable demo PDFs use the same content-addressed media URLs.
+// An uploaded PDF is served from its content-addressed media URL.
 export function pdfHref(paper) {
   if (paper.file_path.startsWith('http')) return paper.file_path;
   return backendPath(`/uploads/${paper.file_path}`);

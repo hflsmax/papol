@@ -989,9 +989,9 @@ export const desktopStyles = `
   font-style: normal;
 }
 
-/* Beside a list pane the demo notice has less room than a website header:
+/* Beside a list pane a notice has less room than a website header:
    it keeps to one line and lets its sentence give way to its actions. */
-[data-shell='desktop'] .demo-banner {
+[data-shell='desktop'] .notice-banner {
   flex: none;
   flex-wrap: nowrap;
   justify-content: flex-start;
@@ -999,14 +999,14 @@ export const desktopStyles = `
   font-size: var(--fs-xs);
 }
 
-[data-shell='desktop'] .demo-banner > span:first-child {
+[data-shell='desktop'] .notice-banner > span:first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-[data-shell='desktop'] .demo-banner-button {
+[data-shell='desktop'] .notice-banner-button {
   flex: none;
   padding: 1px 10px;
   font-size: var(--fs-xs);

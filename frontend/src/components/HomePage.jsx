@@ -1,7 +1,7 @@
 import React from 'react';
 import SeminarFlow from './SeminarFlow';
 
-export default function HomePage({ currentUser, onDemo }) {
+export default function HomePage({ currentUser }) {
   return (
     <div>
       <div className="panel home-hero">
@@ -12,13 +12,6 @@ export default function HomePage({ currentUser, onDemo }) {
           Read closely. Keep what matters. Let every paper stay part of your
           thinking.
         </p>
-        {onDemo && (
-          <div className="demo-cta-block">
-            <button className="primary demo-cta" onClick={onDemo}>
-              Explore the demo
-            </button>
-          </div>
-        )}
         <p className="incubation-note">
           Papol is in incubation. Once it gains traction, it will move to an
           independent domain with better support.

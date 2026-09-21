@@ -73,8 +73,7 @@ export default defineConfig(({ command }) => ({
   // hooks in the shared components then run against the wrong dispatcher.
   resolve: { dedupe: ['react', 'react-dom'] },
   server: {
-    // The demo world is shared between the two apps, a level above
-    // either root.
+    // shared/ sits a level above either app's root.
     fs: { allow: ['..'] },
     proxy: { '/api': 'http://127.0.0.1:8787', '/uploads': 'http://127.0.0.1:8787' },
   },

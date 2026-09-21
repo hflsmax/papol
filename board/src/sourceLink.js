@@ -3,8 +3,7 @@
 export function localViewerBacklink(sourceUrl, appPath) {
   try {
     const url = new URL(sourceUrl);
-    const marker = url.pathname.includes('/demo/viewer/') ? '/demo/viewer/' : '/viewer/';
-    const markerAt = url.pathname.indexOf(marker);
+    const markerAt = url.pathname.indexOf('/viewer/');
     if (markerAt < 0) return null;
     return appPath(`${url.pathname.slice(markerAt)}${url.search}${url.hash}`);
   } catch {

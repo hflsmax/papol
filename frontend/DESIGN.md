@@ -40,7 +40,7 @@ Semantic hues — states carry meaning consistently across the app:
 
 | Family | Tokens | Meaning |
 |---|---|---|
-| Gold | `--gold`, `--gold-ink`, `--gold-soft` | planning state, demo banner |
+| Gold | `--gold`, `--gold-ink`, `--gold-soft` | planning state, notice banners |
 | Green | `--green`, `--green-ink`, `--green-soft` | live/called state, "public" badges, success notices |
 | Red | `--red`, `--red-soft` | danger actions, errors |
 | Grey | `--grey` | finished/neutral state pills |
@@ -57,10 +57,6 @@ restyled per page.
 someone has no profile picture (applied via `.avatar-initial.avatar-tint-N`,
 two classes so role colors like the leader's gold still win). They say
 "which person", never "what state".
-
-**Sanctioned exception:** `components/Avatar.jsx` also carries a six-color
-pastel set used as the ground behind transparent demo portraits. It is the
-only place outside the `:root` block allowed to name a color.
 
 ## Type
 

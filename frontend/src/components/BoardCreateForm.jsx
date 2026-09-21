@@ -21,7 +21,7 @@ export default function BoardCreateForm({ shelves, className, onCreated, onCance
       onCreated(board);
     } catch (err) {
       // Said where the user pressed Create, not left as a button that
-      // silently did nothing (the demo has no boards, for one).
+      // silently did nothing.
       setError(err.message);
     }
   };
