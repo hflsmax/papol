@@ -46,18 +46,28 @@ export async function listPapers() {
   return papers;
 }
 
-// Upload a PDF and wait for what the server reads out of it. The upload
-// itself answers at once with a job; the reading — the printed DOI, the
-// bibliographic APIs, the title block — happens on a worker, and the
-// form gets the fields when the job is done. What comes back is the
-// job's result plus the digest the upload was stored under.
-async function uploadAndRead(file, filename, signal) {
+// The wait for what the server reads out of an upload. The PDF is on the
+// server the moment the upload answers, and the reading — the printed DOI,
+// the bibliographic APIs, the title block — takes as long as it takes; the
+// form does not wait for it, and after this long stops asking. The paper
+// page has a button that asks again.
+const UPLOAD_READING_TIMEOUT_MS = 2 * 60 * 1000;
+
+// Upload a PDF. The server stores it at once, under its digest, and
+// answers with the job that reads it: `{ job, file_path, sha256 }`.
+async function upload(file, filename, signal) {
   const formData = new FormData();
   if (filename) formData.append('file', file, filename);
   else formData.append('file', file);
-  const queued = await handleResponse(await runtimeFetch(`${API_BASE}/papers/extract`, {
+  return handleResponse(await runtimeFetch(`${API_BASE}/papers/extract`, {
     method: 'POST', headers: authHeaders(), body: formData, signal,
   }));
+}
+
+// Upload a PDF and wait for what the server reads out of it: the job's
+// result plus the digest the upload was stored under.
+async function uploadAndRead(file, filename, signal) {
+  const queued = await upload(file, filename, signal);
   const metadata = await awaitJob(queued.job, { signal });
   return { ...metadata, file_path: queued.file_path, sha256: queued.sha256 };
 }
@@ -74,22 +84,37 @@ export async function lookupPaperMetadata(file, filename = file?.name) {
   }
 }
 
-export async function extractPaperMetadata(file) {
+// Take a PDF in: stored at once — on the server under its digest, or in
+// the nook's own store — and answered with where it went, `{ file_path,
+// sha256, job }`. Nothing is read from it here; that is `awaitPaperReading`,
+// and the form is open in the meantime.
+export async function uploadPaper(file) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     rememberPendingPaperBlob(blob);
-    return {
-      doi: null,
-      title: file.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim(),
-      authors: null,
-      journal: null,
-      year: null,
-      file_path: `${blob.sha256}.pdf`,
-      sha256: blob.sha256,
-      metadata_offline: false,
-    };
+    return { file_path: `${blob.sha256}.pdf`, sha256: blob.sha256, job: null };
   }
-  return uploadAndRead(file);
+  const queued = await upload(file);
+  return { file_path: queued.file_path, sha256: queued.sha256, job: queued.job };
+}
+
+// What the PDF says about itself, once the server has read it: the job's
+// fields — `doi, title, authors, journal, year` — or null when it could not
+// be read: the job failed, the wait was given up on or ended by `signal`,
+// the server could not be reached. A nook import has no job yet, so the
+// PDF goes to the server for reading, as the viewer's import does, unless
+// offline. None of it is worth a dialog: the form is open, and the user
+// can type what was not read.
+export async function awaitPaperReading(uploaded, file, { signal } = {}) {
+  if (!uploaded.job && inOfflineMode()) return null;
+  try {
+    return await withAbortTimeout(async (stop) => {
+      const job = uploaded.job ?? (await upload(file, file?.name, stop)).job;
+      return awaitJob(job, { signal: stop });
+    }, UPLOAD_READING_TIMEOUT_MS, { signal });
+  } catch {
+    return null;
+  }
 }
 
 export async function discardPaperImport(extractedData) {

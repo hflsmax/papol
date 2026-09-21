@@ -97,7 +97,7 @@ const {
   postRoomMessage, setRoomAvailability, uncallSeminar, unhostRoom,
 } = await import('../../shared/api/rooms.js');
 const {
-  addToNook, createPaper, deletePaper, extractPaperMetadata, getPaper, updatePaper,
+  addToNook, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
 } = await import('../../shared/api/papers.js');
 
 test('paper and comment reads start together', async () => {
@@ -145,10 +145,11 @@ test('a PDF added offline is named by its file, and its first thought is a note'
   // else is refused by the replica before it is refused by the service, so
   // the import simply never lands.
   const digest = 'a'.repeat(64);
-  const extracted = await extractPaperMetadata(
+  const extracted = await uploadPaper(
     new File(['%PDF-1.4\noffline\n%%EOF'], 'offline.pdf', { type: 'application/pdf' }),
   );
   assert.equal(extracted.sha256, digest);
+  assert.equal(extracted.job, null, 'nothing is read from it until the form asks');
 
   queryPaper = { uuid: digest, sha256: digest };
   calls.length = 0;
