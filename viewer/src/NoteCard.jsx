@@ -182,7 +182,7 @@ export default function NoteCard({
           <button
             type="button"
             className="note-pop-delete"
-            title="Delete this anchor"
+            title="Delete this anchor (Delete)"
             aria-label="Delete this anchor"
             onClick={() => {
               dropped.current = true;

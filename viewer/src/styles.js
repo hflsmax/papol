@@ -1803,7 +1803,24 @@ ${macHandoffStyles}
   transform: translate(-50%, -50%) scale(1.12);
 }
 
+/* The anchor in hand: the one whose pin was clicked, whose card is open,
+   and which Delete would take away. A ring behind the glyph, in the
+   selection colour the clip uses, and the glyph itself untouched — the
+   pin is still that pin, it has only been picked out. The ring sits
+   under the drawing: the button's transform makes it a stacking context
+   of its own, so a negative z-index stays inside it. */
 .pin.active { opacity: 1; }
+.pin.active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2);
+  pointer-events: none;
+}
 .pin:not(.active) { opacity: 0.9; }
 
 /* An anchor with nothing written on it yet: an annotation, not a note. */
