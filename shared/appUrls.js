@@ -1,6 +1,6 @@
 // A configured backend is a directory URL, never a filename. Keeping the
 // trailing slash means URL resolution preserves a mounted deployment such as
-// https://mc-pony.com/papol/ instead of silently falling back to the origin.
+// https://papol.io/ instead of silently falling back to the origin.
 export function normalizeBackendBase(value) {
   const source = String(value || '').trim();
   return source ? `${source.replace(/\/+$/, '')}/` : '';
