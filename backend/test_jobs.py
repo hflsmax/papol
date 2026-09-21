@@ -11,6 +11,7 @@ browser, an SMTP server) stubbed at the service's edge.
 import asyncio
 import hashlib
 import os
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ import metadata_lookup
 import storage
 import testdb
 import worker
+from app_limits import limit
 from auth import get_current_user, get_optional_user
 from database import get_db
 from models import (
@@ -419,6 +421,278 @@ class JobTests(unittest.TestCase):
         self.assertEqual(notifications.next_digest_at(21, now=noon), utc(noon.replace(hour=21)))
         # An hour already past today is tomorrow's.
         self.assertEqual(notifications.next_digest_at(9, now=noon), utc(noon.replace(hour=9) + timedelta(days=1)))
+
+    def test_the_digest_carries_only_the_days_unread_unemailed_news(self):
+        with self.Session() as db:
+            db.add_all([
+                Notification(user_uuid=self.user_uuid, content="today"),
+                Notification(user_uuid=self.user_uuid, content="already read", read=True),
+                Notification(user_uuid=self.user_uuid, content="already mailed", emailed=True),
+                Notification(user_uuid=self.user_uuid, content="last week",
+                             created_at=datetime.utcnow() - timedelta(days=8)),
+                Notification(user_uuid=self.admin_uuid, content="the admin's"),
+            ])
+            db.commit()
+            with patch.dict(os.environ, {"SMTP_HOST": "mail.example.test"}):
+                outcome = notifications.send_daily_digest(db)
+        self.assertEqual(outcome, {"emails_queued": 2, "users_with_news": 2})
+        queued = {jobs.payload_of(j)["to"]: jobs.payload_of(j) for j in self.live_jobs(notifications.SEND_EMAIL)}
+        self.assertIn("  - today", queued["reader@example.test"]["body"])
+        for left_out in ("already read", "already mailed", "last week"):
+            self.assertNotIn(left_out, queued["reader@example.test"]["body"])
+        self.assertEqual(len(queued["reader@example.test"]["notification_uuids"]), 1)
+
+    def test_without_smtp_the_digest_queues_nothing_but_still_comes_back_tomorrow(self):
+        with self.Session() as db:
+            db.add(Notification(user_uuid=self.user_uuid, content="news"))
+            db.commit()
+            first = notifications.schedule_daily_digest(db)
+            db.get(Job, first).run_at = datetime.utcnow() - timedelta(seconds=1)
+            db.commit()
+        with patch.dict(os.environ, {"SMTP_HOST": ""}):
+            self.assertEqual(self.drain(), 1)
+        with self.Session() as db:
+            self.assertEqual(jobs.result_of(db.get(Job, first))["skipped"], "SMTP not configured")
+            self.assertFalse(db.query(Notification).one().emailed)
+            self.assertEqual(len(self.live_jobs(notifications.DAILY_DIGEST)), 1)
+
+    # ------------------------------------------------ the queue, harder
+
+    def test_a_request_that_rolls_back_leaves_no_job_behind(self):
+        """The job is in the caller's transaction: no paper, no job."""
+        with self.Session() as db:
+            jobs.enqueue(db, "noop", {}, key="with-the-row")
+            db.rollback()
+        self.assertEqual(self.live_jobs(), [])
+        with self.Session() as db:
+            self.assertEqual(db.query(Job).count(), 0)
+
+    def test_a_failed_job_frees_its_key_as_a_finished_one_does(self):
+        with self.Session() as db:
+            first = jobs.enqueue(db, "noop", {}, key="once")
+            db.commit()
+            jobs.fail(db, db.get(Job, first), "no")
+            self.assertIsNotNone(jobs.enqueue(db, "noop", {}, key="once"))
+            db.commit()
+
+    def test_jobs_are_taken_in_the_order_they_came_due(self):
+        now = datetime.utcnow()
+        with self.Session() as db:
+            later = jobs.enqueue(db, "noop", {"n": 3}, run_at=now - timedelta(seconds=1))
+            first = jobs.enqueue(db, "noop", {"n": 1}, run_at=now - timedelta(minutes=2))
+            second = jobs.enqueue(db, "noop", {"n": 2}, run_at=now - timedelta(minutes=1))
+            db.commit()
+            taken = [jobs.claim(db, "w").uuid for _ in range(3)]
+        self.assertEqual(taken, [first, second, later])
+
+    def test_two_workers_never_take_the_same_job(self):
+        """SKIP LOCKED, exercised: two sessions claiming at once from one queue."""
+        with self.Session() as db:
+            for n in range(40):
+                jobs.enqueue(db, "noop", {"n": n})
+            db.commit()
+        taken = {"a": [], "b": []}
+        start = threading.Barrier(2)
+
+        def claim_everything(name):
+            start.wait()
+            with self.Session() as db:
+                while (job := jobs.claim(db, name)) is not None:
+                    taken[name].append(job.uuid)
+        threads = [threading.Thread(target=claim_everything, args=(name,)) for name in taken]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(taken["a"]) + len(taken["b"]), 40)
+        self.assertEqual(set(taken["a"]) & set(taken["b"]), set())
+        with self.Session() as db:
+            self.assertEqual(db.query(Job).filter(Job.status == "running").count(), 40)
+            self.assertEqual({w for (w,) in db.query(Job.worker).distinct()}, {"a", "b"})
+
+    def test_a_running_job_reads_as_running_and_its_result_is_its_own(self):
+        with self.Session() as db:
+            uuid = jobs.enqueue(db, "noop", {}, user_uuid=self.user_uuid)
+            db.commit()
+            self.assertEqual(self.poll(uuid)["status"], "queued")
+            jobs.claim(db, "w")
+            self.assertEqual(self.poll(uuid)["status"], "running")
+            jobs.finish(db, db.get(Job, uuid), {"answer": 42})
+        self.assertEqual(self.poll(uuid), {
+            "uuid": uuid, "kind": "noop", "status": "done", "detail": None, "result": {"answer": 42},
+        })
+
+    def test_a_long_reason_is_cut_to_what_the_column_holds(self):
+        async def verbose(db, payload):
+            raise jobs.JobError("x" * 10_000)
+        with self.Session() as db:
+            uuid = jobs.enqueue(db, "verbose", {})
+            db.commit()
+        with patch.dict(worker.HANDLERS, {"verbose": verbose}):
+            self.drain()
+        self.assertEqual(len(self.job(uuid).error), limit("text", "analysis_error"))
+
+    def test_a_handlers_half_done_work_is_rolled_back_with_its_failure(self):
+        """A handler that wrote and then raised leaves nothing but the failed job."""
+        async def half(db, payload):
+            db.add(Notification(user_uuid=self.user_uuid, content="half done"))
+            db.flush()
+            raise RuntimeError("then it broke")
+        with self.Session() as db:
+            uuid = jobs.enqueue(db, "half", {})
+            db.commit()
+        with patch.dict(worker.HANDLERS, {"half": half}):
+            self.drain()
+        with self.Session() as db:
+            self.assertEqual(db.query(Notification).count(), 0)
+            self.assertEqual((db.get(Job, uuid).status, db.get(Job, uuid).error), ("failed", "then it broke"))
+
+    # ------------------------------------------------ the analysis, harder
+
+    def test_a_pass_replaces_what_an_earlier_pass_read(self):
+        with patch.object(grobid, "configured", return_value=True):
+            digest = self.save_paper()
+            first = grobid.Analysis(
+                references=[grobid.Reference(key="b0", index=0, raw="Old 1999", title="Old")],
+                citations=[grobid.Citation(key="b0", label="[1]", page=1)],
+            )
+            with patch.object(grobid, "analyze", AsyncMock(return_value=first)):
+                self.drain()
+            with self.Session() as db:
+                paper = db.get(Paper, digest)
+                paper.references_status = None  # asked to read it again
+                db.commit()
+            self.client.get(f"/api/viewer-references/{digest}?paper_sha256={digest}")
+            second = grobid.Analysis(
+                references=[grobid.Reference(key="b7", index=0, raw="New 2024", title="New")],
+                citations=[],
+            )
+            with patch.object(grobid, "analyze", AsyncMock(return_value=second)):
+                self.assertEqual(self.drain(), 1)
+            ready = self.client.get(f"/api/viewer-references/{digest}?paper_sha256={digest}").json()
+        self.assertEqual([r["title"] for r in ready["references"]], ["New"])
+        self.assertEqual(ready["citations"], [])
+        with self.Session() as db:
+            self.assertEqual(db.query(PaperReference).count(), 1)
+            self.assertEqual(db.query(PaperCitation).count(), 0)
+
+    def test_a_paper_whose_pdf_is_gone_says_so(self):
+        with patch.object(grobid, "configured", return_value=True):
+            digest = self.save_paper()
+            storage.uploads.delete(f"{digest}.pdf")
+            with patch.object(grobid, "analyze", AsyncMock()) as analyze:
+                self.drain()
+            analyze.assert_not_awaited()
+        with self.Session() as db:
+            paper = db.get(Paper, digest)
+            self.assertEqual((paper.references_status, paper.references_error),
+                             ("failed", "The PDF for this paper is missing"))
+
+    def test_a_paper_deleted_while_queued_is_not_analyzed(self):
+        with patch.object(grobid, "configured", return_value=True):
+            digest = self.save_paper()
+            with self.Session() as db:
+                db.get(Paper, digest).deleted_at = datetime.utcnow()
+                db.commit()
+            with patch.object(grobid, "analyze", AsyncMock(return_value=grobid.Analysis([], []))):
+                self.drain()
+        with self.Session() as db:
+            job = db.query(Job).filter(Job.kind == analysis.KIND).one()
+        # The pass runs — the row is still there and a restore would want
+        # it — but nothing is left saying pending.
+        self.assertEqual(job.status, "done")
+
+    # ------------------------------------------------ the upload, harder
+
+    def test_an_upload_whose_file_vanished_fails_with_a_sentence(self):
+        response = self.client.post(
+            "/api/papers/extract", files={"file": ("p.pdf", b"%PDF-1.4 gone", "application/pdf")},
+        )
+        ticket = response.json()
+        storage.uploads.delete(ticket["file_path"])
+        self.drain()
+        self.assertEqual(self.poll(ticket["job"])["detail"], "PDF file not found")
+
+    def test_a_video_capture_that_fails_leaves_the_link_card(self):
+        board = self.board()
+        queued = self.client.post(f"/api/boards/{board}/youtube", json={
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s", "x": 0, "y": 0,
+        }).json()
+        with patch.object(capture, "capture_youtube_frame", side_effect=ValueError("no stream")):
+            self.drain()
+        failed = self.poll(queued["job"])
+        self.assertEqual(failed["detail"], "Could not capture the YouTube frame: no stream")
+        with self.Session() as db:
+            card = db.get(BoardItem, queued["item"]["uuid"])
+            self.assertEqual((card.kind, card.file_path, card.source_url),
+                             ("youtube", None, "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s"))
+
+
+class WorkerLoopTests(unittest.IsolatedAsyncioTestCase):
+    """The process itself: it takes what is queued, waits when there is
+    nothing, and stops when told."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = testdb.fresh_engine()
+        cls.Session = sessionmaker(bind=cls.engine)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.dispose()
+
+    def setUp(self):
+        with self.Session() as db:
+            db.query(Job).delete()
+            db.commit()
+
+    async def test_the_loop_runs_what_arrives_and_stops_when_told(self):
+        ran = []
+
+        async def note(db, payload):
+            ran.append(payload["n"])
+            return payload
+
+        stopping = asyncio.Event()
+        with patch.dict(worker.HANDLERS, {"note": note}), patch.object(worker, "POLL_SECONDS", 0.05):
+            loop = asyncio.create_task(worker.run(stopping=stopping))
+            await asyncio.sleep(0.1)
+            # Up, and idle: it has queued the digest and found nothing else.
+            with self.Session() as db:
+                self.assertEqual(db.query(Job).filter(Job.kind == notifications.DAILY_DIGEST).count(), 1)
+                jobs.enqueue(db, "note", {"n": 1})
+                jobs.enqueue(db, "note", {"n": 2})
+                db.commit()
+            for _ in range(50):
+                await asyncio.sleep(0.05)
+                if len(ran) == 2:
+                    break
+            self.assertEqual(ran, [1, 2])
+            stopping.set()
+            await asyncio.wait_for(loop, 5)
+        with self.Session() as db:
+            self.assertEqual(db.query(Job).filter(Job.kind == "note", Job.status == "done").count(), 2)
+
+    async def test_a_stop_lets_the_job_in_hand_finish(self):
+        finished = []
+
+        async def slow(db, payload):
+            await asyncio.sleep(0.3)
+            finished.append(True)
+            return {}
+
+        with self.Session() as db:
+            uuid = jobs.enqueue(db, "slow", {})
+            db.commit()
+        stopping = asyncio.Event()
+        with patch.dict(worker.HANDLERS, {"slow": slow}), patch.object(worker, "POLL_SECONDS", 0.05):
+            loop = asyncio.create_task(worker.run(stopping=stopping))
+            await asyncio.sleep(0.1)  # the job has been claimed and is running
+            stopping.set()
+            await asyncio.wait_for(loop, 5)
+        self.assertEqual(finished, [True])
+        with self.Session() as db:
+            self.assertEqual(db.get(Job, uuid).status, "done")
 
 
 if __name__ == "__main__":
