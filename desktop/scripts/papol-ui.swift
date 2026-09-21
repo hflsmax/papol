@@ -411,14 +411,25 @@ func typeText(_ pid: pid_t, into wanted: String, text: String) -> Int32 {
         up.post(tap: .cghidEventTap)
         // A webview coalesces events posted faster than it renders, and
         // drops characters when it does. This is slow enough to survive that.
-        Thread.sleep(forTimeInterval: 0.012)
+        Thread.sleep(forTimeInterval: 0.02)
     }
-    Thread.sleep(forTimeInterval: 0.3)
 
-    // Say what the field holds now rather than that the keys were sent.
-    // What was typed and what arrived are different claims, and only the
-    // second one is worth anything.
-    let arrived: String = attribute(field, kAXValueAttribute as String) ?? ""
+    // Say what the field holds rather than that the keys were sent. What
+    // was typed and what arrived are different claims, and only the second
+    // one is worth anything. Posting a key is not the page having taken
+    // it: the events queue and the page drains them as it renders, and on
+    // a loaded machine a read straight after the last one found the first
+    // half of an address and called the rest missing. So wait for the
+    // value to arrive, and only then say what it is.
+    let masked = { (value: String) in
+        value.count == text.count && value.allSatisfy { !$0.isLetter && !$0.isNumber }
+    }
+    var arrived = ""
+    let deadline = Date().addingTimeInterval(3)
+    repeat {
+        Thread.sleep(forTimeInterval: 0.1)
+        arrived = attribute(field, kAXValueAttribute as String) ?? ""
+    } while arrived != text && !masked(arrived) && Date() < deadline
     if arrived == text {
         print("typed \(text.count) characters into \(wanted)")
         return 0
@@ -427,7 +438,7 @@ func typeText(_ pid: pid_t, into wanted: String, text: String) -> Int32 {
     // text can never be read back. Its length still can, and that is the
     // whole of what this is able to check — say so rather than imply the
     // characters were compared.
-    if arrived.count == text.count, arrived.allSatisfy({ !$0.isLetter && !$0.isNumber }) {
+    if masked(arrived) {
         print("typed \(text.count) characters into \(wanted) (masked; length matches)")
         return 0
     }
