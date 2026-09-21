@@ -34,6 +34,9 @@ jobs:
           # D1. --legacy-peer-deps because npm's peer resolver crashes on
           # Vitest 5's optional peers while the pool still wants Vitest 4.
           nix develop --command bash -c 'cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test'
+          # The host's helper beside GROBID: its tests, and the checked-in
+          # bundle rebuilt to prove it is what the source says (`check`).
+          nix develop --command bash -c 'cd host/helper && npm ci && npm run typecheck && npm run check && npm test'
 
       # The Worker as it is deployed: the three builds laid out as its
       # assets, a migrated local D1 beneath it, on a port of its own.

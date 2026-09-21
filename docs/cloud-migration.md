@@ -744,6 +744,44 @@ D1 export into the local one. The desktop app's default backend is
 end-to-end start the Worker (`wrangler dev`) where they started uvicorn.
 `scripts/migrate-postgres-to-d1.py` stays as the record of the one move.
 
+### Step 8 — landed 2026-09-21: the host helps
+
+The Worker runs on Cloudflare's Free plan, which gives an invocation
+about ten milliseconds of CPU. Reading a paper is not ten milliseconds
+of work: laying out the first pages with pdf.js to find an identifier,
+and walking a long paper's TEI into references, markers and links, are
+each more than that, and the two jobs that did them were the ones that
+could be cut off mid-way. So the CPU-heavy work moves to the NixOS host,
+which has plenty, as a small Node service beside GROBID (`host/helper/`,
+the `papol-helper` unit), and the Worker only forwards bytes and stores
+rows.
+
+- Two endpoints, each taking a PDF's bytes and answering JSON: `POST
+  /analyze` runs GROBID's full-text pass and answers `{ references,
+  citations, links }`; `POST /header` runs the header pass, consolidated
+  (GROBID asks CrossRef itself, from the host) and answers the title
+  block with its DOI and arXiv id. They sit behind the same nginx vhost
+  and credential as GROBID, under `/helper/`, so the Worker's secrets
+  are unchanged: `${GROBID_URL}/helper/analyze` with `GROBID_AUTH`.
+- One implementation of the TEI reading, run where the CPU is: the
+  helper imports `cloudflare/src/papers/tei.ts` and esbuild bundles it,
+  so the Worker's parser is the one that runs on the host and the
+  Worker's tests are what test it. `parseHeader` now reads the header's
+  `<idno>` elements too. The Worker itself no longer parses TEI or reads
+  a PDF: `unpdf` is gone, `grobid.ts` is `helper.ts`, a client.
+- The upload's identifier comes from the consolidated header rather than
+  the first pages' text, which is a change in what is found: CrossRef's
+  match on the title block where a paper prints no DOI, and nothing where
+  GROBID misreads the block. The CrossRef/OpenAlex enrichment by DOI
+  stays in the Worker; that is network, not CPU.
+- The bundle `host/helper/dist/helper.js` is checked in and the unit runs
+  `node` on it: the host rebuilds with a fast-forward and `nixos-rebuild
+  switch`, with no npm on the way and no network inside a Nix build.
+  `npm run check` in `host/helper` rebuilds and fails on a stale bundle,
+  and CI runs it.
+- With no helper configured, or one that is down, nothing changes from
+  before: references are "unavailable", uploads get the filename title.
+
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
 deleted; the host's configuration.nix trimmed of the retired keys.

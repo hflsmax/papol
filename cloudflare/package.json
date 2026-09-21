@@ -15,8 +15,7 @@
     "@cloudflare/puppeteer": "^1.4.0",
     "@noble/hashes": "^2.4.0",
     "@rgrove/parse-xml": "^5.0.0",
-    "fflate": "^0.8.3",
-    "unpdf": "^1.8.1"
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
