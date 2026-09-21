@@ -63,5 +63,6 @@ jobs:
           else npx wrangler deploy --env dev; fi
       - name: Smoke test
         run: |
-          if [ "$TARGET" = production ]; then cloudflare/scripts/smoke.sh https://papol.io
+          # Production is only asked, never written: a smoke paper would stay in its Library.
+          if [ "$TARGET" = production ]; then cloudflare/scripts/smoke.sh --read-only https://papol.io
           else cloudflare/scripts/smoke.sh https://dev.papol.io; fi
