@@ -12,13 +12,14 @@ const HEIGHT = 720;
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const FRAMES = path.join(ROOT, 'frames');
 const TEAPOT = path.join(ROOT, 'utah-teapot.png');
-const BUNNY = path.join(ROOT, 'stanford-bunny.png');
-const ORIGIN = 'http://127.0.0.1:8000';
-const token = process.env.PAPOL_TOKEN || execFileSync(
-  'psql',
-  ['-h', path.join(ROOT, '..', '..', '.postgres'), '-U', 'papol', '-d', 'papol', '-tAc', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
-  { encoding: 'utf8' },
-).trim();
+const BUNNY = path.join(ROOT, 'stanford-bunny.jpg');
+const ORIGIN = 'http://127.0.0.1:8787';
+// The newest session in the local D1 — the one `./deploy.sh dev` serves.
+const token = process.env.PAPOL_TOKEN || JSON.parse(execFileSync(
+  'npx',
+  ['wrangler', 'd1', 'execute', 'papol', '--local', '--json', '--command', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
+  { cwd: path.join(ROOT, '..', '..', 'cloudflare'), encoding: 'utf8' },
+))[0].results[0].token;
 const chromiumPath = process.env.CHROMIUM_PATH || execFileSync('which', ['chromium'], { encoding: 'utf8' }).trim();
 
 const request = async (route, options = {}) => {
@@ -30,7 +31,7 @@ const request = async (route, options = {}) => {
   return response.status === 204 ? null : response.json();
 };
 
-execFileSync('python', [path.join(ROOT, 'prepare_assets.py')]);
+execFileSync('node', [path.join(ROOT, 'prepare-assets.mjs')], { stdio: 'inherit' });
 fs.rmSync(FRAMES, { recursive: true, force: true });
 fs.mkdirSync(FRAMES, { recursive: true });
 
@@ -160,7 +161,7 @@ try {
     await page.evaluate(({ encoded, name, x, y }) => {
       const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
       const transfer = new DataTransfer();
-      transfer.items.add(new File([bytes], name, { type: 'image/png' }));
+      transfer.items.add(new File([bytes], name, { type: name.endsWith('.jpg') ? 'image/jpeg' : 'image/png' }));
       const target = document.querySelector('.board-viewport');
       for (const type of ['dragenter', 'dragover', 'drop']) {
         target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: transfer }));
@@ -195,7 +196,7 @@ try {
   await dropExternalFile(TEAPOT, 'utah-teapot.png', { x: 230, y: 245 });
   await page.waitForFunction(() => document.querySelectorAll('.board-canvas-card').length === 1);
   await padTo(16.8);
-  await dropExternalFile(BUNNY, 'stanford-bunny.png', { x: 940, y: 255 });
+  await dropExternalFile(BUNNY, 'stanford-bunny.jpg', { x: 940, y: 255 });
   await page.waitForFunction(() => document.querySelectorAll('.board-canvas-card').length === 2);
   await moveTo(570, 590, 0.8);
   await padTo(20.0);

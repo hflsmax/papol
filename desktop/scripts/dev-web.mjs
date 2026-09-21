@@ -5,7 +5,7 @@ import { normalizeBackendBase } from '../../shared/appUrls.js';
 
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = resolve(desktopDir, '..');
-const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'http://127.0.0.1:8000');
+const backend = normalizeBackendBase(process.env.PAPOL_BACKEND_URL || 'http://127.0.0.1:8787');
 const apps = [
   ['frontend', '5173'],
   ['viewer', '5174'],

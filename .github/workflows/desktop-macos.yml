@@ -74,11 +74,11 @@ jobs:
   # bundled pages in a browser with a mocked bridge, and its cargo tests
   # drive the replica with no window anywhere; nothing there says whether
   # the application a person opens comes up, takes a sign-in, and shows
-  # the paper the service holds. This job starts the real backend, compiles
-  # the real app against it, and asks its window — through the
-  # accessibility API, the only way into a WKWebView — for exactly that.
-  # nix rather than the toolchain actions, because the backend's Python is
-  # listed nowhere but flake.nix.
+  # the paper the service holds. This job starts the real backend — the
+  # Worker, on wrangler's local runtime — compiles the real app against it,
+  # and asks its window — through the accessibility API, the only way into
+  # a WKWebView — for exactly that. nix rather than the toolchain actions,
+  # because the Node and the Rust it needs are listed nowhere but flake.nix.
   end-to-end:
     runs-on: macos-26
     timeout-minutes: 60

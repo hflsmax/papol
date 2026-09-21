@@ -1,12 +1,12 @@
 # Sharing, end to end
 
-The backend suite states what a link means; the viewer's own tests state what
+The Worker suite states what a link means; the viewer's own tests state what
 its source layer answers. Neither watches a user follow one. This does: it
 drives Chrome through the real pages and asserts on what rendered.
 
 ```sh
-PAPOL_DEV_PORT=8010 ./deploy.sh dev          # in one terminal
-python3 scripts/share-e2e/seed.py            # in another
+./deploy.sh dev                              # in one terminal
+node scripts/share-e2e/seed.mjs              # in another
 node scripts/share-e2e/run.mjs
 ```
 
@@ -42,13 +42,17 @@ half-built page, and the negative assertions — names nobody, carries no marks
 — then pass for the wrong reason, which is worse than failing. The check waits
 for the paper's name to reach `document.title`.
 
-**No password is typed.** The token comes from the backend's own API and is
+**No password is typed.** The token comes from the Worker's own API and is
 stored the way the application stores it. Chrome runs headless unless
 `PAPOL_E2E_HEADED=1`, and `CHROME` names the binary if it is not in the usual
 place.
 
-Seed and run from the same shell, or name the fixture explicitly. The default
-path lives in `TMPDIR`, and `nix develop` — which `./deploy.sh dev` runs under
-— sets a `TMPDIR` of its own, so seeding inside that shell and running outside
-it looks exactly like a fixture that was never written. `PAPOL_E2E_FIXTURE`
-settles it in both places.
+`PAPOL_BASE` is where the pages are. Against `./deploy.sh dev` that is the
+frontend's Vite server, `http://127.0.0.1:5173`, the default, which proxies
+the viewer and the API behind it. CI (`.github/workflows/pr.yml`) assembles
+the site and points it at the Worker itself.
+
+Seed and run from the same shell, or name the fixture explicitly with
+`PAPOL_E2E_FIXTURE`: the default path lives in `TMPDIR`, and `nix develop`
+sets a `TMPDIR` of its own, so seeding inside that shell and running outside
+it looks exactly like a fixture that was never written.

@@ -25,29 +25,27 @@ jobs:
       - name: Let Chromium sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-      - name: Unit tests, all five surfaces
+      - name: Unit tests, all four surfaces
         run: |
           nix develop --command bash -c 'cd viewer   && npm ci && npm test'
           nix develop --command bash -c 'cd board    && npm ci && npm test'
           nix develop --command bash -c 'cd frontend && npm ci && npm test'
-          # The Worker the backend is becoming (docs/cloud-migration.md, phase
-          # 4): its suite runs in the Workers runtime against a local D1.
-          # --legacy-peer-deps because npm's peer resolver crashes on Vitest
-          # 5's optional peers while the pool still wants Vitest 4.
+          # The Worker: its suite runs in the Workers runtime against a local
+          # D1. --legacy-peer-deps because npm's peer resolver crashes on
+          # Vitest 5's optional peers while the pool still wants Vitest 4.
           nix develop --command bash -c 'cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test'
-          # The backend suite levels its schema, so it runs only against a
-          # database named *_test; `./deploy.sh db` brings the cluster up and
-          # this is the invocation it prints.
-          nix develop --command bash -c './deploy.sh db && cd backend && DATABASE_URL="postgresql+psycopg://papol@/papol_test?host=$PWD/../.postgres" python -m unittest'
 
-      - name: Start a development server
+      # The Worker as it is deployed: the three builds laid out as its
+      # assets, a migrated local D1 beneath it, on a port of its own.
+      - name: Start the Worker on the assembled site
         run: |
-          PAPOL_DEV_PORT=8010 nohup ./deploy.sh dev --no-watch > server.log 2>&1 &
+          nix develop --command bash -c 'cloudflare/scripts/assemble.sh && cd cloudflare && npx wrangler d1 migrations apply papol --local'
+          cd cloudflare && nohup nix develop .. --command npx wrangler dev --ip 127.0.0.1 --port 8010 --show-interactive-dev-session=false > ../server.log 2>&1 &
           for _ in $(seq 90); do
-            curl -fsS http://127.0.0.1:8010/openapi.json > /dev/null 2>&1 && exit 0
+            curl -fsS -o /dev/null http://127.0.0.1:8010/ 2>/dev/null && exit 0
             sleep 2
           done
-          echo 'the server never came up'; cat server.log; exit 1
+          echo 'the Worker never came up'; cat server.log; exit 1
 
       - name: Browser suite over the real pages
         env:
@@ -57,9 +55,9 @@ jobs:
             set -e
             export PAPOL_E2E_FIXTURE="$PWD/e2e-fixture.json"
             export CHROME="$(command -v chromium)"
-            python3 scripts/share-e2e/seed.py
+            node scripts/share-e2e/seed.mjs
             node scripts/share-e2e/run.mjs'
 
-      - name: Server log
+      - name: Worker log
         if: failure()
         run: cat server.log || true

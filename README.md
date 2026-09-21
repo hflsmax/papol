@@ -18,3 +18,25 @@ ideas, and the people that shape your thinking.
 ## Papol for Mac
 
 ![Papol running on macOS](docs/screenshots/macos.png)
+
+## Running it
+
+Papol is a Cloudflare Worker (`cloudflare/`: the API and the jobs, on D1,
+R2 and a Queue) serving three Vite apps (`frontend/`, `viewer/`, `board/`)
+as its static assets, with a native macOS shell (`desktop/`) around the same
+pages. Every tool comes from `flake.nix`: `direnv allow`, or `nix develop`.
+
+```sh
+./deploy.sh dev                       # the Worker on :8787, the apps live-reloading on :5173
+```
+
+Or the Worker alone:
+
+```sh
+cd cloudflare && npm ci --legacy-peer-deps && npx wrangler dev
+```
+
+Its suite is `npm test` there, in the Workers runtime against a local
+database; each app's is `npm test` in its directory. `./deploy.sh prod`
+deploys to https://papol.io, and `deploy.sh`'s header lists the rest. How
+the system came to be shaped this way is in `docs/cloud-migration.md`.
