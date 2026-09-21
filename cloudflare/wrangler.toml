@@ -9,6 +9,10 @@ main = "src/index.ts"
 compatibility_date = "2026-08-22"
 compatibility_flags = ["nodejs_compat"]
 
+# papol.io is the only door.
+workers_dev = false
+preview_urls = false
+
 # Papol's own hostname, and www beside it. A custom domain: Cloudflare
 # writes the DNS records on deploy, and the workers.dev address stays as
 # a second door until the cutover is done.
