@@ -6,7 +6,6 @@ Run in the repository's development environment with:
 
 import hashlib
 import json
-import shutil
 import tempfile
 import unittest
 import uuid
@@ -18,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 import main
-import sync.api as sync_api
+import storage
 from sync.changes import commit_sync
 from sync.forgetting import replay_window
 from database import PapolSession, current_request_session, get_db
@@ -53,35 +52,26 @@ class DesktopSyncContractTests(unittest.TestCase):
         main.app.dependency_overrides[get_db] = test_db
         cls.original_session_factory = main.app.state.session_factory
         main.app.state.session_factory = cls.sessions
+        # Scratch areas stand in for the stores: board files (and the
+        # desktop's blobs) in one directory, PDFs in another beside it.
         cls.board_files = tempfile.TemporaryDirectory(prefix="papol-sync-board-files-")
-        cls.original_boards_dir = main.BOARDS_DIR
-        main.BOARDS_DIR = Path(cls.board_files.name)
-        cls.original_sync_board_files_dir = sync_api.BOARD_FILES_DIR
-        cls.original_sync_blobs_dir = sync_api.BLOBS_DIR
-        cls.original_sync_pdfs_dir = sync_api.PDF_FILES_DIR
-        sync_api.BOARD_FILES_DIR = Path(cls.board_files.name)
-        sync_api.BLOBS_DIR = Path(cls.board_files.name) / "blobs"
-        sync_api.PDF_FILES_DIR = Path(cls.board_files.name) / "pdfs"
+        cls.original_stores = (storage.uploads, storage.board_files)
+        storage.board_files = storage.FilesystemFiles(Path(cls.board_files.name))
+        storage.uploads = storage.FilesystemFiles(Path(cls.board_files.name) / "pdfs")
         cls.client = TestClient(main.app)
 
     @classmethod
     def tearDownClass(cls):
         cls.client.close()
-        main.BOARDS_DIR = cls.original_boards_dir
-        sync_api.BOARD_FILES_DIR = cls.original_sync_board_files_dir
-        sync_api.BLOBS_DIR = cls.original_sync_blobs_dir
-        sync_api.PDF_FILES_DIR = cls.original_sync_pdfs_dir
+        storage.uploads, storage.board_files = cls.original_stores
         cls.board_files.cleanup()
         main.app.state.session_factory = cls.original_session_factory
         main.app.dependency_overrides.pop(get_db, None)
         cls.engine.dispose()
 
     def setUp(self):
-        for path in Path(self.board_files.name).iterdir():
-            if path.is_dir():
-                shutil.rmtree(path)
-            else:
-                path.unlink()
+        storage.board_files.delete_prefix("")
+        storage.uploads.delete_prefix("")
         testdb.fresh_engine()
         response = self.client.post("/api/auth/register", json={
             "email": "desktop@example.test",
@@ -976,8 +966,9 @@ class DesktopSyncContractTests(unittest.TestCase):
             "year": 2025,
         }
         lookup = AsyncMock(return_value=metadata)
+        # The PDF the paper names is in the store; what it says is stubbed.
+        storage.uploads.put("countersnapping.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")
         with (
-            patch.object(main, "_paper_pdf_path", return_value=Path("paper.pdf")),
             patch.object(
                 main,
                 "extract_doi_from_pdf",

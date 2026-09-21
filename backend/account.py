@@ -25,6 +25,8 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from storage import Files, valid_key
+
 from services.annotations import INK, NOTE, body_of
 from models import (
     AuthToken,
@@ -322,8 +324,8 @@ This export does not include your password, which Papol cannot read either
 def write_zip(
     db: Session,
     user: User,
-    uploads_dir: Path,
-    boards_dir: Path,
+    uploads: Files,
+    boards: Files,
     out_path: Path,
 ) -> Path:
     """Write the user's whole export to `out_path`.
@@ -340,11 +342,10 @@ def write_zip(
 
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
         avatar_line = ""
-        if user.avatar_path:
-            avatar = uploads_dir / user.avatar_path
-            if avatar.exists():
-                zf.write(avatar, f"{root}/avatar{avatar.suffix}")
-                avatar_line = "  avatar" + avatar.suffix + (
+        if user.avatar_path and valid_key(user.avatar_path):
+            suffix = Path(user.avatar_path).suffix
+            if _write_stored(zf, uploads, user.avatar_path, f"{root}/avatar{suffix}"):
+                avatar_line = "  avatar" + suffix + (
                     "        Your picture.\n"
                 )
 
@@ -372,8 +373,7 @@ def write_zip(
         for copy in copies:
             if copy.paper is None or not copy.paper.file_path:
                 continue
-            source = uploads_dir / copy.paper.file_path
-            if not source.exists():
+            if not valid_key(copy.paper.file_path):
                 continue
             name = _slug(copy.paper.title)
             if copy.paper.year:
@@ -381,20 +381,32 @@ def write_zip(
             candidate, n = f"{name}.pdf", 2
             while candidate in seen:  # two papers can slug the same
                 candidate, n = f"{name}-{n}.pdf", n + 1
-            seen.add(candidate)
-            zf.write(source, f"{root}/pdfs/{candidate}")
+            if _write_stored(zf, uploads, copy.paper.file_path, f"{root}/pdfs/{candidate}"):
+                seen.add(candidate)
 
         for board in data["boards"]:
             for item in board["items"]:
-                if not item["file"]:
+                if not item["file"] or not valid_key(item["file"]):
                     continue
-                source = boards_dir / item["file"]
-                if not source.is_file():
-                    continue
-                filename = Path(item["original_filename"] or source.name).name
-                zf.write(source, f"{root}/board-files/{board['uuid']}/{item['uuid']}-{filename}")
+                filename = Path(item["original_filename"] or Path(item["file"]).name).name
+                _write_stored(
+                    zf, boards, item["file"],
+                    f"{root}/board-files/{board['uuid']}/{item['uuid']}-{filename}",
+                )
 
     return out_path
+
+
+def _write_stored(zf: zipfile.ZipFile, files: Files, key: str, arcname: str) -> bool:
+    """Add a stored file to the archive under `arcname`, from a local path
+    so a bucket's copy streams through scratch rather than memory. A file
+    the store no longer has is left out, as a missing file always was."""
+    try:
+        with files.local(key) as path:
+            zf.write(path, arcname)
+    except FileNotFoundError:
+        return False
+    return True
 
 
 # -------------------------------------------------------------- tombstone
@@ -474,7 +486,7 @@ def _hand_on_seminars(db: Session, user_uuid: str, eligible_hosts, notify):
 def tombstone(
     db: Session,
     user: User,
-    uploads_dir: Path,
+    uploads: Files,
     *,
     eligible_hosts,
     notify,
@@ -602,9 +614,7 @@ def tombstone(
 
     # Only once the row is certainly scrubbed, so a failed commit never
     # leaves an account pointing at a picture that is not there.
-    if avatar:
-        path = uploads_dir / avatar
-        if path.exists():
-            path.unlink()
+    if avatar and valid_key(avatar):
+        uploads.delete(avatar)
 
     return removed

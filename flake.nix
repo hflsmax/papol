@@ -61,6 +61,7 @@
       pymupdf          # imported as `fitz`
       httpx
       python-multipart
+      boto3            # S3-compatible object storage: PAPOL_FILES_URL is s3://
       yt-dlp
     ]);
 

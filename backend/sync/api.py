@@ -1,16 +1,12 @@
 import hashlib
 import json
-import os
 import re
-import shutil
 import urllib.parse
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Literal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -26,6 +22,7 @@ from services.client_requirements import AGENT_PREFIX, INCOMPATIBLE, refusal, ve
 from sync.changes import prepare_sync_changes, row_snapshot
 from sync.forgetting import forget_acknowledged_changes, forget_old_replays
 from sync.registry import MODELS, registry
+import storage
 from schemas import (
     AnnotationCreate, BoardGroupUpdate, BoardItemUpdate, PaperMetadata, PaperUpdate,
     ShelfCreate, TagCreate,
@@ -34,14 +31,21 @@ from app_limits import limit, mebibytes
 
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
-BOARD_FILES_DIR = Path(os.environ.get(
-    "PAPOL_BOARD_FILES_DIR", Path(__file__).parents[2] / "board_uploads",
-))
-BLOBS_DIR = BOARD_FILES_DIR / "blobs"
-PDF_FILES_DIR = Path(os.environ.get(
-    "PAPOL_UPLOADS_DIR", Path(__file__).parents[2] / "uploads",
-))
+# The desktop's content-addressed blobs, in the board files area under one
+# prefix: a board file the desktop made is named by its digest here, and a
+# paper's PDF is copied from here to the uploads area under its digest.
+BLOBS = "blobs/"
 BLOB_LIMIT = mebibytes("files", "offline_blob_mb")
+
+
+def _blob_key(sha256: str) -> str:
+    return f"{BLOBS}{sha256}"
+
+
+def _has_blob(sha256) -> bool:
+    return (isinstance(sha256, str) and len(sha256) == 64
+            and storage.valid_key(sha256)
+            and storage.board_files.exists(_blob_key(sha256)))
 
 
 def _require_supported_client(request: Request) -> None:
@@ -144,14 +148,11 @@ def _receive_paper_file(digest: str) -> str:
     """Put the uploaded bytes where papers are read from, and say what the
     file is called. The blob has to have been sent already: a paper names
     its file, so a paper Papol cannot open is not one it can store."""
-    source = BLOBS_DIR / digest
-    if not source.is_file():
+    if not _has_blob(digest):
         raise HTTPException(status_code=409, detail="Paper blob has not been uploaded")
-    PDF_FILES_DIR.mkdir(exist_ok=True)
     filename = f"{digest}.pdf"
-    destination = PDF_FILES_DIR / filename
-    if not destination.exists():
-        shutil.copyfile(source, destination)
+    if not storage.uploads.exists(filename):
+        storage.uploads.copy_from(storage.board_files, _blob_key(digest), filename)
     return filename
 
 
@@ -433,9 +434,9 @@ def _assign_values(db: Session, record, values: dict, user: User):
         record.group = _owned_group(db, values["group_uuid"], record.board)
     if isinstance(record, BoardItem) and values.get("sha256"):
         digest = values["sha256"]
-        if not isinstance(digest, str) or len(digest) != 64 or not (BLOBS_DIR / digest).is_file():
+        if not _has_blob(digest):
             raise HTTPException(status_code=409, detail="Referenced blob has not been uploaded")
-        record.file_path = str(Path("blobs") / digest)
+        record.file_path = _blob_key(digest)
     if isinstance(record, BoardItem) and values.get("source_url"):
         raw_source = values["source_url"]
         source = urllib.parse.urlparse(raw_source) if isinstance(raw_source, str) else None
@@ -722,7 +723,7 @@ def snapshot(
 
 @router.head("/blobs/{sha256}")
 def has_blob(sha256: str, _user: User = Depends(get_current_user)):
-    if len(sha256) != 64 or not (BLOBS_DIR / sha256).is_file():
+    if not _has_blob(sha256):
         raise HTTPException(status_code=404, detail="Blob not found")
     return Response(status_code=200)
 
@@ -740,12 +741,10 @@ async def put_blob(
         raise HTTPException(status_code=413, detail=f'Offline files may be at most {limit("files", "offline_blob_mb")} MB')
     if hashlib.sha256(body).hexdigest() != sha256:
         raise HTTPException(status_code=422, detail="Blob digest does not match its content")
-    BLOBS_DIR.mkdir(parents=True, exist_ok=True)
-    destination = BLOBS_DIR / sha256
-    if not destination.exists():
-        temporary = BLOBS_DIR / f".{sha256}.{uuid4()}.tmp"
-        temporary.write_bytes(body)
-        temporary.replace(destination)
+    # Content-addressed, so a blob already here is this blob: nothing to do.
+    if not storage.board_files.exists(_blob_key(sha256)):
+        mime = (request.headers.get("content-type") or "application/octet-stream").split(";")[0].strip()
+        storage.board_files.put(_blob_key(sha256), body, mime or "application/octet-stream")
     return Response(status_code=204)
 
 
@@ -761,7 +760,7 @@ def get_blob(
         BoardItem.deleted_at.is_(None),
     ).first()
     if item and item.file_path:
-        path = BOARD_FILES_DIR / item.file_path
+        files, key = storage.board_files, item.file_path
         media_type = item.mime_type or "application/octet-stream"
     else:
         paper = db.query(Paper).join(Copy).filter(
@@ -770,11 +769,13 @@ def get_blob(
         ).first()
         if not paper or not paper.file_path:
             raise HTTPException(status_code=404, detail="Blob not found")
-        path = PDF_FILES_DIR / paper.file_path
+        files, key = storage.uploads, paper.file_path
         media_type = "application/pdf"
-    if not path.is_file():
+    if not storage.valid_key(key) or not files.exists(key):
         raise HTTPException(status_code=404, detail="Blob not found")
-    return FileResponse(path, media_type=media_type)
+    # A blob is named by its bytes, so what this URL answers never changes.
+    return storage.serve(files, key, media_type=media_type,
+                         cache_control="private, max-age=31536000, immutable")
 
 
 @router.get("/pull")

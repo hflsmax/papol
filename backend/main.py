@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, FileResponse, Response
 from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile as StarletteUploadFile
 import tempfile
-from functools import lru_cache
+from contextlib import contextmanager
 from fastapi.security import HTTPAuthorizationCredentials
 from datetime import datetime
 from pydantic import ValidationError
@@ -24,7 +24,6 @@ import json
 import re
 import uuid
 import logging
-import shutil
 import socket
 import subprocess
 import traceback
@@ -93,6 +92,7 @@ from routes.client_requirements import router as client_requirements_router
 from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
+import storage
 from services.annotations import (
     KINDS, NOTE, annotation_out, annotations_of, body_text,
 )
@@ -100,17 +100,10 @@ from services.notifications import setting_value
 from services.papers import displayed_copies, paper_or_404
 from services.sharables import live_sharable_for, open_sharable
 
-# Uploads directory
-UPLOADS_DIR = Path(os.environ.get(
-    "PAPOL_UPLOADS_DIR", Path(__file__).parent.parent / "uploads",
-))
-UPLOADS_DIR.mkdir(exist_ok=True)
-AVATARS_DIR = UPLOADS_DIR / "avatars"
-AVATARS_DIR.mkdir(exist_ok=True)
-BOARDS_DIR = Path(os.environ.get(
-    "PAPOL_BOARD_FILES_DIR", Path(__file__).parent.parent / "board_uploads",
-))
-BOARDS_DIR.mkdir(exist_ok=True)
+# Files live in storage.uploads (PDFs, avatars) and storage.board_files
+# (board uploads, the desktop's blobs): a directory each, or a bucket, as
+# the environment says. Read through the module so a test can stand in a
+# scratch area for either.
 
 # Refuse a database this build cannot read; otherwise add the columns and
 # tables the models have gained, and record which schema the result is at.
@@ -124,11 +117,12 @@ def _install_demo_pdfs() -> set[str]:
         return set()
     installed = set()
     for pdf in source.glob("*.pdf"):
-        digest = hashlib.sha256(pdf.read_bytes()).hexdigest()
+        data = pdf.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
         installed.add(digest)
-        target = UPLOADS_DIR / f"{digest}.pdf"
-        if not target.exists():
-            shutil.copyfile(pdf, target)
+        key = f"{digest}.pdf"
+        if not storage.uploads.exists(key):
+            storage.uploads.put(key, data, "application/pdf")
     return installed
 
 
@@ -362,8 +356,17 @@ app.add_middleware(
 # Frontend directory
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 
-# Serve uploaded files
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+# Uploaded files: a paper's PDF under its digest, an avatar under a UUID.
+# Both names are minted once and never reused, so what a URL here answers
+# never changes and may be cached for good. Served by the process when the
+# files are a directory beside it, and by redirect to the bucket when they
+# are not — the same URL to every client either way.
+_IMMUTABLE = "public, max-age=31536000, immutable"
+
+
+@app.api_route("/uploads/{key:path}", methods=["GET", "HEAD"])
+async def serve_upload(key: str):
+    return storage.serve(storage.uploads, key, cache_control=_IMMUTABLE)
 
 # Serve frontend assets. Mounted only when the build is there, like the
 # viewer and the board below it. An unguarded mount raises at import, so a
@@ -517,10 +520,8 @@ _AVATAR_MAX_BYTES = mebibytes("files", "avatar_mb")
 
 
 def _delete_avatar_file(user: User):
-    if user.avatar_path:
-        old = UPLOADS_DIR / user.avatar_path
-        if old.exists():
-            old.unlink()
+    if user.avatar_path and storage.valid_key(user.avatar_path):
+        storage.uploads.delete(user.avatar_path)
 
 
 @app.post("/api/auth/avatar", response_model=UserPrivate)
@@ -540,7 +541,9 @@ async def upload_avatar(
         )
 
     fname = f"avatars/{uuid.uuid4()}{ext}"
-    (UPLOADS_DIR / fname).write_bytes(data)
+    await asyncio.to_thread(
+        storage.uploads.put, fname, data, storage.content_type_for(fname),
+    )
     _delete_avatar_file(current_user)
     current_user.avatar_path = fname
     db.commit()
@@ -588,7 +591,7 @@ async def export_my_data(
     handle.close()
     path = Path(handle.name)
     try:
-        account.write_zip(db, current_user, UPLOADS_DIR, BOARDS_DIR, path)
+        account.write_zip(db, current_user, storage.uploads, storage.board_files, path)
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -645,7 +648,7 @@ async def delete_my_account(
     removed = account.tombstone(
         db,
         current_user,
-        UPLOADS_DIR,
+        storage.uploads,
         # Who may take over a seminar, and how the cohort hears about it,
         # are this module's rules — the same ones leave_room applies when a
         # host hands over on their way out.
@@ -653,15 +656,32 @@ async def delete_my_account(
         notify=lambda room, user_uuids, content: _notify(db, user_uuids, room, content),
     )
     for board_uuid in board_uuids:
-        directory = BOARDS_DIR / str(board_uuid)
-        if directory.is_dir():
-            shutil.rmtree(directory)
+        storage.board_files.delete_prefix(f"{board_uuid}/")
     return {"message": "Your account has been closed.", "removed": removed}
 
 
 # ---------------- Boards ----------------
 
 BOARD_FILE_LIMIT = mebibytes("files", "board_file_mb")
+
+
+async def _receive_board_file(board: Board, file: UploadFile, suffix: str, mime: str) -> tuple[str, str]:
+    """Read an upload for a board, within the limit, and store it under a
+    name minted for this one write. Returns (key, digest). The bytes are
+    read in full before anything is stored: an upload that turns out too
+    large leaves nothing behind."""
+    size = 0
+    digest = hashlib.sha256()
+    chunks = []
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > BOARD_FILE_LIMIT:
+            raise HTTPException(status_code=413, detail=f'Board files may be at most {limit("files", "board_file_mb")} MB')
+        digest.update(chunk)
+        chunks.append(chunk)
+    key = f"{board.uuid}/{uuid.uuid4().hex}{suffix}"
+    await asyncio.to_thread(storage.board_files.put, key, b"".join(chunks), mime)
+    return key, digest.hexdigest()
 
 
 def _owned_board(board_uuid: str, user: User, db: Session) -> Board:
@@ -870,28 +890,13 @@ async def stage_board_clip(
         raise HTTPException(status_code=422, detail="Clip metadata is too long")
     if not source_url.startswith(("http://", "https://")):
         raise HTTPException(status_code=422, detail="Invalid source URL")
-    relative = Path(str(board.uuid)) / f"{uuid.uuid4().hex}.png"
-    destination = BOARDS_DIR / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    size = 0
-    digest = hashlib.sha256()
-    try:
-        with destination.open("wb") as output:
-            while chunk := await file.read(1024 * 1024):
-                size += len(chunk)
-                if size > BOARD_FILE_LIMIT:
-                    raise HTTPException(status_code=413, detail=f'Board files may be at most {limit("files", "board_file_mb")} MB')
-                digest.update(chunk)
-                output.write(chunk)
-    except Exception:
-        destination.unlink(missing_ok=True)
-        raise
+    key, digest = await _receive_board_file(board, file, ".png", "image/png")
     item = BoardItem(
         board_uuid=board.uuid,
         kind="image",
         content=caption.strip() or None,
-        file_path=str(relative),
-        sha256=digest.hexdigest(),
+        file_path=key,
+        sha256=digest,
         original_filename="paper-clip.png",
         mime_type="image/png",
         source_url=source_url.strip(),
@@ -944,29 +949,14 @@ async def add_board_file(
         raise HTTPException(status_code=422, detail="Caption is too long")
     original = Path(file.filename or "file").name[:limit("text", "uploaded_filename")]
     suffix = Path(original).suffix[:limit("text", "uploaded_suffix")]
-    relative = Path(str(board.uuid)) / f"{uuid.uuid4().hex}{suffix}"
-    destination = BOARDS_DIR / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    size = 0
-    digest = hashlib.sha256()
-    try:
-        with destination.open("wb") as output:
-            while chunk := await file.read(1024 * 1024):
-                size += len(chunk)
-                if size > BOARD_FILE_LIMIT:
-                    raise HTTPException(status_code=413, detail=f'Board files may be at most {limit("files", "board_file_mb")} MB')
-                digest.update(chunk)
-                output.write(chunk)
-    except Exception:
-        destination.unlink(missing_ok=True)
-        raise
     mime = (file.content_type or "application/octet-stream")[:limit("text", "mime_type")]
+    key, digest = await _receive_board_file(board, file, suffix, mime)
     item = BoardItem(
         board_uuid=board.uuid,
         kind="image" if mime.startswith("image/") else "file",
         content=caption.strip() or None,
-        file_path=str(relative),
-        sha256=digest.hexdigest(),
+        file_path=key,
+        sha256=digest,
         original_filename=original,
         mime_type=mime,
         x=x if x is not None else (len(board.items) % 4) * 340,
@@ -1181,15 +1171,13 @@ async def add_youtube_to_board(
     except Exception as exc:
         logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
         raise HTTPException(status_code=502, detail=f"Could not capture the YouTube frame: {exc}")
-    relative = Path(str(board.uuid)) / f"{uuid.uuid4().hex}{suffix}"
-    destination = BOARDS_DIR / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(image)
+    key = f"{board.uuid}/{uuid.uuid4().hex}{suffix}"
+    await asyncio.to_thread(storage.board_files.put, key, image, mime)
     item = BoardItem(
         board_uuid=board.uuid,
         kind="youtube",
         content=title,
-        file_path=str(relative),
+        file_path=key,
         sha256=hashlib.sha256(image).hexdigest(),
         original_filename=f"youtube-{video_id}{suffix}",
         mime_type=mime,
@@ -1218,16 +1206,14 @@ async def add_webpage_to_board(
     except Exception as exc:
         logger.warning("Could not capture webpage %s: %s", data.url, exc)
         raise HTTPException(status_code=502, detail=f"Could not capture the webpage: {exc}")
-    relative = Path(str(board.uuid)) / f"{uuid.uuid4().hex}.png"
-    destination = BOARDS_DIR / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(image)
+    key = f"{board.uuid}/{uuid.uuid4().hex}.png"
+    await asyncio.to_thread(storage.board_files.put, key, image, "image/png")
     hostname = urllib.parse.urlparse(url).hostname or url
     item = BoardItem(
         board_uuid=board.uuid,
         kind="webpage",
         content=hostname,
-        file_path=str(relative),
+        file_path=key,
         sha256=hashlib.sha256(image).hexdigest(),
         original_filename=f'webpage-{hostname[:limit("text", "display_name")]}.png',
         mime_type="image/png",
@@ -1475,17 +1461,14 @@ async def get_board_item_file(
     can_view = item.board.user_uuid == user.uuid or bool(item.board.shelf and item.board.shelf.is_public)
     if not can_view:
         raise HTTPException(status_code=404, detail="Board file not found")
-    stored = BOARDS_DIR / item.file_path
-    if not stored.is_file():
-        raise HTTPException(status_code=404, detail="Board file not found")
-    return FileResponse(
-        stored,
+    return storage.serve(
+        storage.board_files, item.file_path,
         media_type=item.mime_type or "application/octet-stream",
         filename=item.original_filename,
         # Board files are write-once: edits change card metadata, never the
         # bytes at this URL. Keep private files in the user's own cache and
         # avoid revalidating immutable previews on every board visit.
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        cache_control="private, max-age=31536000, immutable",
     )
 
 
@@ -1576,10 +1559,28 @@ def _store_pdf(data: bytes) -> tuple[str, str]:
     names ever refer to different files."""
     digest = hashlib.sha256(data).hexdigest()
     filename = f"{digest}.pdf"
-    path = UPLOADS_DIR / filename
-    if not path.exists():
-        path.write_bytes(data)
+    if not storage.uploads.exists(filename):
+        storage.uploads.put(filename, data, "application/pdf")
     return filename, digest
+
+
+@contextmanager
+def _pdf_on_disk(filename: str, data: bytes | None = None):
+    """A local path holding a stored PDF, for the readers that want one.
+    Bytes that just arrived are written to scratch rather than fetched back
+    from a bucket they were only just sent to; a file kept beside the
+    process is simply itself."""
+    if data is None or storage.uploads.path(filename) is not None:
+        with storage.uploads.local(filename) as path:
+            yield path
+        return
+    handle = tempfile.NamedTemporaryFile(prefix="papol-upload-", suffix=".pdf", delete=False)
+    try:
+        with handle:
+            handle.write(data)
+        yield Path(handle.name)
+    finally:
+        Path(handle.name).unlink(missing_ok=True)
 
 
 def _paper_with_digest(db: Session, digest: str) -> Paper | None:
@@ -1787,9 +1788,13 @@ async def extract_paper_metadata(
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-    filename, _ = _store_pdf(await file.read())
-    file_path = UPLOADS_DIR / filename
+    data = await file.read()
+    filename, _ = await asyncio.to_thread(_store_pdf, data)
+    with _pdf_on_disk(filename, data) as file_path:
+        return await _extracted_metadata(file.filename, filename, file_path)
 
+
+async def _extracted_metadata(uploaded_name: str, filename: str, file_path: Path) -> ExtractedMetadata:
     # Identifiers are normally printed near the front of a paper.
     doi, text = extract_doi_from_pdf(str(file_path))
     arxiv_id = extract_arxiv_id(text)
@@ -1797,7 +1802,7 @@ async def extract_paper_metadata(
     # Default metadata from filename
     metadata = {
         "doi": doi,
-        "title": get_title_from_filename(file.filename),
+        "title": get_title_from_filename(uploaded_name),
         "authors": None,
         "journal": None,
         "year": None,
@@ -1962,11 +1967,11 @@ async def create_paper(
     a different PDF printing a DOI Papol has already seen.
     """
     # Verify the file exists
-    file_path = UPLOADS_DIR / paper.file_path
-    if not file_path.exists():
+    if not storage.valid_key(paper.file_path) or not storage.uploads.exists(paper.file_path):
         raise HTTPException(status_code=400, detail="PDF file not found")
 
-    digest = _sha256_of(file_path)
+    with storage.uploads.local(paper.file_path) as file_path:
+        digest = _sha256_of(file_path)
     db_paper, is_new = _paper_for_upload(db, paper, digest, current_user)
 
     if not is_new:
@@ -2059,10 +2064,17 @@ async def reextract_paper_metadata(
 ):
     """Re-read a paper's PDF metadata for the edit form."""
     paper = paper_or_404(paper_sha256, db)
-    path = _paper_pdf_path(paper)
-    if path is None:
+    key = _paper_pdf_key(paper)
+    if key is None:
+        raise HTTPException(status_code=404, detail="PDF for this paper is missing")
+    try:
+        with storage.uploads.local(key) as path:
+            return await _reextracted_metadata(paper, path)
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="PDF for this paper is missing")
 
+
+async def _reextracted_metadata(paper: Paper, path: Path) -> ReextractedMetadata:
     doi, text = extract_doi_from_pdf(str(path))
     arxiv_id = extract_arxiv_id(text)
     # This action promises to re-read the PDF. Prefer the identifier printed
@@ -2503,22 +2515,27 @@ _ANALYSIS_STALE = timedelta(minutes=15)
 _bundled_references = EphemeralReferenceEngine()
 
 
-@lru_cache(maxsize=32)
-def _public_pdf_path(digest: str) -> Path | None:
+def _public_pdf_key(digest: str) -> str | None:
+    """The stored name of a bundled demo PDF, or None for any other digest.
+    The set was filled at startup from the checkout, so this is a lookup,
+    not a question for the store."""
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         return None
     if digest not in _PUBLIC_DEMO_PDFS:
         return None
-    candidate = UPLOADS_DIR / f"{digest}.pdf"
-    return candidate if candidate.exists() else None
+    return f"{digest}.pdf"
 
 
-def _paper_pdf_path(paper: Paper) -> Path | None:
-    """Where a paper's PDF sits on disk, under /uploads."""
-    if not paper.file_path:
+def _paper_pdf_key(paper: Paper) -> str | None:
+    """The stored name of a paper's PDF, if the store holds it."""
+    if not paper.file_path or not storage.valid_key(paper.file_path):
         return None
-    candidate = UPLOADS_DIR / paper.file_path
-    return candidate if candidate.exists() else None
+    return paper.file_path if storage.uploads.exists(paper.file_path) else None
+
+
+async def _analyze_bundled(digest: str, key: str):
+    with storage.uploads.local(key) as path:
+        await _bundled_references.analyze(digest, path)
 
 
 async def _analyze_paper(paper_sha256: str):
@@ -2533,12 +2550,13 @@ async def _analyze_paper(paper_sha256: str):
         paper = db.get(Paper, paper_sha256)
         if paper is None:
             return
-        path = _paper_pdf_path(paper)
-        if path is None:
+        key = _paper_pdf_key(paper)
+        if key is None:
             _finish_analysis(db, paper, "failed", "The PDF for this paper is missing")
             return
         try:
-            analysis = await grobid.analyze(str(path))
+            with storage.uploads.local(key) as path:
+                analysis = await grobid.analyze(str(path))
         except Exception as e:
             logger.warning(f"GROBID failed on paper {paper_sha256}: {e}")
             _finish_analysis(db, paper, "failed", str(e)[:limit("text", "analysis_error")])
@@ -2648,8 +2666,8 @@ async def _bundled_paper_references(
 ):
     """Analyze a bundled demo PDF through the same GROBID service as prod."""
     digest = pdf_sha256.strip().lower()
-    path = _public_pdf_path(digest)
-    if path is None:
+    key = _public_pdf_key(digest)
+    if key is None:
         raise HTTPException(status_code=404, detail="Demo PDF not found")
     if not grobid.configured():
         return PaperReferences(
@@ -2657,7 +2675,7 @@ async def _bundled_paper_references(
             detail="Reference analysis unavailable",
         )
     if _bundled_references.begin(digest):
-        background.add_task(_bundled_references.analyze, digest, path)
+        background.add_task(_analyze_bundled, digest, key)
     return _bundled_references.response(digest, paper_sha256)
 
 
@@ -2812,7 +2830,7 @@ async def viewer_references(
     db: Session = Depends(get_db),
 ):
     digest = pdf_sha256.strip().lower()
-    if _public_pdf_path(digest) is not None:
+    if _public_pdf_key(digest) is not None:
         return await _bundled_paper_references(paper_sha256, digest, background)
     paper = _viewer_paper_or_404(digest, current_user, db, share)
     # What a paper cites is a property of the file, not of the user who
@@ -2854,7 +2872,7 @@ async def preview_viewer_reference(
     db: Session = Depends(get_db),
 ):
     digest = pdf_sha256.strip().lower()
-    if _public_pdf_path(digest) is not None:
+    if _public_pdf_key(digest) is not None:
         return await _bundled_references.preview(data.key.strip(), data.raw)
     paper = _viewer_paper_or_404(digest, current_user, db)
     return await _preview_reference(paper, data, db)

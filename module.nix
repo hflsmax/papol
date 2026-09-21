@@ -333,7 +333,12 @@ in {
         ExecStart = "${pythonEnv}/bin/uvicorn main:app --host ${cfg.host} --port ${toString cfg.port}";
         # Secrets by file, never through the store: anything written into a
         # NixOS option is copied into a world-readable /nix/store path.
-        # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail.
+        # PAPOL_OPENALEX_KEY for reference lookups, SMTP_* for mail, and
+        # where the files are: PAPOL_FILES_URL (s3://bucket) with the
+        # AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and
+        # AWS_DEFAULT_REGION beside it, and PAPOL_FILES_PUBLIC_URL if the
+        # bucket has a public face. Unset, the files are directories in
+        # this checkout. backend/storage.py is where these are read.
         #
         # The same .env the development shell reads through direnv, so a
         # setting is written once and both the shell and the service see it.
