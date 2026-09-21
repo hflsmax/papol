@@ -51,10 +51,10 @@ export function authRoutes(router: Router) {
 
   router.on("POST", "/api/auth/login", async ({ request, env }) => {
     const data = await readJson<{ email?: string; password?: string }>(request);
+    // A closed account keeps its row, but under an address nobody can
+    // type and a password hash nothing can match (account/close.ts), so
+    // nothing here needs to know about it.
     const user = await one<User>(env.DB, "SELECT * FROM users WHERE email = ?", String(data.email ?? "").toLowerCase());
-    // A closed account keeps its row so seminars and messages still
-    // resolve, but it is nobody's account any more.
-    if (user?.deleted_at) refuse(401, "This account has been closed");
     if (!user || !(await verifyPassword(String(data.password ?? ""), user.password_hash))) {
       refuse(401, "Invalid email or password");
     }

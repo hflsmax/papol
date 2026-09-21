@@ -12,7 +12,7 @@ import { paperOr404, roomSummary } from "../papers/detail";
 import { userPublic } from "./boards";
 import * as validate from "../validate";
 
-interface Room extends Row {
+export interface Room extends Row {
   uuid: string;
   paper_sha256: string;
   created_by: string;
@@ -43,7 +43,7 @@ async function requireDisplaying(env: Env, room: Room, user: User, why = "Displa
   if (!(await cohortUserUuids(env.DB, room.paper_sha256, true)).has(user.uuid)) refuse(403, why);
 }
 
-function notify(env: Env, userUuids: Iterable<string>, room: Room, content: string): D1PreparedStatement[] {
+export function notify(env: Env, userUuids: Iterable<string>, room: Room, content: string): D1PreparedStatement[] {
   const at = now();
   return [...userUuids].map((uuid) => insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: uuid, room_uuid: room.uuid, content, read: 0, emailed: 0, created_at: at }));
 }
@@ -66,7 +66,7 @@ async function roomDetail(env: Env, room: Room, viewer: User) {
   };
 }
 
-function saveRoom(env: Env, room: Room): D1PreparedStatement {
+export function saveRoom(env: Env, room: Room): D1PreparedStatement {
   return statement(env.DB, "UPDATE rooms SET leader_uuid = ?, status = ?, scheduled_time = ?, platform = ?, style = ?, style_desc = ? WHERE uuid = ?",
     room.leader_uuid, room.status, room.scheduled_time, room.platform, room.style, room.style_desc, room.uuid);
 }
