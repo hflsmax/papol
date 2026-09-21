@@ -817,16 +817,6 @@ button.full-width {
   padding: 18px;
 }
 
-.offline-notice {
-  margin: 0 0 14px;
-  padding: 9px 11px;
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius);
-  color: var(--ink-soft);
-  background: var(--accent-soft);
-  font-size: var(--fs-sm);
-}
-
 .paper-metadata-heading {
   display: flex;
   align-items: center;
@@ -836,19 +826,21 @@ button.full-width {
 
 .paper-metadata-heading h3 { margin: 0; }
 
-.metadata-parsing {
-  display: inline-flex;
+/* One line under the heading while the PDF is read, and the same line,
+   spinner gone, when it could not be: the form is open either way, and
+   nothing about the reading is worth a banner. */
+.metadata-reading {
+  display: flex;
   align-items: center;
   gap: 7px;
+  margin: 8px 0 0;
   color: var(--ink-faint);
   font-size: var(--fs-sm);
-  white-space: nowrap;
 }
 
 .metadata-spinner {
   width: 14px;
   height: 14px;
-  vertical-align: -2px;
 }
 
 .upload-review-form .form-group {

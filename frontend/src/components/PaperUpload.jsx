@@ -1,18 +1,22 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  createPaper, createTag, discardPaperImport, extractPaperMetadata, listShelves, listTags,
-  lookupPaperMetadata,
+  awaitPaperReading, createPaper, createTag, discardPaperImport, listShelves, listTags,
+  uploadPaper,
 } from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
-import { authorList } from '../paperFormat';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
+import { READ_FIELDS, fillUnedited, reviewFields, titleFromFilename } from '../uploadReview';
 
-const editableAuthors = (authors) => authorList(authors).join(', ');
-
+// The form opens the moment the upload has answered, on the title the
+// filename gives, and the reading of the PDF goes on beside it: a
+// spinner while it is read, the fields it read filled in when it is
+// done, a quiet line when it could not be. The user types and saves
+// without waiting for any of it; a save or a cancel while the reading is
+// still on simply stops listening for it.
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
   incomingFile = null, onIncomingFileHandled = () => {}, onReportableError,
@@ -20,7 +24,8 @@ export default function PaperUpload({
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isParsingMetadata, setIsParsingMetadata] = useState(false);
+  // 'reading' while the PDF is read, 'unread' when it could not be, null otherwise.
+  const [reading, setReading] = useState(null);
   const [error, setError] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
   const [formData, setFormData] = useState({});
@@ -31,7 +36,11 @@ export default function PaperUpload({
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
   const handledIncomingFile = useRef(null);
-  const metadataRequest = useRef(0);
+  // The fields the user has typed in since the form opened: the reading
+  // leaves those alone.
+  const editedFields = useRef(new Set());
+  // Ends the wait for the reading, not the reading.
+  const readingWait = useRef(null);
   const extractedDataRef = useRef(null);
 
   const showError = (failure, area) => {
@@ -39,9 +48,14 @@ export default function PaperUpload({
     if (isReportableUploadError(failure)) onReportableError?.(failure, area);
   };
 
+  const stopReading = () => {
+    readingWait.current?.abort();
+    readingWait.current = null;
+  };
+
   extractedDataRef.current = extractedData;
   useEffect(() => () => {
-    metadataRequest.current += 1;
+    stopReading();
     if (extractedDataRef.current) discardPaperImport(extractedDataRef.current).catch(() => {});
   }, []);
 
@@ -76,24 +90,18 @@ export default function PaperUpload({
   };
 
   const handleFile = async (file) => {
-    const requestId = metadataRequest.current + 1;
-    metadataRequest.current = requestId;
+    stopReading();
+    setReading(null);
     setIsLoading(true);
-    setIsParsingMetadata(false);
     setError(null);
 
     try {
-      const data = await extractPaperMetadata(file);
-      setExtractedData(data);
+      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file), listTags(), listShelves()]);
+      setExtractedData(uploaded);
       onReviewChange(true);
-      const [tags, shelfData] = await Promise.all([listTags(), listShelves()]);
       setShelves(shelfData);
-      const initialForm = {
-        title: data.title || '',
-        authors: editableAuthors(data.authors),
-        journal: data.journal || '',
-        year: data.year || '',
-        doi: data.doi || '',
+      setFormData({
+        ...reviewFields({ title: titleFromFilename(file.name) }),
         thought: '',
         summary: '',
         shelf_uuid: (localImport
@@ -103,49 +111,22 @@ export default function PaperUpload({
         rating_expertise: null,
         rating_reading: null,
         rating_liking: null,
-      };
-      setFormData(initialForm);
+      });
+      editedFields.current = new Set();
       setSelectedTags([]);
       setTagDraft('');
       setAvailableTags(tags);
-      if (localImport) {
-        setIsParsingMetadata(true);
-        void lookupPaperMetadata(file).then((remote) => {
-          if (metadataRequest.current !== requestId) return;
-          if (!remote) {
-            setExtractedData((current) => current ? { ...current, metadata_offline: true } : current);
-            return;
-          }
-          const enriched = {
-            title: remote.title || initialForm.title,
-            authors: remote.authors ? editableAuthors(remote.authors) : initialForm.authors,
-            journal: remote.journal || initialForm.journal,
-            year: remote.year || initialForm.year,
-            doi: remote.doi || initialForm.doi,
-          };
-          // Do not replace a field the user has already changed while the
-          // backend was parsing the PDF.
-          setFormData((current) => Object.fromEntries(Object.entries(current).map(([key, value]) => [
-            key,
-            Object.hasOwn(enriched, key) && value === initialForm[key] ? enriched[key] : value,
-          ])));
-          setExtractedData((current) => current ? {
-            ...current,
-            doi: remote.doi || null,
-            title: remote.title || current.title,
-            authors: remote.authors || null,
-            journal: remote.journal || null,
-            year: remote.year || null,
-            metadata_offline: false,
-          } : current);
-        }).catch(() => {
-          if (metadataRequest.current === requestId) {
-            setExtractedData((current) => current ? { ...current, metadata_offline: true } : current);
-          }
-        }).finally(() => {
-          if (metadataRequest.current === requestId) setIsParsingMetadata(false);
-        });
-      }
+
+      const wait = new AbortController();
+      readingWait.current = wait;
+      setReading('reading');
+      void awaitPaperReading(uploaded, file, { signal: wait.signal }).then((read) => {
+        // Saved, cancelled, or replaced by another file: nobody is listening.
+        if (wait.signal.aborted) return;
+        readingWait.current = null;
+        if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
+        setReading(read ? null : 'unread');
+      });
     } catch (err) {
       showError(err, 'importing a PDF');
     } finally {
@@ -163,6 +144,7 @@ export default function PaperUpload({
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (READ_FIELDS.includes(name)) editedFields.current.add(name);
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -172,6 +154,10 @@ export default function PaperUpload({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Saved as it stands: a reading still on its way is dropped, and the
+    // paper page can ask for it again.
+    stopReading();
+    setReading(null);
     setIsLoading(true);
     setError(null);
 
@@ -211,8 +197,8 @@ export default function PaperUpload({
   };
 
   const handleCancel = async () => {
-    metadataRequest.current += 1;
-    setIsParsingMetadata(false);
+    stopReading();
+    setReading(null);
     await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
     setFormData({});
@@ -242,17 +228,17 @@ export default function PaperUpload({
       <div className="panel paper-form">
         <div className="paper-metadata-heading">
           <h3>Review Paper Metadata</h3>
-          {isParsingMetadata && (
-            <span className="metadata-parsing" role="status">
-              <span className="spinner metadata-spinner" aria-hidden="true" />
-              Looking up metadata…
-            </span>
-          )}
         </div>
-        {extractedData.metadata_offline && (
-          <div className="offline-notice" role="status">
-            Metadata could not be looked up. You can still review and save the paper.
-          </div>
+        {reading === 'reading' && (
+          <p className="metadata-reading" role="status">
+            <span className="spinner metadata-spinner" aria-hidden="true" />
+            Reading the PDF for its title and authors…
+          </p>
+        )}
+        {reading === 'unread' && (
+          <p className="metadata-reading" role="status">
+            Papol could not read the PDF; fill in the details.
+          </p>
         )}
         {error && <div className="error" role="alert">{error}</div>}
         <form className="upload-review-form" onSubmit={handleSubmit}>
@@ -454,7 +440,7 @@ export default function PaperUpload({
           style={{ display: 'none' }}
         />
         {isLoading ? (
-          <p>Extracting metadata...</p>
+          <p>Uploading…</p>
         ) : (
           <>
             <p>Drop a PDF here or click to upload</p>
