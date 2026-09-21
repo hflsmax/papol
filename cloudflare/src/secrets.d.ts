@@ -11,10 +11,10 @@ interface Secrets {
   // (src/papers/bibliography.ts).
   PAPOL_CONTACT_EMAIL?: string;
   PAPOL_OPENALEX_KEY?: string;
-  // The reference analyzer on the NixOS host, behind a Cloudflare tunnel
-  // with nginx asking for one credential, "user:password"
-  // (src/papers/grobid.ts). Unset, references are "unavailable" and
-  // uploads get no title-block reading.
+  // The GROBID host: its helper (host/helper/, reached under /helper/)
+  // reads a PDF there and answers JSON, behind a Cloudflare tunnel with
+  // nginx asking for one credential, "user:password" (src/papers/helper.ts).
+  // Unset, references are "unavailable" and uploads get the filename.
   GROBID_URL?: string;
   GROBID_AUTH?: string;
   // "manual" in the suite: wake-ups are handed to the consumer by the

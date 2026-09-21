@@ -46,7 +46,11 @@ describe("GROBID's TEI", () => {
       <author><persName><forename>Benjamin C.</forename><surname>Pierce</surname></persName></author>
       </analytic><monogr><title level="j">LNCS</title><imprint><date type="published" when="2018-04-06"/></imprint></monogr>
       </biblStruct></sourceDesc></fileDesc></teiHeader>`));
-    expect(header).toEqual({ title: "The Meaning of Memory Safety", authors: ["Arthur Amorim", "Benjamin C. Pierce"], journal: "LNCS", year: 2018 });
+    expect(header).toEqual({ title: "The Meaning of Memory Safety", authors: ["Arthur Amorim", "Benjamin C. Pierce"], journal: "LNCS", year: 2018, doi: null, arxiv_id: null });
+    // A consolidated header carries the identifiers CrossRef gave GROBID, bare.
+    const identified = parseHeader(TEI(`<teiHeader><fileDesc><sourceDesc><biblStruct><analytic><title level="a" type="main">Attention Is All You Need</title>
+      <idno type="DOI">https://doi.org/10.5555/3295222.3295349</idno><idno type="arXiv">arXiv:1706.03762v7</idno><idno type="MD5">abc</idno></analytic></biblStruct></sourceDesc></fileDesc></teiHeader>`));
+    expect(identified).toMatchObject({ title: "Attention Is All You Need", doi: "10.5555/3295222.3295349", arxiv_id: "1706.03762v7" });
     expect(normalizeTitle("XGRAMMAR: FLEXIBLE AND EFFICIENT STRUCTURED GENERATION FOR LLMS")).toBe("XGrammar: Flexible and Efficient Structured Generation for LLMS");
     expect(normalizeTitle("Attention Is All You Need")).toBe("Attention Is All You Need");
   });
@@ -201,12 +205,14 @@ describe("resolving a reference", () => {
 
 // ----------------------------------------------------------- the routes
 
-const ANALYSIS = TEI(`<facsimile><surface n="1" lrx="600" lry="800"/></facsimile><text><body>
+// What the host's helper answers for the paper: GROBID's TEI as it reads
+// it, which is this same parser, run there.
+const ANALYSIS = parseTei(TEI(`<facsimile><surface n="1" lrx="600" lry="800"/></facsimile><text><body>
   <p>Prior work <ref type="bibr" coords="1,100,100,12,10" target="#b0">[1]</ref>.</p></body><back><listBibl>
   <biblStruct xml:id="b0" coords="1,60,700,200,10"><analytic><title level="a" type="main">Attention Is All You Need</title></analytic>
     <monogr><imprint><date when="2017"/></imprint></monogr><note type="raw_reference">Vaswani et al. Attention Is All You Need. 2017.</note></biblStruct>
   <biblStruct xml:id="b1" coords="1,60,712,200,10"><note type="raw_reference">Knuth D. The art of computer programming.</note></biblStruct>
-  </listBibl></back></text>`);
+  </listBibl></back></text>`));
 
 async function kept(user: Account, digest = PDF, title = "KinetiX") {
   await paperWithCopy(user, digest, title, { shelfUuid: await defaultShelf(user) });
@@ -217,7 +223,13 @@ describe("the viewer's references", () => {
   it("are read once by a job the first open queues, then served to whoever may read the paper", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await kept(ada);
-    const calls = hosts({ "grobid.test": () => new Response(ANALYSIS) });
+    const calls = hosts({ "grobid.test": (_url, init) => {
+      // The bytes, as a PDF, and nothing read here.
+      expect(init?.method).toBe("POST");
+      expect((init?.headers as Record<string, string>)["content-type"]).toBe("application/pdf");
+      expect(new TextDecoder().decode(init?.body as Uint8Array)).toBe("%PDF-1.4");
+      return jsonResponse(ANALYSIS);
+    } });
     const query = `?paper_sha256=${PDF}`;
 
     expect((await call("GET", `/api/viewer-references/${PDF}${query}`)).status).toBe(401);
@@ -230,7 +242,7 @@ describe("the viewer's references", () => {
     expect(await count("jobs", "kind = 'analyze_paper'")).toBe(1);
 
     await woken(jobs.uuid as string);
-    expect(calls).toEqual(["grobid.test/api/processFulltextDocument"]);
+    expect(calls).toEqual(["grobid.test/helper/analyze"]);
     expect((await row("SELECT references_status, references_error FROM papers WHERE sha256 = ?", PDF))).toEqual({ references_status: "ready", references_error: null });
     const ready = await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers });
     expect(ready.status).toBe("ready");
@@ -244,7 +256,8 @@ describe("the viewer's references", () => {
   it("record a PDF GROBID cannot read on the paper rather than asking forever, and say so when there is no analyzer", async () => {
     const ada = await register();
     await kept(ada);
-    hosts({ "grobid.test": () => new Response(null, { status: 204 }) });
+    // The helper's 502 carries GROBID's reason, which is what the paper records.
+    hosts({ "grobid.test": () => jsonResponse({ detail: "GROBID could not read this PDF (no text extracted)" }, 502) });
     await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
     await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
     const failed = await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
@@ -263,7 +276,7 @@ describe("the viewer's references", () => {
     await kept(ada);
     await kept(ada, OTHER, "Another");
     hosts({
-      "grobid.test": () => new Response(ANALYSIS),
+      "grobid.test": () => jsonResponse(ANALYSIS),
       "api.crossref.org": () => crossrefItems({ DOI: "10.1/attention", title: ["Attention Is All You Need"], issued: { "date-parts": [[2017]] }, "container-title": ["NeurIPS"] }),
       "api.openalex.org": () => jsonResponse({}, 404),
     });

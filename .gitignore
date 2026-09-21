@@ -14,6 +14,7 @@ desktop/dist/
 desktop/node_modules/
 cloudflare/node_modules/
 cloudflare/.wrangler/
+host/helper/node_modules/
 cloudflare/site/
 __pycache__/
 

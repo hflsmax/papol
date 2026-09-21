@@ -15,7 +15,7 @@ import { enqueue, JobError, wake } from "../jobs/queue";
 import { UPLOADS } from "../sync/blobs";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
-import * as grobid from "./grobid";
+import * as helper from "./helper";
 import { extractArxivId } from "./identifiers";
 import { resolve, type Printed } from "./resolve";
 
@@ -92,10 +92,10 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   }
   let analysis;
   try {
-    analysis = await grobid.analyze(env, new Uint8Array(await object.arrayBuffer()));
+    analysis = await helper.analyze(env, new Uint8Array(await object.arrayBuffer()));
   } catch (error) {
     const detail = String((error as Error).message ?? error).slice(0, limits.text.analysis_error);
-    console.warn(`GROBID failed on paper ${paperSha256}: ${detail}`);
+    console.warn(`The helper failed on paper ${paperSha256}: ${detail}`);
     await finishStatement(env, paperSha256, "failed", detail).run();
     throw new JobError(detail);
   }
@@ -178,8 +178,8 @@ export async function papolPapersFor(db: D1Database, references: Reference[]): P
 // service that read them.
 export async function paperReferences(env: Env, paper: Paper) {
   const stored = paper.references_status === "ready";
-  if (!grobid.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], links: [] };
-  if (grobid.configured(env)) await requestAnalysis(env, paper);
+  if (!helper.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], links: [] };
+  if (helper.configured(env)) await requestAnalysis(env, paper);
   if (paper.references_status !== "ready") {
     return { paper_sha256: paper.sha256, status: paper.references_status || "pending", detail: paper.references_error ?? null, references: [], citations: [], links: [] };
   }

@@ -45,7 +45,16 @@ export interface DocumentLink extends Box {
 
 export interface Analysis { references: Reference[]; citations: Citation[]; links: DocumentLink[] }
 
-export interface HeaderMetadata { title: string | null; authors: string[]; journal: string | null; year: number | null }
+export interface HeaderMetadata {
+  title: string | null;
+  authors: string[];
+  journal: string | null;
+  year: number | null;
+  // What the header prints, or what CrossRef told GROBID when the header
+  // was consolidated: how the upload is looked up in the indexes.
+  doi: string | null;
+  arxiv_id: string | null;
+}
 
 // ------------------------------------------------------------- the tree
 
@@ -144,7 +153,21 @@ export function parseHeader(xml: string): HeaderMetadata {
   const journal = text(find(bibl, [{ name: "monogr" }, { name: "title", attr: ["level", "j"] }]));
   const when = find(bibl, [{ name: "monogr" }, { name: "imprint" }, { name: "date" }])?.attributes.when;
   const year = when && /^\d{4}/.test(when) ? Number(when.slice(0, 4)) : null;
-  return { title, authors, journal, year };
+  const { doi, arxiv } = identifiers(bibl);
+  return { title, authors, journal, year, doi, arxiv_id: arxiv };
+}
+
+// The DOI and arXiv id among a biblStruct's <idno> elements, bare: no
+// resolver prefix, no "arXiv:".
+function identifiers(bibl: XmlElement): { doi: string | null; arxiv: string | null } {
+  let doi: string | null = null, arxiv: string | null = null;
+  for (const idno of descendants(bibl, "idno")) {
+    const kind = (idno.attributes.type ?? "").toLowerCase(), value = text(idno);
+    if (!value) continue;
+    if (kind === "doi" && !doi) doi = value.toLowerCase().replace(/^https?:\/\/(dx\.)?doi\.org\//, "");
+    else if (kind === "arxiv" && !arxiv) arxiv = value.replace(/^arxiv:\s*/i, "").trim();
+  }
+  return { doi, arxiv };
 }
 
 // ---------------------------------------------------------- the full text
@@ -215,14 +238,8 @@ function referenceFrom(bibl: XmlElement, key: string, index: number, pages: Page
   // ending "178–190" comes back as when="0190" with the text still reading
   // "2016. 190", and the text is the one to believe.
   const year = date ? yearIn(date.attributes.when, text(date)) : null;
-  let doi: string | null = null, arxiv: string | null = null;
-  for (const idno of descendants(bibl, "idno")) {
-    const kind = (idno.attributes.type ?? "").toLowerCase(), value = text(idno);
-    if (!value) continue;
-    if (kind === "doi") doi = value.toLowerCase().replace("https://doi.org/", "");
-    else if (kind === "arxiv") arxiv = value.replace("arXiv:", "").trim();
-  }
-  if (!arxiv) arxiv = extractArxivId(raw ?? "");
+  const ids = identifiers(bibl);
+  const doi = ids.doi, arxiv = ids.arxiv ?? extractArxivId(raw ?? "");
   // Only the first box: an entry may wrap over several lines, and where
   // it starts is what a link into it points at.
   const first = boxes(bibl.attributes.coords, pages)[0];
