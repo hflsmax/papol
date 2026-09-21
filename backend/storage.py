@@ -38,6 +38,7 @@ that decision, made once for every route that hands out a file.
 """
 from __future__ import annotations
 
+import contextvars
 import mimetypes
 import os
 import shutil
@@ -355,6 +356,65 @@ class S3Files(Files):
             path.unlink(missing_ok=True)
 
 
+class LayeredFiles(Files):
+    """A writable area in front of a read-only one.
+
+    Writes and deletes touch only the front; reads look in the front and
+    then the back, so the pair presents one set of files. This is how a
+    demo workspace sees the bundled PDFs the real store holds together with
+    what its visitor uploaded, and can never write to, or delete from, the
+    store everyone shares."""
+
+    def __init__(self, front: Files, back: Files):
+        self.front, self.back = front, back
+
+    def __repr__(self):
+        return f"LayeredFiles(front={self.front!r}, back={self.back!r})"
+
+    def _holder(self, key: str) -> Files:
+        return self.front if self.front.exists(key) else self.back
+
+    def put(self, key, data, content_type):
+        self.front.put(key, data, content_type)
+
+    def get(self, key):
+        return self._holder(key).get(key)
+
+    def exists(self, key):
+        return self.front.exists(key) or self.back.exists(key)
+
+    def content_type(self, key):
+        return self._holder(key).content_type(key)
+
+    def delete(self, key):
+        self.front.delete(key)
+
+    def delete_prefix(self, prefix):
+        return self.front.delete_prefix(prefix)
+
+    def keys(self, prefix=""):
+        seen = set()
+        for source in (self.front, self.back):
+            for key in source.keys(prefix):
+                if key not in seen:
+                    seen.add(key)
+                    yield key
+
+    def copy_from(self, source, source_key, key):
+        self.front.copy_from(unwrap(source), source_key, key)
+
+    def url(self, key, *, filename=None, content_type=None):
+        return self._holder(key).url(key, filename=filename, content_type=content_type)
+
+    def path(self, key):
+        return self._holder(key).path(key)
+
+    @contextmanager
+    def local(self, key):
+        with self._holder(key).local(key) as path:
+            yield path
+
+
 def _content_disposition(filename: str) -> str:
     """The header Starlette's FileResponse would send for this filename,
     spelled the same so a redirect and a direct answer save under one name."""
@@ -434,4 +494,84 @@ def configure(environ: Mapping[str, str] = os.environ,
     return uploads, boards
 
 
-uploads, board_files = configure()
+_configured: tuple[Files, Files] = configure()
+
+# A request may be served from other areas than the configured ones: the
+# demo hands each visitor a disposable pair. The override is a context
+# variable, so it follows the request through `await` and `to_thread` and
+# is invisible to every other request on the loop.
+_override: contextvars.ContextVar[tuple[Files, Files] | None] = contextvars.ContextVar(
+    "papol_files_override", default=None,
+)
+
+
+class Area(Files):
+    """`storage.uploads` and `storage.board_files`: the configured area, or
+    the one the current request was given. Every method is the target's."""
+
+    def __init__(self, slot: int):
+        self.slot = slot
+
+    def _target(self) -> Files:
+        override = _override.get()
+        return (override or _configured)[self.slot]
+
+    def __repr__(self):
+        return f"Area({self._target()!r})"
+
+    def put(self, key, data, content_type):
+        return self._target().put(key, data, content_type)
+
+    def get(self, key):
+        return self._target().get(key)
+
+    def exists(self, key):
+        return self._target().exists(key)
+
+    def content_type(self, key):
+        return self._target().content_type(key)
+
+    def delete(self, key):
+        return self._target().delete(key)
+
+    def delete_prefix(self, prefix):
+        return self._target().delete_prefix(prefix)
+
+    def keys(self, prefix=""):
+        return self._target().keys(prefix)
+
+    def copy_from(self, source, source_key, key):
+        return self._target().copy_from(unwrap(source), source_key, key)
+
+    def url(self, key, *, filename=None, content_type=None):
+        return self._target().url(key, filename=filename, content_type=content_type)
+
+    def path(self, key):
+        return self._target().path(key)
+
+    @contextmanager
+    def local(self, key):
+        with self._target().local(key) as path:
+            yield path
+
+
+def unwrap(files: Files) -> Files:
+    """The configured store behind a name, ignoring any request override —
+    what a disposable layer is put in front of, never the layer itself."""
+    if isinstance(files, Area):
+        return _configured[files.slot]
+    return files
+
+
+@contextmanager
+def use(uploads_area: Files, board_files_area: Files):
+    """Serve the block's requests from these two areas instead."""
+    token = _override.set((uploads_area, board_files_area))
+    try:
+        yield
+    finally:
+        _override.reset(token)
+
+
+uploads: Files = Area(0)
+board_files: Files = Area(1)

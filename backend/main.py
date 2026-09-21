@@ -92,6 +92,7 @@ from routes.client_requirements import router as client_requirements_router
 from routes.feedback import router as feedback_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
+from demo import in_demo_request
 import storage
 from services.annotations import (
     KINDS, NOTE, annotation_out, annotations_of, body_text,
@@ -2651,6 +2652,8 @@ def _may_start_analysis(paper: Paper) -> bool:
     a user refreshing should not queue a job each time."""
     if paper.sha256 in _analyzing:
         return False
+    if in_demo_request():
+        return False  # the job would run on the permanent database
     if paper.references_status is None:
         return True
     if paper.references_status == "pending":

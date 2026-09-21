@@ -1,15 +1,21 @@
 """Demo behavior uses real routes, with no permanent writes or credentials."""
 import asyncio
+import io
 import time
 import unittest
+import zipfile
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 import httpx
 
 import main
+import storage
 from database import get_db
-from demo import DemoApplication, SUPPORTED_HANDLERS
+from demo import DEMO_PASSWORD, DemoApplication, SUPPORTED_HANDLERS
+from storage import FilesystemFiles
 
 
 class DemoTests(unittest.TestCase):
@@ -66,13 +72,17 @@ class DemoTests(unittest.TestCase):
             self.assertNotIn(created['uuid'], [tag['uuid'] for tag in self.call('GET', '/tags', headers=other)])
 
     def test_unsupported_operations_never_reach_real_handlers(self):
+        # Uploads of any kind, and what leaves the boundary: mail, desktop
+        # sync, admin, and the sign-in the demo replaces with its own session.
         cases = [('POST', '/papers'), ('POST', '/papers/extract'),
                  ('POST', '/auth/avatar'), ('DELETE', '/auth/avatar'),
-                 ('DELETE', '/auth/account'), ('POST', '/feedback'),
-                 ('GET', '/auth/export'),
-                 ('POST', '/sync/push'), ('POST', '/admin/send-digest'),
-                 ('POST', '/boards/abc/webpage'),
-                 ('POST', '/boards/abc/files'), ('GET', '/papers/abc/references')]
+                 ('POST', '/boards/abc/files'), ('POST', '/boards/abc/staging/clip'),
+                 ('POST', '/auth/register'), ('POST', '/auth/login'), ('POST', '/auth/logout'),
+                 ('POST', '/feedback'),
+                 ('POST', '/sync/push'), ('GET', '/sync/pull'), ('GET', '/sync/snapshot'),
+                 ('PUT', '/sync/blobs/' + 'a' * 64),
+                 ('GET', '/admin/tables'), ('POST', '/admin/sql'),
+                 ('POST', '/admin/send-digest'), ('GET', '/papers/abc/references')]
         with patch('main.SessionLocal', side_effect=AssertionError('Permanent session used')):
             for method, path in cases:
                 with self.subTest(path=path):
@@ -172,6 +182,137 @@ class DemoTests(unittest.TestCase):
                                       headers=self.headers)
                 self.assertEqual(response.status_code, 500)
                 permanent.assert_not_called()
+
+
+# A bundled PDF the real store holds and the seed names.
+SEED_PDF = "29752501fd100849ab7e9770510e64024f760ca1361d50dc35f04ff343d38d57.pdf"
+PNG = b"\x89PNG\r\n\x1a\n" + bytes(64)
+
+
+class DemoFilesTests(unittest.TestCase):
+    """What the app makes for a visitor — a captured page, the export —
+    lives in their workspace, never in the store everyone shares, and goes
+    with the visit. What a visitor sends as a file is refused."""
+
+    def setUp(self):
+        # The store everyone shares, stood in for behind the per-request
+        # names — not in their place, which is what a demo request looks
+        # past to reach its own workspace.
+        real = TemporaryDirectory(prefix="papol-demo-real-store-")
+        self.addCleanup(real.cleanup)
+        self.original_stores = storage._configured
+        storage._configured = (
+            FilesystemFiles(Path(real.name) / "uploads"),
+            FilesystemFiles(Path(real.name) / "board_uploads"),
+        )
+        self.addCleanup(self._restore_stores)
+        storage.uploads.put(SEED_PDF, b"%PDF-1.4 bundled\n%%EOF", "application/pdf")
+        self.client = TestClient(main.app)
+        self.addCleanup(self.client.close)
+        self.addCleanup(main.demo_app.close)
+        self.headers = self.start()
+
+    def _restore_stores(self):
+        storage._configured = self.original_stores
+
+    def start(self):
+        response = self.client.post('/api/demo/session')
+        self.assertEqual(response.status_code, 200, response.text)
+        return {'X-Papol-Demo-Session': response.json()['session']}
+
+    def call(self, method, path, headers=None, **kwargs):
+        response = self.client.request(method, '/api/demo' + path,
+                                       headers=headers or self.headers, **kwargs)
+        self.assertLess(response.status_code, 400, response.text)
+        return response.json() if response.content else None
+
+    def real_store_keys(self):
+        return sorted(storage.uploads.keys()), sorted(storage.board_files.keys())
+
+    def capture_webpage(self, board_uuid, headers=None):
+        with (
+            patch.object(main, '_public_web_url', side_effect=lambda url: url),
+            patch.object(main, '_capture_webpage', return_value=PNG),
+        ):
+            return self.call('POST', f'/boards/{board_uuid}/webpage', headers=headers,
+                             json={'url': 'https://example.test/page', 'x': 0, 'y': 0})
+
+    def test_uploads_are_refused_before_any_handler_runs(self):
+        board = self.call('POST', '/boards', json={'name': 'Temporary board'})
+        cases = [
+            ('POST', '/papers/extract', {'files': {'file': ('mine.pdf', b'%PDF-1.4', 'application/pdf')}}),
+            ('POST', '/papers', {'json': {'title': 'Mine', 'file_path': SEED_PDF}}),
+            ('POST', f"/boards/{board['uuid']}/files", {'files': {'file': ('d.png', PNG, 'image/png')}}),
+            ('POST', f"/boards/{board['uuid']}/staging/clip", {'files': {'file': ('c.png', PNG, 'image/png')}}),
+            ('POST', '/auth/avatar', {'files': {'file': ('me.png', PNG, 'image/png')}}),
+            ('DELETE', '/auth/avatar', {}),
+        ]
+        with patch('main.SessionLocal', side_effect=AssertionError('Permanent session used')):
+            for method, path, extra in cases:
+                with self.subTest(path=path):
+                    response = self.client.request(method, '/api/demo' + path, headers=self.headers, **extra)
+                    self.assertEqual(response.status_code, 501, response.text)
+        self.assertEqual(self.real_store_keys(), ([SEED_PDF], []))
+
+    def test_a_capture_lives_in_the_workspace_and_only_there(self):
+        board = self.call('POST', '/boards', json={'name': 'Temporary board'})
+        with patch('main.SessionLocal', side_effect=AssertionError('Permanent session used')):
+            item = self.capture_webpage(board['uuid'])
+        self.assertEqual(item['kind'], 'webpage')
+        response = self.client.get(f"/api/demo/board-items/{item['uuid']}/file", headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.content, PNG)
+        self.assertEqual(response.headers['content-type'], 'image/png')
+        self.assertEqual(response.headers['cache-control'], 'no-store')
+        # Another visitor has no such card, and the real store never saw the image.
+        other = self.client.get(f"/api/demo/board-items/{item['uuid']}/file", headers=self.start())
+        self.assertEqual(other.status_code, 404)
+        self.assertEqual(self.real_store_keys(), ([SEED_PDF], []))
+
+    def test_the_export_carries_the_bundled_pdf_and_the_files_die_with_the_visit(self):
+        name = SEED_PDF[:32]
+        if not self.call('GET', f'/papers/{name}').get('copy_uuid'):
+            self.call('POST', f'/papers/{name}/add-to-nook')
+        board = self.call('POST', '/boards', json={'name': 'Temporary board'})
+        self.capture_webpage(board['uuid'])
+        response = self.client.get('/api/demo/auth/export', headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
+        self.assertTrue(any(n.endswith('.pdf') and '/pdfs/' in n for n in names), names)
+        self.assertTrue(any('/board-files/' in n and n.endswith('.png') for n in names), names)
+
+        key = self.headers['X-Papol-Demo-Session']
+        files_dir = Path(main.demo_app.workspaces[key].files_dir.name)
+        self.assertTrue(any(files_dir.rglob('*.png')))
+        main.demo_app.workspaces[key].expires = 0
+        main.demo_app.expire(key)
+        self.assertFalse(files_dir.exists())
+
+    def test_a_workspace_holds_only_so_much(self):
+        main.demo_app.workspaces[self.headers['X-Papol-Demo-Session']].budget.limit = len(PNG) + 10
+        board = self.call('POST', '/boards', json={'name': 'Full board'})
+        self.capture_webpage(board['uuid'])
+        with (
+            patch.object(main, '_public_web_url', side_effect=lambda url: url),
+            patch.object(main, '_capture_webpage', return_value=PNG),
+        ):
+            response = self.client.post(f"/api/demo/boards/{board['uuid']}/webpage", headers=self.headers,
+                                        json={'url': 'https://example.test/again', 'x': 0, 'y': 0})
+        self.assertEqual(response.status_code, 413, response.text)
+
+    def test_the_reader_can_change_their_password_and_close_the_account(self):
+        response = self.client.put('/api/demo/auth/password', headers=self.headers,
+                                   json={'current_password': 'wrong', 'new_password': 'longer-one'})
+        self.assertEqual(response.status_code, 401)
+        self.call('PUT', '/auth/password',
+                  json={'current_password': DEMO_PASSWORD, 'new_password': 'longer-one'})
+        me = self.call('GET', '/auth/me')
+        closed = self.call('DELETE', '/auth/account', json={'confirm_email': me['email']})
+        self.assertIn('closed', closed['message'])
+        # The visit is over; a reload starts a fresh one with the seed reader.
+        self.assertEqual(self.client.get('/api/demo/auth/me', headers=self.headers).status_code, 410)
+        self.assertEqual(self.call('GET', '/auth/me', headers=self.start())['display_name'],
+                         'SpongeBob SquarePants')
 
 
 class DemoLifetimeTests(unittest.IsolatedAsyncioTestCase):

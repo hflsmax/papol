@@ -329,6 +329,46 @@ class S3ContractTests(FilesContract, unittest.TestCase):
             self.assertEqual(boards.root, Path(directory) / "board_uploads")
 
 
+class LayeredAndPerRequestTests(unittest.TestCase):
+    """A writable layer over a read-only store, and the areas a request is
+    given standing in for the configured ones."""
+
+    def setUp(self):
+        self.workspace = TemporaryDirectory()
+        root = Path(self.workspace.name)
+        self.back = FilesystemFiles(root / "back")
+        self.front = FilesystemFiles(root / "front")
+        self.layered = storage.LayeredFiles(self.front, self.back)
+        self.back.put("shared.pdf", b"shared", "application/pdf")
+
+    def tearDown(self):
+        self.workspace.cleanup()
+
+    def test_reads_fall_through_and_writes_stay_in_front(self):
+        self.assertTrue(self.layered.exists("shared.pdf"))
+        self.assertEqual(self.layered.get("shared.pdf"), b"shared")
+        self.layered.put("mine.pdf", b"mine", "application/pdf")
+        self.assertEqual(sorted(self.layered.keys()), ["mine.pdf", "shared.pdf"])
+        self.assertEqual(list(self.back.keys()), ["shared.pdf"])
+        self.layered.delete("shared.pdf")  # only the front is ever deleted from
+        self.assertEqual(self.back.get("shared.pdf"), b"shared")
+        self.assertEqual(self.layered.delete_prefix(""), 1)
+        self.assertEqual(list(self.front.keys()), [])
+        with self.layered.local("shared.pdf") as path:
+            self.assertEqual(Path(path).read_bytes(), b"shared")
+
+    def test_a_request_can_be_given_other_areas(self):
+        configured = storage.unwrap(storage.uploads)
+        self.assertIs(storage.unwrap(storage.uploads), configured)
+        with storage.use(self.layered, self.front):
+            self.assertIs(storage.unwrap(storage.uploads), configured)
+            storage.uploads.put("in-request.txt", b"x", "text/plain")
+            self.assertTrue(storage.uploads.exists("shared.pdf"))
+            self.assertEqual(list(storage.board_files.keys()), ["in-request.txt"])
+        self.assertFalse(configured.exists("in-request.txt"))
+        self.assertEqual(list(self.front.keys()), ["in-request.txt"])
+
+
 # ------------------------------------------------------------- the routes
 
 class ServingFromABucketTests(unittest.TestCase):

@@ -3,6 +3,7 @@
     "offline_blob_mb": 40,
     "board_file_mb": 25,
     "avatar_mb": 2,
+    "demo_workspace_mb": 100,
     "proxy_request_mb": 200,
     "youtube_source_mb": 200,
     "youtube_metadata_kb": 256,
