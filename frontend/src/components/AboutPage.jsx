@@ -7,10 +7,10 @@ export default function AboutPage() {
       <section className="panel about-story" aria-labelledby="about-title">
         <h6 className="kicker" id="about-title">About Papol</h6>
         <p className="about-lede">
-          Papol is a hobby project of mine. I am{' '}
-          <a href="https://mc-pony.com" target="_blank" rel="noreferrer">Cong Ma</a>,
-          a computer science researcher, and I built it from the best of what I
-          have used for reading papers.
+          Papol is a hobby project of{' '}
+          <a href="https://mc-pony.com" target="_blank" rel="noreferrer">me</a>,
+          a computer science researcher, built from the best of what I have
+          used for reading papers.
         </p>
         <p>
           Two things shaped it most. The citation popups of Google Scholar&rsquo;s
