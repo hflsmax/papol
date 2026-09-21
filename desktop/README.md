@@ -92,8 +92,8 @@ application system-wide, so a development build claiming `papol` would be the
 one a user's browser reaches. The release answers `papol`, a development
 build answers `papol-dev`, and `handoff_scheme` in `lib.rs` derives the same
 name from the bundle identifier at runtime. The address mirrors the web
-address the user was at, so `https://mc-pony.com/papol/viewer/?pdf=…`
-arrives as `papol://mc-pony.com/papol/viewer/?pdf=…`. `handle_run_event`
+address the user was at, so `https://papol.io/viewer/?pdf=…`
+arrives as `papol://papol.io/viewer/?pdf=…`. `handle_run_event`
 answers it: `deep_link_url` moves the path onto the bundled origin — a window
 built on the browser's origin would fetch the hosted site over the network —
 and `show_document_window` then opens or retargets the one window that
@@ -104,7 +104,7 @@ Two things make this untestable in `tauri dev`. macOS resolves a scheme
 through Launch Services, which knows only about bundled applications in
 `/Applications`, and it cannot be registered at runtime. Build and install
 first, then hand a reading over from a browser or with
-`open 'papol://mc-pony.com/papol/viewer/?pdf=<sha>'`.
+`open 'papol://papol.io/viewer/?pdf=<sha>'`.
 
 No browser will say whether an application is installed. The bar assigns the
 address to `location.href` and watches for this tab losing the user within
@@ -127,7 +127,7 @@ bundled applications and cannot be told about a scheme at runtime:
 
     npm run build:dev                     # a bundle that answers papol-dev://
     cp -R src-tauri/target/release/bundle/macos/"Papol Dev.app" /Applications/
-    open 'papol-dev://mc-pony.com/papol/viewer/?pdf=<sha>&page=14'
+    open 'papol-dev://papol.io/viewer/?pdf=<sha>&page=14'
 
 A cold launch should open the reading rather than the Desk, a second
 address for the same document should move that window rather than add one,
@@ -160,7 +160,7 @@ From the repository root, start the developer app against the local backend:
 This checks the local Node, Rust, and Xcode toolchains, installs changed npm
 dependencies, and starts the frontend, viewer, and board Vite servers before
 Tauri. UI edits live-reload and Rust edits rebuild and relaunch the app. The
-default backend is `http://127.0.0.1:8001` on macOS; choose another explicitly with
+default backend is `http://127.0.0.1:8787` (`wrangler dev`) on macOS; choose another explicitly with
 `--backend URL`. If it is unavailable, the app still opens for cached/offline
 work.
 
@@ -220,12 +220,12 @@ weekly so Tauri and its surrounding supply chain do not silently age in place.
 To use another backend in that bundle:
 
 ```sh
-PAPOL_BACKEND_URL=http://localhost:8000 npm run build:web
+PAPOL_BACKEND_URL=http://localhost:8787 npm run build:web
 ```
 
 `PAPOL_BACKEND_URL` is the base directory that contains Papol's `api/`
-route: use `https://host/papol` for a mounted production app and
-`http://localhost:8000` for a root-mounted development app. The build
+route: use `https://papol.io` for the production app and
+`http://localhost:8787` for `wrangler dev`. The build
 normalizes either form to a trailing-slash directory URL, so browser requests
 and native synchronization retain that path prefix.
 
