@@ -659,10 +659,34 @@ stays as a second door for now. Mail is off by decision: no
 `EMAIL_API_*` secrets, notifications stay in the inbox. The previous
 production hostname was on the LAN only, so nothing public moves.
 
-Still to do: the GROBID tunnel with Access; the desktop app rebuilt
-with `PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as
-`wrangler deploy`; `module.nix` reduced to GROBID and the tunnel; the
-Python backend deleted.
+### Step 4 — landed 2026-09-21: GROBID behind a tunnel of Papol's own
+
+A tunnel `papol` (`wrangler tunnel create papol`, id `feda19ad-…`),
+separate from the host's other tunnel, carries `grobid.papol.io` to
+the NixOS host. There, `module.nix`'s new `grobid.expose` options run
+cloudflared for that tunnel and an nginx vhost on localhost in front
+of GROBID, asking for one basic-auth credential from an htpasswd file
+outside the store. The Worker holds the same credential as
+`GROBID_AUTH` and `https://grobid.papol.io` as `GROBID_URL`.
+
+- Not Cloudflare Access, as first planned: the wrangler login has no
+  Zero Trust scope, and a single-tenant service needs no more than one
+  shared credential over TLS. The Access design is gone from
+  `grobid.ts` (`GROBID_ACCESS_CLIENT_ID/SECRET` are not secrets any
+  more).
+- The tunnel's credentials JSON was derived from its token through the
+  API and placed at `~/.cloudflared/<id>.json` on the host, where the
+  NixOS cloudflared service expects it; a remotely-created tunnel
+  otherwise has no local file.
+- The host's cloudflared login is scoped to another zone, so
+  `cloudflared tunnel route dns` wrote a stray record
+  `grobid.papol.io.mc-pony.com` there; the real CNAME in papol.io is
+  added in the dashboard.
+
+Still to do: the desktop app rebuilt with
+`PAPOL_BACKEND_URL=https://papol.io`; `deploy.sh prod` as `wrangler
+deploy`; `module.nix` reduced to GROBID and the tunnel; the Python
+backend deleted.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 

@@ -12,11 +12,11 @@ interface Secrets {
   PAPOL_CONTACT_EMAIL?: string;
   PAPOL_OPENALEX_KEY?: string;
   // The reference analyzer on the NixOS host, behind a Cloudflare tunnel
-  // with Access in front (src/papers/grobid.ts). Unset, references are
-  // "unavailable" and uploads get no title-block reading.
+  // with nginx asking for one credential, "user:password"
+  // (src/papers/grobid.ts). Unset, references are "unavailable" and
+  // uploads get no title-block reading.
   GROBID_URL?: string;
-  GROBID_ACCESS_CLIENT_ID?: string;
-  GROBID_ACCESS_CLIENT_SECRET?: string;
+  GROBID_AUTH?: string;
   // "manual" in the suite: wake-ups are handed to the consumer by the
   // test, not sent (src/jobs/queue.ts).
   QUEUE_DELIVERY?: string;
