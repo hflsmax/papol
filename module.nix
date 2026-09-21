@@ -416,7 +416,7 @@ in {
         # five minutes (GROBID_TIMEOUT); a capture at far less.
         TimeoutStopSec = 330;
       };
-      path = [ pkgs.ffmpeg pkgs.yt-dlp pkgs.chromium pkgs.curl pkgs.gnugrep pkgs.coreutils ];
+      path = [ pkgs.chromium pkgs.curl pkgs.gnugrep pkgs.coreutils ];
     };
 
     systemd.services.papol-health-check = lib.mkIf cfg.health.enable {
