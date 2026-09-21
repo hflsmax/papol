@@ -898,6 +898,8 @@ class ExtractionQueued(BaseModel):
 
 class BoardItemQueued(BaseModel):
     """A card written to the board, with its picture still being made:
-    the card is already on the board, and `job` says when it has one."""
-    job: str
+    the card is already on the board, and `job` says when it has one.
+    No `job` means it already has: the demo makes the picture in the
+    request, having no worker."""
+    job: Optional[str] = None
     item: "BoardItemOut"

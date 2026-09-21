@@ -84,6 +84,7 @@ from routes.feedback import router as feedback_router
 from routes.jobs import router as jobs_router
 from routes.notifications import router as notifications_router
 from routes.sharables import router as sharables_router
+from demo import in_demo_request
 import storage
 from services import analysis, capture, extraction, jobs
 from services.annotations import (
@@ -995,6 +996,18 @@ async def add_youtube_to_board(
     board.updated_at = datetime.utcnow()
     db.add(item)
     db.flush()
+    if in_demo_request():
+        # The demo has no worker and no permanent rows. The picture is made
+        # here, in the request, into the workspace's own files — as every
+        # demo effect is — and the card answers complete, with no job to poll.
+        try:
+            image, title, suffix, mime = await asyncio.to_thread(capture.youtube_picture, url, video_id)
+        except Exception as exc:
+            logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
+            raise HTTPException(status_code=502, detail=f"Could not capture the YouTube frame: {exc}")
+        capture.attach_youtube(db, item, image, title, suffix, mime, video_id)
+        db.refresh(item)
+        return BoardItemQueued(job=None, item=BoardItemOut.model_validate(item))
     job = jobs.enqueue(
         db, capture.YOUTUBE, {"item_uuid": item.uuid, "url": url, "video_id": video_id},
         user_uuid=user.uuid,
@@ -1030,6 +1043,16 @@ async def add_webpage_to_board(
     board.updated_at = datetime.utcnow()
     db.add(item)
     db.flush()
+    if in_demo_request():
+        # In the request, as with the video above: the demo has no worker.
+        try:
+            image = await asyncio.to_thread(capture.capture_webpage, url)
+        except Exception as exc:
+            logger.warning("Could not capture webpage %s: %s", url, exc)
+            raise HTTPException(status_code=502, detail=f"Could not capture the webpage: {exc}")
+        capture.attach_webpage(db, item, image, url)
+        db.refresh(item)
+        return BoardItemQueued(job=None, item=BoardItemOut.model_validate(item))
     job = jobs.enqueue(
         db, capture.WEBPAGE, {"item_uuid": item.uuid, "url": url}, user_uuid=user.uuid,
     )
@@ -2233,7 +2256,8 @@ async def _paper_references(
             detail="Reference analysis unavailable",
         )
 
-    if grobid.configured() and analysis.request_analysis(db, paper):
+    # Never from the demo: the job would run on the permanent database.
+    if grobid.configured() and not in_demo_request() and analysis.request_analysis(db, paper):
         db.commit()
 
     if paper.references_status != "ready":

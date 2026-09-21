@@ -218,16 +218,21 @@ def capture_webpage(url: str) -> bytes:
     return image
 
 
-# ------------------------------------------------------------------ the jobs
+def youtube_picture(url: str, video_id: str) -> tuple[bytes, str, str, str]:
+    """The video's thumbnail, or the frame at the timestamp the link names:
+    (image, title, file suffix, mime type)."""
+    timestamp = youtube_time(url)
+    if timestamp is None:
+        image, title = fetch_youtube_thumbnail(url, video_id)
+        return image, title, ".jpg", "image/jpeg"
+    image, title = capture_youtube_frame(url, timestamp)
+    return image, title, ".png", "image/png"
 
-def _card(db: Session, payload: dict) -> BoardItem:
-    item = db.get(BoardItem, payload["item_uuid"])
-    if item is None or item.deleted_at is not None:
-        raise jobs.JobError("The card is gone")
-    return item
 
+# ------------------------------------------------------ putting it on the card
 
-def _attach(db: Session, item: BoardItem, image: bytes, suffix: str, mime: str, original: str):
+def attach(db: Session, item: BoardItem, image: bytes, suffix: str, mime: str, original: str) -> dict:
+    """The picture onto the card, in the board's files; committed."""
     key = f"{item.board_uuid}/{uuid.uuid4().hex}{suffix}"
     storage.board_files.put(key, image, mime)
     item.file_path = key
@@ -239,6 +244,29 @@ def _attach(db: Session, item: BoardItem, image: bytes, suffix: str, mime: str, 
     return {"file_path": key, "sha256": item.sha256}
 
 
+def attach_webpage(db: Session, item: BoardItem, image: bytes, url: str) -> dict:
+    hostname = urllib.parse.urlparse(url).hostname or url
+    return attach(
+        db, item, image, ".png", "image/png",
+        f'webpage-{hostname[:limit("text", "display_name")]}.png',
+    )
+
+
+def attach_youtube(db: Session, item: BoardItem, image: bytes, title: str,
+                   suffix: str, mime: str, video_id: str) -> dict:
+    item.content = title
+    return attach(db, item, image, suffix, mime, f"youtube-{video_id}{suffix}")
+
+
+# ------------------------------------------------------------------ the jobs
+
+def _card(db: Session, payload: dict) -> BoardItem:
+    item = db.get(BoardItem, payload["item_uuid"])
+    if item is None or item.deleted_at is not None:
+        raise jobs.JobError("The card is gone")
+    return item
+
+
 async def capture_webpage_job(db: Session, payload: dict) -> dict:
     item = _card(db, payload)
     url = payload["url"]
@@ -247,26 +275,15 @@ async def capture_webpage_job(db: Session, payload: dict) -> dict:
     except Exception as exc:
         logger.warning("Could not capture webpage %s: %s", url, exc)
         raise jobs.JobError(f"Could not capture the webpage: {exc}") from exc
-    hostname = urllib.parse.urlparse(url).hostname or url
-    return _attach(
-        db, item, image, ".png", "image/png",
-        f'webpage-{hostname[:limit("text", "display_name")]}.png',
-    )
+    return attach_webpage(db, item, image, url)
 
 
 async def capture_youtube_job(db: Session, payload: dict) -> dict:
     item = _card(db, payload)
     url, video_id = payload["url"], payload["video_id"]
     try:
-        timestamp = youtube_time(url)
-        if timestamp is None:
-            image, title = fetch_youtube_thumbnail(url, video_id)
-            suffix, mime = ".jpg", "image/jpeg"
-        else:
-            image, title = capture_youtube_frame(url, timestamp)
-            suffix, mime = ".png", "image/png"
+        image, title, suffix, mime = youtube_picture(url, video_id)
     except Exception as exc:
         logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
         raise jobs.JobError(f"Could not capture the YouTube frame: {exc}") from exc
-    item.content = title
-    return _attach(db, item, image, suffix, mime, f"youtube-{video_id}{suffix}")
+    return attach_youtube(db, item, image, title, suffix, mime, video_id)

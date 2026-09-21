@@ -1,17 +1,24 @@
 """Disposable demo storage around the ordinary application handlers.
 
-Only audited handlers whose effects remain disposable are exposed. Durable files,
-jobs, account management and external side effects have no demo implementation.
+Only audited handlers whose effects remain disposable are exposed. A visitor's
+files live in a workspace directory layered over the real store, so what the
+app makes for them — a captured webpage, a YouTube frame, the export — works
+and vanishes with the session. Nothing a visitor sends as a file is accepted:
+no paper, board file, clip or avatar. What has no demo implementation is that,
+and what leaves the boundary: mail, desktop sync, admin, and the sign-in the
+demo replaces with its own.
 """
 
 import asyncio
+import contextvars
 import json
 import secrets
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.routing import APIRoute
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -19,6 +26,9 @@ from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+import storage
+from app_limits import limit, mebibytes
+from auth import hash_password
 from database import Base, PapolSession, get_db, set_request_session, reset_request_session
 from models import (
     User, AuthToken, Paper, Copy, Tag, Shelf, CopyTagLink, Annotation,
@@ -44,10 +54,27 @@ SUPPORTED_HANDLERS = frozenset("""
     shared_in_nook add_shared_to_nook client_requirements
     get_viewer_paper_info reextract_paper_metadata
     viewer_references viewer_reference preview_viewer_reference
+    add_youtube_to_board add_webpage_to_board get_board_item_file
+    change_password export_my_data delete_my_account
 """.split())
+
+# Whether the request being served belongs to a demo workspace. Handlers
+# consult it for the one thing they must not do here: queue work that runs
+# after the response on the permanent database.
+ACTIVE: contextvars.ContextVar[bool] = contextvars.ContextVar("papol_demo_active", default=False)
+
+
+def in_demo_request() -> bool:
+    return ACTIVE.get()
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "shared" / "demoSeed.json"
 UNSUPPORTED = "Not supported in the demo."
+
+# The demo reader's password, so that changing it and closing the account
+# run the real handlers with the real checks. Hashed once: every workspace
+# is the same reader, and the hash is the slow part on purpose.
+DEMO_PASSWORD = "papol-demo"
+_DEMO_PASSWORD_HASH = hash_password(DEMO_PASSWORD)
 
 
 def without_cache(send):
@@ -70,7 +97,10 @@ def seed_database(db, token):
         return values
 
     me = world["users"][0]["uuid"]
-    db.add_all(User(**user, password_hash="demo-disabled") for user in world["users"])
+    db.add_all(
+        User(**user, password_hash=_DEMO_PASSWORD_HASH if user["uuid"] == me else "demo-disabled")
+        for user in world["users"]
+    )
     db.flush()
     db.add_all(Paper(**row(paper), references_status="unavailable") for paper in world["papers"])
     db.add_all(Tag(**tag, user_uuid=me) for tag in world["tags"])
@@ -106,6 +136,32 @@ def seed_database(db, token):
     db.commit()
 
 
+class Budget:
+    """How many bytes a workspace may hold across both of its areas."""
+
+    def __init__(self, limit_bytes: int):
+        self.limit = limit_bytes
+        self.used = 0
+
+
+class WorkspaceFiles(storage.FilesystemFiles):
+    """A workspace's own area: a directory that answers 413 once the visitor
+    has stored more than the demo allows, so one visit cannot fill the disk."""
+
+    def __init__(self, root: Path, budget: Budget):
+        super().__init__(root)
+        self.budget = budget
+
+    def put(self, key, data, content_type):
+        if self.budget.used + len(data) > self.budget.limit:
+            raise HTTPException(
+                status_code=413,
+                detail=f'The demo holds at most {limit("files", "demo_workspace_mb")} MB of files',
+            )
+        super().put(key, data, content_type)
+        self.budget.used += len(data)
+
+
 class Workspace:
     def __init__(self, ttl):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
@@ -114,12 +170,25 @@ class Workspace:
         self.lock = asyncio.Lock()
         self.token = secrets.token_urlsafe(32)
         self.timer = None
+        # The visitor's files: their own directory in front, the real store
+        # behind it for the bundled PDFs. Nothing here can reach the store
+        # everyone shares except to read it. Uploads are refused outright;
+        # what lands here is what the app makes — captures.
+        self.files_dir = tempfile.TemporaryDirectory(prefix="papol-demo-")
+        self.budget = Budget(mebibytes("files", "demo_workspace_mb"))
+        root = Path(self.files_dir.name)
+        self.uploads = storage.LayeredFiles(
+            WorkspaceFiles(root / storage.UPLOADS_AREA, self.budget), storage.unwrap(storage.uploads),
+        )
+        self.board_files = storage.LayeredFiles(
+            WorkspaceFiles(root / storage.BOARD_FILES_AREA, self.budget), storage.unwrap(storage.board_files),
+        )
         try:
             Base.metadata.create_all(self.engine)
             with self.sessions() as db:
                 seed_database(db, self.token)
         except Exception:
-            self.engine.dispose()
+            self.close()
             raise
         self.expires = time.monotonic() + ttl
 
@@ -127,6 +196,7 @@ class Workspace:
         if self.timer:
             self.timer.cancel()
         self.engine.dispose()
+        self.files_dir.cleanup()
 
 
 class DemoApplication:
@@ -219,7 +289,15 @@ class DemoApplication:
                           "root_path": "", "headers": headers}
             with workspace.sessions() as db:
                 context = set_request_session(db)
+                active = ACTIVE.set(True)
                 try:
-                    await self.app(demo_scope, receive, send)
+                    with storage.use(workspace.uploads, workspace.board_files):
+                        await self.app(demo_scope, receive, send)
+                    # Closing the account revokes the reader's sessions, the
+                    # workspace's token among them. The visit is over then:
+                    # the next request says so, and a reload starts afresh.
+                    if db.query(AuthToken).filter(AuthToken.token == workspace.token).first() is None:
+                        workspace.expires = 0
                 finally:
+                    ACTIVE.reset(active)
                     reset_request_session(context)

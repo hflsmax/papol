@@ -200,13 +200,16 @@ uvicorn, and `python -m unittest` runs jobs in-process through
 key, the lease, and each kind from the request that queues it to the row
 the worker leaves.
 
-Two things stayed in the request on purpose. The edit form's "re-read
+Three things stayed in the request on purpose. The edit form's "re-read
 the PDF" button (`/api/papers/{sha}/extract-metadata`) still answers
 synchronously: it is a button, not an upload, and the demo — which has no
-jobs, by design — answers it too. And the demo's bundled PDFs are still
+jobs, by design — answers it too. The demo's bundled PDFs are still
 analyzed in the web process through the ephemeral reference engine,
 because that state is process-local by design and a worker could not
-fill it.
+fill it. And a demo board's captures are made in the request, into the
+workspace's own files, and answer with `job: null`: a worker would run
+on the permanent database, which is the one thing the demo must never
+touch, and the client treats a missing job as a picture already there.
 
 What the phase was planned around, kept for the record:
 
