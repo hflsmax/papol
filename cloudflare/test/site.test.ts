@@ -29,6 +29,15 @@ describe("the website", () => {
     expect(script.headers.get("content-type")).toContain("javascript");
   });
 
+  it("sends plain HTTP to HTTPS, except on the loopback where wrangler dev lives", async () => {
+    const { SELF } = await import("cloudflare:test");
+    const moved = await SELF.fetch("http://papol.test/library", { redirect: "manual" });
+    expect(moved.status).toBe(301);
+    expect(moved.headers.get("location")).toBe("https://papol.test/library");
+    const local = await SELF.fetch("http://127.0.0.1:8787/api/client-requirements");
+    expect(local.status).toBe(200);
+  });
+
   it("does not turn an unknown API or upload path into a page", async () => {
     for (const path of ["/api/no-such-route", "/uploads/no-such-file.pdf"]) {
       const response = await call("GET", path);

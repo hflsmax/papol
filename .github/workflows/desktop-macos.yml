@@ -116,6 +116,10 @@ jobs:
       - name: Install desktop and bundled UI dependencies
         run: nix develop --command bash -c 'cd desktop && npm ci && npm run install:web'
 
+      # The disposable backend the checks start is `wrangler dev`.
+      - name: Install the Worker's dependencies
+        run: nix develop --command bash -c 'cd cloudflare && npm ci --legacy-peer-deps'
+
       - name: The replica against the service
         run: nix develop --command bash -c 'cd desktop && npm run test:e2e:native-sync'
 
