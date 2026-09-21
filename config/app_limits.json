@@ -5,7 +5,6 @@
     "avatar_mb": 2,
     "demo_workspace_mb": 100,
     "proxy_request_mb": 200,
-    "youtube_source_mb": 200,
     "youtube_metadata_kb": 256,
     "local_annotation_mb": 4,
     "idempotency_response_mb": 5
@@ -111,7 +110,6 @@
     "sync_read": 20000,
     "youtube_metadata": 8000,
     "youtube_thumbnail": 10000,
-    "youtube_download": 90000,
     "media_capture": 30000,
     "bibliography_http": 15000,
     "grobid_http": 5000,

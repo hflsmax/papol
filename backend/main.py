@@ -972,18 +972,14 @@ async def add_youtube_to_board(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """A video card, on the board at once; its frame is a job. The link is
-    checked here, so a URL that is not a video is refused now rather than
-    by a worker later; the picture is made by the worker and the client
-    polls the job to learn when the card has it."""
+    """A video card, on the board at once; its thumbnail is a job. The link
+    is checked here, so a URL that is not a video is refused now rather
+    than by a worker later; the picture is fetched by the worker and the
+    client polls the job to learn when the card has it."""
     board = _owned_board(board_uuid, user, db)
     video_id = capture.youtube_id(data.url)
     if not video_id:
         raise HTTPException(status_code=422, detail="Paste a valid YouTube video URL")
-    try:
-        capture.youtube_time(data.url)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
     url = data.url.strip()
     item = BoardItem(
         board_uuid=board.uuid,
@@ -1001,11 +997,11 @@ async def add_youtube_to_board(
         # here, in the request, into the workspace's own files — as every
         # demo effect is — and the card answers complete, with no job to poll.
         try:
-            image, title, suffix, mime = await asyncio.to_thread(capture.youtube_picture, url, video_id)
+            image, title = await asyncio.to_thread(capture.fetch_youtube_thumbnail, url, video_id)
         except Exception as exc:
-            logger.warning("Could not capture YouTube frame for %s: %s", video_id, exc)
-            raise HTTPException(status_code=502, detail=f"Could not capture the YouTube frame: {exc}")
-        capture.attach_youtube(db, item, image, title, suffix, mime, video_id)
+            logger.warning("Could not fetch the YouTube thumbnail for %s: %s", video_id, exc)
+            raise HTTPException(status_code=502, detail=f"Could not fetch the video's thumbnail: {exc}")
+        capture.attach_youtube(db, item, image, title, video_id)
         db.refresh(item)
         return BoardItemQueued(job=None, item=BoardItemOut.model_validate(item))
     job = jobs.enqueue(
