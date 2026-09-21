@@ -25,11 +25,16 @@ jobs:
       - name: Let Chromium sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-      - name: Unit tests, all four surfaces
+      - name: Unit tests, all five surfaces
         run: |
           nix develop --command bash -c 'cd viewer   && npm ci && npm test'
           nix develop --command bash -c 'cd board    && npm ci && npm test'
           nix develop --command bash -c 'cd frontend && npm ci && npm test'
+          # The Worker the backend is becoming (docs/cloud-migration.md, phase
+          # 4): its suite runs in the Workers runtime against a local D1.
+          # --legacy-peer-deps because npm's peer resolver crashes on Vitest
+          # 5's optional peers while the pool still wants Vitest 4.
+          nix develop --command bash -c 'cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test'
           # The backend suite levels its schema, so it runs only against a
           # database named *_test; `./deploy.sh db` brings the cluster up and
           # this is the invocation it prints.

@@ -1,0 +1,19 @@
+# Papol on Cloudflare: one Worker for the API and the jobs.
+#
+# Bindings are added as the phases of docs/cloud-migration.md land. The
+# database id below is the local development database's name; the real
+# one is written here when the production database is made (phase 5).
+
+name = "papol"
+main = "src/index.ts"
+compatibility_date = "2026-08-22"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "papol"
+database_id = "papol-local"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true
