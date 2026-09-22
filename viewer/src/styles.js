@@ -639,6 +639,8 @@ ${macHandoffStyles}
 .nook-ask strong { font-size: var(--fs-md); }
 .nook-ask p { color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.45; }
 .nook-ask-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+/* The wait under the button while the paper is added (docs/waiting.md). */
+.nook-adding { padding: 12px 14px; }
 .learn-papol.pdf-viewer-tip { left: auto; right: 0; }
 .learn-papol.pdf-viewer-tip::before { left: auto; right: 22px; }
 .pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }

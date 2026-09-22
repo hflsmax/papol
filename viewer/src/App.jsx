@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
 import { formatBytes, formatProgressDetail, progressFraction } from '../../shared/waiting.js';
+import { uploadProgressView } from '../../shared/api/files.js';
 import { flushSync } from 'react-dom';
 // The legacy build, not the modern one: the modern build calls JavaScript
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
@@ -252,6 +253,15 @@ function useEvent(handler) {
 
 // Native commands reject with a bare string rather than an Error.
 const messageOf = (failure) => String(failure?.message ?? failure);
+
+// The wait while an opened file is added to the nook: a bar over the
+// upload of its bytes to Papol while storeFile reports one, the spinner
+// before that and for the reading and the rows that follow.
+function NookAddingWait({ progress }) {
+  const view = uploadProgressView(progress);
+  if (!view || view.fraction >= 1) return <Working label="Adding to nook…" />;
+  return <Progress fraction={view.fraction} label="Adding to nook" detail={view.detail} />;
+}
 
 function numberParam(name) {
   const v = new URLSearchParams(window.location.search).get(name);
@@ -601,6 +611,9 @@ export default function App() {
   // an account. idle | ask (sign in first?) | waiting (for the library
   // window's sign-in) | adding.
   const [nookStep, setNookStep] = useState('idle');
+  // The upload of an opened file to Papol, as storeFile reports it, while
+  // the paper is being added; null before the first event.
+  const [nookProgress, setNookProgress] = useState(null);
   // Kept apart from the sign-in step so clicking away can hide the prompt
   // without cancelling a sign-in already under way in the Desk window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
@@ -3221,8 +3234,9 @@ export default function App() {
     }
     setNookStep('adding');
     setNookPromptOpen(false);
+    setNookProgress(null);
     try {
-      const added = await source.addToNook();
+      const added = await source.addToNook({ onProgress: setNookProgress });
       // Where the paper now is. A file opened from disk becomes the
       // ordinary nook URL it was always destined for; a shared paper
       // becomes this user's own copy of that PDF, which is the only
@@ -3854,9 +3868,14 @@ export default function App() {
                   onClick={addToNook}
                   disabled={nookStep === 'adding'}
                 >
-                  {nookStep === 'adding' ? 'Adding…' : 'Add to nook'}
+                  {nookStep === 'adding' ? 'Adding to nook…' : 'Add to nook'}
                 </button>
               )
+            )}
+            {nookStep === 'adding' && (
+              <div className="paper-info-pop nook-ask nook-adding" data-tauri-drag-region="false">
+                <NookAddingWait progress={nookProgress} />
+              </div>
             )}
             {nookPromptOpen && ['confirm', 'ask', 'waiting'].includes(nookStep) && (
               <div className="paper-info-pop nook-ask" role="dialog" aria-labelledby="nook-ask-title" data-tauri-drag-region="false">

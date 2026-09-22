@@ -121,7 +121,8 @@ export async function addBoardComment(uuid, content, x, y) {
   return jsonRequest(`/boards/${uuid}/comments`, 'POST', { content, x, y });
 }
 
-export async function addBoardFile(uuid, file, caption = '', position = null) {
+// `onProgress` hears the upload as it goes (shared/api/files.js).
+export async function addBoardFile(uuid, file, caption = '', position = null, { onProgress } = {}) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     try {
@@ -145,7 +146,7 @@ export async function addBoardFile(uuid, file, caption = '', position = null) {
     }
   }
   // The bytes into the bucket (shared/api/files.js), then the card that names them.
-  const stored = await storeFile('board_file', file, { name: file.name || 'file' });
+  const stored = await storeFile('board_file', file, { name: file.name || 'file', onProgress });
   return jsonRequest(`/boards/${uuid}/files`, 'POST', {
     sha256: stored.sha256, caption, original_filename: file.name || 'file',
     mime_type: file.type || 'application/octet-stream',
