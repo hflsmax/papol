@@ -676,25 +676,32 @@ async fn sync_now(
     result
 }
 
-const DESKTOP_ENVIRONMENT: &str = "window.__PAPOL_ENV__ = Object.freeze({ \
-      runtime: 'desktop', surface: 'desk', documentWindow: false \
+// The build's version rides along, so the windows' own requests say which
+// Papol sent them exactly as the synchronizer's User-Agent does.
+const DESKTOP_ENVIRONMENT: &str = concat!(
+    "window.__PAPOL_ENV__ = Object.freeze({ \
+      runtime: 'desktop', surface: 'desk', documentWindow: false, version: '",
+    env!("CARGO_PKG_VERSION"),
+    "' \
     }); \
     window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
       window.__TAURI_INTERNALS__.invoke('open_document_window', { url }); \
     window.__PAPOL_FOCUS_DESK_WINDOW__ = (paperSha256) => \
-      window.__TAURI_INTERNALS__.invoke('focus_desk_window', { paperSha256 });";
+      window.__TAURI_INTERNALS__.invoke('focus_desk_window', { paperSha256 });"
+);
 
 fn document_environment(surface: &str) -> String {
     format!(
         "window.__PAPOL_ENV__ = Object.freeze({{ \
-           runtime: 'desktop', surface: '{surface}', documentWindow: true \
+           runtime: 'desktop', surface: '{surface}', documentWindow: true, version: '{version}' \
          }}); \
          window.__PAPOL_OPEN_DOCUMENT_WINDOW__ = (url) => \
            window.__TAURI_INTERNALS__.invoke('open_document_window', {{ url }}); \
          window.__PAPOL_CLOSE_DOCUMENT_WINDOW__ = () => \
            window.__TAURI_INTERNALS__.invoke('close_document_window'); \
          window.__PAPOL_FOCUS_DESK_WINDOW__ = (paperSha256) => \
-           window.__TAURI_INTERNALS__.invoke('focus_desk_window', {{ paperSha256 }});"
+           window.__TAURI_INTERNALS__.invoke('focus_desk_window', {{ paperSha256 }});",
+        version = env!("CARGO_PKG_VERSION"),
     )
 }
 

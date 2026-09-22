@@ -12,7 +12,7 @@
 
 import { getClientRequirements } from './api/clientRequirements.js';
 
-const SUPPORTED = 'supported';
+export const SUPPORTED = 'supported';
 export const INCOMPATIBLE = 'incompatible';
 
 const CACHE_KEY = 'papol.clientCompatibility';

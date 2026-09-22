@@ -19,6 +19,8 @@ import registry from "../../schema/sync_registry.json";
 
 export const SCHEMA_HEADER = "X-Papol-Schema";
 export const AGENT_PREFIX = "Papol macOS/";
+// What the desktop's windows send, whose requests cannot set a User-Agent.
+export const DESKTOP_VERSION_HEADER = "X-Papol-Desktop-Version";
 export const DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases";
 export const MINIMUM_DESKTOP_VERSION = "0.5.0";
 
@@ -37,13 +39,15 @@ export function clientSchema(request: Request): number | null {
   return Number.isInteger(announced) ? announced : -1; // a header nobody can read is not this build's
 }
 
-// The desktop build's version as its User-Agent states it, or null for
-// any other caller.
+// The desktop build's version as its User-Agent states it (the
+// synchronizer) or its version header does (the app's windows), or null
+// for any other caller.
 export function desktopVersion(request: Request): string | null {
   const agent = request.headers.get("user-agent") ?? "";
   const start = agent.indexOf(AGENT_PREFIX);
-  if (start < 0) return null;
-  return agent.slice(start + AGENT_PREFIX.length).split(/\s+/)[0] || "";
+  if (start >= 0) return agent.slice(start + AGENT_PREFIX.length).split(/\s+/)[0] || "";
+  const announced = request.headers.get(DESKTOP_VERSION_HEADER);
+  return announced === null ? null : announced.trim();
 }
 
 // Whether a version reads as at least the minimum: numbers compared in
