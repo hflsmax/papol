@@ -72,7 +72,7 @@ test("the web makes a Bilibili card as its link: only the Mac can ask Bilibili",
   assert.equal(canPreview(videoLink('https://b23.tv/AbC123')), false);
   let asked = false;
   await assert.rejects(
-    videoPreview('https://www.bilibili.com/video/BV11kev6cEhk', { fetch: async () => { asked = true; }, pageFetch: async () => { asked = true; } }),
+    videoPreview('https://www.bilibili.com/video/BV11kev6cEhk', { fetch: async () => { asked = true; }, videoPage: async () => { asked = true; } }),
     /Only the Mac app/,
   );
   assert.equal(asked, false);

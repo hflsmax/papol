@@ -13,6 +13,7 @@ pub mod data;
 mod diagnostics;
 mod limits;
 pub mod sync;
+pub mod videos;
 
 static ACTIVE_SYNCS: AtomicUsize = AtomicUsize::new(0);
 
@@ -449,6 +450,12 @@ fn blob_cache(
     mime_type: Option<String>,
 ) -> Result<(), String> {
     store.import_remote_blob(&expected_sha256, &bytes, mime_type)
+}
+
+/// The page a video link leads to, asked for as a phone asks (videos.rs).
+#[tauri::command]
+async fn video_page(url: String) -> Result<videos::VideoPage, String> {
+    videos::page(&url).await
 }
 
 /// A web page's picture for a board card, taken on this Mac (capture.rs).
@@ -1192,6 +1199,7 @@ pub fn run() {
             blob_read,
             blob_ensure,
             capture_webpage,
+            video_page,
             local_clear_data,
             blob_discard,
             local_setting_get,

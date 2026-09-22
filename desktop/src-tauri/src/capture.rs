@@ -26,9 +26,53 @@ use crate::limits;
 
 const WIDTH: f64 = 1280.0;
 const HEIGHT: f64 = 800.0;
-/// After the load event: web fonts, late and progressively loaded images,
-/// and a first layout pass. 1.5 s left a site's hero image still blurred.
-const SETTLE: Duration = Duration::from_millis(3000);
+/// After the page says it has gone quiet: one more layout and paint.
+const SETTLE: Duration = Duration::from_millis(600);
+/// How long to wait for that word. A page built entirely by its scripts
+/// (Instagram) draws nothing for seconds after its load event, and was
+/// photographed blank when the wait was a flat three seconds.
+const QUIET_TIMEOUT: Duration = Duration::from_millis(15_000);
+/// How often the window is asked what the page has titled itself.
+const QUIET_POLL: Duration = Duration::from_millis(150);
+/// What the page titles itself once it has stopped changing. A window
+/// with no capabilities cannot call Papol — that is the point of it — so
+/// the page says this in the one place the application can read.
+const QUIET_TITLE: &str = "papol-capture-quiet";
+/// Watches the page and titles it when nothing has changed for a moment:
+/// no DOM mutations, no resources arriving, and the document complete.
+const QUIET_SCRIPT: &str = r#"(() => {
+  const began = performance.now();
+  let changed = performance.now();
+  const touch = () => { changed = performance.now(); };
+  // A glance down the page and back to the top. Pages that load what is
+  // on screen only once it is scrolled to (Instagram's grid again) ask
+  // for nothing at all until something moves.
+  (async () => {
+    const rest = (ms) => new Promise((done) => setTimeout(done, ms));
+    for (const y of [innerHeight, innerHeight * 2, innerHeight, 0]) {
+      try { scrollTo({ top: y, behavior: 'instant' }); } catch (e) { scrollTo(0, y); }
+      await rest(200);
+    }
+    touch();
+  })();
+  try { new MutationObserver(touch).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true }); } catch (e) {}
+  try { new PerformanceObserver(touch).observe({ type: 'resource', buffered: true }); } catch (e) {}
+  // A picture the page has asked for but not drawn yet is not quiet: a
+  // site that loads what is on screen from script (Instagram's grid) was
+  // photographed with empty frames where its pictures belong.
+  const waiting = () => [...document.images].some((image) => {
+    if (image.complete || !image.currentSrc) return false;
+    const box = image.getBoundingClientRect();
+    return box.bottom > 0 && box.top < innerHeight && box.width > 1 && box.height > 1;
+  });
+  const watch = setInterval(() => {
+    const quiet = performance.now() - changed > 900 && document.readyState === 'complete' && !waiting();
+    if (quiet || performance.now() - began > 14000) {
+      clearInterval(watch);
+      document.title = 'papol-capture-quiet';
+    }
+  }, 120);
+})()"#;
 const JPEG_QUALITY: f64 = 0.8;
 /// WebKit answers a snapshot within a frame or two; this is only a guard.
 const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -216,6 +260,7 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
             Ok(Err(_)) => return Err("The page closed before it loaded".to_string()),
             Ok(Ok(outcome)) => outcome?,
         }
+        quiet(&window).await;
         tokio::time::sleep(SETTLE).await;
         take(&window).await
     }
@@ -292,6 +337,56 @@ async fn guard(window: &WebviewWindow) -> Result<(), String> {
 #[cfg(not(target_os = "macos"))]
 async fn guard(_window: &WebviewWindow) -> Result<(), String> {
     Err("Page pictures are taken on macOS only".into())
+}
+
+/// Wait until the page has stopped changing, or until waiting is no
+/// longer worth it. Never an error: a page that will not settle — one
+/// that animates forever, or whose scripts the watcher could not be
+/// planted in — is photographed as it stands, which is what the flat
+/// wait did for every page before.
+async fn quiet(window: &WebviewWindow) {
+    if window.eval(QUIET_SCRIPT).is_err() {
+        tokio::time::sleep(QUIET_TIMEOUT.min(Duration::from_millis(3000))).await;
+        return;
+    }
+    let deadline = tokio::time::Instant::now() + QUIET_TIMEOUT;
+    while tokio::time::Instant::now() < deadline {
+        // The page's own title, not the window's: what a document calls
+        // itself never reaches the frame around it.
+        if page_title(window).await.as_deref() == Some(QUIET_TITLE) {
+            return;
+        }
+        tokio::time::sleep(QUIET_POLL).await;
+    }
+}
+
+/// What the page in the capture window calls itself.
+#[cfg(target_os = "macos")]
+async fn page_title(window: &WebviewWindow) -> Option<String> {
+    use objc2_web_kit::WKWebView;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
+    let reply = Arc::new(Mutex::new(Some(tx)));
+    window
+        .with_webview(move |platform| {
+            // SAFETY: on macOS the platform webview is the window's
+            // WKWebView, and this runs on the main thread, where WebKit
+            // must be read.
+            let title = unsafe {
+                let view: &WKWebView = &*(platform.inner() as *const WKWebView);
+                view.title().map(|title| title.to_string())
+            };
+            if let Some(tx) = reply.lock().ok().and_then(|mut slot| slot.take()) {
+                let _ = tx.send(title);
+            }
+        })
+        .ok()?;
+    rx.await.ok().flatten()
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn page_title(_window: &WebviewWindow) -> Option<String> {
+    None
 }
 
 /// Make the capture window invisible and click-through before it is shown.

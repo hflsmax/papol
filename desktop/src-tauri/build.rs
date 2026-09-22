@@ -16,6 +16,7 @@ fn main() {
             "blob_read",
             "blob_ensure",
             "capture_webpage",
+            "video_page",
             "local_clear_data",
             "blob_discard",
             "local_setting_get",

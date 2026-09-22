@@ -64,23 +64,23 @@ test('a video card the replica refuses leaves no thumbnail behind', async () => 
   assert.equal(native.blobs.size, 0);
 });
 
-test('a desktop Bilibili card asks the mobile page through the plugin, and takes its title and cover', async () => {
+test('a desktop Bilibili card asks the application for the mobile page, and takes its title and cover', async () => {
   const url = 'https://b23.tv/AbC123';
-  // The short link lands on Bilibili's mobile page when a phone asks: the
-  // plugin follows the redirect, and the answer says where it ended up.
-  native.route('GET https://b23.tv/AbC123', {
-    body: '<html><head><meta property="og:title" content="正视_哔哩哔哩_bilibili"/>'
-      + '<meta property="og:image" content="https://i1.hdslb.com/bfs/archive/cover.jpg@1200w_630h"/></head></html>',
-    headers: { 'Content-Type': 'text/html' },
+  // Bilibili answers a phone, and no page may say it is one: the browser
+  // refuses to send a User-Agent, and the HTTP plugin drops the header
+  // without a word. So the application fetches the page (videos.rs) and
+  // says where the short link landed.
+  native.on('video_page', ({ url: asked }) => ({
     url: 'https://m.bilibili.com/video/BV11kev6cEhk',
-  });
+    html: '<html><head><meta property="og:title" content="正视_哔哩哔哩_bilibili"/>'
+      + `<meta property="og:image" content="https://i1.hdslb.com/bfs/archive/cover.jpg@1200w_630h"/><link rel="canonical" href="${asked}"/></head></html>`,
+  }));
   native.route('GET https://i1.hdslb.com/bfs/archive/cover.jpg', { body: JPEG });
 
   await addBoardVideo(BOARD, url, 5, 6);
 
-  const [page] = native.requests('plugin');
-  assert.equal(page.url, url, 'the short link is followed by the plugin');
-  assert.match(page.options.headers['User-Agent'], /iPhone/);
+  assert.deepEqual(native.argsOf('video_page'), [{ url }], 'the short link goes to the application, unfollowed');
+  assert.deepEqual(native.requests('plugin'), [], 'and never to the plugin, which cannot ask as a phone');
   const [cover] = native.requests('webview');
   assert.equal(cover.url, 'https://i1.hdslb.com/bfs/archive/cover.jpg');
   assert.equal(cover.options.referrerPolicy, 'no-referrer');
