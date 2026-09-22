@@ -227,7 +227,12 @@ describe("an upload that went straight to the bucket", () => {
 
     expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: "../secret.pdf" } })).status).toBe(422);
     expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "notes.txt" } })).status).toBe(400);
-    expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, identifier: { doi: "not a doi" } } })).status).toBe(422);
+    // A malformed identifier is a bad hint, not a bad upload: dropped, and the PDF is read without it.
+    for (const identifier of [{ doi: "not a doi" }, { doi: `10.1234/${"x".repeat(400)}` }, { arxiv_id: 42 }, "10.1145/2984511.2984540"]) {
+      const kept = await ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", identifier } });
+      expect(JSON.parse((await row<{ payload: string }>("SELECT payload FROM jobs WHERE uuid = ?", kept.job))!.payload), JSON.stringify(identifier))
+        .toEqual({ file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf" });
+    }
     expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, identifier: { arxiv_id: "1706.03762v5" } } })).status).toBe(202);
   });
 

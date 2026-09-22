@@ -31,14 +31,27 @@ async function dropUnreferenced(env: Env, filePath: string): Promise<boolean> {
 }
 
 // The identifier the browser read off the PDF's first pages, `{ doi }` or
-// `{ arxiv_id }`, held to the forms the Worker's own reading produces.
-function givenIdentifier(check: ReturnType<typeof validate.checking>, given: unknown): Identifier | null {
-  if (given === null || given === undefined) return null;
-  if (typeof given !== "object") { check.fail("identifier must be an object"); return null; }
+// `{ arxiv_id }`, held to the forms the Worker's own reading produces. It
+// is a hint, not part of the upload: one that is malformed or too long is
+// dropped, and the reading starts without it, rather than the PDF being
+// refused for it.
+function givenIdentifier(given: unknown): Identifier | null {
+  if (!given || typeof given !== "object") return null;
   const { doi, arxiv_id: arxivId } = given as Record<string, unknown>;
+  const valid = (field: string, value: unknown, max: number, pattern: RegExp): string | null => {
+    if (value === null || value === undefined) return null;
+    try {
+      const check = validate.checking();
+      const found = check.string(field, value, { max, pattern, optional: true });
+      check.done();
+      return found ?? null;
+    } catch {
+      return null;
+    }
+  };
   const identifier: Identifier = {};
-  const foundDoi = check.string("identifier.doi", doi, { max: limits.text.paper_doi, pattern: DOI_FORM, optional: true });
-  const foundArxiv = check.string("identifier.arxiv_id", arxivId, { max: 40, pattern: ARXIV_ID_FORM, optional: true });
+  const foundDoi = valid("identifier.doi", doi, limits.text.paper_doi, DOI_FORM);
+  const foundArxiv = valid("identifier.arxiv_id", arxivId, 40, ARXIV_ID_FORM);
   if (foundDoi) identifier.doi = foundDoi;
   if (foundArxiv) identifier.arxiv_id = foundArxiv;
   return foundDoi || foundArxiv ? identifier : null;
@@ -97,7 +110,7 @@ export function paperRoutes(router: Router) {
     const check = validate.checking();
     const filePath = check.string("file_path", data.file_path, { pattern: /^[0-9a-f]{64}\.pdf$/ })!;
     const uploadedName = check.string("uploaded_name", data.uploaded_name, { max: limits.text.uploaded_filename, optional: true }) ?? filePath;
-    const identifier = givenIdentifier(check, data.identifier);
+    const identifier = givenIdentifier(data.identifier);
     check.done();
     if (!uploadedName.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
     const digest = filePath.slice(0, 64);

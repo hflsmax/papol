@@ -25,6 +25,7 @@ import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { hasCardPreview } from './cardPreview.js';
+import { fillPictures } from './pictureRound.js';
 import { browserDate, lastEdited as formatLastEdit } from '../../shared/lastEdited.js';
 import { localViewerBacklink } from './sourceLink.js';
 
@@ -273,17 +274,15 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     const due = board.items.filter((item) => cardAwaitingPicture(item) && !pictureFillsTried.current.has(item.uuid));
     if (!due.length) return undefined;
     due.forEach((item) => pictureFillsTried.current.add(item.uuid));
-    let current = true;
-    (async () => {
-      let filled = 0;
-      for (const item of due) {
-        try {
-          if (await fillCardPicture(item)) filled += 1;
-        } catch { /* out of reach: the card stays a link until the next visit */ }
-      }
-      if (filled && current) load();
-    })();
-    return () => { current = false; };
+    // A round outlives the render that began it — a page takes seconds to
+    // capture, and the board changes meanwhile — so what it filled is
+    // loaded whenever the same board is still open, not only when nothing
+    // else happened first.
+    const forBoard = boardUuid;
+    fillPictures(due, fillCardPicture).then((filled) => {
+      if (filled && activeBoardUuid.current === forBoard) load();
+    });
+    return undefined;
   }, [board]);
   const raiseCards = (itemUuids) => {
     const ids = new Set(itemUuids);

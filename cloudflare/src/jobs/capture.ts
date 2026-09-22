@@ -29,7 +29,24 @@ const BOARD_FILE_LIMIT = limits.files.board_file_mb * 1024 * 1024;
 
 // ------------------------------------------------------------ what a URL is
 
-const PRIVATE_HOST = /^(localhost|.*\.localhost|127\..*|10\..*|192\.168\..*|169\.254\..*|0\.0\.0\.0|\[::1\]|\[fc.*|\[fd.*|172\.(1[6-9]|2\d|3[01])\..*)$/i;
+// Whether a URL's host is a machine's own network rather than the web:
+// a loopback, private, link-local, shared (CGNAT), unspecified or
+// broadcast IPv4 address — the URL parser has already turned `127.1`,
+// `2130706433` and `0x7f.1` into dotted form — any IPv6 literal, which
+// public sites are not visited by, or a name only a local network answers
+// to. The Mac's capture window holds to the same list
+// (desktop/src-tauri/src/capture.rs).
+export function privateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  if (!host || host.startsWith("[")) return true;
+  const octets = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)?.slice(1).map(Number);
+  if (octets) {
+    const [a, b] = octets;
+    return a === 0 || a === 10 || a === 127 || a === 255 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+  }
+  return ["localhost", "local", "internal", "home.arpa", "lan"].some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+}
 
 // Accept a browser URL: http or https, a public-looking host, no
 // credentials. Refused with a sentence for the person who pasted it.
@@ -39,7 +56,7 @@ export function publicWebUrl(value: string): string {
   try { parsed = new URL(url); } catch { return refuse(422, "Paste a valid http or https URL"); }
   if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname) refuse(422, "Paste a valid http or https URL");
   if (parsed.username || parsed.password) refuse(422, "URLs with embedded credentials are not supported");
-  if (PRIVATE_HOST.test(parsed.hostname)) refuse(422, "Local and private network addresses cannot be captured");
+  if (privateHost(parsed.hostname)) refuse(422, "Local and private network addresses cannot be captured");
   return url;
 }
 

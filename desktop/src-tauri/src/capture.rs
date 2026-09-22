@@ -45,32 +45,91 @@ pub fn checked_url(value: &str) -> Result<Url, String> {
     if !url.username().is_empty() || url.password().is_some() {
         return Err("URLs with embedded credentials are not supported".into());
     }
-    let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
-    if host.is_empty() || private_host(&host) {
+    if url.host().is_none_or(private_host) {
         return Err("Local and private network addresses cannot be captured".into());
     }
     Ok(url)
 }
 
-fn private_host(host: &str) -> bool {
-    let bare = host.trim_start_matches('[').trim_end_matches(']');
-    if host == "localhost" || host.ends_with(".localhost") || bare == "0.0.0.0" || bare == "::1" {
-        return true;
+/// Whether a host is this machine or its network: a loopback, private,
+/// link-local, shared (CGNAT) or unspecified address in any form the URL
+/// parser reads (`127.1`, `2130706433`, `0x7f.1` and `[::ffff:127.0.0.1]`
+/// all arrive as addresses), or a name only a local network answers to.
+pub fn private_host(host: url::Host<&str>) -> bool {
+    use std::net::{Ipv4Addr, Ipv6Addr};
+    fn v4(address: Ipv4Addr) -> bool {
+        let [a, b, ..] = address.octets();
+        address.is_private()
+            || address.is_loopback()
+            || address.is_link_local()
+            || address.is_unspecified()
+            || address.is_broadcast()
+            || a == 0
+            || (a == 100 && (64..=127).contains(&b))
     }
-    if bare.starts_with("fc") || bare.starts_with("fd") {
-        return bare.contains(':');
+    fn v6(address: Ipv6Addr) -> bool {
+        let first = address.segments()[0];
+        address.is_loopback()
+            || address.is_unspecified()
+            || (first & 0xfe00) == 0xfc00 // unique local, fc00::/7
+            || (first & 0xffc0) == 0xfe80 // link-local, fe80::/10
+            || address.to_ipv4_mapped().is_some_and(v4)
     }
-    let octets: Vec<u8> = bare
-        .split('.')
-        .filter_map(|part| part.parse().ok())
+    match host {
+        url::Host::Ipv4(address) => v4(address),
+        url::Host::Ipv6(address) => v6(address),
+        url::Host::Domain(name) => {
+            let name = name.trim_end_matches('.').to_ascii_lowercase();
+            name.is_empty()
+                || ["localhost", "local", "internal", "home.arpa", "lan"]
+                    .iter()
+                    .any(|suffix| name == *suffix || name.ends_with(&format!(".{suffix}")))
+        }
+    }
+}
+
+/// WebKit's rules for the capture window: no load of any kind — the page,
+/// a redirect, a frame, an image, a socket — to this machine or its
+/// network. `checked_url` refuses such a link outright; these hold for
+/// wherever the page goes next, which a check of the pasted link cannot.
+/// Content-blocker patterns take no alternation, hence one rule a pattern.
+pub fn private_network_rules() -> String {
+    const SCHEME: &str = "^[a-z][a-z0-9+.-]*://";
+    let hosts = [
+        // Loopback, private and link-local IPv4, the unspecified network,
+        // and shared (CGNAT) 100.64.0.0/10.
+        "0\\.",
+        "127\\.",
+        "10\\.",
+        "192\\.168\\.",
+        "169\\.254\\.",
+        "172\\.1[6-9]\\.",
+        "172\\.2[0-9]\\.",
+        "172\\.3[01]\\.",
+        "100\\.6[4-9]\\.",
+        "100\\.[7-9][0-9]\\.",
+        "100\\.1[01][0-9]\\.",
+        "100\\.12[0-7]\\.",
+        // Any IPv6 literal: public sites are not visited by address.
+        "\\[",
+        // Names only a local network answers to.
+        "localhost[:/]",
+        "[^/:]*\\.localhost[:/]",
+        "[^/:]*\\.local[:/]",
+        "[^/:]*\\.internal[:/]",
+        "[^/:]*\\.home\\.arpa[:/]",
+        "[^/:]*\\.lan[:/]",
+    ];
+    let rules: Vec<serde_json::Value> = hosts
+        .iter()
+        .map(|host| {
+            serde_json::json!({
+                "trigger": { "url-filter": format!("{SCHEME}{host}") },
+                "action": { "type": "block" },
+            })
+        })
         .collect();
-    if octets.len() != 4 || bare.split('.').count() != 4 {
-        return false;
-    }
-    matches!(
-        (octets[0], octets[1]),
-        (127, _) | (10, _) | (192, 168) | (169, 254) | (172, 16..=31)
-    )
+    serde_json::Value::Array(rules).to_string()
 }
 
 /// Capture the page at `url` and keep the picture in the nook's store.
@@ -90,8 +149,20 @@ pub async fn capture_into(
 /// which takes one outside the app to see what WebKit draws.
 pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
     let label = format!("capture-{}", NEXT_CAPTURE.fetch_add(1, Ordering::Relaxed));
-    let (loaded_tx, loaded_rx) = tokio::sync::oneshot::channel::<()>();
-    let loaded = Mutex::new(Some(loaded_tx));
+    // How the wait ends: the page loaded, or it set off for this machine or
+    // its network, which the rules block and this says at once rather than
+    // after the whole wait.
+    let (settled_tx, settled_rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+    let settled = Arc::new(Mutex::new(Some(settled_tx)));
+    let settle = move |outcome: Result<(), String>| {
+        let slot = settled.lock().ok().and_then(|mut slot| slot.take());
+        if let Some(tx) = slot {
+            let _ = tx.send(outcome);
+        }
+    };
+    let on_load = settle.clone();
+    let on_navigation = settle;
+    let blank = Url::parse("about:blank").expect("about:blank is a URL");
     // Shown, but never seen: WebKit tells a page in a window that is not
     // shown that it is hidden — one animation frame, throttled timers — and
     // pages that load their images from script (lazy loading, a blurred
@@ -100,7 +171,10 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
     // and deaf to the mouse, never focused, and its view is told not to
     // count the window as covered (`unseen`). Measured: `visible`, sixty
     // frames a second, and the picture the page really shows.
-    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+    //
+    // The window opens on a blank page, and goes to the link only once the
+    // rules that keep it off this machine's network are in place.
+    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(blank))
         .title("Papol page capture")
         .inner_size(WIDTH, HEIGHT)
         .position(-40_000.0, -40_000.0)
@@ -110,11 +184,18 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
         .skip_taskbar(true)
         .incognito(true)
         .on_new_window(|_, _| NewWindowResponse::Deny)
+        .on_navigation(move |to| {
+            if to.scheme() == "about" || to.host().is_some_and(|host| !private_host(host)) {
+                return true;
+            }
+            on_navigation(Err(
+                "The page leads to a local or private network address".into()
+            ));
+            false
+        })
         .on_page_load(move |_, payload| {
-            if payload.event() == PageLoadEvent::Finished {
-                if let Some(tx) = loaded.lock().ok().and_then(|mut slot| slot.take()) {
-                    let _ = tx.send(());
-                }
+            if payload.event() == PageLoadEvent::Finished && payload.url().scheme() != "about" {
+                on_load(Ok(()));
             }
         })
         .build()
@@ -122,14 +203,18 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
 
     let taken = async {
         unseen(&window).await?;
+        guard(&window).await?;
         window
             .show()
             .map_err(|error| format!("The page could not be opened for its picture: {error}"))?;
+        window
+            .navigate(url)
+            .map_err(|error| format!("The page could not be opened for its picture: {error}"))?;
         let wait = Duration::from_millis(limits::value("timeouts_ms", "media_capture"));
-        match tokio::time::timeout(wait, loaded_rx).await {
+        match tokio::time::timeout(wait, settled_rx).await {
             Err(_) => return Err("The page took too long to load".to_string()),
             Ok(Err(_)) => return Err("The page closed before it loaded".to_string()),
-            Ok(Ok(())) => {}
+            Ok(Ok(outcome)) => outcome?,
         }
         tokio::time::sleep(SETTLE).await;
         take(&window).await
@@ -137,6 +222,76 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
     .await;
     let _ = window.destroy();
     taken
+}
+
+/// Keep the capture window off this machine's network: WebKit compiles
+/// `private_network_rules` and the view's content controller takes them,
+/// before the window goes anywhere. No rules, no capture.
+#[cfg(target_os = "macos")]
+async fn guard(window: &WebviewWindow) -> Result<(), String> {
+    use objc2_foundation::{MainThreadMarker, NSError, NSString};
+    use objc2_web_kit::{WKContentRuleList, WKContentRuleListStore, WKWebView};
+
+    type Guarded = Result<(), String>;
+    let (tx, rx) = tokio::sync::oneshot::channel::<Guarded>();
+    let reply = Arc::new(Mutex::new(Some(tx)));
+    let rules = private_network_rules();
+    window
+        .with_webview(move |platform| {
+            let answer = move |result: Guarded| {
+                if let Some(tx) = reply.lock().ok().and_then(|mut slot| slot.take()) {
+                    let _ = tx.send(result);
+                }
+            };
+            let Some(main_thread) = MainThreadMarker::new() else {
+                return answer(Err(
+                    "The page's guard could not be set off the main thread".into()
+                ));
+            };
+            // SAFETY: on macOS the platform webview is the window's
+            // WKWebView, and this runs on the main thread, where WebKit
+            // must be called. The view outlives the compile: the window is
+            // destroyed only after this answers or the capture gives up.
+            unsafe {
+                let view: &WKWebView = &*(platform.inner() as *const WKWebView);
+                let controller = view.configuration().userContentController();
+                let Some(store) = WKContentRuleListStore::defaultStore(main_thread) else {
+                    return answer(Err("WebKit has no store for the page's guard".into()));
+                };
+                let handler = block2::RcBlock::new(
+                    move |list: *mut WKContentRuleList, error: *mut NSError| {
+                        let result = match list.as_ref() {
+                            Some(list) => {
+                                controller.addContentRuleList(list);
+                                Ok(())
+                            }
+                            None => Err(error
+                                .as_ref()
+                                .map(|error| error.localizedDescription().to_string())
+                                .unwrap_or_else(|| "WebKit refused the page's guard".into())),
+                        };
+                        answer(result);
+                    },
+                );
+                store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler(
+                    Some(&NSString::from_str("papol-capture-private-network")),
+                    Some(&NSString::from_str(&rules)),
+                    Some(&handler),
+                );
+            }
+        })
+        .map_err(|error| format!("The page's guard could not be set: {error}"))?;
+    match tokio::time::timeout(SNAPSHOT_TIMEOUT, rx).await {
+        Ok(Ok(result)) => {
+            result.map_err(|error| format!("The page's guard could not be set: {error}"))
+        }
+        _ => Err("The page's guard could not be set".into()),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn guard(_window: &WebviewWindow) -> Result<(), String> {
+    Err("Page pictures are taken on macOS only".into())
 }
 
 /// Make the capture window invisible and click-through before it is shown.
@@ -301,11 +456,91 @@ mod tests {
             "http://172.20.1.1/",
             "http://169.254.169.254/latest/meta-data",
             "http://[::1]/",
+            // Every other way to write this machine or its network.
+            "http://2130706433/",
+            "http://0x7f.1/",
+            "http://127.1/",
+            "http://0.1.2.3/",
+            "http://100.64.0.1/",
+            "http://255.255.255.255/",
+            "http://[::]/",
+            "http://[fe80::1]/",
+            "http://[fd12:3456::1]/",
+            "http://[::ffff:127.0.0.1]/",
+            "http://[::ffff:192.168.0.1]/",
+            "http://localhost./",
+            "http://printer.local/",
+            "http://router.lan/",
+            "http://nas.home.arpa/",
+            "http://metadata.google.internal/",
             "not a url",
         ] {
             assert!(checked_url(refused).is_err(), "{refused}");
         }
-        // A hostname that merely begins with digits is a name, not an address.
-        assert!(checked_url("https://10times.com/").is_ok());
+        // A hostname that merely begins with digits is a name, not an address,
+        // and a public address, or a name that only contains a local word, is fine.
+        for public in [
+            "https://10times.com/",
+            "http://100.128.0.1/",
+            "http://172.32.0.1/",
+            "https://[2606:4700::1111]/",
+            "https://localhost-tools.dev/",
+            "https://locale.example/",
+        ] {
+            assert!(checked_url(public).is_ok(), "{public}");
+        }
+    }
+
+    #[test]
+    fn the_capture_window_is_kept_off_the_network_it_runs_on() {
+        use super::private_network_rules;
+        let rules: serde_json::Value = serde_json::from_str(&private_network_rules()).unwrap();
+        let rules = rules.as_array().unwrap();
+        assert!(rules.iter().all(|rule| rule["action"]["type"] == "block"
+            && rule["trigger"]["url-filter"]
+                .as_str()
+                .unwrap()
+                .starts_with("^[a-z]")));
+        // The patterns, as WebKit reads them, against the URLs they must
+        // catch and those they must let through. WebKit's pattern language
+        // is a subset of the regular expressions tested here.
+        let patterns: Vec<regex::Regex> = rules
+            .iter()
+            .map(|rule| regex::Regex::new(rule["trigger"]["url-filter"].as_str().unwrap()).unwrap())
+            .collect();
+        let blocked = |url: &str| patterns.iter().any(|pattern| pattern.is_match(url));
+        for url in [
+            "http://127.0.0.1/",
+            "https://10.1.2.3:8443/admin",
+            "http://192.168.1.1/",
+            "http://172.16.0.1/",
+            "http://172.31.255.1/",
+            "http://169.254.169.254/latest/meta-data",
+            "http://100.64.0.1/",
+            "http://100.127.0.1/",
+            "http://0.0.0.0/",
+            "http://[::1]/",
+            "ws://127.0.0.1:9222/devtools",
+            "http://localhost:8080/",
+            "http://localhost/",
+            "http://app.localhost/",
+            "http://printer.local/",
+            "http://router.lan/",
+            "http://nas.home.arpa/",
+            "http://metadata.google.internal/",
+        ] {
+            assert!(blocked(url), "not blocked: {url}");
+        }
+        for url in [
+            "https://flexible.seas.ucla.edu/",
+            "https://100.128.0.1/",
+            "https://172.32.0.1/",
+            "https://10times.com/",
+            "https://localhost-tools.dev/",
+            "https://example.com/local/page",
+            "https://cdn.example.com/?next=http://127.0.0.1/",
+        ] {
+            assert!(!blocked(url), "blocked: {url}");
+        }
     }
 }
