@@ -38,18 +38,47 @@ function uploadFixture(server) {
         // The upload as the bucket and the Worker see it: the address asked
         // for, the PUT to the bucket, and the word that the bytes are in.
         window.uploadSeen = [];
+        // The PUT goes through XMLHttpRequest, for its upload progress; the
+        // bucket is played here, answering in three steps so the bar has
+        // something to show. Every value the bar took is recorded as it
+        // goes, and whether "Extracting…" was ever on screen beside it.
+        window.barSeen = [];
+        window.extractingBesideBar = false;
+        window.barObserver = new MutationObserver(() => {
+          const bar = document.querySelector('[role=progressbar]');
+          if (!bar) return;
+          const value = bar.getAttribute('aria-label') + ' ' + bar.getAttribute('aria-valuenow') + '% ' + bar.getAttribute('aria-valuetext');
+          if (window.barSeen.at(-1) !== value) window.barSeen.push(value);
+          if ([...document.querySelectorAll('.wait-label')].some((label) => /^Extracting/.test(label.textContent))) window.extractingBesideBar = true;
+        });
+        window.barObserver.observe(document, {childList: true, subtree: true, attributes: true, attributeFilter: ['aria-valuenow']});
+        const RealXhr = window.XMLHttpRequest;
+        window.XMLHttpRequest = class extends RealXhr {
+          open(method, url) { this.__url = String(url); this.__method = method; this.__headers = {}; if (!this.__url.startsWith('https://bucket.test/')) super.open(method, url); }
+          setRequestHeader(name, value) { if (this.__url.startsWith('https://bucket.test/')) this.__headers[name] = value; else super.setRequestHeader(name, value); }
+          send(body) {
+            if (!this.__url.startsWith('https://bucket.test/')) { super.send(body); return; }
+            window.uploadSeen.push({step: 'put', method: this.__method, headers: this.__headers, size: body?.size});
+            const total = body.size;
+            const steps = [0.3, 0.7, 1];
+            const tick = (i) => {
+              if (i < steps.length) { this.upload.onprogress?.({loaded: Math.round(total * steps[i]), total, lengthComputable: true}); setTimeout(() => tick(i + 1), 60); return; }
+              Object.defineProperty(this, 'status', {value: 200});
+              this.onload?.();
+            };
+            setTimeout(() => tick(0), 60);
+          }
+        };
         window.fetch = async (url, options = {}) => {
           const path = String(url);
           if (path.endsWith('/files/upload-address')) {
+            // What the Tauri HTTP plugin says of a host outside its scope.
+            if (window.failSend) throw new Error('url not allowed on the configured scope');
             if (window.failImport === 'expected') return new Response(JSON.stringify({detail:'File too large'}), {status:413});
             if (window.failImport) return new Response(JSON.stringify({detail:'PDF upload failed'}), {status:500});
             window.uploadSeen.push({step: 'address', body: JSON.parse(options.body)});
             return new Response(JSON.stringify({stored:false, file_path:'b'.repeat(64) + '.pdf', url:'https://bucket.test/uploads/' + 'b'.repeat(64) + '.pdf?X-Amz-Signature=sig',
               headers:{'content-type':'application/pdf', 'x-amz-checksum-sha256':'c2ln'}}));
-          }
-          if (path.startsWith('https://bucket.test/')) {
-            window.uploadSeen.push({step: 'put', method: options.method, headers: options.headers, size: options.body?.size});
-            return new Response(null, {status:200});
           }
           if (path.endsWith('/uploaded')) {
             window.uploadSeen.push({step: 'uploaded', body: JSON.parse(options.body)});
@@ -134,7 +163,7 @@ try {
     await browser.evaluate('window.failImport = false;');
     await choose();
     await browser.waitFor('document.querySelector("#upload-paper-title")');
-    assert.match(await browser.text(), /Review Paper Metadata/);
+    assert.match(await browser.text(), /Paper Metadata/);
     if (mode === 'web') {
       // The bytes went to the bucket by the address the server gave, with
       // the headers it listed and no credential; the server was then told,
@@ -148,13 +177,22 @@ try {
       assert.deepEqual(seen[2].body, {
         file_path: `${'b'.repeat(64)}.pdf`, uploaded_name: 'attention.pdf', identifier: { arxiv_id: '1706.03762v7' },
       });
+      // The wait was one bar, "Uploading", that reached the end before
+      // "Extracting…" took its place (docs/waiting.md).
+      const values = await browser.evaluate('return window.barSeen;');
+      assert.ok(values.length >= 3, `the bar moved: ${JSON.stringify(values)}`);
+      assert.ok(values.every((step) => step.startsWith('Uploading ')), `one label: ${JSON.stringify(values)}`);
+      assert.match(values.at(-1), /^Uploading 100% /, `the bar reached the end: ${JSON.stringify(values)}`);
+      assert.match(values.at(-1), new RegExp(`of ${(fixtureSize / 1024 / 1024).toFixed(1)} MB$`), `the detail is in bytes: ${values.at(-1)}`);
+      assert.equal(await browser.evaluate('return window.extractingBesideBar;'), false, 'Extracting… never shared the screen with the bar');
+      assert.equal(await browser.evaluate('return !!document.querySelector("[role=progressbar]");'), false, 'the bar is gone once the form is open');
     }
 
     // The form is open before the PDF has been read: the filename's title,
     // and a line saying the reading is on.
     const value = (id) => browser.evaluate(`return document.querySelector("#${id}").value;`);
     assert.equal(await value('upload-paper-title'), 'Attention');
-    assert.match(await browser.text(), /Reading the PDF for its title and authors/);
+    assert.match(await browser.text(), /Extracting…/);
     // The user types while it is read.
     await browser.evaluate(`
       const input = document.querySelector('#upload-paper-journal');
@@ -168,7 +206,7 @@ try {
     assert.equal(await value('upload-paper-year'), '2017');
     assert.equal(await value('upload-paper-doi'), '10.1000/read');
     assert.equal(await value('upload-paper-journal'), 'My journal');
-    assert.doesNotMatch(await browser.text(), /Reading the PDF/);
+    assert.doesNotMatch(await browser.text(), /Extracting…/);
 
     // Papol already holds a version of the work: the reading says so, the
     // form offers it, and the save names the version chosen — that one,
@@ -216,7 +254,22 @@ try {
     }
     assert.equal(kept.discarded, false);
     await browser.evaluate('window.knownVersion = false; return true;');
-    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, and a known version is offered and the choice saved`);
+    if (mode === 'native') {
+      // Kept in the nook but not sent: the form opens all the same, says
+      // the PDF was not sent rather than that it could not be read, and
+      // offers the fault for a report.
+      await browser.evaluate('window.failSend = true; return true;');
+      await choose();
+      await browser.waitFor('document.querySelector("#upload-paper-title")');
+      await browser.waitFor('document.querySelector("[role=dialog]")');
+      assert.match(await browser.text(), /could not send the PDF to be read \(url not allowed on the configured scope\)/);
+      assert.doesNotMatch(await browser.text(), /could not read the PDF/);
+      assert.match(await browser.evaluate('return document.querySelector("#feedback-content").value;'), /sending a PDF to be read/);
+      await browser.evaluate('document.querySelector("[role=dialog] .feedback-actions button").click();');
+      await browser.waitFor('!document.querySelector("[role=dialog]")');
+      await browser.evaluate('window.failSend = false; return true;');
+    }
+    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, and a known version is offered and the choice saved${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
   }
 } finally {
   await browser.stop();

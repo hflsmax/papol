@@ -2,6 +2,7 @@ import {
   boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeDataActive,
   nativeRepository, newUuid,
 } from '../nativeData.js';
+import { boardSourceDigests } from '../boardPapers.js';
 import { runtimeFetch } from '../connectivity.js';
 import { handleResponse, jsonRequest, request } from '../httpClient.js';
 import { storeFile } from './files.js';
@@ -28,9 +29,20 @@ export async function createBoard(data) {
   return board;
 }
 
-export function getBoard(uuid) {
-  if (nativeDataActive()) return nativeRepository.board(uuid).then((row) => boardView(row, true));
-  return request(`/boards/${uuid}`);
+// The service answers a board with the papers its cards come from
+// (`papers`); the replica is asked for each of them from what it keeps,
+// which is every paper in this user's nook. One it does not keep is left
+// to the title its cards were labelled with.
+export async function getBoard(uuid) {
+  if (!nativeDataActive()) return request(`/boards/${uuid}`);
+  const board = boardView(await nativeRepository.board(uuid), true);
+  const kept = await Promise.all(boardSourceDigests(board.items).map(
+    (sha256) => nativeRepository.paperByPdf(sha256).catch(() => null),
+  ));
+  board.papers = kept.filter(Boolean).map((paper) => ({
+    sha256: paper.sha256, title: paper.title, authors: paper.authors ?? null, year: paper.year ?? null,
+  }));
+  return board;
 }
 
 export function updateBoard(uuid, data) {
@@ -121,7 +133,8 @@ export async function addBoardComment(uuid, content, x, y) {
   return jsonRequest(`/boards/${uuid}/comments`, 'POST', { content, x, y });
 }
 
-export async function addBoardFile(uuid, file, caption = '', position = null) {
+// `onProgress` hears the upload as it goes (shared/api/files.js).
+export async function addBoardFile(uuid, file, caption = '', position = null, { onProgress } = {}) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     try {
@@ -145,7 +158,7 @@ export async function addBoardFile(uuid, file, caption = '', position = null) {
     }
   }
   // The bytes into the bucket (shared/api/files.js), then the card that names them.
-  const stored = await storeFile('board_file', file, { name: file.name || 'file' });
+  const stored = await storeFile('board_file', file, { name: file.name || 'file', onProgress });
   return jsonRequest(`/boards/${uuid}/files`, 'POST', {
     sha256: stored.sha256, caption, original_filename: file.name || 'file',
     mime_type: file.type || 'application/octet-stream',

@@ -71,7 +71,9 @@ export default defineConfig(({ command }) => ({
   // Desktop-only UI is shared from the frontend package. Without deduping,
   // a production build resolves React once from each package's node_modules;
   // hooks in the shared components then run against the wrong dispatcher.
-  resolve: { dedupe: ['react', 'react-dom'] },
+  // shared/ sits outside the root and names its packages bare; these are
+  // resolved from this app, where they are installed.
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
   server: {
     // shared/ sits a level above either app's root.
     fs: { allow: ['..'] },

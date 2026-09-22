@@ -8,7 +8,9 @@ export default defineConfig(({ command }) => ({
   plugins: [react()],
   // Desktop-only UI is shared from the frontend package. Keep its hooks on
   // the same React runtime as the board in production builds.
-  resolve: { dedupe: ['react', 'react-dom'] },
+  // shared/ sits outside the root and names its packages bare; these are
+  // resolved from this app, where they are installed.
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
   server: {
     fs: { allow: ['..'] },
     proxy: { '/api': 'http://127.0.0.1:8787', '/uploads': 'http://127.0.0.1:8787' },
