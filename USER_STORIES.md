@@ -104,6 +104,16 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
   Library, so closing it is the way out and the jacket is still open behind
   it.
 
+- **US-5.10** **Tidying keeps my layout.** When cards pile up from pasting
+  and dragging, **Tidy up** (on the toolbar, or on a selection) separates
+  whatever overlaps and lines up what it moved. It never changes a card's
+  size, its group, a booklet's order, or a collection's layout. A group is
+  put into its own form only when I ask it: a collection's **Arrange into
+  columns**, or **Auto-arrange** to keep it that way. A card goes back to
+  the standard width only on **Reset size**. Each of these says what it
+  did and offers **Undo**, and each is one undo step. New cards land in
+  free space instead of on top of what is there. See `docs/tidying.md`.
+
 ## 6. Feedback
 
 - **US-6.1** As anyone using Papol — user, visitor, or someone who cannot even sign in — I can report a bug or ask for a feature from a **Feedback** button floating in the bottom-right corner of every page — one box, free text, no form to fill in — without leaving the page I am on. A visitor may leave an email so the admins can reply.

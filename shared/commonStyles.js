@@ -375,7 +375,7 @@ button:disabled {
 .pop-surface,
 .chip-pop, .share-menu, .tag-dropdown, .shelf-palette,
 .board-actions-popover, .board-selection-menu, .board-new-hint,
-.board-group-options-surface,
+.board-group-options-surface, .board-notice,
 .search-pop, .paper-info-pop, .brush-pop, .ref-card, .note-pop,
 .learn-papol, .link-return {
   background: var(--card);
@@ -387,7 +387,7 @@ button:disabled {
 .pop-surface,
 .chip-pop, .share-menu, .tag-dropdown, .shelf-palette,
 .board-actions-popover, .board-selection-menu, .board-new-hint,
-.board-group-options-surface,
+.board-group-options-surface, .board-notice,
 .search-pop, .paper-info-pop, .brush-pop, .ref-card, .note-pop,
 .learn-papol, .link-return {
   box-shadow: var(--shadow-md);
@@ -467,7 +467,7 @@ button:disabled {
 .switch-toggle, .paper-browser-toggle, .tag-input, .rating-clear,
 .back-button, .icon-button, .collapse-button, .chip-x,
 .notification-toggle, .delete-comment-button, .board-booklet-spine,
-.board-group-more, .board-group-arrange button,
+.board-group-more, .board-group-arrange button, .board-notice button,
 .shelf-name-input, .notice-banner-link, .admin-sort,
 .tag-dropdown button, .shelf-palette button,
 .share-menu > button, .share-menu > a,

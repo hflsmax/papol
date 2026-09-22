@@ -4029,6 +4029,16 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-group-arrange button:hover:not(:disabled) { color: var(--ink); }
 .board-group-arrange button[aria-checked='true'] { background: var(--card); color: var(--accent); box-shadow: 0 1px 2px rgba(29,33,41,.14), 0 0 0 1px var(--accent-line); }
 .board-group-options-divider { width: 1px; height: 20px; margin: 0 3px; background: var(--line); }
+/* A tidy, an arrange or a reset glides what it moves, and then says what
+   it did, with the way back, at the foot of the canvas. */
+.board-stage.board-gliding .board-canvas-card,
+.board-stage.board-gliding .board-booklet { transition: transform 180ms cubic-bezier(.22,.9,.3,1), width 180ms cubic-bezier(.22,.9,.3,1), height 180ms cubic-bezier(.22,.9,.3,1); }
+.board-notice { position: fixed; z-index: 45; bottom: 22px; left: 50%; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 6px 6px 6px 16px; transform: translateX(-50%); border-radius: var(--radius-pill); color: var(--ink); font: var(--fs-sm) var(--font-ui); animation: board-notice-in 160ms var(--ease-out); }
+.board-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-notice button { padding: 5px 12px; border-radius: var(--radius-pill); color: var(--accent); font: 600 var(--fs-sm) var(--font-ui); }
+.board-notice button:hover:not(:disabled) { background: var(--accent-soft); }
+.board-notice:not(:has(button)) { padding-right: 16px; }
+@keyframes board-notice-in { from { opacity: 0; transform: translate(-50%, 6px); } }
 @media (hover: none) {
   .board-group-more { opacity: 1; }
 }
@@ -4125,7 +4135,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-booklet,
   .board-booklet-branch,
   .board-card-drag-handle,
-  .board-canvas-card.booklet-reorder-peer { transition-duration: 0ms; }
+  .board-canvas-card.booklet-reorder-peer,
+  .board-stage.board-gliding .board-canvas-card,
+  .board-stage.board-gliding .board-booklet { transition-duration: 0ms; }
+  .board-notice { animation: none; }
 }
 
 @media (max-width: 700px) {

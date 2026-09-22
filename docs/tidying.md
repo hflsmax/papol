@@ -1,8 +1,9 @@
 # One way to tidy a board
 
-Status: **proposed**. Nothing here is built yet except where "Today" says so.
-It replaces the four tidies the board has now with three verbs, each of
-which means one thing wherever it appears.
+Status: **built**. The geometry is in `board/src/tidy.js`, with its tests
+in `tidy.test.js`, and the wiring is in `BoardPage.jsx`. The board used to
+have four tidies. This replaces them with three verbs, each of which means
+one thing wherever it appears.
 
 ## The story
 
@@ -18,7 +19,7 @@ A board is a spatial document. Where a card sits is part of what it says:
 two clusters far apart are far apart on purpose. So tidying is a matter of
 straightening what is there, not a rearrangement the user did not ask for.
 
-## Today
+## Before this
 
 | Where | Label | What it does |
 | --- | --- | --- |
@@ -66,11 +67,13 @@ its heading and frame, or a loose card.
 
 1. **Inside freeform collections**, cards that overlap are separated, and
    cards more than 80 px from their nearest neighbour are pulled in. This
-   is today's `tidyCollectionPositions` with overlap resolution added.
+   is `tidyCollectionPositions` with overlap resolution added.
    Auto-arranged collections and booklets are already in their form and
    are left alone inside.
-2. **Between blocks**, overlaps are resolved in reading order (top to
-   bottom, then left to right). Each block that overlaps one already placed
+2. **Between blocks**, overlaps are resolved with groups first and loose
+   cards after, each in reading order (top to bottom, then left to right).
+   Groups hold their ground, and a loose card makes way for a group even
+   when it sits above it. Each block that overlaps one already placed
    moves the shortest distance right or down that clears it, plus a 24 px
    gutter. Blocks that don't overlap anything stay where they are, and
    relative order is never swapped.
@@ -84,29 +87,28 @@ For a selection, only the selected blocks move. Everything else on the
 board counts as an obstacle they must not overlap. Selecting every card in
 a group selects the group as a block.
 
-The layout is a pure function, `tidyBoardPositions(blocks) → moves`, in a
-new `board/src/tidy.js` beside `bookletDrag.js`. It is unit-tested for
-three things: it is deterministic, running it on its own output changes
-nothing, and it never produces an overlap.
+The geometry is pure: `resolveOverlaps` and `tidyFreeformCards` in
+`board/src/tidy.js`. Their tests check that the result has no overlaps,
+that running it again changes nothing, and that blocks which overlap
+nothing stay where they are.
 
 ### Arrange (one group)
 
 - **Collection, Freeform:** the group's options bar shows **Arrange into
-  columns** in place of today's Tidy up. It lays the cards out in columns
-  at 300 px, as `tidyCollection` does now, and the collection stays
-  Freeform.
+  columns** in place of the old Tidy up. It lays the cards out in columns
+  at 300 px, and the collection stays Freeform.
 - **Collection, Auto-arrange:** turning it on *is* arranging. The cards go
   to 300 px and into columns in one undo step, so the bar needs no Arrange
-  button in this mode. (Today turning it on keeps each card's width.)
+  button in this mode. (It used to keep each card's width.)
 - **Booklet:** always in its form. Nothing to offer, and nothing changes.
 
 ### Reset size (card and selection)
 
 - A card's actions and its context menu gain **Reset size**, shown only
   when the card is not already 300 px.
-- The selection pill's "Tidy up" becomes **Tidy up** (the gentle kind)
-  plus **Reset size**.
-- Resizing every card on the board, today's toolbar behaviour, is still
+- The selection pill offers **Tidy up** (the gentle kind) and **Reset
+  size**.
+- Resizing every card on the board, which the toolbar Tidy used to do, is
   two steps: ⌘A, then Reset size.
 
 ### What the user sees
@@ -114,16 +116,19 @@ nothing, and it never produces an overlap.
 - Moved cards and groups **glide** to their new places, using the same
   180 ms transition as a reorder, and not at all under
   `prefers-reduced-motion`.
-- A **status toast** under the toolbar says what happened and offers the
+- A **notice** at the foot of the canvas says what happened and offers the
   way back: "Tidied 6 cards and 1 collection · **Undo**". If nothing needed
-  doing it says "Already tidy" and no undo step is added. The toast goes
-  after 6 s or on the next edit. It is the board's first on-screen Undo,
-  and Arrange and Reset size use it too.
-- Every tidy, arrange or reset is **one undo step**. It is recorded as
-  before/after snapshots of positions, widths and group layouts, the shape
-  the `membership` history entry already uses.
-- The toolbar button keeps its name and icon. Its tooltip becomes "Tidy
-  up: clear overlaps and line things up".
+  doing it says "Already tidy" and no undo step is added. The notice goes
+  after 6 s. Its Undo is offered only while that change is still the
+  latest one, so it can never undo something else. It is the board's
+  first on-screen Undo, and Arrange and Reset size use it too.
+- Every tidy, arrange or reset is **one undo step**. It is recorded as a
+  `snapshot` history entry: each changed card's position and width before
+  and after, and a collection's mode before and after. When undoing an
+  ungroup, or redoing a group, makes the group again under a new uuid, the
+  history follows it.
+- The toolbar button keeps its name and icon. Its tooltip is "Tidy up:
+  clear overlaps and line things up".
 
 ### Where each verb lives
 
@@ -139,44 +144,36 @@ nothing, and it never produces an overlap.
 
 The best tidy is the one never needed. New cards from a paste, a file drop
 or the staging tray are placed at the **nearest free spot** to where they
-would have landed today. "Free" means not overlapping any block, found by
+would have landed before. "Free" means not overlapping any block, found by
 searching outward on the 24 px grid. A note made by double-clicking still
 lands exactly under the pointer, because the user chose that place.
 
 ## Acceptance
 
 - Pressing Tidy up twice leaves the board unchanged the second time, and
-  the toast says "Already tidy".
+  the notice says "Already tidy".
 - After Tidy up, no two blocks overlap and no two cards inside a freeform
   collection overlap.
 - Tidy up never changes a card's width, a card's group, a booklet's order,
   or a collection's mode.
-- One ⌘Z (or the toast's Undo) restores every position and width that a
+- One ⌘Z (or the notice's Undo) restores every position and width that a
   tidy, arrange or reset changed.
 - Turning Auto-arrange on and pressing Arrange into columns leave a
   collection in the same layout.
 - An auto-arranged collection is still in columns after a board Tidy up.
 - A pasted image never lands on top of an existing card.
 
-## Decisions for the owner
+## Decisions taken
 
-1. **Board Tidy stops resetting sizes.** This is the one change existing
-   users will notice. Recommended, because resizing is the destructive part
-   and it still exists by name. The alternative is to keep it and accept
-   that "tidy" can shrink a card someone widened on purpose.
-2. **Snap to the 24 px grid.** Recommended only for blocks that moved.
-   Snapping everything would move nearly every card by a few pixels on the
-   first press.
-3. **Closing large gaps.** Not recommended at board scope, since distance
-   is meaning. It could come later as a separate verb ("Bring together")
-   on a selection.
+1. **Board Tidy no longer resets sizes.** Resizing is the destructive part,
+   and it still exists by name as Reset size.
+2. **Only blocks that moved snap** to the 24 px grid. Snapping everything
+   would move nearly every card by a few pixels on the first press.
+3. **Large gaps are kept** at board scope, since distance is meaning. A
+   separate verb ("Bring together") on a selection could come later.
 
-## Order of work
+## Known limits
 
-1. **Words and group forms.** Split Reset size out. Make the collection
-   options say Arrange into columns, and only in Freeform. Make turning on
-   Auto-arrange arrange. Fix board Tidy re-flowing auto-arranged
-   collections (problem 4). This is all UI, with no new layout code.
-2. **Gentle Tidy up.** `tidy.js` and its tests, the single undo step, the
-   glide, and the toast.
-3. **Free-spot placement** for pastes, drops and staged cards.
+- A new card's free spot is found from a guessed height (240 px), because
+  its real height is known only once it is drawn. A tall image can still
+  reach down over whatever is below it. Tidy up then separates them.
