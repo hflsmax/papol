@@ -1011,6 +1011,62 @@ deleted; the host's configuration.nix trimmed of the retired keys; the
 CORS rule applied to `papol-files` and the two R2 secrets set on
 production before the next production deploy.
 
+### Step 14 — landed 2026-09-22: a known version at upload
+
+The Library showed one paper five times: five PDFs of DOI 10.1145/3808345
+uploaded over a month, each a `papers` row of its own — a paper is the
+SHA-256 of its PDF — and each row left standing when its copy was let go,
+since a paper is nobody's. The four orphans were deleted by hand. Two
+rules follow, and neither changes what a paper is:
+
+- **The PDF's hash is the identity; a DOI may have versions.** A preprint
+  and the published article share a DOI and are two papers. No unique
+  index on the DOI and no merging: what changes is that the form knows.
+  The extract job (`papers/extract.ts`, `knownVersion`) looks the resolved
+  DOI up — case-insensitive, trimmed — among the non-deleted rows under
+  another hash, and when one is there its result carries
+  `existing: { sha256, title, file_path }`. The upload form then shows one
+  line, "Papol already has a version of this paper: <title>", with two
+  choices. *Use that version* (the default) saves `POST /api/papers` for
+  the known paper's file, as for any file Papol already holds — the user
+  gets a copy of it, or "already in your nook" — and names the upload as
+  `discard_file_path`; once the copy is saved the route lets that object
+  go, if no `papers` row and no queued or running job names it, and only
+  then. *Keep this version* is what always happened: a paper of its own
+  under its own hash, DOI and all. The desktop viewer's Add to nook does
+  not read the job result's paper and goes on making a paper under the
+  opened file's hash; the nook's upload form on the desktop shows the same
+  choice, and taking the known version saves through the server and lets
+  the pending local blob go.
+- **A paper nobody holds is not removed by itself.** Cleaning on every
+  let-go was weighed and dropped as overhead; the decision is taken by
+  hand, with `cloudflare/scripts/gc-papers.py`. `--list` prints every
+  orphan — a non-deleted row with no live copy by anyone, no annotation by
+  anyone (soft-deleted ones count: a replica may still hold them), no
+  seminar, no link out and no board card carrying its file — with title,
+  DOI, hash prefix, age and file size; `--delete` removes those rows, the
+  tombstoned copies still pointing at them, their `paper_links`,
+  `paper_references` and `paper_citations` rows and their bucket objects,
+  and says what went; `--only 3b7eb8b7,…` limits either to named hashes;
+  `--env dev` is dev.papol.io, production otherwise. Standard library,
+  with `npx wrangler d1 execute` and `npx wrangler r2 object delete`
+  underneath, so wrangler's login is all it needs. Never `--delete` on
+  production without a `--list` first.
+
+Verified on dev against the real Worker: a fresh PDF uploaded with the
+identifier 10.1145/3526113.3545710, which dev holds as `47602f24…`, had
+`existing` in its job result; taking that version gave the uploader a copy
+of `47602f24…`, the Library one row for the DOI, and the upload's object a
+404 at the bucket domain; keeping a second one made `782089f4…` beside it.
+Cleaned with `gc-papers.py --delete --env dev --only …`: the dev mirror's
+four orphan rows of 10.1145/3808345 (`3b7eb8b7…`, `4d48478d…`,
+`a6fed677…`, `ef920e57…`, whose objects the dev bucket never had, with 40
+links, 152 references and 184 citations between them) and the
+verification's own orphan. Production's `--list` shows four orphans
+(`40807dab…` The Byzantine Generals Problem, 32 days old and without a DOI,
+and the recent `22bd33f7…`, `dbfb7aab…`, `24570d4a…`); nothing was deleted
+there.
+
 Configuration and one move of the data, once phase 4 passes the suite:
 
 - D1, with its point-in-time restore replacing the dumps in

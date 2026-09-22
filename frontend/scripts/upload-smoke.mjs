@@ -25,7 +25,9 @@ function uploadFixture(server) {
         localStorage.setItem('papol.localAccountUuid', '77777777-7777-4777-8777-777777777777');
         window.failImport = false;
         window.readingDone = false;
-        window.__TAURI_INTERNALS__ = {invoke: async (command) => {
+        window.invoked = [];
+        window.__TAURI_INTERNALS__ = {invoke: async (command, args) => {
+          window.invoked.push(command + (args?.changes ? ':' + args.changes.map((c) => c.table + '=' + String(c.uuid).slice(0, 4)).join('+') : ''));
           if (command === 'blob_import') {
             if (window.failImport === 'expected') throw 'Offline files may be at most 40 MB';
             if (window.failImport) throw 'PDF import failed on disk';
@@ -61,10 +63,19 @@ function uploadFixture(server) {
           }
           if (String(url).includes('/jobs/j1')) {
             if (!window.readingDone) return new Response(JSON.stringify({status:'running'}));
+            // With knownVersion set, the reading found a paper Papol holds
+            // already, by the DOI, under another hash.
+            const existing = window.knownVersion ? {existing:{sha256:'k'.repeat(64), title:'Known paper', file_path:'k'.repeat(64) + '.pdf'}} : {};
             return new Response(JSON.stringify({status:'done', result:{
               doi:'10.1000/read', title:'Uploaded paper', authors:'["Ada Lovelace"]', journal:'Read Journal', year:2017,
-              file_path:'b'.repeat(64) + '.pdf',
+              file_path:'b'.repeat(64) + '.pdf', ...existing,
             }}));
+          }
+          if (path.endsWith('/papers') && options.method === 'POST') {
+            const body = JSON.parse(options.body);
+            window.uploadSeen.push({step: 'save', body});
+            return new Response(JSON.stringify({sha256: body.file_path.slice(0, 64), file_path: body.file_path, title: body.title,
+              notes: [], also_read_by: [], rooms: [], tags: []}));
           }
           return new Response('[]');
         };
@@ -172,7 +183,54 @@ try {
     assert.equal(await value('upload-paper-doi'), '10.1000/read');
     assert.equal(await value('upload-paper-journal'), 'My journal');
     assert.doesNotMatch(await browser.text(), /Reading the PDF/);
-    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, and the reading fills what was not typed`);
+
+    // Papol already holds a version of the work: the reading says so, the
+    // form offers it, and the save names the version chosen — that one,
+    // with the upload to let go of, or this one, as ever.
+    const uploaded = `${(mode === 'native' ? 'a' : 'b').repeat(64)}.pdf`;
+    const offered = async () => {
+      await browser.evaluate('window.readingDone = false; window.knownVersion = true; window.uploadSeen = []; window.invoked = []; return true;');
+      await choose();
+      await browser.waitFor('document.querySelector("#upload-paper-title")');
+      await browser.evaluate('window.readingDone = true; return true;');
+      await browser.waitFor('document.querySelector(".known-version")', { what: 'the known version to be offered' });
+      assert.match(await browser.text(), /Papol already has a version of this paper: Known paper/);
+    };
+    // The save: what was sent to the server, and what the nook wrote itself.
+    const saved = async () => {
+      await browser.evaluate('document.querySelector(".form-actions button.primary").click(); return true;');
+      await browser.waitFor('document.querySelector("input[type=file]")', { what: 'the form to close after the save' });
+      const posted = (await browser.evaluate('return window.uploadSeen;')).find((step) => step.step === 'save')?.body;
+      const invoked = await browser.evaluate('return window.invoked;');
+      return { posted, local: invoked.find((command) => command.startsWith('data_mutate:papers')), discarded: invoked.includes('blob_discard') };
+    };
+    await browser.evaluate('document.querySelector(".form-actions button").click(); return true;');
+    await browser.waitFor('document.querySelector("input[type=file]")');
+    await offered();
+    assert.equal(await browser.evaluate('return document.querySelector(".known-version input[type=radio]").checked;'), true);
+    // Taking the known version: saved on the server for that paper's file,
+    // with the upload named to let go of; on the desktop the pending blob
+    // goes too.
+    const took = await saved();
+    assert.equal(took.posted.file_path, `${'k'.repeat(64)}.pdf`);
+    assert.equal(took.posted.discard_file_path, uploaded);
+    assert.equal(took.local, undefined);
+    assert.equal(took.discarded, mode === 'native');
+    // Keeping this version: what always happened — the upload saved as a
+    // paper of its own, in the nook itself on the desktop.
+    await offered();
+    await browser.evaluate('document.querySelectorAll(".known-version input[type=radio]")[1].click(); return true;');
+    const kept = await saved();
+    if (mode === 'native') {
+      assert.equal(kept.posted, undefined);
+      assert.match(kept.local, /^data_mutate:papers=aaaa\+copies=/);
+    } else {
+      assert.equal(kept.posted.file_path, uploaded);
+      assert.equal(kept.posted.discard_file_path, undefined);
+    }
+    assert.equal(kept.discarded, false);
+    await browser.evaluate('window.knownVersion = false; return true;');
+    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, and a known version is offered and the choice saved`);
   }
 } finally {
   await browser.stop();

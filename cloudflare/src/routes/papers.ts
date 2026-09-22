@@ -18,6 +18,18 @@ import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
 const DIGEST = /^[0-9a-f]{64}$/;
+const PDF_FILE = /^[0-9a-f]{64}\.pdf$/;
+
+// An upload the form chose the known version over: let its object go,
+// when nothing names it — no paper's row, no job still to read it. Only
+// ever this object, at this moment; a paper nobody holds is not touched
+// (cloudflare/scripts/gc-papers.py is the hand that does that).
+async function dropUnreferenced(env: Env, filePath: string): Promise<boolean> {
+  if (await one(env.DB, "SELECT 1 FROM papers WHERE file_path = ?", filePath)) return false;
+  if (await one(env.DB, "SELECT 1 FROM jobs WHERE status IN ('queued', 'running') AND json_extract(payload, '$.file_path') = ?", filePath)) return false;
+  await env.FILES.delete(`${UPLOADS}${filePath}`);
+  return true;
+}
 
 // The identifier the browser read off the PDF's first pages, `{ doi }` or
 // `{ arxiv_id }`, held to the forms the Worker's own reading produces.
@@ -155,16 +167,20 @@ export function paperRoutes(router: Router) {
   // Save a paper with user-edited metadata and an optional first note. A
   // paper is its PDF: an upload of bytes Papol already holds becomes a
   // new copy of that paper, and anything else is a paper of its own.
+  // When the reading found a version of the work Papol holds already and
+  // the form took that one, `file_path` names it and `discard_file_path`
+  // the upload, which is let go of once the copy is saved.
   router.on("POST", "/api/papers", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Row>(request);
     const filePath = String(data.file_path ?? "");
-    if (!/^[0-9a-f]{64}\.pdf$/.test(filePath) || !(await env.FILES.head(`${UPLOADS}${filePath}`))) refuse(400, "PDF file not found");
+    if (!PDF_FILE.test(filePath) || !(await env.FILES.head(`${UPLOADS}${filePath}`))) refuse(400, "PDF file not found");
     const metadata = validate.paperMetadata(data);
     const check = validate.checking();
     const thought = check.string("thought", data.thought, { max: limits.text.paper_thought, optional: true });
     const summary = check.string("summary", data.summary, { optional: true });
     const initialComment = check.string("initial_comment", data.initial_comment, { optional: true });
+    const discard = check.string("discard_file_path", data.discard_file_path, { pattern: PDF_FILE, optional: true });
     for (const field of ["rating_expertise", "rating_reading", "rating_liking"]) {
       check.integer(field, data[field], { min: limits.ratings.min, max: limits.ratings.max, optional: true });
     }
@@ -198,6 +214,7 @@ export function paperRoutes(router: Router) {
       statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, true));
     }
     await batch(env.DB, statements);
+    if (discard && discard !== filePath) await dropUnreferenced(env, discard);
     return json(await paperDetail(env,paper, user));
   });
 
