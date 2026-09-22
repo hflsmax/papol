@@ -63,7 +63,7 @@ Three things now stand where that gap was:
   it — a list the replica cannot know starts empty instead of missing. The
   test that pinned it to the server's response models went with the Python
   backend; a Worker response gaining or losing a list moves the declaration
-  by hand, and `frontend/src/nativeData.test.js` reads it.
+  by hand, and `frontend/src/replicaShapes.test.js` reads it.
 - **The browser smoke's desktop pass** opens the built bundle as Papol macOS
   runs it — a mocked Tauri bridge answering with replica-shaped rows — and
   fails if a surface crashes or renders the wrong thing.

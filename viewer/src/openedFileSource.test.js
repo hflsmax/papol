@@ -1,79 +1,51 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ACCOUNT, installNativeHarness, sha256Hex } from '../../shared/testing/nativeHarness.js';
 
-const HASH = 'a'.repeat(64);
-const ACCOUNT = '77777777-7777-4777-8777-777777777777';
+// The file on disk, and the name the Mac gave it: the digest of its bytes.
+const PDF = new TextEncoder().encode('%PDF-1.4\n%%EOF');
+const HASH = sha256Hex(PDF);
 const SHELF = '88888888-8888-4888-8888-888888888888';
 const OTHER_SHELF = '66666666-6666-4666-8666-666666666666';
-const values = new Map([['papol.syncPreference', 'manual']]);
-const calls = [];
-let existingPaper = null;
-let shelvesReady = true;
-let mutateFailure = null;
+const SAVED = { uuid: '55555555-5555-4555-8555-555555555555', title: 'Saved paper', sha256: HASH };
 
-global.localStorage = {
-  getItem: (key) => values.get(key) ?? null,
-  setItem: (key, value) => values.set(key, String(value)),
-  removeItem: (key) => values.delete(key),
-};
-global.location = new URL(`http://127.0.0.1/viewer/?pdf=${HASH}&file=1&name=Local%20paper`);
-global.window = {
-  location: global.location,
-  __PAPOL_ENV__: { runtime: 'desktop', surface: 'viewer', documentWindow: true },
-  __TAURI_INTERNALS__: {
-    invoke: async (command, args = {}) => {
-      calls.push([command, args]);
-      if (command === 'local_setting_get') return 'manual';
-      if (command === 'opened_file_read') return [...new TextEncoder().encode('%PDF-1.4\n%%EOF')];
-      if (command === 'blob_import') return { sha256: HASH, size: args.bytes.length, mime_type: args.mimeType };
-      if (command === 'data_query') {
-        if (args.queryName === 'paper_by_pdf') {
-          if (existingPaper) return existingPaper;
-          throw new Error('Paper not in nook');
-        }
-        if (args.queryName === 'comments') return [];
-        if (args.queryName === 'shelves') return shelvesReady ? [
-          { uuid: OTHER_SHELF, is_default: 0, is_public: 0 },
-          { uuid: SHELF, is_default: 1, is_public: 1 },
-        ] : [];
-        return [];
-      }
-      if (command === 'sync_now') {
-        shelvesReady = true;
-        return { pushed: 0, pulled: 1, cursor: 1 };
-      }
-      // The bridge rejects with a plain string, as Tauri does for a command's Err.
-      if (command === 'data_mutate' && mutateFailure) throw mutateFailure;
-      if (command === 'data_mutate') return { rows: [] };
-      return null;
-    },
-    transformCallback: () => 1,
-  },
-  addEventListener() {},
-  dispatchEvent() {},
-};
-global.Event = class Event { constructor(type) { this.type = type; } };
-Object.defineProperty(globalThis, 'navigator', {
-  value: { onLine: false }, configurable: true, writable: true,
+// An opened file is private until it is added: offline, signed out, and
+// with no route for any request, so one that leaves fails the test.
+const native = await installNativeHarness({
+  surface: 'viewer', documentWindow: true, signedIn: false, onLine: false,
+  href: `http://127.0.0.1/viewer/?pdf=${HASH}&file=1&name=Local%20paper`,
 });
-global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
 
 const {
   handoffOpenedFileToNookViewer, nookViewerHref, resolveSource,
 } = await import('./source.js');
 const { hydrateCredential } = await import('../../shared/credentials.js');
 const { takeNookNotice } = await import('./api.js');
+const { enterOfflineMode } = await import('../../shared/connectivity.js');
+
+// Signed in, and offline unless a test says otherwise: Papol is offline
+// when it has latched so, which is what keeps an add from sending.
+function signedIn({ inNook = null, offline = true } = {}) {
+  native.storage.set('papol.localAccountUuid', ACCOUNT);
+  if (offline) enterOfflineMode();
+  native.on('opened_file_read', () => [...PDF]);
+  native.query('paper_by_pdf', () => {
+    if (inNook) return inNook;
+    throw 'Paper not in nook';
+  });
+  native.query('shelves', [
+    { uuid: OTHER_SHELF, is_default: 0, is_public: 0 },
+    { uuid: SHELF, is_default: 1, is_public: 1 },
+  ]);
+}
+
+const mutatedTables = () => native.argsOf('data_mutate').flatMap(({ changes }) => changes.map((change) => change.table));
 
 test('a nook source exposes the content hash before its paper query resolves', () => {
-  const previous = location.search;
   location.search = `?pdf=${HASH}`;
-  try {
-    const source = resolveSource();
-    assert.equal(source.pdfHash, HASH);
-    assert.equal(source.openedFile, undefined);
-  } finally {
-    location.search = previous;
-  }
+  const source = resolveSource();
+  assert.equal(source.pdfHash, HASH);
+  assert.equal(source.openedFile, undefined);
 });
 
 test('the nook handoff keeps navigation context and removes file-only identity', () => {
@@ -92,9 +64,6 @@ test('the nook handoff keeps navigation context and removes file-only identity',
 });
 
 test('a standalone file neither reads nor exposes persistent paper state', async () => {
-  values.delete('papol.localAccountUuid');
-  existingPaper = null;
-  calls.length = 0;
   const source = resolveSource();
   assert.deepEqual(source.initialPaper, {
     title: 'Local paper', sha256: HASH, opened_file: true,
@@ -104,7 +73,7 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.equal(source.openedFile, true);
   assert.equal(source.requiresSignIn, false);
   // The pair a paper that is not yet yours carries, whether it arrived by
-  // link or off the file system: nothing here is yours to change, and a
+  // link or off the file system: nothing here is yours to change, and an
   // annotation you make needs a nook to go into. An opened file satisfies the
   // first the easy way, by having no annotations on it at all.
   assert.equal(source.readOnly, true);
@@ -112,45 +81,32 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.equal(loaded.doc.title, 'Local paper');
   assert.deepEqual(loaded.notes, []);
   assert.equal(source.annotations, undefined);
-  assert.equal(calls.some(([command]) => command === 'data_query'), false);
+  assert.deepEqual(native.argsOf('data_query'), []);
   await assert.rejects(source.addToNook(), /Sign in to add this paper/);
-  assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
+  assert.deepEqual(native.argsOf('opened_file_read'), []);
 });
 
 test('an opened file already in the nook exposes its paper identity', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = {
-    uuid: '55555555-5555-4555-8555-555555555555',
-    title: 'Saved paper',
-    sha256: HASH,
-  };
-  calls.length = 0;
-
+  signedIn({ inNook: SAVED });
   const source = resolveSource();
   const loaded = await source.load();
   assert.deepEqual(loaded.doc, source.initialPaper);
-  assert.equal(calls.some(([, args]) => args.queryName === 'paper_by_pdf'), false);
+  assert.deepEqual(native.argsOf('data_query'), [], 'showing page one consults nothing');
 
   const nookPaper = await source.loadNookPaper();
 
-  assert.equal(nookPaper.uuid, existingPaper.uuid);
+  assert.equal(nookPaper.uuid, SAVED.uuid);
   assert.equal(nookPaper.title, 'Saved paper');
   assert.equal(nookPaper.opened_file, true);
-  assert.deepEqual(loaded.notes, []);
-  assert.equal(calls.filter(([, args]) => args.queryName === 'paper_by_pdf').length, 1);
-  assert.equal(calls.some(([, args]) => args.queryName === 'comments'), false);
-  assert.equal(calls.some(([command]) => command === 'opened_file_read'), false);
+  assert.deepEqual(native.argsOf('data_query').map(({ queryName, parameters }) => [queryName, parameters]), [
+    ['paper_by_pdf', { sha256: HASH }],
+  ]);
+  assert.deepEqual(native.argsOf('opened_file_read'), []);
 });
 
 test('an opened file already in the nook hands the viewer to its canonical version', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = {
-    uuid: '55555555-5555-4555-8555-555555555555',
-    title: 'Saved paper',
-    sha256: HASH,
-  };
-  const source = resolveSource();
-  const found = await source.loadNookPaper();
+  signedIn({ inNook: SAVED });
+  const found = await resolveSource().loadNookPaper();
   const navigations = [];
 
   const handedOff = handoffOpenedFileToNookViewer(
@@ -160,177 +116,133 @@ test('an opened file already in the nook hands the viewer to its canonical versi
   );
 
   assert.equal(handedOff, true);
-  assert.deepEqual(navigations, [
-    `http://127.0.0.1/viewer/?pdf=${HASH}&page=4`,
-  ]);
+  assert.deepEqual(navigations, [`http://127.0.0.1/viewer/?pdf=${HASH}&page=4`]);
 });
 
 test('an opened file absent from the nook stays in local-file mode', () => {
   const navigations = [];
-
-  const handedOff = handoffOpenedFileToNookViewer(
-    null,
-    location.href,
-    (href) => navigations.push(href),
-  );
-
+  const handedOff = handoffOpenedFileToNookViewer(null, location.href, (href) => navigations.push(href));
   assert.equal(handedOff, false);
   assert.deepEqual(navigations, []);
 });
 
 test('Add to nook imports only the paper graph, with no file-viewer annotations', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = null;
-  calls.length = 0;
+  signedIn();
   const source = resolveSource();
   await source.load();
   const paperSha256 = await source.addToNook();
 
-  assert.match(paperSha256, /^[0-9a-f]{64}$/);
-  assert.equal(calls.filter(([command]) => command === 'opened_file_read').length, 1);
-  assert.equal(calls.filter(([command]) => command === 'blob_import').length, 1);
-  const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
+  assert.equal(paperSha256, HASH);
+  assert.equal(native.argsOf('opened_file_read').length, 1);
+  assert.equal(native.argsOf('blob_import').length, 1);
+  assert.ok(native.blobs.has(HASH), 'the nook holds the file itself');
+  const mutations = native.argsOf('data_mutate').map(({ changes }) => changes);
+  assert.equal(mutations.length, 1);
   assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'copies']);
-  assert.equal(mutations[0][0].uuid, paperSha256);
+  assert.equal(mutations[0][0].uuid, HASH);
   // The paper's name is the file, and it is said among the values too, as
   // the upload form says it: that is what has sync put the PDF in the
   // bucket, here where this offline add never sent it.
-  assert.equal(mutations[0][0].values.sha256, paperSha256);
+  assert.equal(mutations[0][0].values.sha256, HASH);
   assert.equal(mutations[0][1].values.shelf_uuid, SHELF);
-  assert.equal(mutations.length, 1);
 });
 
 test('simultaneous post-login callbacks import an opened PDF only once', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = null;
-  calls.length = 0;
+  signedIn();
   const source = resolveSource();
 
   const [first, second] = await Promise.all([source.addToNook(), source.addToNook()]);
 
   assert.equal(first, second);
-  assert.equal(calls.filter(([command]) => command === 'opened_file_read').length, 1);
-  assert.equal(calls.filter(([command]) => command === 'blob_import').length, 1);
-  assert.equal(calls.filter(([command]) => command === 'data_mutate').length, 1);
+  assert.equal(native.argsOf('opened_file_read').length, 1);
+  assert.equal(native.argsOf('blob_import').length, 1);
+  assert.equal(native.argsOf('data_mutate').length, 1);
+});
+
+test('a file that changed on disk while it was open is not added under the old name', async () => {
+  signedIn();
+  native.on('opened_file_read', () => [...new TextEncoder().encode('%PDF-1.4\nedited\n%%EOF')]);
+  await assert.rejects(resolveSource().addToNook(), /The file changed while it was open/);
+  assert.deepEqual(native.argsOf('data_mutate'), []);
 });
 
 test('an online opened-file import stores parsed bibliographic metadata', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = null;
-  calls.length = 0;
+  signedIn({ offline: false });
   navigator.onLine = true;
+  await hydrateCredential();
   // The server already holds the bytes, so no PUT; telling it they are
   // in answers with a job, and the reading is the job's result.
-  const answers = {
-    '/api/files/upload-address': [200, { stored: true, file_path: `${HASH}.pdf` }],
-    '/api/papers/uploaded': [202, { job: 'job-1', file_path: `${HASH}.pdf`, sha256: HASH }],
-    '/api/jobs/job-1': [200, {
+  native.route('POST /api/files/upload-address', { json: { stored: true, file_path: `${HASH}.pdf` } });
+  native.route('POST /api/papers/uploaded', { status: 202, json: { job: 'job-1', file_path: `${HASH}.pdf`, sha256: HASH } });
+  native.route('GET /api/jobs/job-1', {
+    json: {
       uuid: 'job-1', kind: 'extract_metadata', status: 'done', detail: null,
       result: {
         doi: '10.1234/parsed', title: 'Parsed title',
         authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
         file_path: `${HASH}.pdf`,
       },
-    }],
-  };
-  const told = [];
-  global.fetch = async (url, options) => {
-    const path = new URL(url, 'http://papol.test').pathname;
-    if (path === '/api/papers/uploaded') told.push(JSON.parse(options.body));
-    const [status, body] = answers[path];
-    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-  };
-  try {
-    // The identifier the open document prints goes with the bytes.
-    await resolveSource().addToNook({ identifier: Promise.resolve({ doi: '10.1234/parsed' }) });
-  } finally {
-    navigator.onLine = false;
-    global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
-  }
+    },
+  });
 
-  const paperChange = calls.find(([, args]) => args.changes?.[0]?.table === 'papers')[1].changes[0];
+  // The identifier the open document prints goes with the bytes.
+  await resolveSource().addToNook({ identifier: Promise.resolve({ doi: '10.1234/parsed' }) });
+
+  const paperChange = native.argsOf('data_mutate')[0].changes[0];
   assert.deepEqual(paperChange.values, {
     doi: '10.1234/parsed', title: 'Parsed title',
     authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
     // A paper is its PDF: the row is named by it, and carries the path.
     file_path: `${HASH}.pdf`, sha256: HASH,
   });
-  assert.deepEqual(told, [{ file_path: `${HASH}.pdf`, uploaded_name: 'Local paper.pdf', identifier: { doi: '10.1234/parsed' } }]);
+  const [told] = native.requests().filter(({ url }) => url.endsWith('/api/papers/uploaded'));
+  assert.deepEqual(told.json(), { file_path: `${HASH}.pdf`, uploaded_name: 'Local paper.pdf', identifier: { doi: '10.1234/parsed' } });
 });
 
 test('an opened file whose send fails is added under its name, and the nook page says why', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = null;
-  calls.length = 0;
+  signedIn({ offline: false });
   navigator.onLine = true;
-  const session = new Map();
-  global.sessionStorage = {
-    getItem: (key) => session.get(key) ?? null,
-    setItem: (key, value) => session.set(key, String(value)),
-    removeItem: (key) => session.delete(key),
-  };
-  // What the Tauri HTTP plugin says of a host outside its scope.
-  global.fetch = async () => { throw new Error('url not allowed on the configured scope'); };
-  try {
-    await resolveSource().addToNook();
-  } finally {
-    navigator.onLine = false;
-    global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
-  }
+  // What the Tauri HTTP plugin rejects with for a host outside its scope:
+  // the command's Err string, not an Error.
+  native.route(/./, () => { throw 'url not allowed on the configured scope'; });
+  await resolveSource().addToNook();
 
-  const paperChange = calls.find(([, args]) => args.changes?.[0]?.table === 'papers')[1].changes[0];
+  const paperChange = native.argsOf('data_mutate')[0].changes[0];
   assert.equal(paperChange.values.title, 'Local paper');
   const notice = takeNookNotice();
   assert.match(notice.message, /could not be sent to be read \(url not allowed on the configured scope\)/);
   assert.match(notice.report, /Area: sending a PDF to be read/);
   assert.equal(takeNookNotice(), null, 'said once');
-  delete global.sessionStorage;
 });
 
 test('an opened file the nook could not keep leaves no notice behind', async () => {
-  values.set('papol.localAccountUuid', ACCOUNT);
-  existingPaper = null;
-  const session = new Map();
-  global.sessionStorage = {
-    getItem: (key) => session.get(key) ?? null,
-    setItem: (key, value) => session.set(key, String(value)),
-    removeItem: (key) => session.delete(key),
-  };
-  mutateFailure = 'database is locked';
-  try {
-    // Offline, so unread: the notice would say so, were there a paper.
-    await assert.rejects(resolveSource().addToNook(), /database is locked/);
-    assert.equal(takeNookNotice(), null);
-  } finally {
-    mutateFailure = null;
-    delete global.sessionStorage;
-  }
+  signedIn();
+  // The bridge rejects with a plain string, as Tauri does for a command's Err.
+  native.on('data_mutate', () => { throw 'database is locked'; });
+  // Offline, so unread: the notice would say so, were there a paper.
+  await assert.rejects(resolveSource().addToNook(), (failure) => failure === 'database is locked');
+  assert.equal(takeNookNotice(), null);
 });
 
 test('first sign-in adds an open file locally without waiting for its nook snapshot', async () => {
-  values.delete('papol.localAccountUuid');
-  values.delete('papol_token');
-  await hydrateCredential();
-  existingPaper = null;
-  shelvesReady = false;
-  calls.length = 0;
+  let shelvesReady = false;
   const source = resolveSource();
   await source.load();
 
-  values.set('papol_token', 'new-session-token');
+  native.storage.set('papol_token', 'new-session-token');
   await hydrateCredential();
-  values.set('papol.localAccountUuid', ACCOUNT);
+  signedIn({ offline: false });
+  // The send finds no network; the add goes on without it.
+  native.route(/./, () => { throw new TypeError('Load failed'); });
+  // The snapshot that brings the shelves down has not arrived yet.
+  native.query('shelves', () => (shelvesReady ? [{ uuid: SHELF, is_default: 1, is_public: 1 }] : []));
+  native.on('sync_now', () => { shelvesReady = true; return { pushed: 0, pulled: 1, cursor: 1 }; });
   const paperSha256 = await source.addToNook();
 
-  assert.match(paperSha256, /^[0-9a-f]{64}$/);
-  const syncs = calls.filter(([command]) => command === 'sync_now');
-  assert.ok(syncs.length > 0);
-  assert.ok(syncs.every(([, args]) => args.request.mode === 'pull'));
-  const paperGraph = calls.find(([, args]) => args.changes?.some((change) => change.table === 'copies'));
-  assert.equal(paperGraph[1].changes.find((change) => change.table === 'copies').values.shelf_uuid, null);
-  assert.deepEqual(
-    calls.filter(([command]) => command === 'data_mutate')
-      .flatMap(([, args]) => args.changes.map((change) => change.table)),
-    ['papers', 'copies'],
-  );
+  assert.equal(paperSha256, HASH);
+  await native.until(() => native.argsOf('sync_now').length > 0, { what: 'the background pull' });
+  assert.ok(native.argsOf('sync_now').every(({ request }) => request.mode === 'pull'));
+  const copies = native.argsOf('data_mutate')[0].changes.find((change) => change.table === 'copies');
+  assert.equal(copies.values.shelf_uuid, null);
+  assert.deepEqual(mutatedTables(), ['papers', 'copies']);
 });

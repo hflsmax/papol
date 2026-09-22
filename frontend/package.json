@@ -10,10 +10,10 @@
     "dev": "vite",
     "build": "vite build",
     "test": "npm run test:unit && VITE_BASE=/papol/ npm run build && npm run smoke:browser",
-    "test:unit": "node --test --test-concurrency=1 --import ./src/browserGlobals.mjs src/*.test.js",
+    "test:unit": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:upload": "node scripts/upload-smoke.mjs",
-    "test:sync": "node --test --test-concurrency=1 --import ./src/browserGlobals.mjs src/connectivity.test.js src/nativeData.test.js",
+    "test:sync": "node --test --import ./src/browserGlobals.mjs src/connectivity.test.js src/nativeSync.test.js src/nativeBridge.test.js src/replicaShapes.test.js src/desktopUpload.test.js src/desktopCards.test.js src/desktopRooms.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
