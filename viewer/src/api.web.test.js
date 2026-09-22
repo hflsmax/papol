@@ -59,6 +59,15 @@ test('writing an annotation names it the same way', async () => {
   assert.equal(paperSegmentOf(asked[0].url), NAME);
 });
 
+test('the PDF is read from the address the service gives, else from the upload route', async () => {
+  const { pdfHref, pdfLoadInput } = await import('./api.js');
+  assert.equal(pdfHref({ file_path: `${PAPER}.pdf` }), `/uploads/${PAPER}.pdf`);
+  assert.equal(pdfHref({ file_path: `${PAPER}.pdf`, file_url: `https://files.test/uploads/${PAPER}.pdf` }), `https://files.test/uploads/${PAPER}.pdf`);
+  assert.equal(pdfHref({}), null);
+  // pdf.js is handed the bucket's address and never Papol's redirect.
+  assert.deepEqual(await pdfLoadInput({ file_path: `${PAPER}.pdf`, file_url: `https://files.test/uploads/${PAPER}.pdf` }), { url: `https://files.test/uploads/${PAPER}.pdf` });
+});
+
 test('a PDF is asked for by the whole of its digest, because it is its bytes', async () => {
   asked.length = 0;
   const { getPaperByPdf } = await import('./api.js');

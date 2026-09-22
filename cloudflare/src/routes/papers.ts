@@ -11,7 +11,7 @@ import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, 
 import { KIND as EXTRACT, reextractedMetadata } from "../papers/extract";
 import { Unavailable } from "../papers/bibliography";
 import { viewerPaper } from "../papers/sharables";
-import { UPLOADS } from "../sync/blobs";
+import { UPLOADS, uploadUrl } from "../sync/blobs";
 import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
@@ -139,14 +139,14 @@ export function paperRoutes(router: Router) {
       statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, true));
     }
     await batch(env.DB, statements);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // Any signed-in user may open any paper: the Library holds every one,
   // and whose nook it sits in is nobody's business but theirs.
   router.on("GET", "/api/papers/:name", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
-    return json(await paperDetail(env.DB, await paperOr404(env.DB, params.name), user));
+    return json(await paperDetail(env,await paperOr404(env.DB, params.name), user));
   });
 
   // Re-read a paper's PDF metadata for the edit form.
@@ -216,7 +216,7 @@ export function paperRoutes(router: Router) {
       statements.push(await writePaper(env.DB, paper, false));
     }
     await batch(env.DB, statements);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // Remove the paper from the viewer's nook: their copy and their notes.
@@ -244,7 +244,7 @@ export function paperRoutes(router: Router) {
     const user = await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
     await keepPaper(env.DB, user, paper.sha256);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // Resolve the paper named by a viewer URL, which names its PDF, for a
@@ -252,16 +252,22 @@ export function paperRoutes(router: Router) {
   router.on("GET", "/api/viewer/:digest", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const paper = await viewerPaper(env.DB, params.digest, user, null);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // A stored file by its key: a paper's PDF under its digest, an avatar
   // under a UUID in its own folder. Both names are minted once and never
   // reused, so what a URL here answers never changes and may be cached
-  // for good.
+  // for good. When the bucket has an address of its own, the answer is
+  // that address: the bytes are the bucket's to serve, and the Worker
+  // never carries them. A day on the redirect, not a year: the bytes
+  // are permanent, the host that serves them need not be.
   for (const [method, path, folder] of [["GET", "/uploads/:key", ""], ["HEAD", "/uploads/:key", ""], ["GET", "/uploads/avatars/:key", "avatars/"], ["HEAD", "/uploads/avatars/:key", "avatars/"]]) {
     router.on(method, path, async ({ env, params }) => {
       if (!/^[A-Za-z0-9._-]+$/.test(params.key)) refuse(404, "File not found");
+      if (env.FILES_URL) {
+        return new Response(null, { status: 301, headers: { location: uploadUrl(env, `${folder}${params.key}`), "cache-control": "public, max-age=86400" } });
+      }
       const object = await env.FILES.get(`${UPLOADS}${folder}${params.key}`);
       if (!object) refuse(404, "File not found");
       const headers: Record<string, string> = {

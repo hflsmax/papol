@@ -24,6 +24,7 @@ import { type User } from "../auth";
 import { all, newUuid, now, one, type Row } from "../db";
 import { refuse } from "../http";
 import { userPublic } from "../routes/boards";
+import { uploadUrl } from "../sync/blobs";
 import { annotationOut, copyOf, type Paper } from "./detail";
 
 export const RICH = "rich";
@@ -124,7 +125,8 @@ export async function revoke(db: D1Database, sharable: Sharable): Promise<void> 
 // with accounts. A lean link was never carrying annotations, and a rich
 // one that lost its copy has already been demoted by openSharable, so the
 // kind is the whole answer.
-export async function sharedReading(db: D1Database, sharable: Sharable) {
+export async function sharedReading(env: Env, sharable: Sharable) {
+  const db = env.DB;
   const paper = await one<Paper>(db, "SELECT * FROM papers WHERE sha256 = ?", sharable.paper_sha256);
   if (!paper) refuse(404, "This reading is no longer shared");
   const maker = sharable.user_uuid ? await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", sharable.user_uuid) : null;
@@ -134,7 +136,7 @@ export async function sharedReading(db: D1Database, sharable: Sharable) {
   return {
     uuid: sharable.uuid, kind: sharable.kind, created_at: sharable.created_at,
     user: maker ? userPublic(maker) : null,
-    paper: { doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year, file_path: paper.file_path, sha256: paper.sha256 },
+    paper: { doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year, file_path: paper.file_path, file_url: uploadUrl(env, paper.file_path), sha256: paper.sha256 },
     annotations: annotations.map(annotationOut),
   };
 }

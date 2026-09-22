@@ -3,6 +3,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import worker from "../src/index";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account, type Json } from "./helpers";
 
 
@@ -145,6 +146,25 @@ describe("the export", () => {
       { path: `board-files/${board}/${item}-photo.png`, url: `/api/board-items/${item}/file`, size: 4 },
     ]);
     expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/README.txt"))!])).toContain("files.json");
+  });
+
+  it("names the bucket's own address for a PDF and the picture when the bucket has one, and Papol's route for a board file", async () => {
+    const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
+    await adasNook(ada, grace);
+    const avatar = (await ok("POST", "/api/auth/avatar", { headers: ada.headers, body: (() => { const f = new FormData(); f.set("file", new File([new Uint8Array(3)], "me.png")); return f; })() })).avatar_path;
+    const board = uuid(), item = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Clippings', ?, ?, 0)", board, ada.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, original_filename, mime_type, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, 'photo.png', 'image/png', ?, ?, 0)", item, board, `${board}/photo.png`, at, at);
+    await env.FILES.put(`board_uploads/${board}/photo.png`, new Uint8Array(4));
+    const response = await worker.fetch(new Request("https://papol.test/api/auth/export", { headers: ada.headers }), { ...env, FILES_URL: "https://files.test" as string } as Env);
+    expect(response.status).toBe(200);
+    const archive = untar(new Uint8Array(await response.arrayBuffer()));
+    const files = JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/files.json"))!]));
+    expect(files).toEqual([
+      { path: "avatar.png", url: `https://files.test/uploads/${avatar}`, size: 3 },
+      { path: "pdfs/on-leaving-2024.pdf", url: `https://files.test/uploads/${PDF}.pdf`, size: PDF_BYTES.length },
+      { path: `board-files/${board}/${item}-photo.png`, url: `/api/board-items/${item}/file`, size: 4 },
+    ]);
   });
 });
 

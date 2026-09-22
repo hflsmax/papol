@@ -826,6 +826,66 @@ through JavaScript, which is what makes `/uploads/` cheap where the
 export's stream was not — and the browser had the 129.5 MB zip in
 6.6 s, `zipfile.testzip()` clean.
 
+### Step 11 — landed 2026-09-21: the files come from the bucket
+
+Every PDF and every picture was a Worker invocation whose body was the
+R2 object. Cheap, but an invocation each, and nothing cached at the
+edge. An R2 bucket can carry a custom domain in the zone, on which
+Cloudflare serves the objects itself — cached at the edge, range
+requests answered, no Worker in the path. `FILES_URL` in `wrangler.toml`
+names that address; with it set, `GET /uploads/<key>` and
+`/uploads/avatars/<key>` answer a 301 to it (the key's shape still
+checked; a day's `cache-control`, since the bytes are permanent and the
+host need not be), the paper answers (`/api/papers/:name`,
+`/api/viewer/:digest`, a shared reading's `paper`) carry `file_url`
+beside `file_path`, and the export's `files.json` names the bucket
+address for a PDF or the picture. The viewer hands pdf.js `file_url`
+when it is there, so the PDF's stream never touches the Worker, not
+even for the redirect; the `<img>` for a picture follows the 301.
+Without `FILES_URL` — local development — the Worker serves the file as
+before. `cloudflare/r2-cors-public.json` is the bucket's CORS rule: GET
+and HEAD from any origin (the files are public and content-addressed;
+an origin list would protect nothing and would have to name every local
+port and the desktop's `tauri://` origin), the `Range` header allowed,
+`Content-Length`, `Content-Range`, `Accept-Ranges` and `ETag` exposed,
+which is what pdf.js needs to read by range across origins.
+
+What a bucket domain exposes is the whole bucket: every key answers on
+it, and nothing scopes it to a prefix (the domain does not list keys —
+`/` and `/uploads/` are 404 — but any key one knows is public). The
+production bucket `papol-files` holds, beside 54 PDFs and one picture
+under `uploads/`, some seventy private board files and desktop blobs
+under `board_uploads/`, and a stale `dev/uploads/` tree from the Python
+era. So production has no domain yet and its `FILES_URL` is empty; the
+Worker serves its files as before. `papol-files-dev` holds only
+`uploads/` and got `files-dev.papol.io`, which is where all of this was
+proved. The follow-up that lets production have `files.papol.io`: a
+second bucket, `papol-board-files`, for `board_uploads/` — a second
+binding, `BOARD_FILES`, that `src/sync/blobs.ts`, `routes/boards.ts`,
+`jobs/capture.ts` and `account/export.ts` read and write instead of
+`FILES` for that prefix; the seventy objects copied across
+(`wrangler r2 object get`/`put`, or `rclone` with an S3 token); the
+`dev/` keys deleted from `papol-files`; then
+`wrangler r2 bucket domain add papol-files --domain files.papol.io
+--zone-id 27efd91b…` and `FILES_URL = "https://files.papol.io"` in
+`[vars]`. Board files stay behind `/api/board-items/:uuid/file` and
+`/api/sync/blobs/:sha256` throughout, where the route asks who is
+asking. The desktop's content policy and capabilities already admit
+`https://files.papol.io`, so no app release is needed for that day.
+
+Measured on dev: the Worker's `/uploads/<digest>.pdf` answers 301 in
+0 ms of CPU; the bucket domain answers the 1.4 MB PDF with
+`content-type: application/pdf`, `accept-ranges: bytes`,
+`access-control-allow-origin: *`, `cf-cache-status: MISS` then `HIT`
+(`cache-control: max-age=14400`, Cloudflare's default for the type;
+the objects carry no cache-control of their own); the viewer in headless
+Chrome rendered the paper from `files-dev.papol.io` — one 200, then
+206s by range — with no `/uploads/` event in the Worker's tail at all.
+One thing to know: the edge caches a 404 for a key for a few minutes,
+so a URL asked for before its object exists stays a 404 that long. Papol
+never hands out an address before the upload has landed, and keys are
+never reused, so this is a probe's problem rather than a user's.
+
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
 deleted; the host's configuration.nix trimmed of the retired keys.
