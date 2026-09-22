@@ -3,7 +3,7 @@ import { createExecutionContext, createMessageBatch, env } from "cloudflare:test
 import { afterEach, describe, expect, it } from "vitest";
 
 import worker from "../src/index";
-import { capturers } from "../src/jobs/capture";
+import { capturers, privateHost } from "../src/jobs/capture";
 import type { Wakeup } from "../src/jobs/run";
 import { call, count, mutation, ok, paperWithCopy, pushed, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
@@ -240,10 +240,25 @@ describe("link cards", () => {
     expect(card).toEqual({ file_path: null, source_url: "https://example.test/" });
   });
 
+  it("tells a machine's own network from the web, as the Mac does", () => {
+    for (const host of ["127.0.0.1", "0.1.2.3", "100.127.0.1", "[::1]", "localhost.", "printer.local", "nas.home.arpa"]) {
+      expect(privateHost(host), host).toBe(true);
+    }
+    for (const host of ["10times.com", "100.128.0.1", "172.32.0.1", "localhost-tools.dev", "locale.example", "8.8.8.8"]) {
+      expect(privateHost(host), host).toBe(false);
+    }
+  });
+
   it("refuses a bad link now, not by the worker", async () => {
     const account = await register();
     const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
-    for (const url of ["ftp://example.test/", "https://user:pw@example.test/", "http://localhost:8000/", "http://192.168.1.1/", "http://10.0.0.1/x"]) {
+    for (const url of [
+      "ftp://example.test/", "https://user:pw@example.test/", "http://localhost:8000/", "http://192.168.1.1/", "http://10.0.0.1/x",
+      // Every other way to write a machine's own network, as the Mac refuses them too.
+      "http://2130706433/", "http://0x7f.1/", "http://127.1/", "http://0.1.2.3/", "http://100.64.0.1/", "http://255.255.255.255/",
+      "http://[::1]/", "http://[::]/", "http://[fe80::1]/", "http://[::ffff:127.0.0.1]/", "http://localhost./", "http://printer.local/",
+      "http://router.lan/", "http://nas.home.arpa/", "http://metadata.google.internal/", "http://172.20.1.1/", "http://169.254.169.254/",
+    ]) {
       expect((await call("POST", `/api/boards/${board.uuid}/webpage`, { headers: account.headers, json: { url, x: 0, y: 0 } })).status, url).toBe(422);
     }
     expect((await call("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url: "https://example.test/watch", x: 0, y: 0 } })).status).toBe(422);

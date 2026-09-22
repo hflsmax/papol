@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bilibiliVideo, canPreview, videoLink, videoPreview, youtubeId } from '../../shared/videos.js';
+import { bilibiliVideo, canPreview, metaContent, videoLink, videoPreview, youtubeId } from '../../shared/videos.js';
+
+test("a page's title is read whole, quotes and entities and all", () => {
+  const page = (attributes) => `<head><meta property="og:title" ${attributes}/></head>`;
+  assert.equal(metaContent(page(`content="Don't Stop_哔哩哔哩_bilibili"`), 'og:title'), "Don't Stop_哔哩哔哩_bilibili");
+  assert.equal(metaContent(page(`content='A "quoted" word'`), 'og:title'), 'A "quoted" word');
+  assert.equal(metaContent(page('content="Tom &amp; Jerry &#39;99 &#x27;22 &#34;x&#34; &apos;y&apos; &hearts;"'), 'og:title'),
+    `Tom & Jerry '99 '22 "x" 'y' &hearts;`);
+  assert.equal(metaContent('<meta content="first" property="og:title">', 'og:title'), 'first');
+  assert.equal(metaContent('<meta property="og:title">', 'og:title'), null);
+  assert.equal(metaContent('<meta property="og:image" content="x.jpg">', 'og:title'), null);
+});
 
 test('a YouTube video is named by the id its link carries, however the link is written', () => {
   assert.equal(youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s'), 'dQw4w9WgXcQ');

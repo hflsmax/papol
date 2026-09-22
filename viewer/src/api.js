@@ -142,7 +142,6 @@ async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, cl
     const uploaded = await uploadPaper(blob, { name, identifier, onProgress });
     if (uploaded.sha256 !== sha256) throw new Error('The file changed while it was open.');
     const metadata = await awaitPaperReading(uploaded, { timeoutMs: NOOK_ADD_READING_TIMEOUT_MS });
-    if (!metadata) leaveNookNotice(unreadNotice(uploaded));
     const shelves = await nativeRepository.shelves();
     const shelf = shelves.find((row) => row.is_default) || shelves[0];
     // No name is invented for it. The paper is the file, and the service
@@ -167,6 +166,8 @@ async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, cl
         values: { paper_sha256: sha256, shelf_uuid: shelf?.uuid ?? null },
       },
     ]);
+    // Said on the nook page only once there is a paper there to say it of.
+    if (!metadata) leaveNookNotice(unreadNotice(uploaded));
     paper = { sha256 };
   }
 

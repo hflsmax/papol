@@ -9,6 +9,7 @@ const values = new Map([['papol.syncPreference', 'manual']]);
 const calls = [];
 let existingPaper = null;
 let shelvesReady = true;
+let mutateFailure = null;
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -41,6 +42,8 @@ global.window = {
         shelvesReady = true;
         return { pushed: 0, pulled: 1, cursor: 1 };
       }
+      // The bridge rejects with a plain string, as Tauri does for a command's Err.
+      if (command === 'data_mutate' && mutateFailure) throw mutateFailure;
       if (command === 'data_mutate') return { rows: [] };
       return null;
     },
@@ -282,6 +285,26 @@ test('an opened file whose send fails is added under its name, and the nook page
   assert.match(notice.report, /Area: sending a PDF to be read/);
   assert.equal(takeNookNotice(), null, 'said once');
   delete global.sessionStorage;
+});
+
+test('an opened file the nook could not keep leaves no notice behind', async () => {
+  values.set('papol.localAccountUuid', ACCOUNT);
+  existingPaper = null;
+  const session = new Map();
+  global.sessionStorage = {
+    getItem: (key) => session.get(key) ?? null,
+    setItem: (key, value) => session.set(key, String(value)),
+    removeItem: (key) => session.delete(key),
+  };
+  mutateFailure = 'database is locked';
+  try {
+    // Offline, so unread: the notice would say so, were there a paper.
+    await assert.rejects(resolveSource().addToNook(), /database is locked/);
+    assert.equal(takeNookNotice(), null);
+  } finally {
+    mutateFailure = null;
+    delete global.sessionStorage;
+  }
 });
 
 test('first sign-in adds an open file locally without waiting for its nook snapshot', async () => {
