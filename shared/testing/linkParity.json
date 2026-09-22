@@ -1,0 +1,341 @@
+{
+  "about": "Tricky links and extracted text, with what both readings must make of them: shared/videos.js and cloudflare/src/videos.ts, shared/identifiers.js and cloudflare/src/papers/identifiers.ts. frontend/src/linkParity.test.js and cloudflare/test/linkParity.test.ts each hold their side to this table, so the two cannot drift apart unnoticed.",
+  "videos": [
+    {
+      "name": "a watch link",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "a live link",
+      "url": "https://youtube.com/live/dQw4w9WgXcQ",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "a live link with more path",
+      "url": "https://youtube.com/live/dQw4w9WgXcQ/extra",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a short link with more path",
+      "url": "https://youtu.be/dQw4w9WgXcQ/extra",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "a short link with a start time",
+      "url": "https://youtu.be/dQw4w9WgXcQ?t=42",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "a mobile Shorts link",
+      "url": "https://m.youtube.com/shorts/dQw4w9WgXcQ",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "an embed link with a trailing slash",
+      "url": "https://www.youtube.com/embed/dQw4w9WgXcQ/",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "a watch link whose id is too short",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXc",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a watch link on another host",
+      "url": "https://youtube.com.example.test/watch?v=dQw4w9WgXcQ",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a link with spaces around it",
+      "url": "  https://youtu.be/dQw4w9WgXcQ  ",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "a capitalised host",
+      "url": "https://WWW.YouTube.com/watch?v=dQw4w9WgXcQ",
+      "youtubeId": "dQw4w9WgXcQ",
+      "bilibiliVideo": null,
+      "videoLink": {
+        "kind": "youtube",
+        "id": "dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "not a URL",
+      "url": "dQw4w9WgXcQ",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a script URL",
+      "url": "javascript:alert(1)",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a b23.tv link with a trailing slash",
+      "url": "https://b23.tv/abc/",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": null,
+        "short": true
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": null
+      }
+    },
+    {
+      "name": "a b23.tv link with two segments",
+      "url": "https://b23.tv/a/b",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a bare b23.tv",
+      "url": "https://b23.tv/",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "an av number in capitals",
+      "url": "https://www.bilibili.com/video/AV170001",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "av170001",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "av170001"
+      }
+    },
+    {
+      "name": "an av number with a trailing slash",
+      "url": "https://www.bilibili.com/video/av170001/",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "av170001",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "av170001"
+      }
+    },
+    {
+      "name": "an av number too long",
+      "url": "https://www.bilibili.com/video/av1234567890123",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a BV id",
+      "url": "https://www.bilibili.com/video/BV1xx411c7mD",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "BV1xx411c7mD",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "BV1xx411c7mD"
+      }
+    },
+    {
+      "name": "a BV id with a lower-case prefix",
+      "url": "https://www.bilibili.com/video/bv1xx411c7mD",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "BV1xx411c7mD",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "BV1xx411c7mD"
+      }
+    },
+    {
+      "name": "a BV id one short",
+      "url": "https://www.bilibili.com/video/BV1xx411c7m",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a BV id one long",
+      "url": "https://www.bilibili.com/video/BV1xx411c7mDD",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a Bilibili link over http",
+      "url": "http://www.bilibili.com/video/BV1xx411c7mD",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "BV1xx411c7mD",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "BV1xx411c7mD"
+      }
+    },
+    {
+      "name": "a mobile Bilibili link",
+      "url": "https://m.bilibili.com/video/BV11kev6cEhk",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "BV11kev6cEhk",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "BV11kev6cEhk"
+      }
+    },
+    {
+      "name": "a bare bilibili.com link with a part",
+      "url": "https://bilibili.com/video/BV11kev6cEhk?p=2",
+      "youtubeId": null,
+      "bilibiliVideo": {
+        "id": "BV11kev6cEhk",
+        "short": false
+      },
+      "videoLink": {
+        "kind": "bilibili",
+        "id": "BV11kev6cEhk"
+      }
+    },
+    {
+      "name": "a Bilibili link over ftp",
+      "url": "ftp://www.bilibili.com/video/BV1xx411c7mD",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    },
+    {
+      "name": "a Bilibili space page",
+      "url": "https://space.bilibili.com/video/BV1xx411c7mD",
+      "youtubeId": null,
+      "bilibiliVideo": null,
+      "videoLink": null
+    }
+  ],
+  "identifiers": [
+    {
+      "name": "a PNAS supporting-information URL before the footer DOI",
+      "text": "See www.pnas.org/lookup/suppl/doi:10.1073/pnas. online. Published 2021 https://doi.org/10.1073/pnas.2101234118",
+      "doi": "10.1073/pnas.2101234118",
+      "arxivId": null
+    },
+    {
+      "name": "only the incomplete PNAS DOI",
+      "text": "www.pnas.org/lookup/suppl/doi:10.1073/pnas.",
+      "doi": "10.1073/pnas",
+      "arxivId": null
+    },
+    {
+      "name": "a DOI in parentheses",
+      "text": "Proceedings (10.1145/3526113.3545636) of UIST",
+      "doi": "10.1145/3526113.3545636",
+      "arxivId": null
+    },
+    {
+      "name": "a DOI ending a sentence",
+      "text": "Cite as 10.1000/xyz123.",
+      "doi": "10.1000/xyz123",
+      "arxivId": null
+    },
+    {
+      "name": "a DOI with a capitalised suffix",
+      "text": "DOI: 10.1234/ABC.def-5",
+      "doi": "10.1234/ABC.def-5",
+      "arxivId": null
+    },
+    {
+      "name": "an arXiv id with a version, and a cited DOI",
+      "text": "Preprint arXiv:2101.00001v2 [cs.LG] 10.1000/cited",
+      "doi": "10.1000/cited",
+      "arxivId": "2101.00001v2"
+    },
+    {
+      "name": "an arxiv.org URL",
+      "text": "Available at https://arxiv.org/abs/2101.00001",
+      "doi": null,
+      "arxivId": "2101.00001"
+    },
+    {
+      "name": "an arXiv id split by layout",
+      "text": "arXiv : 2101 . 00001v3",
+      "doi": null,
+      "arxivId": "2101.00001v3"
+    },
+    {
+      "name": "an old-style arXiv id",
+      "text": "arXiv:hep-th/9901001v1",
+      "doi": null,
+      "arxivId": "hep-th/9901001v1"
+    },
+    {
+      "name": "an old-style arXiv id with a subject class",
+      "text": "arXiv:math.GT/0309136",
+      "doi": null,
+      "arxivId": "math.GT/0309136"
+    },
+    {
+      "name": "nothing to find",
+      "text": "A paper with no identifiers at all.",
+      "doi": null,
+      "arxivId": null
+    }
+  ]
+}

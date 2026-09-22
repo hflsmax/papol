@@ -1,7 +1,7 @@
 // The queue on Workers: what the API writes, what a wake-up runs, what
 // the sweep rescues, and the mail.
 import { createExecutionContext, createMessageBatch, createScheduledController, env, getQueueResult, waitOnExecutionContext } from "cloudflare:test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
 import { sentEmails } from "../src/jobs/mail";
@@ -20,7 +20,6 @@ function emailApi(status = 200, body = '{"id":"m1"}') {
     return new Response(body, { status });
   });
 }
-afterEach(() => vi.unstubAllGlobals());
 
 async function job(id: string): Promise<Job> {
   return (await row<Job>("SELECT * FROM jobs WHERE uuid = ?", id))!;

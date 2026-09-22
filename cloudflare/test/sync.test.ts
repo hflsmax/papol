@@ -116,7 +116,11 @@ describe("pushing and pulling", () => {
       ]));
       expect(response.status, source_url).toBe(422);
     }
+    // The refusal takes the whole push with it: not the card, and not the
+    // board made alongside it either.
+    expect(await count("board_items")).toBe(0);
     expect(await count("boards")).toBe(0);
+    expect(await count("applied_mutations")).toBe(0);
   });
 });
 
@@ -156,6 +160,24 @@ describe("blobs", () => {
       { table: "board_items", uuid: uuid(), operation: "upsert", values: { board_uuid: board, kind: "image", sha256: "f".repeat(64) } },
     ]));
     expect(response.status).toBe(409);
+  });
+
+  it("refuses a card whose digest is not a sha256 written in lowercase hex, even when the bytes are in the bucket", async () => {
+    const account = await register();
+    const content = new TextEncoder().encode("a clip with a mistyped name");
+    const digest = await sha256(content);
+    await env.FILES.put(`board_uploads/blobs/${digest}`, content);
+    const board = uuid();
+    for (const malformed of [digest.slice(1), `${digest}0`, digest.toUpperCase(), `${"g".repeat(63)}0`, `../${digest.slice(3)}`, [digest]]) {
+      const item = uuid();
+      const response = await push(account, mutation([
+        { table: "boards", uuid: board, operation: "upsert", values: { name: "Blob board" } },
+        { table: "board_items", uuid: item, operation: "upsert", values: { board_uuid: board, kind: "image", sha256: malformed } },
+      ]));
+      expect(response.status, JSON.stringify(malformed)).toBe(409);
+      expect(await count("board_items", "uuid = ?", item)).toBe(0);
+    }
+    expect(await count("boards")).toBe(0);
   });
 });
 
@@ -210,6 +232,29 @@ describe("papers", () => {
     ]));
     expect(noBytes.status).toBe(409);
     expect(await count("papers")).toBe(0);
+  });
+
+  it("refuses a paper whose PDF is missing from the bucket, whether Papol holds its record or not, and writes nothing", async () => {
+    const account = await register();
+    // Papol has the record of this one, but not its bytes: the upload
+    // that would have put them there never finished, or they were lost.
+    const held = "e".repeat(64);
+    const at = new Date().toISOString();
+    await exec("INSERT INTO papers (sha256, title, file_path, uploaded_by, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, 1)",
+      held, "Held without its bytes", `${held}.pdf`, account.uuid, at, at);
+    const fresh = "f".repeat(64);
+    for (const digest of [held, fresh]) {
+      const copy = uuid();
+      const response = await push(account, mutation([
+        { table: "papers", uuid: digest, operation: "upsert", values: { title: "Offline import", file_path: `${digest}.pdf` } },
+        { table: "copies", uuid: copy, operation: "upsert", values: { paper_sha256: digest } },
+      ]));
+      expect(response.status, digest).toBe(409);
+      expect(await count("copies", "uuid = ?", copy)).toBe(0);
+    }
+    expect(await rows("SELECT sha256, title, revision FROM papers")).toEqual([{ sha256: held, title: "Held without its bytes", revision: 1 }]);
+    expect(await count("_server_change_log")).toBe(0);
+    expect(await count("applied_mutations")).toBe(0);
   });
 
   it("lets a user keep a paper somebody displays", async () => {

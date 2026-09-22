@@ -2,7 +2,7 @@
 // lookup that turns a printed reference into a work, and the viewer's
 // routes.
 import { createExecutionContext, createMessageBatch, env } from "cloudflare:test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
 import type { Wakeup } from "../src/jobs/run";
@@ -16,8 +16,6 @@ import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, uuid
 const PDF = "c".repeat(64);
 const OTHER = "d".repeat(64);
 const TEI = (body: string) => `<TEI xmlns="http://www.tei-c.org/ns/1.0">${body}</TEI>`;
-
-afterEach(() => vi.unstubAllGlobals());
 
 async function woken(...uuids: string[]) {
   const batch = createMessageBatch<Wakeup>("papol-jobs", uuids.map((id) => ({ id: uuid(), timestamp: new Date(), body: { job: id }, attempts: 1 })));
