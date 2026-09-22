@@ -4442,6 +4442,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.youtube .board-image-loading, .board-canvas-card.bilibili .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
 .board-link-placeholder { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--paper); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .board-link-placeholder > span:first-child { color: var(--accent); font-size: 24px; }
+.board-link-placeholder-note { max-width: 80%; color: var(--ink-faint); font-size: var(--fs-xs); text-align: center; }
 .board-canvas-card.webpage img,
 .board-canvas-card.youtube img,
 .board-canvas-card.bilibili img { height: auto; max-height: none; object-fit: initial; background: transparent; }

@@ -16,7 +16,7 @@ import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
 import { nativeDataActive, subscribeNativeData } from '../../shared/nativeData.js';
 import { inOfflineMode } from '../../shared/connectivity.js';
-import { videoLink } from '../../shared/videos.js';
+import { canPreview, videoLink } from '../../shared/videos.js';
 
 const VIDEO_KINDS = ['youtube', 'bilibili'];
 const VIDEO_SITE = { youtube: 'YouTube', bilibili: 'Bilibili' };
@@ -2310,7 +2310,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
             ? <div className="board-image-error" role="status">Image unavailable</div>
             : <div className="board-image-loading"><Working label="Loading…" /></div>)}
           {hasCardPreview(item) && imageUrls[item.uuid] && <img src={imageUrls[item.uuid]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
-          {!hasCardPreview(item) && [...VIDEO_KINDS, 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{VIDEO_KINDS.includes(item.kind) ? '▶' : '↗'}</span><span>{VIDEO_KINDS.includes(item.kind) ? `${VIDEO_SITE[item.kind]} video` : 'Page saved offline'}</span></div>}
+          {!hasCardPreview(item) && [...VIDEO_KINDS, 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{VIDEO_KINDS.includes(item.kind) ? '▶' : '↗'}</span><span>{VIDEO_KINDS.includes(item.kind) ? `${VIDEO_SITE[item.kind]} video` : 'Page saved offline'}</span>{VIDEO_KINDS.includes(item.kind) && !canPreview(videoLink(item.source_url || '')) && <span className="board-link-placeholder-note">Its title and cover come from the Papol Mac app.</span>}</div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.uuid
