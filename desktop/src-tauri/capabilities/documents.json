@@ -35,7 +35,6 @@
       "allow": [
         { "url": "https://papol.io/**" },
         { "url": "https://files.papol.io/**" },
-        { "url": "https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com/**" },
         { "url": "http://localhost:**" },
         { "url": "http://127.0.0.1:**" }
       ]
