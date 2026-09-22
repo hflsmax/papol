@@ -1,5 +1,6 @@
-// Exact bibliographic metadata for an uploaded paper: CrossRef first,
-// OpenAlex behind it.
+// Exact bibliographic metadata for an uploaded paper, from the registry
+// that holds its DOI — CrossRef for publishers, DataCite for arXiv and
+// the other repositories — with OpenAlex behind CrossRef (see byDoi).
 //
 // CrossRef knows what a reference *is* — it is the registry publishers
 // write to. OpenAlex knows what happened to it since: citations, a free
@@ -29,7 +30,7 @@ export interface Summary {
   doi: string | null;
   url: string | null;
   pdf_url: string | null;
-  source: "crossref" | "openalex";
+  source: "crossref" | "openalex" | "datacite";
   host?: string | null;
 }
 
@@ -215,26 +216,105 @@ export function summarizeOpenalex(work: Record<string, any>): Summary {
   };
 }
 
+// -------------------------------------------------------------- DataCite
+
+// arXiv registers its DOIs (10.48550/arXiv.<id>) with DataCite, not
+// CrossRef, and OpenAlex does not index a work by them: both answer 404,
+// and an arXiv paper used to be read off its title block by the host
+// instead. DataCite is the registry that knows them.
+export const ARXIV_DOI_PREFIX = "10.48550/";
+
+export async function dataciteByDoi(env: Env, doi: string): Promise<Record<string, any> | null> {
+  let response: Response;
+  try {
+    response = await fetch(`https://api.datacite.org/dois/${encodeURIComponent(bare(doi).toLowerCase())}`, {
+      headers: { "user-agent": userAgent(env), accept: "application/vnd.api+json" }, signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Unavailable(String((error as Error).message ?? error));
+  }
+  if (response.status === 404) return null;
+  if (response.status !== 200) throw new Unavailable(`DataCite returned ${response.status}`);
+  try {
+    return ((await response.json()) as { data?: { attributes?: Record<string, any> } }).data?.attributes ?? null;
+  } catch (error) {
+    throw new Unavailable(String((error as Error).message ?? error));
+  }
+}
+
+// A DataCite record as the form wants it. arXiv is where the preprint is
+// held, not a venue it appeared in, so it is the host, as OpenAlex has it.
+export function summarizeDatacite(record: Record<string, any>): Summary {
+  const title: string | null = record.titles?.find((t: any) => !t.titleType)?.title ?? record.titles?.[0]?.title ?? null;
+  const authors = (record.creators ?? [])
+    .map((c: any) => (c.givenName || c.familyName ? [c.givenName, c.familyName].filter(Boolean).join(" ") : String(c.name ?? "")).trim())
+    .filter(Boolean);
+  const abstract: string | null = record.descriptions?.find((d: any) => d.descriptionType === "Abstract")?.description ?? null;
+  const doi: string | null = record.doi ?? null;
+  return {
+    title, authors, year: Number(record.publicationYear) || null, venue: null, host: record.publisher ?? null,
+    abstract: abstract ? abstract.split(/\s+/).join(" ") : null, citations: record.citationCount ?? null,
+    doi, url: doi ? `https://doi.org/${doi}` : null, pdf_url: null, source: "datacite",
+  };
+}
+
 // ---------------------------------------------------------------- lookup
 
-// Resolve a DOI through CrossRef, falling back to OpenAlex. Null when
-// neither knows it; Unavailable when neither could answer.
+// Resolve a DOI by asking the registry that holds it. Null when nobody
+// knows it, and the caller reads the paper's title block instead;
+// Unavailable when no source could answer at all.
+//
+// Measured 2026-09-22 on Papol's 30 DOIs and ten well-known arXiv papers,
+// each asked three times (docs/cloud-migration.md, phase 5, step 11): the
+// two registries each hold all of their own DOIs and none of the other's,
+// and never failed; OpenAlex knew every publisher DOI CrossRef did, but
+// missed 4 of 12 arXiv DOIs and gave 2 more the wrong title. So:
+//
+// - An arXiv DOI (10.48550/arXiv.…) is DataCite's, and DataCite alone is
+//   asked: failing it, the title block, never OpenAlex's guess.
+// - Any other DOI is asked of CrossRef. One CrossRef has never heard of
+//   (404) is asked of DataCite, which registers the rest (LIPIcs,
+//   Zenodo, …). OpenAlex stands in only when CrossRef itself could not
+//   answer — down, slow, throttled — and DataCite after it, since the
+//   DOI may be DataCite's.
 export async function byDoi(env: Env, doi: string): Promise<Summary | null> {
-  const failures: Error[] = [];
+  if (bare(doi).toLowerCase().startsWith(ARXIV_DOI_PREFIX)) {
+    try {
+      const record = await dataciteByDoi(env, doi);
+      return record ? summarizeDatacite(record) : null;
+    } catch (error) {
+      if (!(error instanceof Unavailable)) throw error;
+      console.warn(`DataCite could not answer for ${doi}: ${error.message}`);
+      return null;
+    }
+  }
+  let crossrefDown = false;
   try {
     const item = await crossrefByDoi(env, doi);
     if (item) return summarizeCrossref(item);
   } catch (error) {
     if (!(error instanceof Unavailable)) throw error;
-    failures.push(error);
+    crossrefDown = true;
+  }
+  let openalexDown = false;
+  if (crossrefDown) {
+    try {
+      const work = await openalexByDoi(env, doi);
+      if (work) return summarizeOpenalex(work);
+    } catch (error) {
+      if (!(error instanceof Unavailable || error instanceof Throttled)) throw error;
+      openalexDown = true;
+    }
   }
   try {
-    const work = await openalexByDoi(env, doi);
-    if (work) return summarizeOpenalex(work);
+    const record = await dataciteByDoi(env, doi);
+    if (record) return summarizeDatacite(record);
   } catch (error) {
-    if (!(error instanceof Unavailable || error instanceof Throttled)) throw error;
-    failures.push(error);
+    if (!(error instanceof Unavailable)) throw error;
+    // CrossRef had never heard of it and DataCite could not say: nobody
+    // knows it, as far as can be told. With CrossRef and OpenAlex down
+    // too, nobody could answer.
+    if (crossrefDown && openalexDown) throw new Unavailable("CrossRef, OpenAlex and DataCite are unavailable");
   }
-  if (failures.length === 2) throw new Unavailable("CrossRef and OpenAlex are unavailable");
   return null;
 }

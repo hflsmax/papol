@@ -38,3 +38,39 @@ export function identifierIn(text) {
   const doi = extractDoi(text);
   return doi ? { doi } : null;
 }
+
+// Where an identifier is printed: the front matter, and a footer or two.
+export const PAGES_READ = 3;
+
+// The identifier the first pages of an open PDF.js document print, as
+// `identifierIn` has it. The upload form opens a document for this alone
+// (frontend/src/pdfIdentifier.js); the viewer has one open already.
+export async function identifierInDocument(pdf, pages = PAGES_READ) {
+  const texts = [];
+  for (let number = 1; number <= Math.min(pages, pdf.numPages); number += 1) {
+    const page = await pdf.getPage(number);
+    const content = await page.getTextContent();
+    texts.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
+  }
+  return identifierIn(texts.join('\n'));
+}
+
+// Longer than this and the send goes on without an identifier.
+export const IDENTIFIER_TIMEOUT_MS = 20_000;
+
+// What `reading` finds, or null when it finds nothing, fails, or takes
+// longer than a send should wait. Nothing here is worth a dialog: the
+// PDF is sent without an identifier, and the Worker reads it as it
+// would have anyway.
+export async function identifierWithin(reading, timeoutMs = IDENTIFIER_TIMEOUT_MS) {
+  let timer;
+  const gaveUp = new Promise((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs); });
+  try {
+    return await Promise.race([reading, gaveUp]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    Promise.resolve(reading).catch(() => {});
+  }
+}

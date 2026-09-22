@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { syncFailureText } from '../../../shared/syncFailure.js';
 import { Progress, Working } from '../../../shared/ui/Waiting.js';
 import { formatBytes, formatProgressDetail, formatRate, progressFraction } from '../../../shared/waiting.js';
 import {
@@ -235,7 +236,7 @@ function LocalDeviceSettings({ onSynced }) {
       )}
       {!sync.running && (sync.error || sync.lastBytes != null) && (
         <div className={`local-sync-detail${sync.error ? ' error' : ''}`} role="status">
-          {sync.error || `Sync finished · ${formatBytes(sync.lastBytes)} transferred`}
+          {syncFailureText(sync.error) || `Sync finished · ${formatBytes(sync.lastBytes)} transferred`}
         </div>
       )}
       <PdfViewerSetting />

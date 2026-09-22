@@ -7,7 +7,6 @@ import {
   uploadPaper,
 } from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
-import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -141,10 +140,19 @@ export default function PaperUpload({
       setTagDraft('');
       setAvailableTags(tags);
 
+      // Kept but not sent (the desktop only): there is no reading to wait
+      // for, and why is said as it is. A send that failed is a fault, not
+      // a PDF that could not be read, and is offered for a report.
+      if (uploaded.offline || uploaded.sendFailure) {
+        const failure = uploaded.sendFailure;
+        setReading(uploaded.offline ? 'offline' : { unsent: failure.message || String(failure) });
+        if (failure && isReportableUploadError(failure)) onReportableError?.(failure, 'sending a PDF to be read');
+        return;
+      }
       const wait = new AbortController();
       readingWait.current = wait;
       setReading('reading');
-      void awaitPaperReading(uploaded, file, { signal: wait.signal, identifier }).then((read) => {
+      void awaitPaperReading(uploaded, { signal: wait.signal }).then((read) => {
         // Saved, cancelled, or replaced by another file: nobody is listening.
         if (wait.signal.aborted) return;
         readingWait.current = null;
@@ -254,10 +262,9 @@ export default function PaperUpload({
 
     return (
       <>
-      <BackLink className={`back-button upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
         <div className="paper-metadata-heading">
-          <h3>Review Paper Metadata</h3>
+          <h3>Paper Metadata</h3>
         </div>
         {reading === 'reading' && (
           <div className="metadata-reading">
@@ -267,6 +274,16 @@ export default function PaperUpload({
         {reading === 'unread' && (
           <p className="metadata-reading" role="status">
             Papol could not read the PDF; fill in the details.
+          </p>
+        )}
+        {reading === 'offline' && (
+          <p className="metadata-reading" role="status">
+            Offline, so the PDF was not read; fill in the details.
+          </p>
+        )}
+        {reading?.unsent && (
+          <p className="metadata-reading" role="status">
+            Papol could not send the PDF to be read ({reading.unsent}); fill in the details.
           </p>
         )}
         {known && (

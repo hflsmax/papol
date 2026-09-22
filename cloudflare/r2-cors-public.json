@@ -7,16 +7,25 @@
           "https://www.papol.io",
           "https://dev.papol.io",
           "tauri://localhost",
-          "http://tauri.localhost",
-          "http://localhost:5173",
-          "http://127.0.0.1:5173",
-          "http://localhost:8787",
-          "http://127.0.0.1:8787"
+          "http://tauri.localhost"
         ],
-        "methods": ["GET", "HEAD"],
-        "headers": ["Range", "If-None-Match", "If-Modified-Since"]
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "headers": [
+          "Range",
+          "If-None-Match",
+          "If-Modified-Since"
+        ]
       },
-      "exposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Content-Type"],
+      "exposeHeaders": [
+        "Content-Length",
+        "Content-Range",
+        "Accept-Ranges",
+        "ETag",
+        "Content-Type"
+      ],
       "maxAgeSeconds": 3600
     },
     {
@@ -26,16 +35,19 @@
           "https://www.papol.io",
           "https://dev.papol.io",
           "tauri://localhost",
-          "http://tauri.localhost",
-          "http://localhost:5173",
-          "http://127.0.0.1:5173",
-          "http://localhost:8787",
-          "http://127.0.0.1:8787"
+          "http://tauri.localhost"
         ],
-        "methods": ["PUT"],
-        "headers": ["content-type", "x-amz-checksum-sha256"]
+        "methods": [
+          "PUT"
+        ],
+        "headers": [
+          "content-type",
+          "x-amz-checksum-sha256"
+        ]
       },
-      "exposeHeaders": ["etag"],
+      "exposeHeaders": [
+        "etag"
+      ],
       "maxAgeSeconds": 3600
     }
   ]

@@ -5,6 +5,12 @@ import {
 } from './connectivity.js';
 import { BACKEND_BASE } from './appUrls.js';
 import { currentCredential } from './credentials.js';
+import {
+  getClientCompatibility, INCOMPATIBLE, setClientCompatibility, SUPPORTED,
+} from './clientCompatibility.js';
+import {
+  classifySyncFailure, isOfflineNativeSyncError, isReportableNativeSyncError, SYNC_ATTENTION_EVENT,
+} from './syncFailure.js';
 import apiShapes from '../schema/api_shapes.json' with { type: 'json' };
 
 const ACCOUNT_KEY = 'papol.localAccountUuid';
@@ -27,15 +33,7 @@ export function isReportableNativeBridgeError(error) {
   return /native bridge.*unavailable|command.*(?:not allowed|not found)|unknown command/i.test(message);
 }
 
-export function isOfflineNativeSyncError(error) {
-  const message = error?.message || String(error || '');
-  return /\b(?:network|offline|dns|tcp|tls|certificate)\b|connect(?:ion)? (?:error|failed|refused|reset)|error (?:sending request|trying to connect)|timed? out|timeout/i.test(message);
-}
-
-export function isReportableNativeSyncError(error) {
-  const message = error?.message || String(error || '');
-  return /applying (?:pushed rows|snapshot|pull page) failed|local database|database lock|constraint failed|server (?:sent|row)|push result row|pulled row|synchronized columns/i.test(message);
-}
+export { isOfflineNativeSyncError, isReportableNativeSyncError };
 
 function announceReportableNativeError(error, area) {
   if (typeof CustomEvent !== 'function') return;
@@ -44,11 +42,33 @@ function announceReportableNativeError(error, area) {
   }));
 }
 
+// Every window hears every failure (Tauri broadcasts the status), so each
+// one reacts for itself: the update screen covers every window, and the
+// desk window, which owns sign-in and the sync control, answers the rest.
 function handleNativeSyncFailure(error) {
-  if (isOfflineNativeSyncError(error)) enterOfflineMode();
+  const failure = classifySyncFailure(error);
+  if (failure.kind === 'offline') enterOfflineMode();
   else exitOfflineMode();
-  if (isReportableNativeSyncError(error)) {
+  if (failure.kind === 'incompatible') {
+    setClientCompatibility({ verdict: INCOMPATIBLE, downloadUrl: failure.downloadUrl });
+    return;
+  }
+  if (failure.kind === 'reportable') {
     announceReportableNativeError(error, 'synchronizing local data');
+    return;
+  }
+  if (failure.kind === 'offline' || typeof CustomEvent !== 'function') return;
+  window.dispatchEvent(new CustomEvent(SYNC_ATTENTION_EVENT, { detail: failure }));
+}
+
+// A sync the server accepted is the server saying this build is fine: an
+// update screen left over from an older build, or from a verdict cached
+// before the update, comes down.
+function handleNativeSyncSuccess() {
+  exitOfflineMode();
+  if (getClientCompatibility().verdict === INCOMPATIBLE) setClientCompatibility({ verdict: SUPPORTED });
+  if (typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(SYNC_ATTENTION_EVENT, { detail: null }));
   }
 }
 
@@ -60,7 +80,7 @@ function listenForSyncStatus() {
   syncStatusListening = true;
   listen('papol://sync-status', (event) => {
     if (event.payload?.error) handleNativeSyncFailure(event.payload.error);
-    else if (Number.isFinite(event.payload?.cursor)) exitOfflineMode();
+    else if (Number.isFinite(event.payload?.cursor)) handleNativeSyncSuccess();
   }).catch(() => { syncStatusListening = false; });
 }
 
@@ -359,8 +379,8 @@ export async function syncAllNow() {
     try {
       await nativeSyncNow({ manual: true });
     } catch (failure) {
-      const detail = failure?.message || String(failure || 'Sync failed');
-      return `${OFFLINE_MODE_MESSAGE} (${detail})`;
+      const classified = classifySyncFailure(failure);
+      return classified.kind === 'offline' ? OFFLINE_MODE_MESSAGE : classified.text;
     }
   }
   if (inOfflineMode()) return OFFLINE_MODE_MESSAGE;
@@ -546,6 +566,8 @@ export function boardView(row, detail = false) {
     item_count: detail ? items.length : (row.item_count || 0),
     items: detail ? items : [],
     staged_items: detail ? stagedItems : [],
+    // The replica has no join for these; getBoard fills them in.
+    papers: [],
     groups: detail ? (row.groups || []).map((group) => ({
       ...group,
       auto_arrange: Boolean(group.auto_arrange),

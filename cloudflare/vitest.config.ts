@@ -41,7 +41,9 @@ export default defineConfig(async () => {
             // address in where a test is about that.
             FILES_URL: "",
             // Any key signs; the suite reads the signature's shape, never sends it.
-            R2_ACCESS_KEY_ID: "test-access-key", R2_SECRET_ACCESS_KEY: "test-secret-key",
+            // The bucket is named here because .dev.vars, which the pool reads
+            // too, empties it for a local Worker.
+            R2_ACCESS_KEY_ID: "test-access-key", R2_SECRET_ACCESS_KEY: "test-secret-key", FILES_BUCKET: "papol-files",
           },
         },
       }),
