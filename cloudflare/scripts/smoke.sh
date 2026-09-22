@@ -67,6 +67,39 @@ upload=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/papers/uploaded" -H 'cont
   -d "{\"file_path\":\"$file_path\",\"uploaded_name\":\"smoke.pdf\"}")
 printf '%s' "$upload" | python3 -c 'import sys,json; json.load(sys.stdin)["job"]' || fail "uploaded: $upload"
 echo "ok  upload"
+
+# The one guarantee the direct upload rests on, and it is R2's, not ours:
+# bytes that do not hash to the name they are sent under are refused by
+# the bucket itself (400 BadDigest; 422 from a local Worker's own door).
+# Fresh bytes each run, so the address is a real signed PUT, never "held
+# already": the same length with one byte changed is refused, and then
+# the right bytes are taken.
+checked=$(python3 -c '
+import sys, json, hashlib, time, random, urllib.request, urllib.error
+base, token = sys.argv[1], sys.argv[2]
+body = b"%PDF-1.4\n% smoke checksum " + ("%d-%06d" % (time.time(), random.randrange(10**6))).encode() + b"\n%%EOF\n"
+digest = hashlib.sha256(body).hexdigest()
+def call(url, data, headers, method):
+    # Python'"'"'s own user agent is refused at the edge (error 1010).
+    headers = {"user-agent": "papol-smoke", **headers}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers, method=method), timeout=60) as r: return r.status, r.read()
+    except urllib.error.HTTPError as e: return e.code, e.read()
+status, answer = call(base + "/api/files/upload-address", json.dumps({"kind": "paper", "sha256": digest, "size": len(body), "name": "smoke-checksum.pdf"}).encode(),
+    {"authorization": "Bearer " + token, "content-type": "application/json"}, "POST")
+if status != 200: print("address %d" % status); sys.exit()
+address = json.loads(answer)
+if address["stored"]: print("the fresh bytes were held already"); sys.exit()
+url = address["url"] if address["url"].startswith("http") else base + address["url"]
+flipped = bytearray(body); flipped[-8] ^= 1
+wrong, _ = call(url, bytes(flipped), address["headers"], "PUT")
+right, _ = call(url, body, address["headers"], "PUT")
+print("%d %d" % (wrong, right))
+' "$base" "$token")
+case "$checked" in
+  "400 200"|"422 204") echo "ok  the bucket refuses bytes that do not hash to their name ($checked)";;
+  *) fail "the checksum check: wanted a refusal then 200, got '$checked'";;
+esac
 saved=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/papers" -H 'content-type: application/json' \
   -d "{\"file_path\":\"$file_path\",\"title\":\"Smoke test paper\",\"authors\":null,\"journal\":null,\"year\":null,\"doi\":null}")
 sha=$(printf '%s' "$saved" | python3 -c 'import sys,json; print(json.load(sys.stdin)["sha256"])') || fail "save: $saved"

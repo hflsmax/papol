@@ -136,15 +136,50 @@ describe("what a PDF says about itself", () => {
     expect(await ok("GET", `/api/jobs/${second.job}`, { headers: account.headers })).toMatchObject({ status: "failed", detail: "Metadata lookup failed" });
   });
 
-  it("prefers CrossRef, falls back to OpenAlex, and reports when neither can answer", async () => {
-    apis({ "api.crossref.org": () => Response.json({ message: { title: ["Publisher title"] } }) });
+  it("asks the registry that holds a DOI, and OpenAlex only when CrossRef itself cannot answer", async () => {
+    // Who was asked, in order, for one lookup.
+    const route = (answers: Record<string, () => Response>) => {
+      const asked: string[] = [];
+      apis(Object.fromEntries(Object.entries(answers).map(([host, answer]) => [host, () => { asked.push(host.split(".")[1]); return answer(); }])));
+      return asked;
+    };
+    const datacite = (title: string) => () => Response.json({ data: { attributes: { doi: "10.1/x", titles: [{ title }], creators: [{ givenName: "Ada", familyName: "Lovelace" }], publicationYear: 2020, publisher: "Zenodo" } } });
+    const missing = () => new Response("", { status: 404 });
+    const down = () => new Response("", { status: 503 });
+
+    // CrossRef knows it: nobody else is asked.
+    let asked = route({ "api.crossref.org": () => Response.json({ message: { title: ["Publisher title"] } }), "api.openalex.org": missing, "api.datacite.org": missing });
     expect((await byDoi(env, "10.1/x"))?.title).toBe("Publisher title");
-    apis({ "api.crossref.org": () => new Response("", { status: 404 }), "api.openalex.org": () => Response.json({ display_name: "Indexed title" }) });
-    expect((await byDoi(env, "10.1/x"))?.title).toBe("Indexed title");
-    apis({ "api.crossref.org": () => new Response("", { status: 404 }), "api.openalex.org": () => new Response("", { status: 404 }) });
+    expect(asked).toEqual(["crossref"]);
+
+    // CrossRef has never heard of it: DataCite, never OpenAlex.
+    asked = route({ "api.crossref.org": missing, "api.openalex.org": () => Response.json({ display_name: "Indexed title" }), "api.datacite.org": datacite("Registered title") });
+    expect(await byDoi(env, "10.1/x")).toMatchObject({ title: "Registered title", authors: ["Ada Lovelace"], year: 2020, venue: null, host: "Zenodo", source: "datacite" });
+    expect(asked).toEqual(["crossref", "datacite"]);
+    asked = route({ "api.crossref.org": missing, "api.openalex.org": () => Response.json({ display_name: "Indexed title" }), "api.datacite.org": missing });
     expect(await byDoi(env, "10.1/x")).toBeNull();
-    apis({ "api.crossref.org": () => new Response("", { status: 503 }), "api.openalex.org": () => new Response("", { status: 429 }) });
-    await expect(byDoi(env, "10.1/x")).rejects.toThrow("CrossRef and OpenAlex are unavailable");
+    expect(asked).toEqual(["crossref", "datacite"]);
+    // ... and DataCite down then is nobody knowing it, not an outage.
+    route({ "api.crossref.org": missing, "api.datacite.org": down });
+    expect(await byDoi(env, "10.1/x")).toBeNull();
+
+    // CrossRef down: OpenAlex stands in, and DataCite after it.
+    asked = route({ "api.crossref.org": down, "api.openalex.org": () => Response.json({ display_name: "Indexed title" }), "api.datacite.org": missing });
+    expect((await byDoi(env, "10.1/x"))?.title).toBe("Indexed title");
+    expect(asked).toEqual(["crossref", "openalex"]);
+    asked = route({ "api.crossref.org": down, "api.openalex.org": missing, "api.datacite.org": datacite("Registered title") });
+    expect((await byDoi(env, "10.1/x"))?.title).toBe("Registered title");
+    expect(asked).toEqual(["crossref", "openalex", "datacite"]);
+    route({ "api.crossref.org": down, "api.openalex.org": () => new Response("", { status: 429 }), "api.datacite.org": down });
+    await expect(byDoi(env, "10.1/x")).rejects.toThrow("CrossRef, OpenAlex and DataCite are unavailable");
+
+    // An arXiv DOI is DataCite's alone: found, unknown, or down, neither
+    // CrossRef nor OpenAlex is asked.
+    for (const [answer, found] of [[datacite("Attention Is All You Need"), "Attention Is All You Need"], [missing, null], [down, null]] as const) {
+      asked = route({ "api.crossref.org": () => Response.json({ message: { title: ["CrossRef"] } }), "api.openalex.org": () => Response.json({ display_name: "A wrong title" }), "api.datacite.org": answer });
+      expect((await byDoi(env, "10.48550/arXiv.1706.03762"))?.title ?? null).toBe(found);
+      expect(asked).toEqual(["datacite"]);
+    }
   });
 
   it("summarizes each API the way the viewer's card wants", () => {
@@ -206,6 +241,7 @@ describe("an upload that went straight to the bucket", () => {
       "grobid.test": () => { asked.push("helper"); return titleBlock({ title: "As Printed", authors: ["P. Rinted"], journal: "The Page", year: 2020 }); },
       "api.crossref.org": (url) => { asked.push(url.pathname); return known ? Response.json(crossrefWork) : new Response("", { status: 404 }); },
       "api.openalex.org": () => { asked.push("openalex"); return new Response("", { status: 404 }); },
+      "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 404 }); },
     });
 
     answers(true);
@@ -214,11 +250,36 @@ describe("an upload that went straight to the bucket", () => {
     expect((await ok("GET", `/api/jobs/${known.job}`, { headers: account.headers })).result).toMatchObject({ doi: "10.1145/2984511.2984540", title: "Metamaterial Mechanisms", year: 2016 });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
 
-    // An arXiv id is asked about through its DataCite DOI.
+    // An arXiv id is asked about through its DataCite DOI, of DataCite,
+    // which registers it: neither CrossRef nor the host is asked.
     asked.length = 0;
+    apis({
+      "api.datacite.org": (url) => { asked.push(url.pathname); return Response.json({ data: { attributes: {
+        doi: "10.48550/arxiv.1706.03762", titles: [{ title: "Attention Is All You Need" }], publicationYear: 2017, publisher: "arXiv",
+        creators: [{ name: "Vaswani, Ashish", givenName: "Ashish", familyName: "Vaswani" }, { name: "Shazeer, Noam", givenName: "Noam", familyName: "Shazeer" }],
+      } } }); },
+      "api.crossref.org": (url) => { asked.push(url.pathname); return new Response("", { status: 404 }); },
+      "grobid.test": () => { asked.push("helper"); return titleBlock(); },
+    });
     const arxiv = await queue({ arxiv_id: "1706.03762v5" });
     await woken(arxiv.job);
-    expect(asked[0]).toBe(`/works/${encodeURIComponent("10.48550/arXiv.1706.03762")}`);
+    expect((await ok("GET", `/api/jobs/${arxiv.job}`, { headers: account.headers })).result).toMatchObject({
+      doi: "10.48550/arxiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani", "Noam Shazeer"]), journal: null, year: 2017,
+    });
+    expect(asked).toEqual([`/dois/${encodeURIComponent("10.48550/arxiv.1706.03762")}`]);
+    // DataCite down: the host reads the title block; OpenAlex is not asked.
+    asked.length = 0;
+    apis({
+      "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 503 }); },
+      "api.crossref.org": () => { asked.push("crossref"); return Response.json(crossrefWork); },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ display_name: "A wrong title" }); },
+      "grobid.test": () => { asked.push("helper"); return titleBlock({ title: "Attention Is All You Need", authors: ["Ashish Vaswani"], year: 2017 }); },
+    });
+    const fallback = await queue({ arxiv_id: "1706.03762v5" });
+    await woken(fallback.job);
+    expect((await ok("GET", `/api/jobs/${fallback.job}`, { headers: account.headers })).result)
+      .toMatchObject({ doi: "10.48550/arXiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani"]), year: 2017 });
+    expect(asked).toEqual(["datacite", "helper"]);
 
     // Unknown to the indexes: the helper reads the title block, and the
     // given identifier stays on the form.
@@ -228,7 +289,8 @@ describe("an upload that went straight to the bucket", () => {
     await woken(unknown.job);
     expect((await ok("GET", `/api/jobs/${unknown.job}`, { headers: account.headers })).result)
       .toMatchObject({ doi: "10.9999/nobody-knows", title: "As Printed", authors: JSON.stringify(["P. Rinted"]), journal: "The Page", year: 2020 });
-    expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "openalex", "helper"]);
+    // CrossRef has never heard of it: DataCite is asked, not OpenAlex.
+    expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "datacite", "helper"]);
   });
 
   it("names the version Papol already holds of the same work, by its DOI however it is spelt, and never the upload itself", async () => {
