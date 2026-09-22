@@ -87,7 +87,10 @@ jobs:
   # the paper the service holds. This job starts the real backend — the
   # Worker, on wrangler's local runtime — compiles the real app against it,
   # and asks its window — through the accessibility API, the only way into
-  # a WKWebView — for exactly that. nix rather than the toolchain actions,
+  # a WKWebView — for exactly that, then for a shelf added while the service
+  # is down and a PDF opened with the app, both followed to the service. It
+  # also has the page capture photograph a served fixture and refuse the
+  # pages that lead to this machine. nix rather than the toolchain actions,
   # because the Node and the Rust it needs are listed nowhere but flake.nix.
   end-to-end:
     name: macos-end-to-end
@@ -133,6 +136,31 @@ jobs:
 
       - name: The replica against the service
         run: nix develop --command bash -c 'cd desktop && npm run test:e2e:native-sync'
+
+      # The capture refuses a local link and WebKit's rules refuse any
+      # address that spells one, so the fixture it photographs is served on
+      # loopback under a name that looks public. The rules read the name,
+      # not where it resolves, which is what lets the app's own code take
+      # the picture with no test-only way around its guard.
+      - name: Name the capture fixture
+        run: |
+          set -euo pipefail
+          echo '127.0.0.1 capture-fixture.papol.test' | sudo tee -a /etc/hosts
+          sudo dscacheutil -flushcache
+          sudo killall -HUP mDNSResponder || true
+
+      - name: The page capture and its guard
+        env:
+          PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/capture-e2e
+        run: nix develop --command bash -c 'cd desktop && npm run test:e2e:capture'
+
+      - name: Keep the pictures the capture took
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: capture-pictures
+          path: ${{ runner.temp }}/capture-e2e
+          if-no-files-found: ignore
 
       - name: The app against the service
         env:
