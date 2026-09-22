@@ -148,7 +148,7 @@ describe("the export", () => {
     expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/README.txt"))!])).toContain("files.json");
   });
 
-  it("names the bucket's own address for a PDF and the picture when the bucket has one, and Papol's route for a board file", async () => {
+  it("names the bucket's own address for every file when the bucket has one", async () => {
     const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
     await adasNook(ada, grace);
     const avatar = (await ok("POST", "/api/auth/avatar", { headers: ada.headers, body: (() => { const f = new FormData(); f.set("file", new File([new Uint8Array(3)], "me.png")); return f; })() })).avatar_path;
@@ -163,8 +163,51 @@ describe("the export", () => {
     expect(files).toEqual([
       { path: "avatar.png", url: `https://files.test/uploads/${avatar}`, size: 3 },
       { path: "pdfs/on-leaving-2024.pdf", url: `https://files.test/uploads/${PDF}.pdf`, size: PDF_BYTES.length },
-      { path: `board-files/${board}/${item}-photo.png`, url: `/api/board-items/${item}/file`, size: 4 },
+      { path: `board-files/${board}/${item}-photo.png`, url: `https://files.test/board_uploads/${board}/photo.png`, size: 4 },
     ]);
+  });
+});
+
+describe("a closed account's board files", () => {
+  // A card with a file on one of the user's boards, the file in the bucket
+  // under its digest, as every board file is.
+  async function card(owner: Account, bytes: string, extra: Record<string, unknown> = {}) {
+    const board = uuid(), item = uuid(), at = new Date().toISOString();
+    const digest = await (async () => { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(bytes)); return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""); })();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Board', ?, ?, 0)", board, owner.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, sha256, original_filename, mime_type, deleted_at, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, ?, 'photo.png', 'image/png', ?, ?, ?, 0)",
+      item, board, `blobs/${digest}`, digest, extra.deleted_at ?? null, at, at);
+    await env.FILES.put(`board_uploads/blobs/${digest}`, bytes);
+    return { board, item, digest, key: `board_uploads/blobs/${digest}` };
+  }
+  const close = (who: Account) => ok("DELETE", "/api/auth/account", { headers: who.headers, json: { confirm_email: who.email } });
+
+  it("go with the account when nobody else's card names them, and stay while one does, deleted or not", async () => {
+    const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
+    const own = await card(ada, "only Ada's");
+    const shared = await card(ada, "on both boards");
+    await card(grace, "on both boards");
+    // Grace let this one go; she may restore it, so its bytes stay.
+    const letGo = await card(ada, "Grace let it go");
+    await card(grace, "Grace let it go", { deleted_at: new Date().toISOString() });
+    // A legacy key, named for one write and nobody else's.
+    const legacyBoard = uuid(), legacyItem = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Old', ?, ?, 0)", legacyBoard, ada.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, original_filename, mime_type, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, 'old.png', 'image/png', ?, ?, 0)", legacyItem, legacyBoard, `${legacyBoard}/old.png`, at, at);
+    await env.FILES.put(`board_uploads/${legacyBoard}/old.png`, "old");
+
+    const closed = await close(ada);
+    expect(closed.removed).toMatchObject({ board_items: 4, boards: 4, board_files: 2 });
+    expect(await env.FILES.head(own.key)).toBeNull();
+    expect(await env.FILES.head(`board_uploads/${legacyBoard}/old.png`)).toBeNull();
+    expect(await env.FILES.head(shared.key)).not.toBeNull();
+    expect(await env.FILES.head(letGo.key)).not.toBeNull();
+
+    // The last card to name a file takes it with it.
+    const last = await close(grace);
+    expect(last.removed).toMatchObject({ board_items: 2, board_files: 2 });
+    expect(await env.FILES.head(shared.key)).toBeNull();
+    expect(await env.FILES.head(letGo.key)).toBeNull();
   });
 });
 

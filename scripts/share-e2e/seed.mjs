@@ -17,7 +17,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 const BASE = (process.env.PAPOL_BASE || 'http://127.0.0.1:5173').replace(/\/$/, '');
 const PASSWORD = 'papol-test-pw';
@@ -87,10 +87,20 @@ const pdf = process.env.PAPOL_E2E_PDF
 const sharer = await account('sharer@papol.test', 'Alice Sharer');
 const user = await account(`user-${suffix}@papol.test`, 'Bob User');
 
-// The bytes first, stored under their digest; then the paper that names them.
-const form = new FormData();
-form.append('file', new File([pdf], `e2e-${suffix}.pdf`, { type: 'application/pdf' }));
-const [uploadStatus, upload] = await call('POST', '/api/papers/extract', { token: sharer.token, form });
+// The bytes first, into the bucket under their digest by the address the
+// Worker gives (its own door, on a local one); then the paper that names them.
+const digest = createHash('sha256').update(pdf).digest('hex');
+const [addressStatus, address] = await call('POST', '/api/files/upload-address', {
+  token: sharer.token, body: { kind: 'paper', sha256: digest, size: pdf.length, name: `e2e-${suffix}.pdf` },
+});
+if (addressStatus !== 200) throw new Error(`could not get an address for the PDF: ${JSON.stringify(address)}`);
+if (!address.stored) {
+  const put = await fetch(/^https?:/.test(address.url) ? address.url : BASE + address.url, { method: 'PUT', headers: address.headers, body: pdf });
+  if (!put.ok) throw new Error(`could not store the PDF: the bucket answered ${put.status}`);
+}
+const [uploadStatus, upload] = await call('POST', '/api/papers/uploaded', {
+  token: sharer.token, body: { file_path: address.file_path, uploaded_name: `e2e-${suffix}.pdf` },
+});
 if (uploadStatus !== 202) throw new Error(`could not upload the PDF: ${JSON.stringify(upload)}`);
 
 const title = `A Reading Worth Handing Over ${suffix}`;

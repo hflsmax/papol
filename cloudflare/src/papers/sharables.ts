@@ -24,7 +24,7 @@ import { type User } from "../auth";
 import { all, newUuid, now, one, type Row } from "../db";
 import { refuse } from "../http";
 import { userPublic } from "../routes/boards";
-import { uploadUrl } from "../sync/blobs";
+import { uploadUrl } from "../files";
 import { annotationOut, copyOf, type Paper } from "./detail";
 
 export const RICH = "rich";

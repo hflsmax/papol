@@ -22,7 +22,7 @@ import { all, batch, insert, newUuid, now, one, update, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext } from "../http";
 import * as validate from "../validate";
 import { requireSupportedClient } from "./client";
-import { blobKey, hasBlob, receivePaperFile } from "./blobs";
+import { blobKey, boardFileKey, paperKey, stored } from "../files";
 import { keyColumn, ownedThroughBoard, registry, rule, writable, WRITE_ORDER } from "./registry";
 import { rowSnapshot } from "./rows";
 import { writePaper, writeSynced } from "./write";
@@ -239,8 +239,9 @@ async function newRecord(work: Working, env: Env, change: RowChange): Promise<En
   switch (table) {
     case "papers":
       // The row's name is the digest, so the bytes it names have to be
-      // here before the row is.
-      await receivePaperFile(env, uuid);
+      // in the bucket, under the paper's key, before the row is: a paper
+      // Papol cannot open is not one it can store.
+      if (!(await stored(env, paperKey(uuid)))) refuse(409, "Paper PDF has not been uploaded");
       return work.create(table, { sha256: uuid, doi: null, title: "", authors: null, journal: null, year: null,
         file_path: `${uuid}.pdf`, uploaded_by: user, ...bookkeeping, revision: 1 });
     case "boards": {
@@ -365,7 +366,7 @@ async function assignValues(work: Working, env: Env, entry: Entry, values: Recor
     }
     if (values.sha256) {
       const digest = String(values.sha256);
-      if (!(await hasBlob(env, digest))) refuse(409, "Referenced blob has not been uploaded");
+      if (!DIGEST.test(digest) || !(await stored(env, boardFileKey(blobKey(digest))))) refuse(409, "Referenced blob has not been uploaded");
       row.file_path = blobKey(digest);
     }
     if (values.source_url) validate.boardLink(values.source_url);
@@ -508,7 +509,7 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
       const held = await work.load("papers", change.uuid);
       if (held) {
         held.importedBy = user.uuid;
-        await receivePaperFile(env, change.uuid);
+        if (!(await stored(env, paperKey(change.uuid)))) refuse(409, "Paper PDF has not been uploaded");
         work.touched.push(held);
         continue;
       }

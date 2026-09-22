@@ -7,7 +7,7 @@ import { exportArchive } from "../account/export";
 import { currentUser, hashPassword, userPrivate, verifyPassword, type User } from "../auth";
 import { newUuid, one, statement } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
-import { UPLOADS } from "../sync/blobs";
+import { UPLOADS } from "../files";
 import * as validate from "../validate";
 
 const AVATAR_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };

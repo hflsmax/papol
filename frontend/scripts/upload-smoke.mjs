@@ -40,11 +40,9 @@ function uploadFixture(server) {
         window.uploadSeen = [];
         window.fetch = async (url, options = {}) => {
           const path = String(url);
-          if (path.endsWith('/upload-address')) {
+          if (path.endsWith('/files/upload-address')) {
             if (window.failImport === 'expected') return new Response(JSON.stringify({detail:'File too large'}), {status:413});
             if (window.failImport) return new Response(JSON.stringify({detail:'PDF upload failed'}), {status:500});
-            // An older Worker has no such route; the bytes go through it instead.
-            if (window.olderWorker) return new Response(JSON.stringify({detail:'Not Found'}), {status:404});
             window.uploadSeen.push({step: 'address', body: JSON.parse(options.body)});
             return new Response(JSON.stringify({stored:false, file_path:'b'.repeat(64) + '.pdf', url:'https://bucket.test/uploads/' + 'b'.repeat(64) + '.pdf?X-Amz-Signature=sig',
               headers:{'content-type':'application/pdf', 'x-amz-checksum-sha256':'c2ln'}}));
@@ -55,10 +53,6 @@ function uploadFixture(server) {
           }
           if (path.endsWith('/uploaded')) {
             window.uploadSeen.push({step: 'uploaded', body: JSON.parse(options.body)});
-            return new Response(JSON.stringify({job:'j1', file_path:'b'.repeat(64) + '.pdf', sha256:'b'.repeat(64)}), {status:202});
-          }
-          if (path.endsWith('/extract')) {
-            window.uploadSeen.push({step: 'extract', size: options.body?.get?.('file')?.size, authorized: !!options.headers?.Authorization});
             return new Response(JSON.stringify({job:'j1', file_path:'b'.repeat(64) + '.pdf', sha256:'b'.repeat(64)}), {status:202});
           }
           if (String(url).includes('/jobs/j1')) {
@@ -147,21 +141,13 @@ try {
       // with the arXiv id the browser read off the first page.
       const seen = await browser.evaluate('return window.uploadSeen;');
       assert.deepEqual(seen.map((step) => step.step), ['address', 'put', 'uploaded']);
-      assert.deepEqual(seen[0].body, { sha256: fixtureDigest, size: fixtureSize, name: 'attention.pdf' });
+      assert.deepEqual(seen[0].body, { kind: 'paper', sha256: fixtureDigest, size: fixtureSize, name: 'attention.pdf', mime: 'application/pdf' });
       assert.equal(seen[1].method, 'PUT');
       assert.equal(seen[1].size, fixtureSize);
       assert.deepEqual(seen[1].headers, { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' });
       assert.deepEqual(seen[2].body, {
         file_path: `${'b'.repeat(64)}.pdf`, uploaded_name: 'attention.pdf', identifier: { arxiv_id: '1706.03762v7' },
       });
-      // Against an older Worker, with no address to give, the bytes go
-      // through it in a form, as they always did.
-      await browser.evaluate('document.querySelector(".form-actions button").click(); window.olderWorker = true; window.uploadSeen = [];');
-      await browser.waitFor('document.querySelector("input[type=file]")');
-      await choose();
-      await browser.waitFor('document.querySelector("#upload-paper-title")');
-      assert.deepEqual(await browser.evaluate('return window.uploadSeen;'), [{ step: 'extract', size: fixtureSize, authorized: false }]);
-      await browser.evaluate('window.olderWorker = false; return true;');
     }
 
     // The form is open before the PDF has been read: the filename's title,

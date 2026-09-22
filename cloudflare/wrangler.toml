@@ -29,7 +29,7 @@ migrations_dir = "migrations"
 
 # The files: a paper's PDF and a user's picture under uploads/, a
 # board's files and the desktop's blobs under board_uploads/
-# (src/sync/blobs.ts). One bucket, public by key at FILES_URL below:
+# (src/files.ts). One bucket, public by key at FILES_URL below:
 # every key is a digest or a minted uuid, so holding one is holding
 # the file, and nothing in the bucket is listed.
 [[r2_buckets]]
@@ -60,14 +60,14 @@ crons = ["*/2 * * * *", "0 * * * *"]
 # Secrets are set with `wrangler secret put`, never written here:
 # EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts),
 # R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY for the upload addresses
-# (src/papers/uploads.ts). FILES_BUCKET names the bucket bound as FILES
-# once more, for the S3 URL a browser uploads to; the bucket's CORS rules
+# (src/files.ts). FILES_BUCKET names the bucket bound as FILES
+# once more, for the S3 URL a browser or the desktop uploads to; the bucket's CORS rules
 # (reads from the domain and that PUT) are r2-cors-public.json, applied
 # by hand as the FILES_URL comment below says.
 [vars]
 PAPOL_URL = "https://papol.io"
 FILES_BUCKET = "papol-files"
-# Where the bucket answers for its own files (src/sync/blobs.ts): a
+# Where the bucket answers for its own files (src/files.ts): a
 # custom domain on the R2 bucket, cached at the edge, with no Worker in
 # the path. Empty, the Worker serves the file itself (local development;
 # the suite pins it empty in vitest.config.ts). The domain exposes every

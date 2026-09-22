@@ -12,7 +12,7 @@ import limits from "../../../config/app_limits.json";
 import { all, newUuid, now, one, statement, type Row } from "../db";
 import { refuse } from "../http";
 import { enqueue, JobError, wake } from "../jobs/queue";
-import { UPLOADS } from "../sync/blobs";
+import { UPLOADS } from "../files";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
 import * as helper from "./helper";

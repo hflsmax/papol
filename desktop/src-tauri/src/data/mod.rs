@@ -5,7 +5,8 @@ use serde_json::Value;
 use std::sync::LazyLock;
 
 pub use database::{
-    BlobRecord, DataChange, LocalStore, MutationReceipt, RecoveryExport, RemoteChange,
+    BlobKind, BlobRecord, DataChange, LocalStore, MissingBlob, MutationReceipt, RecoveryExport,
+    RemoteChange,
 };
 pub use schema::declared_schema_version;
 

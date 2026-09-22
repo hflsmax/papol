@@ -17,7 +17,7 @@
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
-import { UPLOADS } from "../sync/blobs";
+import { UPLOADS } from "../files";
 import { byDoi, Unavailable } from "./bibliography";
 import * as helper from "./helper";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";

@@ -4,7 +4,8 @@ import {
   annotationView, nativeRepository, paperView, shelfView, newUuid,
 } from '../nativeData.js';
 import { inOfflineMode, runtimeFetch } from '../connectivity.js';
-import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
+import { jsonRequest, request } from '../httpClient.js';
+import { storeFile } from './files.js';
 import { withAbortTimeout } from '../requestTimeout.js';
 import { awaitJob } from './jobs.js';
 import { planOfflineNookAddition } from '../nookTransition.js';
@@ -32,9 +33,7 @@ export function paperHref(paper) {
 // which the edge caches and no Worker touches), else Papol's own route,
 // which sends the client on to the same place.
 export function pdfHref(paper) {
-  if (paper.file_url) return paper.file_url;
-  if (paper.file_path.startsWith('http')) return paper.file_path;
-  return backendPath(`/uploads/${paper.file_path}`);
+  return paper.file_url || backendPath(`/uploads/${paper.file_path}`);
 }
 
 // The name a downloaded PDF is saved under: the paper's title, with the
@@ -57,12 +56,6 @@ export async function listPapers() {
 // page has a button that asks again.
 const UPLOAD_READING_TIMEOUT_MS = 2 * 60 * 1000;
 
-// The file's SHA-256, in hex: the name it is stored under.
-async function sha256Hex(file) {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 // The identifier an upload sends: what the caller read off the PDF's
 // first pages, given as a value or a promise of one, or nothing.
 async function identifierFor(identifier) {
@@ -74,50 +67,15 @@ async function identifierFor(identifier) {
   }
 }
 
-// Upload a PDF through the server: the bytes in a form, stored by the
-// Worker under their digest. The way every Papol uploaded before the
-// bucket took uploads directly, and still the way when the server has no
-// address to give (an older Worker, or one without the bucket's keys).
-async function uploadThroughServer(file, filename, signal) {
-  const formData = new FormData();
-  if (filename) formData.append('file', file, filename);
-  else formData.append('file', file);
-  return handleResponse(await runtimeFetch(`${API_BASE}/papers/extract`, {
-    method: 'POST', headers: authHeaders(), body: formData, signal,
-  }));
-}
-
-// Upload a PDF. Hashed here, so the server can say whether it holds the
-// bytes already and, if not, where the browser PUTs them: the bucket
-// itself, by a signed URL, with the headers the server lists and no
-// credential of Papol's. The server is then told the bytes are in, with
-// the identifier read off the file, and answers with the job that reads
-// it: `{ job, file_path, sha256 }`. A server that gives no address gets
-// the bytes itself.
+// Upload a PDF: the bytes into the bucket (shared/api/files.js), then the
+// server told they are in, with the identifier read off the file. It
+// answers with the job that reads it: `{ job, file_path, sha256 }`.
 async function upload(file, filename, signal, identifier) {
   const name = filename || file.name;
-  const sha256 = await sha256Hex(file);
-  let address;
-  try {
-    address = await request('/papers/upload-address', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sha256, size: file.size, name }), signal,
-    });
-  } catch (failure) {
-    if (failure?.status === 404 || failure?.status === 503) return uploadThroughServer(file, filename, signal);
-    throw failure;
-  }
-  if (!address.stored) {
-    const put = await runtimeFetch(address.url, { method: 'PUT', headers: address.headers, body: file, signal });
-    if (!put.ok) {
-      const failure = new Error(`The PDF could not be stored (the bucket answered ${put.status})`);
-      failure.status = put.status;
-      throw failure;
-    }
-  }
+  const stored = await storeFile('paper', file, { name, mime: 'application/pdf', signal });
   return request('/papers/uploaded', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ file_path: address.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }), signal,
+    body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }), signal,
   });
 }
 

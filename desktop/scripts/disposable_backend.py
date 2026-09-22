@@ -13,6 +13,7 @@ nothing of Python's but the standard library, so the Mac's own interpreter
 is enough to run the checks.
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -174,19 +175,22 @@ def register(url, display_name, password="testing-password"):
 
 
 def upload_pdf(url, token, bytes_=SEED_PDF, name="native-e2e.pdf"):
-    """The bytes first, stored under their digest; the paper names them."""
-    boundary = f"----papol{uuid.uuid4().hex}"
-    body = b"".join([
-        f"--{boundary}\r\n".encode(),
-        f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'.encode(),
-        b"Content-Type: application/pdf\r\n\r\n",
-        bytes_,
-        f"\r\n--{boundary}--\r\n".encode(),
-    ])
-    return request(
-        f"{url}/api/papers/extract", "POST", token=token, data=body,
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-    )
+    """The bytes first, into the bucket under their digest by the address the
+    Worker gives — its own door, on a local one — then the word that they
+    are in; the paper names them."""
+    digest = hashlib.sha256(bytes_).hexdigest()
+    address = request(f"{url}/api/files/upload-address", "POST", {
+        "kind": "paper", "sha256": digest, "size": len(bytes_), "name": name,
+    }, token)
+    if not address["stored"]:
+        target = address["url"] if address["url"].startswith("http") else f"{url}{address['url']}"
+        with urllib.request.urlopen(
+            urllib.request.Request(target, data=bytes_, headers=address["headers"], method="PUT"), timeout=5,
+        ):
+            pass
+    return request(f"{url}/api/papers/uploaded", "POST", {
+        "file_path": address["file_path"], "uploaded_name": name,
+    }, token)
 
 
 def create_paper(url, token, title):

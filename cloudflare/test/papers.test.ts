@@ -27,10 +27,13 @@ async function aPaper(digest = A_PAPER, title = "A paper by its name") {
   await exec("INSERT INTO papers (sha256, title, file_path, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, 1)", digest, title, `${digest}.pdf`, at, at);
 }
 
-function upload(account: Account, name: string, bytes: string) {
-  const data = new FormData();
-  data.append("file", new File([bytes], name, { type: "application/pdf" }));
-  return call("POST", "/api/papers/extract", { headers: account.headers, body: data });
+// An upload as the browser makes one: the bytes into the bucket under
+// their digest by the address it was given (files.test.ts), then the word
+// that they are in.
+async function upload(account: Account, name: string, bytes: string) {
+  const digest = await sha256(bytes);
+  await env.FILES.put(`uploads/${digest}.pdf`, bytes, { httpMetadata: { contentType: "application/pdf" } });
+  return call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: name } });
 }
 
 // The bibliographic APIs and the host's helper, stood in for by host.
@@ -75,11 +78,11 @@ describe("the name a link carries", () => {
     expect((await response.json<any>()).detail).toContain("more than one");
   });
 
-  it("still checks a blob against the whole digest", async () => {
+  it("still names a file by the whole digest", async () => {
     const account = await register();
-    const response = await call("PUT", `/api/sync/blobs/${NAME}`, { headers: account.headers, body: "not this paper's bytes" });
+    const response = await call("POST", "/api/files/upload-address", { headers: account.headers, json: { kind: "paper", sha256: NAME, size: 1, name: "short.pdf" } });
     expect(response.status).toBe(422);
-    expect((await response.json<any>()).detail).toContain("SHA-256");
+    expect((await response.json<any>()).detail).toContain("sha256");
   });
 });
 
@@ -93,7 +96,7 @@ describe("what a PDF says about itself", () => {
     expect(titleFromFilename("2016UIST-Metamaterial_AuthorsCopy.pdf")).toBe("2016uist Metamaterial Authorscopy");
   });
 
-  it("stores an upload once under its digest and reads it by a job the uploader polls", async () => {
+  it("reads an upload, stored once under its digest, by a job the uploader polls", async () => {
     const account = await register();
     const pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF";
     const digest = await sha256(pdf);
@@ -111,7 +114,6 @@ describe("what a PDF says about itself", () => {
     expect(done.status).toBe("done");
     expect(done.result).toEqual({ doi: "10.1145/2984511.2984540", title: "Metamaterial Mechanisms", authors: JSON.stringify(["Alexandra Ion", "Patrick Baudisch"]),
       journal: "Proceedings of UIST '16", year: 2016, file_path: `${digest}.pdf` });
-    expect((await call("POST", "/api/papers/extract", { headers: account.headers, body: (() => { const d = new FormData(); d.append("file", new File(["x"], "notes.txt")); return d; })() })).status).toBe(400);
   });
 
   it("takes the title block when no index answers, the filename when the helper is down, and fails with a sentence when the indexes do not answer", async () => {
@@ -172,35 +174,8 @@ describe("what a PDF says about itself", () => {
   });
 });
 
-describe("an upload that goes straight to the bucket", () => {
+describe("an upload that went straight to the bucket", () => {
   const pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF";
-
-  it("answers a stored digest with its file, and a new one with a signed PUT that binds the bytes and their size", async () => {
-    const account = await register();
-    const digest = await sha256(pdf);
-    const address = await ok("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: pdf.length, name: "Some-Paper.pdf" } });
-    expect(address).toMatchObject({ stored: false, file_path: `${digest}.pdf`, headers: { "content-type": "application/pdf" } });
-    const url = new URL(address.url);
-    expect(url.origin).toBe("https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com");
-    expect(url.pathname).toBe(`/papol-files/uploads/${digest}.pdf`);
-    expect(url.searchParams.get("X-Amz-Expires")).toBe("900");
-    expect(url.searchParams.get("X-Amz-Credential")).toMatch(/^test-access-key\/\d{8}\/auto\/s3\/aws4_request$/);
-    expect(url.searchParams.get("X-Amz-SignedHeaders")).toBe("content-length;content-type;host;x-amz-checksum-sha256");
-    expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
-    // The checksum header is the digest again, in the base64 S3 wants.
-    const checksum = address.headers["x-amz-checksum-sha256"];
-    expect([...atob(checksum)].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")).toBe(digest);
-    expect(Object.keys(address.headers).sort()).toEqual(["content-type", "x-amz-checksum-sha256"]);
-
-    await env.FILES.put(`uploads/${digest}.pdf`, pdf);
-    expect(await ok("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: pdf.length, name: "again.pdf" } }))
-      .toEqual({ stored: true, file_path: `${digest}.pdf` });
-
-    expect((await call("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: "not a digest", size: 1, name: "a.pdf" } })).status).toBe(422);
-    expect((await call("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: 1, name: "notes.txt" } })).status).toBe(400);
-    expect((await call("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: 201 * 1024 * 1024, name: "huge.pdf" } })).status).toBe(413);
-    expect((await call("POST", "/api/papers/upload-address", { json: { sha256: digest, size: 1, name: "a.pdf" } })).status).toBe(401);
-  });
 
   it("queues the reading once the bytes are in, and not before", async () => {
     const account = await register();

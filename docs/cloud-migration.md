@@ -1067,6 +1067,138 @@ verification's own orphan. Production's `--list` shows four orphans
 and the recent `22bd33f7…`, `dbfb7aab…`, `24570d4a…`); nothing was deleted
 there.
 
+### Step 15 — landed 2026-09-22: one file model, board files keyed by their hash
+
+The owner's instruction: make them all hash based, and let the browser
+and the Mac fetch as much as they can without going through the Worker.
+Step 12 had done it for a paper's PDF; a board file made on the website
+was still stored under a name minted per write, still served by a
+Worker route that asked who was asking, and the desktop still sent its
+files through the Worker's `PUT /api/sync/blobs`. Now there is one
+model, and every layer that existed for the Worker-carries-the-bytes era
+is gone.
+
+**The layout.** One bucket, `papol-files`, public by key on
+`files.papol.io` (`papol-files-dev` on `files-dev.papol.io`), holding:
+`uploads/<sha256>.pdf` for a paper's PDF; `uploads/avatars/<uuid>.<ext>`
+for a picture; `board_uploads/blobs/<sha256>` for every board file — a
+picture or a document put on a card in a browser or in the desktop app,
+a clip from the viewer, a link card's capture. Every key is a content
+digest or a uuid minted for one write, nothing in the bucket is listed,
+and the Worker never carries a file's bytes in either direction.
+
+**Writing** (`cloudflare/src/files.ts`, `routes/files.ts`,
+`shared/api/files.js`): the client hashes the file and asks `POST
+/api/files/upload-address` `{ kind, sha256, size, name, mime }` — `kind`
+is `paper` or `board_file` — and is told `{ stored: true, file_path }`
+when the bucket holds those bytes, else `{ stored: false, file_path,
+url, headers }`, a presigned S3 PUT (fifteen minutes, signed over
+`x-amz-checksum-sha256`, `content-type` and `content-length`, so the
+bucket itself refuses bytes that do not hash to their name). The client
+PUTs with the listed headers and no credential of Papol's, then tells
+the route that records the row: `POST /api/papers/uploaded` for a
+paper, `POST /api/boards/:uuid/files` `{ sha256, original_filename,
+mime_type, caption, x, y }` for a card, `POST
+/api/boards/:uuid/staging/clip` `{ sha256, caption, source_url,
+source_label }` for a clip — each a JSON body naming a digest, each
+refusing (409) bytes the bucket does not hold. The desktop's sync asks
+the same route for each pushed row that carries a `sha256` (a paper's
+row → `paper`, a card's → `board_file`) and PUTs by the same address.
+A Worker without the R2 token — a local `wrangler dev`, whose R2 is a
+simulation — answers with its own door as the address, `PUT
+/api/files/:kind/:sha256`, with the caller's credential among the
+listed headers, and holds the bytes to the same contract; the client
+cannot tell the two apart, and a Worker that can sign for the bucket
+keeps that door shut (404).
+
+**Reading.** A card's answer carries `file_url` beside `file_path`, as
+a paper's does: the bucket's address when `FILES_URL` is set, the
+Worker's route otherwise. The board app and the desk fetch `file_url`
+directly; the export's `files.json` names the bucket address for board
+files as it does for PDFs. The desktop learns the address from
+`files_url` in `GET /api/client-requirements` and builds
+`${files_url}/uploads/<sha256>.pdf` or
+`${files_url}/board_uploads/blobs/<sha256>` itself (the store now says
+which kind each missing file is), with no credential; when `files_url`
+is null it asks the Worker's `GET /api/sync/blobs/:sha256` with its
+credential, as before. `GET /api/board-items/:uuid/file` and `GET
+/api/sync/blobs/:sha256` answer a 301 to the bucket when `FILES_URL` is
+set (a day's cache-control) and serve the object otherwise; the item
+route no longer asks who is asking — a card's uuid and its file's digest
+are both minted, and the bucket hands the file to whoever holds the key
+anyway. On production, then, no read of a file's bytes passes through
+the Worker except its own: the extract job and
+`/api/papers/:name/extract-metadata` read a PDF from the bucket to hand
+it to the host helper, and the reference pass to GROBID.
+
+**Deletion.** A board file is named by its bytes, so two users' cards
+— or a card of the leaver's that was let go and may be restored — can
+name one object. Closing an account (`account/close.ts`) deletes a blob
+only when no `board_items` row at all, soft-deleted rows included,
+carries its sha256 once the leaver's rows are gone; `removed.board_files`
+counts them. The suite holds it: a shared blob survives one owner's
+closure and goes with the last.
+
+**Removed**, with the tests, smoke tests and e2e seeds moved to the one
+path: `POST /api/papers/extract` (multipart) and `storePdf`; `POST
+/api/papers/upload-address` (folded into `/api/files/upload-address`);
+`PUT` and `HEAD /api/sync/blobs/:sha256` and `receivePaperFile`'s copy
+from the blobs area to `uploads/`; the multipart board-file and clip
+handlers; `uploadThroughServer` and the `file_path.startsWith('http')`
+branch of `pdfHref` in `shared/api/papers.js`; the desktop's HEAD-then-PUT
+upload in `sync/coordinator.rs`; `cloudflare/src/papers/uploads.ts`
+(absorbed into `files.ts`). A desktop build older than 0.5.0 would
+still send its files through the removed routes, so
+`MINIMUM_DESKTOP_VERSION` in `clientRequirements.ts` refuses it (426 on
+the sync routes, `incompatible` in the requirements) whatever schema it
+announces; the app is bumped to 0.5.0. Line counts before → after:
+`shared/api/papers.js` 507 → 465 (plus `shared/api/files.js`, 40);
+`cloudflare/src/routes/boards.ts` 568 → 555; `cloudflare/src/sync/blobs.ts`
+116 → 42, with `papers/uploads.ts` (65) gone and `src/files.ts` (134)
+and `routes/files.ts` (55) new; the desktop sync module
+(`sync/coordinator.rs` + `mod.rs`) 1117 → 1239, the growth being the
+address round trip and the bucket download that replaced two
+Worker-shaped requests.
+
+**The rekey**, `cloudflare/scripts/rekey-board-files.py [dev|prod]
+[--dry-run]`: for every card whose `file_path` was not under `blobs/`,
+a server-side `CopyObject` to `board_uploads/blobs/<sha256>` (the
+digest computed from the bytes when a row lacked one — none did),
+verified by size and ETag, the row pointed at the new key with its
+`revision` and `updated_at` moved (file_path is server-owned and
+travels to replicas), and only then the old key deleted; a final pass
+gives every typeless board file — the Python era stored them with no
+content type, which the bucket now serves — the type its card records,
+by a copy onto itself. Standard library, the R2 token read from the
+host at run time, wrangler for D1. Dev first, with the 33 production
+objects the dev mirror's rows named copied across so the rehearsal was
+real: 33 rows, 33 copied, 33 verified, 33 rekeyed, 33 old keys deleted.
+Then production: 33 rows, 25 copied and 8 already present under their
+digest (the same bytes as a desktop blob or an earlier card), 33
+verified, 33 rekeyed, 33 deleted, 13 objects retyped. A second run of
+each finds nothing. The two R2 secrets were set on both Workers, which
+neither had (step 12's "still to do").
+
+Verified on production with a throwaway account, every status as
+designed: `client-requirements` says `files_url` and a 0.5.0 minimum
+(a `Papol macOS/0.4.1` agent is `incompatible`); the address for a
+board file is a signed PUT to `r2.cloudflarestorage.com` (200); the
+card answers `file_path: blobs/<sha256>` and the bucket `file_url`;
+`/api/board-items/:uuid/file` 301 with no credential; the bucket
+answers 200, `content-type: image/png`,
+`access-control-allow-origin: https://papol.io`, the bytes intact;
+`/api/sync/blobs/:sha256` 301 with a credential and 401 without; the
+Worker's door 404; a card rekeyed from the Python era 301 and, followed,
+200 with a matching digest; the account closed with `board_files: 1`,
+the card's route 404 and the object gone from the bucket.
+
+What `papol-files` holds after: `uploads/` 50 PDFs and one picture,
+`board_uploads/blobs/` 46 objects (85 MB), and 16 objects still under
+`board_uploads/<board uuid>/` (14 under the one live board, 2 under the
+legacy `2/`, 20 MB) that no card names — orphans of cards long gone,
+left for the owner to delete by hand. A possible follow-up, not built:
+`gc-papers.py`'s counterpart for those.
+
 Configuration and one move of the data, once phase 4 passes the suite:
 
 - D1, with its point-in-time restore replacing the dumps in

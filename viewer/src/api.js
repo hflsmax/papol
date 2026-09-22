@@ -11,6 +11,7 @@ import {
 import { currentCredential } from '../../shared/credentials.js';
 import { paperName } from '../../shared/paperName.js';
 import { lookupPaperMetadata } from '../../shared/api/papers.js';
+import { storeFile } from '../../shared/api/files.js';
 
 const openedFileImports = new Map();
 
@@ -207,12 +208,11 @@ export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sour
     }]);
     return receipt.rows[0];
   }
-  const body = new FormData();
-  body.append('file', blob, 'paper-clip.png');
-  body.append('caption', comment || '');
-  body.append('source_url', sourceUrl);
-  body.append('source_label', sourceLabel);
-  return request(`/boards/${boardUuid}/staging/clip`, { method: 'POST', body });
+  // The picture into the bucket (shared/api/files.js), then the card that names it.
+  const stored = await storeFile('board_file', blob, { name: 'paper-clip.png', mime: 'image/png' });
+  return jsonRequest(`/boards/${boardUuid}/staging/clip`, 'POST', {
+    sha256: stored.sha256, caption: comment || '', source_url: sourceUrl, source_label: sourceLabel,
+  });
 }
 
 // ---- Annotations ----

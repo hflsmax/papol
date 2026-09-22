@@ -18,9 +18,9 @@ interface Secrets {
   GROBID_URL?: string;
   GROBID_AUTH?: string;
   // An R2 API token for the files bucket, with which the Worker signs the
-  // URL a browser PUTs a PDF to directly (src/papers/uploads.ts). Unset,
-  // the upload address is refused and the browser sends the bytes
-  // through the Worker as before.
+  // URL a client PUTs a file to directly (src/files.ts). Unset, the
+  // Worker gives its own door as the address instead, which a local
+  // `wrangler dev` needs, since its R2 is a simulation.
   R2_ACCESS_KEY_ID?: string;
   R2_SECRET_ACCESS_KEY?: string;
   // "manual" in the suite: wake-ups are handed to the consumer by the

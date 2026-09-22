@@ -263,7 +263,7 @@ export async function ensureNativeBlob(sha256, onProgress) {
   });
   try {
     await invoke('blob_ensure', {
-      backendUrl: nativeBackendUrl(), token, sha256,
+      backendUrl: nativeBackendUrl(), token, sha256, kind: 'paper',
     });
   } finally {
     stop();

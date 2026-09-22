@@ -19,7 +19,7 @@
 
 import { type User } from "../auth";
 import { all, type Row } from "../db";
-import { BOARD_FILES, UPLOADS, uploadUrl } from "../sync/blobs";
+import { boardFileKey, boardFileUrl, UPLOADS, uploadUrl } from "../files";
 
 function authorsOf(paper: Row): unknown[] {
   try { return paper.authors ? JSON.parse(paper.authors as string) : []; } catch { return [paper.authors]; }
@@ -248,7 +248,7 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
         for (const item of board.items) {
           if (!item.file) continue;
           const filename = String(item.original_filename || String(item.file).split("/").pop()).split("/").pop();
-          const file = await locate(env, `${BOARD_FILES}${item.file}`, `board-files/${board.uuid}/${item.uuid}-${filename}`, `/api/board-items/${item.uuid}/file`);
+          const file = await locate(env, boardFileKey(String(item.file)), `board-files/${board.uuid}/${item.uuid}-${filename}`, boardFileUrl(env, { uuid: String(item.uuid), file_path: String(item.file) })!);
           if (file) located.push(file);
         }
       }
