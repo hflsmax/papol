@@ -27,8 +27,11 @@ database_name = "papol"
 database_id = "4a3f822d-7dd5-41df-94a5-cf10f0adb6fa"
 migrations_dir = "migrations"
 
-# The files: a paper's PDF under uploads/, a board's files and the
-# desktop's blobs under board_uploads/ (src/sync/blobs.ts).
+# The files: a paper's PDF and a user's picture under uploads/, a
+# board's files and the desktop's blobs under board_uploads/
+# (src/sync/blobs.ts). One bucket, public by key at FILES_URL below:
+# every key is a digest or a minted uuid, so holding one is holding
+# the file, and nothing in the bucket is listed.
 [[r2_buckets]]
 binding = "FILES"
 bucket_name = "papol-files"
@@ -60,11 +63,14 @@ crons = ["*/2 * * * *", "0 * * * *"]
 PAPOL_URL = "https://papol.io"
 # Where the bucket answers for its own files (src/sync/blobs.ts): a
 # custom domain on the R2 bucket, cached at the edge, with no Worker in
-# the path. Empty, the Worker serves the file itself. Production's bucket
-# still holds private board files, and a bucket domain exposes every key,
-# so it stays empty until those files have a bucket of their own
-# (docs/cloud-migration.md, phase 5, step 12); then "https://files.papol.io".
-FILES_URL = ""
+# the path. Empty, the Worker serves the file itself (local development;
+# the suite pins it empty in vitest.config.ts). The domain exposes every
+# key in the bucket, board files included — the owner's decision: a key
+# is a content digest or a uuid minted for one write, so whoever has one
+# has the file already (docs/cloud-migration.md, phase 5, step 13). The
+# bucket's CORS rules are r2-cors-public.json, applied by hand:
+#   npx wrangler r2 bucket cors set papol-files --file r2-cors-public.json
+FILES_URL = "https://files.papol.io"
 
 [observability]
 enabled = true

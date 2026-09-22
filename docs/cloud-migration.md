@@ -886,6 +886,73 @@ so a URL asked for before its object exists stays a 404 that long. Papol
 never hands out an address before the upload has landed, and keys are
 never reused, so this is a probe's problem rather than a user's.
 
+### Step 13 — landed 2026-09-21: production files come from the bucket
+
+(12 is the direct-upload PR's number, whichever of the two lands first.)
+Step 11 left production without a domain because `papol-files` also
+holds board files and the desktop's blobs, and a bucket domain exposes
+every key. The owner's decision: **one bucket, public by key, board
+files included.** A key is a content digest (`uploads/<sha256>.pdf`,
+`board_uploads/blobs/<sha256>`) or a uuid minted for one write
+(`uploads/avatars/<user uuid>.<ext>`, `board_uploads/<board
+uuid>/<uuid>.<ext>`); whoever has one has the file already, and hiding
+it behind a session protects nothing. The domain lists nothing (`/`,
+`/uploads/`, `/board_uploads/` are 404s). The second bucket that step
+11 sketched was built as far as the copy — `papol-board-files` made,
+the 70 `board_uploads/` objects copied across server-side and verified
+by size — and then undone: the copies deleted, both buckets removed,
+no code written for it.
+
+What the buckets hold now, which is what to remember:
+
+- `papol-files`, on **`files.papol.io`**, `FILES_URL` in `[vars]`:
+  125 objects. `uploads/` — 54 PDFs and one picture, what `/uploads/`
+  served to anyone already. `board_uploads/` — 49 web board files under
+  `<board uuid>/<uuid>.<ext>` (47 under the one live board, 2 under a
+  legacy `2/`) and 21 desktop blobs under `blobs/<sha256>`; nothing
+  moved. The stale `dev/uploads/` tree from the Python era — 10 PDFs,
+  15.2 MB, each a duplicate of an `uploads/` key with the same digest —
+  is deleted. Board files are still handed out by
+  `/api/board-items/:uuid/file` and `/api/sync/blobs/:sha256`, which
+  ask who is asking; that they are also reachable by key on the domain
+  is the decision above.
+- `papol-files-dev`, on `files-dev.papol.io`: 31 objects, all
+  `uploads/`.
+- **CORS**: one file, `cloudflare/r2-cors-public.json`, applied by hand
+  to both buckets (`npx wrangler r2 bucket cors set papol-files --file
+  r2-cors-public.json`, and `papol-files-dev`; `cors set` replaces the
+  whole set, so there is one file). Two rules: the read rule — GET and
+  HEAD, `Range`/`If-None-Match`/`If-Modified-Since` allowed,
+  `Content-Length`/`Content-Range`/`Accept-Ranges`/`ETag`/`Content-Type`
+  exposed — and the direct-upload PUT rule from the upload PR
+  (`content-type`, `x-amz-checksum-sha256`; `etag` exposed), each with
+  the same nine origins rather than `*`: `https://papol.io`,
+  `https://www.papol.io`, `https://dev.papol.io`, `tauri://localhost`,
+  `http://tauri.localhost`, `http://localhost:5173`,
+  `http://127.0.0.1:5173`, `http://localhost:8787`,
+  `http://127.0.0.1:8787` (the desktop fetches through Tauri's HTTP
+  plugin, its webview origins are listed anyway; 8787 is `wrangler
+  dev`). The upload PR's `r2-cors.json` is superseded by this file.
+- The suite pins `FILES_URL` empty in `vitest.config.ts`, whatever
+  production's is, so it keeps testing the Worker serving a file itself
+  and hands a bucket address in where a test is about that.
+
+Measured on production after the deploy: `papol.io/uploads/<digest>.pdf`
+answers 301 to `files.papol.io/uploads/<digest>.pdf` with a day's
+`cache-control`, the avatar likewise, a malformed key still 404; the
+bucket address answers 200, `content-type: application/pdf`,
+`accept-ranges: bytes`, `access-control-allow-origin: https://papol.io`
+for that origin and no allow-origin header at all for
+`https://example.com`, 206 with `content-range` for a byte range; the
+viewer in headless Chromium, signed in as a throwaway reader holding a
+copy of the paper, rendered it with one 200 and then 206s from
+`files.papol.io` (`cf-cache-status: HIT`) and not one request to the
+Worker's `/uploads/`.
+
+Next: key every board file by its hash and serve board files from the
+domain too, as papers are — a `file_url` beside `file_path` on a board
+item, and `/api/board-items/:uuid/file` reduced to a 301.
+
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
 deleted; the host's configuration.nix trimmed of the retired keys.
