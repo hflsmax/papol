@@ -161,7 +161,7 @@ try {
     await browser.evaluate('window.failImport = false;');
     await choose();
     await browser.waitFor('document.querySelector("#upload-paper-title")');
-    assert.match(await browser.text(), /Review Paper Metadata/);
+    assert.match(await browser.text(), /Paper Metadata/);
     if (mode === 'web') {
       // The bytes went to the bucket by the address the server gave, with
       // the headers it listed and no credential; the server was then told,

@@ -7,7 +7,6 @@ import {
   uploadPaper,
 } from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
-import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -254,10 +253,9 @@ export default function PaperUpload({
 
     return (
       <>
-      <BackLink className={`back-button upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
         <div className="paper-metadata-heading">
-          <h3>Review Paper Metadata</h3>
+          <h3>Paper Metadata</h3>
         </div>
         {reading === 'reading' && (
           <div className="metadata-reading">

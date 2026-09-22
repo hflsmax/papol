@@ -824,7 +824,7 @@ button.full-width {
 
 /* ---------- Upload ---------- */
 
-.upload-review-mode > .back-button:not(.upload-review-back),
+.upload-review-mode > .back-button,
 .upload-review-mode > .shelf-manager,
 .upload-review-mode > .paper-list {
   display: none;
