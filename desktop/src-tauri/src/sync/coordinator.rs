@@ -779,10 +779,8 @@ fn classify_status(status: u16) -> FailureKind {
 mod tests {
     use super::*;
     use crate::data::DataChange;
+    use crate::sync::fake_server::{bounded, FakeServer, Reply, Request};
     use serde_json::{json, Map};
-    use std::io::{Read, Write};
-    use std::net::{TcpListener, TcpStream};
-    use std::thread;
     use uuid::Uuid;
 
     #[test]
@@ -856,380 +854,506 @@ mod tests {
         assert_eq!(FailureKind::Transient, classify_status(503));
     }
 
-    fn read_request(stream: &mut TcpStream) -> String {
-        let mut bytes = Vec::new();
-        let mut buffer = [0_u8; 4096];
-        let header_end = loop {
-            let count = stream.read(&mut buffer).unwrap();
-            if count == 0 {
-                return String::from_utf8_lossy(&bytes).into_owned();
-            }
-            bytes.extend_from_slice(&buffer[..count]);
-            if let Some(index) = bytes.windows(4).position(|part| part == b"\r\n\r\n") {
-                break index + 4;
-            }
-        };
-        let headers = String::from_utf8_lossy(&bytes[..header_end]);
-        let length = headers
-            .lines()
-            .find_map(|line| {
-                line.to_ascii_lowercase()
-                    .strip_prefix("content-length:")
-                    .map(str::trim)
-                    .map(str::to_owned)
-            })
-            .and_then(|value| value.parse::<usize>().ok())
-            .unwrap_or(0);
-        while bytes.len() < header_end + length {
-            let count = stream.read(&mut buffer).unwrap();
-            if count == 0 {
-                break;
-            }
-            bytes.extend_from_slice(&buffer[..count]);
+    fn open_store(directory: &tempfile::TempDir) -> LocalStore {
+        LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap()
+    }
+
+    fn board_change(uuid: &str, name: &str) -> DataChange {
+        DataChange {
+            table: "boards".into(),
+            uuid: uuid.into(),
+            operation: "upsert".into(),
+            values: Map::from_iter([("name".into(), json!(name))]),
         }
-        String::from_utf8_lossy(&bytes).into_owned()
     }
 
-    fn respond(stream: &mut TcpStream, body: &Value) {
-        let body = body.to_string();
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-            body.len(), body,
-        ).unwrap();
+    fn board_row(uuid: &str, name: &str) -> Value {
+        json!({
+            "table": "boards", "uuid": uuid, "user_uuid": "7",
+            "shelf_uuid": null, "name": name, "description": null,
+            "created_at": "2026-09-12T00:00:00Z",
+            "updated_at": "2026-09-12T00:00:00Z",
+            "revision": 1, "deleted_at": null
+        })
     }
 
-    /// Declares more bytes than it sends, then closes: the client's body
-    /// read fails the way it does when a connection drops mid-transfer.
-    fn respond_cut_short(stream: &mut TcpStream, body: &Value) {
-        let body = body.to_string();
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-            body.len() + 7, body,
-        ).unwrap();
+    fn empty_pull() -> Reply {
+        Reply::ok(json!({"cursor": 1, "has_more": false, "changes": []}))
     }
 
-    #[tokio::test]
-    async fn a_body_cut_mid_transfer_costs_one_attempt_not_the_sync() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = thread::spawn(move || {
-            let mut requests = Vec::new();
-            for index in 0..3 {
-                let (mut stream, _) = listener.accept().unwrap();
-                let request = read_request(&mut stream);
-                if request.starts_with("GET /api/sync/pull?") {
-                    respond(
-                        &mut stream,
-                        &json!({"cursor": 1, "has_more": false, "changes": []}),
-                    );
-                } else if index == 0 {
-                    respond_cut_short(&mut stream, &json!({"rows": []}));
-                } else {
-                    respond(&mut stream, &json!({"rows": []}));
-                }
-                requests.push(request);
-            }
-            requests
-        });
-
-        let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let coordinator = Coordinator::new().unwrap();
-        let backend = format!("http://{address}");
-        coordinator
-            .synchronize(&store, "7", &backend, "token")
-            .await
-            .unwrap();
-
-        let requests = server.join().unwrap();
-        assert_eq!(
-            requests
-                .iter()
-                .filter(|request| request.starts_with("GET /api/sync/snapshot "))
-                .count(),
-            2
-        );
-        assert!(requests
-            .iter()
-            .any(|request| request.starts_with("GET /api/sync/pull?")));
-    }
-
-    #[tokio::test]
-    async fn a_refused_snapshot_records_the_incompatible_verdict() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let request = read_request(&mut stream);
-            let body = json!({"detail": "Papol needs an update"}).to_string();
-            write!(
-                stream,
-                "HTTP/1.1 426 Upgrade Required\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                body.len(), body,
-            ).unwrap();
-            request
-        });
-
-        let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        let coordinator = Coordinator::new().unwrap();
-        let backend = format!("http://{address}");
-        let error = coordinator
-            .synchronize(&store, "7", &backend, "token")
-            .await
-            .unwrap_err();
-
-        assert!(error.contains("426"));
-        assert_eq!(
-            store.local_setting(COMPATIBILITY_KEY).unwrap().as_deref(),
-            Some("incompatible")
-        );
-        assert!(server
-            .join()
-            .unwrap()
-            .starts_with("GET /api/sync/snapshot "));
-    }
-
-    #[tokio::test]
-    async fn pull_only_reconciliation_leaves_pending_uploads_in_the_outbox() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = thread::spawn(move || {
-            let mut requests = Vec::new();
-            for _ in 0..2 {
-                let (mut stream, _) = listener.accept().unwrap();
-                let request = read_request(&mut stream);
-                if request.starts_with("GET /api/sync/pull?") {
-                    respond(
-                        &mut stream,
-                        &json!({"cursor": 1, "has_more": false, "changes": []}),
-                    );
-                } else {
-                    respond(&mut stream, &json!({"rows": []}));
-                }
-                requests.push(request);
-            }
-            requests
-        });
-
-        let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+    /// A board and a file on it, queued as one mutation, with the file's
+    /// bytes held locally the way an offline import leaves them.
+    fn queue_board_file(store: &LocalStore, bytes: &[u8]) -> String {
+        let blob = store.import_blob(bytes, None).unwrap();
+        let board_uuid = Uuid::new_v4().to_string();
         store
             .mutate(
                 "7",
-                vec![DataChange {
-                    table: "boards".into(),
-                    uuid: Uuid::new_v4().to_string(),
-                    operation: "upsert".into(),
-                    values: Map::from_iter([("name".into(), json!("Pending upload"))]),
-                }],
+                vec![
+                    board_change(&board_uuid, "Files"),
+                    DataChange {
+                        table: "board_items".into(),
+                        uuid: Uuid::new_v4().to_string(),
+                        operation: "upsert".into(),
+                        values: Map::from_iter([
+                            ("board_uuid".into(), json!(board_uuid)),
+                            ("kind".into(), json!("file")),
+                            ("sha256".into(), json!(blob.sha256)),
+                        ]),
+                    },
+                ],
             )
             .unwrap();
-        let coordinator = Coordinator::new().unwrap();
-        let backend = format!("http://{address}");
+        blob.sha256
+    }
+
+    async fn push_only(
+        coordinator: &Coordinator,
+        store: &LocalStore,
+        server: &FakeServer,
+    ) -> Result<SyncResult, String> {
         let report = |_: SyncProgress| {};
-        let result = coordinator
+        coordinator
             .synchronize_with_progress(
-                &store,
+                store,
                 "7",
-                &backend,
+                &server.url(),
                 "token",
                 ReconcileOptions {
                     retry_blocked: false,
-                    mode: SyncMode::Pull,
+                    mode: SyncMode::Push,
                 },
                 &report,
             )
             .await
-            .unwrap();
+    }
 
-        assert_eq!(result.pushed, 0);
-        assert_eq!(
-            store.query("7", "sync_status", json!({})).unwrap()["pending"],
-            1
-        );
-        let requests = server.join().unwrap();
-        assert!(requests
+    fn position(requests: &[Request], method: &str, path: &str) -> usize {
+        requests
             .iter()
-            .any(|request| request.starts_with("GET /api/sync/snapshot ")));
-        assert!(requests
-            .iter()
-            .any(|request| request.starts_with("GET /api/sync/pull?")));
-        assert!(!requests
-            .iter()
-            .any(|request| request.starts_with("POST /api/sync/push ")));
+            .position(|request| request.is(method, path))
+            .unwrap_or_else(|| panic!("no {method} {path} was sent"))
+    }
+
+    fn order(server: &FakeServer) -> Vec<(String, String)> {
+        server
+            .requests()
+            .into_iter()
+            .map(|request| (request.method, request.path))
+            .collect()
+    }
+
+    fn call(method: &str, path: &str) -> (String, String) {
+        (method.into(), path.into())
+    }
+
+    #[tokio::test]
+    async fn a_body_cut_mid_transfer_costs_one_attempt_not_the_sync() {
+        bounded(async {
+            let server = FakeServer::start();
+            server
+                .replies(
+                    "GET",
+                    "/api/sync/snapshot",
+                    vec![
+                        Reply::cut_short(json!({"rows": []})),
+                        Reply::ok(json!({"rows": []})),
+                    ],
+                )
+                .reply("GET", "/api/sync/pull", empty_pull());
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            let coordinator = Coordinator::new().unwrap();
+            coordinator
+                .synchronize(&store, "7", &server.url(), "token")
+                .await
+                .unwrap();
+
+            assert_eq!(
+                order(&server),
+                [
+                    call("GET", "/api/sync/snapshot"),
+                    call("GET", "/api/sync/snapshot"),
+                    call("GET", "/api/sync/pull"),
+                ]
+            );
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_refused_snapshot_records_the_incompatible_verdict() {
+        bounded(async {
+            let server = FakeServer::start();
+            server.reply(
+                "GET",
+                "/api/sync/snapshot",
+                Reply::json(426, json!({"detail": "Papol needs an update"})),
+            );
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            let coordinator = Coordinator::new().unwrap();
+            let error = coordinator
+                .synchronize(&store, "7", &server.url(), "token")
+                .await
+                .unwrap_err();
+
+            assert!(error.contains("426"));
+            assert_eq!(
+                store.local_setting(COMPATIBILITY_KEY).unwrap().as_deref(),
+                Some("incompatible")
+            );
+            assert_eq!(order(&server), [call("GET", "/api/sync/snapshot")]);
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn pull_only_reconciliation_leaves_pending_uploads_in_the_outbox() {
+        bounded(async {
+            let server = FakeServer::start();
+            server
+                .reply("GET", "/api/sync/snapshot", Reply::ok(json!({"rows": []})))
+                .reply("GET", "/api/sync/pull", empty_pull());
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            store
+                .mutate(
+                    "7",
+                    vec![board_change(&Uuid::new_v4().to_string(), "Pending upload")],
+                )
+                .unwrap();
+            let coordinator = Coordinator::new().unwrap();
+            let report = |_: SyncProgress| {};
+            let result = coordinator
+                .synchronize_with_progress(
+                    &store,
+                    "7",
+                    &server.url(),
+                    "token",
+                    ReconcileOptions {
+                        retry_blocked: false,
+                        mode: SyncMode::Pull,
+                    },
+                    &report,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(result.pushed, 0);
+            assert_eq!(
+                store.query("7", "sync_status", json!({})).unwrap()["pending"],
+                1
+            );
+            assert_eq!(
+                order(&server),
+                [
+                    call("GET", "/api/sync/snapshot"),
+                    call("GET", "/api/sync/pull"),
+                ]
+            );
+            let pull = &server.requests_to("GET", "/api/sync/pull")[0];
+            assert!(pull.query.as_deref().unwrap().contains("cursor=0"));
+        })
+        .await
     }
 
     #[tokio::test]
     async fn ambiguous_push_is_retried_with_the_same_identity() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let board_uuid = Uuid::new_v4().to_string();
-        let response_uuid = board_uuid.clone();
-        let server = thread::spawn(move || {
-            let (mut lost, _) = listener.accept().unwrap();
-            let first = read_request(&mut lost);
-            drop(lost);
+        bounded(async {
+            let board_uuid = Uuid::new_v4().to_string();
+            let server = FakeServer::start();
+            server
+                .replies(
+                    "POST",
+                    "/api/sync/push",
+                    vec![
+                        // Read, then lost: the server may have applied it.
+                        Reply::Hangup,
+                        Reply::ok(json!({
+                            "rows": [board_row(&board_uuid, "Offline")],
+                            "conflicts": []
+                        })),
+                    ],
+                )
+                .reply("GET", "/api/sync/snapshot", Reply::ok(json!({"rows": []})))
+                .reply("GET", "/api/sync/pull", empty_pull());
 
-            let (mut retry, _) = listener.accept().unwrap();
-            let second = read_request(&mut retry);
-            respond(
-                &mut retry,
-                &json!({
-                    "rows": [{
-                        "table": "boards", "uuid": response_uuid, "user_uuid": "7",
-                        "shelf_uuid": null, "name": "Offline", "description": null,
-                        "created_at": "2026-09-12T00:00:00Z",
-                        "updated_at": "2026-09-12T00:00:00Z",
-                        "revision": 1, "deleted_at": null
-                    }],
-                    "conflicts": []
-                }),
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            store
+                .mutate("7", vec![board_change(&board_uuid, "Offline")])
+                .unwrap();
+            let coordinator = Coordinator::new().unwrap();
+            assert!(coordinator
+                .synchronize(&store, "7", &server.url(), "token")
+                .await
+                .is_err());
+            let failed_status = store.query("7", "sync_status", json!({})).unwrap();
+            assert_eq!(failed_status["pending"], 1);
+            assert_eq!(failed_status["attempts"], 1);
+            assert!(failed_status["outbox_error"].as_str().is_some());
+            let result = coordinator
+                .synchronize(&store, "7", &server.url(), "token")
+                .await
+                .unwrap();
+            assert_eq!(result.pushed, 1);
+            assert_eq!(
+                store.query("7", "sync_status", json!({})).unwrap()["pending"],
+                0
             );
 
-            let (mut retry_snapshot, _) = listener.accept().unwrap();
-            let retry_snapshot_request = read_request(&mut retry_snapshot);
-            respond(&mut retry_snapshot, &json!({"rows": []}));
-
-            let (mut pull, _) = listener.accept().unwrap();
-            let pull_request = read_request(&mut pull);
-            respond(
-                &mut pull,
-                &json!({
-                    "cursor": 1, "has_more": false, "changes": []
-                }),
+            assert_eq!(
+                order(&server),
+                [
+                    call("POST", "/api/sync/push"),
+                    call("POST", "/api/sync/push"),
+                    call("GET", "/api/sync/snapshot"),
+                    call("GET", "/api/sync/pull"),
+                ]
             );
-            (first, retry_snapshot_request, second, pull_request)
-        });
-
-        let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        store
-            .mutate(
-                "7",
-                vec![DataChange {
-                    table: "boards".into(),
-                    uuid: board_uuid.clone(),
-                    operation: "upsert".into(),
-                    values: Map::from_iter([("name".into(), json!("Offline"))]),
-                }],
-            )
-            .unwrap();
-        let coordinator = Coordinator::new().unwrap();
-        let backend = format!("http://{address}");
-        assert!(coordinator
-            .synchronize(&store, "7", &backend, "token")
-            .await
-            .is_err());
-        assert_eq!(
-            store.query("7", "sync_status", json!({})).unwrap()["pending"],
-            1
-        );
-        let failed_status = store.query("7", "sync_status", json!({})).unwrap();
-        assert_eq!(failed_status["attempts"], 1);
-        assert!(failed_status["outbox_error"].as_str().is_some());
-        let result = coordinator
-            .synchronize(&store, "7", &backend, "token")
-            .await
-            .unwrap();
-        assert_eq!(result.pushed, 1);
-        assert_eq!(
-            store.query("7", "sync_status", json!({})).unwrap()["pending"],
-            0
-        );
-
-        let (first, retry_snapshot, second, pull) = server.join().unwrap();
-        assert!(retry_snapshot.starts_with("GET /api/sync/snapshot "));
-        let first_body = first.split("\r\n\r\n").nth(1).unwrap();
-        let second_body = second.split("\r\n\r\n").nth(1).unwrap();
-        let first_json: Value = serde_json::from_str(first_body).unwrap();
-        let second_json: Value = serde_json::from_str(second_body).unwrap();
-        assert_eq!(first_json["mutation_uuid"], second_json["mutation_uuid"]);
-        assert_eq!(first_json["client_uuid"], second_json["client_uuid"]);
-        assert!(pull.starts_with("GET /api/sync/pull?"));
+            let pushes = server.requests_to("POST", "/api/sync/push");
+            let (first, second) = (pushes[0].json(), pushes[1].json());
+            assert_eq!(first["mutation_uuid"], second["mutation_uuid"]);
+            assert_eq!(first["client_uuid"], second["client_uuid"]);
+        })
+        .await
     }
 
     #[tokio::test]
     async fn simultaneous_windows_share_one_push_coordinator() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let board_uuid = Uuid::new_v4().to_string();
-        let response_uuid = board_uuid.clone();
-        let server = thread::spawn(move || {
-            let mut requests = Vec::new();
-            for _ in 0..5 {
-                let (mut stream, _) = listener.accept().unwrap();
-                let request = read_request(&mut stream);
-                if request.starts_with("POST /api/sync/push ") {
-                    respond(
-                        &mut stream,
-                        &json!({
-                            "rows": [{
-                                "table": "boards", "uuid": response_uuid, "user_uuid": "7",
-                                "shelf_uuid": null, "name": "One push", "description": null,
-                                "created_at": "2026-09-12T00:00:00Z",
-                                "updated_at": "2026-09-12T00:00:00Z",
-                                "revision": 1, "deleted_at": null
-                            }],
-                            "conflicts": []
-                        }),
-                    );
-                } else if request.starts_with("GET /api/sync/pull?") {
-                    respond(
-                        &mut stream,
-                        &json!({"cursor": 1, "has_more": false, "changes": []}),
-                    );
-                } else {
-                    respond(&mut stream, &json!({"rows": []}));
-                }
-                requests.push(request);
-            }
-            requests
-        });
+        bounded(async {
+            let board_uuid = Uuid::new_v4().to_string();
+            let server = FakeServer::start();
+            server
+                .reply(
+                    "POST",
+                    "/api/sync/push",
+                    Reply::ok(json!({
+                        "rows": [board_row(&board_uuid, "One push")],
+                        "conflicts": []
+                    })),
+                )
+                .reply("GET", "/api/sync/snapshot", Reply::ok(json!({"rows": []})))
+                .reply("GET", "/api/sync/pull", empty_pull());
 
-        let directory = tempfile::tempdir().unwrap();
-        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
-        store
-            .mutate(
-                "7",
-                vec![DataChange {
-                    table: "boards".into(),
-                    uuid: board_uuid,
-                    operation: "upsert".into(),
-                    values: Map::from_iter([("name".into(), json!("One push"))]),
-                }],
-            )
-            .unwrap();
-        let coordinator = Coordinator::new().unwrap();
-        let backend = format!("http://{address}");
-        let (first, second) = tokio::join!(
-            coordinator.synchronize(&store, "7", &backend, "token"),
-            coordinator.synchronize(&store, "7", &backend, "token"),
-        );
-        assert_eq!(first.unwrap().pushed + second.unwrap().pushed, 1);
-        let requests = server.join().unwrap();
-        assert_eq!(
-            requests
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            store
+                .mutate("7", vec![board_change(&board_uuid, "One push")])
+                .unwrap();
+            let coordinator = Coordinator::new().unwrap();
+            let backend = server.url();
+            let (first, second) = tokio::join!(
+                coordinator.synchronize(&store, "7", &backend, "token"),
+                coordinator.synchronize(&store, "7", &backend, "token"),
+            );
+            assert_eq!(first.unwrap().pushed + second.unwrap().pushed, 1);
+            assert_eq!(server.count("POST", "/api/sync/push"), 1);
+            assert_eq!(server.count("GET", "/api/sync/pull"), 2);
+            assert_eq!(server.count("GET", "/api/sync/snapshot"), 2);
+            assert_eq!(server.requests().len(), 5);
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_board_file_goes_to_the_address_the_server_gives_before_its_row_is_pushed() {
+        bounded(async {
+            let bytes = b"a board file, offline until now".to_vec();
+            let server = FakeServer::start();
+            // The bucket's own door, as a presigned address: absolute, with
+            // its signature in the query and the headers it was signed with.
+            let bucket = format!(
+                "{}/bucket/board-files/object?X-Amz-Signature=signed",
+                server.url()
+            );
+            server
+                .reply(
+                    "POST",
+                    "/api/files/upload-address",
+                    Reply::ok(json!({
+                        "stored": false,
+                        "file_path": "board-files/object",
+                        "url": bucket,
+                        "headers": {
+                            "content-type": "application/octet-stream",
+                            "x-amz-checksum-sha256": "signed-checksum"
+                        }
+                    })),
+                )
+                .reply("PUT", "/bucket/board-files/object", Reply::ok(json!({})))
+                .reply(
+                    "POST",
+                    "/api/sync/push",
+                    Reply::ok(json!({"rows": [], "conflicts": []})),
+                );
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            let sha256 = queue_board_file(&store, &bytes);
+            let coordinator = Coordinator::new().unwrap();
+            let result = push_only(&coordinator, &store, &server).await.unwrap();
+
+            assert_eq!(result.pushed, 1);
+            assert_eq!(
+                store.query("7", "sync_status", json!({})).unwrap()["pending"],
+                0
+            );
+            let requests = server.requests();
+            assert_eq!(requests.len(), 3);
+            let asked = position(&requests, "POST", "/api/files/upload-address");
+            let put = position(&requests, "PUT", "/bucket/board-files/object");
+            let pushed = position(&requests, "POST", "/api/sync/push");
+            assert!(asked < put && put < pushed);
+
+            let question = requests[asked].json();
+            assert_eq!(question["kind"], "board_file");
+            assert_eq!(question["sha256"], sha256.as_str());
+            assert_eq!(question["size"], bytes.len());
+            assert_eq!(
+                requests[asked].header("authorization"),
+                Some("Bearer token")
+            );
+
+            let upload = &requests[put];
+            assert_eq!(upload.body, bytes);
+            assert_eq!(upload.query.as_deref(), Some("X-Amz-Signature=signed"));
+            assert_eq!(
+                upload.header("x-amz-checksum-sha256"),
+                Some("signed-checksum")
+            );
+            assert_eq!(
+                upload.header("content-type"),
+                Some("application/octet-stream")
+            );
+            // The bucket is not ours to hand the credential to.
+            assert_eq!(upload.header("authorization"), None);
+
+            let push = requests[pushed].json();
+            assert!(push["changes"]
+                .as_array()
+                .unwrap()
                 .iter()
-                .filter(|request| request.starts_with("POST /api/sync/push "))
-                .count(),
-            1
-        );
-        assert_eq!(
-            requests
-                .iter()
-                .filter(|request| request.starts_with("GET /api/sync/pull?"))
-                .count(),
-            2
-        );
-        assert_eq!(
-            requests
-                .iter()
-                .filter(|request| request.starts_with("GET /api/sync/snapshot "))
-                .count(),
-            2
-        );
+                .any(|change| change["table"] == "board_items"
+                    && change["values"]["sha256"] == sha256.as_str()));
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_file_the_server_already_holds_is_not_sent_again_but_its_row_is() {
+        bounded(async {
+            let server = FakeServer::start();
+            server
+                .reply(
+                    "POST",
+                    "/api/files/upload-address",
+                    Reply::ok(json!({"stored": true, "file_path": "board-files/object"})),
+                )
+                .reply(
+                    "POST",
+                    "/api/sync/push",
+                    Reply::ok(json!({"rows": [], "conflicts": []})),
+                );
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            queue_board_file(&store, b"already in the bucket");
+            let coordinator = Coordinator::new().unwrap();
+            let result = push_only(&coordinator, &store, &server).await.unwrap();
+
+            assert_eq!(result.pushed, 1);
+            assert_eq!(
+                order(&server),
+                [
+                    call("POST", "/api/files/upload-address"),
+                    call("POST", "/api/sync/push"),
+                ]
+            );
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_change_that_names_no_file_asks_for_no_upload_address() {
+        bounded(async {
+            let board_uuid = Uuid::new_v4().to_string();
+            let server = FakeServer::start();
+            server.reply(
+                "POST",
+                "/api/sync/push",
+                Reply::ok(json!({
+                    "rows": [board_row(&board_uuid, "No files")],
+                    "conflicts": []
+                })),
+            );
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            store
+                .mutate("7", vec![board_change(&board_uuid, "No files")])
+                .unwrap();
+            let coordinator = Coordinator::new().unwrap();
+            let result = push_only(&coordinator, &store, &server).await.unwrap();
+
+            assert_eq!(result.pushed, 1);
+            assert_eq!(order(&server), [call("POST", "/api/sync/push")]);
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_file_upload_that_fails_keeps_its_row_from_being_pushed() {
+        bounded(async {
+            let server = FakeServer::start();
+            // The Worker's own door, as a local Worker gives it: relative,
+            // with the caller's credential among the listed headers.
+            server.route("POST", "/api/files/upload-address", |request| {
+                let sha256 = request.json()["sha256"].as_str().unwrap().to_owned();
+                Reply::ok(json!({
+                    "stored": false,
+                    "file_path": format!("board-files/{sha256}"),
+                    "url": format!("/api/files/board_file/{sha256}"),
+                    "headers": {
+                        "content-type": "application/octet-stream",
+                        "authorization": "Bearer token"
+                    }
+                }))
+            });
+
+            let directory = tempfile::tempdir().unwrap();
+            let store = open_store(&directory);
+            let sha256 = queue_board_file(&store, b"the bucket is down");
+            let upload_path = format!("/api/files/board_file/{sha256}");
+            server.reply(
+                "PUT",
+                &upload_path,
+                Reply::json(500, json!({"detail": "bucket unavailable"})),
+            );
+            let coordinator = Coordinator::new().unwrap();
+            let error = push_only(&coordinator, &store, &server).await.unwrap_err();
+
+            assert!(error.contains("500"), "{error}");
+            assert_eq!(
+                order(&server),
+                [
+                    call("POST", "/api/files/upload-address"),
+                    call("PUT", &upload_path),
+                ]
+            );
+            let upload = &server.requests_to("PUT", &upload_path)[0];
+            assert_eq!(upload.header("authorization"), Some("Bearer token"));
+            // A failed upload is worth trying again: the mutation waits in
+            // the outbox with its error rather than being blocked.
+            let status = store.query("7", "sync_status", json!({})).unwrap();
+            assert_eq!(status["pending"], 1);
+            assert_eq!(status["attempts"], 1);
+            assert!(status["outbox_error"].as_str().unwrap().contains("500"));
+        })
+        .await
     }
 }
