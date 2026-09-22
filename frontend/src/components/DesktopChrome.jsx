@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
 import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
@@ -217,8 +218,8 @@ function SyncControl({ onReportableError, onSynced }) {
         aria-label={`Sync now — ${summary}`}
         title={status.offline ? OFFLINE_MODE_MESSAGE : (status.error || 'Send and receive changes now')}
       >
-        <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
-        <span>{status.offline ? 'Offline — Sync' : 'Sync'}</span>
+        <span className="desktop-sync-mark" aria-hidden="true">↻</span>
+        <span>{status.syncing ? 'Syncing…' : status.offline ? 'Offline — Sync' : 'Sync'}</span>
       </button>
     </section>
   );

@@ -238,10 +238,6 @@ export const desktopStyles = `
   text-align: center;
 }
 
-.desktop-sync-mark.spinning {
-  animation: spin .8s linear infinite;
-}
-
 .desktop-sync-control.has-error .desktop-sync-mark {
   color: var(--red);
 }

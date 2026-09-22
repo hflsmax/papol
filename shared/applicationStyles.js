@@ -558,12 +558,6 @@ button.full-width {
   margin-bottom: 18px;
 }
 
-.loading {
-  text-align: center;
-  padding: 48px;
-  font-style: italic;
-}
-
 /* ---------- Forms ---------- */
 
 .form-group {
@@ -826,8 +820,8 @@ button.full-width {
 
 .paper-metadata-heading h3 { margin: 0; }
 
-/* One line under the heading while the PDF is read, and the same line,
-   spinner gone, when it could not be: the form is open either way, and
+/* One line under the heading while the PDF is read (the wait itself), and
+   the same line when it could not be: the form is open either way, and
    nothing about the reading is worth a banner. */
 .metadata-reading {
   display: flex;
@@ -835,12 +829,8 @@ button.full-width {
   gap: 7px;
   margin: 8px 0 0;
   color: var(--ink-faint);
+  font-family: var(--font-ui);
   font-size: var(--fs-sm);
-}
-
-.metadata-spinner {
-  width: 14px;
-  height: 14px;
 }
 
 .upload-review-form .form-group {
@@ -2676,25 +2666,12 @@ h4 .state-pill {
   margin-top: 14px;
 }
 
-.local-sync-bar {
-  height: 6px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--line);
-}
-
-.local-sync-bar span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
-  transition: width .2s ease;
+/* The export's wait, where its "Downloaded" line will be. */
+.export-progress {
+  margin-bottom: 16px;
 }
 
 .local-sync-detail {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
   margin-top: 6px;
   color: var(--ink-soft);
   font-size: var(--fs-sm);
@@ -2702,11 +2679,6 @@ h4 .state-pill {
 
 .local-sync-detail.error {
   color: var(--red);
-}
-
-.local-sync-speed {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 .local-storage-row {

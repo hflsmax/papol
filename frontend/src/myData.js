@@ -12,6 +12,31 @@ import { API_BASE, authHeaders, handleResponse } from '../../shared/httpClient.j
 import { backendPath } from '../../shared/appUrls.js';
 import { assembleExport } from '../../shared/exportArchive.js';
 
+// A response's bytes, read as they arrive so the wait can be measured;
+// `onBytes` hears the running count. A body that cannot be streamed is
+// read whole and reported once.
+async function readBody(response, onBytes) {
+  if (!response.body?.getReader) {
+    const whole = new Uint8Array(await response.arrayBuffer());
+    onBytes(whole.length);
+    return whole;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    onBytes(loaded);
+  }
+  const whole = new Uint8Array(loaded);
+  let at = 0;
+  for (const chunk of chunks) { whole.set(chunk, at); at += chunk.length; }
+  return whole;
+}
+
 /**
  * Download everything Papol holds about the user, as a zip.
  *
@@ -20,8 +45,10 @@ import { assembleExport } from '../../shared/exportArchive.js';
  * through a link that is clicked and thrown away — the only way to name a
  * downloaded file from script.
  *
- * `onProgress` hears each step as { phase, done, total }. Answers the
- * zip's size and the paths of the files that could not be fetched.
+ * `onProgress` hears each step as { phase, done, total, bytes, totalBytes }:
+ * 'gathering' while the data is fetched, 'fetching' with the counts while
+ * the files are, 'packing' while the zip is made. Answers the zip's size
+ * and the paths of the files that could not be fetched.
  */
 export async function downloadMyData(onProgress = () => {}) {
   onProgress({ phase: 'gathering' });
@@ -39,14 +66,14 @@ export async function downloadMyData(onProgress = () => {}) {
   // A PDF needs no session, its name being a digest nobody guesses, and
   // is fetched from wherever the manifest says — the bucket's own address,
   // as a rule; a board file is private, and its route asks who is asking.
-  const fetchFile = async ({ url }) => {
+  const fetchFile = async ({ url }, onBytes) => {
     const where = /^https?:/.test(url) ? url : backendPath(url);
     const answer = await runtimeFetch(where, { headers: url.startsWith('/api/') ? authHeaders() : {} });
     if (!answer.ok) throw new Error(`Error ${answer.status}`);
-    return new Uint8Array(await answer.arrayBuffer());
+    return readBody(answer, onBytes);
   };
   const { entries, failed } = await assembleExport(tar, fetchFile, {
-    onProgress: ({ done, total }) => onProgress({ phase: 'fetching', done, total }),
+    onProgress: (counts) => onProgress({ phase: 'fetching', ...counts }),
   });
 
   onProgress({ phase: 'packing' });

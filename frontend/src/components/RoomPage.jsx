@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { getRoom } from '../../../shared/api/rooms.js';
 import RoomView from './RoomView';
 import StatePill from './StatePill';
@@ -48,7 +49,7 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
       </div>
     );
   }
-  if (!room) return <div className="loading" role="status" aria-live="polite">Loading cohort…</div>;
+  if (!room) return <div className="loading"><Working label="Loading cohort…" /></div>;
 
   return (
     <div className="room-page">

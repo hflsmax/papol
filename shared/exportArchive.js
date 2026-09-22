@@ -42,6 +42,12 @@ export function untar(bytes) {
 // images, already compressed, and are stored as they are. A file that
 // cannot be fetched is left out and named in `failed`; the rest of the
 // export does not wait on it.
+//
+// The manifest says how big each file is, so the wait is measured:
+// `onProgress` hears `{ done, total, bytes, totalBytes }` — files in and
+// files named, bytes in and bytes named — after every file, and between
+// files whenever `fetchFile` reports through its second argument how
+// many of a file's bytes it has so far.
 export async function assembleExport(tarBytes, fetchFile, { onProgress = () => {}, concurrency = 4 } = {}) {
   const entries = untar(tarBytes);
   const manifestName = [...entries.keys()].find((name) => /(^|\/)files\.json$/.test(name));
@@ -53,18 +59,33 @@ export async function assembleExport(tarBytes, fetchFile, { onProgress = () => {
 
   const failed = [];
   const queue = manifest.slice();
+  const totalBytes = manifest.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
+  const inFlight = new Map();
   let done = 0;
-  onProgress({ done, total: manifest.length });
+  let landed = 0;
+  const report = () => {
+    let bytes = landed;
+    for (const partial of inFlight.values()) bytes += partial;
+    onProgress({ done, total: manifest.length, bytes: Math.min(bytes, totalBytes), totalBytes });
+  };
+  report();
   const worker = async () => {
     while (queue.length) {
       const file = queue.shift();
+      const size = Number(file.size) || 0;
+      inFlight.set(file, 0);
       try {
-        zip[`${root}${file.path}`] = [await fetchFile(file), { level: 0 }];
+        zip[`${root}${file.path}`] = [await fetchFile(file, (loaded) => {
+          inFlight.set(file, Math.min(loaded, size));
+          report();
+        }), { level: 0 }];
       } catch {
         failed.push(file.path);
       }
+      inFlight.delete(file);
+      landed += size;
       done += 1;
-      onProgress({ done, total: manifest.length });
+      report();
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, manifest.length) }, worker));

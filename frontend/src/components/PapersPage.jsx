@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { listLibraryBoards } from '../../../shared/api/boards.js';
 import { listPapers, paperHref } from '../../../shared/api/papers.js';
 import { RatingSummary } from './Rating';
@@ -67,7 +68,7 @@ export default function PapersPage({
   useEffect(load, []);
 
   if (error) return <div className="error" role="alert">{error}</div>;
-  if (papers === null || boards === null) return <div className="loading" role="status" aria-live="polite">Loading the library…</div>;
+  if (papers === null || boards === null) return <div className="loading"><Working label="Loading the library…" /></div>;
 
   const searchLower = search.toLowerCase();
   const matches = (p) =>

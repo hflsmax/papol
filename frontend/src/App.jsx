@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { Working } from '../../shared/ui/Waiting.js';
 import {
   getMe, getToken, logout, pendingLocalChanges,
   refreshStartupUser,
@@ -476,7 +477,7 @@ export default function App({ startupUser = null, startupError = null }) {
     return (
       <>
         <style>{applicationStyles}</style>
-        <div className="loading" role="status" aria-live="polite">Loading…</div>
+        <div className="loading"><Working label="Loading…" /></div>
       </>
     );
   }
