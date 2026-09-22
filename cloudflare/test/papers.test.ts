@@ -2,7 +2,7 @@
 // job that reads it, saving, opening, editing, taking a copy and letting
 // one go, and the PDF itself.
 import { createExecutionContext, createMessageBatch, env } from "cloudflare:test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
 import type { Wakeup } from "../src/jobs/run";
@@ -14,8 +14,6 @@ const A_PAPER = "a1b2c3d4" + "0".repeat(24) + "f".repeat(32);
 // Agrees with A_PAPER for the whole of its short name and differs after it.
 const ITS_TWIN = A_PAPER.slice(0, 32) + "e".repeat(32);
 const NAME = A_PAPER.slice(0, 32);
-
-afterEach(() => vi.unstubAllGlobals());
 
 async function woken(...uuids: string[]) {
   const batch = createMessageBatch<Wakeup>("papol-jobs", uuids.map((id) => ({ id: uuid(), timestamp: new Date(), body: { job: id }, attempts: 1 })));

@@ -1,59 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const values = new Map([
-  ['papol.localAccountUuid', '77777777-7777-4777-8777-777777777777'],
-  ['papol.syncPreference', 'manual'],
-  ['papol_token', 'token'],
-]);
-const calls = [];
-let localPdfMissing = false;
-global.localStorage = {
-  getItem: (key) => values.get(key) ?? null,
-  setItem: (key, value) => values.set(key, String(value)),
-  removeItem: (key) => values.delete(key),
-};
-global.location = new URL('https://papol.test/viewer/index.html');
-global.window = {
-  location: global.location,
-  __PAPOL_ENV__: { runtime: 'desktop', surface: 'viewer', documentWindow: true },
-  __TAURI_INTERNALS__: {
-    invoke: async (command, arguments_) => {
-      calls.push([command, arguments_]);
-      if (command === 'local_setting_get') return 'manual';
-      if (command === 'data_query' && arguments_.queryName === 'paper_by_pdf') {
-        return { sha256: 'a'.repeat(64) };
-      }
-      if (command === 'data_query') return [];
-      if (command === 'blob_read') {
-        if (localPdfMissing) throw new Error('Blob is not available offline');
-        return [37, 80, 68, 70];
-      }
-      if (command === 'blob_ensure') {
-        localPdfMissing = false;
-        return null;
-      }
-      if (command === 'opened_file_read') return [37, 80, 68, 70, 45, 49, 46, 52];
-      if (command === 'data_mutate') {
-        return { rows: [{ uuid: arguments_.changes[0].uuid, ...arguments_.changes[0].values }] };
-      }
-      return null;
-    },
-    transformCallback: () => 1,
-  },
-  addEventListener() {},
-  dispatchEvent() {},
-};
-global.Event = class Event { constructor(type) { this.type = type; } };
+import { installNativeHarness, sha256Hex } from '../../shared/testing/nativeHarness.js';
+
+const native = await installNativeHarness({
+  surface: 'viewer', documentWindow: true, href: 'https://papol.test/viewer/index.html',
+});
 
 const {
   createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes, pdfLoadInput,
 } = await import('./api.js');
-const { hydrateCredential } = await import('../../shared/credentials.js');
 // A paper is its file, so the digest the viewer was opened on is also the
 // name every annotation call gives it.
-const PAPER = 'a'.repeat(64);
-
+const PDF = [37, 80, 68, 70];
+const PAPER = sha256Hex(new Uint8Array(PDF));
+const calls = native.calls;
 
 test('every kind of annotation reaches the one native table', async () => {
   const note = await createAnnotation(PAPER, {
@@ -94,7 +55,6 @@ test('every kind of annotation reaches the one native table', async () => {
 });
 
 test('a local paper digest reads annotations without falling through to integer REST routes', async () => {
-  calls.length = 0;
   await listAnnotations(PAPER, { kind: 'ink' });
   await listAnnotations(PAPER, { kind: 'clip' });
   const reads = calls.filter(([command, args]) => command === 'data_query'
@@ -104,8 +64,8 @@ test('a local paper digest reads annotations without falling through to integer 
 });
 
 test('paper identity is available before its notes are queried', async () => {
-  calls.length = 0;
-  const paper = await getPaperByPdf('a'.repeat(64));
+  native.query('paper_by_pdf', ({ sha256 }) => ({ sha256 }));
+  const paper = await getPaperByPdf(PAPER);
 
   assert.equal(paper.sha256, PAPER);
   assert.equal(calls.some(([, args]) => args?.queryName === 'annotations'), false);
@@ -115,7 +75,9 @@ test('paper identity is available before its notes are queried', async () => {
 });
 
 test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', async () => {
-  const nook = await pdfLoadInput({ sha256: 'a'.repeat(64) });
+  native.importBlob(PDF);
+  native.on('opened_file_read', () => [37, 80, 68, 70, 45, 49, 46, 52]);
+  const nook = await pdfLoadInput({ sha256: PAPER });
   assert.ok(nook.data instanceof Uint8Array);
   assert.deepEqual([...nook.data], [37, 80, 68, 70]);
   assert.equal('url' in nook, false);
@@ -130,9 +92,8 @@ test('desktop PDF rendering gives PDF.js bytes instead of a Tauri blob URL', asy
 });
 
 test('a handed-off PDF missing locally syncs only that file and then opens it', async () => {
-  calls.length = 0;
-  localPdfMissing = true;
-  await hydrateCredential();
+  // Not in the store until the one file is fetched.
+  native.on('blob_ensure', () => { native.importBlob(PDF); return null; });
 
   const input = await pdfLoadInput({ sha256: PAPER });
 
@@ -144,6 +105,6 @@ test('a handed-off PDF missing locally syncs only that file and then opens it', 
   );
   const ensure = calls.find(([command]) => command === 'blob_ensure')[1];
   assert.equal(ensure.sha256, PAPER);
-  assert.equal(ensure.token, 'token');
+  assert.equal(ensure.token, 'secret-token');
   assert.equal(calls.some(([command]) => command === 'sync_now'), false);
 });

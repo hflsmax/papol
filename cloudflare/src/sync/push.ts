@@ -365,8 +365,11 @@ async function assignValues(work: Working, env: Env, entry: Entry, values: Recor
       row.group_uuid = (await ownedGroup(work, values.group_uuid, board))?.row.uuid ?? null;
     }
     if (values.sha256) {
-      const digest = String(values.sha256);
-      if (!DIGEST.test(digest) || !(await stored(env, boardFileKey(blobKey(digest))))) refuse(409, "Referenced blob has not been uploaded");
+      // A string, and not merely something that prints as one: an array
+      // holding a digest would pass the pattern and then reach the
+      // database as an array.
+      const digest = values.sha256;
+      if (typeof digest !== "string" || !DIGEST.test(digest) || !(await stored(env, boardFileKey(blobKey(digest))))) refuse(409, "Referenced blob has not been uploaded");
       row.file_path = blobKey(digest);
     }
     if (values.source_url) validate.boardLink(values.source_url);

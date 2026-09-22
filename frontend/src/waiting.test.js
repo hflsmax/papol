@@ -94,11 +94,20 @@ test('a fraction needs a total', () => {
   assert.equal(progressFraction(undefined, 10), null);
 });
 
-test('a full bar is held briefly and no longer', async () => {
-  const started = Date.now();
-  await holdFullBar(started);
-  assert.ok(Date.now() - started >= PROGRESS_HOLD_MS - 5);
-  const long = Date.now();
-  await holdFullBar(long - PROGRESS_HOLD_MS * 2);
-  assert.ok(Date.now() - long < 50, 'a hold that has already passed settles at once');
+test('a full bar is held briefly and no longer', async (t) => {
+  // The clock is the test's: the hold is measured, not waited out.
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  let held = false;
+  const holding = holdFullBar(Date.now()).then(() => { held = true; });
+  t.mock.timers.tick(PROGRESS_HOLD_MS - 1);
+  await flush();
+  assert.equal(held, false, 'still held a moment before the hold ends');
+  t.mock.timers.tick(1);
+  await holding;
+
+  let settled = false;
+  holdFullBar(Date.now() - PROGRESS_HOLD_MS * 2).then(() => { settled = true; });
+  await flush();
+  assert.equal(settled, true, 'a hold that has already passed settles at once');
 });
