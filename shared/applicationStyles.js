@@ -285,6 +285,35 @@ ${commonStyles}
   white-space: pre-wrap;
 }
 
+.admin-email-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.sent-email-subject {
+  font-weight: 600;
+  text-align: left;
+}
+
+.sent-email-detail {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+/* An HTML email is drawn on the white its sender assumed. */
+.sent-email-html {
+  display: block;
+  width: 100%;
+  min-height: 360px;
+  border: 0;
+  background: #fff;
+}
+
 .notice-banner {
   display: flex;
   align-items: center;
@@ -558,12 +587,6 @@ button.full-width {
   margin-bottom: 18px;
 }
 
-.loading {
-  text-align: center;
-  padding: 48px;
-  font-style: italic;
-}
-
 /* ---------- Forms ---------- */
 
 .form-group {
@@ -801,7 +824,7 @@ button.full-width {
 
 /* ---------- Upload ---------- */
 
-.upload-review-mode > .back-button:not(.upload-review-back),
+.upload-review-mode > .back-button,
 .upload-review-mode > .shelf-manager,
 .upload-review-mode > .paper-list {
   display: none;
@@ -826,8 +849,8 @@ button.full-width {
 
 .paper-metadata-heading h3 { margin: 0; }
 
-/* One line under the heading while the PDF is read, and the same line,
-   spinner gone, when it could not be: the form is open either way, and
+/* One line under the heading while the PDF is read (the wait itself), and
+   the same line when it could not be: the form is open either way, and
    nothing about the reading is worth a banner. */
 .metadata-reading {
   display: flex;
@@ -835,13 +858,14 @@ button.full-width {
   gap: 7px;
   margin: 8px 0 0;
   color: var(--ink-faint);
+  font-family: var(--font-ui);
   font-size: var(--fs-sm);
 }
 
-.metadata-spinner {
-  width: 14px;
-  height: 14px;
-}
+/* The version Papol already holds of the work, and the choice between it
+   and this PDF, on the same line as the reading's. */
+.metadata-reading.known-version { flex-wrap: wrap; }
+.metadata-reading.known-version input[type='radio'] { margin: 0; accent-color: var(--accent); }
 
 .upload-review-form .form-group {
   margin-bottom: 12px;
@@ -892,6 +916,13 @@ button.full-width {
 
 .dropzone p {
   color: var(--ink-soft);
+}
+
+/* The upload's wait, where the drop went (docs/waiting.md). */
+.dropzone .wait-progress {
+  max-width: 360px;
+  margin: 0 auto;
+  text-align: left;
 }
 
 .dropzone .hint {
@@ -951,6 +982,27 @@ button.full-width {
   box-shadow: 0 8px 24px rgba(29,33,41,.18);
   font: var(--fs-sm) var(--font-ui);
 }
+
+/* A sync that did not finish, said where the user is (SyncAttention). */
+.sync-attention {
+  position: fixed;
+  z-index: 1000;
+  left: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 6px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--red);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(29,33,41,.18);
+  font: var(--fs-sm) var(--font-ui);
+}
+.sync-attention p { margin: 0; color: var(--ink-soft); line-height: 1.4; }
+.sync-attention-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.sync-attention-close { margin-left: auto; border: 0; background: none; color: var(--ink-soft); font-size: var(--fs-lg); line-height: 1; cursor: pointer; }
 
 .upload-section.compact { flex: 1 1 240px; min-width: 180px; }
 .upload-section.compact .dropzone { display: grid; place-items: center; min-height: 48px; margin: 0; padding: 8px 12px; }
@@ -1633,6 +1685,20 @@ button.full-width {
 }
 .back-button.disabled { pointer-events: none; opacity: .55; }
 
+/* A jacket's way back sits midway between the page header and the panel,
+   16px from each: drawn up into the header's 28px bottom margin (.topnav,
+   which every page shares) and leaving as much below it. A block, so the
+   margins hold; only as wide as its words, so the rest of the row is not
+   a link. Both jackets are laid out the same way, plain blocks spaced by
+   their own margins (.panel's 20px between panels), so one rule places it
+   in each. */
+.paper-jacket > .back-button,
+.board-jacket > .back-button {
+  display: block;
+  width: fit-content;
+  margin: -12px 0 16px;
+}
+
 .back-button:hover {
   text-decoration: underline;
   background: none;
@@ -1743,6 +1809,336 @@ button.full-width {
 
 .metadata .doi:hover {
   text-decoration: underline;
+}
+
+/* ---------- A board's jacket ---------- */
+
+/* Set like a paper's — the same panel, title row, shelf picker, trash and
+   action row — because the two are the same kind of thing. What is its own
+   is below: the name and description edited in place, the facts line, the
+   preview, and the lists of papers and waiting clips. */
+.board-jacket-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.board-jacket-heading h2 {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-2xl);
+  overflow-wrap: anywhere;
+}
+
+/* The owner's name and description are the words themselves, and pointing
+   at them says they can be changed. */
+.board-jacket-editable {
+  cursor: text;
+  border-radius: var(--radius);
+  outline: none;
+  transition: background-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.board-jacket-editable:hover,
+.board-jacket-editable:focus-visible {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.board-jacket-name-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: -5px 0 -4px;
+  padding: 3px 7px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.board-jacket-name-input:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* One muted line, the parts set apart by middots. */
+.board-jacket-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 2px 0 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+  /* Every part carries its middot in front, and the line is drawn one
+     middot's width to the left with that width clipped away: whichever part
+     starts a line, on a phone too, starts it without a stray dot. */
+  margin-left: -16px;
+  clip-path: inset(0 0 0 16px);
+}
+
+.board-jacket-facts > *::before {
+  content: '·';
+  display: inline-block;
+  width: 16px;
+  color: var(--line-strong);
+  text-align: center;
+}
+
+.board-jacket-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.board-jacket-owner::before { margin-right: -6px; }
+.board-jacket-owner:hover { color: var(--accent); }
+.board-jacket-owner .mini-avatar { width: 20px; height: 20px; }
+
+.board-jacket-description {
+  max-width: 44rem;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.board-jacket-description.board-jacket-editable { width: fit-content; }
+
+.board-jacket-description.empty {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.board-jacket .board-jacket-description-input {
+  display: block;
+  max-width: 44rem;
+  margin-top: 12px;
+}
+
+/* The preview, the papers and the waiting clips each stand a little apart
+   from what is above them, as the paper page's sections do. */
+.board-jacket .board-preview { margin-top: 20px; }
+
+.board-jacket-section { margin-top: 24px; }
+.board-jacket-section .kicker { margin: 0 0 6px; }
+
+.board-jacket-papers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The title, and under it who and when: the same two lines whatever the
+   title's length, so the list reads as a column. */
+.board-jacket-papers li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.board-jacket-papers li:last-child { border-bottom: 1px solid var(--line); }
+
+.board-jacket-papers a {
+  min-width: 0;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.board-jacket-papers a:hover { color: var(--accent); text-decoration: underline; }
+
+.board-jacket-papers span {
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.board-jacket-more {
+  margin: 6px 0 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+}
+
+.board-jacket-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.board-jacket-section-head p {
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+}
+
+.board-jacket-section-head button {
+  flex: none;
+  padding: 6px 12px;
+  font-size: var(--fs-xs);
+}
+
+.board-jacket-staged {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.board-jacket-staged-item,
+.board-jacket-staged-more {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.board-jacket-staged-item > span {
+  color: var(--accent);
+  font: 700 var(--fs-2xs) var(--font-ui);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.board-jacket-staged-item p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.board-jacket-staged-item small {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font: var(--fs-2xs) var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-jacket-staged-more {
+  display: grid;
+  min-height: 86px;
+  place-items: center;
+  color: var(--ink-soft);
+  font: 600 var(--fs-sm) var(--font-ui);
+}
+
+/* A board seen from a distance, every card where it sits. The frame takes
+   the proportions of the cards' own extent (--preview-ratio, set by
+   BoardPreview), no taller than 320px — 200px on a phone — and no wider than
+   the panel, centred in it: the cards fill it rather than floating in it. */
+.board-preview {
+  --preview-height: 320px;
+  position: relative;
+  display: grid;
+  width: min(100%, calc(var(--preview-height) * var(--preview-ratio, 1.6)));
+  aspect-ratio: var(--preview-ratio, 1.6);
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--paper-sunken);
+  background-image: radial-gradient(circle, var(--line-strong) .65px, transparent .75px);
+  background-size: 16px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.board-preview:hover,
+.board-preview:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.board-preview svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 600px) {
+  .board-preview { --preview-height: 200px; }
+}
+
+.board-preview-card rect {
+  fill: var(--card);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 3px 3px rgba(29,33,41,.10));
+}
+
+.board-preview-card line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.board-preview-card text {
+  fill: var(--ink-soft);
+  font: 14px var(--font-serif);
+  pointer-events: none;
+}
+
+.board-preview-card text.kind {
+  fill: var(--ink-faint);
+  font: 700 10px var(--font-ui);
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+
+.board-preview-card.comment rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent-line);
+}
+
+.board-preview.empty {
+  width: 100%;
+  min-height: 180px;
+  aspect-ratio: auto;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 28px 20px;
+  color: var(--ink-faint);
+  background-image: none;
+  font: var(--fs-sm) var(--font-ui);
+  text-align: center;
+}
+
+.board-preview.empty svg {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  padding: 0;
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+}
+
+.board-preview.empty strong {
+  color: var(--ink-soft);
+  font-size: var(--fs-base);
 }
 
 .nook-chip {
@@ -2470,15 +2866,10 @@ h4 .state-pill {
 .home-organize-item strong { font-size: var(--fs-base); }
 .home-organize-item p { margin-top: 2px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
 
-.incubation-note {
-  margin-top: 18px;
-  font-size: var(--fs-sm);
-  font-style: italic;
-}
 
-/* The source link on the About page. A quiet annotation, not a call to action:
-   it sits below the note about incubation and is meant to be found by
-   someone looking for it. */
+/* The source link in the hero. A quiet annotation, not a call to action:
+   it sits below the note and is meant to be found by someone looking
+   for it. */
 .home-source {
   display: inline-block;
   margin-top: 14px;
@@ -2681,25 +3072,12 @@ h4 .state-pill {
   margin-top: 14px;
 }
 
-.local-sync-bar {
-  height: 6px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--line);
-}
-
-.local-sync-bar span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
-  transition: width .2s ease;
+/* The export's wait, where its "Downloaded" line will be. */
+.export-progress {
+  margin-bottom: 16px;
 }
 
 .local-sync-detail {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
   margin-top: 6px;
   color: var(--ink-soft);
   font-size: var(--fs-sm);
@@ -2707,11 +3085,6 @@ h4 .state-pill {
 
 .local-sync-detail.error {
   color: var(--red);
-}
-
-.local-sync-speed {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 .local-storage-row {
@@ -3251,6 +3624,35 @@ a.button:hover {
   max-width: 46ch;
   margin: 0 auto;
   line-height: 1.7;
+}
+
+/* ---------- About ---------- */
+
+/* A page of prose panels: a kicker naming each section and a paragraph or
+   two beneath it, set like the organize items on the home page so the two
+   pages read as one site. The prose is the only thing on the page, so a
+   line is held to a readable measure whatever the window's width. */
+/* One story, read at the tagline's pace rather than a list's: the
+   hero's measure and leading, the first paragraph a shade larger and
+   darker, the rest following at a paragraph's distance. */
+.about-story p {
+  color: var(--ink-soft);
+  font-size: var(--fs-base);
+  line-height: 1.7;
+  max-width: 58ch;
+}
+
+.about-story p + p { margin-top: 14px; }
+
+.about-story .about-lede {
+  color: var(--ink);
+  font-size: calc(var(--fs-base) * 1.1);
+  margin-top: 6px;
+}
+
+.about-story a {
+  color: var(--accent);
+  text-underline-offset: 3px;
 }
 
 /* ---------- Seminar flow diagram ---------- */
@@ -3884,20 +4286,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
    wear, so one glyph means one thing everywhere in Papol. */
 /* The way back to where the board is kept, beside the house that leaves for
    Papol. Worded, because unlike the house it names what it returns to. */
-/* ---------- A board's jacket ---------- */
-
-/* Its one screen in the Library: what is known about the board, and the way
-   in. Set like a paper's, because the two are the same kind of thing. */
-.board-jacket { display: flex; flex-direction: column; gap: 12px; }
-.board-jacket-head { display: flex; align-items: center; gap: 10px; }
-.board-jacket .board-jacket-name { flex: 1; min-width: 0; margin: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-2xl); line-height: 1.2; }
-.board-jacket input.board-jacket-name:hover { border-color: var(--line); }
-.board-jacket input.board-jacket-name:focus { border-color: var(--accent); background: var(--card); outline: none; }
-.board-jacket-facts { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin: 0; color: var(--ink-faint); font-size: var(--fs-sm); }
-.board-jacket .board-jacket-note { width: 100%; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-md); line-height: 1.55; resize: vertical; white-space: pre-wrap; }
-.board-jacket textarea.board-jacket-note:focus { border-color: var(--accent); background: var(--card); outline: none; }
-.board-jacket-actions { display: flex; gap: 10px; align-items: center; }
-
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
@@ -3975,6 +4363,47 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-booklet-header-text.empty { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-style: italic; }
 .board-booklet-branch { position: absolute; z-index: 4; left: 10px; height: 1px; border-radius: 1px; background: var(--booklet-line); pointer-events: auto; transition: transform 180ms cubic-bezier(.22,.9,.3,1); }
 .board-booklet-branch::before { content: ''; position: absolute; inset: -15px 0; }
+/* A group's options: a quiet ⋯ at the end of its heading, shown on hover,
+   and once the group is selected a bar just above the heading. Both keep
+   their size on screen whatever the zoom, as the card actions do. An empty
+   header's prompt waits for the same hover, so an untouched group is only
+   its title. */
+.board-booklet-heading.has-options .board-booklet-title { padding-right: calc(34px * var(--board-ui-scale)); }
+.board-group-more { position: absolute; z-index: 1; top: 50%; right: 2px; display: grid; place-items: center; width: 28px; height: 28px; padding: 4px; border-radius: 50%; color: var(--ink-soft); opacity: 0; translate: 0 -50%; scale: var(--board-ui-scale); transform-origin: right center; pointer-events: auto; transition: opacity var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.board-group-more > svg, .board-group-options .item-action > svg { display: block; width: 20px; height: 20px; }
+.board-group-more .action-glyph, .board-group-options .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.board-group-more .action-glyph-fill { fill: currentColor; stroke: none; }
+.board-booklet:hover .board-group-more, .board-group-more:focus-visible, .board-group-more[aria-expanded='true'] { opacity: 1; }
+.board-group-more:hover:not(:disabled), .board-group-more[aria-expanded='true'] { background: var(--accent-soft); color: var(--accent); }
+.board-booklet-header-text.empty:is(button) { opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.board-booklet:hover .board-booklet-header-text.empty, .board-booklet.selected .board-booklet-header-text.empty, .board-booklet-header-text.empty:focus-visible { opacity: 1; }
+.board-group-options-anchor { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.board-group-options { position: absolute; right: 0; bottom: calc(6px * var(--board-ui-scale)); scale: var(--board-ui-scale); transform-origin: bottom right; font-family: var(--font-ui); line-height: 1.35; cursor: default; }
+.board-group-options.below { top: 40px; bottom: auto; transform-origin: top right; }
+.board-group-options-surface { display: flex; align-items: center; gap: 2px; width: max-content; padding: 3px; border-radius: 999px; backdrop-filter: blur(8px); }
+.board-group-options-kind { padding: 0 8px 0 11px; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; white-space: nowrap; }
+.board-group-arrange { display: flex; gap: 2px; margin-right: 3px; padding: 2px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, var(--card)); }
+.board-group-arrange button { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px 0 8px; border-radius: 999px; color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); white-space: nowrap; }
+.board-group-arrange button > svg { width: 17px; height: 17px; }
+.board-group-arrange button:hover:not(:disabled) { color: var(--ink); }
+.board-group-arrange button[aria-checked='true'] { background: var(--card); color: var(--accent); box-shadow: 0 1px 2px rgba(29,33,41,.14), 0 0 0 1px var(--accent-line); }
+.board-group-options-divider { width: 1px; height: 20px; margin: 0 3px; background: var(--line); }
+/* A tidy, an arrange or a reset glides what it moves, and then says what
+   it did, with the way back, at the foot of the canvas. */
+.board-stage.board-gliding .board-canvas-card,
+.board-stage.board-gliding .board-booklet { transition: transform 180ms cubic-bezier(.22,.9,.3,1), width 180ms cubic-bezier(.22,.9,.3,1), height 180ms cubic-bezier(.22,.9,.3,1); }
+.board-notice { position: fixed; z-index: 45; bottom: 22px; left: 50%; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 6px 6px 6px 16px; transform: translateX(-50%); border-radius: var(--radius-pill); color: var(--ink); font: var(--fs-sm) var(--font-ui); animation: board-notice-in 160ms var(--ease-out); }
+.board-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-notice button { padding: 5px 12px; border-radius: var(--radius-pill); color: var(--accent); font: 600 var(--fs-sm) var(--font-ui); }
+.board-notice button:hover:not(:disabled) { background: var(--accent-soft); }
+.board-notice:not(:has(button)) { padding-right: 16px; }
+@keyframes board-notice-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+@media (hover: none) {
+  .board-group-more { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .board-group-arrange button { height: 36px; }
+}
 .board-card-drag-handle { position: absolute; z-index: -1; top: -5px; left: -5px; display: grid; width: 58px; height: 54px; place-items: center; padding: 0; border: 2px solid var(--ink-faint); border-radius: 18px 9px 16px 7px; backface-visibility: hidden; background: linear-gradient(145deg, var(--card) 8%, var(--paper) 78%); box-shadow: inset 2px 2px rgba(255,255,255,.72), 2px 4px 9px rgba(29,33,41,.22); opacity: 0; pointer-events: none; transform: translate3d(9px, 8px, 0) rotate(-2deg) scale(.62); transform-origin: bottom right; will-change: transform, opacity; cursor: grab; transition: opacity .16s ease, transform .2s cubic-bezier(.2,.85,.25,1.15), border-color .14s ease, box-shadow .14s ease, z-index 0s .16s; }
 .board-card-drag-handle span { width: 27px; height: 23px; border-radius: 7px; backface-visibility: hidden; background: repeating-linear-gradient(0deg, var(--ink-faint) 0 2px, transparent 2px 6px); opacity: .82; transform: translateZ(0); }
 .board-card-drag-handle.grip-visible, .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible, .board-card-drag-handle:active { opacity: 1; pointer-events: auto; transform: translate3d(-18px, -15px, 0) rotate(-5deg) scale(1); }
@@ -4057,6 +4486,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-inline-format button:nth-child(3) { text-align: right; }
 .board-inline-format button.active { background: var(--accent-soft); color: var(--accent); }
 .board-align-glyph { display: block; width: 18px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.board-youtube-loading .board-placeholder-progress { width: 240px; }
 .board-youtube-loading { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; gap: 10px; width: 300px; min-height: 170px; border: 1px solid var(--line); border-radius: 2px; background: var(--card); color: var(--ink-soft); box-shadow: 0 1px 6px rgba(25,35,50,.18); user-select: none; touch-action: none; font: var(--fs-sm) var(--font-ui); will-change: transform; }
 .board-canvas-error { position: fixed; z-index: 120; top: 68px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
 
@@ -4064,7 +4494,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-booklet,
   .board-booklet-branch,
   .board-card-drag-handle,
-  .board-canvas-card.booklet-reorder-peer { transition-duration: 0ms; }
+  .board-canvas-card.booklet-reorder-peer,
+  .board-stage.board-gliding .board-canvas-card,
+  .board-stage.board-gliding .board-booklet { transition-duration: 0ms; }
+  .board-notice { animation: none; }
 }
 
 @media (max-width: 700px) {
@@ -4087,6 +4520,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-card-action-menu .item-actions-surface { top: 8px; right: 0; bottom: auto; left: auto; transform-origin: top right; }
   .board-resize-handle { right: -14px; bottom: -14px; width: 28px; height: 28px; scale: var(--board-ui-scale); }
   .board-booklet-spine { left: calc(-6px * var(--board-ui-scale)); width: calc(32px * var(--board-ui-scale)); }
+  .board-group-options-kind, .board-group-arrange button > span { display: none; }
+  .board-group-arrange button { padding: 0 9px; }
   .board-inline-format button { width: 36px; min-width: 36px; min-height: 34px; }
   .board-inline-description { font-size: 16px; }
   .board-staging { top: 10px; right: 10px; width: min(290px, calc(100vw - 20px)); max-height: 48%; }
@@ -4166,6 +4601,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .detail-authors-row .authors {
     flex-basis: 100%;
   }
+
+  /* A board's name keeps its badge beside it; the pair takes the row. */
+  .detail-title-row .board-jacket-heading { flex-basis: 100%; }
+  .detail-title-row .board-jacket-heading h2 { flex-basis: auto; }
 
   .panel {
     padding: 16px;

@@ -15,6 +15,17 @@ export async function requireAdmin(request: Request, env: Env): Promise<User> {
   return user;
 }
 
+// The accounts an admin's broadcast goes to: every open account, or the
+// ones the admin picked (already checked to be a non-empty list), all of
+// which must still be open.
+export async function audienceOf(env: Env, userUuids: unknown): Promise<{ uuid: string; email: string }[]> {
+  if (!Array.isArray(userUuids)) return all(env.DB, "SELECT uuid, email FROM users WHERE deleted_at IS NULL");
+  const wanted = [...new Set(userUuids.map(String))];
+  const recipients = await all<{ uuid: string; email: string }>(env.DB, `SELECT uuid, email FROM users WHERE deleted_at IS NULL AND uuid IN (${wanted.map(() => "?").join(",")})`, ...wanted);
+  if (recipients.length !== wanted.length) refuse(400, "One or more selected users are unavailable");
+  return recipients;
+}
+
 function userBase(user: Row) {
   return { uuid: user.uuid, display_name: user.display_name, affiliation: user.affiliation ?? null, avatar_path: user.avatar_path ?? null };
 }
@@ -84,14 +95,7 @@ export function inboxRoutes(router: Router) {
     check.done();
     const content = given!.trim();
     if (!content) refuse(400, "Message cannot be empty");
-    let recipients: { uuid: string }[];
-    if (Array.isArray(data.user_uuids)) {
-      const wanted = [...new Set(data.user_uuids.map(String))];
-      recipients = await all<{ uuid: string }>(env.DB, `SELECT uuid FROM users WHERE deleted_at IS NULL AND uuid IN (${wanted.map(() => "?").join(",")})`, ...wanted);
-      if (recipients.length !== wanted.length) refuse(400, "One or more selected users are unavailable");
-    } else {
-      recipients = await all<{ uuid: string }>(env.DB, "SELECT uuid FROM users WHERE deleted_at IS NULL");
-    }
+    const recipients = await audienceOf(env, data.user_uuids);
     const message = { uuid: newUuid(), created_by_uuid: admin.uuid, content, created_at: now() };
     await batch(env.DB, [
       insert(env.DB, "admin_messages", message),

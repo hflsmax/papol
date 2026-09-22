@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { Working } from '../../shared/ui/Waiting.js';
 import {
   getMe, getToken, logout, pendingLocalChanges,
   refreshStartupUser,
@@ -17,6 +18,7 @@ import RoomPage from './components/RoomPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
+import AboutPage from './components/AboutPage';
 import LearnPage from './components/LearnPage';
 import Avatar from './components/Avatar';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
@@ -34,6 +36,7 @@ import {
   MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
+import SyncAttention from './components/SyncAttention';
 import { appPath, stripAppBase } from './base';
 import { parseRoute } from './routes';
 import {
@@ -353,7 +356,10 @@ export default function App({ startupUser = null, startupError = null }) {
   // link to something that needs one, or a session this Papol still held
   // has ended. Either way the answer is the sign-in page, not an error where
   // the page should be, and it leads back here once they have signed in.
-  useEffect(() => subscribeUnauthenticated(() => {
+  //
+  // The desktop's synchronizer hears the same refusal on its own requests;
+  // it is answered the same way, from the sync prompt below.
+  const askToSignIn = useCallback(() => {
     void storeCredential(null);
     // The desktop keeps the owner's local identity and work through a
     // rejected credential; only network access is gone until they sign in.
@@ -362,7 +368,8 @@ export default function App({ startupUser = null, startupError = null }) {
     if (page === 'signin' || page === 'join') return;
     const here = `${stripAppBase(window.location.pathname)}${window.location.search}`;
     navigate(here === '/' ? '/signin' : `/signin?next=${encodeURIComponent(here)}`);
-  }), []);
+  }, []);
+  useEffect(() => subscribeUnauthenticated(askToSignIn), [askToSignIn]);
 
   // A document window asked for an account: a PDF opened from disk is being
   // added to a nook. Signing in happens here, in the Desk window.
@@ -475,7 +482,7 @@ export default function App({ startupUser = null, startupError = null }) {
     return (
       <>
         <style>{applicationStyles}</style>
-        <div className="loading" role="status" aria-live="polite">Loading…</div>
+        <div className="loading"><Working label="Loading…" /></div>
       </>
     );
   }
@@ -623,9 +630,9 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'board' && (
         <BoardJacket
           boardUuid={route.uuid}
-          currentUser={user}
           onOpen={openBoardCanvas}
           onBack={goBackFromJacket}
+          onDeleted={() => navigate(jacketBack.path, { replace: true })}
           backHref={mountedPath(jacketBack.path)}
           backLabel={jacketBack.label}
         />
@@ -657,9 +664,7 @@ export default function App({ startupUser = null, startupError = null }) {
             <p className="panel-note">Admin access only.</p>
           </div>
         ))}
-      {route.page === 'about' && (
-        <HomePage currentUser={user} />
-      )}
+      {route.page === 'about' && <AboutPage />}
       {route.page === 'learn' && <LearnPage />}
       {route.page === 'join' && (
         <AuthPage onAuth={handleAuth} initialMode="register" />
@@ -707,6 +712,7 @@ export default function App({ startupUser = null, startupError = null }) {
           opensViewer={mode === 'guest'}
         />
         <CompatibilityGate />
+        <SyncAttention onSignedOut={askToSignIn} onDetails={() => navigate('/profile')} />
         {adminMessageDialog}
         {feedbackDialog}
         {managingNook && nookState.nook && (
@@ -746,7 +752,7 @@ export default function App({ startupUser = null, startupError = null }) {
               currentUser={user}
               nookState={nookState}
               onNavigate={navigate}
-              onOpenBoard={openBoard}
+              onOpenBoard={openBoardCanvas}
               onSyncRefresh={syncRefresh}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}

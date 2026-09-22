@@ -17,6 +17,12 @@ interface Secrets {
   // Unset, references are "unavailable" and uploads get the filename.
   GROBID_URL?: string;
   GROBID_AUTH?: string;
+  // An R2 API token for the files bucket, with which the Worker signs the
+  // URL a client PUTs a file to directly (src/files.ts). Unset, the
+  // Worker gives its own door as the address instead, which a local
+  // `wrangler dev` needs, since its R2 is a simulation.
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
   // "manual" in the suite: wake-ups are handed to the consumer by the
   // test, not sent (src/jobs/queue.ts).
   QUEUE_DELIVERY?: string;

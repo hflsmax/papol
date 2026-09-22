@@ -8,30 +8,40 @@ import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
 import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
-import { KIND as EXTRACT, reextractedMetadata } from "../papers/extract";
+import { KIND as EXTRACT, reextractedMetadata, type Identifier } from "../papers/extract";
 import { Unavailable } from "../papers/bibliography";
+import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
 import { viewerPaper } from "../papers/sharables";
-import { UPLOADS } from "../sync/blobs";
+import { paperKey, UPLOADS, uploadUrl } from "../files";
 import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
 const DIGEST = /^[0-9a-f]{64}$/;
+const PDF_FILE = /^[0-9a-f]{64}\.pdf$/;
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+// An upload the form chose the known version over: let its object go,
+// when nothing names it — no paper's row, no job still to read it. Only
+// ever this object, at this moment; a paper nobody holds is not touched
+// (cloudflare/scripts/gc-papers.py is the hand that does that).
+async function dropUnreferenced(env: Env, filePath: string): Promise<boolean> {
+  if (await one(env.DB, "SELECT 1 FROM papers WHERE file_path = ?", filePath)) return false;
+  if (await one(env.DB, "SELECT 1 FROM jobs WHERE status IN ('queued', 'running') AND json_extract(payload, '$.file_path') = ?", filePath)) return false;
+  await env.FILES.delete(`${UPLOADS}${filePath}`);
+  return true;
 }
 
-// Store an uploaded PDF under its own content hash. Content-addressed:
-// the same bytes always land on the same key, so an upload Papol already
-// holds costs nothing and no two names ever refer to different files.
-async function storePdf(env: Env, bytes: Uint8Array): Promise<{ fileName: string; digest: string }> {
-  const digest = await sha256Hex(bytes);
-  const fileName = `${digest}.pdf`;
-  if (!(await env.FILES.head(`${UPLOADS}${fileName}`))) {
-    await env.FILES.put(`${UPLOADS}${fileName}`, bytes, { httpMetadata: { contentType: "application/pdf" } });
-  }
-  return { fileName, digest };
+// The identifier the browser read off the PDF's first pages, `{ doi }` or
+// `{ arxiv_id }`, held to the forms the Worker's own reading produces.
+function givenIdentifier(check: ReturnType<typeof validate.checking>, given: unknown): Identifier | null {
+  if (given === null || given === undefined) return null;
+  if (typeof given !== "object") { check.fail("identifier must be an object"); return null; }
+  const { doi, arxiv_id: arxivId } = given as Record<string, unknown>;
+  const identifier: Identifier = {};
+  const foundDoi = check.string("identifier.doi", doi, { max: limits.text.paper_doi, pattern: DOI_FORM, optional: true });
+  const foundArxiv = check.string("identifier.arxiv_id", arxivId, { max: 40, pattern: ARXIV_ID_FORM, optional: true });
+  if (foundDoi) identifier.doi = foundDoi;
+  if (foundArxiv) identifier.arxiv_id = foundArxiv;
+  return foundDoi || foundArxiv ? identifier : null;
 }
 
 async function ownTags(env: Env, user: User, tagUuids: unknown): Promise<string[]> {
@@ -75,37 +85,48 @@ const METADATA_FIELDS = ["title", "authors", "journal", "year", "doi"] as const;
 const PERSONAL_FIELDS = ["summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"] as const;
 
 export function paperRoutes(router: Router) {
-  // Upload a PDF. It is stored now, under its digest; what it says about
-  // itself is a job, and the form polls /api/jobs/{job} for the fields to
-  // review. Nothing is saved to the database until the user saves the paper.
-  router.on("POST", "/api/papers/extract", async ({ request, env }) => {
+  // The PDF is in the bucket, by the uploader's own hand (routes/files.ts):
+  // queue the reading of it. What it says about itself is a job, and the
+  // form polls /api/jobs/{job} for the fields to review; nothing is saved
+  // to the database until the user saves the paper. The browser may have
+  // read the paper's identifier off its first pages already; passed
+  // along, the job asks the indexes about it directly.
+  router.on("POST", "/api/papers/uploaded", async ({ request, env }) => {
     const user = await currentUser(request, env);
-    let data: FormData;
-    try { data = await request.formData(); } catch { return refuse(422, "The request is not a form"); }
-    const file = data.get("file");
-    if (!(file instanceof File)) refuse(422, "file is required");
-    if (!file.name.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const { fileName, digest } = await storePdf(env, bytes);
-    const job = enqueue(env.DB, EXTRACT, { file_path: fileName, uploaded_name: file.name }, { userUuid: user.uuid });
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const filePath = check.string("file_path", data.file_path, { pattern: /^[0-9a-f]{64}\.pdf$/ })!;
+    const uploadedName = check.string("uploaded_name", data.uploaded_name, { max: limits.text.uploaded_filename, optional: true }) ?? filePath;
+    const identifier = givenIdentifier(check, data.identifier);
+    check.done();
+    if (!uploadedName.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
+    const digest = filePath.slice(0, 64);
+    if (!(await env.FILES.head(paperKey(digest)))) refuse(404, "PDF file not found");
+    const payload: Row = { file_path: filePath, uploaded_name: uploadedName };
+    if (identifier) payload.identifier = identifier;
+    const job = enqueue(env.DB, EXTRACT, payload, { userUuid: user.uuid });
     await job.statement.run();
     await wake(env, [job.uuid]);
-    return json({ job: job.uuid, file_path: fileName, sha256: digest }, { status: 202 });
+    return json({ job: job.uuid, file_path: filePath, sha256: digest }, { status: 202 });
   });
 
   // Save a paper with user-edited metadata and an optional first note. A
   // paper is its PDF: an upload of bytes Papol already holds becomes a
   // new copy of that paper, and anything else is a paper of its own.
+  // When the reading found a version of the work Papol holds already and
+  // the form took that one, `file_path` names it and `discard_file_path`
+  // the upload, which is let go of once the copy is saved.
   router.on("POST", "/api/papers", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Row>(request);
     const filePath = String(data.file_path ?? "");
-    if (!/^[0-9a-f]{64}\.pdf$/.test(filePath) || !(await env.FILES.head(`${UPLOADS}${filePath}`))) refuse(400, "PDF file not found");
+    if (!PDF_FILE.test(filePath) || !(await env.FILES.head(`${UPLOADS}${filePath}`))) refuse(400, "PDF file not found");
     const metadata = validate.paperMetadata(data);
     const check = validate.checking();
     const thought = check.string("thought", data.thought, { max: limits.text.paper_thought, optional: true });
     const summary = check.string("summary", data.summary, { optional: true });
     const initialComment = check.string("initial_comment", data.initial_comment, { optional: true });
+    const discard = check.string("discard_file_path", data.discard_file_path, { pattern: PDF_FILE, optional: true });
     for (const field of ["rating_expertise", "rating_reading", "rating_liking"]) {
       check.integer(field, data[field], { min: limits.ratings.min, max: limits.ratings.max, optional: true });
     }
@@ -139,25 +160,26 @@ export function paperRoutes(router: Router) {
       statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, true));
     }
     await batch(env.DB, statements);
-    return json(await paperDetail(env.DB, paper, user));
+    if (discard && discard !== filePath) await dropUnreferenced(env, discard);
+    return json(await paperDetail(env,paper, user));
   });
 
   // Any signed-in user may open any paper: the Library holds every one,
   // and whose nook it sits in is nobody's business but theirs.
   router.on("GET", "/api/papers/:name", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
-    return json(await paperDetail(env.DB, await paperOr404(env.DB, params.name), user));
+    return json(await paperDetail(env,await paperOr404(env.DB, params.name), user));
   });
 
   // Re-read a paper's PDF metadata for the edit form.
   router.on("POST", "/api/papers/:name/extract-metadata", async ({ request, env, params }) => {
     await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
-    const object = DIGEST.test(paper.file_path.slice(0, 64)) || paper.file_path ? await env.FILES.get(`${UPLOADS}${paper.file_path}`) : null;
+    const object = DIGEST.test(paper.file_path.slice(0, 64)) || paper.file_path ? await env.FILES.head(`${UPLOADS}${paper.file_path}`) : null;
     if (!object) refuse(404, "PDF for this paper is missing");
     let found;
     try {
-      found = await reextractedMetadata(env, new Uint8Array(await object.arrayBuffer()), paper.doi);
+      found = await reextractedMetadata(env, paper.file_path, paper.doi);
     } catch (error) {
       if (error instanceof Unavailable) refuse(503, "Metadata lookup failed");
       throw error;
@@ -216,7 +238,7 @@ export function paperRoutes(router: Router) {
       statements.push(await writePaper(env.DB, paper, false));
     }
     await batch(env.DB, statements);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // Remove the paper from the viewer's nook: their copy and their notes.
@@ -244,7 +266,7 @@ export function paperRoutes(router: Router) {
     const user = await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
     await keepPaper(env.DB, user, paper.sha256);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // Resolve the paper named by a viewer URL, which names its PDF, for a
@@ -252,16 +274,22 @@ export function paperRoutes(router: Router) {
   router.on("GET", "/api/viewer/:digest", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const paper = await viewerPaper(env.DB, params.digest, user, null);
-    return json(await paperDetail(env.DB, paper, user));
+    return json(await paperDetail(env,paper, user));
   });
 
   // A stored file by its key: a paper's PDF under its digest, an avatar
   // under a UUID in its own folder. Both names are minted once and never
   // reused, so what a URL here answers never changes and may be cached
-  // for good.
+  // for good. When the bucket has an address of its own, the answer is
+  // that address: the bytes are the bucket's to serve, and the Worker
+  // never carries them. A day on the redirect, not a year: the bytes
+  // are permanent, the host that serves them need not be.
   for (const [method, path, folder] of [["GET", "/uploads/:key", ""], ["HEAD", "/uploads/:key", ""], ["GET", "/uploads/avatars/:key", "avatars/"], ["HEAD", "/uploads/avatars/:key", "avatars/"]]) {
     router.on(method, path, async ({ env, params }) => {
       if (!/^[A-Za-z0-9._-]+$/.test(params.key)) refuse(404, "File not found");
+      if (env.FILES_URL) {
+        return new Response(null, { status: 301, headers: { location: uploadUrl(env, `${folder}${params.key}`), "cache-control": "public, max-age=86400" } });
+      }
       const object = await env.FILES.get(`${UPLOADS}${folder}${params.key}`);
       if (!object) refuse(404, "File not found");
       const headers: Record<string, string> = {

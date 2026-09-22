@@ -29,6 +29,40 @@ pub struct QueuedChange {
     pub values: Map<String, Value>,
 }
 
+/// What a file is, which says where the bucket keeps it: a paper's PDF
+/// under `uploads/<sha256>.pdf`, a board file under
+/// `board_uploads/blobs/<sha256>` (cloudflare/src/files.ts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlobKind {
+    Paper,
+    BoardFile,
+}
+
+impl BlobKind {
+    /// The kind as the server names it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BlobKind::Paper => "paper",
+            BlobKind::BoardFile => "board_file",
+        }
+    }
+
+    /// The key the bucket holds these bytes under.
+    pub fn key(self, sha256: &str) -> String {
+        match self {
+            BlobKind::Paper => format!("uploads/{sha256}.pdf"),
+            BlobKind::BoardFile => format!("board_uploads/blobs/{sha256}"),
+        }
+    }
+}
+
+/// A file the account refers to that this replica does not hold.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingBlob {
+    pub sha256: String,
+    pub kind: BlobKind,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MutationReceipt {
     pub client_uuid: String,
@@ -784,11 +818,13 @@ impl LocalStore {
     }
 
     /// Every active file this account refers to that is not held here — not
-    /// in the index, or not on disk. PDFs are owned indirectly through the
-    /// account's copies; board files are owned by their board. A file on
-    /// disk that the index does not know is adopted, not fetched again: its
-    /// name is the digest of its bytes, so hashing it proves what it is.
-    pub fn missing_blob_digests(&self, account_uuid: &str) -> Result<Vec<String>, String> {
+    /// in the index, or not on disk — with what it is, since a paper's PDF
+    /// and a board file are fetched from different keys. PDFs are owned
+    /// indirectly through the account's copies; board files are owned by
+    /// their board. A file on disk that the index does not know is adopted,
+    /// not fetched again: its name is the digest of its bytes, so hashing
+    /// it proves what it is.
+    pub fn missing_blob_digests(&self, account_uuid: &str) -> Result<Vec<MissingBlob>, String> {
         let referenced = {
             let connection = self
                 .connection
@@ -796,26 +832,30 @@ impl LocalStore {
                 .map_err(|_| "Local database lock failed")?;
             let mut statement = connection
                 .prepare(
-                    r#"SELECT DISTINCT referenced.digest, _local_blobs.sha256 IS NOT NULL
+                    r#"SELECT DISTINCT referenced.digest, referenced.kind, _local_blobs.sha256 IS NOT NULL
                  FROM (
-                   SELECT p.sha256 AS digest
+                   SELECT p.sha256 AS digest, 'paper' AS kind
                    FROM papers p
                    JOIN copies c ON c.paper_sha256=p.sha256
                    WHERE c.user_uuid=?1 AND c.deleted_at IS NULL AND p.deleted_at IS NULL
                    UNION ALL
-                   SELECT bi.sha256 AS digest
+                   SELECT bi.sha256 AS digest, 'board_file' AS kind
                    FROM board_items bi
                    JOIN boards b ON b.uuid=bi.board_uuid
                    WHERE b.user_uuid=?1 AND b.deleted_at IS NULL
                      AND bi.deleted_at IS NULL AND bi.sha256 IS NOT NULL
                  ) referenced
                  LEFT JOIN _local_blobs ON _local_blobs.sha256=referenced.digest
-                 ORDER BY referenced.digest"#,
+                 ORDER BY referenced.digest, referenced.kind"#,
                 )
                 .map_err(|error| error.to_string())?;
             let rows = statement
                 .query_map([account_uuid], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, bool>(2)?,
+                    ))
                 })
                 .map_err(|error| error.to_string())?
                 .collect::<Result<Vec<_>, _>>()
@@ -823,14 +863,22 @@ impl LocalStore {
             rows
         };
         let mut missing = Vec::new();
-        for (digest, indexed) in referenced {
+        for (digest, kind, indexed) in referenced {
             let held = if indexed {
                 self.has_blob(&digest)
             } else {
                 self.adopt_orphan_blob(&digest)?
             };
             if !held {
-                missing.push(digest);
+                let kind = if kind == "paper" {
+                    BlobKind::Paper
+                } else {
+                    BlobKind::BoardFile
+                };
+                missing.push(MissingBlob {
+                    sha256: digest,
+                    kind,
+                });
             }
         }
         Ok(missing)
@@ -3350,7 +3398,16 @@ mod tests {
 
         assert_eq!(
             store.missing_blob_digests("7").unwrap(),
-            vec![pdf, board_file]
+            vec![
+                MissingBlob {
+                    sha256: pdf,
+                    kind: BlobKind::Paper
+                },
+                MissingBlob {
+                    sha256: board_file,
+                    kind: BlobKind::BoardFile
+                }
+            ]
         );
     }
 
@@ -3410,7 +3467,10 @@ mod tests {
 
         assert_eq!(
             store.missing_blob_digests("7").unwrap(),
-            vec![claimed.clone()]
+            vec![MissingBlob {
+                sha256: claimed.clone(),
+                kind: BlobKind::Paper
+            }]
         );
         assert!(!store.has_blob(&claimed));
     }

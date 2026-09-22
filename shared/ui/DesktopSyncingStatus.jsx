@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DESKTOP } from '../desktopShell.js';
+import { Working } from './Waiting.js';
 import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../connectivity.js';
 import {
   nativeDataActive, nativeSyncInProgress, subscribeNativeData, syncAllNow,
@@ -126,9 +127,5 @@ export default function DesktopSyncingStatus({ retry = true }) {
       </span>
     );
   }
-  return (
-    <span className="desktop-syncing-status" role="status" aria-live="polite">
-      <span className="desktop-syncing-status-label">Syncing…</span>
-    </span>
-  );
+  return <Working label="Syncing…" className="desktop-syncing-status" />;
 }

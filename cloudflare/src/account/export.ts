@@ -1,17 +1,25 @@
 // Taking your things with you. A user who cannot leave with their notes
 // does not really own them, so everything Papol holds about a user comes
-// out as one zip: the data as JSON, the notes again as Markdown for a
-// person rather than a parser, and the PDFs named after the papers.
+// out as one archive: the data as JSON, the notes again as Markdown for
+// a person rather than a parser, and a manifest of the files — the PDFs
+// named after the papers, the board files, the picture — saying where
+// each one lives.
 //
-// Streamed rather than built: a nook of a hundred papers is a few hundred
-// megabytes of PDF, and the Worker holds one chunk of it at a time,
-// waiting on the client between chunks.
-
-import { Zip, ZipDeflate, ZipPassThrough } from "fflate";
+// The files themselves are not in it. Pushing a byte through a Worker's
+// stream costs CPU whether or not the Worker looks at it, about 18 ms
+// per megabyte measured, and a nook's PDFs are more megabytes than one
+// invocation is given: an export that carried them was cut off mid-way.
+// The website's "My data" button reads the manifest and fetches each
+// file by its own URL, where the bucket's object is the response and
+// costs the Worker nothing, and builds the zip in the browser. Anyone
+// taking the export another way has files.json to do the same.
+//
+// A tar rather than a zip: each entry states its size and carries its
+// bytes, which a browser can read back in a few lines with no library.
 
 import { type User } from "../auth";
 import { all, type Row } from "../db";
-import { BOARD_FILES, UPLOADS } from "../sync/blobs";
+import { boardFileKey, boardFileUrl, UPLOADS, uploadUrl } from "../files";
 
 function authorsOf(paper: Row): unknown[] {
   try { return paper.authors ? JSON.parse(paper.authors as string) : []; } catch { return [paper.authors]; }
@@ -129,10 +137,18 @@ Everything Papol holds about you, as of {date}.
   notifications.json  What Papol has told you.
   uploads.json        The PDFs you contributed.
   boards.json         Your private boards and the position of every item.
+  files.json          Every file that belongs with this export, with the name
+                      it takes here and the URL on Papol it is fetched from.
   board-files/        Files and images attached to your boards.
   pdfs/               The PDF of every paper in your nook, named after the
                       paper rather than after the upload.
 {avatar}
+Papol sends the data and files.json; the website's "My data" button
+fetches the PDFs, the board files and your picture and puts them into
+the archive it saves, under the names files.json gives. If you took
+this export another way, files.json says where each file is: fetch each
+URL, signed in as you are, and save it under its path.
+
 The PDFs are the files as they were uploaded to Papol. They are the
 publishers' documents, not Papol's, and your rights over them are whatever
 they were before Papol held a copy.
@@ -142,66 +158,81 @@ This export does not include your password, which Papol cannot read either
 `;
 
 const KEY = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
+const BLOCK = 512;
 
-// The archive, as a body that is written as it is read. Each entry is
-// pushed through the zip and its output handed to the response one
-// chunk at a time, so a slow download holds back the reads from R2
-// rather than piling their bytes up in memory.
-export async function exportZip(env: Env, user: User): Promise<Response> {
+function octal(value: number, width: number): string {
+  return value.toString(8).padStart(width - 1, "0") + "\0";
+}
+
+// A ustar header: the path, split across `prefix` and `name` at a slash
+// when it is longer than the name field, the size, and a checksum of the
+// header itself, which is the only arithmetic tar asks for.
+function header(path: string, size: number, mtime: number): Uint8Array {
+  const encoder = new TextEncoder();
+  let name = path, prefix = "";
+  if (encoder.encode(path).length > 100) {
+    const cut = path.lastIndexOf("/", 155);
+    if (cut > 0) { prefix = path.slice(0, cut); name = path.slice(cut + 1); }
+  }
+  const block = new Uint8Array(BLOCK);
+  const put = (offset: number, text: string) => block.set(encoder.encode(text), offset);
+  put(0, name);
+  put(100, octal(0o644, 8));
+  put(108, octal(0, 8));
+  put(116, octal(0, 8));
+  put(124, octal(size, 12));
+  put(136, octal(mtime, 12));
+  put(148, "        ");
+  put(156, "0");
+  put(257, "ustar\0");
+  put(263, "00");
+  put(265, "papol");
+  put(297, "papol");
+  put(345, prefix);
+  const sum = block.reduce((a, b) => a + b, 0);
+  put(148, sum.toString(8).padStart(6, "0") + "\0 ");
+  return block;
+}
+
+// Where a stored file lives and what it is called in the export, for the
+// client that fetches it. The size is the bucket's word; a file the
+// store no longer has is left out, as a missing file always was.
+interface Located { path: string; url: string; size: number }
+
+async function locate(env: Env, key: string, path: string, url: string): Promise<Located | null> {
+  if (!KEY.test(key)) return null;
+  const object = await env.FILES.head(key);
+  return object ? { path, url, size: object.size } : null;
+}
+
+// The archive, as a body that is written as it is read.
+export async function exportArchive(env: Env, user: User): Promise<Response> {
   const stamp = new Date().toISOString().slice(0, 10);
   const root = `papol-export-${stamp}`;
+  const mtime = Math.floor(Date.now() / 1000);
   const data = await gather(env.DB, user);
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
   const write = async () => {
-    const writer = writable.getWriter();
-    const pending: Uint8Array[] = [];
-    let failed: Error | null = null;
-    const zip = new Zip((error, chunk) => { if (error) failed = error; else pending.push(chunk); });
-    const flush = async () => {
-      if (failed) throw failed;
-      for (const chunk of pending.splice(0)) await writer.write(chunk);
+    const send = async (bytes: Uint8Array) => {
+      const writer = writable.getWriter();
+      try { await writer.write(bytes); } finally { writer.releaseLock(); }
     };
+    const padding = (size: number) => new Uint8Array((BLOCK - (size % BLOCK)) % BLOCK);
     const text = async (name: string, content: string) => {
-      const entry = new ZipDeflate(`${root}/${name}`);
-      zip.add(entry);
-      entry.push(new TextEncoder().encode(content), true);
-      await flush();
-    };
-    // A stored file, copied through as it is: PDFs and images are already
-    // compressed. One the store no longer has is left out, as a missing
-    // file always was.
-    const stored = async (key: string, name: string): Promise<boolean> => {
-      if (!KEY.test(key)) return false;
-      const object = await env.FILES.get(key);
-      if (!object) return false;
-      const entry = new ZipPassThrough(`${root}/${name}`);
-      zip.add(entry);
-      const reader = object.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        entry.push(value);
-        await flush();
-      }
-      entry.push(new Uint8Array(0), true);
-      await flush();
-      return true;
+      const bytes = new TextEncoder().encode(content);
+      await send(header(`${root}/${name}`, bytes.length, mtime));
+      await send(bytes);
+      await send(padding(bytes.length));
     };
     try {
+      const located: Located[] = [];
       let avatarLine = "";
       if (user.avatar_path) {
         const suffix = user.avatar_path.slice(user.avatar_path.lastIndexOf("."));
-        if (await stored(`${UPLOADS}${user.avatar_path}`, `avatar${suffix}`)) avatarLine = `  avatar${suffix}        Your picture.\n`;
+        const avatar = await locate(env, `${UPLOADS}${user.avatar_path}`, `avatar${suffix}`, uploadUrl(env, user.avatar_path));
+        if (avatar) { located.push(avatar); avatarLine = `  avatar${suffix}        Your picture.\n`; }
       }
-      await text("README.txt", README.replace("{date}", stamp).replace("{avatar}", avatarLine));
-      const files: [string, unknown][] = [
-        ["profile", data.profile], ["nook", data.nook], ["notes", data.notes], ["ink", data.ink], ["seminars", data.seminars],
-        ["notifications", data.notifications], ["uploads", data.pdfs_i_uploaded], ["boards", data.boards],
-      ];
-      for (const [name, payload] of files) await text(`${name}.json`, JSON.stringify(payload, null, 2));
-      await text("notes.md", notesMarkdown(data, stamp));
-
       // One PDF per paper in the nook, named after the paper. Two papers
       // can slug the same, so the second gets a number.
       const seen = new Set<string>();
@@ -210,25 +241,37 @@ export async function exportZip(env: Env, user: User): Promise<Response> {
         const base = kept.year ? `${slug(kept.title)}-${kept.year}` : slug(kept.title);
         let candidate = `${base}.pdf`;
         for (let n = 2; seen.has(candidate); n++) candidate = `${base}-${n}.pdf`;
-        if (await stored(`${UPLOADS}${kept.file_path}`, `pdfs/${candidate}`)) seen.add(candidate);
+        const pdf = await locate(env, `${UPLOADS}${kept.file_path}`, `pdfs/${candidate}`, uploadUrl(env, kept.file_path));
+        if (pdf) { located.push(pdf); seen.add(candidate); }
       }
       for (const board of data.boards) {
         for (const item of board.items) {
           if (!item.file) continue;
           const filename = String(item.original_filename || String(item.file).split("/").pop()).split("/").pop();
-          await stored(`${BOARD_FILES}${item.file}`, `board-files/${board.uuid}/${item.uuid}-${filename}`);
+          const file = await locate(env, boardFileKey(String(item.file)), `board-files/${board.uuid}/${item.uuid}-${filename}`, boardFileUrl(env, { uuid: String(item.uuid), file_path: String(item.file) })!);
+          if (file) located.push(file);
         }
       }
-      zip.end();
-      await flush();
-      await writer.close();
+
+      await text("README.txt", README.replace("{date}", stamp).replace("{avatar}", avatarLine));
+      const files: [string, unknown][] = [
+        ["profile", data.profile], ["nook", data.nook], ["notes", data.notes], ["ink", data.ink], ["seminars", data.seminars],
+        ["notifications", data.notifications], ["uploads", data.pdfs_i_uploaded], ["boards", data.boards], ["files", located],
+      ];
+      for (const [name, payload] of files) await text(`${name}.json`, JSON.stringify(payload, null, 2));
+      await text("notes.md", notesMarkdown(data, stamp));
+      // Two empty blocks end the archive.
+      await send(new Uint8Array(BLOCK * 2));
+      await writable.close();
     } catch (error) {
-      await writer.abort(error);
+      // The client sees a body that ends early; the log says why.
+      console.error(`Export for ${user.uuid} aborted: ${(error as Error)?.message ?? error}`);
+      await writable.abort(error);
     }
   };
   void write();
 
   return new Response(readable, {
-    headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${root}.zip"` },
+    headers: { "content-type": "application/x-tar", "content-disposition": `attachment; filename="${root}.tar"` },
   });
 }

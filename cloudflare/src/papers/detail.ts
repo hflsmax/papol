@@ -9,6 +9,7 @@ import { type User } from "../auth";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { refuse } from "../http";
 import { userPublic } from "../routes/boards";
+import { uploadUrl } from "../files";
 import { writeSynced } from "../sync/write";
 import { displayedCopies } from "./list";
 import { liveReadingLink } from "./sharables";
@@ -121,12 +122,16 @@ async function roomSummaries(db: D1Database, paperSha256: string) {
 }
 
 // The canonical paper, merged with the viewer's own copy — summary,
-// ratings, display, private notes — when they have one.
-export async function paperDetail(db: D1Database, paper: Paper, viewer: User) {
+// ratings, display, private notes — when they have one. `file_url` is
+// where the PDF is fetched from, beside the `file_path` that names it:
+// the bucket's own address when it has one, so the viewer reads the
+// bytes from there and never through the Worker.
+export async function paperDetail(env: Env, paper: Paper, viewer: User) {
+  const db = env.DB;
   const copy = await copyOf(db, paper.sha256, viewer);
   const detail: Row = {
     doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year,
-    file_path: paper.file_path, sha256: paper.sha256, created_at: paper.created_at,
+    file_path: paper.file_path, file_url: uploadUrl(env, paper.file_path), sha256: paper.sha256, created_at: paper.created_at,
     summary: null, thought: null, is_public: null, is_author: null,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     notes: [], also_read_by: [], rooms: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,

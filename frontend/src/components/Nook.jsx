@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { getNook } from '../../../shared/api/people.js';
 import PaperUpload from './PaperUpload';
 import PaperList from './PaperList';
@@ -49,7 +50,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   }, [loadNook]);
 
   if (error) return <div className="error" role="alert">{error}</div>;
-  if (!nook) return <div className="loading" role="status" aria-live="polite">Loading nook…</div>;
+  if (!nook) return <div className="loading"><Working label="Loading nook…" /></div>;
 
   return (
     <div className={reviewingUpload ? 'nook upload-review-mode' : 'nook'}>

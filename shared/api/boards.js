@@ -2,8 +2,10 @@ import {
   boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeDataActive,
   nativeRepository, newUuid,
 } from '../nativeData.js';
+import { boardSourceDigests } from '../boardPapers.js';
 import { runtimeFetch } from '../connectivity.js';
-import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
+import { handleResponse, jsonRequest, request } from '../httpClient.js';
+import { storeFile } from './files.js';
 import { JobFailed, awaitJob } from './jobs.js';
 
 // ---------- Boards (private spaces inside the user's nook) ----------
@@ -27,9 +29,20 @@ export async function createBoard(data) {
   return board;
 }
 
-export function getBoard(uuid) {
-  if (nativeDataActive()) return nativeRepository.board(uuid).then((row) => boardView(row, true));
-  return request(`/boards/${uuid}`);
+// The service answers a board with the papers its cards come from
+// (`papers`); the replica is asked for each of them from what it keeps,
+// which is every paper in this user's nook. One it does not keep is left
+// to the title its cards were labelled with.
+export async function getBoard(uuid) {
+  if (!nativeDataActive()) return request(`/boards/${uuid}`);
+  const board = boardView(await nativeRepository.board(uuid), true);
+  const kept = await Promise.all(boardSourceDigests(board.items).map(
+    (sha256) => nativeRepository.paperByPdf(sha256).catch(() => null),
+  ));
+  board.papers = kept.filter(Boolean).map((paper) => ({
+    sha256: paper.sha256, title: paper.title, authors: paper.authors ?? null, year: paper.year ?? null,
+  }));
+  return board;
 }
 
 export function updateBoard(uuid, data) {
@@ -120,7 +133,8 @@ export async function addBoardComment(uuid, content, x, y) {
   return jsonRequest(`/boards/${uuid}/comments`, 'POST', { content, x, y });
 }
 
-export async function addBoardFile(uuid, file, caption = '', position = null) {
+// `onProgress` hears the upload as it goes (shared/api/files.js).
+export async function addBoardFile(uuid, file, caption = '', position = null, { onProgress } = {}) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     try {
@@ -143,14 +157,13 @@ export async function addBoardFile(uuid, file, caption = '', position = null) {
       throw error;
     }
   }
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('caption', caption);
-  if (position) {
-    formData.append('x', String(position.x));
-    formData.append('y', String(position.y));
-  }
-  return request(`/boards/${uuid}/files`, { method: 'POST', body: formData });
+  // The bytes into the bucket (shared/api/files.js), then the card that names them.
+  const stored = await storeFile('board_file', file, { name: file.name || 'file', onProgress });
+  return jsonRequest(`/boards/${uuid}/files`, 'POST', {
+    sha256: stored.sha256, caption, original_filename: file.name || 'file',
+    mime_type: file.type || 'application/octet-stream',
+    ...(position ? { x: position.x, y: position.y } : {}),
+  });
 }
 
 export function deleteBoardItem(uuid) {
@@ -235,13 +248,15 @@ export function placeStagedBoardItem(uuid, x, y) {
   return jsonRequest(`/board-items/${uuid}/place`, 'POST', { x, y });
 }
 
+// A card's file as an object URL: from the local replica on the desktop,
+// else from where the card says it is fetched from — the bucket's own
+// address, which no Worker touches, or a local Worker's route.
 export async function boardFileBlob(item) {
   if (nativeDataActive()) {
     if (!item.sha256) throw new Error('Board image is not available in the local replica');
     return nativeBlobUrl(item.sha256, item.mime_type);
   }
-  const key = `${API_BASE}/board-items/${item.uuid}/file`;
-  const response = await runtimeFetch(key, { headers: authHeaders() });
+  const response = await runtimeFetch(item.file_url);
   if (!response.ok) await handleResponse(response);
   return URL.createObjectURL(await response.blob());
 }

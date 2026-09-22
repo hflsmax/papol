@@ -12,7 +12,7 @@ import limits from "../../../config/app_limits.json";
 import { all, newUuid, now, one, statement, type Row } from "../db";
 import { refuse } from "../http";
 import { enqueue, JobError, wake } from "../jobs/queue";
-import { UPLOADS } from "../sync/blobs";
+import { UPLOADS } from "../files";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
 import * as helper from "./helper";
@@ -85,14 +85,15 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   const paperSha256 = String(payload.paper_sha256);
   const paper = await one<Paper>(env.DB, "SELECT * FROM papers WHERE sha256 = ?", paperSha256);
   if (!paper) throw new JobError("The paper is gone");
-  const object = paper.file_path ? await env.FILES.get(`${UPLOADS}${paper.file_path}`) : null;
+  // Only whether the PDF is there: the helper reads it from the bucket.
+  const object = paper.file_path ? await env.FILES.head(`${UPLOADS}${paper.file_path}`) : null;
   if (!object) {
     await finishStatement(env, paperSha256, "failed", "The PDF for this paper is missing").run();
     throw new JobError("The PDF for this paper is missing");
   }
   let analysis;
   try {
-    analysis = await helper.analyze(env, new Uint8Array(await object.arrayBuffer()));
+    analysis = await helper.analyze(env, paper.file_path);
   } catch (error) {
     const detail = String((error as Error).message ?? error).slice(0, limits.text.analysis_error);
     console.warn(`The helper failed on paper ${paperSha256}: ${detail}`);

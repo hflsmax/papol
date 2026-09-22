@@ -1,22 +1,26 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Progress, Working } from '../../../shared/ui/Waiting.js';
+import { holdFullBar } from '../../../shared/waiting.js';
+import { uploadProgressView } from '../../../shared/api/files.js';
 import {
   awaitPaperReading, createPaper, createTag, discardPaperImport, listShelves, listTags,
   uploadPaper,
 } from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
-import BackLink from '../../../shared/ui/BackLink.jsx';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
-import { READ_FIELDS, fillUnedited, reviewFields, titleFromFilename } from '../uploadReview';
+import { readIdentifier } from '../pdfIdentifier.js';
+import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
 
-// The form opens the moment the upload has answered, on the title the
-// filename gives, and the reading of the PDF goes on beside it: a
-// spinner while it is read, the fields it read filled in when it is
-// done, a quiet line when it could not be. The user types and saves
-// without waiting for any of it; a save or a cancel while the reading is
-// still on simply stops listening for it.
+// The upload is a bar in the drop zone (docs/waiting.md), over the hash
+// and the bytes going up. The form opens the moment the upload has
+// answered, on the title the filename gives, and the reading of the PDF
+// goes on beside it: the spinner while it is read, the fields it read
+// filled in when it is done, a quiet line when it could not be. The user
+// types and saves without waiting for any of it; a save or a cancel
+// while the reading is still on simply stops listening for it.
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
   incomingFile = null, onIncomingFileHandled = () => {}, onReportableError,
@@ -24,10 +28,16 @@ export default function PaperUpload({
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // The upload as storeFile reports it, while a file is going up.
+  const [uploadProgress, setUploadProgress] = useState(null);
   // 'reading' while the PDF is read, 'unread' when it could not be, null otherwise.
   const [reading, setReading] = useState(null);
   const [error, setError] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
+  // The version Papol already holds of this work, when the reading found
+  // one, and whether the save takes it (the default) or keeps this PDF.
+  const [known, setKnown] = useState(null);
+  const [useKnown, setUseKnown] = useState(true);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
@@ -92,11 +102,24 @@ export default function PaperUpload({
   const handleFile = async (file) => {
     stopReading();
     setReading(null);
+    setKnown(null);
+    setUseKnown(true);
     setIsLoading(true);
+    setUploadProgress(null);
     setError(null);
 
     try {
-      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file), listTags(), listShelves()]);
+      // The PDF's first pages are read for its DOI or arXiv id here, while
+      // the bytes go up; the server starts its reading from what was found.
+      const identifier = readIdentifier(file);
+      // The bar is held full for a moment before the form takes its place.
+      let fullAt = null;
+      const onProgress = (progress) => {
+        if (fullAt == null && progress.phase === 'stored') fullAt = Date.now();
+        setUploadProgress(progress);
+      };
+      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file, { identifier, onProgress }), listTags(), listShelves()]);
+      if (fullAt != null) await holdFullBar(fullAt);
       setExtractedData(uploaded);
       onReviewChange(true);
       setShelves(shelfData);
@@ -117,14 +140,24 @@ export default function PaperUpload({
       setTagDraft('');
       setAvailableTags(tags);
 
+      // Kept but not sent (the desktop only): there is no reading to wait
+      // for, and why is said as it is. A send that failed is a fault, not
+      // a PDF that could not be read, and is offered for a report.
+      if (uploaded.offline || uploaded.sendFailure) {
+        const failure = uploaded.sendFailure;
+        setReading(uploaded.offline ? 'offline' : { unsent: failure.message || String(failure) });
+        if (failure && isReportableUploadError(failure)) onReportableError?.(failure, 'sending a PDF to be read');
+        return;
+      }
       const wait = new AbortController();
       readingWait.current = wait;
       setReading('reading');
-      void awaitPaperReading(uploaded, file, { signal: wait.signal }).then((read) => {
+      void awaitPaperReading(uploaded, { signal: wait.signal }).then((read) => {
         // Saved, cancelled, or replaced by another file: nobody is listening.
         if (wait.signal.aborted) return;
         readingWait.current = null;
         if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
+        setKnown(read?.existing?.sha256 ? read.existing : null);
         setReading(read ? null : 'unread');
       });
     } catch (err) {
@@ -175,7 +208,7 @@ export default function PaperUpload({
         doi: formData.doi || null,
         thought: formData.thought || null,
         summary: formData.summary || null,
-        file_path: extractedData.file_path,
+        ...savedFile(extractedData, known, useKnown),
         shelf_uuid: shelves.find((shelf) => String(shelf.uuid) === String(formData.shelf_uuid))?.uuid,
         is_author: !!formData.is_author,
         rating_expertise: formData.rating_expertise,
@@ -184,7 +217,11 @@ export default function PaperUpload({
         tag_uuids: selectedTags.map((tag) => tag.uuid),
       });
 
+      // The known version was taken over a PDF the nook had stored: that
+      // one has nothing standing behind it now.
+      if (known && useKnown) await discardPaperImport(extractedData).catch(() => {});
       setExtractedData(null);
+      setKnown(null);
       setFormData({});
       setSelectedTags([]);
       onReviewChange(false);
@@ -201,6 +238,7 @@ export default function PaperUpload({
     setReading(null);
     await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
+    setKnown(null);
     setFormData({});
     setSelectedTags([]);
     setTagDraft('');
@@ -224,21 +262,42 @@ export default function PaperUpload({
 
     return (
       <>
-      <BackLink className={`back-button upload-review-back${isLoading ? ' disabled' : ''}`} href={`${window.location.pathname}${window.location.search}`} onBack={isLoading ? undefined : handleCancel} aria-disabled={isLoading} />
       <div className="panel paper-form">
         <div className="paper-metadata-heading">
-          <h3>Review Paper Metadata</h3>
+          <h3>Paper Metadata</h3>
         </div>
         {reading === 'reading' && (
-          <p className="metadata-reading" role="status">
-            <span className="spinner metadata-spinner" aria-hidden="true" />
-            Reading the PDF for its title and authors…
-          </p>
+          <div className="metadata-reading">
+            <Working label="Extracting…" />
+          </div>
         )}
         {reading === 'unread' && (
           <p className="metadata-reading" role="status">
             Papol could not read the PDF; fill in the details.
           </p>
+        )}
+        {reading === 'offline' && (
+          <p className="metadata-reading" role="status">
+            Offline, so the PDF was not read; fill in the details.
+          </p>
+        )}
+        {reading?.unsent && (
+          <p className="metadata-reading" role="status">
+            Papol could not send the PDF to be read ({reading.unsent}); fill in the details.
+          </p>
+        )}
+        {known && (
+          <div className="metadata-reading known-version" role="status">
+            <span>{knownVersionLine({ existing: known })}</span>
+            <label className="checkbox-row inline">
+              <input type="radio" name="known_version" checked={useKnown} onChange={() => setUseKnown(true)} />
+              <span>Use that version</span>
+            </label>
+            <label className="checkbox-row inline">
+              <input type="radio" name="known_version" checked={!useKnown} onChange={() => setUseKnown(false)} />
+              <span>Keep this version</span>
+            </label>
+          </div>
         )}
         {error && <div className="error" role="alert">{error}</div>}
         <form className="upload-review-form" onSubmit={handleSubmit}>
@@ -440,7 +499,7 @@ export default function PaperUpload({
           style={{ display: 'none' }}
         />
         {isLoading ? (
-          <p>Uploading…</p>
+          <UploadWait progress={uploadProgress} />
         ) : (
           <>
             <p>Drop a PDF here or click to upload</p>
@@ -451,4 +510,13 @@ export default function PaperUpload({
       {error && <div className="error" role="alert">{error}</div>}
     </div>
   );
+}
+
+// The upload's wait, in the drop zone: one bar over the hash and the
+// bytes going up, as storeFile reports them; the spinner before the first
+// report, and on the desktop, whose store says nothing.
+function UploadWait({ progress }) {
+  const view = uploadProgressView(progress);
+  if (!view) return <Working label="Uploading…" />;
+  return <Progress fraction={view.fraction} label="Uploading" detail={view.detail} />;
 }

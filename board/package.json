@@ -15,8 +15,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/plugin-http": "^2.6.0",
+    "@tauri-apps/plugin-http": "^2.6.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

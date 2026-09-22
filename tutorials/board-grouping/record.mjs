@@ -190,12 +190,12 @@ try {
   await padTo(26.0);
 
   // 26–35s: select the collection and demonstrate its two layout modes.
-  await clickSelector('button[aria-label^="Move or select collection"]', 1.25);
-  await page.waitForSelector('.board-selection-menu button');
-  await clickSelector('.board-selection-menu button:nth-of-type(1)', 1.25);
-  await page.waitForFunction(() => [...document.querySelectorAll('.board-selection-menu button')].some((button) => button.textContent === 'Freeform'));
+  await clickSelector('button[aria-label="Collection options"]', 1.25);
+  await page.waitForSelector('.board-group-arrange button');
+  await clickSelector('.board-group-arrange button[aria-label="Auto-arrange"]', 1.25);
+  await page.waitForSelector('.board-group-arrange button[aria-label="Auto-arrange"][aria-checked="true"]');
   await hold(1.1);
-  await clickSelector('.board-selection-menu button:nth-of-type(1)', 1.25);
+  await clickSelector('.board-group-arrange button[aria-label="Freeform"]', 1.25);
   await moveTo(620, 625, 1.0);
   await padTo(35.0);
 

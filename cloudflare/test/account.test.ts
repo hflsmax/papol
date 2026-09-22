@@ -1,10 +1,32 @@
 // The account: profile, picture, password, leaving with your things, and
 // leaving.
 import { env } from "cloudflare:test";
-import { unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 
+import worker from "../src/index";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account, type Json } from "./helpers";
+
+
+// A tar, read back: each entry a 512-byte header naming and sizing the
+// bytes that follow, padded to the block; two empty blocks at the end.
+function untar(bytes: Uint8Array): Record<string, Uint8Array> {
+  const decoder = new TextDecoder();
+  const field = (block: Uint8Array, offset: number, length: number) => decoder.decode(block.subarray(offset, offset + length)).replace(/\0.*$/s, "");
+  const entries: Record<string, Uint8Array> = {};
+  for (let at = 0; at + 512 <= bytes.length;) {
+    const block = bytes.subarray(at, at + 512);
+    if (block.every((b) => b === 0)) break;
+    const size = parseInt(field(block, 124, 12), 8);
+    const prefix = field(block, 345, 155);
+    const name = (prefix ? `${prefix}/` : "") + field(block, 0, 100);
+    const claimed = parseInt(field(block, 148, 8), 8);
+    const summed = block.reduce((a, b, i) => a + (i >= 148 && i < 156 ? 32 : b), 0);
+    if (claimed !== summed) throw new Error(`bad header checksum for ${name}`);
+    entries[name] = bytes.slice(at + 512, at + 512 + size);
+    at += 512 + Math.ceil(size / 512) * 512;
+  }
+  return entries;
+}
 
 const PDF = "c".repeat(64);
 const PDF_BYTES = new TextEncoder().encode("%PDF-1.4\n%%EOF");
@@ -84,15 +106,25 @@ describe("the picture", () => {
 });
 
 describe("the export", () => {
-  it("is a readable archive carrying every kind with its geometry, and the PDFs named after the papers", async () => {
+  it("is a readable tar carrying every kind with its geometry, and naming the files with where each lives", async () => {
     const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
     await adasNook(ada, grace);
+    const avatar = (await ok("POST", "/api/auth/avatar", { headers: ada.headers, body: (() => { const f = new FormData(); f.set("file", new File([new Uint8Array(3)], "me.png")); return f; })() })).avatar_path;
+    const board = uuid(), item = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Clippings', ?, ?, 0)", board, ada.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, original_filename, mime_type, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, 'photo.png', 'image/png', ?, ?, 0)", item, board, `${board}/photo.png`, at, at);
+    await env.FILES.put(`board_uploads/${board}/photo.png`, new Uint8Array(4));
+    // A paper whose PDF the store no longer has is in the data and not among the files.
+    await paperWithCopy(ada, "d".repeat(64), "Lost", { shelfUuid: await defaultShelf(ada) });
     const response = await call("GET", "/api/auth/export", { headers: ada.headers });
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.zip"$/);
-    const archive = unzipSync(new Uint8Array(await response.arrayBuffer()));
+    expect(response.headers.get("content-type")).toBe("application/x-tar");
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.tar"$/);
+    const archive = untar(new Uint8Array(await response.arrayBuffer()));
     const names = Object.keys(archive).map((n) => n.replace(/^papol-export-\d{4}-\d{2}-\d{2}\//, ""));
-    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "seminars.json", "notifications.json", "uploads.json", "boards.json", "pdfs/on-leaving-2024.pdf"]));
+    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "seminars.json", "notifications.json", "uploads.json", "boards.json", "files.json"]));
+    // The files themselves are not in it: the browser fetches them.
+    expect(names.filter((n) => /^(pdfs|board-files|avatar)/.test(n))).toEqual([]);
     const read = (name: string) => JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith(`/${name}`))!]));
 
     expect(read("profile.json")).toMatchObject({ email: "leaver@example.com", display_name: "Ada" });
@@ -106,9 +138,76 @@ describe("the export", () => {
     expect(ink).toHaveLength(1);
     expect(ink[0]).toMatchObject({ color: "#d92b1f", shape: "round", page: 4 });
     expect(ink[0].points).toHaveLength(2);
-    expect(read("nook.json")).toEqual([expect.objectContaining({ paper: expect.objectContaining({ title: "On leaving" }), on_display: true, tags: [] })]);
+    expect(read("nook.json")).toEqual([expect.objectContaining({ paper: expect.objectContaining({ title: "On leaving" }), on_display: true, tags: [] }), expect.objectContaining({ paper: expect.objectContaining({ title: "Lost" }) })]);
     expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/notes.md"))!])).toContain("### Lemma 2 — page 4");
-    expect(archive[Object.keys(archive).find((n) => n.endsWith("/pdfs/on-leaving-2024.pdf"))!]).toEqual(PDF_BYTES);
+    expect(read("files.json")).toEqual([
+      { path: "avatar.png", url: `/uploads/${avatar}`, size: 3 },
+      { path: "pdfs/on-leaving-2024.pdf", url: `/uploads/${PDF}.pdf`, size: PDF_BYTES.length },
+      { path: `board-files/${board}/${item}-photo.png`, url: `/api/board-items/${item}/file`, size: 4 },
+    ]);
+    expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/README.txt"))!])).toContain("files.json");
+  });
+
+  it("names the bucket's own address for every file when the bucket has one", async () => {
+    const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
+    await adasNook(ada, grace);
+    const avatar = (await ok("POST", "/api/auth/avatar", { headers: ada.headers, body: (() => { const f = new FormData(); f.set("file", new File([new Uint8Array(3)], "me.png")); return f; })() })).avatar_path;
+    const board = uuid(), item = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Clippings', ?, ?, 0)", board, ada.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, original_filename, mime_type, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, 'photo.png', 'image/png', ?, ?, 0)", item, board, `${board}/photo.png`, at, at);
+    await env.FILES.put(`board_uploads/${board}/photo.png`, new Uint8Array(4));
+    const response = await worker.fetch(new Request("https://papol.test/api/auth/export", { headers: ada.headers }), { ...env, FILES_URL: "https://files.test" as string } as Env);
+    expect(response.status).toBe(200);
+    const archive = untar(new Uint8Array(await response.arrayBuffer()));
+    const files = JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/files.json"))!]));
+    expect(files).toEqual([
+      { path: "avatar.png", url: `https://files.test/uploads/${avatar}`, size: 3 },
+      { path: "pdfs/on-leaving-2024.pdf", url: `https://files.test/uploads/${PDF}.pdf`, size: PDF_BYTES.length },
+      { path: `board-files/${board}/${item}-photo.png`, url: `https://files.test/board_uploads/${board}/photo.png`, size: 4 },
+    ]);
+  });
+});
+
+describe("a closed account's board files", () => {
+  // A card with a file on one of the user's boards, the file in the bucket
+  // under its digest, as every board file is.
+  async function card(owner: Account, bytes: string, extra: Record<string, unknown> = {}) {
+    const board = uuid(), item = uuid(), at = new Date().toISOString();
+    const digest = await (async () => { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(bytes)); return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""); })();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Board', ?, ?, 0)", board, owner.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, sha256, original_filename, mime_type, deleted_at, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, ?, 'photo.png', 'image/png', ?, ?, ?, 0)",
+      item, board, `blobs/${digest}`, digest, extra.deleted_at ?? null, at, at);
+    await env.FILES.put(`board_uploads/blobs/${digest}`, bytes);
+    return { board, item, digest, key: `board_uploads/blobs/${digest}` };
+  }
+  const close = (who: Account) => ok("DELETE", "/api/auth/account", { headers: who.headers, json: { confirm_email: who.email } });
+
+  it("go with the account when nobody else's card names them, and stay while one does, deleted or not", async () => {
+    const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace");
+    const own = await card(ada, "only Ada's");
+    const shared = await card(ada, "on both boards");
+    await card(grace, "on both boards");
+    // Grace let this one go; she may restore it, so its bytes stay.
+    const letGo = await card(ada, "Grace let it go");
+    await card(grace, "Grace let it go", { deleted_at: new Date().toISOString() });
+    // A legacy key, named for one write and nobody else's.
+    const legacyBoard = uuid(), legacyItem = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO boards (uuid, user_uuid, name, created_at, updated_at, revision) VALUES (?, ?, 'Old', ?, ?, 0)", legacyBoard, ada.uuid, at, at);
+    await exec("INSERT INTO board_items (uuid, board_uuid, kind, file_path, original_filename, mime_type, created_at, updated_at, revision) VALUES (?, ?, 'image', ?, 'old.png', 'image/png', ?, ?, 0)", legacyItem, legacyBoard, `${legacyBoard}/old.png`, at, at);
+    await env.FILES.put(`board_uploads/${legacyBoard}/old.png`, "old");
+
+    const closed = await close(ada);
+    expect(closed.removed).toMatchObject({ board_items: 4, boards: 4, board_files: 2 });
+    expect(await env.FILES.head(own.key)).toBeNull();
+    expect(await env.FILES.head(`board_uploads/${legacyBoard}/old.png`)).toBeNull();
+    expect(await env.FILES.head(shared.key)).not.toBeNull();
+    expect(await env.FILES.head(letGo.key)).not.toBeNull();
+
+    // The last card to name a file takes it with it.
+    const last = await close(grace);
+    expect(last.removed).toMatchObject({ board_items: 2, board_files: 2 });
+    expect(await env.FILES.head(shared.key)).toBeNull();
+    expect(await env.FILES.head(letGo.key)).toBeNull();
   });
 });
 

@@ -1,0 +1,54 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://papol.io",
+          "https://www.papol.io",
+          "https://dev.papol.io",
+          "tauri://localhost",
+          "http://tauri.localhost"
+        ],
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "headers": [
+          "Range",
+          "If-None-Match",
+          "If-Modified-Since"
+        ]
+      },
+      "exposeHeaders": [
+        "Content-Length",
+        "Content-Range",
+        "Accept-Ranges",
+        "ETag",
+        "Content-Type"
+      ],
+      "maxAgeSeconds": 3600
+    },
+    {
+      "allowed": {
+        "origins": [
+          "https://papol.io",
+          "https://www.papol.io",
+          "https://dev.papol.io",
+          "tauri://localhost",
+          "http://tauri.localhost"
+        ],
+        "methods": [
+          "PUT"
+        ],
+        "headers": [
+          "content-type",
+          "x-amz-checksum-sha256"
+        ]
+      },
+      "exposeHeaders": [
+        "etag"
+      ],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

@@ -254,7 +254,11 @@ What each piece becomes:
 - **The database**: D1, bound to the Worker; no connection string, no
   pooler, no provider. The schema is the one `models.py` declares — it was
   SQLite before phase 1 and round-trips, as `migrate-sqlite-to-postgres.py`
-  showed. Backups are D1's own point-in-time restore. The one gap is that
+  showed. Backups are D1's own point-in-time restore (Time Travel,
+  always on, `wrangler d1 time-travel restore papol --timestamp=…`), and
+  nothing else: no exports, no dumps, no copy of the bucket. Decided
+  2026-09-22; the Python era's snapshots and dumps were deleted from the
+  host the same day. The one gap is that
   D1 has no interactive transactions: a request cannot read, decide in
   code, and write inside one transaction; it gets `batch()`, which runs a
   list of statements atomically. Two places read-then-write today — the
@@ -655,8 +659,10 @@ moves. `applied_mutations` was left behind, as the script says.
 `papol.io` and `www.papol.io` are custom domains of the Worker
 (`routes` in `wrangler.toml`); Cloudflare wrote the DNS records on
 deploy. `PAPOL_URL` is `https://papol.io`. The workers.dev address
-stays as a second door for now. Mail is off by decision: no
-`EMAIL_API_*` secrets, notifications stay in the inbox. The previous
+stays as a second door for now. Mail was off by decision at first;
+it comes back through Resend (`EMAIL_API_URL` is
+`https://api.resend.com/emails`), which refuses a request without a
+User-Agent, so the sender names itself. The previous
 production hostname was on the LAN only, so nothing public moves.
 
 ### Step 4 — landed 2026-09-21: GROBID behind a tunnel of Papol's own
@@ -782,9 +788,494 @@ rows.
 - With no helper configured, or one that is down, nothing changes from
   before: references are "unavailable", uploads get the filename title.
 
+### Step 9 — landed 2026-09-21: the export is a tar
+
+Measured on dev with a mirror of production and the owner's 29 papers
+(113 MB): the zip export was cut off at 80–95 MB, unreadable, both
+times. A zip carries a CRC-32 of every entry, which the Worker had to
+compute over every byte of every PDF, and the Free plan's CPU budget
+killed the invocation mid-stream. The export is now a tar: each entry
+states its size and carries its bytes, so every PDF is piped from R2
+into the response without passing through JavaScript, and the Worker
+spends nothing on arithmetic. That bought back the checksums and not
+the bytes: see step 10.
+
+### Step 10 — landed 2026-09-21: the browser assembles the export
+
+Measured on dev with the same nook (29 papers, 113 MB): the tar export
+ended with `outcome: exceededCpu` after 2,010 ms of CPU, and the client
+got a truncated 200. Pushing bytes through the Worker's own stream costs
+it about 18 ms of CPU per megabyte even when they only pass from R2 to
+the response, and an invocation on the Free plan gets about two seconds
+in practice, so anything past roughly a hundred megabytes is cut off
+whatever the archive format. The Worker must not carry the PDFs.
+
+It no longer carries any file. The tar holds the data and one more
+entry, `files.json`: for each PDF in the nook, each board file and the
+picture, the path it takes in the export, the URL it is fetched from
+(`/uploads/<file>` for a PDF or the picture, `/api/board-items/<uuid>/
+file` for a board file) and its size. The website's "My data" button
+reads the tar in the browser (`shared/exportArchive.js`), fetches every
+file — each its own invocation, with the whole budget to itself — builds
+one zip with `fflate` (PDFs stored, text deflated) and saves it as
+`papol-export-<date>.zip`, with progress in the panel and a quiet line
+naming any file that could not be fetched. The README in the tar says as
+much for anyone taking the export with curl. The cost is memory: the
+browser holds the files and the zip at once, a few hundred megabytes for
+a large nook, which a desktop has.
+
+Measured after the change, same nook, from headless Chrome against dev:
+the export invocation 43 ms of CPU and 3.5 s of wall time (the D1 reads
+and one `head` per file), each of the 26 PDF fetches 0–3 ms of CPU —
+a response whose body is the bucket's object itself never passes
+through JavaScript, which is what makes `/uploads/` cheap where the
+export's stream was not — and the browser had the 129.5 MB zip in
+6.6 s, `zipfile.testzip()` clean.
+
+### Step 11 — landed 2026-09-21: the files come from the bucket
+
+Every PDF and every picture was a Worker invocation whose body was the
+R2 object. Cheap, but an invocation each, and nothing cached at the
+edge. An R2 bucket can carry a custom domain in the zone, on which
+Cloudflare serves the objects itself — cached at the edge, range
+requests answered, no Worker in the path. `FILES_URL` in `wrangler.toml`
+names that address; with it set, `GET /uploads/<key>` and
+`/uploads/avatars/<key>` answer a 301 to it (the key's shape still
+checked; a day's `cache-control`, since the bytes are permanent and the
+host need not be), the paper answers (`/api/papers/:name`,
+`/api/viewer/:digest`, a shared reading's `paper`) carry `file_url`
+beside `file_path`, and the export's `files.json` names the bucket
+address for a PDF or the picture. The viewer hands pdf.js `file_url`
+when it is there, so the PDF's stream never touches the Worker, not
+even for the redirect; the `<img>` for a picture follows the 301.
+Without `FILES_URL` — local development — the Worker serves the file as
+before. `cloudflare/r2-cors-public.json` is the bucket's CORS rule: GET
+and HEAD from any origin (the files are public and content-addressed;
+an origin list would protect nothing and would have to name every local
+port and the desktop's `tauri://` origin), the `Range` header allowed,
+`Content-Length`, `Content-Range`, `Accept-Ranges` and `ETag` exposed,
+which is what pdf.js needs to read by range across origins.
+
+What a bucket domain exposes is the whole bucket: every key answers on
+it, and nothing scopes it to a prefix (the domain does not list keys —
+`/` and `/uploads/` are 404 — but any key one knows is public). The
+production bucket `papol-files` holds, beside 54 PDFs and one picture
+under `uploads/`, some seventy private board files and desktop blobs
+under `board_uploads/`, and a stale `dev/uploads/` tree from the Python
+era. So production has no domain yet and its `FILES_URL` is empty; the
+Worker serves its files as before. `papol-files-dev` holds only
+`uploads/` and got `files-dev.papol.io`, which is where all of this was
+proved. The follow-up that lets production have `files.papol.io`: a
+second bucket, `papol-board-files`, for `board_uploads/` — a second
+binding, `BOARD_FILES`, that `src/sync/blobs.ts`, `routes/boards.ts`,
+`jobs/capture.ts` and `account/export.ts` read and write instead of
+`FILES` for that prefix; the seventy objects copied across
+(`wrangler r2 object get`/`put`, or `rclone` with an S3 token); the
+`dev/` keys deleted from `papol-files`; then
+`wrangler r2 bucket domain add papol-files --domain files.papol.io
+--zone-id 27efd91b…` and `FILES_URL = "https://files.papol.io"` in
+`[vars]`. Board files stay behind `/api/board-items/:uuid/file` and
+`/api/sync/blobs/:sha256` throughout, where the route asks who is
+asking. The desktop's content policy and capabilities already admit
+`https://files.papol.io`, so no app release is needed for that day.
+
+Measured on dev: the Worker's `/uploads/<digest>.pdf` answers 301 in
+0 ms of CPU; the bucket domain answers the 1.4 MB PDF with
+`content-type: application/pdf`, `accept-ranges: bytes`,
+`access-control-allow-origin: *`, `cf-cache-status: MISS` then `HIT`
+(`cache-control: max-age=14400`, Cloudflare's default for the type;
+the objects carry no cache-control of their own); the viewer in headless
+Chrome rendered the paper from `files-dev.papol.io` — one 200, then
+206s by range — with no `/uploads/` event in the Worker's tail at all.
+One thing to know: the edge caches a 404 for a key for a few minutes,
+so a URL asked for before its object exists stays a 404 that long. Papol
+never hands out an address before the upload has landed, and keys are
+never reused, so this is a probe's problem rather than a user's.
+
+### Step 12 — landed 2026-09-22: uploads go straight to the bucket
+
+The same arithmetic as step 10, on the way in: a PDF that went browser →
+Worker → R2 cost the Worker ~18 ms of CPU a megabyte just to pass it on,
+and a request body is capped at 100 MB besides. Now the Worker never sees
+the file.
+
+- The browser hashes the PDF (WebCrypto SHA-256) and asks `POST
+  /api/papers/upload-address` with `{ sha256, size, name }`. The answer is
+  `{ stored: true, file_path }` when the bucket already holds
+  `uploads/<sha256>.pdf`, else `{ stored: false, file_path, url, headers }`:
+  a presigned S3 PUT to R2 (`aws4fetch`, an R2 API token as the secrets
+  `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, the bucket named by the
+  new `FILES_BUCKET` var), valid fifteen minutes, whose signature covers
+  `x-amz-checksum-sha256` (the digest, base64), `content-type` and
+  `content-length`. R2 honours the checksum on a presigned PUT — verified
+  on dev: same length, one byte different → `400 BadDigest`; a tampered
+  checksum header, or one byte more than the size the address was asked
+  for → `403 SignatureDoesNotMatch`; the right bytes → 200 — so the
+  bucket itself refuses anything that does not hash to its name, and no
+  MD5 fallback was needed. The browser PUTs with a plain `fetch` and the
+  headers listed, no credential of Papol's, then tells `POST
+  /api/papers/uploaded` `{ file_path, uploaded_name, identifier? }`, which
+  checks the object exists and queues the reading as `extract` did.
+  `POST /api/papers/extract` stays for older desktop builds, and the
+  browser falls back to it when the address route answers 404 or 503 (an
+  older Worker, or one without the secrets).
+- The bucket needs a CORS rule for that PUT, applied by hand (it lives
+  in `cloudflare/r2-cors-public.json` with the read rule since step 13:
+  `npx wrangler r2 bucket cors set papol-files --file r2-cors-public.json`,
+  and `papol-files-dev`). R2 refuses a port wildcard in an origin, so
+  the development origins are listed by port (5173, 8787).
+- The paper's identifier is read in the browser: `pdfjs-dist` (the
+  viewer's version, its worker loaded the same way) lays out the first
+  three pages while the bytes go up, and `shared/identifiers.js`, the
+  port of the Worker's `identifiers.ts` with a unit test beside it, finds
+  the arXiv id or the first complete-looking DOI. The job asks CrossRef
+  and OpenAlex about a given identifier without fetching the PDF, and
+  turns to the host helper's `/header` only when none was given or no
+  index knew it. A paper limit `files.paper_mb` (200) is in
+  `app_limits.json` now; the address is refused above it.
+
+Measured on dev from headless Chrome, the real form: a 21 MB paper
+(`47602f24…`, which prints a DOI on its first page) had its form open
+2.8 s after the file was chosen — the PUT to `r2.cloudflarestorage.com`
+took 2.1 s of that — and filled 4.9 s after, from CrossRef by the DOI the
+browser read. The Worker saw a 110-byte body for the address (2 ms of
+CPU), a 157-byte body for `uploaded` (3 ms), and the job took 4 ms of CPU
+and 453 ms of wall time without touching the PDF. `attention.pdf`, already
+in the bucket, opened its form in 0.8 s with no PUT at all; OpenAlex does
+not index arXiv's DataCite DOIs, so that one still went to the helper
+(15 ms of CPU, 3.8 s) and filled in 11 s.
+
+### Step 13 — landed 2026-09-21: production files come from the bucket
+
+Step 11 left production without a domain because `papol-files` also
+holds board files and the desktop's blobs, and a bucket domain exposes
+every key. The owner's decision: **one bucket, public by key, board
+files included.** A key is a content digest (`uploads/<sha256>.pdf`,
+`board_uploads/blobs/<sha256>`) or a uuid minted for one write
+(`uploads/avatars/<user uuid>.<ext>`, `board_uploads/<board
+uuid>/<uuid>.<ext>`); whoever has one has the file already, and hiding
+it behind a session protects nothing. The domain lists nothing (`/`,
+`/uploads/`, `/board_uploads/` are 404s). The second bucket that step
+11 sketched was built as far as the copy — `papol-board-files` made,
+the 70 `board_uploads/` objects copied across server-side and verified
+by size — and then undone: the copies deleted, both buckets removed,
+no code written for it.
+
+What the buckets hold now, which is what to remember:
+
+- `papol-files`, on **`files.papol.io`**, `FILES_URL` in `[vars]`:
+  125 objects. `uploads/` — 54 PDFs and one picture, what `/uploads/`
+  served to anyone already. `board_uploads/` — 49 web board files under
+  `<board uuid>/<uuid>.<ext>` (47 under the one live board, 2 under a
+  legacy `2/`) and 21 desktop blobs under `blobs/<sha256>`; nothing
+  moved. The stale `dev/uploads/` tree from the Python era — 10 PDFs,
+  15.2 MB, each a duplicate of an `uploads/` key with the same digest —
+  is deleted. Board files are still handed out by
+  `/api/board-items/:uuid/file` and `/api/sync/blobs/:sha256`, which
+  ask who is asking; that they are also reachable by key on the domain
+  is the decision above.
+- `papol-files-dev`, on `files-dev.papol.io`: 31 objects, all
+  `uploads/`.
+- **CORS**: one file, `cloudflare/r2-cors-public.json`, applied by hand
+  to both buckets (`npx wrangler r2 bucket cors set papol-files --file
+  r2-cors-public.json`, and `papol-files-dev`; `cors set` replaces the
+  whole set, so there is one file). Two rules: the read rule — GET and
+  HEAD, `Range`/`If-None-Match`/`If-Modified-Since` allowed,
+  `Content-Length`/`Content-Range`/`Accept-Ranges`/`ETag`/`Content-Type`
+  exposed — and the direct-upload PUT rule from the upload PR
+  (`content-type`, `x-amz-checksum-sha256`; `etag` exposed), each with
+  the same five origins rather than `*`: `https://papol.io`,
+  `https://www.papol.io`, `https://dev.papol.io`, `tauri://localhost`,
+  `http://tauri.localhost` (the desktop fetches through Tauri's HTTP
+  plugin, its webview origins are listed anyway). No localhost origin:
+  a local `wrangler dev` reads and takes files itself (`.dev.vars`
+  empties `FILES_URL` and `FILES_BUCKET`), so a page on localhost never
+  talks to a bucket, and a local Worker cannot sign a PUT to one. The
+  upload PR's `r2-cors.json` is superseded by this file.
+- The suite pins `FILES_URL` empty in `vitest.config.ts`, whatever
+  production's is, so it keeps testing the Worker serving a file itself
+  and hands a bucket address in where a test is about that.
+
+Measured on production after the deploy: `papol.io/uploads/<digest>.pdf`
+answers 301 to `files.papol.io/uploads/<digest>.pdf` with a day's
+`cache-control`, the avatar likewise, a malformed key still 404; the
+bucket address answers 200, `content-type: application/pdf`,
+`accept-ranges: bytes`, `access-control-allow-origin: https://papol.io`
+for that origin and no allow-origin header at all for
+`https://example.com`, 206 with `content-range` for a byte range; the
+viewer in headless Chromium, signed in as a throwaway reader holding a
+copy of the paper, rendered it with one 200 and then 206s from
+`files.papol.io` (`cf-cache-status: HIT`) and not one request to the
+Worker's `/uploads/`.
+
+Next: key every board file by its hash and serve board files from the
+domain too, as papers are — a `file_url` beside `file_path` on a board
+item, and `/api/board-items/:uuid/file` reduced to a 301.
+
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
-deleted; the host's configuration.nix trimmed of the retired keys.
+deleted; the host's configuration.nix trimmed of the retired keys; one
+R2 token per bucket (dev's unable to write production's).
+
+### Step 14 — landed 2026-09-22: a known version at upload
+
+The Library showed one paper five times: five PDFs of DOI 10.1145/3808345
+uploaded over a month, each a `papers` row of its own — a paper is the
+SHA-256 of its PDF — and each row left standing when its copy was let go,
+since a paper is nobody's. The four orphans were deleted by hand. Two
+rules follow, and neither changes what a paper is:
+
+- **The PDF's hash is the identity; a DOI may have versions.** A preprint
+  and the published article share a DOI and are two papers. No unique
+  index on the DOI and no merging: what changes is that the form knows.
+  The extract job (`papers/extract.ts`, `knownVersion`) looks the resolved
+  DOI up — case-insensitive, trimmed — among the non-deleted rows under
+  another hash, and when one is there its result carries
+  `existing: { sha256, title, file_path }`. The upload form then shows one
+  line, "Papol already has a version of this paper: <title>", with two
+  choices. *Use that version* (the default) saves `POST /api/papers` for
+  the known paper's file, as for any file Papol already holds — the user
+  gets a copy of it, or "already in your nook" — and names the upload as
+  `discard_file_path`; once the copy is saved the route lets that object
+  go, if no `papers` row and no queued or running job names it, and only
+  then. *Keep this version* is what always happened: a paper of its own
+  under its own hash, DOI and all. The desktop viewer's Add to nook does
+  not read the job result's paper and goes on making a paper under the
+  opened file's hash; the nook's upload form on the desktop shows the same
+  choice, and taking the known version saves through the server and lets
+  the pending local blob go.
+- **A paper nobody holds is not removed by itself.** Cleaning on every
+  let-go was weighed and dropped as overhead; the decision is taken by
+  hand, with `cloudflare/scripts/gc-papers.py`. `--list` prints every
+  orphan — a non-deleted row with no live copy by anyone, no annotation by
+  anyone (soft-deleted ones count: a replica may still hold them), no
+  seminar, no link out and no board card carrying its file — with title,
+  DOI, hash prefix, age and file size; `--delete` removes those rows, the
+  tombstoned copies still pointing at them, their `paper_links`,
+  `paper_references` and `paper_citations` rows and their bucket objects,
+  and says what went; `--only 3b7eb8b7,…` limits either to named hashes;
+  `--env dev` is dev.papol.io, production otherwise. Standard library,
+  with `npx wrangler d1 execute` and `npx wrangler r2 object delete`
+  underneath, so wrangler's login is all it needs. Never `--delete` on
+  production without a `--list` first.
+
+Verified on dev against the real Worker: a fresh PDF uploaded with the
+identifier 10.1145/3526113.3545710, which dev holds as `47602f24…`, had
+`existing` in its job result; taking that version gave the uploader a copy
+of `47602f24…`, the Library one row for the DOI, and the upload's object a
+404 at the bucket domain; keeping a second one made `782089f4…` beside it.
+Cleaned with `gc-papers.py --delete --env dev --only …`: the dev mirror's
+four orphan rows of 10.1145/3808345 (`3b7eb8b7…`, `4d48478d…`,
+`a6fed677…`, `ef920e57…`, whose objects the dev bucket never had, with 40
+links, 152 references and 184 citations between them) and the
+verification's own orphan. Production's `--list` shows four orphans
+(`40807dab…` The Byzantine Generals Problem, 32 days old and without a DOI,
+and the recent `22bd33f7…`, `dbfb7aab…`, `24570d4a…`); nothing was deleted
+there.
+
+### Step 15 — landed 2026-09-22: one file model, board files keyed by their hash
+
+The owner's instruction: make them all hash based, and let the browser
+and the Mac fetch as much as they can without going through the Worker.
+Step 12 had done it for a paper's PDF; a board file made on the website
+was still stored under a name minted per write, still served by a
+Worker route that asked who was asking, and the desktop still sent its
+files through the Worker's `PUT /api/sync/blobs`. Now there is one
+model, and every layer that existed for the Worker-carries-the-bytes era
+is gone.
+
+**The layout.** One bucket, `papol-files`, public by key on
+`files.papol.io` (`papol-files-dev` on `files-dev.papol.io`), holding:
+`uploads/<sha256>.pdf` for a paper's PDF; `uploads/avatars/<uuid>.<ext>`
+for a picture; `board_uploads/blobs/<sha256>` for every board file — a
+picture or a document put on a card in a browser or in the desktop app,
+a clip from the viewer, a link card's capture. Every key is a content
+digest or a uuid minted for one write, nothing in the bucket is listed,
+and the Worker never carries a file's bytes in either direction.
+
+**Writing** (`cloudflare/src/files.ts`, `routes/files.ts`,
+`shared/api/files.js`): the client hashes the file and asks `POST
+/api/files/upload-address` `{ kind, sha256, size, name, mime }` — `kind`
+is `paper` or `board_file` — and is told `{ stored: true, file_path }`
+when the bucket holds those bytes, else `{ stored: false, file_path,
+url, headers }`, a presigned S3 PUT (fifteen minutes, signed over
+`x-amz-checksum-sha256`, `content-type` and `content-length`, so the
+bucket itself refuses bytes that do not hash to their name). The client
+PUTs with the listed headers and no credential of Papol's, then tells
+the route that records the row: `POST /api/papers/uploaded` for a
+paper, `POST /api/boards/:uuid/files` `{ sha256, original_filename,
+mime_type, caption, x, y }` for a card, `POST
+/api/boards/:uuid/staging/clip` `{ sha256, caption, source_url,
+source_label }` for a clip — each a JSON body naming a digest, each
+refusing (409) bytes the bucket does not hold. The desktop's sync asks
+the same route for each pushed row that carries a `sha256` (a paper's
+row → `paper`, a card's → `board_file`) and PUTs by the same address.
+A Worker without the R2 token — a local `wrangler dev`, whose R2 is a
+simulation — answers with its own door as the address, `PUT
+/api/files/:kind/:sha256`, with the caller's credential among the
+listed headers, and holds the bytes to the same contract; the client
+cannot tell the two apart, and a Worker that can sign for the bucket
+keeps that door shut (404).
+
+**Reading.** A card's answer carries `file_url` beside `file_path`, as
+a paper's does: the bucket's address when `FILES_URL` is set, the
+Worker's route otherwise. The board app and the desk fetch `file_url`
+directly; the export's `files.json` names the bucket address for board
+files as it does for PDFs. The desktop learns the address from
+`files_url` in `GET /api/client-requirements` and builds
+`${files_url}/uploads/<sha256>.pdf` or
+`${files_url}/board_uploads/blobs/<sha256>` itself (the store now says
+which kind each missing file is), with no credential; when `files_url`
+is null it asks the Worker's `GET /api/sync/blobs/:sha256` with its
+credential, as before. `GET /api/board-items/:uuid/file` and `GET
+/api/sync/blobs/:sha256` answer a 301 to the bucket when `FILES_URL` is
+set (a day's cache-control) and serve the object otherwise; the item
+route no longer asks who is asking — a card's uuid and its file's digest
+are both minted, and the bucket hands the file to whoever holds the key
+anyway. On production, then, no read of a file's bytes passes through
+the Worker except its own: the extract job and
+`/api/papers/:name/extract-metadata` read a PDF from the bucket to hand
+it to the host helper, and the reference pass to GROBID.
+
+**Deletion.** A board file is named by its bytes, so two users' cards
+— or a card of the leaver's that was let go and may be restored — can
+name one object. Closing an account (`account/close.ts`) deletes a blob
+only when no `board_items` row at all, soft-deleted rows included,
+carries its sha256 once the leaver's rows are gone; `removed.board_files`
+counts them. The suite holds it: a shared blob survives one owner's
+closure and goes with the last.
+
+**Removed**, with the tests, smoke tests and e2e seeds moved to the one
+path: `POST /api/papers/extract` (multipart) and `storePdf`; `POST
+/api/papers/upload-address` (folded into `/api/files/upload-address`);
+`PUT` and `HEAD /api/sync/blobs/:sha256` and `receivePaperFile`'s copy
+from the blobs area to `uploads/`; the multipart board-file and clip
+handlers; `uploadThroughServer` and the `file_path.startsWith('http')`
+branch of `pdfHref` in `shared/api/papers.js`; the desktop's HEAD-then-PUT
+upload in `sync/coordinator.rs`; `cloudflare/src/papers/uploads.ts`
+(absorbed into `files.ts`). A desktop build older than 0.5.0 would
+still send its files through the removed routes, so
+`MINIMUM_DESKTOP_VERSION` in `clientRequirements.ts` refuses it (426 on
+the sync routes, `incompatible` in the requirements) whatever schema it
+announces; the app is bumped to 0.5.0. Line counts before → after:
+`shared/api/papers.js` 507 → 465 (plus `shared/api/files.js`, 40);
+`cloudflare/src/routes/boards.ts` 568 → 555; `cloudflare/src/sync/blobs.ts`
+116 → 42, with `papers/uploads.ts` (65) gone and `src/files.ts` (134)
+and `routes/files.ts` (55) new; the desktop sync module
+(`sync/coordinator.rs` + `mod.rs`) 1117 → 1239, the growth being the
+address round trip and the bucket download that replaced two
+Worker-shaped requests.
+
+**The rekey**, `cloudflare/scripts/rekey-board-files.py [dev|prod]
+[--dry-run]`: for every card whose `file_path` was not under `blobs/`,
+a server-side `CopyObject` to `board_uploads/blobs/<sha256>` (the
+digest computed from the bytes when a row lacked one — none did),
+verified by size and ETag, the row pointed at the new key with its
+`revision` and `updated_at` moved (file_path is server-owned and
+travels to replicas), and only then the old key deleted; a final pass
+gives every typeless board file — the Python era stored them with no
+content type, which the bucket now serves — the type its card records,
+by a copy onto itself. Standard library, the R2 token read from the
+host at run time, wrangler for D1. Dev first, with the 33 production
+objects the dev mirror's rows named copied across so the rehearsal was
+real: 33 rows, 33 copied, 33 verified, 33 rekeyed, 33 old keys deleted.
+Then production: 33 rows, 25 copied and 8 already present under their
+digest (the same bytes as a desktop blob or an earlier card), 33
+verified, 33 rekeyed, 33 deleted, 13 objects retyped. A second run of
+each finds nothing. The two R2 secrets were set on both Workers, which
+neither had (step 12's "still to do").
+
+Verified on production with a throwaway account, every status as
+designed: `client-requirements` says `files_url` and a 0.5.0 minimum
+(a `Papol macOS/0.4.1` agent is `incompatible`); the address for a
+board file is a signed PUT to `r2.cloudflarestorage.com` (200); the
+card answers `file_path: blobs/<sha256>` and the bucket `file_url`;
+`/api/board-items/:uuid/file` 301 with no credential; the bucket
+answers 200, `content-type: image/png`,
+`access-control-allow-origin: https://papol.io`, the bytes intact;
+`/api/sync/blobs/:sha256` 301 with a credential and 401 without; the
+Worker's door 404; a card rekeyed from the Python era 301 and, followed,
+200 with a matching digest; the account closed with `board_files: 1`,
+the card's route 404 and the object gone from the bucket.
+
+What `papol-files` holds after: `uploads/` 50 PDFs and one picture,
+`board_uploads/blobs/` 46 objects (85 MB), and 16 objects still under
+`board_uploads/<board uuid>/` (14 under the one live board, 2 under the
+legacy `2/`, 20 MB) that no card names — orphans of cards long gone,
+left for the owner to delete by hand. A possible follow-up, not built:
+`gc-papers.py`'s counterpart for those.
+
+### Step 16 — landed 2026-09-22: each DOI asked of the registry that holds it
+
+The upload's reading asked CrossRef about every DOI and OpenAlex behind
+it, and an arXiv paper, whose DOI (`10.48550/arXiv.<id>`) is registered
+with DataCite, fell through both to GROBID on the host: eleven seconds,
+and the title block's reading of the authors (`Google Brain` among them).
+Measured before changing anything: Papol's 30 DOIs from production and
+ten well-known arXiv papers, each asked of the three sources three times,
+the way the Worker asks (360 requests, no contact address or key),
+scored against the titles people saved.
+
+| | CrossRef | OpenAlex | DataCite |
+|---|---|---|---|
+| publisher DOIs found (27) | 27 | 27 | 0 |
+| arXiv DOIs found (12) | 0 | 8 | 12 |
+| … with the right title | – | 6 | 12 |
+| LIPIcs (DataCite) found (1) | 0 | 0 | 1 |
+| errors, timeouts, answers changing between rounds | 0 | 0 | 0 |
+| median / p90 ms | 41 / 61 | 105 / 165 | 160 / 204 |
+
+Each registry holds all of its own DOIs and none of the other's, and none
+of the three failed once. OpenAlex added nothing CrossRef had not already
+answered, missed 4 arXiv DOIs (Attention, BERT, GPT-4 among them) and gave
+2 more the wrong title over the right authors — Chain-of-Thought came
+back as "BNAI, NO-TOKEN, and MIND-UNITY: Pillars of a Systemic Revolution
+in Artificial Intelligence". So `byDoi` (`bibliography.ts`) now asks:
+
+- an arXiv DOI of DataCite alone; unknown there or DataCite down, the job
+  reads the title block on the host, never OpenAlex;
+- any other DOI of CrossRef; on its 404 (never heard of it), DataCite,
+  which registers the rest (LIPIcs, Zenodo); OpenAlex only when CrossRef
+  itself could not answer (network, timeout, 5xx, 429), and DataCite
+  after it, since the DOI may be DataCite's. Unavailable, and the job's
+  "Metadata lookup failed", only when all three could not answer.
+
+The experiment's two scripts — one asking every DOI of every source, one
+tabulating — stay out of the repository: the table above is what they
+were for, and rerunning them means another read of production's papers.
+
+With it, three smaller things from the upload's follow-ups:
+
+- The bucket CORS rules (`r2-cors-public.json`) lose their localhost
+  origins; see step 13's paragraph. `.dev.vars` empties `FILES_BUCKET`, so
+  a local Worker gives its own door as the address even with R2 keys at
+  hand, and can never sign a PUT to production's bucket; the suite names
+  the bucket in `vitest.config.ts`.
+- `scripts/smoke.sh` checks the one guarantee the direct upload rests on,
+  which is R2's and not ours: with fresh bytes each run, so the address is
+  a real signed PUT, the same length with one byte changed is refused
+  (400 `BadDigest`; 422 from a local Worker's door) and the right bytes
+  taken. Python's own user agent is refused at the edge (error 1010), so
+  the check sends one of its own.
+
+### Step 17 — landed 2026-09-22: the host fetches the paper itself
+
+The last place a PDF passed through a Worker: the reference analysis and
+the title-block reading downloaded the paper from R2 and posted its bytes
+to the host's helper, although the bucket is public by key. Now the
+Worker sends the helper `{ url }`, the paper's address on the bucket
+domain (`FILES_URL`), and the helper fetches it itself
+(`host/helper/src/files.ts`). The Worker only checks that the object is
+there (`head`, no body). It still reads and sends the bytes where there
+is no bucket domain, which is local development.
+
+The helper fetches only `/uploads/<sha256>.pdf` on the origins
+`services.papol.helper.fileOrigins` lists (default `files.papol.io` and
+`files-dev.papol.io`), and only bytes that hash to that name: 400 for any
+other address, 422 for bytes that do not match, 404 for a file the bucket
+does not have. It sends its own user agent, since the edge refuses some
+default ones. Order of the change: the helper learned addresses first and
+was deployed to the host (`./deploy.sh host`), then the Worker switched.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 

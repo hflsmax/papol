@@ -1,5 +1,6 @@
 {
   "files": {
+    "paper_mb": 200,
     "offline_blob_mb": 40,
     "board_file_mb": 25,
     "avatar_mb": 2,
@@ -18,6 +19,7 @@
     "ink_points": 4000,
     "notifications": 50,
     "admin_table_rows": 500,
+    "sent_email_pages": 5,
     "bibliography_results": 5
   },
   "retention_days": {
@@ -41,6 +43,8 @@
     "external_url": 2000,
     "room_message": 4000,
     "admin_message": 4000,
+    "announcement_subject": 200,
+    "announcement_body": 20000,
     "availability": 500,
     "scheduled_time": 200,
     "platform": 200,
@@ -105,7 +109,7 @@
   },
   "timeouts_ms": {
     "desktop_auth": 10000,
-    "desktop_metadata": 15000,
+    "nook_add_reading": 15000,
     "sync_connect": 5000,
     "sync_read": 20000,
     "youtube_metadata": 8000,

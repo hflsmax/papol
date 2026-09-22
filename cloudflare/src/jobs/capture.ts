@@ -15,7 +15,7 @@ import puppeteer from "@cloudflare/puppeteer";
 import limits from "../../../config/app_limits.json";
 import { one, statement, type Row } from "../db";
 import { refuse } from "../http";
-import { BOARD_FILES } from "../sync/blobs";
+import { blobKey, boardFileKey, sha256Hex, stored } from "../files";
 import { writeSynced } from "../sync/write";
 import { JobError } from "./queue";
 
@@ -91,19 +91,15 @@ export const capturers = {
 
 // ------------------------------------------------------ putting it on the card
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// The picture onto the card, in the board's files; the card versioned and
-// logged; the board's clock moved.
-async function attach(env: Env, item: Row, image: Uint8Array, suffix: string, mime: string, original: string, title?: string): Promise<Row> {
+// The picture onto the card, under its digest as every board file is; the
+// card versioned and logged; the board's clock moved.
+async function attach(env: Env, item: Row, image: Uint8Array, mime: string, original: string, title?: string): Promise<Row> {
   if (!image.length || image.length > BOARD_FILE_LIMIT) throw new JobError("The picture is empty or too large");
-  const key = `${item.board_uuid}/${crypto.randomUUID().replace(/-/g, "")}${suffix}`;
-  await env.FILES.put(`${BOARD_FILES}${key}`, image, { httpMetadata: { contentType: mime } });
+  const digest = await sha256Hex(image);
+  const key = blobKey(digest);
+  if (!(await stored(env, boardFileKey(key)))) await env.FILES.put(boardFileKey(key), image, { httpMetadata: { contentType: mime } });
   item.file_path = key;
-  item.sha256 = await sha256Hex(image);
+  item.sha256 = digest;
   item.original_filename = original;
   item.mime_type = mime;
   if (title !== undefined) item.content = title;
@@ -131,7 +127,7 @@ export async function captureWebpageJob(env: Env, payload: Row): Promise<Row> {
     throw new JobError(`Could not capture the webpage: ${(error as Error).message}`);
   }
   const hostname = (() => { try { return new URL(url).hostname; } catch { return url; } })();
-  return attach(env, item, image, ".png", "image/png", `webpage-${hostname.slice(0, limits.text.display_name)}.png`);
+  return attach(env, item, image, "image/png", `webpage-${hostname.slice(0, limits.text.display_name)}.png`);
 }
 
 export async function captureYoutubeJob(env: Env, payload: Row): Promise<Row> {
@@ -143,5 +139,5 @@ export async function captureYoutubeJob(env: Env, payload: Row): Promise<Row> {
   } catch (error) {
     throw new JobError(`Could not fetch the video's thumbnail: ${(error as Error).message}`);
   }
-  return attach(env, item, picture.image, ".jpg", "image/jpeg", `youtube-${videoId}.jpg`, picture.title);
+  return attach(env, item, picture.image, "image/jpeg", `youtube-${videoId}.jpg`, picture.title);
 }

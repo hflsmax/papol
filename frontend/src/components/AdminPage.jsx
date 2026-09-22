@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { confirmAction } from '../../../shared/confirmAction';
 import { FEATURE_STATES, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates';
 import {
@@ -11,27 +12,29 @@ import {
   adminSetFeedbackResolved,
   adminSendMessage,
   adminListMessageRecipients,
+  adminSendAnnouncement,
+  adminListEmails,
+  adminGetEmail,
 } from '../../../shared/api/admin.js';
 import appLimits from '../../../shared/appLimits.js';
 import { nextSort, sortIndicator, sortRows } from '../adminSort.js';
 
-function AdminMessagePanel() {
-  const [content, setContent] = useState('');
-  const [audience, setAudience] = useState('all');
+// The open accounts a broadcast can go to, for the audience picker.
+function useRecipients(setError) {
   const [recipients, setRecipients] = useState([]);
-  const [selected, setSelected] = useState(() => new Set());
-  const [search, setSearch] = useState('');
-  const [loadingRecipients, setLoadingRecipients] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
-
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     adminListMessageRecipients()
       .then(setRecipients)
       .catch((failure) => setError(failure.message))
-      .finally(() => setLoadingRecipients(false));
+      .finally(() => setLoading(false));
   }, []);
+  return { recipients, loading };
+}
+
+// Everyone, or the users picked from a searchable list.
+function AudiencePicker({ name, audience, setAudience, recipients, loading, selected, setSelected }) {
+  const [search, setSearch] = useState('');
 
   const normalizedSearch = search.trim().toLowerCase();
   const shownRecipients = recipients.filter((recipient) =>
@@ -47,6 +50,81 @@ function AdminMessagePanel() {
       return next;
     });
   };
+
+  return (
+    <>
+      <fieldset className="admin-message-audience">
+        <legend className="form-label">Recipients</legend>
+        <label className="checkbox-row">
+          <input
+            type="radio"
+            name={name}
+            checked={audience === 'all'}
+            onChange={() => setAudience('all')}
+          />
+          <span>Everyone <small>All current users</small></span>
+        </label>
+        <label className="checkbox-row">
+          <input
+            type="radio"
+            name={name}
+            checked={audience === 'selected'}
+            onChange={() => setAudience('selected')}
+          />
+          <span>Selected users <small>Choose one or more users</small></span>
+        </label>
+      </fieldset>
+      {audience === 'selected' && (
+        <div className="admin-recipient-picker">
+          <label htmlFor={`${name}-search`}>Find users</label>
+          <input
+            id={`${name}-search`}
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by name, email, or affiliation…"
+          />
+          <p className="admin-recipient-count" role="status">
+            {selected.size} selected
+          </p>
+          {loading ? (
+            <Working label="Loading users…" />
+          ) : (
+            <ul className="admin-recipient-list">
+              {shownRecipients.map((recipient) => (
+                <li key={recipient.uuid}>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(recipient.uuid)}
+                      onChange={() => toggleRecipient(recipient.uuid)}
+                    />
+                    <span>
+                      <strong>{recipient.display_name}</strong>
+                      <small>{recipient.email}{recipient.affiliation ? ` · ${recipient.affiliation}` : ''}</small>
+                    </span>
+                  </label>
+                </li>
+              ))}
+              {shownRecipients.length === 0 && (
+                <li className="no-comments">No matching users.</li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function AdminMessagePanel() {
+  const [content, setContent] = useState('');
+  const [audience, setAudience] = useState('all');
+  const [selected, setSelected] = useState(() => new Set());
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const { recipients, loading: loadingRecipients } = useRecipients(setError);
 
   const send = async (event) => {
     event.preventDefault();
@@ -84,66 +162,15 @@ function AdminMessagePanel() {
         This appears when each recipient next opens Papol. Once dismissed, it
         will not appear to that user again.
       </p>
-      <fieldset className="admin-message-audience">
-        <legend className="form-label">Recipients</legend>
-        <label className="checkbox-row">
-          <input
-            type="radio"
-            name="admin-message-audience"
-            checked={audience === 'all'}
-            onChange={() => setAudience('all')}
-          />
-          <span>Everyone <small>All current users</small></span>
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="radio"
-            name="admin-message-audience"
-            checked={audience === 'selected'}
-            onChange={() => setAudience('selected')}
-          />
-          <span>Selected users <small>Choose one or more users</small></span>
-        </label>
-      </fieldset>
-      {audience === 'selected' && (
-        <div className="admin-recipient-picker">
-          <label htmlFor="admin-recipient-search">Find users</label>
-          <input
-            id="admin-recipient-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name, email, or affiliation…"
-          />
-          <p className="admin-recipient-count" role="status">
-            {selected.size} selected
-          </p>
-          {loadingRecipients ? (
-            <p className="panel-note" role="status">Loading users…</p>
-          ) : (
-            <ul className="admin-recipient-list">
-              {shownRecipients.map((recipient) => (
-                <li key={recipient.uuid}>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(recipient.uuid)}
-                      onChange={() => toggleRecipient(recipient.uuid)}
-                    />
-                    <span>
-                      <strong>{recipient.display_name}</strong>
-                      <small>{recipient.email}{recipient.affiliation ? ` · ${recipient.affiliation}` : ''}</small>
-                    </span>
-                  </label>
-                </li>
-              ))}
-              {shownRecipients.length === 0 && (
-                <li className="no-comments">No matching users.</li>
-              )}
-            </ul>
-          )}
-        </div>
-      )}
+      <AudiencePicker
+        name="admin-message-audience"
+        audience={audience}
+        setAudience={setAudience}
+        recipients={recipients}
+        loading={loadingRecipients}
+        selected={selected}
+        setSelected={setSelected}
+      />
       <div className="form-group">
         <label htmlFor="admin-message-content">Message</label>
         <textarea
@@ -171,6 +198,199 @@ function AdminMessagePanel() {
   );
 }
 
+// Resend writes "2026-09-22 09:50:31.069000+00".
+const sentDate = (at) => new Date(`${at.slice(0, 23).replace(' ', 'T')}Z`);
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const statusSummary = (emails) => {
+  const counts = {};
+  for (const email of emails) {
+    const status = email.status || 'unknown';
+    counts[status] = (counts[status] || 0) + 1;
+  }
+  return Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ');
+};
+
+// What one send said: its text, or its HTML shown as the recipient saw it.
+function SentEmailBody({ id }) {
+  const [body, setBody] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    adminGetEmail(id).then(setBody).catch((failure) => setError(failure.message));
+  }, [id]);
+
+  if (error) return <div className="error" role="alert">{error}</div>;
+  if (!body) return <Working label="Loading the email…" />;
+  if (body.text) return <p className="feedback-content sent-email-text">{body.text}</p>;
+  if (body.html) {
+    return <iframe className="sent-email-html" title="The email as sent" sandbox="" srcDoc={body.html} />;
+  }
+  return <p className="no-papers">Resend kept no body for this email.</p>;
+}
+
+// Announcements to write, and every email Papol has sent, as Resend
+// recorded it.
+function EmailPanel() {
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [audience, setAudience] = useState('all');
+  const [selected, setSelected] = useState(() => new Set());
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [record, setRecord] = useState(null);
+  const [recordError, setRecordError] = useState(null);
+  const [open, setOpen] = useState(null);
+  const { recipients, loading: loadingRecipients } = useRecipients(setError);
+
+  const loadRecord = () => {
+    setRecordError(null);
+    adminListEmails().then(setRecord).catch((failure) => setRecordError(failure.message));
+  };
+
+  useEffect(loadRecord, []);
+
+  const send = async (test) => {
+    if (!subject.trim() || !body.trim()) return;
+    const userUuids = audience === 'all' ? null : [...selected];
+    if (!test) {
+      const audienceDescription = audience === 'all'
+        ? 'every current Papol user'
+        : plural(selected.size, 'selected user');
+      if (!(await confirmAction(
+        `Email “${subject.trim()}” to ${audienceDescription}? Email cannot be taken back.`,
+        { confirmLabel: audience === 'all' ? 'Email everyone' : 'Email selected users' },
+      ))) return;
+    }
+
+    setSending(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await adminSendAnnouncement(subject, body, { userUuids, test });
+      if (test) {
+        setNotice('A test copy is on its way to you.');
+      } else {
+        setSubject('');
+        setBody('');
+        if (audience === 'selected') setSelected(new Set());
+        setNotice(`Emailing ${plural(result.recipient_count, 'user')}.`);
+      }
+      // The job sends within seconds; the record shows it once Resend has it.
+      setTimeout(loadRecord, 5000);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const configured = record?.configured !== false;
+  const ready = configured && !sending && subject.trim() && body.trim() &&
+    !(audience === 'selected' && (loadingRecipients || selected.size === 0));
+
+  return (
+    <>
+      <form className="admin-message-compose" onSubmit={(event) => { event.preventDefault(); send(false); }}>
+        <p className="panel-note">
+          Each recipient gets an email of their own
+          {record?.from ? <>, from <code>{record.from}</code></> : null}.
+          Send yourself a test copy first.
+        </p>
+        {!configured && (
+          <div className="error" role="alert">Email is not configured on this server.</div>
+        )}
+        <AudiencePicker
+          name="admin-email-audience"
+          audience={audience}
+          setAudience={setAudience}
+          recipients={recipients}
+          loading={loadingRecipients}
+          selected={selected}
+          setSelected={setSelected}
+        />
+        <div className="form-group">
+          <label htmlFor="admin-email-subject">Subject</label>
+          <input
+            id="admin-email-subject"
+            type="text"
+            maxLength={appLimits.text.announcement_subject}
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="What the email is about…"
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="admin-email-body">Email</label>
+          <textarea
+            id="admin-email-body"
+            rows="12"
+            maxLength={appLimits.text.announcement_body}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder="Write the email as plain text…"
+          />
+        </div>
+        {error && <div className="error" role="alert">{error}</div>}
+        {notice && <div className="success" role="status">{notice}</div>}
+        <div className="admin-email-actions">
+          <button type="button" disabled={!ready} onClick={() => send(true)}>
+            Send a test to me
+          </button>
+          <button className="primary" type="submit" disabled={!ready}>
+            {sending ? 'Sending…' : audience === 'all' ? 'Email everyone' : 'Email selected users'}
+          </button>
+        </div>
+      </form>
+
+      <h6 className="kicker">
+        Sent{' '}
+        <button className="link-button" onClick={loadRecord}>Refresh</button>
+      </h6>
+      {recordError && <div className="error" role="alert">{recordError}</div>}
+      {!record && !recordError && <div className="loading"><Working label="Loading sent email…" /></div>}
+      {record && configured && record.sends.length === 0 && <p className="no-papers">Nothing sent yet.</p>}
+      {record && record.sends.length > 0 && (
+        <ul className="feedback-list">
+          {record.sends.map((sent) => {
+            const key = sent.emails[0].id;
+            const expanded = open === key;
+            return (
+              <li key={key} className="feedback-item">
+                <p className="feedback-head">
+                  {sentDate(sent.sent_at).toLocaleString()} ·{' '}
+                  {sent.emails.length === 1 ? sent.emails[0].to : plural(sent.emails.length, 'recipient')} ·{' '}
+                  {statusSummary(sent.emails)}
+                  {sent.from !== record.from ? ` · from ${sent.from}` : ''}
+                </p>
+                <button
+                  className="link-button sent-email-subject"
+                  aria-expanded={expanded}
+                  onClick={() => setOpen(expanded ? null : key)}
+                >
+                  {sent.subject}
+                </button>
+                {expanded && (
+                  <div className="sent-email-detail">
+                    {sent.emails.length > 1 && (
+                      <p className="feedback-head">
+                        {sent.emails.map((email) => `${email.to} (${email.status || 'unknown'})`).join(', ')}
+                      </p>
+                    )}
+                    <SentEmailBody id={key} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+}
+
 function FeedbackPanel() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
@@ -192,7 +412,7 @@ function FeedbackPanel() {
   };
 
   if (error) return <div className="error" role="alert">{error}</div>;
-  if (!items) return <div className="loading" role="status" aria-live="polite">Loading reports…</div>;
+  if (!items) return <div className="loading"><Working label="Loading reports…" /></div>;
 
   const open = items.filter((f) => !f.resolved);
   const done = items.filter((f) => f.resolved);
@@ -419,6 +639,11 @@ export default function AdminPage() {
       </div>
 
       <div className="panel">
+        <h2 className="panel-title">Email users</h2>
+        <EmailPanel />
+      </div>
+
+      <div className="panel">
         <h2 className="panel-title">Bug reports and feature requests</h2>
         <FeedbackPanel />
       </div>
@@ -448,7 +673,7 @@ export default function AdminPage() {
         {notice && <div className="success">{notice}</div>}
 
         {!data ? (
-          <div className="loading" role="status" aria-live="polite">Loading {selected}…</div>
+          <div className="loading"><Working label={`Loading ${selected}…`} /></div>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">

@@ -227,9 +227,9 @@ function openedFileSource(pdfHash, name) {
     // Public metadata lookup would send the hash to Papol. The membership
     // check stays entirely inside the signed-in user's local replica.
     info: () => Promise.resolve({}),
-    async addToNook() {
+    async addToNook({ onProgress, identifier } = {}) {
       return addOpenedFileToNook({
-        sha256: pdfHash, name: title, notes: [], ink: [], clips: [],
+        sha256: pdfHash, name: title, identifier, notes: [], ink: [], clips: [], onProgress,
       });
     },
   };

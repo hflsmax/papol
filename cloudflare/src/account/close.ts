@@ -5,9 +5,9 @@
 
 import { type User } from "../auth";
 import { cohortUserUuids } from "../cohorts";
-import { all, now, statement, type Row } from "../db";
+import { all, now, one, statement, type Row } from "../db";
+import { boardFileKey, UPLOADS } from "../files";
 import { notify, saveRoom, type Room } from "../routes/rooms";
-import { BOARD_FILES, UPLOADS } from "../sync/blobs";
 
 // What a closed account is called wherever it still shows.
 export const FORMER_USER = "A former user";
@@ -49,6 +49,14 @@ async function handOnSeminars(env: Env, userUuid: string): Promise<{ statements:
 
 const KEY = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
 
+// The files the user's cards named, with the digest each is stored under.
+// Read before the rows go, since afterwards nothing says what they were.
+async function boardFiles(env: Env, boardUuids: string[]): Promise<{ file_path: string; sha256: string | null }[]> {
+  if (!boardUuids.length) return [];
+  return all<{ file_path: string; sha256: string | null }>(env.DB,
+    `SELECT DISTINCT file_path, sha256 FROM board_items WHERE file_path IS NOT NULL AND board_uuid IN (${boardUuids.map(() => "?").join(",")})`, ...boardUuids);
+}
+
 // Close the account: one batch that deletes what was private, signs the
 // user out of everywhere, hands on their seminars and scrubs the row;
 // then the files nothing points at any more.
@@ -56,6 +64,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const db = env.DB;
   const boardUuids = (await all<{ uuid: string }>(db, "SELECT uuid FROM boards WHERE user_uuid = ?", user.uuid)).map((b) => b.uuid);
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
+  const files = await boardFiles(env, boardUuids);
   const seminars = await handOnSeminars(env, user.uuid);
 
   // Private, and theirs alone; then out of the cohorts, since someone who
@@ -98,15 +107,17 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   removed.pdfs_kept = (await all<Row>(db, "SELECT 1 FROM papers WHERE uploaded_by = ?", user.uuid)).length;
 
   // Only once the row is certainly scrubbed, so a failed write never
-  // leaves an account pointing at a picture that is not there.
+  // leaves an account pointing at a picture that is not there. A board
+  // file is named by its bytes, so another user's card — or a card of
+  // theirs that was let go and may yet be restored — can name the same
+  // object: it goes only when no card at all names its digest any more.
   if (avatar && KEY.test(avatar)) await env.FILES.delete(`${UPLOADS}${avatar}`);
-  for (const boardUuid of boardUuids) {
-    let cursor: string | undefined;
-    do {
-      const page = await env.FILES.list({ prefix: `${BOARD_FILES}${boardUuid}/`, cursor });
-      if (page.objects.length) await env.FILES.delete(page.objects.map((o) => o.key));
-      cursor = page.truncated ? page.cursor : undefined;
-    } while (cursor);
+  removed.board_files = 0;
+  for (const file of files) {
+    if (!KEY.test(file.file_path)) continue;
+    if (file.sha256 && await one(db, "SELECT 1 FROM board_items WHERE sha256 = ? LIMIT 1", file.sha256)) continue;
+    await env.FILES.delete(boardFileKey(file.file_path));
+    removed.board_files++;
   }
   return removed;
 }

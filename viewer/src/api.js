@@ -10,9 +10,56 @@ import {
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 import { paperName } from '../../shared/paperName.js';
-import { lookupPaperMetadata } from '../../shared/api/papers.js';
+import { awaitPaperReading, uploadPaper } from '../../shared/api/papers.js';
+import { storeFile } from '../../shared/api/files.js';
+import appLimits from '../../shared/appLimits.js';
+import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
+import { isReportableUploadError } from '../../shared/uploadError.js';
 
 const openedFileImports = new Map();
+
+// How long "Add to nook" waits for the reading before it writes the paper
+// without it. Short, unlike the form's wait: the user is watching.
+const NOOK_ADD_READING_TIMEOUT_MS = appLimits.timeouts_ms.nook_add_reading;
+
+// What the nook page this window goes to next says once: `{ message,
+// report }`, where `report` is a diagnostic report's text to offer, as
+// the upload form offers one for a send that failed. The window's own
+// session storage carries it across the navigation.
+const NOOK_NOTICE = 'papol.viewer.nookNotice';
+
+function leaveNookNotice(notice) {
+  try { sessionStorage.setItem(NOOK_NOTICE, JSON.stringify(notice)); } catch { /* it is only said */ }
+}
+
+export function takeNookNotice() {
+  try {
+    const stored = sessionStorage.getItem(NOOK_NOTICE);
+    sessionStorage.removeItem(NOOK_NOTICE);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Why a paper added from an opened file has no details but its file name.
+function unreadNotice(uploaded) {
+  const failure = uploaded.sendFailure;
+  const why = uploaded.offline
+    ? 'Papol was offline, so the PDF was not read'
+    : failure
+      ? `the PDF could not be sent to be read (${failure.message || failure})`
+      : 'Papol could not read the PDF in time';
+  const report = failure && isReportableUploadError(failure)
+    ? unexpectedDesktopErrorReport(failure, 'sending a PDF to be read', {
+      surface: window.__PAPOL_ENV__?.surface, platform: navigator.platform,
+    }).content
+    : null;
+  return {
+    message: `Added to your nook, but ${why}; its title is the file name. Edit the details on the paper's page.`,
+    report,
+  };
+}
 
 export function getToken() {
   return currentCredential();
@@ -42,7 +89,11 @@ export function getViewerPaperInfo(hash, share) {
   return request(`/viewer/${hash}/info${share ? `?share=${share}` : ''}`);
 }
 
+// Where the PDF's bytes are: the address the server gives when it gives
+// one — the bucket's own, so the stream never passes through the Worker,
+// not even for a redirect — else Papol's route, which sends us on.
 export function pdfHref(paper) {
+  if (paper?.file_url) return paper.file_url;
   if (!paper?.file_path) return null;
   return backendPath(`/uploads/${paper.file_path}`);
 }
@@ -59,13 +110,21 @@ export async function getNookPaperByPdf(hash) {
 }
 
 // A file opened from disk becomes a nook paper, and the notes, ink and clips
-// made on it before then come along. Online imports are enriched before the
-// local commit; offline imports retain the filename-derived fallback.
-export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [] }) {
+// made on it before then come along. It comes in as the upload form's PDF
+// does (shared/api/papers.js): kept in the nook, sent to be read, and read.
+// Only the last step differs: there is no form to fill in later, so the
+// reading is waited for, briefly, before the paper is written, and a paper
+// added without it keeps the file's name as its title. Why is said on the
+// nook page this window goes to next (`takeNookNotice`).
+//
+// `identifier` is what the open document's first pages print
+// (shared/identifiers.js). `onProgress` hears the send of the bytes to
+// Papol as it goes (shared/api/files.js), the one measurable part of it.
+export async function addOpenedFileToNook({ sha256, name, identifier = null, notes = [], ink = [], clips = [], onProgress }) {
   if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
   const pending = openedFileImports.get(sha256);
   if (pending) return pending;
-  const importing = importOpenedFileToNook({ sha256, name, notes, ink, clips });
+  const importing = importOpenedFileToNook({ sha256, name, identifier, notes, ink, clips, onProgress });
   openedFileImports.set(sha256, importing);
   try {
     return await importing;
@@ -74,20 +133,23 @@ export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], 
   }
 }
 
-async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
+async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, clips, onProgress }) {
   let paper = await getNookPaperByPdf(sha256);
   if (!paper) {
+    // Opening a file remains private. Only once the user adds it do its
+    // bytes go to Papol, to be read as an upload is.
     const blob = await openedFileBlob(sha256);
-    const stored = await nativeBlobImport(blob);
-    if (stored.sha256 !== sha256) throw new Error('The file changed while it was open.');
-    // Opening a file remains private. Once the user explicitly adds it,
-    // use the same authenticated parser as the upload form so the replica
-    // starts with bibliographic metadata instead of a filename-only stub.
-    const metadata = await lookupPaperMetadata(blob, name);
+    const uploaded = await uploadPaper(blob, { name, identifier, onProgress });
+    if (uploaded.sha256 !== sha256) throw new Error('The file changed while it was open.');
+    const metadata = await awaitPaperReading(uploaded, { timeoutMs: NOOK_ADD_READING_TIMEOUT_MS });
+    if (!metadata) leaveNookNotice(unreadNotice(uploaded));
     const shelves = await nativeRepository.shelves();
     const shelf = shelves.find((row) => row.is_default) || shelves[0];
     // No name is invented for it. The paper is the file, and the service
-    // reads the same name off the same bytes.
+    // reads the same name off the same bytes. `sha256` among the values,
+    // as the upload form writes it, is what tells sync the row names a
+    // file: it puts the bytes in the bucket before the row, which matters
+    // when the send above did not happen. Sent already, it is told so.
     await nativeRepository.transact([
       {
         table: 'papers', uuid: sha256, operation: 'upsert',
@@ -97,7 +159,7 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
           authors: metadata?.authors ?? null,
           journal: metadata?.journal ?? null,
           year: metadata?.year ?? null,
-          file_path: `${sha256}.pdf`,
+          file_path: `${sha256}.pdf`, sha256,
         },
       },
       {
@@ -203,12 +265,11 @@ export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sour
     }]);
     return receipt.rows[0];
   }
-  const body = new FormData();
-  body.append('file', blob, 'paper-clip.png');
-  body.append('caption', comment || '');
-  body.append('source_url', sourceUrl);
-  body.append('source_label', sourceLabel);
-  return request(`/boards/${boardUuid}/staging/clip`, { method: 'POST', body });
+  // The picture into the bucket (shared/api/files.js), then the card that names it.
+  const stored = await storeFile('board_file', blob, { name: 'paper-clip.png', mime: 'image/png' });
+  return jsonRequest(`/boards/${boardUuid}/staging/clip`, 'POST', {
+    sha256: stored.sha256, caption: comment || '', source_url: sourceUrl, source_label: sourceLabel,
+  });
 }
 
 // ---- Annotations ----

@@ -305,10 +305,19 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   `description` column finally has somewhere to be read. Both sit inside the
   Desk's own chrome with a Back to the nook or Library they were opened
   from (`jacketOrigin.js`, one remembered place per tab serving both kinds).
-  The board's two writable fields — its name and its description — are kept
-  the way an anchor's card keeps its own: when the field is left, not when a
-  button is pressed. The way in is one `primary` button, because a jacket
-  has exactly one thing it is for.
+  A board's jacket is one component in both shells (`BoardJacket.jsx`), set
+  like a paper's: the same panel, title row, shelf picker and trash. Under
+  the name, one muted facts line (`boardFacts.js`): the owner (only on
+  someone else's board), cards, groups and source papers when there are
+  any, created and edited. Then the description, the one `primary` "Open
+  board" — a jacket has exactly one thing it is for — and the preview of
+  the canvas (`BoardPreview.jsx`), which opens it too. Below, the papers
+  its cards were clipped from (`shared/boardPapers.js` reads them off the
+  cards' viewer backlinks; the service and the replica each supply what is
+  known of them), and for the owner the clips waiting to be placed. The
+  owner's name and description are edited in place and kept the way an
+  anchor's card keeps its own: when the field is left, not when a button is
+  pressed.
 
 - **Anchor card** — `.note-pop`: an anchor's name, its note and its delete,
   on a `--card` ground with `--shadow-md`, hung off its pin on the page.
@@ -461,13 +470,13 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   Reading is three panes (`components/DesktopDesk.jsx`): the Desk sidebar picks
   a source, a 320px white list pane shows it as compact rows with a search
   field, and the selected paper opens beside the list in the ordinary
-  `PaperDetail`. A selected board opens a read-only overview there instead:
-  identity and shelf, incoming excerpts or clips waiting to be placed, and a
-  fitted canvas preview. One click selects a board; double-click, Return, or
-  the overview's Open Board button opens its document window. The Library is
-  for recognising and resuming a board, never for editing its canvas. A newly
-  created board becomes the selected board in the Desk and shows this
-  overview; creation never opens the document window on the user's behalf.
+  `PaperJacket`. A selected board opens its jacket there instead — the same
+  `BoardJacket` the web shows at `/board/<uuid>`, reading the replica. One
+  click selects a board; double-click, Return, or the jacket's Open board
+  or preview opens its document window. The Library is for recognising and
+  resuming a board, never for editing its canvas. A newly created board
+  becomes the selected board in the Desk and shows its jacket; creation
+  never opens the document window on the user's behalf.
   Adding a paper or a board also happens in the detail pane. Every
   other page (Inbox, Profile, Learn, a seminar, someone else's nook) fills the
   space beside the sidebar under a toolbar holding just its title.

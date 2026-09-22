@@ -11,12 +11,11 @@ import { all, batch, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext, type Router } from "../http";
 import { WEBPAGE, YOUTUBE, publicWebUrl, youtubeId } from "../jobs/capture";
 import { enqueue, wake } from "../jobs/queue";
-import { BOARD_FILES } from "../sync/blobs";
+import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "../files";
 import { rowSnapshot } from "../sync/rows";
 import { writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
-const BOARD_FILE_LIMIT = limits.files.board_file_mb * 1024 * 1024;
 const COORDINATE = limits.board.coordinate_abs_max;
 
 // ---------------------------------------------------------------- shapes
@@ -63,13 +62,37 @@ export function userPublic(user: Row) {
   };
 }
 
+// A card as the API answers it: its synchronized columns, and where its
+// file is fetched from — the bucket's own address when there is one.
 async function itemOut(env: Env, item: Row) {
   const { revision: _r, updated_at: _u, ...out } = await rowSnapshot(env.DB, "board_items", item);
-  return out;
+  return { ...out, file_url: boardFileUrl(env, { uuid: String(item.uuid), file_path: (item.file_path as string | null) ?? null }) };
 }
 
 function groupOut(group: Group, itemUuids: string[]) {
   return { uuid: group.uuid, kind: group.kind, title: group.title, header: group.header ?? "", auto_arrange: Boolean(group.auto_arrange), item_uuids: itemUuids };
+}
+
+// The paper a clip or an excerpt was taken from: its backlink is the
+// viewer's address, which names the PDF by its digest (shared/boardPapers.js
+// reads it the same way).
+function sourcePaperSha256(item: Item): string | null {
+  const source = item.source_url as string | null | undefined;
+  if (!source) return null;
+  try {
+    const url = new URL(source);
+    const pdf = url.pathname.includes("/viewer/") ? url.searchParams.get("pdf")?.toLowerCase() : null;
+    return pdf && DIGEST.test(pdf) ? pdf : null;
+  } catch {
+    return null;
+  }
+}
+
+// What the board's jacket lists of the papers its cards come from.
+async function sourcePapers(env: Env, items: Item[]) {
+  const digests = [...new Set(items.map(sourcePaperSha256).filter((d): d is string => d !== null))];
+  if (!digests.length) return [];
+  return all(env.DB, `SELECT sha256, title, authors, year FROM papers WHERE sha256 IN (${digests.map(() => "?").join(",")})`, ...digests);
 }
 
 export async function boardOut(env: Env, board: Board, { includeItems = false, canEdit = false } = {}) {
@@ -83,6 +106,7 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
     created_at: board.created_at, updated_at: board.updated_at, item_count: active.length,
     items: includeItems ? await Promise.all(active.map((i) => itemOut(env, i))) : [],
     staged_items: includeItems && canEdit ? await Promise.all(staged.map((i) => itemOut(env, i))) : [],
+    papers: includeItems ? await sourcePapers(env, active) : [],
     groups: groups.map((g) => groupOut(g, items.filter((i) => i.group_uuid === g.uuid).map((i) => i.uuid))),
   };
 }
@@ -151,26 +175,15 @@ async function writeItem(env: Env, board: Board, item: Row, isNew: boolean, more
   return json(await itemOut(env, item));
 }
 
-// An upload for a board, within the limit, stored under a name minted for
-// this one write. Returns the key within the board files area and the digest.
-async function receiveBoardFile(env: Env, board: Board, file: File, suffix: string, mime: string): Promise<{ key: string; digest: string }> {
-  if (file.size > BOARD_FILE_LIMIT) refuse(413, `Board files may be at most ${limits.files.board_file_mb} MB`);
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  if (bytes.length > BOARD_FILE_LIMIT) refuse(413, `Board files may be at most ${limits.files.board_file_mb} MB`);
-  const digestBytes = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  const digest = [...new Uint8Array(digestBytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const key = `${board.uuid}/${newUuid().replace(/-/g, "")}${suffix}`;
-  await env.FILES.put(`${BOARD_FILES}${key}`, bytes, { httpMetadata: { contentType: mime } });
-  return { key, digest };
-}
-
-async function form(request: Request): Promise<FormData> {
-  try { return await request.formData(); } catch { return refuse(422, "The request is not a form"); }
-}
-
-function fileField(data: FormData, name = "file"): File {
-  const value = data.get(name);
-  return value instanceof File ? value : refuse(422, `${name} is required`);
+// A file for a card: the caller has put the bytes in the bucket under
+// their digest (routes/files.ts) and names them. The card records the key
+// they sit under; the bytes had to be there first, since a card Papol
+// cannot show is not one it can keep.
+async function announcedFile(env: Env, check: ReturnType<typeof validate.checking>, sha256: unknown): Promise<{ file_path: string; sha256: string }> {
+  const digest = check.string("sha256", sha256, { pattern: DIGEST })!;
+  check.done();
+  if (!(await stored(env, boardFileKey(blobKey(digest))))) refuse(409, "The file has not been uploaded");
+  return { file_path: blobKey(digest), sha256: digest };
 }
 
 function coordinate(field: string, value: unknown, optional = false): number | null {
@@ -299,17 +312,15 @@ export function boardRoutes(router: Router) {
   router.on("POST", "/api/boards/:uuid/staging/clip", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const board = await ownedBoard(env, params.uuid, user);
-    const data = await form(request);
-    const caption = String(data.get("caption") ?? ""), sourceUrl = String(data.get("source_url") ?? ""), sourceLabel = String(data.get("source_label") ?? "");
-    if (caption.length > limits.text.board_content || sourceUrl.length > limits.text.source_url || sourceLabel.length > limits.text.source_label) {
-      refuse(422, "Clip metadata is too long");
-    }
-    if (!sourceUrl || !sourceLabel) refuse(422, "source_url and source_label are required");
-    if (!/^https?:\/\//.test(sourceUrl)) refuse(422, "Invalid source URL");
-    const { key, digest } = await receiveBoardFile(env, board, fileField(data), ".png", "image/png");
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const caption = check.string("caption", data.caption, { max: limits.text.board_content, optional: true });
+    const sourceUrl = check.string("source_url", data.source_url, { min: 1, max: limits.text.source_url, pattern: /^https?:\/\// });
+    const sourceLabel = check.string("source_label", data.source_label, { min: 1, max: limits.text.source_label });
+    const file = await announcedFile(env, check, data.sha256);
     const item = newItem(board, {
-      kind: "image", content: caption.trim() || null, file_path: key, sha256: digest, original_filename: "paper-clip.png",
-      mime_type: "image/png", source_url: sourceUrl.trim(), source_label: sourceLabel.trim(), staged: 1,
+      kind: "image", content: caption?.trim() || null, ...file, original_filename: "paper-clip.png",
+      mime_type: "image/png", source_url: sourceUrl!.trim(), source_label: sourceLabel!.trim(), staged: 1,
     });
     return writeItem(env, board, item, true);
   });
@@ -328,22 +339,22 @@ export function boardRoutes(router: Router) {
     return writeItem(env, board, item, false);
   });
 
+  // A file on a card: a picture or a document the user put in the bucket
+  // and now names, with what to call it and what it is.
   router.on("POST", "/api/boards/:uuid/files", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const board = await ownedBoard(env, params.uuid, user);
-    const data = await form(request);
-    const caption = String(data.get("caption") ?? "");
-    if (caption.length > limits.text.board_content) refuse(422, "Caption is too long");
-    const file = fileField(data);
-    const original = (file.name || "file").split(/[\\/]/).pop()!.slice(0, limits.text.uploaded_filename);
-    const suffix = (original.match(/\.[^.]*$/)?.[0] ?? "").slice(0, limits.text.uploaded_suffix);
-    const mime = (file.type || "application/octet-stream").slice(0, limits.text.mime_type);
-    const { key, digest } = await receiveBoardFile(env, board, file, suffix, mime);
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const caption = check.string("caption", data.caption, { max: limits.text.board_content, optional: true });
+    const original = (check.string("original_filename", data.original_filename, { max: limits.text.uploaded_filename, optional: true }) || "file").split(/[\\/]/).pop()!;
+    const mime = (check.string("mime_type", data.mime_type, { max: limits.text.mime_type, optional: true }) || "application/octet-stream").split(";")[0].trim();
+    const file = await announcedFile(env, check, data.sha256);
     const where = slot(await activeItemCount(env, board));
     const item = newItem(board, {
-      kind: mime.startsWith("image/") ? "image" : "file", content: caption.trim() || null,
-      file_path: key, sha256: digest, original_filename: original, mime_type: mime,
-      x: coordinate("x", data.get("x"), true) ?? where.x, y: coordinate("y", data.get("y"), true) ?? where.y,
+      kind: mime.startsWith("image/") ? "image" : "file", content: caption?.trim() || null,
+      ...file, original_filename: original, mime_type: mime,
+      x: coordinate("x", data.x, true) ?? where.x, y: coordinate("y", data.y, true) ?? where.y,
     });
     return writeItem(env, board, item, true);
   });
@@ -540,25 +551,24 @@ export function boardRoutes(router: Router) {
     return json(await Promise.all(placed.map((i) => itemOut(env, i))));
   });
 
-  // Board files are write-once: edits change card metadata, never the
-  // bytes at this URL, so a private file may sit in the user's cache for
-  // good. Served from the bucket by the Worker; the desktop and the
-  // browser see one origin.
-  router.on("GET", "/api/board-items/:uuid/file", async ({ request, env, params }) => {
-    const user = await currentUser(request, env);
+  // A card's file, by the card. Write-once: edits change card metadata,
+  // never the bytes, so what this URL answers may be cached for good.
+  // With a bucket address the answer is a 301 to it — a client that
+  // read the card has `file_url` and never asks; without, a local Worker
+  // serves the object. Public by key, as the bucket is: a card's uuid
+  // and its file's digest are both minted, and asking who is asking
+  // would protect nothing the bucket does not already hand out.
+  router.on("GET", "/api/board-items/:uuid/file", async ({ env, params }) => {
     const item = await one<Item & { file_path: string | null; mime_type: string | null; original_filename: string | null }>(env.DB, "SELECT * FROM board_items WHERE uuid = ?", params.uuid);
-    const board = item ? await one<Board>(env.DB, "SELECT * FROM boards WHERE uuid = ?", item.board_uuid) : null;
-    if (!item?.file_path || !board) refuse(404, "Board file not found");
-    if (board.user_uuid !== user.uuid) {
-      const shelf = board.shelf_uuid ? await one<{ is_public: number }>(env.DB, "SELECT is_public FROM shelves WHERE uuid = ?", board.shelf_uuid) : null;
-      if (!shelf?.is_public) refuse(404, "Board file not found");
-    }
-    const object = await env.FILES.get(`${BOARD_FILES}${item.file_path}`);
+    if (!item?.file_path) refuse(404, "Board file not found");
+    const address = fileUrl(env, boardFileKey(item.file_path));
+    if (address) return new Response(null, { status: 301, headers: { location: address, "cache-control": "public, max-age=86400" } });
+    const object = await env.FILES.get(boardFileKey(item.file_path));
     if (!object) refuse(404, "Board file not found");
     const headers: Record<string, string> = {
       "content-type": item.mime_type ?? "application/octet-stream",
       "content-length": String(object.size),
-      "cache-control": "private, max-age=31536000, immutable",
+      "cache-control": "public, max-age=31536000, immutable",
     };
     if (item.original_filename) headers["content-disposition"] = `attachment; filename="${item.original_filename.replace(/["\\]/g, "")}"`;
     return new Response(object.body, { headers });

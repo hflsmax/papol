@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
 import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
@@ -12,6 +13,7 @@ import {
 } from '../../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from '../../../shared/errorReport.js';
 import { unrecoverableSyncReport } from '../syncDiagnostics.js';
+import { syncFailureText } from '../../../shared/syncFailure.js';
 
 // The sidebar and toolbar that stand in for the website masthead inside
 // Papol macOS (see DESIGN.md, "Desktop shell"). Destinations are ordinary
@@ -215,10 +217,10 @@ function SyncControl({ onReportableError, onSynced }) {
         onClick={syncNow}
         disabled={status.syncing}
         aria-label={`Sync now — ${summary}`}
-        title={status.offline ? OFFLINE_MODE_MESSAGE : (status.error || 'Send and receive changes now')}
+        title={status.offline ? OFFLINE_MODE_MESSAGE : (syncFailureText(status.error) || 'Send and receive changes now')}
       >
-        <span className={status.syncing ? 'desktop-sync-mark spinning' : 'desktop-sync-mark'} aria-hidden="true">↻</span>
-        <span>{status.offline ? 'Offline — Sync' : 'Sync'}</span>
+        <span className="desktop-sync-mark" aria-hidden="true">↻</span>
+        <span>{status.syncing ? 'Syncing…' : status.offline ? 'Offline — Sync' : 'Sync'}</span>
       </button>
     </section>
   );

@@ -5,6 +5,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import worker from "../src/index";
 import { SCHEMA_HEADER, schemaVersion } from "../src/clientRequirements";
 import {
   call, count, defaultShelf, exec, mutation, ok, paperWithCopy, push, pushed, register, row, rows, sha256, uuid,
@@ -120,28 +121,31 @@ describe("pushing and pulling", () => {
 });
 
 describe("blobs", () => {
-  it("stores a file under its digest, once, and hands it back to its owner", async () => {
+  it("names a card's file by its digest once the bytes are in the bucket, and hands it back by that digest", async () => {
     const account = await register();
     const content = new TextEncoder().encode("offline clipped image bytes");
     const digest = await sha256(content);
-    expect((await call("HEAD", `/api/sync/blobs/${digest}`, { headers: account.headers })).status).toBe(404);
-    expect((await call("PUT", `/api/sync/blobs/${"0".repeat(64)}`, { headers: account.headers, body: content })).status).toBe(422);
-    expect((await call("PUT", `/api/sync/blobs/${digest}`, { headers: { ...account.headers, "content-type": "image/png" }, body: content })).status).toBe(204);
-    expect((await call("HEAD", `/api/sync/blobs/${digest}`, { headers: account.headers })).status).toBe(200);
+    expect((await call("GET", `/api/sync/blobs/${digest}`, { headers: account.headers })).status).toBe(404);
+    // The replica put the bytes in the bucket by the address it was given (files.test.ts).
+    await env.FILES.put(`board_uploads/blobs/${digest}`, content, { httpMetadata: { contentType: "image/png" } });
 
     const board = uuid(), item = uuid();
-    await pushed(account, mutation([
+    const result = await pushed(account, mutation([
       { table: "boards", uuid: board, operation: "upsert", values: { name: "Blob board" } },
       { table: "board_items", uuid: item, operation: "upsert",
         values: { board_uuid: board, kind: "image", sha256: digest, mime_type: "image/png", original_filename: "clip.png" } },
     ]));
+    expect(result.rows[1].file_path).toBe(`blobs/${digest}`);
     const downloaded = await call("GET", `/api/sync/blobs/${digest}`, { headers: account.headers });
     expect(downloaded.status).toBe(200);
     expect(new Uint8Array(await downloaded.arrayBuffer())).toEqual(content);
-    expect(downloaded.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
-    // Another user has no such card, and is told nothing.
-    const other = await register();
-    expect((await call("GET", `/api/sync/blobs/${digest}`, { headers: other.headers })).status).toBe(404);
+    expect(downloaded.headers.get("content-type")).toBe("image/png");
+    expect(downloaded.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect((await call("GET", `/api/sync/blobs/${digest}`)).status).toBe(401);
+    // With a bucket address, the answer is that address: the bytes are the bucket's to serve.
+    const hosted = await worker.fetch(new Request(`https://papol.test/api/sync/blobs/${digest}`, { headers: account.headers }), { ...env, FILES_URL: "https://files.test" as string } as Env);
+    expect(hosted.status).toBe(301);
+    expect(hosted.headers.get("location")).toBe(`https://files.test/board_uploads/blobs/${digest}`);
   });
 
   it("refuses a card naming a blob that was never sent", async () => {
@@ -164,7 +168,7 @@ describe("papers", () => {
     const at = new Date().toISOString();
     await exec("INSERT INTO papers (sha256, title, file_path, uploaded_by, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, 1)",
       digest, "Imported while offline", `${digest}.pdf`, account.uuid, at, at);
-    expect((await call("PUT", `/api/sync/blobs/${digest}`, { headers: account.headers, body: content })).status).toBe(204);
+    await env.FILES.put(`uploads/${digest}.pdf`, content, { httpMetadata: { contentType: "application/pdf" } });
 
     const copy = uuid();
     const result = await pushed(account, mutation([
@@ -238,7 +242,7 @@ describe("papers", () => {
     const account = await register();
     const content = new TextEncoder().encode("%PDF-1.4\nremoved and opened again\n%%EOF");
     const digest = await sha256(content);
-    expect((await call("PUT", `/api/sync/blobs/${digest}`, { headers: account.headers, body: content })).status).toBe(204);
+    await env.FILES.put(`uploads/${digest}.pdf`, content);
     const client = uuid(), copy = uuid();
     const paper = { table: "papers", uuid: digest, operation: "upsert", values: { title: "Removed and opened again", doi: null, file_path: `${digest}.pdf` } };
     await pushed(account, mutation([paper, { table: "copies", uuid: copy, operation: "upsert", values: { paper_sha256: digest } }], { client }));
@@ -262,7 +266,7 @@ describe("papers", () => {
     const account = await register();
     const content = new TextEncoder().encode("%PDF-1.4\nheld\n%%EOF");
     const digest = await sha256(content);
-    await call("PUT", `/api/sync/blobs/${digest}`, { headers: account.headers, body: content });
+    await env.FILES.put(`uploads/${digest}.pdf`, content);
     for (const values of [{ title: "t".repeat(501) }, { title: "" }, { title: "Fine", year: 99999 }]) {
       const response = await push(account, mutation([
         { table: "papers", uuid: digest, operation: "upsert", values },
@@ -574,10 +578,10 @@ describe("the client gate", () => {
   it("records the build each replica runs", async () => {
     const account = await register();
     const client = uuid();
-    await ok("GET", `/api/sync/pull?client_uuid=${client}`, { headers: { ...account.headers, [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.3.1" } });
+    await ok("GET", `/api/sync/pull?client_uuid=${client}`, { headers: { ...account.headers, [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.5.1" } });
     await ok("GET", `/api/sync/pull?client_uuid=${client}`, { headers: { ...account.headers, "User-Agent": "curl/8.4.0" } });
     // The last build that announced one; a caller naming none leaves it.
-    expect(await row("SELECT app_version FROM _server_clients WHERE client_uuid = ?", client)).toEqual({ app_version: "0.3.1" });
+    expect(await row("SELECT app_version FROM _server_clients WHERE client_uuid = ?", client)).toEqual({ app_version: "0.5.1" });
   });
 });
 

@@ -1,10 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Progress, Working } from '../../shared/ui/Waiting.js';
+import { uploadProgressView } from '../../shared/api/files.js';
 import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
-import { applyMembershipLayout, boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout, tidyCollectionPositions } from './bookletDrag.js';
+import { applyMembershipLayout, boardPointFromClient, cardCenter, collectionMasonryLayout, collectionReorderLayout, DEFAULT_CARD_WIDTH, exceedsDragThreshold, membershipHistorySnapshots, previewBookletHeight, stackWithInsertion, stackWithout } from './bookletDrag.js';
 import { cardsIntersectingRect, mergeSelection, nearestCardWithin, selectionMode } from './selection.js';
+import { nearestFreeSpot, resolveOverlaps, tidyFreeformCards } from './tidy.js';
 import { confirmAction } from '../../shared/confirmAction.js';
 import { appPath } from '../../shared/appUrls.js';
 import { DESKTOP, DOCUMENT_WINDOW, focusDesktopDeskWindow, openDesktopDocumentWindow } from '../../shared/desktopShell.js';
@@ -53,8 +56,68 @@ function AlignGlyph({ align }) {
   return <svg className="board-align-glyph" viewBox="0 0 20 16" aria-hidden="true">{starts.map((x, index) => <line key={index} x1={x} x2={x + widths[index]} y1={3 + index * 5} y2={3 + index * 5} />)}</svg>;
 }
 
+// What a placeholder card shows while its card is on the way: a bar when
+// the upload can be measured, the spinner and a word when it cannot.
+function PlaceholderWait({ item }) {
+  const view = uploadProgressView(item.progress);
+  if (!view) return <Working label={item.label} />;
+  return <Progress fraction={view.fraction} label="Uploading" detail={view.detail} className="board-placeholder-progress" />;
+}
+
 function TidyGlyph() {
   return <svg className="board-tidy-glyph" viewBox="0 0 18 16" aria-hidden="true"><rect x="2" y="2" width="14" height="4" rx="1" /><rect x="2" y="10" width="14" height="4" rx="1" /></svg>;
+}
+
+function BoardGlyph({ name }) {
+  const paths = {
+    more: <><circle cx="6" cy="12" r="1.4" className="action-glyph-fill" /><circle cx="12" cy="12" r="1.4" className="action-glyph-fill" /><circle cx="18" cy="12" r="1.4" className="action-glyph-fill" /></>,
+    auto: <><rect x="4" y="4" width="7" height="9" rx="1.5" /><rect x="13" y="4" width="7" height="5" rx="1.5" /><rect x="4" y="15" width="7" height="5" rx="1.5" /><rect x="13" y="11" width="7" height="9" rx="1.5" /></>,
+    free: <><rect x="3.5" y="5" width="7" height="6" rx="1.5" transform="rotate(-8 7 8)" /><rect x="13" y="3.5" width="7" height="6" rx="1.5" transform="rotate(6 16.5 6.5)" /><rect x="8" y="13.5" width="8" height="6.5" rx="1.5" transform="rotate(-3 12 16.75)" /></>,
+    rename: <><path d="M4 20h4L19 9l-4-4L4 16v4Z" /><path d="m13 7 4 4" /></>,
+    header: <><path d="M5 6h14M5 11h10M5 16h12" /></>,
+    ungroup: <><rect x="3" y="7" width="7" height="10" rx="1.5" /><rect x="14" y="7" width="7" height="10" rx="1.5" /><path d="M12 4v2.5M12 10.75v2.5M12 17.5V20" /></>,
+    reset: <><path d="M3 12h6M6.5 9.5 9 12l-2.5 2.5M21 12h-6M17.5 9.5 15 12l2.5 2.5" /><path d="M12 5v14" /></>,
+  };
+  return <svg className="action-glyph" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
+}
+
+// A selected group's options, drawn beside its heading rather than at the
+// top of the window, so what they change is the thing just under them. The
+// layout choice is a pair of named states, not a button named after the
+// state it would switch to.
+function GroupOptions({ group, busy, onArrange, onArrangeColumns, onRename, onHeader, onUngroup }) {
+  const surfaceRef = useRef(null);
+  const [fit, setFit] = useState({ below: false, shift: 0 });
+  const isCollection = group.kind === 'collection';
+  const noun = isCollection ? 'Collection' : 'Booklet';
+  useLayoutEffect(() => {
+    // Near the top of the canvas there is no room above the heading, so the
+    // bar hangs below it instead of hiding under the toolbar; near a side it
+    // slides back in. The bar is drawn at screen size, so the shift is too.
+    const surface = surfaceRef.current?.getBoundingClientRect();
+    const viewport = surfaceRef.current?.closest('.board-viewport')?.getBoundingClientRect();
+    if (!surface || !viewport) return;
+    const margin = 8;
+    setFit({
+      below: surface.top < viewport.top + margin,
+      shift: Math.max(0, viewport.left + margin - surface.left) - Math.max(0, surface.right - viewport.right + margin),
+    });
+  }, [group.uuid]);
+  const stop = (event) => event.stopPropagation();
+  return <div className={`board-group-options${fit.below ? ' below' : ''}`} onPointerDown={stop} onDoubleClick={stop} onContextMenu={stop}>
+    <div ref={surfaceRef} className="board-group-options-surface" role="toolbar" aria-label={`${noun} options`} style={fit.shift ? { translate: `${fit.shift}px 0` } : undefined}>
+      <span className="board-group-options-kind">{noun}</span>
+      {isCollection && <div className="board-group-arrange" role="radiogroup" aria-label="Arrange cards">
+        <button type="button" role="radio" aria-checked={Boolean(group.auto_arrange)} aria-label="Auto-arrange" disabled={busy} title="Cards flow into columns and make room as you drag" onClick={() => onArrange(true)}><BoardGlyph name="auto" /><span>Auto-arrange</span></button>
+        <button type="button" role="radio" aria-checked={!group.auto_arrange} aria-label="Freeform" disabled={busy} title="Cards stay where you put them" onClick={() => onArrange(false)}><BoardGlyph name="free" /><span>Freeform</span></button>
+      </div>}
+      {isCollection && !group.auto_arrange && <button type="button" className="item-action" disabled={busy} aria-label="Arrange into columns" title="Arrange into columns, at the standard width" onClick={onArrangeColumns}><BoardGlyph name="auto" /></button>}
+      <button type="button" className="item-action" aria-label={`Rename ${noun.toLowerCase()}`} title="Rename" onClick={onRename}><BoardGlyph name="rename" /></button>
+      <button type="button" className="item-action" aria-label={group.header ? 'Edit header' : 'Add header'} title={group.header ? 'Edit header' : 'Add header'} onClick={onHeader}><BoardGlyph name="header" /></button>
+      <span className="board-group-options-divider" aria-hidden="true" />
+      <button type="button" className="item-action" disabled={busy} aria-label="Ungroup" title="Ungroup: the cards stay on the board" onClick={onUngroup}><BoardGlyph name="ungroup" /></button>
+    </div>
+  </div>;
 }
 
 const itemTypeLabels = {
@@ -76,6 +139,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   const imageUrlsRef = useRef({});
   const [imageRevision, setImageRevision] = useState(0);
   const [draggingFiles, setDraggingFiles] = useState(false);
+  const [notice, setNotice] = useState(null);
   const openSource = (sourceUrl) => {
     const desktopViewerUrl = DESKTOP && localViewerBacklink(sourceUrl, appPath);
     if (desktopViewerUrl) {
@@ -91,6 +155,8 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   const [showNewBoardHint, setShowNewBoardHint] = useState(false);
   const urlLoadingRef = useRef([]);
   const [bookletLayouts, setBookletLayouts] = useState([]);
+  const bookletLayoutsRef = useRef(bookletLayouts);
+  bookletLayoutsRef.current = bookletLayouts;
   const [dropBooklet, setDropBooklet] = useState(null);
   const [visibleGrip, setVisibleGrip] = useState(null);
   const [foregroundGrip, setForegroundGrip] = useState(null);
@@ -128,6 +194,11 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   useEffect(() => {
     if (board?.name) document.title = `${board.name} — Papol`;
   }, [board?.name]);
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice?.id]);
   const showGrip = (itemUuid) => {
     setVisibleGrip(itemUuid);
   };
@@ -485,9 +556,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
         );
         setBusy(true); setError(null);
         try {
-          const items = await Promise.all(images.map((image, index) => addBoardFile(board.uuid, image, '', {
-            x: origin.x + index * 28, y: origin.y + index * 28,
-          })));
+          const items = await uploadFiles(images, origin);
           items.forEach((item) => undoStack.current.push({ type: 'add', uuid: item.uuid }));
           redoStack.current = [];
           await load();
@@ -505,10 +574,10 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       event.preventDefault();
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
-      const { x, y } = boardPointFromClient(
+      const { x, y } = freeSpot(boardPointFromClient(
         bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
         bounds, viewRef.current, { x: 150, y: 100 },
-      );
+      ), isYouTube ? DEFAULT_CARD_WIDTH : 480);
       const loadingUuid = `${Date.now()}-${Math.random()}`;
       const loadingItem = { uuid: loadingUuid, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' };
       urlLoadingRef.current = [...urlLoadingRef.current, loadingItem];
@@ -666,6 +735,53 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       })),
     };
   };
+  // Files dropped or pasted, each going up behind a card-shaped placeholder
+  // at the spot it will land: a bar while storeFile reports the bytes
+  // (docs/waiting.md), the spinner where it does not (the desktop's own
+  // store). The placeholder can be dragged like a capture's, and goes
+  // when the card is here or the upload has failed.
+  // What a new card must not land on: every card, every group's frame, and
+  // every placeholder still on its way. Read from refs, since the paste
+  // handler is made once per board.
+  const boardObstacles = () => [
+    ...[...cardBoundsRef.current.values()].map((bounds) => ({ x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top })),
+    ...bookletLayoutsRef.current.map((layout) => ({ x: layout.x, y: layout.y, width: layout.width, height: layout.height })),
+    ...urlLoadingRef.current.map((item) => ({ x: item.x, y: item.y, width: DEFAULT_CARD_WIDTH, height: 170 })),
+  ];
+  // A new card goes to the nearest free spot to where it was aimed, sized as
+  // a guess (its real height is known only once it is drawn).
+  const NEW_CARD_HEIGHT = 240;
+  const freeSpot = (point, width = DEFAULT_CARD_WIDTH, taken = boardObstacles()) => nearestFreeSpot({ ...point, width, height: NEW_CARD_HEIGHT }, taken);
+  const uploadFiles = (files, origin) => {
+    const taken = boardObstacles();
+    const spots = files.map(() => {
+      const spot = freeSpot(origin, DEFAULT_CARD_WIDTH, taken);
+      taken.push({ ...spot, width: DEFAULT_CARD_WIDTH, height: NEW_CARD_HEIGHT });
+      return spot;
+    });
+    return uploadFilesAt(files, spots);
+  };
+  const uploadFilesAt = (files, spots) => Promise.all(files.map(async (file, index) => {
+    const uuid = `${Date.now()}-${index}-${Math.random()}`;
+    const position = spots[index];
+    const update = (change) => {
+      urlLoadingRef.current = urlLoadingRef.current.map((item) => item.uuid === uuid ? { ...item, ...change } : item);
+      setUrlLoading(urlLoadingRef.current);
+    };
+    urlLoadingRef.current = [...urlLoadingRef.current, { uuid, ...position, label: 'Uploading…', progress: null }];
+    setUrlLoading(urlLoadingRef.current);
+    try {
+      const item = await addBoardFile(board.uuid, file, '', position, { onProgress: (progress) => update({ progress }) });
+      const moved = urlLoadingRef.current.find((candidate) => candidate.uuid === uuid);
+      if (moved && (moved.x !== position.x || moved.y !== position.y)) {
+        await moveBoardItem(item.uuid, moved.x, moved.y).catch((failure) => setError(failure.message));
+      }
+      return item;
+    } finally {
+      urlLoadingRef.current = urlLoadingRef.current.filter((item) => item.uuid !== uuid);
+      setUrlLoading(urlLoadingRef.current);
+    }
+  }));
   const startLoadingDrag = (event, item) => {
     if (event.button !== 0) return;
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
@@ -1399,6 +1515,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       await load();
       setBookletTitleDraft('');
       setEditingBooklet(group.uuid);
+      setSelectedBooklet(group.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const groupAsCollection = async (itemUuids = selectedItems) => {
@@ -1416,6 +1533,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       await load();
       setBookletTitleDraft('');
       setEditingBooklet(group.uuid);
+      setSelectedBooklet(group.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const ungroupBooklet = async (booklet) => {
@@ -1436,86 +1554,171 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const tidyItems = async (itemUuids) => {
-    const ids = new Set(itemUuids);
-    const items = board.items.filter((item) => ids.has(item.uuid));
-    if (!items.length) return;
-    const width = DEFAULT_CARD_WIDTH;
-    const changes = items.map((item) => ({ uuid: item.uuid, from: item.width, to: width, fromX: item.x, fromY: item.y }));
-    const positions = new Map();
-    board.groups.filter((group) => group.kind === 'collection' && group.item_uuids.every((uuid) => ids.has(uuid))).forEach((group) => {
-      const cards = group.item_uuids.map((uuid) => {
-        const item = board.items.find((candidate) => candidate.uuid === uuid);
-        const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
-        return item && element ? { uuid, x: item.x, y: item.y, width, height: element.offsetHeight } : null;
-      }).filter(Boolean);
-      tidyCollectionPositions(cards).forEach((position) => positions.set(position.uuid, position));
-    });
-    changes.forEach((change) => {
-      const position = positions.get(change.uuid);
-      change.toX = position?.x ?? change.fromX;
-      change.toY = position?.y ?? change.fromY;
-    });
-    if (changes.every((change) => change.from === change.to) && [...positions].every(([uuid, position]) => {
-      const item = board.items.find((candidate) => candidate.uuid === uuid);
-      return item.x === position.x && item.y === position.y;
-    })) return;
-    setBusy(true); setError(null);
-    try {
-      await Promise.all(changes.map((change) => updateBoardItem(change.uuid, { width: change.to, ...(positions.get(change.uuid) || {}) })));
-      undoStack.current.push({ type: 'resize-many', changes });
-      redoStack.current = [];
-      setBoard((current) => ({ ...current, items: current.items.map((item) => ids.has(item.uuid) ? { ...item, width, ...(positions.get(item.uuid) || {}) } : item) }));
-    } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
+  // Tidy up, Arrange and Reset size (docs/tidying.md) each change only
+  // positions, widths and a collection's mode, so each is written the same
+  // way: a before-and-after snapshot, sent, glided to, kept as one undo
+  // step, and said aloud in the notice with its Undo.
+  const cardRect = (item) => {
+    const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
+    return { uuid: item.uuid, x: item.x, y: item.y, width: element?.offsetWidth || item.width, height: element?.offsetHeight || 1 };
   };
-  const tidySelectedItems = () => tidyItems(selectedItems);
-  const tidyBoard = () => tidyItems(board.items.map((item) => item.uuid));
-  const tidyCollection = async (collection) => {
-    const members = collection.item_uuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter(Boolean);
-    if (!members.length) return;
-    const changes = members.map((item) => ({
-      uuid: item.uuid, from: item.width, to: DEFAULT_CARD_WIDTH,
-      fromX: item.x, fromY: item.y,
-    }));
-    members.forEach((item) => {
-      const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
-      if (element) element.style.width = `${DEFAULT_CARD_WIDTH}px`;
-    });
-    const cards = members.map((item) => {
-      const element = stageRef.current?.querySelector(`[data-item-uuid="${item.uuid}"]`);
-      return { uuid: item.uuid, x: item.x, y: item.y, height: element?.offsetHeight || 1 };
-    });
-    const { positions } = collectionMasonryLayout(cards);
-    const positionsByUuid = new Map(positions.map((position) => [position.uuid, position]));
-    changes.forEach((change) => {
-      const position = positionsByUuid.get(change.uuid);
-      change.toX = position.x; change.toY = position.y;
-    });
-    setBusy(true); setError(null);
-    try {
-      await Promise.all(changes.map((change) => updateBoardItem(change.uuid, {
-        width: change.to, x: change.toX, y: change.toY,
-      })));
-      undoStack.current.push({ type: 'resize-many', changes });
-      redoStack.current = [];
-      setBoard((current) => ({ ...current, items: current.items.map((item) => {
-        const position = positionsByUuid.get(item.uuid);
-        return position ? { ...item, width: DEFAULT_CARD_WIDTH, ...position } : item;
-      }) }));
-    } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
+  const itemState = (item) => ({ x: item.x, y: item.y, width: item.width });
+  // Widths are shown before they are sent, so heights can be measured at
+  // the new width; the returned function puts them back if the send fails.
+  const previewWidths = (itemUuids, width) => {
+    const previous = itemUuids.map((uuid) => {
+      const element = stageRef.current?.querySelector(`[data-item-uuid="${uuid}"]`);
+      if (!element) return null;
+      const before = element.style.width;
+      element.style.width = `${width}px`;
+      return () => { element.style.width = before; };
+    }).filter(Boolean);
+    return () => previous.forEach((restore) => restore());
   };
-  const toggleCollectionAutoArrange = async (collection) => {
-    const enabled = !collection.auto_arrange;
+  const glide = () => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.classList.add('board-gliding');
+    window.setTimeout(() => stage.classList.remove('board-gliding'), 260);
+  };
+  const showNotice = (message, action = null) => {
+    setNotice({ id: Date.now() + Math.random(), message, action });
+  };
+  const writeSnapshot = (entry, side) => Promise.all([
+    ...entry.groups.map((group) => updateBoardGroup(group.uuid, group[side])),
+    ...entry.items.map((item) => updateBoardItem(item.uuid, item[side])),
+  ]);
+  // Resolves to true when something changed, false when there was nothing
+  // to do, and null when it failed (the error is already on screen).
+  const commitSnapshot = async ({ items = [], groups = [], message, restore = () => {} }) => {
+    const changed = items.filter((item) => ['x', 'y', 'width'].some((key) => Math.abs(item.before[key] - item.after[key]) > .01));
+    const changedGroups = groups.filter((group) => Boolean(group.before.auto_arrange) !== Boolean(group.after.auto_arrange));
+    if (!changed.length && !changedGroups.length) { restore(); return false; }
+    const entry = { type: 'snapshot', items: changed, groups: changedGroups };
     setBusy(true); setError(null);
     try {
-      const updated = await updateBoardGroup(collection.uuid, { auto_arrange: enabled });
-      if (enabled) {
-        const layout = collectionLayout(collection);
-        if (layout.length) await layoutBoardGroup(collection.uuid, layout);
-      }
-      setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.uuid === collection.uuid ? updated : group) }));
+      glide();
+      const after = new Map(changed.map((item) => [item.uuid, item.after]));
+      const modes = new Map(changedGroups.map((group) => [group.uuid, Boolean(group.after.auto_arrange)]));
+      setBoard((current) => ({
+        ...current,
+        items: current.items.map((item) => after.has(item.uuid) ? { ...item, ...after.get(item.uuid) } : item),
+        groups: current.groups.map((group) => modes.has(group.uuid) ? { ...group, auto_arrange: modes.get(group.uuid) } : group),
+      }));
+      await writeSnapshot(entry, 'after');
+      undoStack.current.push(entry);
+      redoStack.current = [];
+      showNotice(message, entry);
+      return true;
+    } catch (err) {
+      restore();
+      setError(err.message);
       await load();
-    } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
+      return null;
+    } finally { setBusy(false); }
+  };
+  const countPhrase = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+  const listPhrase = (parts) => parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
+  // The gentle tidy, for the board or a selection: overlaps come apart,
+  // strays in a freeform collection are drawn in, sizes and layouts stay.
+  const tidyUp = async (itemUuids = null) => {
+    const chosen = itemUuids && new Set(itemUuids);
+    const blocks = [];
+    const interiors = new Map();
+    bookletLayouts.forEach((layout) => {
+      const group = board.groups.find((candidate) => candidate.uuid === layout.uuid);
+      const members = group?.item_uuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter(Boolean) || [];
+      if (!members.length) return;
+      const movable = !chosen || members.every((item) => chosen.has(item.uuid));
+      let rect = { x: layout.x, y: layout.y, width: layout.width, height: layout.height };
+      if (movable && group.kind === 'collection' && !group.auto_arrange) {
+        const cards = tidyFreeformCards(members.map(cardRect));
+        interiors.set(group.uuid, cards);
+        const minX = Math.min(...cards.map((card) => card.x));
+        const minY = Math.min(...cards.map((card) => card.y));
+        rect = {
+          x: minX - COLLECTION_INSET_X, y: minY - COLLECTION_CARD_OFFSET_Y,
+          width: Math.max(...cards.map((card) => card.x + card.width)) - minX + COLLECTION_INSET_X * 2,
+          height: Math.max(...cards.map((card) => card.y + card.height)) - minY + COLLECTION_CARD_OFFSET_Y + COLLECTION_INSET_BOTTOM,
+        };
+      }
+      blocks.push({ id: `group:${group.uuid}`, group, members, movable, ...rect });
+    });
+    board.items.filter((item) => item.group_uuid == null).forEach((item) => {
+      blocks.push({ id: `item:${item.uuid}`, item, rank: 1, movable: !chosen || chosen.has(item.uuid), ...cardRect(item) });
+    });
+    const moves = new Map(resolveOverlaps(blocks).map((move) => [move.id, move]));
+    const changes = [];
+    const touched = { card: 0, collection: 0, booklet: 0 };
+    blocks.forEach((block) => {
+      const move = moves.get(block.id);
+      const dx = move?.dx || 0; const dy = move?.dy || 0;
+      if (block.item) {
+        if (!move) return;
+        touched.card += 1;
+        changes.push({ uuid: block.item.uuid, before: itemState(block.item), after: { ...itemState(block.item), x: move.x, y: move.y } });
+        return;
+      }
+      const interior = new Map((interiors.get(block.group.uuid) || []).map((card) => [card.uuid, card]));
+      let moved = false;
+      block.members.forEach((item) => {
+        const x = (interior.get(item.uuid)?.x ?? item.x) + dx;
+        const y = (interior.get(item.uuid)?.y ?? item.y) + dy;
+        if (Math.abs(x - item.x) > .01 || Math.abs(y - item.y) > .01) moved = true;
+        changes.push({ uuid: item.uuid, before: itemState(item), after: { ...itemState(item), x, y } });
+      });
+      if (moved) touched[block.group.kind] += 1;
+    });
+    const parts = [
+      touched.card && countPhrase(touched.card, 'card'),
+      touched.collection && countPhrase(touched.collection, 'collection'),
+      touched.booklet && countPhrase(touched.booklet, 'booklet'),
+    ].filter(Boolean);
+    const done = await commitSnapshot({ items: changes, message: `Tidied ${listPhrase(parts)}` });
+    if (done === false) showNotice('Already tidy');
+  };
+  // Arrange: a collection into columns at the standard width. Turning
+  // Auto-arrange on is the same, kept on.
+  const columnsFor = (collection) => {
+    const members = collection.item_uuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter(Boolean);
+    const restore = previewWidths(members.map((item) => item.uuid), DEFAULT_CARD_WIDTH);
+    const positions = new Map(collectionMasonryLayout(members.map(cardRect)).positions.map((position) => [position.uuid, position]));
+    const items = members.map((item) => ({
+      uuid: item.uuid, before: itemState(item),
+      after: { x: positions.get(item.uuid).x, y: positions.get(item.uuid).y, width: DEFAULT_CARD_WIDTH },
+    }));
+    return { items, restore };
+  };
+  const arrangeIntoColumns = async (collection) => {
+    const { items, restore } = columnsFor(collection);
+    const done = await commitSnapshot({ items, restore, message: 'Arranged into columns' });
+    if (done === false) showNotice('Already in columns');
+  };
+  const arrangeCollection = async (collection, enabled) => {
+    if (Boolean(collection.auto_arrange) === enabled) return;
+    const groups = [{ uuid: collection.uuid, before: { auto_arrange: !enabled }, after: { auto_arrange: enabled } }];
+    if (!enabled) { await commitSnapshot({ groups, message: 'Freeform: cards stay where you put them' }); return; }
+    const { items, restore } = columnsFor(collection);
+    await commitSnapshot({ items, groups, restore, message: 'Auto-arrange: cards keep to columns' });
+  };
+  // Reset size: back to the standard width, and nothing else — except that
+  // an auto-arranged collection re-flows, since its columns follow widths.
+  const resetSizes = async (itemUuids) => {
+    const items = itemUuids.map((uuid) => board.items.find((item) => item.uuid === uuid)).filter((item) => item && item.width !== DEFAULT_CARD_WIDTH);
+    if (!items.length) { showNotice('Already the standard size'); return; }
+    const restore = previewWidths(items.map((item) => item.uuid), DEFAULT_CARD_WIDTH);
+    const after = new Map(items.map((item) => [item.uuid, { ...itemState(item), width: DEFAULT_CARD_WIDTH }]));
+    board.groups.filter((group) => group.kind === 'collection' && group.auto_arrange && items.some((item) => item.group_uuid === group.uuid)).forEach((group) => {
+      collectionLayout(group).forEach((position) => {
+        const item = board.items.find((candidate) => candidate.uuid === position.uuid);
+        after.set(item.uuid, { ...(after.get(item.uuid) || itemState(item)), x: position.x, y: position.y });
+      });
+    });
+    await commitSnapshot({
+      items: [...after].map(([uuid, state]) => ({ uuid, before: itemState(board.items.find((item) => item.uuid === uuid)), after: state })),
+      restore,
+      message: items.length === 1 ? 'Card back to the standard size' : `${countPhrase(items.length, 'card')} back to the standard size`,
+    });
   };
   const saveBookletTitle = async (booklet) => {
     setEditingBooklet(null);
@@ -1538,6 +1741,14 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       }
       setBoard((current) => ({ ...current, groups: current.groups.map((group) => group.uuid === booklet.uuid ? updated : group) }));
     } catch (err) { setError(err.message); }
+  };
+  // Undoing an ungroup, or redoing a group, makes the group again under a
+  // new uuid; what the history remembers about the old one follows it.
+  const renameGroupInHistory = (previousUuid, nextUuid) => {
+    [...undoStack.current, ...redoStack.current].forEach((entry) => {
+      if (entry.type === 'group-move' && entry.uuid === previousUuid) entry.uuid = nextUuid;
+      if (entry.type === 'snapshot') entry.groups.forEach((group) => { if (group.uuid === previousUuid) group.uuid = nextUuid; });
+    });
   };
   const applyHistory = async (direction) => {
     const source = direction === 'undo' ? undoStack.current : redoStack.current;
@@ -1592,20 +1803,23 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
             auto_arrange: action.autoArrange, item_uuids: action.itemUuids,
           });
           action.uuid = group.uuid;
-          source.forEach((pending) => {
-            if (pending.type === 'group-move' && pending.uuid === previousUuid) pending.uuid = group.uuid;
-          });
+          renameGroupInHistory(previousUuid, group.uuid);
         }
       } else if (action.type === 'ungroup') {
         if (direction === 'undo') {
+          const previousUuid = action.uuid;
           const group = await createBoardGroup(action.boardUuid, {
             kind: action.kind, title: action.title, header: action.header,
             auto_arrange: action.autoArrange, item_uuids: action.itemUuids,
           });
           action.uuid = group.uuid;
+          renameGroupInHistory(previousUuid, group.uuid);
         } else {
           await ungroupBoardGroup(action.uuid, action.items);
         }
+      } else if (action.type === 'snapshot') {
+        glide();
+        await writeSnapshot(action, direction === 'undo' ? 'before' : 'after');
       } else if (action.type === 'resize') {
         await updateBoardItem(action.uuid, { width: direction === 'undo' ? action.from : action.to });
         if (action.groupUuid) await layoutBoardGroup(
@@ -1694,9 +1908,9 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     if (stagedUuid) {
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
-      const { x, y } = boardPointFromClient(
+      const { x, y } = freeSpot(boardPointFromClient(
         event.clientX, event.clientY, bounds, viewRef.current, { x: 150, y: 50 },
-      );
+      ));
       setBusy(true); setError(null);
       try {
         const item = await placeStagedBoardItem(stagedUuid, x, y);
@@ -1718,14 +1932,12 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     );
     setBusy(true); setError(null);
     try {
-      await Promise.all(files.map((file, index) => addBoardFile(board.uuid, file, '', {
-        x: origin.x + index * 28, y: origin.y + index * 28,
-      })));
+      await uploadFiles(files, origin);
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const createNoteAt = async (event) => {
-    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-booklet, .board-staging')) return;
+    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging')) return;
     const bounds = viewportRef.current?.getBoundingClientRect();
     if (!bounds) return;
     const { x, y } = boardPointFromClient(
@@ -1760,11 +1972,17 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   };
 
   if (error && !board) return <div className="error" role="alert">{error}</div>;
-  if (!board) return <div className="loading" role="status" aria-live="polite">Loading board…</div>;
+  if (!board) return <div className="loading"><Working label="Loading board…" /></div>;
   const canGroupSelection = selectedItems.every((uuid) =>
     board.items.find((item) => item.uuid === uuid)?.group_uuid == null
   );
   const activeBooklet = board.groups.find((booklet) => booklet.uuid === selectedBooklet);
+  const activeBookletLayout = activeBooklet && bookletLayouts.find((layout) => layout.uuid === activeBooklet.uuid);
+  // Where a group's heading ends, as the stylesheet draws it: inset 12px
+  // within a collection's frame, and never wider than 420px.
+  const groupHeadingRight = (layout) => layout.kind === 'collection'
+    ? layout.x + 12 + clamp(layout.width - 24, 0, 420)
+    : layout.x + clamp(layout.width - 14, 0, 420);
   const historyEntries = () => [
     { label: 'Undo', shortcut: '⌘Z', disabled: busy || undoStack.current.length === 0, onSelect: () => applyHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: busy || redoStack.current.length === 0, onSelect: () => applyHistory('redo') },
@@ -1813,7 +2031,10 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           onSelect: () => alignText(item, alignment),
         })),
       },
-      isSelection && board.can_edit && { label: `Tidy ${itemUuids.length} Cards`, onSelect: () => tidyItems(itemUuids) },
+      isSelection && board.can_edit && { label: 'Tidy Up', onSelect: () => tidyUp(itemUuids) },
+      board.can_edit && itemUuids.some((uuid) => board.items.find((candidate) => candidate.uuid === uuid)?.width !== DEFAULT_CARD_WIDTH) && {
+        label: 'Reset Size', onSelect: () => resetSizes(itemUuids),
+      },
       isSelection && board.can_edit && selectionCanGroup && { label: 'Make Collection', onSelect: () => groupAsCollection(itemUuids) },
       isSelection && board.can_edit && selectionCanGroup && { label: 'Make Booklet', onSelect: () => groupAsBooklet(itemUuids) },
       board.can_edit && { separator: true },
@@ -1827,20 +2048,39 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       setSelectedBooklet(null);
     }
   };
+  const beginRenamingGroup = (booklet) => {
+    setBookletTitleDraft(booklet.title || '');
+    setEditingBooklet(booklet.uuid);
+  };
+  const beginEditingGroupHeader = (booklet) => {
+    setBookletHeaderDraft(booklet.header || '');
+    setEditingBookletHeader(booklet.uuid);
+  };
+  const toggleGroupSelection = (booklet) => {
+    if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; }
+    setSelectedItems([]);
+    setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid);
+  };
+  const handleCanvasContextMenu = (event) => {
+    if (!board.can_edit || event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging, .board-youtube-loading')) return;
+    openContextMenu(event, [
+      { label: 'Tidy Up', disabled: busy || !board.items.length, onSelect: () => tidyUp() },
+      { separator: true },
+      ...historyEntries(),
+    ]);
+  };
   const handleGroupContextMenu = (event, booklet) => {
     const opened = openContextMenu(event, [
-      board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => {
-        setBookletTitleDraft(booklet.title || '');
-        setEditingBooklet(booklet.uuid);
-      } },
-      board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => {
-        setBookletHeaderDraft(booklet.header || '');
-        setEditingBookletHeader(booklet.uuid);
-      } },
+      board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => beginRenamingGroup(booklet) },
+      board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => beginEditingGroupHeader(booklet) },
       board.can_edit && booklet.kind === 'collection' && {
-        label: 'Auto-arrange', checked: booklet.auto_arrange, onSelect: () => toggleCollectionAutoArrange(booklet),
+        label: 'Arrange',
+        submenu: [
+          { label: 'Auto-arrange', checked: Boolean(booklet.auto_arrange), onSelect: () => arrangeCollection(booklet, true) },
+          { label: 'Freeform', checked: !booklet.auto_arrange, onSelect: () => arrangeCollection(booklet, false) },
+        ],
       },
-      board.can_edit && booklet.kind === 'collection' && { label: 'Tidy Up', onSelect: () => tidyCollection(booklet) },
+      board.can_edit && booklet.kind === 'collection' && !booklet.auto_arrange && { label: 'Arrange into Columns', onSelect: () => arrangeIntoColumns(booklet) },
       board.can_edit && { separator: true },
       board.can_edit && { label: 'Ungroup', disabled: busy, onSelect: () => ungroupBooklet(booklet) },
       board.can_edit && { separator: true },
@@ -1919,16 +2159,16 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
       <DesktopSyncingStatus />
-      {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || !board.items.length} onClick={tidyBoard} title="Reset card sizes and bring collection cards closer"><TidyGlyph /><span>Tidy</span></button>}
+      {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || !board.items.length} onClick={() => tidyUp()} title="Tidy up: clear overlaps and line things up"><TidyGlyph /><span>Tidy</span></button>}
       <div className="board-card-count" aria-label={`${board.item_count} cards`}><strong>{board.item_count}</strong> {board.item_count === 1 ? 'card' : 'cards'}</div>
       <ExperimentalBadge />
       {board.can_edit && <details ref={boardActionsRef} className="board-actions-menu"><summary aria-label="Board actions" title="Board actions"><i /><i /><i /></summary><div className="board-actions-popover"><button type="button" className="remove" disabled={busy} onClick={removeBoard}>Delete board</button></div></details>}
     </header>
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
-    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
-    {board.can_edit && activeBooklet && <div className="board-selection-menu"><span>{activeBooklet.kind === 'collection' ? 'Collection' : 'Booklet'} selected</span>{activeBooklet.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeBooklet.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeBooklet)}>{activeBooklet.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeBooklet)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupBooklet(activeBooklet)}>Ungroup</button></div>}
-    <main ref={viewportRef} aria-label="Board canvas" className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
+    {notice && <div key={notice.id} className="board-notice" role="status"><span>{notice.message}</span>{notice.action && undoStack.current.at(-1) === notice.action && <button type="button" disabled={busy} onClick={() => { setNotice(null); applyHistory('undo'); }}>Undo</button>}</div>}
+    {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={() => tidyUp(selectedItems)}>Tidy up</button><button type="button" disabled={busy} onClick={() => resetSizes(selectedItems)}>Reset size</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
+    <main ref={viewportRef} aria-label="Board canvas" className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} onContextMenu={handleCanvasContextMenu} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
         <aside className="board-staging" aria-label="Staging area">
@@ -1954,7 +2194,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
                   : item.kind === 'image' && imageErrors[item.uuid]
                     ? <div className="board-image-error" role="status">Image unavailable</div>
                   : item.kind === 'image'
-                    ? <div className="board-staging-image-loading"><span className="spinner" /></div>
+                    ? <div className="board-staging-image-loading"><Working label="Loading…" /></div>
                     : <blockquote>{item.excerpt_text}</blockquote>}
                 {item.content && <p className="board-staging-comment">{item.content}</p>}
                 <footer>
@@ -1969,20 +2209,32 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       {marquee && <div ref={marqueeRef} className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, '--board-card-paint-state': 'visible', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         {bookletLayouts.map((booklet) => <div key={booklet.uuid} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
-          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setSelectedItems([]); setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid); }} />}
-          <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
+          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => toggleGroupSelection(booklet)} />}
+          <div className={`board-booklet-heading${board.can_edit ? ' has-options' : ''}`} style={{ width: Math.max(0, booklet.width - 14) }}>
+            {board.can_edit && editingBooklet !== booklet.uuid && <button type="button" className="board-group-more" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} options`} title="Options" aria-expanded={selectedBooklet === booklet.uuid} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onClick={() => toggleGroupSelection(booklet)}><BoardGlyph name="more" /></button>}
             {editingBooklet === booklet.uuid
               ? <input className="board-booklet-title" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} placeholder={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} autoFocus maxLength={appLimits.text.board_group_title} value={bookletTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletTitleDraft(event.target.value)} onBlur={() => saveBookletTitle(booklet)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBooklet(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setBookletTitleDraft(booklet.title); setEditingBooklet(booklet.uuid); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } beginRenamingGroup(booklet); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
           </div>
           <div className="board-booklet-header" style={{ width: Math.max(0, booklet.width - 14) }}>
             {editingBookletHeader === booklet.uuid
               ? <textarea className="board-booklet-header-text" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} header text`} placeholder="Add header text…" autoFocus maxLength={appLimits.text.board_group_header} rows="2" value={bookletHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletHeaderDraft(event.target.value)} onBlur={() => saveBookletHeader(booklet)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBookletHeader(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setBookletHeaderDraft(booklet.header || ''); setEditingBookletHeader(booklet.uuid); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } beginEditingGroupHeader(booklet); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
           </div>
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
-        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><span className="spinner" aria-hidden="true" /><span>{item.label}</span></div>)}
+        {board.can_edit && activeBookletLayout && <div className="board-group-options-anchor" style={{ zIndex: Math.max(0, ...board.items.map((item) => item.position)) + 2, transform: `translate(${groupHeadingRight(activeBookletLayout)}px, ${activeBookletLayout.y}px)` }}>
+          <GroupOptions
+            group={activeBooklet}
+            busy={busy}
+            onArrange={(enabled) => arrangeCollection(activeBooklet, enabled)}
+            onArrangeColumns={() => arrangeIntoColumns(activeBooklet)}
+            onRename={() => beginRenamingGroup(activeBooklet)}
+            onHeader={() => beginEditingGroupHeader(activeBooklet)}
+            onUngroup={() => ungroupBooklet(activeBooklet)}
+          />
+        </div>}
+        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><PlaceholderWait item={item} /></div>)}
         {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
@@ -2004,6 +2256,12 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
                     icon: <ActionGlyph name="download" />,
                     onSelect: () => downloadItem(item),
                   },
+                  board.can_edit && item.width !== DEFAULT_CARD_WIDTH && {
+                    label: 'Reset size',
+                    icon: <BoardGlyph name="reset" />,
+                    disabled: busy,
+                    onSelect: () => resetSizes([item.uuid]),
+                  },
                   board.can_edit && {
                     label: 'Remove card',
                     icon: <ActionGlyph name="trash" />,
@@ -2018,7 +2276,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           <div className="board-card-content" onPointerDown={preventModifiedTextSelection}>
           {hasCardPreview(item) && !imageUrls[item.uuid] && (imageErrors[item.uuid]
             ? <div className="board-image-error" role="status">Image unavailable</div>
-            : <div className="board-image-loading" role="status" aria-label="Loading image"><span className="spinner" aria-hidden="true" /></div>)}
+            : <div className="board-image-loading"><Working label="Loading…" /></div>)}
           {hasCardPreview(item) && imageUrls[item.uuid] && <img src={imageUrls[item.uuid]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
           {!hasCardPreview(item) && ['youtube', 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{item.kind === 'youtube' ? '▶' : '↗'}</span><span>{item.kind === 'youtube' ? 'Video saved offline' : 'Page saved offline'}</span></div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}

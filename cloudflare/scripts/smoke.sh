@@ -42,13 +42,64 @@ expect "sign-in without it" 401 -X POST "$base/api/auth/login" -H 'content-type:
 expect "who am I" 200 "${auth[@]}" "$base/api/auth/me"
 expect "the nook's papers" 200 "${auth[@]}" "$base/api/papers"
 
-# A paper: a tiny PDF uploaded, its metadata job read, the paper saved,
-# a stroke painted on it and taken back, the paper let go.
+# A paper: a tiny PDF put in the bucket by the address the Worker gives,
+# its metadata job read, the paper saved, a stroke painted on it and taken
+# back, the paper let go.
 pdf=$(mktemp); printf '%%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%%%EOF\n' > "$pdf"
-upload=$(curl -s -m 60 "${auth[@]}" -F "file=@$pdf;filename=smoke.pdf;type=application/pdf" "$base/api/papers/extract")
+digest=$(python3 -c 'import sys,hashlib; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$pdf")
+size=$(wc -c < "$pdf" | tr -d ' ')
+address=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/files/upload-address" -H 'content-type: application/json' \
+  -d "{\"kind\":\"paper\",\"sha256\":\"$digest\",\"size\":$size,\"name\":\"smoke.pdf\"}")
+file_path=$(printf '%s' "$address" | python3 -c 'import sys,json; print(json.load(sys.stdin)["file_path"])') || fail "address: $address"
+# The PUT as the address says: to its URL, with its headers, no credential of ours.
+put=$(printf '%s' "$address" | python3 -c '
+import sys, json, urllib.request, urllib.error
+address, pdf, base = json.load(sys.stdin), sys.argv[1], sys.argv[2]
+if address["stored"]: print("held already"); sys.exit()
+url = address["url"] if address["url"].startswith("http") else base + address["url"]
+try:
+    with urllib.request.urlopen(urllib.request.Request(url, data=open(pdf, "rb").read(), headers=address["headers"], method="PUT"), timeout=60) as r: print(r.status)
+except urllib.error.HTTPError as e: print(e.code)
+' "$pdf" "$base")
 rm -f "$pdf"
-file_path=$(printf '%s' "$upload" | python3 -c 'import sys,json; print(json.load(sys.stdin)["file_path"])') || fail "upload: $upload"
+case "$put" in "held already"|200|204) echo "ok  the PDF is in the bucket ($put)";; *) fail "the PUT to the bucket answered $put";; esac
+upload=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/papers/uploaded" -H 'content-type: application/json' \
+  -d "{\"file_path\":\"$file_path\",\"uploaded_name\":\"smoke.pdf\"}")
+printf '%s' "$upload" | python3 -c 'import sys,json; json.load(sys.stdin)["job"]' || fail "uploaded: $upload"
 echo "ok  upload"
+
+# The one guarantee the direct upload rests on, and it is R2's, not ours:
+# bytes that do not hash to the name they are sent under are refused by
+# the bucket itself (400 BadDigest; 422 from a local Worker's own door).
+# Fresh bytes each run, so the address is a real signed PUT, never "held
+# already": the same length with one byte changed is refused, and then
+# the right bytes are taken.
+checked=$(python3 -c '
+import sys, json, hashlib, time, random, urllib.request, urllib.error
+base, token = sys.argv[1], sys.argv[2]
+body = b"%PDF-1.4\n% smoke checksum " + ("%d-%06d" % (time.time(), random.randrange(10**6))).encode() + b"\n%%EOF\n"
+digest = hashlib.sha256(body).hexdigest()
+def call(url, data, headers, method):
+    # Python'"'"'s own user agent is refused at the edge (error 1010).
+    headers = {"user-agent": "papol-smoke", **headers}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers, method=method), timeout=60) as r: return r.status, r.read()
+    except urllib.error.HTTPError as e: return e.code, e.read()
+status, answer = call(base + "/api/files/upload-address", json.dumps({"kind": "paper", "sha256": digest, "size": len(body), "name": "smoke-checksum.pdf"}).encode(),
+    {"authorization": "Bearer " + token, "content-type": "application/json"}, "POST")
+if status != 200: print("address %d" % status); sys.exit()
+address = json.loads(answer)
+if address["stored"]: print("the fresh bytes were held already"); sys.exit()
+url = address["url"] if address["url"].startswith("http") else base + address["url"]
+flipped = bytearray(body); flipped[-8] ^= 1
+wrong, _ = call(url, bytes(flipped), address["headers"], "PUT")
+right, _ = call(url, body, address["headers"], "PUT")
+print("%d %d" % (wrong, right))
+' "$base" "$token")
+case "$checked" in
+  "400 200"|"422 204") echo "ok  the bucket refuses bytes that do not hash to their name ($checked)";;
+  *) fail "the checksum check: wanted a refusal then 200, got '$checked'";;
+esac
 saved=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/papers" -H 'content-type: application/json' \
   -d "{\"file_path\":\"$file_path\",\"title\":\"Smoke test paper\",\"authors\":null,\"journal\":null,\"year\":null,\"doi\":null}")
 sha=$(printf '%s' "$saved" | python3 -c 'import sys,json; print(json.load(sys.stdin)["sha256"])') || fail "save: $saved"
@@ -60,7 +111,22 @@ stroke_uuid=$(printf '%s' "$stroke" | python3 -c 'import sys,json; print(json.lo
 echo "ok  a stroke"
 expect "the stroke is listed" 200 "${auth[@]}" "$base/api/papers/$name/annotations?kind=ink"
 expect "the stroke taken back" 200 "${auth[@]}" -X DELETE "$base/api/annotations/$stroke_uuid"
-expect "the PDF is served" 200 "$base/uploads/$file_path"
+# A deployed Papol sends a file on to its bucket's own address (FILES_URL);
+# one without a bucket address serves it itself. Either way the PDF has to
+# arrive, as a PDF.
+served=$(curl -s -o /dev/null -m 30 -w '%{http_code} %{redirect_url}' "$base/uploads/$file_path")
+case "${served%% *}" in
+  200) echo "ok  the PDF is served (200)" ;;
+  301)
+    bucket_url=${served#* }
+    [[ "$bucket_url" == https://*/uploads/"$file_path" ]] || fail "the PDF is sent to the bucket: to '$bucket_url'"
+    echo "ok  the PDF is sent to the bucket (301)"
+    type=$(curl -s -o /dev/null -m 30 -w '%{http_code} %{content_type}' "$bucket_url")
+    [ "$type" = "200 application/pdf" ] || fail "the bucket serves the PDF: expected '200 application/pdf', got '$type'"
+    echo "ok  the bucket serves the PDF (200)"
+    ;;
+  *) fail "the PDF is served: expected 200 or 301, got ${served%% *}" ;;
+esac
 expect "the paper let go" 200 "${auth[@]}" -X DELETE "$base/api/papers/$name"
 expect "the account closed behind it" 200 "${auth[@]}" -X DELETE "$base/api/auth/account" -H 'content-type: application/json' -d "{\"confirm_email\":\"$email\"}"
 expect "and the session is over" 401 "${auth[@]}" "$base/api/auth/me"
