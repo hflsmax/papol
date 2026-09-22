@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
 import { uploadProgressView } from '../../shared/api/files.js';
 import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
@@ -65,6 +65,58 @@ function PlaceholderWait({ item }) {
 
 function TidyGlyph() {
   return <svg className="board-tidy-glyph" viewBox="0 0 18 16" aria-hidden="true"><rect x="2" y="2" width="14" height="4" rx="1" /><rect x="2" y="10" width="14" height="4" rx="1" /></svg>;
+}
+
+function GroupGlyph({ name }) {
+  const paths = {
+    more: <><circle cx="6" cy="12" r="1.4" className="action-glyph-fill" /><circle cx="12" cy="12" r="1.4" className="action-glyph-fill" /><circle cx="18" cy="12" r="1.4" className="action-glyph-fill" /></>,
+    auto: <><rect x="4" y="4" width="7" height="9" rx="1.5" /><rect x="13" y="4" width="7" height="5" rx="1.5" /><rect x="4" y="15" width="7" height="5" rx="1.5" /><rect x="13" y="11" width="7" height="9" rx="1.5" /></>,
+    free: <><rect x="3.5" y="5" width="7" height="6" rx="1.5" transform="rotate(-8 7 8)" /><rect x="13" y="3.5" width="7" height="6" rx="1.5" transform="rotate(6 16.5 6.5)" /><rect x="8" y="13.5" width="8" height="6.5" rx="1.5" transform="rotate(-3 12 16.75)" /></>,
+    tidy: <><rect x="4" y="5" width="16" height="5" rx="1.5" /><rect x="4" y="14" width="16" height="5" rx="1.5" /></>,
+    rename: <><path d="M4 20h4L19 9l-4-4L4 16v4Z" /><path d="m13 7 4 4" /></>,
+    header: <><path d="M5 6h14M5 11h10M5 16h12" /></>,
+    ungroup: <><rect x="3" y="7" width="7" height="10" rx="1.5" /><rect x="14" y="7" width="7" height="10" rx="1.5" /><path d="M12 4v2.5M12 10.75v2.5M12 17.5V20" /></>,
+  };
+  return <svg className="action-glyph" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
+}
+
+// A selected group's options, drawn beside its heading rather than at the
+// top of the window, so what they change is the thing just under them. The
+// layout choice is a pair of named states, not a button named after the
+// state it would switch to.
+function GroupOptions({ group, busy, onArrange, onTidy, onRename, onHeader, onUngroup }) {
+  const surfaceRef = useRef(null);
+  const [fit, setFit] = useState({ below: false, shift: 0 });
+  const isCollection = group.kind === 'collection';
+  const noun = isCollection ? 'Collection' : 'Booklet';
+  useLayoutEffect(() => {
+    // Near the top of the canvas there is no room above the heading, so the
+    // bar hangs below it instead of hiding under the toolbar; near a side it
+    // slides back in. The bar is drawn at screen size, so the shift is too.
+    const surface = surfaceRef.current?.getBoundingClientRect();
+    const viewport = surfaceRef.current?.closest('.board-viewport')?.getBoundingClientRect();
+    if (!surface || !viewport) return;
+    const margin = 8;
+    setFit({
+      below: surface.top < viewport.top + margin,
+      shift: Math.max(0, viewport.left + margin - surface.left) - Math.max(0, surface.right - viewport.right + margin),
+    });
+  }, [group.uuid]);
+  const stop = (event) => event.stopPropagation();
+  return <div className={`board-group-options${fit.below ? ' below' : ''}`} onPointerDown={stop} onDoubleClick={stop} onContextMenu={stop}>
+    <div ref={surfaceRef} className="board-group-options-surface" role="toolbar" aria-label={`${noun} options`} style={fit.shift ? { translate: `${fit.shift}px 0` } : undefined}>
+      <span className="board-group-options-kind">{noun}</span>
+      {isCollection && <div className="board-group-arrange" role="radiogroup" aria-label="Arrange cards">
+        <button type="button" role="radio" aria-checked={Boolean(group.auto_arrange)} aria-label="Auto-arrange" disabled={busy} title="Cards flow into columns and make room as you drag" onClick={() => onArrange(true)}><GroupGlyph name="auto" /><span>Auto-arrange</span></button>
+        <button type="button" role="radio" aria-checked={!group.auto_arrange} aria-label="Freeform" disabled={busy} title="Cards stay where you put them" onClick={() => onArrange(false)}><GroupGlyph name="free" /><span>Freeform</span></button>
+      </div>}
+      {isCollection && <button type="button" className="item-action" disabled={busy} aria-label="Tidy up" title="Tidy up: reset card sizes and close the gaps" onClick={onTidy}><GroupGlyph name="tidy" /></button>}
+      <button type="button" className="item-action" aria-label={`Rename ${noun.toLowerCase()}`} title="Rename" onClick={onRename}><GroupGlyph name="rename" /></button>
+      <button type="button" className="item-action" aria-label={group.header ? 'Edit header' : 'Add header'} title={group.header ? 'Edit header' : 'Add header'} onClick={onHeader}><GroupGlyph name="header" /></button>
+      <span className="board-group-options-divider" aria-hidden="true" />
+      <button type="button" className="item-action" disabled={busy} aria-label="Ungroup" title="Ungroup: the cards stay on the board" onClick={onUngroup}><GroupGlyph name="ungroup" /></button>
+    </div>
+  </div>;
 }
 
 const itemTypeLabels = {
@@ -1433,6 +1485,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       await load();
       setBookletTitleDraft('');
       setEditingBooklet(group.uuid);
+      setSelectedBooklet(group.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const groupAsCollection = async (itemUuids = selectedItems) => {
@@ -1450,6 +1503,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       await load();
       setBookletTitleDraft('');
       setEditingBooklet(group.uuid);
+      setSelectedBooklet(group.uuid);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const ungroupBooklet = async (booklet) => {
@@ -1538,8 +1592,8 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       }) }));
     } catch (err) { setError(err.message); await load(); } finally { setBusy(false); }
   };
-  const toggleCollectionAutoArrange = async (collection) => {
-    const enabled = !collection.auto_arrange;
+  const arrangeCollection = async (collection, enabled) => {
+    if (Boolean(collection.auto_arrange) === enabled) return;
     setBusy(true); setError(null);
     try {
       const updated = await updateBoardGroup(collection.uuid, { auto_arrange: enabled });
@@ -1757,7 +1811,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const createNoteAt = async (event) => {
-    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-booklet, .board-staging')) return;
+    if (!board.can_edit || busy || event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging')) return;
     const bounds = viewportRef.current?.getBoundingClientRect();
     if (!bounds) return;
     const { x, y } = boardPointFromClient(
@@ -1797,6 +1851,12 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     board.items.find((item) => item.uuid === uuid)?.group_uuid == null
   );
   const activeBooklet = board.groups.find((booklet) => booklet.uuid === selectedBooklet);
+  const activeBookletLayout = activeBooklet && bookletLayouts.find((layout) => layout.uuid === activeBooklet.uuid);
+  // Where a group's heading ends, as the stylesheet draws it: inset 12px
+  // within a collection's frame, and never wider than 420px.
+  const groupHeadingRight = (layout) => layout.kind === 'collection'
+    ? layout.x + 12 + clamp(layout.width - 24, 0, 420)
+    : layout.x + clamp(layout.width - 14, 0, 420);
   const historyEntries = () => [
     { label: 'Undo', shortcut: '⌘Z', disabled: busy || undoStack.current.length === 0, onSelect: () => applyHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: busy || redoStack.current.length === 0, onSelect: () => applyHistory('redo') },
@@ -1859,18 +1919,29 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       setSelectedBooklet(null);
     }
   };
+  const beginRenamingGroup = (booklet) => {
+    setBookletTitleDraft(booklet.title || '');
+    setEditingBooklet(booklet.uuid);
+  };
+  const beginEditingGroupHeader = (booklet) => {
+    setBookletHeaderDraft(booklet.header || '');
+    setEditingBookletHeader(booklet.uuid);
+  };
+  const toggleGroupSelection = (booklet) => {
+    if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; }
+    setSelectedItems([]);
+    setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid);
+  };
   const handleGroupContextMenu = (event, booklet) => {
     const opened = openContextMenu(event, [
-      board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => {
-        setBookletTitleDraft(booklet.title || '');
-        setEditingBooklet(booklet.uuid);
-      } },
-      board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => {
-        setBookletHeaderDraft(booklet.header || '');
-        setEditingBookletHeader(booklet.uuid);
-      } },
+      board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => beginRenamingGroup(booklet) },
+      board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => beginEditingGroupHeader(booklet) },
       board.can_edit && booklet.kind === 'collection' && {
-        label: 'Auto-arrange', checked: booklet.auto_arrange, onSelect: () => toggleCollectionAutoArrange(booklet),
+        label: 'Arrange',
+        submenu: [
+          { label: 'Auto-arrange', checked: Boolean(booklet.auto_arrange), onSelect: () => arrangeCollection(booklet, true) },
+          { label: 'Freeform', checked: !booklet.auto_arrange, onSelect: () => arrangeCollection(booklet, false) },
+        ],
       },
       board.can_edit && booklet.kind === 'collection' && { label: 'Tidy Up', onSelect: () => tidyCollection(booklet) },
       board.can_edit && { separator: true },
@@ -1959,7 +2030,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     {showNewBoardHint && <div className="board-new-hint" role="status"><span>Drop files anywhere, or paste an image or link to get started.</span><button type="button" aria-label="Dismiss" onClick={() => setShowNewBoardHint(false)}>×</button></div>}
     {error && <div className="board-canvas-error">{error}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={tidySelectedItems}>Tidy up</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
-    {board.can_edit && activeBooklet && <div className="board-selection-menu"><span>{activeBooklet.kind === 'collection' ? 'Collection' : 'Booklet'} selected</span>{activeBooklet.kind === 'collection' && <><button type="button" disabled={busy} aria-pressed={activeBooklet.auto_arrange} onClick={() => toggleCollectionAutoArrange(activeBooklet)}>{activeBooklet.auto_arrange ? 'Freeform' : 'Auto-arrange'}</button><button type="button" disabled={busy} onClick={() => tidyCollection(activeBooklet)}>Tidy up</button></>}<button type="button" disabled={busy} onClick={() => ungroupBooklet(activeBooklet)}>Ungroup</button></div>}
     <main ref={viewportRef} aria-label="Board canvas" className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
@@ -2001,19 +2071,31 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       {marquee && <div ref={marqueeRef} className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, '--board-card-paint-state': 'visible', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         {bookletLayouts.map((booklet) => <div key={booklet.uuid} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
-          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setSelectedItems([]); setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid); }} />}
-          <div className="board-booklet-heading" style={{ width: Math.max(0, booklet.width - 14) }}>
+          {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => toggleGroupSelection(booklet)} />}
+          <div className={`board-booklet-heading${board.can_edit ? ' has-options' : ''}`} style={{ width: Math.max(0, booklet.width - 14) }}>
+            {board.can_edit && editingBooklet !== booklet.uuid && <button type="button" className="board-group-more" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} options`} title="Options" aria-expanded={selectedBooklet === booklet.uuid} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onClick={() => toggleGroupSelection(booklet)}><GroupGlyph name="more" /></button>}
             {editingBooklet === booklet.uuid
               ? <input className="board-booklet-title" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} placeholder={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title`} autoFocus maxLength={appLimits.text.board_group_title} value={bookletTitleDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletTitleDraft(event.target.value)} onBlur={() => saveBookletTitle(booklet)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBooklet(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setBookletTitleDraft(booklet.title); setEditingBooklet(booklet.uuid); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-title${booklet.title ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } beginRenamingGroup(booklet); }}>{booklet.title || (board.can_edit ? `${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} title` : '')}</button>}
           </div>
           <div className="board-booklet-header" style={{ width: Math.max(0, booklet.width - 14) }}>
             {editingBookletHeader === booklet.uuid
               ? <textarea className="board-booklet-header-text" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} header text`} placeholder="Add header text…" autoFocus maxLength={appLimits.text.board_group_header} rows="2" value={bookletHeaderDraft} onPointerDown={(event) => event.stopPropagation()} onChange={(event) => setBookletHeaderDraft(event.target.value)} onBlur={() => saveBookletHeader(booklet)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingBookletHeader(null); } }} />
-              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } setBookletHeaderDraft(booklet.header || ''); setEditingBookletHeader(booklet.uuid); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
+              : <button type="button" disabled={!board.can_edit} className={`board-booklet-header-text${booklet.header ? '' : ' empty'}`} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => { if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; } beginEditingGroupHeader(booklet); }}>{booklet.header || (board.can_edit ? 'Add header text…' : '')}</button>}
           </div>
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
+        {board.can_edit && activeBookletLayout && <div className="board-group-options-anchor" style={{ zIndex: Math.max(0, ...board.items.map((item) => item.position)) + 2, transform: `translate(${groupHeadingRight(activeBookletLayout)}px, ${activeBookletLayout.y}px)` }}>
+          <GroupOptions
+            group={activeBooklet}
+            busy={busy}
+            onArrange={(enabled) => arrangeCollection(activeBooklet, enabled)}
+            onTidy={() => tidyCollection(activeBooklet)}
+            onRename={() => beginRenamingGroup(activeBooklet)}
+            onHeader={() => beginEditingGroupHeader(activeBooklet)}
+            onUngroup={() => ungroupBooklet(activeBooklet)}
+          />
+        </div>}
         {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><PlaceholderWait item={item} /></div>)}
         {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
